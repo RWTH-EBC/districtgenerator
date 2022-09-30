@@ -1,0 +1,16 @@
+results/*
+data/scenarios/*
+!data/scenarios/example.csv
+!data/scenarios/info.txt
+errorfile.txt
+*.bk
+*.log
+*.lp
+*.sol
+*.ilp
+*.prm
+*.mps
+*.p
+*.pkl
+__pycache__/
+.idea/
