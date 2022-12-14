@@ -129,7 +129,7 @@ class Profiles():
         #  Define src path
         src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         filename = 'dhw_stochastical.xlsx'
-        path_DHW = os.path.join(src_path, 'districtgenerator_python', 'data', filename)
+        path_DHW = os.path.join(src_path, 'districtgenerator', 'data', filename)
 
 
         # Initialization
