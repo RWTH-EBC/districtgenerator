@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import json
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
@@ -8,12 +7,15 @@ import sys
 import os
 
 
-class DemandPlots():
-    """Class to generate plots of energy consumption and generation"""
+class DemandPlots:
+    """
+    Class to generate plots of energy consumption and generation.
+    """
 
     def __init__(self):
         """
-        Load economical and ecological data to compute costs and CO2 emissions
+        Constructor of DemandPlots class.
+        Load economical and ecological data to compute costs and CO2 emissions.
 
         Returns
         -------
@@ -29,8 +31,8 @@ class DemandPlots():
 
         Parameters
         ----------
-        data:
-            datahandler-object
+        data: object
+            datahandler-object.
 
         Returns
         -------
@@ -74,7 +76,7 @@ class DemandPlots():
         self.factor = data.time['timeResolution'] / 3600
         # time array for x-axis [h]
         self.time = data.time["timeResolution"] / 3600 \
-                                 * np.arange((365 * 24 * 60 * 60 / data.time["timeResolution"]))
+                    * np.arange((365 * 24 * 60 * 60 / data.time["timeResolution"]))
 
         # labels of y-axis
         self.labels = {}
@@ -177,9 +179,10 @@ class DemandPlots():
         self.color['electricityDemand'] = green
         self.color['heatDemand'] = red
 
-    def defaultPlots(self, plotResolution='monthly', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
+    def defaultPlots(self, plotResolution='monthly', initialTime=0, timeHorizon=31536000, savePlots=True,
+                     timeStamp=False, show=False):
         """
-        Create of a selection of default plots
+        Create of a selection of default plots.
 
         Parameters
         ----------
@@ -214,7 +217,7 @@ class DemandPlots():
     def onePlot(self, plotType, plotResolution='monthly', initialTime=0, timeHorizon=31536000, label=None, title=None,
                 color=None, savePlots=True, timeStamp=False, show=False):
         """
-        Create a single plot
+        Create a single plot.
 
         Parameters
         ----------
@@ -317,7 +320,7 @@ class DemandPlots():
                     stamp = '_D' + strDate + 'T' + strTime
                 else:
                     stamp = ''
-                plt.savefig(self.srcPath+ '/results/plots/' + plotType + '_' + plotResolution + stamp,
+                plt.savefig(self.srcPath + '/results/plots/' + plotType + '_' + plotResolution + stamp,
                             dpi=300, bbox_inches="tight")
 
             if show:

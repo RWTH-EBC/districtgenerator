@@ -12,33 +12,41 @@ from classes.solar import Sun
 from classes.users import Users
 from classes.plots import DemandPlots
 
-class Datahandler():
+
+class Datahandler:
     """
-    Abstract class for data handling
-    Collects data from input files, TEASER, User and Enevelope.
+    Abstract class for data handling.
+    Collects data from input files, TEASER, User and Envelope.
 
     Attributes
     ----------
     site:
-        dict for site data, e.g. weather
+        Dict for site data, e.g. weather.
     time:
-        dict for time settings
+        Dict for time settings.
     district:
-        list of all buildings within district
+        List of all buildings within district.
     scenario_name:
-        name of scenario file
+        Name of scenario file.
     scenario:
-        scenario data
+        Scenario data.
     counter:
-        dict for counting number of equal building types
+        Dict for counting number of equal building types.
     srcPath:
-        source path
+        Source path.
     filePath:
-        file path
-
+        File path.
     """
 
     def __init__(self):
+        """
+        Constructor of Datahandler class.
+
+        Returns
+        -------
+        None.
+        """
+
         self.site = {}
         self.time = {}
         self.district = []
@@ -49,17 +57,13 @@ class Datahandler():
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
 
-
     def generateEnvironment(self):
         """
-        Load physical district environment - site and weather
-
-        Parameters
-        ----------
+        Load physical district environment - site and weather.
 
         Returns
         -------
-
+        None.
         """
 
         # %% load information about of the site under consideration
@@ -71,10 +75,9 @@ class Datahandler():
 
         # %% load weather data for site
         # extract irradiation and ambient temperature
-        first_row = {}
-        if self.site["TRYYear"]=="TRY2015":
+        if self.site["TRYYear"] == "TRY2015":
             first_row = 35
-        elif self.site["TRYYear"]=="TRY2045":
+        elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
         weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
@@ -84,13 +87,13 @@ class Datahandler():
                                  + self.site["TRYType"] + ".txt",
                                  skiprows=first_row - 1)
 
-
-        # weather data starts with 1st january at 1:00 am. Add data point for 0:00 am to be able to perform interpolation.
+        # weather data starts with 1st january at 1:00 am.
+        # Add data point for 0:00 am to be able to perform interpolation.
         weatherData_temp = weatherData[-1:, :]
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
         # get weather data of interest
-        [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
+        [temp_sunDirect, temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
 
         # %% load time information and requirements
         # needed for data conversion into the right time format
@@ -125,23 +128,22 @@ class Datahandler():
                                         altitude=self.site["altitude"],
                                         beta=[90, 90, 90, 90, 0],
                                         gamma=[0, 90, 180, 270, 0],
-                                        beam=self.site["SunDirect"],
-                                        diffuse=self.site["SunDiffuse"],
+                                        beamRadiation=self.site["SunDirect"],
+                                        diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
-
 
     def initializeBuildings(self, scenario_name='example'):
         """
-        Fill district with buildings from scenario file
+        Fill district with buildings from scenario file.
 
         Parameters
         ----------
         scenario_name: string, optional
-            name of scenario file to be read
+            Name of scenario file to be read.
 
         Returns
         -------
-
+        None.
         """
 
         self.scenario_name = scenario_name
@@ -161,17 +163,13 @@ class Datahandler():
             # append building to district
             self.district.append(building)
 
-
     def generateBuildings(self):
         """
-        Load building envelope and user data
-
-        Parameters
-        ----------
+        Load building envelope and user data.
 
         Returns
         -------
-
+        None.
         """
 
         # %% load general building information
@@ -189,58 +187,47 @@ class Datahandler():
 
         for building in self.district:
 
-            # convert short names into designation needes for TEASER
+            # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
             retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
             # add buildings to TEASER project
-            prj.add_residential(
-                method='tabula_de',
-                usage=building_type,
-                name="ResidentialBuildingTabula",
-                year_of_construction=building["buildingFeatures"]["year"],
-                number_of_floors=3,
-                height_of_floors=3.125,
-                net_leased_area=building["buildingFeatures"]["area"],
-                construction_type=retrofit_level)
+            prj.add_residential(method='tabula_de',
+                                usage=building_type,
+                                name="ResidentialBuildingTabula",
+                                year_of_construction=building["buildingFeatures"]["year"],
+                                number_of_floors=3,
+                                height_of_floors=3.125,
+                                net_leased_area=building["buildingFeatures"]["area"],
+                                construction_type=retrofit_level)
 
             # %% create envelope object
             # containing all physical data of the envelope
             building["envelope"] = Envelope(prj=prj,
                                             building_params=building["buildingFeatures"],
                                             construction_type=retrofit_level,
-                                            file_path = self.filePath)
+                                            file_path=self.filePath)
 
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                             area=building["buildingFeatures"]["area"])
-
-            # %% calculate design heat loads
-            # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalenz")
-            # at heatimg limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
-
+                                     area=building["buildingFeatures"]["area"])
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
-        Generate occupancy profile, heat demand, domestic hot water demand and heating demand
+        Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
         Parameters
         ----------
         calcUserProfiles: bool, optional
-            True: calculate new user profiles
-            False: load user profiles from file
+            True: calculate new user profiles.
+            False: load user profiles from file.
         saveUserProfiles: bool, optional
-            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)
+            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
 
         Returns
         -------
+        None.
         """
 
         set = []
@@ -259,8 +246,8 @@ class Datahandler():
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
-                                              time_horizon=self.time["dataLength"],
-                                              time_resolution=self.time["timeResolution"])
+                                              time_resolution=self.time["timeResolution"],
+                                              time_horizon=self.time["dataLength"])
                 if saveUserProfiles:
                     building["user"].saveProfiles(building["unique_name"], self.resultPath)
 
@@ -270,36 +257,35 @@ class Datahandler():
                 building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
 
-            building["envelope"].calcNormativeProperties(self.SunRad,building["user"].gains)
+            building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
 
             # calculate heating profiles
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
                                                 time_resolution=self.time["timeResolution"])
 
-            if saveUserProfiles :
+            if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], self.resultPath)
 
         print("Finished generating demands!")
 
-
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True):
         """
-        All in one solution for district and demand generation
+        All in one solution for district and demand generation.
 
         Parameters
         ----------
         scenario_name:string, optional
-            name of scenario file to be read
+            Name of scenario file to be read.
         calcUserProfiles: bool, optional
-            True: calculate new user profiles
-            False: load user profiles from file
+            True: calculate new user profiles.
+            False: load user profiles from file.
         saveUserProfiles: bool, optional
-            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)
+            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
 
         Returns
         -------
-
+        None.
         """
 
         self.generateEnvironment()
@@ -309,35 +295,29 @@ class Datahandler():
 
     def saveDistrict(self):
         """
-        Save district dict as pickle file
-
-        Parameters
-        ----------
+        Save district dict as pickle file.
 
         Returns
         -------
-
+        None.
         """
-        with open(self.resultPath + "/" + self.scenario_name + ".p",'wb') as fp:
-            pickle.dump(self.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
+        with open(self.resultPath + "/" + self.scenario_name + ".p", 'wb') as fp:
+            pickle.dump(self.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
     def loadDistrict(self, scenario_name='example'):
         """
-        Load district dict from pickle file
-
-        Parameters
-        ----------
+        Load district dict from pickle file.
 
         Returns
         -------
-
+        None.
         """
+
         self.scenario_name = scenario_name
 
         with open(self.resultPath + "/" + self.scenario_name + ".p", 'rb') as fp:
             self.district = pickle.load(fp)
-
 
     def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
         """
@@ -347,7 +327,7 @@ class Datahandler():
         ----------
         mode : string, optional
             Choose a single plot or show all of them as default. The default is 'default'.
-            Possible modes are ['elec', 'dhw', 'gains', 'heating', 'electricityDemand', 'heatDemand']
+            Possible modes are ['elec', 'dhw', 'gains', 'heating', 'electricityDemand', 'heatDemand'].
         initialTime : integer, optional
             Start of the plot in seconds from the beginning of the year. The default is 0.
         timeHorizon : integer, optional
@@ -356,11 +336,12 @@ class Datahandler():
             Decision if plots are saved under results/plots/. The default is True.
         timeStamp : boolean, optional
             Decision if saved plots get a unique name by adding a time stamp. The default is False.
+        show : boolean, optional
+            Decision if saved plots are presented directly to the user. The default is False.
 
         Returns
         -------
         None.
-
         """
 
         # initialize plots and prepare data for plotting
