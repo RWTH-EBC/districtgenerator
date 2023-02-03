@@ -6,6 +6,7 @@ import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
 import functions.dhw_stochastical as dhw_profil
 import pylightxl as xl
+import random as rd
 
 
 class Profiles:
@@ -354,3 +355,43 @@ class Profiles:
         gains = self.occ_profile * personGain + self.light_load * lightGain + self.app_load * appGain
 
         return gains
+
+    def generate_EV_profile(self):
+        """
+        Generate profile for an electric vehicle (EV)
+
+        Returns
+        -------
+        car_demand_total : list
+            Electricity demand of the EV in [W].
+
+        """
+
+        # determine how long one day is (in number of steps)
+        array = int(len(self.occ_profile) / self.nb_days)
+        # initialize empty list for all days
+        car_demand_total = []
+        # loop over all days
+        for day in range(self.nb_days):
+            # slice occupancy profile for current day
+            occ_day = self.occ_profile[day * array:(day + 1) * array]
+            # initialize electricity demand of EV for current day
+            car_demand_day = np.zeros(len(occ_day))
+            # identify time steps where nobody is home
+            nobody_home = np.where(occ_day == 0.0)
+            try:
+                # assumption: car returns shortly after the last time step when nobody is home
+                car_almost_arrives = nobody_home[0][-1]
+            except:
+                # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
+                car_almost_arrives = array - int(array / 4)
+            # calculate electricity demand of current day [W]
+            demand = max(0, rd.gauss(5000, 0.5 * 5000))
+            # demand for the energy system at home just relevant with return of EV
+            # assumption: just last return of the day is relevant, because EV is not connected at home between
+            # first leave and last return of the day
+            car_demand_day[car_almost_arrives] = demand
+            # add current day to demand for all days
+            car_demand_total[day * array:(day + 1) * array] = car_demand_day
+
+        return car_demand_total

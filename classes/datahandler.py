@@ -10,6 +10,7 @@ from teaser.project import Project
 from classes.envelope import Envelope
 from classes.solar import Sun
 from classes.users import Users
+from classes.system import BES
 from classes.plots import DemandPlots
 
 
@@ -153,7 +154,9 @@ class Datahandler:
                                     header=0, delimiter=";")
 
         # initialize buildings for scenario
+        # loop over all buildings
         for id in self.scenario["id"]:
+
             # create empty dict for observed building
             building = {}
 
@@ -269,7 +272,8 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True):
+    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
+                                 designDevs=False, saveGenProfiles=True):
         """
         All in one solution for district and demand generation.
 
@@ -292,6 +296,75 @@ class Datahandler:
         self.initializeBuildings(scenario_name)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
+        if designDevs:
+            self.designDevices(saveGenerationProfiles=saveGenProfiles)
+
+    def designDevices(self, saveGenerationProfiles=True):
+        """
+        Calculate device capacities, calculate PV and STC generation profiles as well as EV load profiles.
+
+        Parameters
+        ----------
+        saveGenerationProfiles : bool, optional
+            True: save PV and STC profiles.
+            False: don't save PV and STC profiles.
+
+        Returns
+        -------
+        None.
+        """
+
+        for building in self.district:
+
+            # %% load general building information
+            # contains definitions and parameters that affect all buildings
+            bldgs = {}
+            with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
+                jsonData = json.load(json_file)
+                for subData in jsonData:
+                    bldgs[subData["name"]] = subData["value"]
+
+            # %% calculate design heat loads
+            # at norm outside temperature
+            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            # at bivalent temperature
+            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            # at heatimg limit temperature
+            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            # for drinking hot water
+            building["dhwload"] = \
+                bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+                building["user"].nb_flats
+
+            # %% create building energy system object
+            # get capacities of all possible devices
+            bes_obj = BES(file_path=self.filePath)
+            building["capacities"] = bes_obj.designECS(building, self.site)
+
+            # calculate theoretical PV generation
+            potentialPV, potentialSTC = \
+                sun.calcPVAndSTCProfile(time=self.time,
+                                        site=self.site,
+                                        area_roof=building["envelope"].A["opaque"]["roof"],
+                                        beta=[35],
+                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
+                                        usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+
+            # assign real PV generation to building
+            building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
+
+            # assign real STC generation to building
+            building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
+
+            # optionally save generation profiles
+            if saveGenerationProfiles == True:
+                np.savetxt(self.resultPath + '/generationPV_' + building["unique_name"] + '.csv',
+                           building["generationPV"],
+                           delimiter=',')
+                np.savetxt(self.resultPath + '/generationSTC_' + building["unique_name"] + '.csv',
+                           building["generationSTC"],
+                           delimiter=',')
 
     def saveDistrict(self):
         """
@@ -327,7 +400,8 @@ class Datahandler:
         ----------
         mode : string, optional
             Choose a single plot or show all of them as default. The default is 'default'.
-            Possible modes are ['elec', 'dhw', 'gains', 'heating', 'electricityDemand', 'heatDemand'].
+            Possible modes are:
+            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand'].
         initialTime : integer, optional
             Start of the plot in seconds from the beginning of the year. The default is 0.
         timeHorizon : integer, optional
@@ -355,7 +429,7 @@ class Datahandler:
             plotResolution = 'stepwise'
 
         # the selection of possible plots
-        plotTypes = ['elec', 'dhw', 'gains', 'heating', 'electricityDemand', 'heatDemand']
+        plotTypes = ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand']
 
         if mode == 'default':
             # create all default plots

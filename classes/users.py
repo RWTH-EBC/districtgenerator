@@ -318,6 +318,7 @@ class Users:
         self.dhw = np.zeros(int(time_horizon/time_resolution))
         self.elec = np.zeros(int(time_horizon/time_resolution))
         self.gains = np.zeros(int(time_horizon/time_resolution))
+        self.car = np.zeros(int(time_horizon / time_resolution))
         for j in range(self.nb_flats):
             temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
             self.occ = self.occ + temp_obj.generate_occupancy_profiles()
@@ -326,6 +327,8 @@ class Users:
                                                                  el_wrapper=self.el_wrapper[j],
                                                                  annual_demand=self.annual_el_demand[j])
             self.gains = self.gains + temp_obj.generate_gain_profile()
+        # currently only one car per building possible
+        self.car = self.car + temp_obj.generate_EV_profile()
 
     def calcHeatingProfile(self, site, envelope, time_resolution):
         """
@@ -376,6 +379,7 @@ class Users:
         np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',')
+        np.savetxt(path + '/car_' + unique_name + '.csv', self.car, fmt='%1.2f', delimiter=',')
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]
@@ -386,7 +390,7 @@ class Users:
 
     def saveHeatingProfile(self, unique_name, path):
         """
-        Save heat demand to csv.
+        Save heating demand to csv.
 
         Parameters
         ----------
@@ -400,7 +404,7 @@ class Users:
         None.
         """
 
-        np.savetxt(path + '/heat_' + unique_name + '.csv', self.heat, fmt='%1.2f', delimiter=',')
+        np.savetxt(path + '/heating_' + unique_name + '.csv', self.heat, fmt='%1.2f', delimiter=',')
 
     def loadProfiles(self, unique_name, path):
         """
@@ -422,6 +426,7 @@ class Users:
         self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',')
         self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
         self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
+        self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
 
 
 if __name__ == '__main__':

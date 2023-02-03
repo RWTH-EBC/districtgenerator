@@ -12,6 +12,18 @@
     "description": "Required maximum indoor temperature (for cooling load calculation)"
   },
   {
+    "name": "T_bivalent",
+    "value": -2.0,
+    "unit": "degree Celsius",
+    "description": "Dual mode temperature (for heat pump design)"
+  },
+  {
+    "name": "T_heatlimit",
+    "value":  15.0,
+    "unit": "degree Celsius",
+    "description": "Limit temperature (for heat pump design)"
+  },
+  {
     "name": "ventilation_rate",
     "value": 0.5,
     "unit": "1/h",

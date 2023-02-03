@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 import sys
-import os
 
 
 class DemandPlots:
@@ -21,9 +20,6 @@ class DemandPlots:
         -------
         None.
         """
-
-        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.filePath = os.path.join(self.srcPath, 'data')
 
     def preparePlots(self, data):
         """
@@ -54,8 +50,14 @@ class DemandPlots:
         self.y['gains'] = np.zeros(self.l)
         # number of present occupants [-]
         self.y['occ'] = np.zeros(self.l)
+        # electricity demand of electric vehicles [kW]
+        self.y['car'] = np.zeros(self.l)
         # heat demand for space heating [kW]
         self.y['heating'] = np.zeros(self.l)
+        # electricity generation of photovoltaic systems [kW]
+        self.y['pv'] = np.zeros(self.l)
+        # heat generation of solar thermal collectors [kW]
+        self.y['stc'] = np.zeros(self.l)
 
         # loop over buildings to sum upp energy consumptions and generations for the hole district
         for b in range(len(data.district)):
@@ -63,14 +65,15 @@ class DemandPlots:
             self.y['dhw'] += data.district[b]['user'].dhw / 1000
             self.y['gains'] += data.district[b]['user'].gains / 1000
             self.y['occ'] += data.district[b]['user'].occ
+            self.y['car'] += data.district[b]['user'].car / 1000
             self.y['heating'] += data.district[b]['user'].heat / 1000
+            self.y['pv'] += data.district[b]['generationPV'] / 1000
+            self.y['stc'] += data.district[b]['generationSTC'] / 1000
 
-        # compute electricity demand by domestic appliances, lighting and electric vehicles[W]
-        self.y['electricityDemand'] = self.y['elec']
-        # compute heat demand by space heating minus immediate internal gains and domestic hot water [W]
-        self.y['heatDemand'] = np.zeros(self.l)
-        for t in range(len(self.y['heating'])):
-            self.y['heatDemand'][t] = self.y['heating'][t] + self.y['dhw'][t]
+        # compute electricity demand by domestic appliances, lighting and electric vehicles [W]
+        self.y['electricityDemand'] = self.y['elec'] + self.y['car']
+        # compute heat demand by space heating and domestic hot water [W]
+        self.y['heatDemand'] = self.y['heating'] + self.y['dhw']
 
         # factor to convert power [kW] for one timestep to energy [kWh] for one timestep
         self.factor = data.time['timeResolution'] / 3600
@@ -85,8 +88,11 @@ class DemandPlots:
         self.labels['dhw'] = 'DHW demand [kW]'
         self.labels['gains'] = 'Heat gains [kW]'
         self.labels['occ'] = 'Present occupants [-]'
+        self.labels['car'] = 'Electricity demand EV [kW]'
         self.labels['heating'] = 'Space heating demand [kW]'
-        #self.labels['electricityDemand'] = 'Electricity demand [kW]'
+        self.labels['pv'] = 'Power generation PV [kW]'
+        self.labels['stc'] = 'Heat generation STC [kW]'
+        self.labels['electricityDemand'] = 'Electricity demand [kW]'
         self.labels['heatDemand'] = 'Heat demand [kW]'
 
         # plot titles
@@ -95,12 +101,15 @@ class DemandPlots:
         self.titles['dhw'] = 'Domestic hot water (DHW) demand of district'
         self.titles['gains'] = 'Heat gains of district'
         self.titles['occ'] = 'Present occupants of district'
+        self.titles['car'] = 'Electricity demand of electric vehicles (EV)'
         self.titles['heating'] = 'Space heating demand of district'
-        #self.titles['electricityDemand'] = 'Electricity demand of district'
+        self.titles['pv'] = 'Power generation of photovoltaic (PV) systems'
+        self.titles['stc'] = 'Heat generation of solar thermal collectors (STC)'
+        self.titles['electricityDemand'] = 'Electricity demand of district'
         self.titles['heatDemand'] = 'Heat demand of district'
 
         # definition of default stepwise plots
-        self.plots = ['elec', 'dhw', 'gains', 'occ', 'heating', 'heatDemand']
+        self.plots = ['elec', 'dhw', 'gains', 'occ', 'heating', 'pv', 'stc', 'heatDemand']
 
 
         # %% monthly plots (bar plots)
@@ -122,7 +131,10 @@ class DemandPlots:
         self.y['dhwMonthly'] = []
         self.y['gainsMonthly'] = []
         # self.y['occMonthly'] = []
+        self.y['carMonthly'] = []
         self.y['heatingMonthly'] = []
+        self.y['pvMonthly'] = []
+        self.y['stcMonthly'] = []
         self.y['electricityDemandMonthly'] = []
         self.y['heatDemandMonthly'] = []
         for m in range(len(cumutaltedDays)):
@@ -138,8 +150,11 @@ class DemandPlots:
             self.y['dhwMonthly'].append(np.sum(self.y['dhw'][start:end] * self.factor))
             self.y['gainsMonthly'].append(np.sum(self.y['gains'][start:end] * self.factor))
             # self.y['occMonthly'].append(np.sum(self.y['occ'][start:end] * self.factor))
+            self.y['carMonthly'].append(np.sum(self.y['car'][start:end] * self.factor))
             self.y['heatingMonthly'].append(np.sum(self.y['heating'][start:end] * self.factor))
-            #self.y['electricityDemandMonthly'].append(np.sum(self.y['electricityDemand'][start:end] * self.factor))
+            self.y['pvMonthly'].append(np.sum(self.y['pv'][start:end] * self.factor))
+            self.y['stcMonthly'].append(np.sum(self.y['stc'][start:end] * self.factor))
+            self.y['electricityDemandMonthly'].append(np.sum(self.y['electricityDemand'][start:end] * self.factor))
             self.y['heatDemandMonthly'].append(np.sum(self.y['heatDemand'][start:end] * self.factor))
 
         # months as categories for x-axis
@@ -150,20 +165,26 @@ class DemandPlots:
         self.labels['elecMonthly'] = 'Electricity demand [kWh]'
         self.labels['dhwMonthly'] = 'DHW demand [kWh]'
         self.labels['gainsMonthly'] = 'Heat gains [kWh]'
+        self.labels['carMonthly'] = 'Electricity demand of EV [kWh]'
         self.labels['heatingMonthly'] = 'Space heating demand [kWh]'
-        #self.labels['electricityDemandMonthly'] = 'Electricity demand [kWh]'
+        self.labels['pvMonthly'] = 'Power generation of PV systems [kWh]'
+        self.labels['stcMonthly'] = 'Heat generation of STC [kWh]'
+        self.labels['electricityDemandMonthly'] = 'Electricity demand [kWh]'
         self.labels['heatDemandMonthly'] = 'Heat demand [kWh]'
 
         # plot titles
         self.titles['elecMonthly'] = 'Monthly electricity demand for domestic appliances and lighting'
         self.titles['dhwMonthly'] = 'Monthly domestic hot water (DHW) demand of district'
         self.titles['gainsMonthly'] = 'Monthly heat gains of district'
+        self.titles['carMonthly'] = 'Monthly electricity demand of electric vehicles (EV)'
         self.titles['heatingMonthly'] = 'Monthly space heating demand of district'
-        #self.titles['electricityDemandMonthly'] = 'Monthly electricity demand of district'
+        self.titles['pvMonthly'] = 'Monthly power generation of photovoltaic (PV) systems'
+        self.titles['stcMonthly'] = 'Monthly heat generation of solar thermal collectors (STC)'
+        self.titles['electricityDemandMonthly'] = 'Monthly electricity demand of district'
         self.titles['heatDemandMonthly'] = 'Monthly heat demand of district'
 
         # definition of default monthly plots
-        self.plotsMonthly = ['elec', 'dhw', 'gains', 'heating', 'heatDemand']
+        self.plotsMonthly = ['elec', 'dhw', 'gains', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand']
 
         # define colors for plot types
         blue = '#00549F'
@@ -175,9 +196,13 @@ class DemandPlots:
         self.color['dhw'] = red
         self.color['gains'] = red
         self.color['occ'] = blue
+        self.color['car'] = green
         self.color['heating'] = red
+        self.color['pv'] = green
+        self.color['stc'] = red
         self.color['electricityDemand'] = green
         self.color['heatDemand'] = red
+        self.color['standard'] = blue
 
     def defaultPlots(self, plotResolution='monthly', initialTime=0, timeHorizon=31536000, savePlots=True,
                      timeStamp=False, show=False):
@@ -204,7 +229,6 @@ class DemandPlots:
         None.
         """
 
-        plots = {}
         if plotResolution == 'stepwise':
             plots = self.plots
         elif plotResolution == 'monthly':
@@ -223,7 +247,7 @@ class DemandPlots:
         ----------
         plotType : string
             Type of the plot.
-            Options are ['elec', 'dhw', 'gains', 'heating', 'heatDemand'].
+            Options are ['elec', 'dhw', 'gains', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand'].
         plotResolution : string, optional
             Defines the plot resolution.
             Options are ['monthly', 'stepwise']. The default is 'monthly'.
@@ -320,7 +344,7 @@ class DemandPlots:
                     stamp = '_D' + strDate + 'T' + strTime
                 else:
                     stamp = ''
-                plt.savefig(self.srcPath + '/results/plots/' + plotType + '_' + plotResolution + stamp,
+                plt.savefig('results/plots/' + plotType + '_' + plotResolution + stamp,
                             dpi=300, bbox_inches="tight")
 
             if show:
@@ -363,7 +387,7 @@ class DemandPlots:
                     stamp = '_D' + strDate + 'T' + strTime
                 else:
                     stamp = ''
-                plt.savefig(self.srcPath+'/results/plots/' + plotType + '_' + plotResolution + stamp,
+                plt.savefig('results/plots/' + plotType + '_' + plotResolution + stamp,
                             dpi=300, bbox_inches="tight")
             if show:
                 plt.show()

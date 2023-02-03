@@ -452,3 +452,101 @@ class Sun:
 
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
+
+    def calcPVAndSTCProfile(self, time, site, area_roof, beta=35, gamma=0, usageFactorPV=0.4, usageFactorSTC=0.2):
+        """
+        Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
+
+        Parameters
+        ----------
+        time : dictionary
+            Time information from the Datahandler class.
+        site : dictionary
+            Site information from the Datahandler class.
+        area_roof : float
+            Area of the building's roof.
+        beta : list, optional
+            Slope, the angle (in degree) between the plane of the surface of the photovoltaic collectors (PV) / solar
+            thermal collectors (STCs) and the horizontal. 0 <= beta <= 180. If beta > 90, the surface faces downwards.
+            Just one entry is reasonable. The default entry is 35.
+        gamma : list, optional
+            Surface azimuth angle. The deviation of the projection on a horizontal plane of the normal to the surface of
+            the PV collectors / STCs from the local meridian, with zero due south, east negative, and west positive.
+            -180 <= gamma <= 180.
+            Just one entry is reasonable. The default entry is 0.
+        usageFactorPV : float, optional
+            Ratio between area of all PV collectors and the surface of the roof. The default is 0.4.
+        usageFactorSTC : float, optional
+            Ratio between area of all STCs and the surface of the roof. The default is 0.2.
+
+        Returns
+        -------
+        generation_PV : array_like
+            Power profiles of PV collectors. With given weather data as input the unit is [W].
+        generation_STC : array_like
+            Power profiles of STCs. With given weather data as input the unit is [W].
+        """
+
+        # get solar irradiance on PV plant surface
+        SunRad = self.getSolarGains(initialTime=0,
+                                    timeDiscretization=time["timeResolution"],
+                                    timeSteps=time["timeSteps"],
+                                    timeZone=site["timeZone"],
+                                    location=site["location"],
+                                    altitude=site["altitude"],
+                                    beta=beta,
+                                    gamma=gamma,
+                                    beamRadiation=site["SunDirect"],
+                                    diffuseRadiation=site["SunDiffuse"],
+                                    albedo=site["albedo"])
+
+        temperatureProfile = site["T_e"]
+
+        devices = {}
+        with open(os.path.join(self.filePath, 'device_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                devices[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    devices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        # calculate time variant PV efficiency
+        eta_PV = np.zeros(time["timeSteps"])
+        for t in range(time["timeSteps"]):
+            # source of formula:
+            # 'Temperature Dependent Photovoltaic (PV) Efficiency and Its Effect on PV Production in the World
+            #  – A Review' , page 313, formula 5
+            # by Dubey, Swapnil; Sarvaiya, Jatin Narotam; Seshadri, Bharath - 2013
+            eta_PV[t] = devices["PV"]["eta_el_ref"] * \
+                        (
+                            1 - devices["PV"]["gamma"] * \
+                            (
+                                temperatureProfile[t] - devices["PV"]["t_cell_ref"]
+                                + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
+                                * (SunRad[0][t] / devices["PV"]["G_noct"])
+                            )
+                        )
+
+        # calculate PV power
+        generation_PV = np.zeros(time["timeSteps"])
+        for t in range(time["timeSteps"]):
+            generation_PV[t] = SunRad[0][t] * eta_PV[t] * usageFactorPV * area_roof
+
+        # efficiency of solar thermal collectors (STC)
+        temp_diff = np.zeros_like(site["T_e"])
+        for t in range(time["timeSteps"]):
+            temp_diff[t] = devices["STC"]["T_flow"] - site["T_e"][t]
+
+        eta_STC = np.zeros_like(SunRad[0])
+        eta_STC[SunRad[0] > 0] = (devices["STC"]["zero_loss"]
+                                  - devices["STC"]["first_order"] * temp_diff[SunRad[0] > 0] / SunRad[0][SunRad[0] > 0]
+                                  - devices["STC"]["second_order"] * temp_diff[SunRad[0] > 0] ** 2
+                                  / SunRad[0][SunRad[0] > 0])
+        eta_STC[eta_STC <= 0.01] = 0
+
+        # calculate STC power
+        generation_STC = np.zeros(time["timeSteps"])
+        for t in range(time["timeSteps"]):
+            generation_STC[t] = SunRad[0][t] * eta_STC[t] * usageFactorSTC * area_roof
+
+        return generation_PV, generation_STC
