@@ -12,6 +12,7 @@ from classes.solar import Sun
 from classes.users import Users
 from classes.system import BES
 from classes.plots import DemandPlots
+import functions.clustering_medoid as cm
 
 
 class Datahandler:
@@ -275,7 +276,7 @@ class Datahandler:
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
-                                 designDevs=False, saveGenProfiles=True):
+                                 designDevs=False, saveGenProfiles=True, clustering=False):
         """
         All in one solution for district and demand generation.
 
@@ -295,6 +296,8 @@ class Datahandler:
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
+        clustering: bool, optional
+            Decision if profiles will be clustered. The default is False.
 
         Returns
         -------
@@ -307,6 +310,8 @@ class Datahandler:
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
             self.designDevices(saveGenerationProfiles=saveGenProfiles)
+        if clustering:
+            self.clusterProfiles()
 
     def designDevices(self, saveGenerationProfiles=True):
         """
@@ -352,7 +357,7 @@ class Datahandler:
             building["capacities"] = bes_obj.designECS(building, self.site)
 
             # calculate theoretical PV generation
-            potentialPV, potentialSTC = \
+            building["potentialPV"], building["potentialSTC"] = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
                                         area_roof=building["envelope"].A["opaque"]["roof"],
@@ -362,10 +367,10 @@ class Datahandler:
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
             # assign real PV generation to building
-            building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
+            building["generationPV"] = building["potentialPV"] * building["buildingFeatures"]["PV"]
 
             # assign real STC generation to building
-            building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
+            building["generationSTC"] = building["potentialSTC"] * building["buildingFeatures"]["STC"]
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
@@ -375,6 +380,98 @@ class Datahandler:
                 np.savetxt(self.resultPath + '/generationSTC_' + building["unique_name"] + '.csv',
                            building["generationSTC"],
                            delimiter=',')
+
+    def clusterProfiles(self):
+        """
+        Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
+
+        Returns
+        -------
+        None.
+        """
+
+        array = (self.time["clusterLength"]/self.time["timeResolution"])
+        while array <= len(self.site["T_e"]):
+            array += (self.time["clusterLength"]/self.time["timeResolution"])
+        array -= (self.time["clusterLength"]/self.time["timeResolution"])
+        array = int(array)
+
+        adjProfiles = {}
+        for id in self.scenario["id"]:
+            adjProfiles[id] = {}
+            adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:array]
+            adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:array]
+            adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:array]
+            adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:array]
+            adjProfiles[id]["car"] = self.district[id]["user"].car[0:array]
+            adjProfiles[id]["potentialPV"] = self.district[id]["potentialPV"][0:array]
+            adjProfiles[id]["potentialSTC"] = self.district[id]["potentialSTC"][0:array]
+            adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:array]
+        adjProfiles["Sun"] = {}
+        for drct in range(len(self.SunRad)):
+            adjProfiles["Sun"][drct] = self.SunRad[drct][0:array]
+        adjProfiles["T_e"] = self.site["T_e"][0:array]
+
+        # Prepare clustering
+        inputsClustering = []
+
+        for id in self.scenario["id"]:
+            inputsClustering.append(adjProfiles[id]["elec"])
+            inputsClustering.append(adjProfiles[id]["dhw"])
+            inputsClustering.append(adjProfiles[id]["gains"])
+            inputsClustering.append(adjProfiles[id]["occ"])
+            inputsClustering.append(adjProfiles[id]["car"])
+            inputsClustering.append(adjProfiles[id]["potentialPV"])
+            inputsClustering.append(adjProfiles[id]["potentialSTC"])
+            inputsClustering.append(adjProfiles[id]["heat"])
+
+        for drct in range(len(self.SunRad)):
+            inputsClustering.append(adjProfiles["Sun"][drct])
+
+        inputsClustering.append(adjProfiles["T_e"])
+
+        # weights for clustering algorithm indicating the focus onto this profile
+        weights = np.ones(len(inputsClustering))
+        # higher weight for outdoor temperature (should at least have the same weight as number of buildings)
+        weights[-1] = len(self.scenario["id"]) + len(self.SunRad)
+
+        # Perform clustering
+        (newProfiles, nc, z, transfProfiles) = \
+            cm.cluster(np.array(inputsClustering),
+                       number_clusters=self.time["clusterNumber"],
+                       len_day=int(self.time["clusterLength"]/self.time["timeResolution"]),
+                       weights=weights)
+
+        for id in self.scenario["id"]:
+            self.district[id]["user"].elec_cluster = newProfiles[8*id].T
+            self.district[id]["user"].dhw_cluster = newProfiles[8*id+1]
+            self.district[id]["user"].gains_cluster = newProfiles[8*id+2]
+            self.district[id]["user"].occ_cluster = newProfiles[8*id+3]
+            self.district[id]["user"].car_cluster = newProfiles[8*id+4] * self.scenario.loc[id]["EV"]
+            self.district[id]["potentialPV_cluster"] = newProfiles[8*id+5]
+            self.district[id]["potentialSTC_cluster"] = newProfiles[8 * id + 6]
+            self.district[id]["user"].heat_cluster = newProfiles[8 * id + 7]
+
+        self.SunRad_cluster = {}
+        for drct in range(len(self.SunRad)):
+            self.SunRad_cluster[drct] = newProfiles[-1-(len(self.SunRad))+drct]
+
+        self.site["T_e_cluster"] = newProfiles[-1]
+
+        # weights indicating how often a cluster appears
+        self.weights = nc[nc != 0]
+
+        for building in self.district:
+
+            # assign real PV generation for clustered data to building
+            building["generationPV_cluster"] = {}
+            building["generationSTC_cluster"] = {}
+
+            for c in range(len(self.weights)):
+                building["generationPV_cluster"][c] = building["potentialPV_cluster"][c] \
+                                                    * building["buildingFeatures"]["PV"]
+                building["generationSTC_cluster"][c] = building["potentialSTC_cluster"][c] \
+                                                       * building["buildingFeatures"]["STC"]
 
     def saveDistrict(self):
         """
