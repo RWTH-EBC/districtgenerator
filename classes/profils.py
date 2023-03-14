@@ -210,8 +210,8 @@ class Profiles:
             This objects holds information about the lighting and appliance configuration.
         annual_demand : integer
             Annual electricity demand in kWh.
-        do_normalization : boolean
-            Normalize el. load profile to annual_demand.
+        do_normalization : boolean, optional
+            Normalize el. load profile to annual_demand. The default is True.
 
         Returns
         -------

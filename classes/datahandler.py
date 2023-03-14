@@ -140,7 +140,7 @@ class Datahandler:
         Parameters
         ----------
         scenario_name: string, optional
-            Name of scenario file to be read.
+            Name of scenario file to be read. The default is 'example'.
 
         Returns
         -------
@@ -225,8 +225,10 @@ class Datahandler:
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
+            The default is True.
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
+            The default is True.
 
         Returns
         -------
@@ -280,12 +282,19 @@ class Datahandler:
         Parameters
         ----------
         scenario_name:string, optional
-            Name of scenario file to be read.
+            Name of scenario file to be read. The default is 'example'.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
+            The default is True.
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
+            The default is True.
+        designDevs: bool, optional
+            Decision if devices will be designed. The default is False.
+        saveGenProfiles: bool, optional
+            Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
+            The default is True.
 
         Returns
         -------
@@ -308,6 +317,7 @@ class Datahandler:
         saveGenerationProfiles : bool, optional
             True: save PV and STC profiles.
             False: don't save PV and STC profiles.
+            The default is True.
 
         Returns
         -------
@@ -381,6 +391,11 @@ class Datahandler:
     def loadDistrict(self, scenario_name='example'):
         """
         Load district dict from pickle file.
+
+        Parameters
+        ----------
+        scenario_name : string, optional
+            Name of district file to be read. The default is 'example'.
 
         Returns
         -------

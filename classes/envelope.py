@@ -482,8 +482,8 @@ class Envelope:
         ----------
         site : dict
             Information about location and climate conditions.
-        method : string
-            Method to calculate heat load.
+        method : string, optional
+            Method to calculate heat load. The default is "design".
 
         Returns
         -------

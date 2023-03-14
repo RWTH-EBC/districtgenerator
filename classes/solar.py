@@ -108,12 +108,12 @@ class Sun:
         timesteps : integer
             Number of investigated / requested time steps.
         timeZone : integer, optional
-            Shift between the location's time and GMT in hours. CET would be 1.
+            Shift between the location's time and GMT in hours. CET would be 1. The default is 1.
         location : tuple, optional
-            (latitude, longitude) of the simulated system's position. Standard
-            values (50.76, 6.07) represent Aachen, Germany.
+            (latitude, longitude) of the simulated system's position. The default values are (50.76, 6.07)
+            and represent Aachen, Germany.
         altitude : float, optional
-            The location's altitude in meters.
+            The location's altitude in meters. The default is 0.
 
         Returns
         -------

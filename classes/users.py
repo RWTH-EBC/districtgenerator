@@ -301,7 +301,7 @@ class Users:
             Time horizon for which a stochastic profile is generated.
         initial_day : integer, optional
             Day of the week with which the generation starts.
-            1-7 for monday-sunday.
+            1-7 for monday-sunday. The default is 1.
 
         Returns
         -------
