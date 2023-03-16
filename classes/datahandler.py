@@ -3,6 +3,8 @@
 import json
 import pickle
 import os
+import sys
+import copy
 import numpy as np
 import pandas as pd
 from itertools import count
@@ -254,6 +256,7 @@ class Datahandler:
                 building["user"].calcProfiles(site=self.site,
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"])
+
                 if saveUserProfiles:
                     building["user"].saveProfiles(building["unique_name"], self.resultPath)
 
@@ -262,6 +265,12 @@ class Datahandler:
             else:
                 building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
+
+            # check if EV exist
+            building["clusteringData"] = {
+                "potentialEV": copy.deepcopy(building["user"].car)
+            }
+            building["user"].car *= building["buildingFeatures"]["EV"]
 
             building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
 
@@ -344,7 +353,7 @@ class Datahandler:
             building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
             # at bivalent temperature
             building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-            # at heatimg limit temperature
+            # at heating limit temperature
             building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
             building["dhwload"] = \
@@ -357,7 +366,7 @@ class Datahandler:
             building["capacities"] = bes_obj.designECS(building, self.site)
 
             # calculate theoretical PV generation
-            building["potentialPV"], building["potentialSTC"] = \
+            potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
                                         area_roof=building["envelope"].A["opaque"]["roof"],
@@ -367,10 +376,14 @@ class Datahandler:
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
             # assign real PV generation to building
-            building["generationPV"] = building["potentialPV"] * building["buildingFeatures"]["PV"]
+            building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
 
             # assign real STC generation to building
-            building["generationSTC"] = building["potentialSTC"] * building["buildingFeatures"]["STC"]
+            building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
+
+            # clustering data
+            building["clusteringData"]["potentialPV"] = potentialPV
+            building["clusteringData"]["potentialSTC"] = potentialSTC
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
@@ -390,27 +403,44 @@ class Datahandler:
         None.
         """
 
-        array = (self.time["clusterLength"]/self.time["timeResolution"])
-        while array <= len(self.site["T_e"]):
-            array += (self.time["clusterLength"]/self.time["timeResolution"])
-        array -= (self.time["clusterLength"]/self.time["timeResolution"])
-        array = int(array)
+        # calculate length of array
+        initialArrayLenght = (self.time["clusterLength"] / self.time["timeResolution"])
+        lenghtArray = initialArrayLenght
+        while lenghtArray <= len(self.site["T_e"]):
+            lenghtArray += initialArrayLenght
+        lenghtArray -= initialArrayLenght
+        lenghtArray = int(lenghtArray)
 
+        # adjust profiles with calculated array length
         adjProfiles = {}
         for id in self.scenario["id"]:
             adjProfiles[id] = {}
-            adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:array]
-            adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:array]
-            adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:array]
-            adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:array]
-            adjProfiles[id]["car"] = self.district[id]["user"].car[0:array]
-            adjProfiles[id]["potentialPV"] = self.district[id]["potentialPV"][0:array]
-            adjProfiles[id]["potentialSTC"] = self.district[id]["potentialSTC"][0:array]
-            adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:array]
+            adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
+            adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:lenghtArray]
+            adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
+            adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
+            adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
+            if self.district[id]["buildingFeatures"]["EV"] != 0:
+                adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
+            else:
+                # no EV exists; but array with just zeros leads to problem while clustering
+                adjProfiles[id]["car"] = self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon  # np.ones(lenghtArray) * sys.float_info.epsilon * 100
+            if self.district[id]["buildingFeatures"]["PV"] != 0:
+                adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
+            else:
+                # no PV module installed; but array with just zeros leads to problem while clustering
+                adjProfiles[id]["generationPV"] = self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon  # np.ones(lenghtArray) * sys.float_info.epsilon * 100
+            if self.district[id]["buildingFeatures"]["STC"] != 0:
+                adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
+            else:
+                # no STC installed; but array with just zeros leads to problem while clustering
+                adjProfiles[id]["generationSTC"] = self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon  # np.ones(lenghtArray) * sys.float_info.epsilon * 100
+
         adjProfiles["Sun"] = {}
         for drct in range(len(self.SunRad)):
-            adjProfiles["Sun"][drct] = self.SunRad[drct][0:array]
-        adjProfiles["T_e"] = self.site["T_e"][0:array]
+            adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
+
+        adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
         inputsClustering = []
@@ -421,8 +451,8 @@ class Datahandler:
             inputsClustering.append(adjProfiles[id]["gains"])
             inputsClustering.append(adjProfiles[id]["occ"])
             inputsClustering.append(adjProfiles[id]["car"])
-            inputsClustering.append(adjProfiles[id]["potentialPV"])
-            inputsClustering.append(adjProfiles[id]["potentialSTC"])
+            inputsClustering.append(adjProfiles[id]["generationPV"])
+            inputsClustering.append(adjProfiles[id]["generationSTC"])
             inputsClustering.append(adjProfiles[id]["heat"])
 
         for drct in range(len(self.SunRad)):
@@ -436,42 +466,56 @@ class Datahandler:
         weights[-1] = len(self.scenario["id"]) + len(self.SunRad)
 
         # Perform clustering
-        (newProfiles, nc, z, transfProfiles) = \
-            cm.cluster(np.array(inputsClustering),
-                       number_clusters=self.time["clusterNumber"],
-                       len_day=int(self.time["clusterLength"]/self.time["timeResolution"]),
-                       weights=weights)
+        (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
+                                                             number_clusters=self.time["clusterNumber"],
+                                                             len_day=int(initialArrayLenght),
+                                                             weights=weights)
 
+        # safe clustering solution in district data
         for id in self.scenario["id"]:
-            self.district[id]["user"].elec_cluster = newProfiles[8*id].T
-            self.district[id]["user"].dhw_cluster = newProfiles[8*id+1]
-            self.district[id]["user"].gains_cluster = newProfiles[8*id+2]
-            self.district[id]["user"].occ_cluster = newProfiles[8*id+3]
-            self.district[id]["user"].car_cluster = newProfiles[8*id+4] * self.scenario.loc[id]["EV"]
-            self.district[id]["potentialPV_cluster"] = newProfiles[8*id+5]
-            self.district[id]["potentialSTC_cluster"] = newProfiles[8 * id + 6]
-            self.district[id]["user"].heat_cluster = newProfiles[8 * id + 7]
+            index_house = int(8)
+            self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
+            self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
+            self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
+            self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
+            # assign real EV, PV and STC generation for clustered data to buildings
+            # (array with zeroes if EV, PV or STC does not exist)
+            self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
+            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
+                                                        * self.district[id]["buildingFeatures"]["PV"]
+            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
+                                                         * self.district[id]["buildingFeatures"]["STC"]
+            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 7]
 
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
-            self.SunRad_cluster[drct] = newProfiles[-1-(len(self.SunRad))+drct]
+            self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
 
         self.site["T_e_cluster"] = newProfiles[-1]
 
+        # clusters
+        self.clusters = []
+        for i in range(len(y)):
+            if y[i] != 0:
+                self.clusters.append(i)
+
+        # clusters and their assigned nodes (days/weeks/etc)
+        self.clusterAssignments = {}
+        for c in self.clusters:
+            self.clusterAssignments[c] = []
+            temp = z[c]
+            for i in range(len(temp)):
+                if temp[i] == 1:
+                    self.clusterAssignments[c].append(i)
+
         # weights indicating how often a cluster appears
-        self.weights = nc[nc != 0]
+        self.clusterWeights = {}
+        for c in self.clusters:
+            self.clusterWeights[c] = len(self.clusterAssignments[c])
 
-        for building in self.district:
-
-            # assign real PV generation for clustered data to building
-            building["generationPV_cluster"] = {}
-            building["generationSTC_cluster"] = {}
-
-            for c in range(len(self.weights)):
-                building["generationPV_cluster"][c] = building["potentialPV_cluster"][c] \
-                                                    * building["buildingFeatures"]["PV"]
-                building["generationSTC_cluster"][c] = building["potentialSTC_cluster"][c] \
-                                                       * building["buildingFeatures"]["STC"]
+        """self.clusteringCheck = {}
+        for c in self.clusters:
+            self.clusteringCheck[c] = sum(self.clusterAssignments[c])"""
 
     def saveDistrict(self):
         """
