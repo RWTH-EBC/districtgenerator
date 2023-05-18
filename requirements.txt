@@ -5,3 +5,4 @@ scipy>=1.6.1
 teaser
 richardsonpy
 pylightxl
+gurobipy~=9.5.1

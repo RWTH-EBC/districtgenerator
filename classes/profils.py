@@ -363,8 +363,7 @@ class Profiles:
         Returns
         -------
         car_demand_total : list
-            Electricity demand of the EV in [W].
-
+            Electricity demand of the EV in [Wh].
         """
 
         # determine how long one day is (in number of steps)
@@ -385,7 +384,7 @@ class Profiles:
             except:
                 # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
                 car_almost_arrives = array - int(array / 4)
-            # calculate electricity demand of current day [W]
+            # calculate electricity demand of current day [Wh]
             demand = max(0, rd.gauss(5000, 0.5 * 5000))
             # demand for the energy system at home just relevant with return of EV
             # assumption: just last return of the day is relevant, because EV is not connected at home between

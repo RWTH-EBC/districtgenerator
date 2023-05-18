@@ -14,6 +14,7 @@ from classes.solar import Sun
 from classes.users import Users
 from classes.system import BES
 from classes.plots import DemandPlots
+from classes.optimizer import Optimizer
 import functions.clustering_medoid as cm
 
 
@@ -103,7 +104,7 @@ class Datahandler:
         # needed for data conversion into the right time format
         with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
             jsonData = json.load(json_file)
-            for subData in jsonData :
+            for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
@@ -285,13 +286,13 @@ class Datahandler:
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
-                                 designDevs=False, saveGenProfiles=True, clustering=False):
+                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
         Parameters
         ----------
-        scenario_name:string, optional
+        scenario_name: string, optional
             Name of scenario file to be read. The default is 'example'.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
@@ -300,13 +301,15 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
+        designDevs: bool, optional
+            Decision if devices will be designed. The default is False.
         clustering: bool, optional
             Decision if profiles will be clustered. The default is False.
+        optimization: bool, optional
+            Decision if the operation costs for each cluster will be optimized. The default is False.
 
         Returns
         -------
@@ -320,7 +323,15 @@ class Datahandler:
         if designDevs:
             self.designDevices(saveGenerationProfiles=saveGenProfiles)
         if clustering:
-            self.clusterProfiles()
+            if designDevs:
+                self.clusterProfiles()
+            else:
+                print("Clustering is not possible without the design of energy conversion devices!")
+        if optimization:
+            if designDevs and clustering:
+                self.optimizationClusters()
+            else:
+                print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
     def designDevices(self, saveGenerationProfiles=True):
         """
@@ -598,3 +609,27 @@ class Datahandler:
         else:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
+
+    def optimizationClusters(self):
+        """
+        Optimize the operation costs for each cluster.
+
+        Returns
+        -------
+        None.
+        """
+
+        # initialize result list for all clusters
+        self.resultsOptimization = []
+
+        for cluster in range(self.time["clusterNumber"]):
+
+            # optimize operating costs of the district for current cluster
+            self.optimizer = Optimizer(self, cluster)
+            self.optimizer.runOptimization()
+
+            # get results for current cluster
+            results_temp = self.optimizer.getResults()
+
+            # save results as attribute
+            self.resultsOptimization.append(results_temp)
