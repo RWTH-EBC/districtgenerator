@@ -108,9 +108,9 @@ class Profiles:
                                                 axis=None)
 
         # generate array for minutely profile
-        activity_profile_min = np.zeros(len(self.activity_profile)*10)
+        activity_profile_min = np.zeros(len(self.activity_profile) * 10)
         # generate array for time adjusted profile
-        self.occ_profile = np.zeros(int(len(self.activity_profile)*10/tr_min))
+        self.occ_profile = np.zeros(int(len(self.activity_profile) * 10 / tr_min))
 
         # append minutely sia profiles until nb_days is reached
         sia_profile = []
@@ -122,7 +122,7 @@ class Profiles:
         for t in range(len(activity_profile_min)):
             activity_profile_min[t] = max(self.activity_profile[int(t/10)], sia_profile[t])
         for t in range(len(self.occ_profile)):
-            self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t*tr_min):(t*tr_min+tr_min)]))
+            self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t * tr_min):(t * tr_min + tr_min)]))
 
         return self.occ_profile
 

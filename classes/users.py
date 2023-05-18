@@ -314,10 +314,10 @@ class Users:
         time_day = 24 * 60 * 60
         nb_days = int(time_horizon/time_day)
 
-        self.occ = np.zeros(int(time_horizon/time_resolution))
-        self.dhw = np.zeros(int(time_horizon/time_resolution))
-        self.elec = np.zeros(int(time_horizon/time_resolution))
-        self.gains = np.zeros(int(time_horizon/time_resolution))
+        self.occ = np.zeros(int(time_horizon / time_resolution))
+        self.dhw = np.zeros(int(time_horizon / time_resolution))
+        self.elec = np.zeros(int(time_horizon / time_resolution))
+        self.gains = np.zeros(int(time_horizon / time_resolution))
         self.car = np.zeros(int(time_horizon / time_resolution))
         for j in range(self.nb_flats):
             temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)

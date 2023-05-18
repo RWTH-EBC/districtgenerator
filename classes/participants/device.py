@@ -1,4 +1,3 @@
-import pandas as pd
 import json
 
 
@@ -25,7 +24,7 @@ class Device:
         self.timeData = self.loadData("time")
         self.timesteps = range(int(self.timeData["clusterLength"] / self.timeData["timeResolution"]))
         self.dt = self.timeData["timeResolution"] / (60 * 60)
-        self.devs = self.loadDeviceData()
+        self.decentralDevs, self.centralDevs, self.heatGrid = self.loadDeviceData()
 
     def returnModel(self):
         """
@@ -85,23 +84,39 @@ class Device:
 
     def loadDeviceData(self):
         """
-        Load data about energy conversion devices.
+        Load data about central and decentral energy conversion devices.
 
         Returns
         -------
-        data : dictionary
-            Data about energy conversion devices.
+        decentralDevs : dictionary
+            Data about the decentral energy conversion devices.
+        centralDevs : dictionary
+            Data about the central energy conversion devices.
         """
         
-        data = {}
-        with open("data/device_data.json") as json_file:
+        decentralDevs = {}
+        with open("data/decentral_device_data.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
-                data[subData["abbreviation"]] = {}
+                decentralDevs[subData["abbreviation"]] = {}
                 for subsubData in subData["specifications"]:
-                    data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+                    decentralDevs[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
-        return data
+        centralDevs = {}
+        with open("data/central_device_data.json") as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                centralDevs[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    centralDevs[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        heatGrid = {}
+        with open("data/heat_grid.json") as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                heatGrid[subData["name"]] = subData["value"]
+
+        return decentralDevs, centralDevs, heatGrid
 
     def setConstraint(self, constraintFunctionName):
         """

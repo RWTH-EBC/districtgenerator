@@ -112,6 +112,11 @@ class Optimizer:
             globals()["house"] = classObject(self.model, id, self.data.district[id], self.data.site, self.cluster)
             self.model = globals()["house"].returnModel()
 
+        # load the variables and constrains for the central energy unit of the district into the model
+        classObject = getattr(classes.participants.centralEnergyUnit, "CentralEnergyUnit")
+        globals()["centralEnergyUnit"] = classObject(self.model, len(self.data.district), self.data, self.cluster)
+        self.model = globals()["centralEnergyUnit"].returnModel()
+
         # load the variables and constrains for the aggregator of the district into the model
         classObject = getattr(classes.participants.aggregator, "Aggregator")
         globals()["aggregator"] = classObject(self.model, len(self.data.district))
@@ -161,6 +166,9 @@ class Optimizer:
         """
 
         self.model.optimize()
+
+        # write debug file
+        self.writeDebugFile()
 
     def getObjVal(self):
         """
@@ -228,10 +236,29 @@ class Optimizer:
             Contains the results of the optimization.
         """
 
+        # load data of decentral devices
+        devices = {}
+        with open("data/decentral_device_data.json") as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                devices[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    devices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        # load data of central devices
+        centralDevices = {}
+        with open("data/central_device_data.json") as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                centralDevices[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    centralDevices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
         # initialize dictionary for the results
         results = defaultdict(list)
         for id in range(len(self.data.district)):
             results[id] = defaultdict(list)
+        results["centralDevices"] = defaultdict(list)
 
         # add results of the aggregator
         agg_var = ("P_dem_total", "P_inj_total", "P_dem_gcp", "P_inj_gcp", "C_total_central",
@@ -248,30 +275,41 @@ class Optimizer:
                     results[id][v].append(
                         round(self.model.getVarByName(v + "_" + str(id) + "[" + str(t) + "]").x, 5))
 
-        # add results of the devices
-        devices = {}
-        with open("data/device_data.json") as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                devices[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    devices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+        # add results of the decentral devices
         dev_var = ("Q_th", "P_el", "P_gas", "ch", "dch", "soc")
         for id in range(len(self.data.district)):  # loop over buildings
             for dev in devices.keys():
                 for v in dev_var:
                     if v == "soc":
-                        # state of charge (soc) exists for points in time between time intervals
-                        timeSteps = range(len(self.timesteps) + 1)
+                        # state of charge (soc) exists for POINTS IN TIME not TIME INTERVALS
+                        rangeTimesteps = range(len(self.timesteps) + 1)
                     else:
-                        timeSteps = self.timesteps
-                    for t in timeSteps:
+                        rangeTimesteps = self.timesteps
+                    for t in rangeTimesteps:
                         try:
                             results[id][str(dev) + "_" + v].append(
                                 round(self.model.getVarByName(v + "_" + str(id) + "[" + str(dev) + ","
                                                               + str(t) + "]").x, 5))
                         except:
                             del results[id][str(dev) + "_" + v]
+
+        # add results of the central devices
+        central_dev_var = (
+            "Q_th_centralDevices", "P_el_centralDevices", "P_gas_centralDevices", "ch_centralDevices",
+            "dch_centralDevices", "soc_centralDevices")
+        for dev in centralDevices.keys():
+            for v in central_dev_var:
+                if v == "soc_centralDevices":
+                    # state of charge (soc) exists for POINTS IN TIME not TIME INTERVALS
+                    rangeTimesteps = range(len(self.timesteps) + 1)
+                else:
+                    rangeTimesteps = self.timesteps
+                for t in rangeTimesteps:
+                    try:
+                        results["centralDevices"][str(dev) + "_" + v[:-7]].append(
+                            round(self.model.getVarByName(v + "[" + str(dev) + "," + str(t) + "]").x, 5))
+                    except:
+                        del results["centralDevices"][str(dev) + "_" + v[:-7]]
 
         return results
 

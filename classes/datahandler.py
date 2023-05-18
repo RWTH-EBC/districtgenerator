@@ -13,9 +13,11 @@ from classes.envelope import Envelope
 from classes.solar import Sun
 from classes.users import Users
 from classes.system import BES
+from classes.system import CES
 from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 import functions.clustering_medoid as cm
+import functions.wind_turbines as wind_turbines
 
 
 class Datahandler:
@@ -60,7 +62,7 @@ class Datahandler:
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
-        self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
+        self.resultPath = os.path.join(self.srcPath, 'results')
 
     def generateEnvironment(self):
         """
@@ -98,13 +100,14 @@ class Datahandler:
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
         # get weather data of interest
-        [temp_sunDirect, temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
+        [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
+            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
 
         # %% load time information and requirements
         # needed for data conversion into the right time format
         with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
             jsonData = json.load(json_file)
-            for subData in jsonData:
+            for subData in jsonData :
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
@@ -119,6 +122,9 @@ class Datahandler:
         self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
                                      np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
                                      temp_temp)[0:-1]
+        self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
+                                            temp_wind)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
 
@@ -195,8 +201,10 @@ class Datahandler:
         for building in self.district:
 
             # convert short names into designation needed for TEASER
-            building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
-            retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+            building_type = \
+                bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+            retrofit_level = \
+                bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
             # add buildings to TEASER project
             prj.add_residential(method='tabula_de',
@@ -259,12 +267,12 @@ class Datahandler:
                                               time_horizon=self.time["dataLength"])
 
                 if saveUserProfiles:
-                    building["user"].saveProfiles(building["unique_name"], self.resultPath)
+                    building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                building["user"].loadProfiles(building["unique_name"], self.resultPath)
+                building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
             # check if EV exist
@@ -281,12 +289,13 @@ class Datahandler:
                                                 time_resolution=self.time["timeResolution"])
 
             if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], self.resultPath)
+                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
-                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
+                                 fileName_centralSystems="central_devices_example", saveGenProfiles=True,
+                                 designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
@@ -301,6 +310,8 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
+        fileName_centralSystems : string, optional
+            File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
@@ -321,7 +332,7 @@ class Datahandler:
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
-            self.designDevices(saveGenerationProfiles=saveGenProfiles)
+            self.designDevicesComplete(fileName_centralSystems, saveGenProfiles)
         if clustering:
             if designDevs:
                 self.clusterProfiles()
@@ -333,15 +344,59 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def designDevices(self, saveGenerationProfiles=True):
+    def initializeCentralDevices(self, fileName_centralSystems="central_devices_example"):
         """
-        Calculate device capacities, calculate PV and STC generation profiles as well as EV load profiles.
+        Initialize the central energy unit.
+
+        Parameters
+        ----------
+        fileName_centralSystems : string, optional
+            File name of the CSV-file that will be loaded. The default is "central_devices_test".
+
+        Returns
+        -------
+        None.
+        """
+
+        # initialization
+        self.centralDevices = {}
+
+        # initialize central energy system object
+        self.centralDevices["ces_obj"] = CES()
+
+        # load information about central devices from CSV-file
+        # (units are kW or kWh)
+        self.centralDevices["infos"] = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+                                                   + "/"
+                                                   + fileName_centralSystems
+                                                   + ".csv",
+                                                   header=0, delimiter=";")
+
+        # load data about central devices from JSON-file
+        self.centralDevices["data"] = {}
+        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.centralDevices["data"][subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    self.centralDevices["data"][subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        # load data from JSON-file about the heat grid, that connects the central devices and the buildings
+        self.centralDevices["heatGrid"] = {}
+        with open("data/heat_grid.json") as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.centralDevices["heatGrid"][subData["name"]] = subData["value"]
+
+    def designDecentralDevices(self, saveGenerationProfiles=True):
+        """
+        Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
         Parameters
         ----------
         saveGenerationProfiles : bool, optional
-            True: save PV and STC profiles.
-            False: don't save PV and STC profiles.
+            True: save decentral PV and STC profiles as CSV-file.
+            False: don't save decentral PV and STC profiles as CSV-file.
             The default is True.
 
         Returns
@@ -376,6 +431,13 @@ class Datahandler:
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
+            # sum up the design_load and bivalent_load of buldíngs connected to local heat grid
+            if building["buildingFeatures"]["heater"] == 'heat_grid':
+                self.centralDevices["ces_obj"].add_loads(bes_obj)
+
+            # sum up roof area of all buildings in the district
+            self.centralDevices["ces_obj"].add_roofArea(building)
+
             # calculate theoretical PV generation
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
@@ -398,12 +460,109 @@ class Datahandler:
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
-                np.savetxt(self.resultPath + '/generationPV_' + building["unique_name"] + '.csv',
+                np.savetxt(os.path.join(self.resultPath, 'renewableGeneration')
+                           + '/decentralPV_' + building["unique_name"] + '.csv',
                            building["generationPV"],
                            delimiter=',')
-                np.savetxt(self.resultPath + '/generationSTC_' + building["unique_name"] + '.csv',
+                np.savetxt(os.path.join(self.resultPath, 'renewableGeneration')
+                           + '/decentralSTC_' + building["unique_name"] + '.csv',
                            building["generationSTC"],
                            delimiter=',')
+
+    def designCentralDevices(self, saveGenerationProfiles=True):
+        """
+        Calculate capacities and generation profiles of renewable energies for central devices.
+
+        Parameters
+        ----------
+        saveGenerationProfiles : bool, optional
+            True: save central PV, STC and WT profiles as CSV-file.
+            False: don't save central PV, STC and WT profiles as CSV-file.
+            The default is True.
+
+
+        Returns
+        -------
+        None.
+        """
+
+        # dimensioning of central devices
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self.centralDevices["infos"],
+                                                                                     self.centralDevices["data"])
+
+        # calculate potential central PV and STC generation (with the roof area of the hole district for each!)
+        # todo: Why are different areas used?
+        potentialCentralPV, potentialCentralSTC = \
+            sun.calcPVAndSTCProfile(time=self.time,
+                                    site=self.site,
+                                    area_roof=self.centralDevices["ces_obj"].roofAreaDistrict,
+                                    devicesType="central",
+                                    beta=[35],
+                                    gamma=[0],
+                                    usageFactorPV=1,
+                                    usageFactorSTC=1)
+
+        # assign real central PV generation to central energy unit
+        self.centralDevices["renewableGeneration"] = {}
+        self.centralDevices["renewableGeneration"]["centralPV"] = \
+            potentialCentralPV \
+            * self.centralDevices["capacities"]["PV"]["area"] / self.centralDevices["ces_obj"].roofAreaDistrict
+
+        # assign real central STC generation to central energy unit
+        self.centralDevices["renewableGeneration"]["centralSTC"] = \
+            potentialCentralSTC \
+            * self.centralDevices["infos"].loc[self.centralDevices["infos"]["type"] == "STC", ["f"]].iloc[0, 0]
+
+        # clustering data
+        self.centralDevices["clusteringData"] = {
+            "potentialCentralPV": potentialCentralPV,
+            "potentialCentralSTC": potentialCentralSTC
+        }
+
+        # calculate potential central WT generation (for one wind turbine)
+        factor_windSpeed = wind_turbines.factor_windSpeed(self.centralDevices["data"]["WT"])  # [-]
+        wind_speed_WT = self.site["wind_speed"] * factor_windSpeed  # [m/s]
+        potentialCentralWT = \
+            wind_turbines.WT_generation(wind_speed_WT, self.centralDevices["capacities"]["WT"]["powerCurve"])  # [W]
+
+        # assign real central WT generation to central energy unit
+        self.centralDevices["renewableGeneration"]["centralWT"] = \
+            potentialCentralWT * self.centralDevices["capacities"]["WT"]["nb_WT"]
+
+        # clustering data
+        self.centralDevices["clusteringData"]["potentialCentralWT"] = potentialCentralWT
+
+        # optionally save generation profiles
+        if saveGenerationProfiles == True:
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralPV.csv',
+                       self.centralDevices["renewableGeneration"]["centralPV"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralSTC.csv',
+                       self.centralDevices["renewableGeneration"]["centralSTC"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralWT.csv',
+                       self.centralDevices["renewableGeneration"]["centralWT"],
+                       delimiter=',')
+
+    def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
+        """
+        Design decentral and central devices.
+
+        Parameters
+        ----------
+        fileName_centralSystems : string, optional
+            File name of the CSV-file that will be loaded. The default is "central_devices_test".
+        saveGenerationProfiles : bool, optional
+            Decision if generation profiles of designed devices will be saved. The default is True.
+
+        Returns
+        -------
+        None.
+        """
+
+        self.initializeCentralDevices(fileName_centralSystems)
+        self.designDecentralDevices(saveGenerationProfiles)
+        self.designCentralDevices(saveGenerationProfiles)
 
     def clusterProfiles(self):
         """
@@ -424,6 +583,7 @@ class Datahandler:
 
         # adjust profiles with calculated array length
         adjProfiles = {}
+        # loop over buildings
         for id in self.scenario["id"]:
             adjProfiles[id] = {}
             adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
@@ -435,27 +595,57 @@ class Datahandler:
                 adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
             else:
                 # no EV exists; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["car"] = self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon  # np.ones(lenghtArray) * sys.float_info.epsilon * 100
+                adjProfiles[id]["car"] = \
+                    self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
             if self.district[id]["buildingFeatures"]["PV"] != 0:
                 adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
             else:
                 # no PV module installed; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["generationPV"] = self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon  # np.ones(lenghtArray) * sys.float_info.epsilon * 100
+                adjProfiles[id]["generationPV"] = \
+                    self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon
             if self.district[id]["buildingFeatures"]["STC"] != 0:
                 adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
             else:
                 # no STC installed; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["generationSTC"] = self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon  # np.ones(lenghtArray) * sys.float_info.epsilon * 100
-
+                adjProfiles[id]["generationSTC"] = \
+                    self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
+        # solar radiation on surfaces with different orientation
         adjProfiles["Sun"] = {}
         for drct in range(len(self.SunRad)):
             adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
-
+        # central renewable generation
+        if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
+            existence_centralWT = 1
+            adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
+        else:
+            # no central WT exists; but array with just zeros leads to problem while clustering
+            existence_centralWT = 0
+            adjProfiles["generationCentralWT"] = \
+                self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
+        if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
+            existence_centralPV = 1
+            adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
+        else:
+            # no central PV exists; but array with just zeros leads to problem while clustering
+            existence_centralPV = 0
+            adjProfiles["generationCentralPV"] = \
+                self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
+        if self.centralDevices["capacities"]["STC"]["area"] > 0:
+            existence_centralSTC = 1
+            adjProfiles["generationCentralSTC"] = \
+                self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
+        else:
+            # no central STC exists; but array with just zeros leads to problem while clustering
+            existence_centralSTC = 0
+            adjProfiles["generationCentralSTC"] = \
+                self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
+        # wind speed and ambient temperature
+        adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
         inputsClustering = []
-
+        # loop over buildings
         for id in self.scenario["id"]:
             inputsClustering.append(adjProfiles[id]["elec"])
             inputsClustering.append(adjProfiles[id]["dhw"])
@@ -465,10 +655,15 @@ class Datahandler:
             inputsClustering.append(adjProfiles[id]["generationPV"])
             inputsClustering.append(adjProfiles[id]["generationSTC"])
             inputsClustering.append(adjProfiles[id]["heat"])
-
+        # solar radiation on surfaces with different orientation
         for drct in range(len(self.SunRad)):
             inputsClustering.append(adjProfiles["Sun"][drct])
-
+        # central renewable generation
+        inputsClustering.append(adjProfiles["generationCentralWT"])
+        inputsClustering.append(adjProfiles["generationCentralPV"])
+        inputsClustering.append(adjProfiles["generationCentralSTC"])
+        # wind speed and ambient temperature
+        inputsClustering.append(adjProfiles["wind_speed"])
         inputsClustering.append(adjProfiles["T_e"])
 
         # weights for clustering algorithm indicating the focus onto this profile
@@ -483,8 +678,9 @@ class Datahandler:
                                                              weights=weights)
 
         # safe clustering solution in district data
+        # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
-            index_house = int(8)
+            index_house = int(8)  # number of profiles per building
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
             self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
@@ -497,11 +693,16 @@ class Datahandler:
             self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
                                                          * self.district[id]["buildingFeatures"]["STC"]
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 7]
-
+        # safe clustered solar radiation on surfaces with different orientation
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
-            self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
-
+            self.SunRad_cluster[drct] = newProfiles[-5 - len(self.SunRad) + drct]
+        # save clustered data for real central renewable generation
+        self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
+        self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
+        self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
+        # save clustered wind speed and ambient temperature
+        self.site["wind_speed_cluster"] = newProfiles[-2]
         self.site["T_e_cluster"] = newProfiles[-1]
 
         # clusters
@@ -596,7 +797,8 @@ class Datahandler:
             plotResolution = 'stepwise'
 
         # the selection of possible plots
-        plotTypes = ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand']
+        plotTypes = \
+            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand', 'wt']
 
         if mode == 'default':
             # create all default plots

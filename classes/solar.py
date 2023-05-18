@@ -453,7 +453,8 @@ class Sun:
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
 
-    def calcPVAndSTCProfile(self, time, site, area_roof, beta=35, gamma=0, usageFactorPV=0.4, usageFactorSTC=0.2):
+    def calcPVAndSTCProfile(self, time, site, area_roof, devicesType="decentral", beta=35, gamma=0, usageFactorPV=0.4,
+                            usageFactorSTC=0.2):
         """
         Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
 
@@ -465,6 +466,8 @@ class Sun:
             Site information from the Datahandler class.
         area_roof : float
             Area of the building's roof.
+        devicesType : string, optional
+            Possible options are "central" and "decentral". The default entry is "decentral".
         beta : list, optional
             Slope, the angle (in degree) between the plane of the surface of the photovoltaic collectors (PV) / solar
             thermal collectors (STCs) and the horizontal. 0 <= beta <= 180. If beta > 90, the surface faces downwards.
@@ -500,10 +503,11 @@ class Sun:
                                     diffuseRadiation=site["SunDiffuse"],
                                     albedo=site["albedo"])
 
+        # profile of the ambient temperature
         temperatureProfile = site["T_e"]
 
         devices = {}
-        with open(os.path.join(self.filePath, 'device_data.json')) as json_file:
+        with open(os.path.join(self.filePath, devicesType + '_device_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 devices[subData["abbreviation"]] = {}
@@ -533,9 +537,9 @@ class Sun:
             generation_PV[t] = SunRad[0][t] * eta_PV[t] * usageFactorPV * area_roof
 
         # efficiency of solar thermal collectors (STC)
-        temp_diff = np.zeros_like(site["T_e"])
+        temp_diff = np.zeros_like(temperatureProfile)
         for t in range(time["timeSteps"]):
-            temp_diff[t] = devices["STC"]["T_flow"] - site["T_e"][t]
+            temp_diff[t] = devices["STC"]["T_flow"] - temperatureProfile[t]
 
         eta_STC = np.zeros_like(SunRad[0])
         eta_STC[SunRad[0] > 0] = (devices["STC"]["zero_loss"]

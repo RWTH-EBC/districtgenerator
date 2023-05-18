@@ -86,69 +86,75 @@ class House(Device):
         """
 
         # %% Device specific variables:
-        # Thermal power of devices
+        # Thermal power of devices [W]
         self.heat = self.m.addVars(
             self.ecs_heat, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="Q_th_" + str(self.id)
         )
 
-        # Electrical power of devices
+        # Electrical power of devices [W]
         self.power = self.m.addVars(
             self.ecs_power, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="P_el_" + str(self.id)
         )
 
-        # Chemical power of gas
+        # Chemical power of gas [W]
         self.gas = self.m.addVars(
             self.ecs_gas, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="P_gas_" + str(self.id)
         )
 
-        # Storage charging
+        # Storage charging [W]
         self.ch = self.m.addVars(
             self.ecs_storage, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="ch_" + str(self.id)
         )
 
-        # Storage discharging
+    # Storage discharging [W]
         self.dch = self.m.addVars(
             self.ecs_storage, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="dch_" + str(self.id)
         )
 
-        # Storage SoC (state of charge)
+        # Storage SoC [Wh]
         self.soc = self.m.addVars(
             self.ecs_storage, range(len(self.timesteps)+1),
             vtype=gp.GRB.CONTINUOUS, name="soc_" + str(self.id)
         )
 
+        # Thermal power from heat grid for each building [W]
+        self.heat_fromGrid = self.m.addVars(
+            self.timesteps,
+            vtype=gp.GRB.CONTINUOUS, name="Q_th_grid_" + str(self.id)
+        )
+
         # %% Modus specific variables: Split HP in mode for HP35 and HP55
-        # Thermal power in HP mode
+        # Thermal power in HP mode [W]
         self.heat_mode = self.m.addVars(
             self.hp_modi, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="Q_th_" + str(self.id)
         )
 
-        # Electrical power in HP mode
+        # Electrical power in HP mode [W]
         self.power_mode = self.m.addVars(
             self.hp_modi, self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="P_el_" + str(self.id)
         )
 
         # %% Building specific variables:
-        # Residual electricity load
+        # Residual electricity load [W]
         self.res_load = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="res_load_" + str(self.id)
         )
 
-        # Residual electricity injection
+        # Residual electricity injection [W]
         self.res_inj = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="res_inj_" + str(self.id)
         )
 
-        # Residual gas demand
+        # Residual gas demand [W]
         self.res_gas = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS, name="res_gas_" + str(self.id)
@@ -167,8 +173,15 @@ class House(Device):
         self.m.addConstrs(
             (self.heat[dev, t] <= self.data["capacities"][dev]
              for t in self.timesteps
-             for dev in ("HP", "EH", "CHP", "FC", "BOI")),
+             for dev in self.ecs_heat[:-1]),
             name="Max_heating_" + str(self.id))
+
+        # Maximum heating power from grid
+        if self.data["capacities"]["heat_grid"] == 0:
+            self.m.addConstrs(
+                (self.heat_fromGrid[t] == 0
+                 for t in self.timesteps),
+                name="Max_grid_heating_" + str(self.id))
 
         # Energy balances heat pump
         self.m.addConstrs(
@@ -181,17 +194,17 @@ class House(Device):
              for t in self.timesteps),
             name="Conversion_power_" + str(self.id))
 
-        # Energy conversion heat pump modus
+        # Energy conversion heat pump modus (heat exchangers: minimal temperature difference of 5 K)
         self.m.addConstrs(
             (self.heat_mode["HP35", t] ==
-             (self.power_mode["HP35", t] * self.devs["HP"]["grade"] * (273.15 + 40) / (40 - (self.T_e[t] - 5)))
+             (self.power_mode["HP35", t] * self.decentralDevs["HP"]["grade"] * (273.15 + 40) / (40 - (self.T_e[t] - 5)))
              for t in self.timesteps),
             name="Conversion_HP35_" + str(self.id))
 
-        # Energy conversion heat pump modus
+        # Energy conversion heat pump modus (heat exchangers: minimal temperature difference of 5 K)
         self.m.addConstrs(
             (self.heat_mode["HP55", t] ==
-             (self.power_mode["HP55", t] * self.devs["HP"]["grade"] * (273.15 + 60) / (60 - (self.T_e[t] - 5)))
+             (self.power_mode["HP55", t] * self.decentralDevs["HP"]["grade"] * (273.15 + 60) / (60 - (self.T_e[t] - 5)))
              for t in self.timesteps),
             name="Conversion_HP55_" + str(self.id))
 
@@ -243,31 +256,31 @@ class House(Device):
 
         # Energy conversion CHP
         self.m.addConstrs(
-            (self.power["CHP", t] == self.gas["CHP", t] * self.devs["CHP"]["eta_el"]
+            (self.power["CHP", t] == self.gas["CHP", t] * self.decentralDevs["CHP"]["eta_el"]
              for t in self.timesteps),
             name="Conversion_CHP_el_" + str(self.id))
 
         self.m.addConstrs(
-            (self.heat["CHP", t] == self.gas["CHP", t] * self.devs["CHP"]["eta_th"]
+            (self.heat["CHP", t] == self.gas["CHP", t] * self.decentralDevs["CHP"]["eta_th"]
              for t in self.timesteps),
             name="Conversion_CHP_th_" + str(self.id))
 
         # Energy conversion BOI
         self.m.addConstrs(
-            (self.heat["BOI", t] == self.gas["BOI", t] * self.devs["BOI"]["eta_th"]
+            (self.heat["BOI", t] == self.gas["BOI", t] * self.decentralDevs["BOI"]["eta_th"]
              for t in self.timesteps),
             name="Conversion_BOI_" + str(self.id))
 
         # Energy conversion FC
         self.m.addConstrs(
-            (self.power["FC", t] == self.gas["FC", t] * self.devs["FC"]["eta_el"]
+            (self.power["FC", t] == self.gas["FC", t] * self.decentralDevs["FC"]["eta_el"]
              for t in self.timesteps),
-            name="Conversion_BZ_el_" + str(self.id))
+            name="Conversion_FC_el_" + str(self.id))
 
         self.m.addConstrs(
-            (self.heat["FC", t] == self.gas["FC", t] * self.devs["FC"]["eta_th"]
+            (self.heat["FC", t] == self.gas["FC", t] * self.decentralDevs["FC"]["eta_th"]
              for t in self.timesteps),
-            name="Conversion_BZ_th_" + str(self.id))
+            name="Conversion_FC_th_"+ str(self.id))
 
         # Maximum power PV
         self.m.addConstrs(
@@ -283,27 +296,28 @@ class House(Device):
 
         # Maximum state of charge
         self.m.addConstrs(
-            (self.soc[dev, t] <= self.data["capacities"][dev] * self.devs[dev]["soc_max"]
+            (self.soc[dev, t] <= self.data["capacities"][dev] * self.decentralDevs[dev]["soc_max"]
              for t in range(len(self.timesteps)+1)
              for dev in self.ecs_storage),
             name="Max_soc_" + str(self.id))
 
         # Minimum state of charge
         self.m.addConstrs(
-            (self.soc[dev, t] >= self.data["capacities"][dev] * self.devs[dev]["soc_min"]
+            (self.soc[dev, t] >= self.data["capacities"][dev] * self.decentralDevs[dev]["soc_min"]
              for t in range(len(self.timesteps)+1)
              for dev in self.ecs_storage),
             name="Min_soc_" + str(self.id))
 
-        # Maximum dis/charging power
+        # Maximum charging power
         self.m.addConstrs(
-            (self.ch[dev, t] <= self.data["capacities"][dev] * self.devs[dev]["coeff_ch"]
+            (self.ch[dev, t] <= self.data["capacities"][dev] * self.decentralDevs[dev]["coeff_ch"]
              for t in self.timesteps
              for dev in ("TES", "BAT")),
             name="Max_charging_" + str(self.id))
 
+        # Maximum discharging power
         self.m.addConstrs(
-            (self.dch[dev, t] <= self.data["capacities"][dev] * self.devs[dev]["coeff_ch"]
+            (self.dch[dev, t] <= self.data["capacities"][dev] * self.decentralDevs[dev]["coeff_ch"]
              for t in self.timesteps
              for dev in ("TES", "BAT")),
             name="Max_discharging_" + str(self.id))
@@ -314,7 +328,7 @@ class House(Device):
             occ[t] = min(1, self.occupants[t])
 
         self.m.addConstrs(
-            (self.ch["EV", t] <= self.devs["EV"]["ch_max"] * occ[t]
+            (self.ch["EV", t] <= self.decentralDevs["EV"]["ch_max"] * occ[t]
              for t in self.timesteps),
             name="Max_charging_EV_" + str(self.id))
 
@@ -324,13 +338,13 @@ class House(Device):
              for t in self.timesteps),
             name="Max_discharging_EV_" + str(self.id))
 
-        # Initial SoC (for clustering last SOC equals initial SOC)
+        # Initial SoC
         self.m.addConstrs(
-            (self.soc[dev, 0] == self.devs[dev]["init"] * self.data["capacities"][dev]
+            (self.soc[dev, 0] == self.decentralDevs[dev]["init"] * self.data["capacities"][dev]
              for dev in self.ecs_storage),
             name="Storage_initial_" + str(self.id))
 
-        # Storage at the end of period is the same as at the beginning
+        # Storage at the end of period is the same as at the beginning (because of clustering)
         self.m.addConstrs(
             (self.soc[dev, len(self.timesteps)] == self.soc[dev, 0]
              for dev in self.ecs_storage),
@@ -339,8 +353,9 @@ class House(Device):
         # Storage balances
         self.m.addConstrs(
             (self.soc[dev, t + 1] == self.soc[dev, t]
-             - (self.soc[dev, t] + self.soc[dev, t + 1]) / 2 * (1 - self.devs[dev]["eta_standby"])
-             + self.dt * (self.ch[dev, t] * self.devs[dev]["eta_ch"] - self.dch[dev, t] / self.devs[dev]["eta_ch"])
+             - (self.soc[dev, t] + self.soc[dev, t + 1]) / 2 * (1 - self.decentralDevs[dev]["eta_standby"])
+             + self.dt * (self.ch[dev, t] * self.decentralDevs[dev]["eta_ch"]
+                          - self.dch[dev, t] / self.decentralDevs[dev]["eta_ch"])
              for t in self.timesteps
              for dev in self.ecs_storage),
             name="Storage_balance_" + str(self.id))
@@ -352,7 +367,7 @@ class House(Device):
             name="Heat_balance_1_" + str(self.id))
 
         self.m.addConstrs(
-            (sum(self.heat[dev, t] for dev in self.ecs_heat) == self.ch["TES", t]
+            (sum(self.heat[dev, t] for dev in self.ecs_heat) + self.heat_fromGrid[t] == self.ch["TES", t]
              for t in self.timesteps),
             name="Heat_balance_2_" + str(self.id))
 
