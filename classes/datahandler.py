@@ -16,6 +16,7 @@ from classes.system import BES
 from classes.system import CES
 from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
+from classes.KPIs import KPIs
 import functions.clustering_medoid as cm
 import functions.wind_turbines as wind_turbines
 
@@ -63,6 +64,7 @@ class Datahandler:
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
+        self.KPIs = None
 
     def generateEnvironment(self):
         """
@@ -107,20 +109,20 @@ class Datahandler:
         # needed for data conversion into the right time format
         with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
             jsonData = json.load(json_file)
-            for subData in jsonData :
+            for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
-        self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+        self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                           np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                            temp_sunDirect)[0:-1]
-        self.site["SunDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                            np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+        self.site["SunDiffuse"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_sunDiff)[0:-1]
-        self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                     np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+        self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                     np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                      temp_temp)[0:-1]
         self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
@@ -835,3 +837,17 @@ class Datahandler:
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)
+
+    def calulateKPIs(self):
+        """
+        Calculate key performance indicators (KPIs).
+
+        Returns
+        -------
+        None.
+        """
+
+        # initialize KPI class
+        self.KPIs = KPIs(self)
+        # calculate KPIs
+        self.KPIs.calculateAllKPIs()
