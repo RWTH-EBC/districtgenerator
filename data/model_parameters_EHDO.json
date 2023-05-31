@@ -1,0 +1,111 @@
+[
+    {
+        "name": "enable_supply_el",
+        "value": "True",
+        "description" : "Enable electricity supply."
+    },
+    {
+        "name": "price_supply_el",
+        "value": "use value from district generator",
+        "unit": "€/kWh",
+        "description" : "Electricity price."
+    },
+    {
+        "name": "enable_feed_in_el",
+        "value": "True",
+        "description" : "Enable electricity supply."
+    },
+    {
+        "name": "revenue_feed_in_el",
+        "value": "use value from district generator",
+        "unit": "€/kWh",
+        "description" : "Feed-in electricity price."
+    },
+    {
+        "name": "enable_supply_gas",
+        "value": "True",
+        "description" : "Enable gas supply."
+    },
+    {
+        "name": "price_supply_gas",
+        "value": "use value from district generator",
+        "unit": "€/kWh",
+        "description" : "Gas price."
+    },
+    {
+        "name": "co2_tax",
+        "value": 0,
+        "unit": "€/t_CO2",
+        "description" : "CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste."
+    },
+    {
+        "name": "co2_el_grid",
+        "value": "use value from district generator",
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions for electricity import (grid mix)."
+    },
+    {
+        "name": "co2_el_feed_in",
+        "value": 0,
+        "unit": "kg/kWh",
+        "description" : "CO₂ emission credit for electricity  feed-in."
+    },
+    {
+        "name": "co2_gas",
+        "value": "use value from district generator",
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning natural gas."
+    },
+    {
+        "name": "optim_focus",
+        "value": 0,
+        "unit": "-",
+        "description" : "Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization."
+    },
+    {
+        "name": "interest_rate",
+        "value": 0.05,
+        "unit": "-",
+        "description" : "Interest rate. The interest rate affects the annualization of the investments according to VDI 2067."
+    },
+    {
+        "name": "observation_time",
+        "value": 20,
+        "unit": "years",
+        "description" : "Project lifetime. The project lifetime affects annualization of investments according to VDI 2067."
+    },
+    {
+        "name": "n_clusters",
+        "value": "use value from district generator",
+        "unit": "days",
+        "description" : "Number of design days."
+    },
+    {
+        "name": "ref",
+        "value": [
+            {
+            "name": "enable_hp",
+            "value": "False",
+            "description" : "Consider heat pump."
+            },
+            {
+            "name": "cop_hp",
+            "value": 5,
+            "unit": "-",
+            "description" : "Heat pump COP."
+            },
+            {
+            "name": "cop_cc",
+            "value": 5,
+            "unit": "-",
+            "description" : "Compression chiller COP."
+            },
+            {
+            "name": "enable_chp",
+            "value": "False",
+            "description" : "Consider CHP unit."
+            }
+        ],
+        "description" : "Reference scenario."
+    }
+]

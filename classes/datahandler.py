@@ -19,6 +19,8 @@ from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
 import functions.clustering_medoid as cm
 import functions.wind_turbines as wind_turbines
+import EHDO.load_params as load_params_EHDO
+import EHDO.optim_model as optim_model_EHDO
 
 
 class Datahandler:
@@ -851,3 +853,18 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs()
+
+    def optimiationWithEHDO(self):
+        """
+        Optimization with EHDO.
+
+        Returns
+        -------
+        None.
+        """
+
+        # Load parameters
+        param, devs, dem, result_dict = load_params_EHDO.load_params(self)
+
+        # Run optimization
+        self.resultsEHDO = optim_model_EHDO.run_optim(devs, param, dem, result_dict)
