@@ -3,7 +3,6 @@ data/scenarios/*
 !data/scenarios/example.csv
 !data/scenarios/central_devices_example.csv
 !data/scenarios/info.txt
-districtgenerator.egg-info
 errorfile.txt
 *.bk
 *.log
