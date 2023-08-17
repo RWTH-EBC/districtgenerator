@@ -103,9 +103,9 @@ class Users:
             The probability of having one or two flats is calculated from
             the german Zensus 2011 data.
             """
-            prob_sfh = 0.660  # probability of a SFH
-            random = np.random.uniform(low=0, high=1, size=None)  # get random value
-            if random <= prob_sfh:
+            prob = 0.793  # probability of a 1 flat SFH (2 flat = 1-0.793)
+            random = np.random.uniform(low=0, high=1, size=None)
+            if random <= prob:
                 self.nb_flats = 1
             else:
                 self.nb_flats = 2
@@ -119,10 +119,10 @@ class Users:
             category probability is known. Within the categories, a uniform
             distribution is assumed.
             """
-            prob_3_6 = 0.541  # probability of having 3 to 6 flats in the house
+            prob = 0.718  # probability of a 3-6 flat MFH
             random = np.random.uniform(low=0, high=1, size=None)  # get random value
             if (
-                random <= prob_3_6
+                random <= prob
             ):  # if the probability says we are in the smaller group of MFH
                 self.nb_flats = rd.randint(
                     3, 7
