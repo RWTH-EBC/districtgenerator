@@ -80,7 +80,7 @@ class Users:
 
     def generate_number_flats(self):
         """
-        Generate number of flats for different building types.
+        Generate number of flats for different of building types.
         Possible building types are:
             - single family house (SFH)
             - terraced house (TH)
@@ -89,55 +89,28 @@ class Users:
 
         Parameters
         ----------
-        None.
+        area : integer
+            Floor area of different building types.
 
         Returns
         -------
         None.
         """
-        # SFH and TH have the same procedure
-        if self.building == "SFH" or "TH":
-            """
-            The TABLUA building category "SFH" and "TH" are comprised of
-            houses with one flat and two flats.
-            The probability of having one or two flats is calculated from
-            the german Zensus 2011 data.
-            """
-            prob = 0.793  # probability of a 1 flat SFH (2 flat = 1-0.793)
-            random = np.random.uniform(low=0, high=1, size=None)
-            if random <= prob:
-                self.nb_flats = 1
-            else:
-                self.nb_flats = 2
+
+        if self.building == "SFH":
+            self.nb_flats = 1
+        elif self.building == "TH":
+            self.nb_flats = 1
         elif self.building == "MFH":
-            """
-            The TABLUA building category "MFH" is comprised of houses with
-            three to 12 flats.
-            The probability of occurence of the amount of flats is calculated
-            from the german Zensus 2011 data. The number of flats per building
-            is given in categories (3-6 flats, 7-12 flats) and only the
-            category probability is known. Within the categories, a uniform
-            distribution is assumed.
-            """
-            prob = 0.718  # probability of a 3-6 flat MFH
-            random = np.random.uniform(low=0, high=1, size=None)  # get random value
-            if (
-                random <= prob
-            ):  # if the probability says we are in the smaller group of MFH
-                self.nb_flats = rd.randint(
-                    3, 7
-                )  # select value between 3 and 6 (inclusive) on random
-            else:
-                self.nb_flats = rd.randint(7, 13)
+            if area <= 4 * 100:
+                self.nb_flats = 4
+            elif area > 4 * 100:
+                self.nb_flats = math.floor(area / 100)
         elif self.building == "AB":
-            """
-            The TABULA building category "GMH" (given here as "AB") contains
-            buildings with 13 or more flats.
-            The range of flats per building and probability of occurence is not
-            given. An exponential distribution with beta = 1 is assumed, the values
-            are then scaled to be >=13.
-            """
-            self.nb_flats = np.random.exponential(scale=1) + 13
+            if area <= 10 * 100:
+                self.nb_flats = 10
+            elif area > 10 * 100:
+                self.nb_flats = math.floor(area / 100)
 
     def generate_number_occupants(self):
         """
