@@ -78,7 +78,7 @@ class Users:
         self.generate_lighting_index()
         self.create_el_wrapper()
 
-    def generate_number_flats(self):
+    def generate_number_flats(self, area):
         """
         Generate number of flats for different of building types.
         Possible building types are:
