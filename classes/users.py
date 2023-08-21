@@ -142,6 +142,9 @@ class Users:
     def generate_number_occupants(self):
         """
         Generate number of occupants for different of building types.
+        Number of inhabitants is always between 1 and 6, irrespective of
+        building type. The probability of a certain number of inhabitants
+        changes with building type, based on Zensus2011 data.
 
         Parameters
         ----------
@@ -152,61 +155,71 @@ class Users:
         None.
         """
 
-        if self.building == "SFH":
-            # choose random number of occupants (2-5) for single family houses (assumption)
-
+        if self.building in ("SFH", "TH"):
+            # probability table, calculated from Zensus2011
+            # k: number inhabitants
+            # v: proportion of occurence (cumulative)
+            prob = {
+                1: (0, 0.223),
+                2: (0.223, 0.581),
+                3: (0.581, 0.770),
+                4: (0.770, 0.927),
+                5: (0.927, 0.977),
+                6: (0.977, 1),
+            }
             # loop over all flats of current building
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
-                j = 1  # staring with one (additional) occupant
-                # the random number decides how many occupants are chosen (2-5)
-                while j <= 4:
-                    if random_nb < j / 4:
-                        self.nb_occ.append(1 + j)  # minimum is 2 occupants
-                        break
-                    j += 1
-
-        if self.building == "TH":
-            # choose random number of occupants (2-5) for terraced houses (assumption)
-
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
-                j = 1  # staring with one (additional) occupant
-                # the random number decides how many occupants are chosen (2-5)
-                while j <= 4:
-                    if random_nb < j / 4:
-                        self.nb_occ.append(1 + j)  # minimum is 2 occupants
-                        break
-                    j += 1
+            for flat in range(self.nb_flats):
+                # get a random number
+                random_nb = rd.random()
+                for k, (lb, ub) in prob.items():
+                    # if the random number is between the lb and ub
+                    if random_nb > lb and random_nb < ub:
+                        # the key gives the number of occupants
+                        self.nb_occ.append(k)
 
         if self.building == "MFH":
-            # choose random number of occupants (1-4) for each flat in the multifamily house (assumption)
-
+            # probability table, calculated from Zensus2011
+            # k: number inhabitants
+            # v: proportion of occurence (cumulative)
+            prob = {
+                1: (0, 0.468),
+                2: (0.468, 0.794),
+                3: (0.794, 0.910),
+                4: (0.910, 0.973),
+                5: (0.973, 0.991),
+                6: (0.991, 1),
+            }
             # loop over all flats of current building
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
-                k = 1
-                # the random number decides how many occupants are chosen (1-4)
-                while k <= 4:
-                    if random_nb < k / 4:
+            for flat in range(self.nb_flats):
+                # get a random number
+                random_nb = rd.random()
+                for k, (lb, ub) in prob.items():
+                    # if the random number is between the lb and ub
+                    if random_nb > lb and random_nb < ub:
+                        # the key gives the number of occupants
                         self.nb_occ.append(k)
-                        break
-                    k += 1
 
         if self.building == "AB":
-            # choose random number of occupants (1-4) for each flat in the apartment block  (assumption)
-
+            # probability table, calculated from Zensus2011
+            # k: number inhabitants
+            # v: proportion of occurence (cumulative)
+            prob = {
+                1: (0, 0.609),
+                2: (0.609, 0.858),
+                3: (0.858, 0.935),
+                4: (0.935, 0.978),
+                5: (0.978, 0.992),
+                6: (0.992, 1),
+            }
             # loop over all flats of current building
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
-                k = 1
-                # the random number decides how many occupants are chosen (1-4)
-                while k <= 4:
-                    if random_nb < k / 4:
+            for flat in range(self.nb_flats):
+                # get a random number
+                random_nb = rd.random()
+                for k, (lb, ub) in prob.items():
+                    # if the random number is between the lb and ub
+                    if random_nb > lb and random_nb < ub:
+                        # the key gives the number of occupants
                         self.nb_occ.append(k)
-                        break
-                    k += 1
 
     def generate_annual_el_consumption(self):
         """
