@@ -72,7 +72,7 @@ class Users:
         self.gains = None
         self.heat = None
 
-        self.generate_number_flats()
+        self.generate_number_flats(area)
         self.generate_number_occupants()
         self.generate_annual_el_consumption()
         self.generate_lighting_index()
