@@ -28,6 +28,7 @@ import EHDO.solar_modeling as solar_modeling
 
 def load_params(data):
 
+    # TODO: Änderungen von Marius kontrollieren!
     srcPath = os.path.dirname(os.path.abspath(__file__))
 
     result_dict = {}
@@ -81,20 +82,18 @@ def load_params(data):
             electricityAppliances = data.district[b]["user"].elec
             electricityCar = data.district[b]["user"].car
         else:
-            heating += data.district[b]["user"].heat
+            heating += data.district[b]["user"].heat / 1000 #kW
             gains += data.district[b]["user"].gains
-            dhw += data.district[b]["user"].dhw
-            electricityAppliances += data.district[b]["user"].elec
+            dhw += data.district[b]["user"].dhw / 1000 #kW
+            electricityAppliances += data.district[b]["user"].elec / 1000 #kW
             electricityCar += data.district[b]["user"].car
 
-    heat_residual = []
-    for t in range(len(heating)):
-        heat_residual.append(min(0, heating[t] - gains[t]))
-    heat_residual = np.array(heat_residual)
-    heat_total = heat_residual + dhw
+
+    heat_total = heating + dhw
     electricity_total = electricityAppliances + electricityCar
 
     dem_uncl["heat"] = heat_total
+    # TODO: Kühlen ergänzen
     dem_uncl["cool"] = np.zeros(len(heat_total))
     dem_uncl["power"] = electricity_total
     dem_uncl["hydrogen"] = np.zeros(len(heat_total))
