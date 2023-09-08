@@ -12,7 +12,7 @@ from classes import *
 
 # 1. Custom district file:
 
-# At first, we will create a new custom district. Therefor you have to open the prepared CSV-file with the name
+# At first, we will create a new custom district. Therefore you have to open the prepared CSV-file with the name
 # "example2.csv" in the "data/scenarios/" directory of the districtgenerator. You can open the file with a text editor
 # or a spreadsheet software as Microsoft Excel. Make sure that the separation signs stay semicolons!
 # Except for the header in the first line (with information to each column), each row represents a building. In the
@@ -47,7 +47,7 @@ def example_generate_custom_district():
     # Generate district with energy profiles
     # We now use the function generateDistrictComplete() to generate a complete district all at once.
     data = Datahandler()
-    data.generateDistrictComplete(scenario_name='example2', calcUserProfiles=True, saveUserProfiles=False)
+    data.generateDistrictComplete(scenario_name='BF_Strategie_district', calcUserProfiles=False, saveUserProfiles=False)
 
     # Let's look into our custom district:
 

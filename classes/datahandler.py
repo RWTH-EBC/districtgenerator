@@ -387,7 +387,7 @@ class Datahandler:
 
         # load data from JSON-file about the heat grid, that connects the central devices and the buildings
         self.centralDevices["heatGrid"] = {}
-        with open("data/heat_grid.json") as json_file:
+        with open(os.path.join(self.filePath, "heat_grid.json")) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.centralDevices["heatGrid"][subData["name"]] = subData["value"]
@@ -592,9 +592,10 @@ class Datahandler:
             adjProfiles[id] = {}
             adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
             adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:lenghtArray]
-            adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
-            adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
+            #adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
+            #adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
             adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
+            adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
             if self.district[id]["buildingFeatures"]["EV"] != 0:
                 adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
             else:
@@ -653,12 +654,13 @@ class Datahandler:
         for id in self.scenario["id"]:
             inputsClustering.append(adjProfiles[id]["elec"])
             inputsClustering.append(adjProfiles[id]["dhw"])
-            inputsClustering.append(adjProfiles[id]["gains"])
-            inputsClustering.append(adjProfiles[id]["occ"])
+            #inputsClustering.append(adjProfiles[id]["gains"])
+            #inputsClustering.append(adjProfiles[id]["occ"])
             inputsClustering.append(adjProfiles[id]["car"])
             inputsClustering.append(adjProfiles[id]["generationPV"])
             inputsClustering.append(adjProfiles[id]["generationSTC"])
             inputsClustering.append(adjProfiles[id]["heat"])
+            inputsClustering.append(adjProfiles[id]["cooling"])
         # solar radiation on surfaces with different orientation
         for drct in range(len(self.SunRad)):
             inputsClustering.append(adjProfiles["Sun"][drct])
@@ -684,19 +686,20 @@ class Datahandler:
         # safe clustering solution in district data
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
-            index_house = int(8)  # number of profiles per building
+            index_house = int(7)  # number of profiles per building
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
-            self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
-            self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
+            #self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
+            #self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
             # assign real EV, PV and STC generation for clustered data to buildings
             # (array with zeroes if EV, PV or STC does not exist)
-            self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
-            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
+            self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2] * self.scenario.loc[id]["EV"]
+            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3] \
                                                         * self.district[id]["buildingFeatures"]["PV"]
-            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
+            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] \
                                                          * self.district[id]["buildingFeatures"]["STC"]
-            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 7]
+            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 5]
+            self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 6]
         # safe clustered solar radiation on surfaces with different orientation
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
@@ -852,9 +855,9 @@ class Datahandler:
         # initialize KPI class
         self.KPIs = KPIs(self)
         # calculate KPIs
-        self.KPIs.calculateAllKPIs()
+        self.KPIs.calculateAllKPIs(self)
 
-    def optimiationWithEHDO(self):
+    def optimizationWithEHDO(self):
         """
         Optimization with EHDO.
 

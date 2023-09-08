@@ -96,6 +96,7 @@ class Envelope:
                 design_data[subData["name"]] = subData["value"]
 
         self.T_set_min = design_data["T_set_min"]
+        self.T_set_max = design_data["T_set_max"]
         self.ventilationRate = design_data["ventilation_rate"]
         self.T_bivalent = design_data["T_bivalent"]
         self.T_heatlimit = design_data["T_heatlimit"]

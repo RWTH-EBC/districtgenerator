@@ -19,14 +19,20 @@
     },
     {
         "name": "Emi_elec",
-        "value": 0.400,
-        "unit": "g/Wh",
+        "value": 0.434,
+        "unit": "kg/kWh",
         "description" : "CO2 factor of grid electricity"
     },
     {
         "name": "Emi_gas",
-        "value": 0.250,
-        "unit": "g/Wh",
+        "value": 0.202,
+        "unit": "kg/kWh",
         "description" : "CO2 factor of grid gas"
+    },
+    {
+        "name": "Emi_pv",
+        "value": 0.053,
+        "unit": "kg/kWh",
+        "description" : "CO2 factor of pv electricity production"
     }
 ]

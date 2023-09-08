@@ -55,19 +55,21 @@ class Aggregator(Device):
         """
 
         # variables of the houses
-        self.P_dem, self.P_inj, self.P_gas = {}, {}, {}
+        self.P_dem, self.P_inj, self.P_gas, self.Heat_dem_grid = {}, {}, {}, {}
         for n in range(self.buildings):
-            self.P_dem[n], self.P_inj[n], self.P_gas[n] = {}, {}, {}
+            self.P_dem[n], self.P_inj[n], self.P_gas[n], self.Heat_dem_grid[n] = {}, {}, {}, {}
             for t in self.timesteps:
                 self.P_dem[n][t] = self.m.getVarByName("res_load_" + str(n) + "[" + str(t) + "]")  # [W]
                 self.P_inj[n][t] = self.m.getVarByName("res_inj_" + str(n) + "[" + str(t) + "]")  # [W]
                 self.P_gas[n][t] = self.m.getVarByName("res_gas_" + str(n) + "[" + str(t) + "]")  # [W]
+                self.Heat_dem_grid[n][t] = self.m.getVarByName("Q_th_grid_" + str(n) + "[" + str(t) + "]")  # [W]
         # variables of the central energy unit
-        self.P_el_dem_centralUnit, self.P_el_inj_centralUnit, self.P_gas_dem_centralUnit = {}, {}, {}
+        self.P_el_dem_centralUnit, self.P_el_inj_centralUnit, self.P_gas_dem_centralUnit, self.Heat_inj_centralUnit = {}, {}, {}, {}
         for t in self.timesteps:
             self.P_el_dem_centralUnit[t] = self.m.getVarByName("P_el_dem_centralUnit" + "[" + str(t) + "]")  # [W]
             self.P_el_inj_centralUnit[t] = self.m.getVarByName("P_el_inj_centralUnit" + "[" + str(t) + "]")  # [W]
             self.P_gas_dem_centralUnit[t] = self.m.getVarByName("P_gas_dem_centralUnit" + "[" + str(t) + "]")  # [W]
+            self.Heat_inj_centralUnit[t] = self.m.getVarByName("Heat_inj_centralUnit" + "[" + str(t) + "]")  # [W]
 
     def setVariables(self):
         """
@@ -82,6 +84,7 @@ class Aggregator(Device):
         self.P_dem_total = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
+            lb=0,
             name="P_dem_total"
         )
 
@@ -89,6 +92,7 @@ class Aggregator(Device):
         self.P_inj_total = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
+            lb=0,
             name="P_inj_total"
         )
 
@@ -103,6 +107,7 @@ class Aggregator(Device):
         self.P_dem_gcp = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
+            lb=0,
             name="P_dem_gcp"
         )
 
@@ -110,6 +115,7 @@ class Aggregator(Device):
         self.P_inj_gcp = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
+            lb=0,
             name="P_inj_gcp"
         )
 
@@ -117,14 +123,12 @@ class Aggregator(Device):
         self.C_total_central = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
-            lb=-gp.GRB.INFINITY,
             name="C_total_central"
         )
 
         self.C_total_decentral = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
-            lb=-gp.GRB.INFINITY,
             name="C_total_decentral"
         )
 
@@ -132,7 +136,6 @@ class Aggregator(Device):
         self.C_building = self.m.addVars(
             self.buildings, self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
-            lb=-gp.GRB.INFINITY,
             name="C_building"
         )
 
@@ -140,14 +143,12 @@ class Aggregator(Device):
         self.Emi_total_central = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
-            lb=-gp.GRB.INFINITY,
             name="Emi_total_central"
         )
 
         self.Emi_total_decentral = self.m.addVars(
             self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
-            lb=-gp.GRB.INFINITY,
             name="Emi_total_decentral"
         )
 
@@ -155,7 +156,6 @@ class Aggregator(Device):
         self.Emi_building = self.m.addVars(
             self.buildings, self.timesteps,
             vtype=gp.GRB.CONTINUOUS,
-            lb=-gp.GRB.INFINITY,
             name="Emi_building"
         )
 
@@ -170,6 +170,20 @@ class Aggregator(Device):
             vtype=gp.GRB.CONTINUOUS,
             name="Peak_neg_gcp"
         )
+
+        # Cumulated heat demand [W]
+        self.heat_dem_total = self.m.addVars(
+            self.timesteps,
+            vtype=gp.GRB.CONTINUOUS,
+            name="Heat_dem_total"
+        )
+
+        # District heat injection of central energy unit [W]
+        #self.heat_inj_centralUnit = self.m.addVars(
+        #    self.timesteps,
+        #    vtype=gp.GRB.CONTINUOUS,
+        #    name="Heat_inj_centralUnit"
+        #)
 
     def setConstraints(self):
         """
@@ -201,9 +215,9 @@ class Aggregator(Device):
         # Balance of total incoming and outgoing power
         for t in self.timesteps:
             self.m.addConstr(
-                self.P_dem_gcp[t] - self.P_inj_gcp[t],
+                self.P_dem_gcp[t] + self.P_inj_total[t],
                 gp.GRB.EQUAL,
-                self.P_dem_total[t] - self.P_inj_total[t],
+                self.P_dem_total[t] + self.P_inj_gcp[t],
                 name="District_balance" + str(t)
             )
 
@@ -219,9 +233,7 @@ class Aggregator(Device):
         # Upper bound for injection
         for t in self.timesteps:
             self.m.addConstr(
-                self.P_inj_gcp[t],
-                gp.GRB.LESS_EQUAL,
-                self.P_inj_total[t],
+                self.P_inj_gcp[t] <= self.P_inj_total[t],
                 name="Limit_district_inj" + str(t)
             )
 
@@ -234,6 +246,15 @@ class Aggregator(Device):
                 name="Cumulated_dem_gas" + str(t)
             )
 
+        # Cumulated heat demand covered by central energy unit
+        for t in self.timesteps:
+            self.m.addConstr(
+                self.Heat_inj_centralUnit[t],
+                gp.GRB.EQUAL,
+                sum(self.Heat_dem_grid[n][t] for n in range(self.buildings)),
+                name="Cumulated_dem_heat" + str(t)
+            )
+        """
         # Total emissions
         for t in self.timesteps:
             self.m.addConstr(
@@ -259,6 +280,7 @@ class Aggregator(Device):
             self.m.addConstr(
                 self.Emi_total_decentral[t],
                 gp.GRB.EQUAL,
+                # TODO: verursachte Emissionen berechnen?!
                 self.dt * (self.P_dem_total[t] * self.Emission_factor_elec
                            - self.P_inj_total[t] * self.Emission_factor_elec
                            + self.P_gas_total[t] * self.Emission_factor_gas),
@@ -297,3 +319,4 @@ class Aggregator(Device):
                                   + self.P_gas_total[t] * self.C_dem_gas),
                 name="Total_decentral_cost_balance_" + str(t)
             )
+            """

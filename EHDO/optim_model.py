@@ -584,20 +584,22 @@ def run_optim(devs, param, dem, result_dict):
 
 
         ##### For further analysis
+        for k in all_devs:
+            result_dict[k] = {}
 
-#        result_dict["tac"] = int(obj["tac"].X)      # EUR/a
-#        result_dict["co2"] = int(obj["co2"].X/1000) # t/a
+        result_dict["tac"] = int(obj["tac"].X)      # EUR/a
+        result_dict["co2"] = int(obj["co2"].X/1000) # t/a
 #
 #        for k in cap.keys():
 #            result_dict[k] = {"cap": round(cap[k].X, 1)}
 #
-#        result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()))
-#        result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()))
-#        result_dict["total_om_cost"]         = int(sum(c_om[k].X  for k in cap.keys()))
-#        result_dict["from_el_grid_total"]    = int(from_el_grid_total.X / 1000)    # MWh
-#        result_dict["to_el_grid_total"]      = int(to_el_grid_total.X / 1000)      # MWh
-#        result_dict["from_gas_grid_total"]   = int(from_gas_grid_total.X / 1000)   # MWh
-#        result_dict["to_gas_grid_total"]     = int(to_gas_grid_total.X / 1000)     # MWh
+        result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()))
+        result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()))
+        result_dict["total_om_cost"]         = int(sum(c_om[k].X  for k in cap.keys()))
+        result_dict["from_el_grid_total"]    = int(from_el_grid_total.X / 1000)    # MWh
+        result_dict["to_el_grid_total"]      = int(to_el_grid_total.X / 1000)      # MWh
+        result_dict["from_gas_grid_total"]   = int(from_gas_grid_total.X / 1000)   # MWh
+        result_dict["to_gas_grid_total"]     = int(to_gas_grid_total.X / 1000)     # MWh
 #        result_dict["biom_import_total"]     = int(biom_import_total.X / 1000)     # MWh
 #        result_dict["waste_import_total"]    = int(waste_import_total.X / 1000)    # MWh
 #        result_dict["hydrogen_import_total"] = int(hydrogen_import_total.X / 1000) # MWh
@@ -609,21 +611,21 @@ def run_optim(devs, param, dem, result_dict):
 #        result_dict["co2_tax_total"] = int(result_dict["co2_onsite_emissions"] * param["co2_tax"] * 1000)  # EUR, only gas, biomass and waste.
 #
 #        # Calculate maximum grid flows (electricity and gas)
-#        for k in ["from_grid", "to_grid"]:
-#            result_dict["max_el_" + k] = 0
-#            for d in days:
-#                for t in time_steps:
-#                    if power[k][d][t].X > result_dict["max_el_" + k]:
-#                        result_dict["max_el_" + k] = power[k][d][t].X
-#            result_dict["max_el_" + k] = int(result_dict["max_el_" + k])
+        for k in ["from_grid", "to_grid"]:
+            result_dict["max_el_" + k] = 0
+            for d in days:
+                for t in time_steps:
+                    if power[k][d][t].X > result_dict["max_el_" + k]:
+                        result_dict["max_el_" + k] = power[k][d][t].X
+            result_dict["max_el_" + k] = int(result_dict["max_el_" + k])
 #
-#        for k in ["from_grid", "to_grid"]:
-#            result_dict["max_gas_" + k] = 0
-#            for d in days:
-#                for t in time_steps:
-#                    if gas[k][d][t].X > result_dict["max_gas_" + k]:
-#                        result_dict["max_gas_" + k] = gas[k][d][t].X
-#            result_dict["max_gas_" + k] = int(result_dict["max_gas_" + k])
+        for k in ["from_grid", "to_grid"]:
+            result_dict["max_gas_" + k] = 0
+            for d in days:
+                for t in time_steps:
+                    if gas[k][d][t].X > result_dict["max_gas_" + k]:
+                        result_dict["max_gas_" + k] = gas[k][d][t].X
+            result_dict["max_gas_" + k] = int(result_dict["max_gas_" + k])
 #
 #        result_dict["max_biom"] = 0
 #        for d in days:
@@ -646,15 +648,15 @@ def run_optim(devs, param, dem, result_dict):
 #                    result_dict["max_hydrogen"] = hydrogen["import"][d][t].X
 #        result_dict["max_hydrogen"] = int(result_dict["max_hydrogen"])
 #
-#        result_dict["supply_costs_el"] = int(supply_costs_el.X)
-#        result_dict["cap_costs_el"] = int(cap_costs_el.X)
-#        result_dict["total_el_costs"] = int(supply_costs_el.X + cap_costs_el.X)
-#        result_dict["rev_feed_in_el"] = int(rev_feed_in_el.X)
+        result_dict["supply_costs_el"] = int(supply_costs_el.X)
+        result_dict["cap_costs_el"] = int(cap_costs_el.X)
+        result_dict["total_el_costs"] = int(supply_costs_el.X + cap_costs_el.X)
+        result_dict["rev_feed_in_el"] = int(rev_feed_in_el.X)
 #
-#        result_dict["supply_costs_gas"] = int(supply_costs_gas.X)
-#        result_dict["cap_costs_gas"] = int(cap_costs_gas.X)
-#        result_dict["total_gas_costs"] = int(supply_costs_gas.X + cap_costs_gas.X)
-#        result_dict["rev_feed_in_gas"] = int(rev_feed_in_gas.X)
+        result_dict["supply_costs_gas"] = int(supply_costs_gas.X)
+        result_dict["cap_costs_gas"] = int(cap_costs_gas.X)
+        result_dict["total_gas_costs"] = int(supply_costs_gas.X + cap_costs_gas.X)
+        result_dict["rev_feed_in_gas"] = int(rev_feed_in_gas.X)
 #
 #        result_dict["supply_costs_biom"] = int(supply_costs_biom.X)
 #        result_dict["supply_costs_waste"] = int(supply_costs_waste.X)
@@ -684,18 +686,18 @@ def run_optim(devs, param, dem, result_dict):
 #
 #
 #        # Calculate generation
-#        eps = 0.01
-#        for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
-#            result_dict[k]["gen_kWh"] = sum(sum(heat[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)  # in kWh
-#            result_dict[k]["gen"] = int(sum(sum(heat[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)/1000)  # in MWh
-#
+        eps = 0.01
+        for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+            result_dict[k]["gen_kWh"] = sum(sum(heat[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)  # in kWh
+            result_dict[k]["gen"] = int(sum(sum(heat[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)/1000)  # in MWh
+
 #        for k in ["CC", "AC"]:
 #            result_dict[k]["gen_kWh"] = sum(sum(cool[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)  # in kWh
 #            result_dict[k]["gen"] = int(sum(sum(cool[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)/1000)  # in MWh
-#
-#        for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
-#            result_dict[k]["gen_kWh"] = sum(sum(power[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)  # in kWh
-#            result_dict[k]["gen"] = int(sum(sum(power[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)/1000)  # in MWh
+
+        for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
+            result_dict[k]["gen_kWh"] = sum(sum(power[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)  # in kWh
+            result_dict[k]["gen"] = int(sum(sum(power[k][d][t].X for t in time_steps) * param["day_weights"][d] for d in days)/1000)  # in MWh
 #
 #        # Calculate hydrogen generation for ELYZ
 #        result_dict["ELYZ"]["gen_H2"] = int(sum(sum(power["ELYZ"][d][t].X * devs["ELYZ"]["eta_el"]for t in time_steps) * param["day_weights"][d] for d in days)/1000)  # in MWh
@@ -713,18 +715,18 @@ def run_optim(devs, param, dem, result_dict):
 #
 #
 #        # Select technologies that are installed (to list only these in results)
-#        for k in all_devs:
-#            if cap[k].X > eps:
-#                result_dict[k]["inst"] = True
-#            else:
-#                result_dict[k]["inst"] = False
+        for k in all_devs:
+            if cap[k].X > eps:
+                result_dict[k]["inst"] = True
+            else:
+                result_dict[k]["inst"] = False
 #        result_dict["PV_or_STC_inst"] = (result_dict["PV"]["inst"] or result_dict["STC"]["inst"])
 #        result_dict["right_gen_tech_inst"] =(result_dict["WT"]["inst"] or result_dict["WAT"]["inst"] or result_dict["ELYZ"]["inst"] or result_dict["FC"]["inst"] or result_dict["SAB"]["inst"])
 #        result_dict["storage_inst"] = (result_dict["TES"]["inst"] or result_dict["CTES"]["inst"] or result_dict["GS"]["inst"] or result_dict["BAT"]["inst"] or result_dict["H2S"]["inst"])
 #
 #        # Area of PV and STC
-#        result_dict["PV"]["area"] = int(area["PV"].X)
-#        result_dict["STC"]["area"] = int(area["STC"].X)
+        result_dict["PV"]["area"] = int(area["PV"].X)
+        result_dict["STC"]["area"] = int(area["STC"].X)
 #
 #        # Calculate charge cycles of storages
 #        for k in ["TES", "CTES", "BAT", "H2S", "GS"]:
@@ -734,16 +736,16 @@ def run_optim(devs, param, dem, result_dict):
 #                result_dict[k]["chc"] = 0
 #
 #        # Calculate volume of thermal storages
-#        for k in ["TES", "CTES"]:
-#            result_dict[k]["vol"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600, 1)
+        for k in ["TES", "CTES"]:
+            result_dict[k]["vol"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600, 1)
 #
 #        # Calculate emissions
-#        result_dict["total_co2_el"] = int(from_el_grid_total.X * param["co2_el_grid"]/1000) # t/a
-#        result_dict["total_co2_el_feed_in"] = int(to_el_grid_total.X * param["co2_el_feed_in"]/1000) # t/a
+        result_dict["total_co2_el"] = int(from_el_grid_total.X * param["co2_el_grid"]/1000) # t/a
+        result_dict["total_co2_el_feed_in"] = int(to_el_grid_total.X * param["co2_el_feed_in"]/1000) # t/a
 #        if result_dict["total_co2_el_feed_in"] > 0:
 #            result_dict["total_co2_el_feed_in_larger_zero"] = True
-#        result_dict["total_co2_gas"] = int(from_gas_grid_total.X * param["co2_gas"]/1000) # t/a
-#        result_dict["total_co2_gas_feed_in"] = int(to_gas_grid_total.X * param["co2_gas_feed_in"]/1000) # t/a
+        result_dict["total_co2_gas"] = int(from_gas_grid_total.X * param["co2_gas"]/1000) # t/a
+        result_dict["total_co2_gas_feed_in"] = int(to_gas_grid_total.X * param["co2_gas_feed_in"]/1000) # t/a
 #        if result_dict["total_co2_gas_feed_in"] > 0:
 #            result_dict["total_co2_gas_feed_in_larger_zero"] = True
 #        result_dict["total_co2_biom"] = int(biom_import_total.X * param["co2_biom"]/1000) # t/a
@@ -751,28 +753,28 @@ def run_optim(devs, param, dem, result_dict):
 #        result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
 #
 #        # Calculate share of renewables
-#        result_dict["share_renew"] = round((result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"])/(result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"] + from_el_grid_total.X + from_gas_grid_total.X + biom_import_total.X + waste_import_total.X + hydrogen_import_total.X)*100, 1)  #
+        result_dict["share_renew"] = round((result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"])/(result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"] + from_el_grid_total.X + from_gas_grid_total.X + biom_import_total.X + waste_import_total.X + hydrogen_import_total.X)*100, 1)  #
 #
 #        # Calculate relative savings compared to reference scenario
-#        if not result_dict["ref"]["tac"] == 0:
-#            if result_dict["tac"] <= result_dict["ref"]["tac"]:
-#                result_dict["ref"]["tac_sav"] = round((1-(result_dict["tac"]/result_dict["ref"]["tac"])) * 100, 1)
-#                result_dict["ref"]["tac_sav_pos"] = True
-#            else:
-#                result_dict["ref"]["tac_sav"] = round(((result_dict["tac"]/result_dict["ref"]["tac"])-1) * 100, 1)
-#                result_dict["ref"]["tac_sav_pos"] = False
-#        else:
-#            result_dict["ref"]["tac_sav"] = 0
+        if not result_dict["ref"]["tac"] == 0:
+            if result_dict["tac"] <= result_dict["ref"]["tac"]:
+                result_dict["ref"]["tac_sav"] = round((1-(result_dict["tac"]/result_dict["ref"]["tac"])) * 100, 1)
+                result_dict["ref"]["tac_sav_pos"] = True
+            else:
+                result_dict["ref"]["tac_sav"] = round(((result_dict["tac"]/result_dict["ref"]["tac"])-1) * 100, 1)
+                result_dict["ref"]["tac_sav_pos"] = False
+        else:
+            result_dict["ref"]["tac_sav"] = 0
 #
-#        if not result_dict["ref"]["co2"] == 0:
-#            if result_dict["co2"] <= result_dict["ref"]["co2"]:
-#                result_dict["ref"]["co2_sav"] = round((1-(result_dict["co2"]/result_dict["ref"]["co2"])) * 100, 1)
-#                result_dict["ref"]["co2_sav_pos"] = True
-#            else:
-#                result_dict["ref"]["co2_sav"] = round(((result_dict["co2"]/result_dict["ref"]["co2"])-1) * 100, 1)
-#                result_dict["ref"]["co2_sav_pos"] = False
-#        else:
-#            result_dict["ref"]["co2_sav"] = 0
+        if not result_dict["ref"]["co2"] == 0:
+            if result_dict["co2"] <= result_dict["ref"]["co2"]:
+                result_dict["ref"]["co2_sav"] = round((1-(result_dict["co2"]/result_dict["ref"]["co2"])) * 100, 1)
+                result_dict["ref"]["co2_sav_pos"] = True
+            else:
+                result_dict["ref"]["co2_sav"] = round(((result_dict["co2"]/result_dict["ref"]["co2"])-1) * 100, 1)
+                result_dict["ref"]["co2_sav_pos"] = False
+        else:
+            result_dict["ref"]["co2_sav"] = 0
 #
 #
 #

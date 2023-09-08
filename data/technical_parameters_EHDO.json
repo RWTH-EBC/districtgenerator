@@ -5,7 +5,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {
@@ -52,7 +52,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {
@@ -169,7 +169,7 @@
     },
     {
       "name": "max_cap",
-      "value": 100000,
+      "value": 300000,
       "unit": "kW_th",
       "description": "Maximum capacity."
     },
@@ -205,7 +205,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {
@@ -252,7 +252,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {
@@ -304,7 +304,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {
@@ -351,7 +351,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {
@@ -404,7 +404,7 @@
   "specifications": [
     {
       "name": "feasible",
-      "value": "True",
+      "value": "False",
       "description": "Technology enabled (True) or disabled (False)."
     },
     {

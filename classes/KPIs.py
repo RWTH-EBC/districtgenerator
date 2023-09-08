@@ -23,6 +23,8 @@ class KPIs:
         """
 
         # initialize KPIs
+        self.sum_res_load = None
+        self.sum_res_inj = None
         self.residualLoad = None
         self.peakDemand = None
         self.peakInjection = None
@@ -32,6 +34,13 @@ class KPIs:
         self.operationCosts = None
         self.co2emissions = None
         self.renewableElectricityGenerationFactor = None
+        self.W_inj_GCP_year = None
+        self.W_dem_GCP_year = None
+        self.Gas_year = None
+        self.dcf = None
+        self.scf = None
+        self.dcf_year = None
+        self.scf_year = None
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -48,11 +57,20 @@ class KPIs:
 
         # prepare the results of the optimizations for each cluster
         inputData["resultsOptimization"] = data.resultsOptimization
+        inputData["district"] = data.district
 
         self.inputData = inputData
 
         # prepare data to compute KPIs
         self.prepareData(data)
+        self.calculateResidualLoad(data)
+        self.calculatePeakLoad()
+        self.calculatePeakToValley()
+        self.calculateEnergyExchangeGCP(data)
+        self.calculateEnergyExchangeWithinDistrict(data)
+        self.EnergyAutonomy_year()
+        self.calculateDemandCoverFactor(data)
+
 
     def prepareData(self, data):
         """
@@ -84,91 +102,27 @@ class KPIs:
                 for subsubData in subData["specifications"]:
                     decentralDev[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
-        for c in range(len(self.inputData["clusters"])):  # loop over cluster
+        # summed el. load of all buildings , [number of time periods, time steps within periods]
+        self.sum_res_load = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
+        # summed el. injection of all buildings
+        self.sum_res_inj = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
+        # el. load central energy unit
+        centralEnergyUnit_load = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
+        # el. injection central energy unit
+        centralEnergyUnit_inj = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
 
-            # electricity demand [kWh]
-            electricityDemand_cluster_c = np.zeros(len(data.district[0]["user"].elec_cluster[c]))
-            # demand of all buildings
-            for b in data.scenario["id"]:
-                electricityDemand_cluster_c += \
-                    (data.district[b]["user"].elec_cluster[c]
-                     + self.inputData["resultsOptimization"][c][b]["EV_ch"]
-                     + self.inputData["resultsOptimization"][c][b]["HP_P_el"]
-                     + self.inputData["resultsOptimization"][c][b]["EH_P_el"]) \
-                    * data.time["timeResolution"] / 3600 / 1000
-            # demand of central devices
-            electricityDemand_cluster_c += \
-                (np.array(self.inputData["resultsOptimization"][c]["centralDevices"]["HP_air_P_el_central"])
-                 + self.inputData["resultsOptimization"][c]["centralDevices"]["HP_geo_P_el_central"]
-                 + self.inputData["resultsOptimization"][c]["centralDevices"]["EH_P_el_central"]) \
-                * data.time["timeResolution"] / 3600 / 1000
-            electricityDemand_cluster.append(electricityDemand_cluster_c)
+        ### for buildings
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            # loop over buildings
+            for id in data.scenario["id"]:
+                self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][id]["res_load"])
+                self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
 
-            # electricity generation [kWh]
-            renewableGeneration_cumulated_c = 0
-            electricityGeneration_cluster_c = 0
-            # generation of buildings
-            for b in data.scenario["id"]:
-                electricityGeneration_cluster_c += \
-                    (np.array(self.inputData["resultsOptimization"][c][b]["PV_P_el"])
-                     + self.inputData["resultsOptimization"][c][b]["FC_P_el"]
-                     + self.inputData["resultsOptimization"][c][b]["CHP_P_el"]) \
-                    * data.time["timeResolution"] / 3600 / 1000
-                renewableGeneration_cumulated_c += \
-                    np.array(self.inputData["resultsOptimization"][c][b]["PV_P_el"]) \
-                    * data.time["timeResolution"] / 3600 / 1000
-            electricityGeneration_cluster_c += \
-                (np.array(self.inputData["resultsOptimization"][c]["centralDevices"]["PV_P_el_central"])
-                 + self.inputData["resultsOptimization"][c]["centralDevices"]["WT_P_el_central"]
-                 + self.inputData["resultsOptimization"][c]["centralDevices"]["FC_P_el_central"]
-                 + self.inputData["resultsOptimization"][c]["centralDevices"]["CHP_P_el_central"]) \
-                * data.time["timeResolution"] / 3600 / 1000
-            renewableGeneration_cumulated_c += \
-                (np.array(self.inputData["resultsOptimization"][c]["centralDevices"]["PV_P_el_central"])
-                 + self.inputData["resultsOptimization"][c]["centralDevices"]["WT_P_el_central"]) \
-                * data.time["timeResolution"] / 3600 / 1000
-            electricityGeneration_cluster.append(electricityGeneration_cluster_c)
-            electricityGenerationRenewable_cluster.append(renewableGeneration_cumulated_c)
+        ### for central energy unit
 
-        ################################################################################################################
 
-        # electricity generation for one year [kWh]
-        electricityGeneration_year = 0
-        for c in range(len(electricityGeneration_cluster)):  # loop over cluster
-            electricityGeneration_c = sum(electricityGeneration_cluster[c])
-            electricityGeneration_year += \
-                electricityGeneration_c * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        self.inputData["electricityGeneration_year"] = electricityGeneration_year
-
-        # renewable electricity generation for one year [kWh]
-        renewableElectricityGeneration_year = 0
-        for c in range(len(electricityGenerationRenewable_cluster)):  # loop over cluster
-            renewableElectricityGeneration_c = sum(electricityGenerationRenewable_cluster[c])
-            renewableElectricityGeneration_year += \
-                renewableElectricityGeneration_c * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        self.inputData["renewableElectricityGeneration_year"] = renewableElectricityGeneration_year
-
-        # electricity demand for one year [kWh]
-        electricityDemand_year = 0
-        for c in range(len(electricityDemand_cluster)):  # loop over cluster
-            electricityDemand_c = sum(electricityDemand_cluster[c])
-            electricityDemand_year += \
-                electricityDemand_c * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        self.inputData["electricityDemand_year"] = electricityDemand_year
-
-        # electricity demand from grid for one year [kWh]
-        electricityDemandGCP_year = 0
-        for c in range(len(self.inputData["resultsOptimization"])):  # loop over cluster
-            electricityDemandGCP_c = sum(self.inputData["resultsOptimization"][c]["P_dem_gcp"]) \
-                                     * data.time["timeResolution"] / 3600 / 1000
-            electricityDemandGCP_year += \
-                electricityDemandGCP_c * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-
-        # self-consumption considering shift by battery [kWh]
-        # requirement: same state of charge at beginning and end of clusters
-        self.inputData["selfConsumption_year"] = electricityDemand_year - electricityDemandGCP_year
-
-    def calculateResidualLoad(self):
+    def calculateResidualLoad(self, data):
         """
         Calculate residual load at grid connection point (GCP) in [kW].
         Demand is positive and injection negative.
@@ -178,18 +132,16 @@ class KPIs:
         None.
         """
 
-        # compose residual load for one year from data of demand and injection for each cluster
-        P_gcp = []
-        for interval in range(self.inputData["nbIntervals"]):  # loop over intervals of the hole year (days/weeks/etc.)
-            for clusterID in range(len(self.inputData["clusters"])):  # loop over cluster
-                if interval in self.inputData["clusterAssignments"][self.inputData["clusters"][clusterID]]:
-                    # append data of cluster representing current interval
-                    P_gcp.append(np.array(self.inputData["resultsOptimization"][clusterID]["P_dem_gcp"])
-                                 - np.array(self.inputData["resultsOptimization"][clusterID]["P_inj_gcp"]))
-                    break
+        res = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])])
+
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            for t in range(len(data.district[0]["user"].elec_cluster[0])):
+                res[c, t] = self.inputData["resultsOptimization"][c]["P_dem_gcp"][t]\
+                            - self.inputData["resultsOptimization"][c]["P_inj_gcp"][t]
 
         # create array and change unit from [W] to [kW]
-        self.residualLoad = np.array(P_gcp).flatten() / 1000
+        self.residualLoad = res / 1000
 
     def calculatePeakLoad(self):
         """
@@ -200,19 +152,12 @@ class KPIs:
         None.
         """
 
-        # maximal demand [kW]
-        max_temp = max(self.residualLoad)
-        if max_temp >= 0:
-            self.peakDemand = round(max_temp, 3)
-        else:
-            self.peakDemand = 0
+        # maximal load [kW]
+        self.peakLoad = round(np.max(self.residualLoad[:, :-4]), 3)
 
         # maximal injection [kW]
-        min_temp = min(self.residualLoad)
-        if min_temp <= 0:
-            self.peakInjection = round(- min_temp, 3)
-        else:
-            self.peakInjection = 0
+        self.peakInjection = round(np.min(self.residualLoad) *(-1), 3)
+
 
     def calculatePeakToValley(self):
         """
@@ -223,10 +168,54 @@ class KPIs:
         None.
         """
 
-        # peak to valley [kW]
-        self.peakToValley = round(max(self.residualLoad) - min(self.residualLoad), 3)
+        PtV = np.zeros(len(self.inputData["clusters"]))
+        for c in range(len(self.inputData["clusters"])):
+            PtV[c] = round(max(self.residualLoad[c, :-4]) - min(self.residualLoad[c, :-4]), 3)
 
-    def calculateDemandCoverFactor(self):
+        # peak to valley for each time period[kW]
+        self.peakToValley = PtV
+
+    def calculateEnergyExchangeGCP(self, data):
+
+        # Electricity [kWh] feed into the superordinated grid
+        W_inj_GCP = np.zeros(len(data.clusters))
+        # Electricity [kWh] covered by the superordinated grid
+        W_dem_GCP = np.zeros(len(data.clusters))
+        Gas = np.zeros(len(data.clusters))
+
+        # electricity feed into and covered by superordinated grid for one year [kWh]
+        self.W_inj_GCP_year = 0
+        self.W_dem_GCP_year = 0
+        self.Gas_year = 0
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            W_dem_GCP[c] = sum(self.inputData["resultsOptimization"][c]["P_dem_gcp"]) \
+                                     * data.time["timeResolution"] / 3600 / 1000
+            W_inj_GCP[c] = sum(self.inputData["resultsOptimization"][c]["P_inj_gcp"]) \
+                                     * data.time["timeResolution"] / 3600 / 1000
+            Gas[c] = sum(self.inputData["resultsOptimization"][c]["P_gas_total"]) * data.time["timeResolution"] / 3600 / 1000
+            self.W_dem_GCP_year += W_dem_GCP[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.W_inj_GCP_year += W_inj_GCP[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.Gas_year += Gas[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+
+    def calculateEnergyExchangeWithinDistrict(self, data):
+
+        # Electricity [kWh] feed into the local grid by buildings
+        W_inj_buildings = np.zeros(len(data.clusters))
+        # Electricity [kWh] purchase of buildings
+        W_dem_buildings = np.zeros(len(data.clusters))
+
+        self.W_inj_buildings_year = 0
+        self.W_dem_buildings_year = 0
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            self.W_dem_buildings_year += sum(self.sum_res_load[c, :] * data.time["timeResolution"] / 3600 / 1000) \
+                                         * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.W_inj_buildings_year += sum(self.sum_res_inj[c, :] * data.time["timeResolution"] / 3600 / 1000) \
+                                         * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+
+
+    def calculateDemandCoverFactor(self, data):
         """
         Calculate the ratio between the self-consumed electricity and the total electricity demand.
 
@@ -236,8 +225,45 @@ class KPIs:
         """
 
         # How much of the electricity demand is covered by the self-generated electricity? [-]
-        self.demandCoverFactor = \
-            round(self.inputData["selfConsumption_year"] / self.inputData["electricityDemand_year"], 4)
+
+
+        self.scf = np.zeros(len(self.inputData["clusters"]))
+        self.dcf = np.zeros(len(self.inputData["clusters"]))
+
+        min = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
+        nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])],
+                              dtype=float)
+        nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])],
+                              dtype=float)
+
+        for c in range(len(self.inputData["clusters"])):
+            for t in range(len(data.district[0]["user"].elec_cluster[0])):
+                a = 0
+                b = 0
+                # sum of all buildings for each timestep
+                for id in data.scenario["id"]:
+                    a += self.inputData["resultsOptimization"][c][id]["res_load"][t]
+                    b += self.inputData["resultsOptimization"][c][id]["res_inj"][t]
+                # sum of all timesteps
+                nenner_dem[c, t] += a
+                nenner_sup[c, t] += b
+                min[c, t] = np.min([a, b])
+
+            self.dcf[c] = np.sum(min[c, :]) / np.sum(nenner_dem[c, :])
+            self.scf[c] = np.sum(min[c, :]) / np.sum(nenner_sup[c, :])
+
+        self.dcf_year = 0
+        self.scf_year = 0
+        sum_ClusterWeights = 0
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            sum_ClusterWeights += self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+        for c in range(len(self.inputData["clusters"])):
+            self.dcf_year += self.dcf[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                                                          / sum_ClusterWeights)
+            self.scf_year += self.scf[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                                                          / sum_ClusterWeights)
+
 
     def calculateSupplyCoverFactor(self):
         """
@@ -275,7 +301,7 @@ class KPIs:
         # central operation costs for one year [€]
         self.operationCosts = round(temp_operationCosts, 2)
 
-    def calculateCO2emissions(self):
+    def calculateCO2emissions(self, data):
         """
         Calculate the CO2 emissions for one year in [kg].
 
@@ -284,34 +310,61 @@ class KPIs:
         None.
         """
 
-        # list with CO2 emissions for each cluster [g]
-        co2_clusters = []
-        for c in range(len(self.inputData["clusters"])):
-            co2_clusters.append(sum(self.inputData["resultsOptimization"][c]["Emi_total_central"]))
+        filePath = os.path.join(data.srcPath, 'data')
+        # important for weather conditions
+        with open(os.path.join(filePath, 'eco_data.json')) as json_file:
+            jsonData = json.load(json_file)
 
-        # multiply CO2 emissions of each cluster with the weight of respective cluster
-        temp_co2 = 0
+        CO2_factor_el_grid = jsonData[3]["value"]  # Emi_elec_grid
+        CO2_factor_gas = jsonData[4]["value"]      # Emi_gas
+        CO2_factor_pv = jsonData[5]["value"]       # Emi_pv
+
+        #CO2 factor of pv electricity production
+
+        co2emissions_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid
+
+        # caused CO2 emissions by PV [kg]
+        co2_pv = 0
         for c in range(len(self.inputData["clusters"])):
-            temp_co2 += co2_clusters[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            for id in range(len(self.inputData["district"])):
+                co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
+                                 * data.time["timeResolution"] / 3600 / 1000) * CO2_factor_pv \
+                          * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+
 
         # CO2 emissions for one year; change unit from [g] to [kg]
-        self.co2emissions = round(temp_co2 / 1000, 3)
+        self.co2emissions = co2emissions_dem_grid + co2_pv
 
-    def calculateRenewableElectricityGenerationFactor(self):
+    def EnergyAutonomy_year(self):
         """
-        Calculate the ratio between the renewable generated electricity and the total generated electricity.
-
         Returns
         -------
         None.
         """
+        LOLP = np.zeros(len(self.inputData["clusters"]))
+        EnergyAutonomy = np.zeros(len(self.inputData["clusters"]))
 
-        # How much of the self-generated electricity is renewable electricity? [-]
-        self.renewableElectricityGenerationFactor = \
-            round(self.inputData["renewableElectricityGeneration_year"] / self.inputData["electricityGeneration_year"],
-                  4)
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            y = 0
+            for t in range(len(self.residualLoad[c])):
+                if self.residualLoad[c, t] > 0:
+                    y += 1
+                else:
+                    y += 0
+            LOLP[c] = y / len(self.residualLoad[c])
+        EnergyAutonomy = np.array([1,1,1,1]) - LOLP
 
-    def calculateAllKPIs(self):
+        self.EnergyAutonomy_year = 0
+        sum_ClusterWeights = 0
+        # loop over cluster
+        for c in range(len(self.inputData["clusters"])):
+            sum_ClusterWeights += self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+        for c in range(len(self.inputData["clusters"])):
+            self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                                                          / sum_ClusterWeights)
+
+    def calculateAllKPIs(self, data):
         """
         Calculate all KPIs.
 
@@ -320,11 +373,13 @@ class KPIs:
         None.
         """
 
-        self.calculateResidualLoad()
+        self.calculateResidualLoad(data)
         self.calculatePeakLoad()
         self.calculatePeakToValley()
-        self.calculateDemandCoverFactor()
-        self.calculateSupplyCoverFactor()
-        self.calculateOperationCosts()
-        self.calculateCO2emissions()
-        self.calculateRenewableElectricityGenerationFactor()
+        self.calculateEnergyExchangeGCP(data)
+        self.calculateEnergyExchangeWithinDistrict(data)
+        self.calculateDemandCoverFactor(data)
+        #self.calculateSupplyCoverFactor()
+        #self.calculateOperationCosts()
+        self.calculateCO2emissions(data)
+        #self.EnergyAutonomy_year()

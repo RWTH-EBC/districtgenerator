@@ -60,6 +60,9 @@ class Users:
         self.building = building
         self.nb_flats = None
         self.annual_el_demand = None
+        self.annual_heat_demand = None
+        self.annual_dhw_demand = None
+        self.annual_cooling_demand = None
         self.lighting_index = []
         self.el_wrapper = []
         self.nb_occ = []
@@ -68,6 +71,7 @@ class Users:
         self.elec = None
         self.gains = None
         self.heat = None
+        self.cooling = None
 
         self.generate_number_flats(area)
         self.generate_number_occupants()
@@ -353,11 +357,19 @@ class Users:
 
         dt = time_resolution/(60*60)
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, site["T_e"], dt)
+        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_min, site["T_e"], dt)
+        #(Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], dt)
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
         for t in range(len(Q_HC)):
             self.heat[t] = max(0, Q_HC[t])
+        self.annual_heat_demand = np.sum(self.heat)
+
+        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
+        self.cooling = np.zeros(len(Q_HC))
+        for t in range(len(Q_HC)):
+            self.cooling[t] = min(0, Q_HC[t]) * (-1)
+        self.annual_cooling_demand = np.sum(self.cooling)
 
     def saveProfiles(self, unique_name, path):
         """
@@ -404,6 +416,7 @@ class Users:
         None.
         """
 
+        np.savetxt(path + '/cooling_' + unique_name + '.csv', self.cooling, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/heating_' + unique_name + '.csv', self.heat, fmt='%1.2f', delimiter=',')
 
     def loadProfiles(self, unique_name, path):

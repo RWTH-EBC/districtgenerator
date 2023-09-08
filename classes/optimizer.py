@@ -59,7 +59,9 @@ class Optimizer:
         -------
         None.
         """
-        
+
+        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.filePath = os.path.join(self.srcPath, 'data')
         self.optiSettings = self.loadGurobiSettings()
         self.model = None
         self.results = None
@@ -82,9 +84,9 @@ class Optimizer:
             Optimization settings for the gurobi solver.
         """
 
-        optiSettings = json.load(open('data/gurobi_settings.json'))
+        gurobiSettings = json.load(open(os.path.join(self.filePath, 'gurobi_settings.json')))
 
-        return optiSettings
+        return gurobiSettings
 
     def initializeModel(self):
         """
@@ -146,13 +148,19 @@ class Optimizer:
         """
 
         # total central costs of the district for all time steps
-        C_total = {}
+        #C_total = {}
+        #for t in self.timesteps:
+        #    C_total[t] = self.model.getVarByName("C_total_central" + "[" + str(t) + "]")
+
+        # total electricity load of the district at the GNP for all time steps
+        P_dem_gcp = {}
         for t in self.timesteps:
-            C_total[t] = self.model.getVarByName("C_total_central" + "[" + str(t) + "]")
+            P_dem_gcp[t] = self.model.getVarByName("P_dem_gcp" + "[" + str(t) + "]")
+
 
         # set the sum of the total central costs of the district over all time steps as objective
         self.model.setObjective(
-            sum(C_total[t] for t in self.timesteps),
+            sum(P_dem_gcp[t] for t in self.timesteps),
             gp.GRB.MINIMIZE
         )
 
@@ -238,7 +246,7 @@ class Optimizer:
 
         # load data of decentral devices
         devices = {}
-        with open("data/decentral_device_data.json") as json_file:
+        with open(self.filePath + "/decentral_device_data.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 devices[subData["abbreviation"]] = {}
@@ -247,7 +255,7 @@ class Optimizer:
 
         # load data of central devices
         centralDevices = {}
-        with open("data/central_device_data.json") as json_file:
+        with open(self.filePath + "/central_device_data.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 centralDevices[subData["abbreviation"]] = {}
@@ -292,6 +300,9 @@ class Optimizer:
                                                               + str(t) + "]").x, 5))
                         except:
                             del results[id][str(dev) + "_" + v]
+            for t in self.timesteps:
+                results[id]["Q_th_Grid"].append(
+                    round(self.model.getVarByName("Q_th_grid_" + str(id) + "[" + str(t) + "]").x, 5))
 
         # add results of the central devices
         central_dev_var = (
@@ -310,6 +321,9 @@ class Optimizer:
                             round(self.model.getVarByName(v + "[" + str(dev) + "," + str(t) + "]").x, 5))
                     except:
                         del results["centralDevices"][str(dev) + "_" + v[:-7]]
+
+        Variablen = self.model.getVars()
+        x=0
 
         return results
 

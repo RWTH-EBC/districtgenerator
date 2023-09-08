@@ -249,7 +249,7 @@
     },
     {
       "name": "eta_standby",
-      "value": 1.0,
+      "value": 0.97,
       "unit": "-",
       "description": "Standby efficiency."
     },
@@ -298,7 +298,7 @@
     },
     {
       "name": "eta_standby",
-      "value": 1.0,
+      "value": 0.97,
       "unit": "-",
       "description": "Standby efficiency."
     },

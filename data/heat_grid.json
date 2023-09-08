@@ -1,14 +1,14 @@
 [    
   {
     "name" : "T_hot",
-    "value": 338.15,
+    "value": 332.15,
     "unit": "K",
     "description" : "flow temperature of heat grid"
   },
     
   {
     "name" : "T_cold",
-    "value": 318.15,
+    "value": 323.15,
     "unit": "K",
     "description" : "return temperature of heat grid"
   },

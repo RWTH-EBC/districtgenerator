@@ -7,13 +7,13 @@
     },
     {
         "name": "clusterLength",
-        "value": 86400,
+        "value": 604800,
         "unit": "sec",
         "description" : "Length of cluster. Tip: 604800 refers to one week. 86400 for one day."
     },
     {
         "name": "clusterNumber",
-        "value": 12,
+        "value": 4,
         "unit": "-",
         "description" : "Number of cluster"
     },
