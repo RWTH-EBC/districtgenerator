@@ -4,14 +4,14 @@ import math
 import os
 import random as rd
 
+import functions.heating_profile_5R1C as heating
 import numpy as np
 import richardsonpy
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
-
-import functions.heating_profile_5R1C as heating
 from classes.profils import Profiles
+from scipy.stats import truncpareto
 
 
 class Users:
@@ -134,10 +134,19 @@ class Users:
             The TABULA building category "GMH" (given here as "AB") contains
             buildings with 13 or more flats.
             The range of flats per building and probability of occurence is not
-            given. An exponential distribution with beta = 1 is assumed, the values
-            are then scaled to be >=13.
+            given.
+            A truncated pareto distribution is assumed, where all values are between
+            13 and 100. Therefore, it is assumed that no house will have more than
+            100 flats.
             """
-            self.nb_flats = np.random.exponential(scale=1) + 13
+            max_flats = 100.0
+            min_flats = 12.0  # the `scale` is added to this, so it's effectively 13
+            scale = 1.0
+            b = 1.0
+            c = (max_flats - min_flats) / scale
+            nb_flats = truncpareto.rvs(b=b, c=c, loc=min_flats, scale=scale, size=1)
+            # round to nearest integer
+            self.nb_flats = round(nb_flats[0], 0)
 
     def generate_number_occupants(self):
         """
