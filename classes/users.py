@@ -96,7 +96,7 @@ class Users:
         None.
         """
         # SFH and TH have the same procedure
-        if self.building == "SFH" or "TH":
+        if self.building == "SFH" or self.building == "TH":
             """
             The TABLUA building category "SFH" and "TH" are comprised of
             houses with one flat and two flats.
@@ -146,7 +146,7 @@ class Users:
             c = (max_flats - min_flats) / scale
             nb_flats = truncpareto.rvs(b=b, c=c, loc=min_flats, scale=scale, size=1)
             # round to nearest integer
-            self.nb_flats = round(nb_flats[0], 0)
+            self.nb_flats = int(round(nb_flats[0], 0))
 
     def generate_number_occupants(self):
         """
