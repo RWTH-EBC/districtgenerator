@@ -125,10 +125,10 @@ class Users:
                 random <= prob
             ):  # if the probability says we are in the smaller group of MFH
                 self.nb_flats = rd.randint(
-                    3, 7
+                    3, 6
                 )  # select value between 3 and 6 (inclusive) on random
             else:
-                self.nb_flats = rd.randint(7, 13)
+                self.nb_flats = rd.randint(7, 12)
         elif self.building == "AB":
             """
             The TABULA building category "GMH" (given here as "AB") contains
