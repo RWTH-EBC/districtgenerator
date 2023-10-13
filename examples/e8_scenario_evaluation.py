@@ -15,7 +15,7 @@ def example8_scenario_evaluation():
     data = Datahandler()
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='Typquartier_1', calcUserProfiles=False, saveUserProfiles=False,
+    data.generateDistrictComplete(scenario_name='BF_Strategie_district', calcUserProfiles=False, saveUserProfiles=False,
                                   fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
 
     # Sizing of the selected devices

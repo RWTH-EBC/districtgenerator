@@ -181,6 +181,56 @@
   ]
   },
   {
+  "device": "thermal energy storage 35" ,
+  "abbreviation": "TES35" ,
+  "description": "thermal energy storage 35" ,
+  "specifications": [
+    {
+      "name": "soc_min",
+      "value": 0.0,
+      "unit": "-",
+      "description": "Minimum state of charge."
+    },
+    {
+      "name": "soc_max",
+      "value": 1.0,
+      "unit": "-",
+      "description": "Maximum state of charge."
+    },
+    {
+      "name": "eta_standby",
+      "value": 0.97,
+      "unit": "-",
+      "description": "Standby efficiency."
+    },
+    {
+      "name": "eta_ch",
+      "value": 1.0,
+      "unit": "-",
+      "description": "Charging and discharging efficiency."
+    },
+    {
+      "name": "coeff_ch",
+      "value": 1000.0,
+      "unit": "Watt per Watthour",
+      "description": "Charging and discharging coefficient."
+    },
+    {
+      "name": "init",
+      "value": 0.5,
+      "unit": "-",
+      "description": "Initial state of charge."
+    },
+    {
+      "name": "T_diff_max",
+      "value": 35,
+      "unit": "degree Celsius",
+      "description": "Maximum temperature difference. At a temperature difference of 35 degree the upper level temperature is 60 degree and the lower level temperature is 25 degree."
+    }
+  ]
+  },
+
+    {
   "device": "thermal energy storage" ,
   "abbreviation": "TES" ,
   "description": "thermal energy storage" ,
@@ -229,6 +279,57 @@
     }
   ]
   },
+
+  {
+  "device": "thermal energy storage 60" ,
+  "abbreviation": "TES60" ,
+  "description": "thermal energy storage 60" ,
+  "specifications": [
+    {
+      "name": "soc_min",
+      "value": 0.0,
+      "unit": "-",
+      "description": "Minimum state of charge."
+    },
+    {
+      "name": "soc_max",
+      "value": 1.0,
+      "unit": "-",
+      "description": "Maximum state of charge."
+    },
+    {
+      "name": "eta_standby",
+      "value": 0.97,
+      "unit": "-",
+      "description": "Standby efficiency."
+    },
+    {
+      "name": "eta_ch",
+      "value": 1.0,
+      "unit": "-",
+      "description": "Charging and discharging efficiency."
+    },
+    {
+      "name": "coeff_ch",
+      "value": 1000.0,
+      "unit": "Watt per Watthour",
+      "description": "Charging and discharging coefficient."
+    },
+    {
+      "name": "init",
+      "value": 0.5,
+      "unit": "-",
+      "description": "Initial state of charge."
+    },
+    {
+      "name": "T_diff_max",
+      "value": 35,
+      "unit": "degree Celsius",
+      "description": "Maximum temperature difference. At a temperature difference of 35 degree the upper level temperature is 60 degree and the lower level temperature is 25 degree."
+    }
+  ]
+  },
+
   {
   "device": "battery",
   "abbreviation": "BAT",

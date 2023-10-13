@@ -1,6 +1,6 @@
 type;f_heat;f
 HP_air;0;0
-HP_geo;0;0
+HP_geo;300000;0
 BOI;0;0
 CHP;0;0
 FC;0;0

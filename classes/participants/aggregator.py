@@ -246,6 +246,8 @@ class Aggregator(Device):
                 name="Cumulated_dem_gas" + str(t)
             )
 
+
+
         # Cumulated heat demand covered by central energy unit
         for t in self.timesteps:
             self.m.addConstr(
@@ -254,6 +256,7 @@ class Aggregator(Device):
                 sum(self.Heat_dem_grid[n][t] for n in range(self.buildings)),
                 name="Cumulated_dem_heat" + str(t)
             )
+
         """
         # Total emissions
         for t in self.timesteps:
