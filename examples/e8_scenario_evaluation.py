@@ -15,11 +15,11 @@ def example8_scenario_evaluation():
     data = Datahandler()
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='BF_Strategie_district', calcUserProfiles=False, saveUserProfiles=False,
-                                  fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
+    data.generateDistrictComplete(scenario_name='DEQ_MVP', calcUserProfiles=False, saveUserProfiles=False,
+                                  fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=True)
 
     # Sizing of the selected devices
-    data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=False)
+    data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=True)
 
     # Within a clustered time series, data points are aggregated across different time periods
     # based on the k-medoids method

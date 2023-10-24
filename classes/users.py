@@ -371,6 +371,15 @@ class Users:
             self.cooling[t] = min(0, Q_HC[t]) * (-1)
         self.annual_cooling_demand = np.sum(self.cooling)
 
+    def getProfiles(self):
+
+        heat = self.heat
+        cooling = self.cooling
+        elec = self.elec
+        dhw = self.dhw
+
+        return heat, cooling, elec, dhw
+
     def saveProfiles(self, unique_name, path):
         """
         Save profiles to csv.

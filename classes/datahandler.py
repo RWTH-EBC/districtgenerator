@@ -63,6 +63,7 @@ class Datahandler:
         self.scenario_name = None
         self.scenario = None
         self.counter = {}
+        self.outputV1 = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
@@ -262,7 +263,9 @@ class Datahandler:
                 set.append(name)
                 self.counter[name] = count()
             nb = next(self.counter[name])
+
             building["unique_name"] = name + "_" + str(nb)
+            self.outputV1[building["unique_name"]] = {}
 
             # calculate or load user profiles
             if calcUserProfiles:
@@ -295,7 +298,22 @@ class Datahandler:
             if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
+            self.outputV1[building["unique_name"]]["heat"] = building["user"].getProfiles()[0]
+            self.outputV1[building["unique_name"]]["cooling"] = building["user"].getProfiles()[1]
+            self.outputV1[building["unique_name"]]["elec"] = building["user"].getProfiles()[2]
+            self.outputV1[building["unique_name"]]["dhw"] = building["user"].getProfiles()[3]
+
         print("Finished generating demands!")
+
+    def outputWebtoolV1(self):
+    #    for i in range(len(self.district)):
+    #        self.outputV1[i] = {}
+    #        self.outputV1[i]["heat"] = self.district[i]["user"]["heat"]
+    #        self.outputV1[i]["cooling"] = self.district[i]["user"]["cooling"]
+    #        self.outputV1[i]["dhw"] = self.district[i]["user"]["dhw"]
+    #        self.outputV1[i]["elec"] = self.district[i]["user"]["elec"]
+        return self.outputV1
+
 
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
