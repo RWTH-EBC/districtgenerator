@@ -148,7 +148,7 @@ class Datahandler:
                                         diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
 
-    def initializeBuildings(self, scenario_name='example'):
+    def initializeBuildings(self, list_all, scenario_name='example'):
         """
         Fill district with buildings from scenario file.
 
@@ -171,12 +171,17 @@ class Datahandler:
         # initialize buildings for scenario
         # loop over all buildings
         for id in self.scenario["id"]:
+            list = list_all[id]
 
-            # create empty dict for observed building
-            building = {}
+            building = pd.Series([list[0],list[1],list[2],list[3],list[4],3,1,2,3,1,2,3,1,2,3,1],
+                                 index = ['id','building','year', 'retrofit','area','heater','PV',
+                                          'STC','EV', 'BAT','f_TES','f_BAT', 'f_EV','f_PV', 'f_STC',
+                                          'gamma_PV',])
 
-            # store features of the observed building
-            building["buildingFeatures"] = self.scenario.loc[id]
+            ## create empty dict for observed building
+            #building = {}
+            ## store features of the observed building
+            #building["buildingFeatures"] = self.scenario.loc[id]
 
             # append building to district
             self.district.append(building)
@@ -350,7 +355,8 @@ class Datahandler:
         """
 
         self.generateEnvironment()
-        self.initializeBuildings(scenario_name)
+        #self.initializeBuildings(scenario_name)
+        self.initializeBuildings()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
