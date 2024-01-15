@@ -67,7 +67,7 @@ class Datahandler:
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
-        self.resultPath = os.path.join(self.srcPath, 'results')
+        self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
         self.KPIs = None
 
     def select_plz_data(self, plz):
@@ -297,6 +297,15 @@ class Datahandler:
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+             # %% calculate design heat loads
+            # at norm outside temperature
+            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            # at bivalent temperature
+            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalenz")
+            # at heatimg limit temperature
+            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            # for drinking hot water
+            building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):

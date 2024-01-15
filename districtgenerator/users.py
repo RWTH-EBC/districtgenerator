@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import os, math
 import random as rd
 import numpy as np
@@ -11,6 +9,7 @@ import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 import functions.heating_profile_5R1C as heating
+
 
 
 class Users:
@@ -81,89 +80,87 @@ class Users:
         self.generate_lighting_index()
         self.create_el_wrapper()
 
-    def generate_number_flats(self, area):
-        """
+
+    def generate_number_flats(self ,area):
+        '''
         Generate number of flats for different of building types.
         Possible building types are:
             - single family house (SFH)
             - terraced house (TH)
             - multifamily house (MFH)
-            - apartment block (AP)
+            - apartment block (AB)
+
+        Assumes the average area of a flat is 100 square meters in MFH and AB.
 
         Parameters
         ----------
         area : integer
-            Floor area of different building types.
+            Floor area of different building types
 
-        Returns
-        -------
-        None.
-        """
-
+        '''
         if self.building == "SFH":
             self.nb_flats = 1
         elif self.building == "TH":
             self.nb_flats = 1
         elif self.building == "MFH":
-            if area <= 6 * 100:
-                self.nb_flats = 6
-            elif area > 6 * 100:
-                self.nb_flats = 8
+            if area <= 4*100:
+                self.nb_flats = 4
+            elif area > 4 * 100:
+                self.nb_flats = math.floor(area/100)
         elif self.building == "AB":
-            self.nb_flats = 8
-
+            if area <= 10*100:
+                self.nb_flats = 10
+            elif area > 10*100:
+                self.nb_flats = math.floor(area/100)
 
     def generate_number_occupants(self):
-        """
+        '''
         Generate number of occupants for different of building types.
 
         Parameters
         ----------
-        random_nb : random number in [0,1).
+        random_nb : random number in [0,1)
 
-        Returns
-        -------
-        None.
-        """
+        '''
 
         if self.building == "SFH":
-            # choose random number of occupants (2-5) for single family houses (assumption)
+            # choose random number of occupants (2-5) for single family houses  (assumption)
 
-            # loop over all flats of current building
+            # loop over all flats of current multi family house
             for j in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
                 j = 1  # staring with one (additional) occupant
                 # the random number decides how many occupants are chosen (2-5)
-                while j <= 4:
-                    if random_nb < j / 4:
+                while j <= 4 :
+                    if random_nb < j / 4 :
                         self.nb_occ.append(1 + j)  # minimum is 2 occupants
                         break
                     j += 1
 
         if self.building == "TH":
-            # choose random number of occupants (2-5) for terraced houses (assumption)
+            # choose random number of occupants (2-5) for single family houses  (assumption)
 
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
+            # loop over all flats of current multi family house
+            for j in range(self.nb_flats) :
                 random_nb = rd.random()  # picking random number in [0,1)
                 j = 1  # staring with one (additional) occupant
                 # the random number decides how many occupants are chosen (2-5)
-                while j <= 4:
-                    if random_nb < j / 4:
+                while j <= 4 :
+                    if random_nb < j / 4 :
                         self.nb_occ.append(1 + j)  # minimum is 2 occupants
                         break
                     j += 1
 
         if self.building == "MFH":
-            # choose random number of occupants (1-4) for each flat in the multifamily house (assumption)
+            # choose random number of occupants (1-4) for each flat in the multi family house  (assumption)
 
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
+            # loop over all flats of current multi family house
+            for j in range(self.nb_flats) :
                 random_nb = rd.random()  # picking random number in [0,1)
                 k = 1
-                # the random number decides how many occupants are chosen (1-4)
-                while k <= 4:
-                    if random_nb < k / 4:
+                # the random number decides how many occupants are chosen (1-5)
+                while k <= 4 :
+                    if random_nb < k / 4 :
                         self.nb_occ.append(k)
                         break
                     k += 1
@@ -171,59 +168,61 @@ class Users:
         if self.building == "AB":
             # choose random number of occupants (1-4) for each flat in the apartment block  (assumption)
 
-            # loop over all flats of current building
+            # loop over all flats of current multi family house
             for j in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
                 k = 1
-                # the random number decides how many occupants are chosen (1-4)
-                while k <= 4:
-                    if random_nb < k / 4:
+                # the random number decides how many occupants are chosen (1-5)
+                while k <= 4 :
+                    if random_nb < k / 4 :
                         self.nb_occ.append(k)
                         break
                     k += 1
 
+
+
     def generate_annual_el_consumption(self):
-        """
-        Generate annual electricity consumption
-        in dependency of the building type and the number of occupants.
+        '''
+        Generate annual elictricity consumption
+        in dependency of the building type and the number of occupants
 
         Parameters
         ----------
-        standard_consumption : standard annual consumption in kWh (assumption).
+        standard_consumption : standard annual consumption in kWh (assumption)
 
-        Returns
-        -------
-        None.
-        """
+        '''
 
         # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
-        standard_consumption = {"SFH": {1: 2400,
-                                        2: 3000,
-                                        3: 3600,
-                                        4: 4000,
-                                        5: 5000},
-                                "MFH": {1: 1400,
-                                        2: 2000,
-                                        3: 2600,
-                                        4: 2900,
-                                        5: 3000}}
+        standard_consumption = {"SFH" : {1 : 2300,
+                                         2 : 3000,
+                                         3 : 3500,
+                                         4 : 4000,
+                                         5 : 5000},
+                                "MFH" : {1 : 1300,
+                                         2 : 2000,
+                                         3 : 2500,
+                                         4 : 2600,
+                                         5 : 3000}}
 
         self.annual_el_demand = np.zeros(self.nb_flats)
-        # assumption: standard deviation 10% of mean value
         for j in range(self.nb_flats):
             if self.building == "SFH":
                 annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
+                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
             if self.building == "TH":
                 annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
+                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
             if self.building == "MFH":
                 annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
+                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
             if self.building == "AB":
                 annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
+                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
 
     def generate_lighting_index(self):
         """
@@ -246,6 +245,7 @@ class Users:
         for j in range(self.nb_flats):
             random_nb = rd.random()
             self.lighting_index.append(int(random_nb * 100))
+
 
     def create_el_wrapper(self):
         """
@@ -347,6 +347,7 @@ class Users:
         #self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
         #self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
 
+
     def calcHeatingProfile(self, site, envelope, time_resolution):
         """
         Calculate heat demand for each building.
@@ -383,6 +384,7 @@ class Users:
         for t in range(len(Q_HC)):
             self.cooling[t] = min(0, Q_HC[t]) * (-1)
         self.annual_cooling_demand = np.sum(self.cooling)
+
 
     def saveProfiles(self, unique_name, path):
         """
@@ -485,3 +487,4 @@ if __name__ == '__main__':
                  area=1000)
 
     test.calcProfiles()
+

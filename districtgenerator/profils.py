@@ -12,7 +12,7 @@ import functions.OpenDHW as OpenDHW
 import functions.dhw_stochastical as dhw_profil
 
 
-class Profiles:
+class Profiles():
     """
     Profile class.
     Calculating user related profiles of a building or flat.
