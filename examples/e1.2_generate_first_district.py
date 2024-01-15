@@ -5,7 +5,7 @@ Now let's add our buildings to the district.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator import *
 
 def example1_2_generate_first_district():
 

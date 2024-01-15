@@ -5,7 +5,7 @@ Next step: create an environment.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator import *
 
 def example1_1_generate_first_district():
 

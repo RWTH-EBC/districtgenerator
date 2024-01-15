@@ -1,0 +1,15 @@
+LICENSE.md
+README.md
+setup.py
+districtgenerator/__init__.py
+districtgenerator/datahandler.py
+districtgenerator/envelope.py
+districtgenerator/plots.py
+districtgenerator/profils.py
+districtgenerator/solar.py
+districtgenerator/users.py
+districtgenerator.egg-info/PKG-INFO
+districtgenerator.egg-info/SOURCES.txt
+districtgenerator.egg-info/dependency_links.txt
+districtgenerator.egg-info/requires.txt
+districtgenerator.egg-info/top_level.txt

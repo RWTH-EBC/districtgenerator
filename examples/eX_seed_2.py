@@ -5,7 +5,7 @@ In this example we compare all of our profiles to see, which ones depend on stat
 can be influenced by the seed number.
 """
 
-from classes import *
+from districtgenerator import *
 import matplotlib.pyplot as plt
 import random as rd
 import os

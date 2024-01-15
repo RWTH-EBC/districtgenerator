@@ -9,7 +9,7 @@ example.py file (e1.0_generate_first_district.py). Then choose 'Modify Run Confi
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator import *
 
 
 def example1_0_generate_first_district():
