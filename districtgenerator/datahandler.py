@@ -134,28 +134,43 @@ class Datahandler():
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
+        if self.weatherFile != None:
+            # if an weather file is presented, this can be used for calcuation
+            # it should be a csv files with the following columns, according to the DWD TRY files
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+            weatherData = pd.read_csv(self.weatherFile)
+            weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
+            temp_sunDirect = weatherData["B"].to_numpy()
+            temp_sunDiff = weatherData["D"].to_numpy()
+            temp_temp = weatherData["t"].to_numpy()
+            # [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData["B"].to_numpy(), weatherData["D"].to_numpy(), weatherData["t"].to_numpy()]
 
-        # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
-            + "\\"
-            + self.site["TRYYear"] + "_"
-            + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
-            + ".dat",
-            skiprows=first_row - 1)
+        else:
 
-        """
-        # Use this function to load old TRY-weather data
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
-                                 + "/"
-                                 + self.site["TRYYear"] + "_Zone"
-                                 + str(self.site["climateZone"]) + "_"
-                                 + self.site["TRYType"] + ".txt",
-                                 skiprows=first_row - 1)"""
+            # select the correct file depending on the TRY weather station location
+            weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
+                + "\\"
+                + self.site["TRYYear"] + "_"
+                + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+                + ".dat",
+                skiprows=first_row - 1) 
+            # weather data starts with 1st january at 1:00 am.
+            # Add data point for 0:00 am to be able to perform interpolation.
+            weatherData_temp = weatherData[-1:, :]
+            weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
-        # weather data starts with 1st january at 1:00 am.
-        # Add data point for 0:00 am to be able to perform interpolation.
-        weatherData_temp = weatherData[-1:, :]
-        weatherData = np.append(weatherData_temp, weatherData, axis=0)
+            """
+            # Use this function to load old TRY-weather data
+            weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
+                                    + "/"
+                                    + self.site["TRYYear"] + "_Zone"
+                                    + str(self.site["climateZone"]) + "_"
+                                    + self.site["TRYType"] + ".txt",
+                                    skiprows=first_row - 1)"""
+
+       
 
         # get weather data of interest
         [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
@@ -851,3 +866,4 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
