@@ -10,6 +10,7 @@ import numpy as np
 import openpyxl
 import pandas as pd
 from itertools import count
+
 from teaser.project import Project
 from classes.envelope import Envelope
 from classes.solar import Sun
@@ -25,7 +26,7 @@ import EHDO.load_params as load_params_EHDO
 import EHDO.optim_model as optim_model_EHDO
 
 
-class Datahandler:
+class Datahandler():
     """
     Abstract class for data handling.
     Collects data from input files, TEASER, User and Envelope.
