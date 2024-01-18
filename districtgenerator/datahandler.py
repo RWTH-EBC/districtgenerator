@@ -38,7 +38,7 @@ class Datahandler():
 
     """
 
-    def __init__(self):
+    def __init__(self, weather_file=None):
         self.site = {}
         self.time = {}
         self.district = []
@@ -46,6 +46,7 @@ class Datahandler():
         self.scenario = None
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.weatherFile = weather_file
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
 
@@ -78,27 +79,37 @@ class Datahandler():
         elif self.site["TRYYear"]=="TRY2045":
             first_row = 37
 
-        try: weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
-                                 + "/"
-                                 + self.site["TRYYear"] + "_Zone"
-                                 + str(self.site["climateZone"]) + "_"
-                                 + self.site["TRYType"] + ".txt",
+    
+        if self.weatherFile != None:
+            # if an weather file is presented, this can be used for calcuation
+            # it should be a csv files with the following columns, according to the DWD TRY files
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+            weatherData = pd.read_csv(self.weatherFile)
+            weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
+            temp_sunDirect = weatherData["B"].to_numpy()
+            temp_sunDiff = weatherData["D"].to_numpy()
+            temp_temp = weatherData["t"].to_numpy()
+            print(type(temp_sunDirect))
+            # [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData["B"].to_numpy(), weatherData["D"].to_numpy(), weatherData["t"].to_numpy()]
+
+        else: 
+            # This works for the predefined weather files 
+            weather_file = os.path.join(self.filePath, 'weather', 
+                                f"{self.site['TRYYear']}_Zone{self.site['climateZone']}_{self.site['TRYType']}.txt")
+            weatherData = np.loadtxt(weather_file,
                                  skiprows=first_row - 1)
+            # weather data starts with 1st january at 1:00 am. Add data point for 0:00 am to be able to perform interpolation.
+            weatherData_temp = weatherData[-1:, :]
+            weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
-        except FileNotFoundError:
-            weatherData = np.loadtxt
-
-        # weather data starts with 1st january at 1:00 am. Add data point for 0:00 am to be able to perform interpolation.
-        weatherData_temp = weatherData[-1:, :]
-        weatherData = np.append(weatherData_temp, weatherData, axis=0)
-        print(weatherData)
-
-        # get weather data of interest
-        # variables according to dwd sheet
-        # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
-        # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
-        # temp_temp = t  Lufttemperatur in 2m Hoehe ueber Grund 
-        [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
+            # get weather data of interest
+            # variables according to dwd sheet
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+            [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
 
         # %% load time information and requirements
         # needed for data conversion into the right time format
@@ -158,7 +169,6 @@ class Datahandler():
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
         
-        print(self.scenario.head())
 
         # initialize buildings for scenario
         for id in self.scenario["id"]:
