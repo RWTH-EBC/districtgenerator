@@ -66,6 +66,7 @@ class Datahandler():
         # important for weather conditions
         with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
             jsonData = json.load(json_file)
+            print(jsonData)
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
 
@@ -77,19 +78,26 @@ class Datahandler():
         elif self.site["TRYYear"]=="TRY2045":
             first_row = 37
 
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
+        try: weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
                                  + "/"
                                  + self.site["TRYYear"] + "_Zone"
                                  + str(self.site["climateZone"]) + "_"
                                  + self.site["TRYType"] + ".txt",
                                  skiprows=first_row - 1)
 
+        except FileNotFoundError:
+            weatherData = np.loadtxt
 
         # weather data starts with 1st january at 1:00 am. Add data point for 0:00 am to be able to perform interpolation.
         weatherData_temp = weatherData[-1:, :]
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
+        print(weatherData)
 
         # get weather data of interest
+        # variables according to dwd sheet
+        # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
+        # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
+        # temp_temp = t  Lufttemperatur in 2m Hoehe ueber Grund 
         [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
 
         # %% load time information and requirements
@@ -149,6 +157,8 @@ class Datahandler():
                                     + "/"
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
+        
+        print(self.scenario.head())
 
         # initialize buildings for scenario
         for id in self.scenario["id"]:
