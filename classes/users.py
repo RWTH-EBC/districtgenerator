@@ -198,15 +198,15 @@ class Users:
 
         # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
-        standard_consumption = {"SFH": {1: 2300,
+        standard_consumption = {"SFH": {1: 2400,
                                         2: 3000,
-                                        3: 3500,
+                                        3: 3600,
                                         4: 4000,
                                         5: 5000},
-                                "MFH": {1: 1300,
+                                "MFH": {1: 1400,
                                         2: 2000,
-                                        3: 2500,
-                                        4: 2600,
+                                        3: 2600,
+                                        4: 2900,
                                         5: 3000}}
 
         self.annual_el_demand = np.zeros(self.nb_flats)
@@ -291,7 +291,7 @@ class Users:
             #  Create wrapper object
             self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
-    def calcProfiles(self, site, time_resolution, time_horizon, initial_day=1):
+    def calcProfiles(self, site, time_resolution, time_horizon, building, path, initial_day=1):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -323,16 +323,20 @@ class Users:
         self.elec = np.zeros(int(time_horizon / time_resolution))
         self.gains = np.zeros(int(time_horizon / time_resolution))
         self.car = np.zeros(int(time_horizon / time_resolution))
+        self.occ = np.loadtxt(path + '/occ_' + building["unique_name"] + '.csv', delimiter=',')
         for j in range(self.nb_flats):
             temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
-            self.occ = self.occ + temp_obj.generate_occupancy_profiles()
-            self.dhw = self.dhw + temp_obj.generate_dhw_profile()
-            self.elec = self.elec + temp_obj.generate_el_profile(irradiance=irradiation,
-                                                                 el_wrapper=self.el_wrapper[j],
-                                                                 annual_demand=self.annual_el_demand[j])
-            self.gains = self.gains + temp_obj.generate_gain_profile()
+            #self.occ = self.occ + temp_obj.generate_occupancy_profiles()
+            self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
+            #self.elec = self.elec + temp_obj.generate_el_profile(irradiance=irradiation,
+            #                                                    el_wrapper=self.el_wrapper[j],
+            #                                                     annual_demand=self.annual_el_demand[j])
+            #self.gains = self.gains + temp_obj.generate_gain_profile()
         # currently only one car per building possible
-        self.car = self.car + temp_obj.generate_EV_profile()
+        #self.car = self.car + temp_obj.generate_EV_profile(self.occ)
+        self.car = np.loadtxt(path + '/car_' + building["unique_name"] + '.csv', delimiter=',')
+        self.elec = np.loadtxt(path + '/elec_' + building["unique_name"] + '.csv', delimiter=',')
+        self.gains = np.loadtxt(path + '/gains_' + building["unique_name"] + '.csv', delimiter=',')
 
     def calcHeatingProfile(self, site, envelope, time_resolution):
         """

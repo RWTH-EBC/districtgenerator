@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import os
+import random as rd
+import json
+
 import numpy as np
+import pylightxl as xl
 import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
+import functions.OpenDHW as OpenDHW
 import functions.dhw_stochastical as dhw_profil
-import pylightxl as xl
-import random as rd
 
 
 class Profiles:
@@ -165,22 +168,23 @@ class Profiles:
         # Load profiles
         self.prob_profiles_dhw = profiles
 
-    def generate_dhw_profile(self):
+    def generate_dhw_profile(self, building):
         """
         Generate a stochastic dhw profile
-        (on base of pycity_base).
+        (on base of DHWclac).
+        https://www.uni-kassel.de/maschinenbau/institute/thermische-energietechnik/fachgebiete/solar-und-anlagentechnik/downloads
+        https://github.com/RWTH-EBC/OpenDHW
 
         Parameters
         ----------
-        time_resolution : integer
+        s_step : integer
             Resolution of time steps of output array in seconds.
-        activity_profile : array-like
-            Numpy-arry with active occupants 10-minutes-wise.
-        prob_profiles_dhw: array-like
-            Probabilities of dhw usage.
-        initial_day : integer
-            Day of the week with which the generation starts.
-            1-7 for monday-sunday.
+        Categories: 1 or 4
+            Either one or four categories with different mean volume rates, tapping times and frequencies can be defined.
+        occupancy: integer
+            Maximum number of occupants in this building.
+        mean_drawoff_vol_per_day : array-like
+            Total mean daily draw-off volume per person per day in liter.
 
         Returns
         -------
@@ -188,15 +192,12 @@ class Profiles:
             Numpy-array with heat demand of dhw consumption in W.
         """
 
-        # Run simulation
-        # run the simulation for just x days
-        # therefor occupancy has to have the length of x days
-        (dhw_water, dhw_heat) = dhw_profil.full_year_computation(self.activity_profile,
-                                                                 self.prob_profiles_dhw,
-                                                                 self.time_resolution,
-                                                                 self.initial_day)
 
-        return dhw_heat
+        dhw_profile = OpenDHW.generate_dhw_profile(s_step=60, categories=1, occupancy=self.number_occupants, mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"])
+        dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
+        dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=35)
+
+        return dhw_heat["Heat_W"].values
 
     def generate_el_profile(self, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """
@@ -356,7 +357,7 @@ class Profiles:
 
         return gains
 
-    def generate_EV_profile(self):
+    def generate_EV_profile(self, occ):
         """
         Generate profile for an electric vehicle (EV)
 
@@ -367,13 +368,13 @@ class Profiles:
         """
 
         # determine how long one day is (in number of steps)
-        array = int(len(self.occ_profile) / self.nb_days)
+        array = int(len(occ) / self.nb_days)
         # initialize empty list for all days
         car_demand_total = []
         # loop over all days
         for day in range(self.nb_days):
             # slice occupancy profile for current day
-            occ_day = self.occ_profile[day * array:(day + 1) * array]
+            occ_day = occ[day * array:(day + 1) * array]
             # initialize electricity demand of EV for current day
             car_demand_day = np.zeros(len(occ_day))
             # identify time steps where nobody is home

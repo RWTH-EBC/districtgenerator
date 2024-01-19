@@ -58,5 +58,11 @@
     "value": [4662.1, 4662.1, 4662.1, 3999.8],
     "unit":  "Watt",
     "description": "Maximal power for domestic hot water for each of the four building types (SFH, MFH, TH and AB)"
+  },
+  {
+    "name": "mean_drawoff_vol_per_day",
+    "value": [40, 40, 40, 40],
+    "unit":  "Liter",
+    "description": "Mean drawoff DHW volume per day for each of the four building types (SFH, MFH, TH and AB)"
   }
 ]
