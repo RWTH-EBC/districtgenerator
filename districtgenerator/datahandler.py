@@ -189,6 +189,7 @@ class Datahandler():
             self.district.append(building)
 
 
+
     def generateBuildings(self):
         """
         Load building envelope and user data
@@ -278,7 +279,7 @@ class Datahandler():
             building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
 
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath=None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand
 
@@ -313,12 +314,20 @@ class Datahandler():
                                               time_horizon=self.time["dataLength"],
                                               time_resolution=self.time["timeResolution"])
                 if saveUserProfiles:
-                    building["user"].saveProfiles(building["unique_name"], self.resultPath)
+                    if savePath != None:
+                        savePath = os.path.join(self.srcPath, 'results', 'demands', savePath)
+                        building["user"].saveProfiles(building["unique_name"], savePath)
+                    else: 
+                        building["user"].saveProfiles(building["unique_name"], self.resultPath)
 
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                building["user"].loadProfiles(building["unique_name"], self.resultPath)
+                if savePath != None:
+                    savePath = os.path.join(self.srcPath, 'results', 'demands', savePath)
+                    building["user"].loadProfiles(building["unique_name"], savePath) 
+                else:
+                    building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
 
             building["envelope"].calcNormativeProperties(self.SunRad,building["user"].gains)
