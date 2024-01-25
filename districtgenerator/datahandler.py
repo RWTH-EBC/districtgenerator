@@ -83,6 +83,18 @@ class Datahandler():
         self.weatherFile = weatherFile
         self.sheetFile = sheetFile
 
+    def setResultsPath(self, new_path=None):
+            """
+            Sets the path where the results will be saved.
+
+            Args:
+                new_path (str, optional): The new path to set. If not provided, the default path will be used.
+
+            Returns:
+                None
+            """
+            self.resultsPath = new_path if new_path is not None else os.path.join(self.srcPath, 'data')
+
     def select_plz_data(self, plz):
         """
         Select the closest TRY weather station for the location of the postal code.
