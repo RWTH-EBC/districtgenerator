@@ -502,6 +502,9 @@ class Envelope():
                 as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
+                # Hier falsches Assignement 
+                # print(subData["Klimazone"]), print(site["climateZone"])
+                # To do - > find a way to fix this 
                 if subData["Klimazone"] == site["climateZone"]:
                     # outside design temperature in °C
                     T_ne = subData["Theta_e"]
