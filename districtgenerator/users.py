@@ -353,7 +353,8 @@ class Users():
         path : string
             results path
         '''
-
+        if not os.path.exists(path):
+            os.makedirs(path)
         np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',')
