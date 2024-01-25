@@ -49,9 +49,19 @@ class Datahandler():
         Source path.
     filePath:
         File path.
+    weatherFile::
+        path to weather file, which is not a TRY file. If None, the TRY file is used. 
+        file should follow the following format, according to DWD naming conventions 
+        temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
+        temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)
+        temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+    sheetFile:
+        path to scenario file, which is a csv file. If None, the csv file is used.
+        Can be used to provide more detailed information for gerneation of the buildings models in the district
+    
     """
 
-    def __init__(self):
+    def __init__(self, weather_file=None, sheet_file=None):
         """
         Constructor of Datahandler class.
 
@@ -70,6 +80,7 @@ class Datahandler():
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
         self.KPIs = None
+        self.weather_file = weather_file
 
     def select_plz_data(self, plz):
         """
@@ -866,4 +877,3 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-
