@@ -61,7 +61,7 @@ class Datahandler():
     
     """
 
-    def __init__(self, weather_file=None, sheet_file=None):
+    def __init__(self, weatherFile=None, sheetFile=None):
         """
         Constructor of Datahandler class.
 
@@ -80,7 +80,8 @@ class Datahandler():
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
         self.KPIs = None
-        self.weather_file = weather_file
+        self.weatherFile = weatherFile
+        self.sheetFile = sheetFile
 
     def select_plz_data(self, plz):
         """
@@ -148,9 +149,9 @@ class Datahandler():
         if self.weatherFile != None:
             # if an weather file is presented, this can be used for calcuation
             # it should be a csv files with the following columns, according to the DWD TRY files
-            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
-            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
-            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) float or int
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  float or int
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund float or int
             weatherData = pd.read_csv(self.weatherFile)
             weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
             temp_sunDirect = weatherData["B"].to_numpy()
