@@ -61,7 +61,7 @@ class Datahandler():
         self.weatherFile = weather_file 
         self.sheetFile = sheet_file 
 
-    def setResultsPath(self, new_path=None):
+    def setResultPath(self, new_path=None):
             """
             Sets the path where the results will be saved.
 
@@ -71,7 +71,7 @@ class Datahandler():
             Returns:
                 None
             """
-            self.resultsPath = new_path if new_path is not None else os.path.join(self.srcPath, 'data')
+            self.resultPath = new_path if new_path is not None else os.path.join(self.srcPath, 'results', 'demands')
  
 
     def generateEnvironment(self):
