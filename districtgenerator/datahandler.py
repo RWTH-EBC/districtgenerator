@@ -3,6 +3,7 @@
 import json
 import pickle
 import os
+from typing import Any
 import numpy as np
 import pandas as pd
 from itertools import count
@@ -60,6 +61,18 @@ class Datahandler():
         self.weatherFile = weather_file 
         self.sheetFile = sheet_file 
 
+    def setResultsPath(self, new_path=None):
+            """
+            Sets the path where the results will be saved.
+
+            Args:
+                new_path (str, optional): The new path to set. If not provided, the default path will be used.
+
+            Returns:
+                None
+            """
+            self.resultsPath = new_path if new_path is not None else os.path.join(self.srcPath, 'data')
+ 
 
     def generateEnvironment(self):
         """
@@ -266,7 +279,7 @@ class Datahandler():
             building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
 
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True)::
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath=None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand
 
