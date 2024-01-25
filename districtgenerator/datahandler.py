@@ -239,21 +239,8 @@ class Datahandler():
                 height_of_floors=3.125,
                 net_leased_area=building["buildingFeatures"]["area"],
                 construction_type=retrofit_level)
-            """ 
-            else:
-                # To-Do: Write code to gather furhter data for the non-residential buildings
-                # add non residential buildings to TEASER project
-                # #if building_type in ["SFH", "MFH", "TH", "SH"]:
-                prj.add_non_residential(
-                    method='bmvbs',
-                    usage=building_type,
-                    name="ResidentialBuildingTabula",
-                    year_of_construction=building["buildingFeatures"]["year"],
-                    number_of_floors=3,
-                    height_of_floors=3.125,
-                    net_leased_area=building["buildingFeatures"]["area"],
-                    construction_type=retrofit_level)                
-            """ 
+
+            # To Do: Write code to add non residential buildings 
 
             # %% create envelope object
             # containing all physical data of the envelope
@@ -279,7 +266,7 @@ class Datahandler():
             building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
 
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath=None):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True)::
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand
 
@@ -323,10 +310,13 @@ class Datahandler():
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                if savePath != None:
-                    savePath = os.path.join(self.srcPath, 'results', 'demands', savePath)
+                if savePath is not None:
+                    savePath = os.path.join(self.resultPath, savePath)
+                    if not os.path.exists(savePath):
+                        os.makedirs(savePath)
                     building["user"].loadProfiles(building["unique_name"], savePath) 
                 else:
+                    print("We are here: ", self.resultPath, savePath)
                     building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
 
@@ -338,7 +328,11 @@ class Datahandler():
                                                 time_resolution=self.time["timeResolution"])
 
             if saveUserProfiles :
-                building["user"].saveHeatingProfile(building["unique_name"], self.resultPath)
+                if savePath != None:
+                    savePath = os.path.join(self.resultPath, savePath)
+                    building["user"].saveHeatingProfile(building["unique_name"], savePath)
+                else:
+                    building["user"].saveHeatingProfile(building["unique_name"], self.resultPath)
 
         print("Finished generating demands!")
 
