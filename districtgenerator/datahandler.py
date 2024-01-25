@@ -35,10 +35,19 @@ class Datahandler():
         source path
     filePath:
         file path
-
+    weatherFile::
+        path to weather file, which is not a TRY file. If None, the TRY file is used. 
+        file should follow the following format, according to DWD naming conventions 
+        temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
+        temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)
+        temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+    sheetFile:
+        path to scenario file, which is a csv file. If None, the csv file is used.
+        Can be used to provide more detailed information for gerneation of the buildings models in the district
+       
     """
 
-    def __init__(self, weather_file=None):
+    def __init__(self, weather_file=None, sheet_file=None):
         self.site = {}
         self.time = {}
         self.district = []
@@ -46,9 +55,10 @@ class Datahandler():
         self.scenario = None
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.weatherFile = weather_file
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
+        self.weatherFile = weather_file 
+        self.sheetFile = sheet_file 
 
 
     def generateEnvironment(self):
@@ -67,7 +77,6 @@ class Datahandler():
         # important for weather conditions
         with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
             jsonData = json.load(json_file)
-            print(jsonData)
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
 
@@ -83,17 +92,15 @@ class Datahandler():
         if self.weatherFile != None:
             # if an weather file is presented, this can be used for calcuation
             # it should be a csv files with the following columns, according to the DWD TRY files
-            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
-            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
-            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) float or int
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  float or int
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund float or int
             weatherData = pd.read_csv(self.weatherFile)
             weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
             temp_sunDirect = weatherData["B"].to_numpy()
             temp_sunDiff = weatherData["D"].to_numpy()
             temp_temp = weatherData["t"].to_numpy()
-            print(type(temp_sunDirect))
-            # [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData["B"].to_numpy(), weatherData["D"].to_numpy(), weatherData["t"].to_numpy()]
-
+            
         else: 
             # This works for the predefined weather files 
             weather_file = os.path.join(self.filePath, 'weather', 
@@ -201,11 +208,15 @@ class Datahandler():
             jsonData = json.load(json_file)
             for subData in jsonData:
                 bldgs[subData["name"]] = subData["value"]
-
+        
         # %% create TEASER project
         # create one project for the whole district
         prj = Project(load_data=True)
         prj.name = self.scenario_name
+
+        if self.sheetFile != None:
+            number_of_floors = 3
+            height_of_floors = 3.125 
 
         for building in self.district:
 
@@ -213,7 +224,11 @@ class Datahandler():
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
             retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
-            # add buildings to TEASER project
+             
+            # add residentials buildings to TEASER project 
+            # Caclulate the number of floors based on the height of the building 
+                
+
             prj.add_residential(
                 method='tabula_de',
                 usage=building_type,
@@ -223,6 +238,21 @@ class Datahandler():
                 height_of_floors=3.125,
                 net_leased_area=building["buildingFeatures"]["area"],
                 construction_type=retrofit_level)
+            """ 
+            else:
+                # To-Do: Write code to gather furhter data for the non-residential buildings
+                # add non residential buildings to TEASER project
+                # #if building_type in ["SFH", "MFH", "TH", "SH"]:
+                prj.add_non_residential(
+                    method='bmvbs',
+                    usage=building_type,
+                    name="ResidentialBuildingTabula",
+                    year_of_construction=building["buildingFeatures"]["year"],
+                    number_of_floors=3,
+                    height_of_floors=3.125,
+                    net_leased_area=building["buildingFeatures"]["area"],
+                    construction_type=retrofit_level)                
+            """ 
 
             # %% create envelope object
             # containing all physical data of the envelope
@@ -230,11 +260,12 @@ class Datahandler():
                                             building_params=building["buildingFeatures"],
                                             construction_type=retrofit_level,
                                             file_path = self.filePath)
+            
 
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                             area=building["buildingFeatures"]["area"])
+                                     area=building["buildingFeatures"]["area"])
 
             # %% calculate design heat loads
             # at norm outside temperature
