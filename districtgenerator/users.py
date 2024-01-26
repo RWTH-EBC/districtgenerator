@@ -217,8 +217,8 @@ class Users():
         This index defines the lighting configuration of the houshold.
         There are 100 predifined ligthing configurations.
 
-        Annahme: Alle Lichtkonfigurationen sind gleich wahrscheinlich.
-        Es wird kein Unterschied zwischen  SHF und MFH gemacht.
+        Assumption: All light configurations are equally probable. 
+        No distinction is made between SHF and MFH.
 
         Parameters
         ----------
