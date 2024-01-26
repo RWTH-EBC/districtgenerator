@@ -175,6 +175,7 @@ class Users():
         Parameters
         ----------
         standard_consumption : standard annual consumption in kWh (assumption)
+         - dhw demand is not included 
 
         '''
 
