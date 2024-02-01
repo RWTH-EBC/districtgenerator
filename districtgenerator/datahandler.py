@@ -94,6 +94,19 @@ class Datahandler():
                 None
             """
             self.resultsPath = new_path if new_path is not None else os.path.join(self.srcPath, 'data')
+    
+    def setAdvancedModel(self, pathAdvancedModel=None):
+            """
+            Sets the path and loads data for advanded modelling
+
+            Args:
+                new_path (str, optional): The new path to set. If not provided, the default path will be used.
+
+            Returns:
+                None
+            """
+            self.advancedModel = pathAdvancedModel if pathAdvancedModel is not None else None
+
 
     def select_plz_data(self, plz):
         """
@@ -304,6 +317,17 @@ class Datahandler():
         prj = Project(load_data=True)
         prj.name = self.scenario_name
 
+        if self.advancedModel is not None:
+            # if a model file is presented, this can be used for advanced parameterization of the buildings 
+            # it should be a csv file with the following 
+            model_data = pd.read_csv(self.advancedModel)
+            # Check types
+            # Ensure 'height' and 'storeys_above_ground' are of float type
+            if not np.issubdtype(model_data['height'].dtype, np.number):
+                model_data['height'] = pd.to_numeric(model_data['height'], errors='coerce')
+            if not np.issubdtype(model_data['storeys_above_ground'].dtype, np.number):
+                model_data['storeys_above_ground'] = pd.to_numeric(model_data['storeys_above_ground'], errors='coerce')
+
         for building in self.district:
 
 
@@ -312,14 +336,25 @@ class Datahandler():
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
             retrofit_level = \
                 bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+            
+            # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
+            if self.advancedModel is not None:
+                number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                print(number_of_floors, height_of_floors)
+            
+            else:  
+                number_of_floors = 3
+                height_of_floors = 3.125
+            # adds residentials buildings to TEASER project
 
             # add buildings to TEASER project
             prj.add_residential(method='tabula_de',
                                 usage=building_type,
                                 name="ResidentialBuildingTabula",
                                 year_of_construction=building["buildingFeatures"]["year"],
-                                number_of_floors=3,
-                                height_of_floors=3.125,
+                                number_of_floors=number_of_floors,
+                                height_of_floors=height_of_floors,
                                 net_leased_area=building["buildingFeatures"]["area"],
                                 construction_type=retrofit_level)
 
@@ -890,3 +925,4 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
