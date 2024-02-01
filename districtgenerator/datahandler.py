@@ -60,6 +60,7 @@ class Datahandler():
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
         self.weatherFile = weather_file 
         self.sheetFile = sheet_file 
+        self.advancedModel = None 
 
     def setResultPath(self, new_path=None):
             """
@@ -72,6 +73,19 @@ class Datahandler():
                 None
             """
             self.resultPath = new_path if new_path is not None else os.path.join(self.srcPath, 'results', 'demands')
+    
+    def setAdvancedModel(self, pathAdvancedModel=None):
+            """
+            Sets the path and loads data for advanded modelling
+
+            Args:
+                new_path (str, optional): The new path to set. If not provided, the default path will be used.
+
+            Returns:
+                None
+            """
+            self.advancedModel = pathAdvancedModel if pathAdvancedModel is not None else None
+
  
 
     def generateEnvironment(self):
@@ -209,6 +223,8 @@ class Datahandler():
 
         Parameters
         ----------
+        model_sheet: string, optional 
+
 
         Returns
         -------
@@ -228,9 +244,18 @@ class Datahandler():
         prj = Project(load_data=True)
         prj.name = self.scenario_name
 
-        if self.sheetFile != None:
-            number_of_floors = 3
-            height_of_floors = 3.125 
+        if self.advancedModel is not None:
+            # if a model file is presented, this can be used for advanced parameterization of the buildings 
+            # it should be a csv file with the following 
+            model_data = pd.read_csv(self.advancedModel)
+            # Check types
+            # Ensure 'height' and 'storeys_above_ground' are of float type
+            if not np.issubdtype(model_data['height'].dtype, np.number):
+                model_data['height'] = pd.to_numeric(model_data['height'], errors='coerce')
+            if not np.issubdtype(model_data['storeys_above_ground'].dtype, np.number):
+                model_data['storeys_above_ground'] = pd.to_numeric(model_data['storeys_above_ground'], errors='coerce')
+
+            
 
         for building in self.district:
 
@@ -239,17 +264,23 @@ class Datahandler():
             retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
              
-            # add residentials buildings to TEASER project 
-            # Caclulate the number of floors based on the height of the building 
-                
-
+            # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
+            if self.advancedModel is not None:
+                number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                print(number_of_floors, height_of_floors)
+            
+            else:  
+                number_of_floors = 3
+                height_of_floors = 3.125
+            # adds residentials buildings to TEASER project
             prj.add_residential(
                 method='tabula_de',
                 usage=building_type,
                 name="ResidentialBuildingTabula",
                 year_of_construction=building["buildingFeatures"]["year"],
-                number_of_floors=3,
-                height_of_floors=3.125,
+                number_of_floors=number_of_floors,
+                height_of_floors=height_of_floors,
                 net_leased_area=building["buildingFeatures"]["area"],
                 construction_type=retrofit_level)
 
@@ -278,8 +309,14 @@ class Datahandler():
             # for drinking hot water
             building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
 
+    def enrichBuildings(self, df):
+        ### 
+        ### Returns 
+        pass 
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath=None):
+
+
+    def generateDemands(self, calcUserProfiles:bool=True, saveUserProfiles:bool=True, savePath:str =None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand
 
@@ -290,6 +327,8 @@ class Datahandler():
             False: load user profiles from file
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)
+        savePath: string, optional
+            Optional name to save the user profiles in a different folder than the default one 
 
         Returns
         -------
@@ -314,8 +353,8 @@ class Datahandler():
                                               time_horizon=self.time["dataLength"],
                                               time_resolution=self.time["timeResolution"])
                 if saveUserProfiles:
-                    if savePath != None:
-                        savePath = os.path.join(self.srcPath, 'results', 'demands', savePath)
+                    if savePath is not None:
+                        savePath = os.path.join(self.resultPath, 'results', 'demands', savePath)
                         building["user"].saveProfiles(building["unique_name"], savePath)
                     else: 
                         building["user"].saveProfiles(building["unique_name"], self.resultPath)
@@ -325,11 +364,8 @@ class Datahandler():
             else:
                 if savePath is not None:
                     savePath = os.path.join(self.resultPath, savePath)
-                    if not os.path.exists(savePath):
-                        os.makedirs(savePath)
                     building["user"].loadProfiles(building["unique_name"], savePath) 
                 else:
-                    print("We are here: ", self.resultPath, savePath)
                     building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
 
@@ -344,8 +380,10 @@ class Datahandler():
                 if savePath != None:
                     savePath = os.path.join(self.resultPath, savePath)
                     building["user"].saveHeatingProfile(building["unique_name"], savePath)
+                    print(f"Save heating profile of building {building['unique_name']} in {savePath}")
                 else:
                     building["user"].saveHeatingProfile(building["unique_name"], self.resultPath)
+                    print(f"Save heating profile of building {building['unique_name']} in {savePath}")
 
         print("Finished generating demands!")
 

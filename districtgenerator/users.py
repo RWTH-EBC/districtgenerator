@@ -379,6 +379,7 @@ class Users():
         path : string
             results path
         '''
+        print(path)
 
         np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
 
