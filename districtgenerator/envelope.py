@@ -86,7 +86,7 @@ class Envelope():
 
         physics = {}
         with open(os.path.join(self.file_path,
-                                'physics_data.json')) as json_file:
+                               'physics_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 physics[subData["name"]] = subData["value"]

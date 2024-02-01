@@ -82,6 +82,7 @@ class Datahandler():
         self.KPIs = None
         self.weatherFile = weatherFile
         self.sheetFile = sheetFile
+        self.advancedModel = None
 
     def setResultsPath(self, new_path=None):
             """
@@ -925,4 +926,3 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-

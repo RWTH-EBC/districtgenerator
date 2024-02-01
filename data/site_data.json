@@ -1,7 +1,7 @@
 [
   {
     "name": "location",
-    "value": [51.0,6.55],
+    "value": [49.09682143422149, 8.425676149802348],
     "unit": "degree",
     "description": "Latitude, Longitude"
   },
@@ -13,7 +13,7 @@
   },
   {
     "name": "altitude",
-    "value": 0,
+    "value": 111.8,
     "unit": "m",
     "description": "Above sea level"
   },
