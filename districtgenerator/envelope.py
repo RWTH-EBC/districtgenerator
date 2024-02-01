@@ -557,14 +557,28 @@ class Envelope():
         f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
         G_w = 1.0  # influence of ground water neglected
 
-        Q_nHC = (self.A["opaque"]["wall"] * (
-                self.U["opaque"]["wall"] + U_TB)
-                 + self.A["window"]["sum"] * self.U["window"]
-                 + self.A["opaque"]["roof"] * self.U["opaque"]["roof"]
-                 + self.A["opaque"]["floor"] * self.U["opaque"]["floor"]
-                 * f_g1 * f_g2 * G_w
-                 + self.ventilationRate * self.c_p_air * self.rho_air
-                 * self.V / 3600) * (self.T_set_min - T_ne)
+        if method == "design":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * self.U["window"] +
+                     self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - T_ne)
+
+        if method == "bivalent":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * self.U["window"] +
+                     self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
+                       * (self.T_set_min - self.T_bivalent)
+
+        if method == "heatlimit":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * self.U["window"] +
+                     self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
+                       * (self.T_set_min - self.T_heatlimit)
 
         return Q_nHC
 
