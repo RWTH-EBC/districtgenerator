@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-"""
 
 import json
 import os
@@ -24,16 +22,19 @@ class Envelope():
     file_path : str
         file path
 
+    
     Attributes
     ----------
-    id :
-
+    id : int
+        ID of the building form the scenario-json-file.
     construction_year : int
-        construction year of the building
-    retrofit : string
-        retrofit of the building
-    usage_short :
-
+        Construction year of the building.
+    retrofit : int
+        Abbreviations of the retrofit level of the building.
+        0: standard; 1: retrofit; 2: advanced retrofit (according to the web-database TABULA).
+    usage_short : string
+        building types. Possible are:
+        SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
     def __init__(self, prj, building_params, construction_type, file_path):
@@ -142,23 +143,23 @@ class Envelope():
 
         Parameters
         ----------
-        mat_id :
-
-        data_class :
+        mat_id : string
+            Material id.
+        data_class : ordered dictionary
+            Dictionary with material data ordered by material id.
 
         Returns
-        ----------
-
+        -------
         name : string
-            material type
+            Material type.
         density : float
-            density of the material
-        thermal_conduc :
-            thermal conductivity
-        heat_capac :
-            heat capacity
-        solar_absorp :
-            solar adsorption
+            Density of the material.
+        thermal_conduc : float
+            Thermal conductivity.
+        heat_capac : float
+            Heat capacity.
+        solar_absorp : float
+            Solar adsorption.
         """
 
         binding = data_class
@@ -560,15 +561,13 @@ class Envelope():
         # Reduction factor
         f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
         G_w = 1.0  # influence of ground water neglected
-
         if method == "design":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                      self.A["window"]["sum"] * self.U["window"] +
                      self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
                      self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
                      + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - T_ne)
-
-        if method == "bivalent":
+        elif method == "bivalent":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                      self.A["window"]["sum"] * self.U["window"] +
                      self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
@@ -576,13 +575,15 @@ class Envelope():
                      + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
                        * (self.T_set_min - self.T_bivalent)
 
-        if method == "heatlimit":
+        elif method == "heatlimit":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                      self.A["window"]["sum"] * self.U["window"] +
                      self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
                      self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
                      + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
                        * (self.T_set_min - self.T_heatlimit)
+        else: 
+            raise ValueError(f"Method {method} not supported")
 
         return Q_nHC
 

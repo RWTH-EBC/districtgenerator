@@ -297,7 +297,7 @@ class Datahandler():
             # at norm outside temperature
             building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
             # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalenz")
+            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
             # at heatimg limit temperature
             building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
