@@ -221,10 +221,6 @@ class Datahandler():
         """
         Load building envelope and user data
 
-        Parameters
-        ----------
-        model_sheet: string, optional 
-
 
         Returns
         -------
@@ -268,12 +264,12 @@ class Datahandler():
             if self.advancedModel is not None:
                 number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
                 height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
-                print(number_of_floors, height_of_floors)
             
             else:  
                 number_of_floors = 3
                 height_of_floors = 3.125
             # adds residentials buildings to TEASER project
+            # To Do: Write code to add non residential buildings 
             prj.add_residential(
                 method='tabula_de',
                 usage=building_type,
@@ -283,8 +279,6 @@ class Datahandler():
                 height_of_floors=height_of_floors,
                 net_leased_area=building["buildingFeatures"]["area"],
                 construction_type=retrofit_level)
-
-            # To Do: Write code to add non residential buildings 
 
             # %% create envelope object
             # containing all physical data of the envelope
@@ -308,11 +302,6 @@ class Datahandler():
             building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
             building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
-
-    def enrichBuildings(self, df):
-        ### 
-        ### Returns 
-        pass 
 
 
 
@@ -362,11 +351,8 @@ class Datahandler():
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                if savePath is not None:
-                    savePath = os.path.join(self.resultPath, savePath)
-                    building["user"].loadProfiles(building["unique_name"], savePath) 
-                else:
-                    building["user"].loadProfiles(building["unique_name"], self.resultPath)
+                # To Do -> implement loading of user profiles
+                building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
 
             building["envelope"].calcNormativeProperties(self.SunRad,building["user"].gains)

@@ -1,0 +1,158 @@
+<html>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+      <div class="mermaid">
+    
+        classDiagram
+          class Datahandler {
+            SunRad : ndarray
+            advancedModel : NoneType
+            counter : dict
+            district : list
+            filePath
+            resultPath : NoneType
+            scenario : NoneType, TextFileReader
+            scenario_name : NoneType, str
+            sheetFile : NoneType
+            site : dict
+            srcPath
+            time : dict
+            weatherFile : NoneType
+            generateBuildings()
+            generateDemands(calcUserProfiles: bool, saveUserProfiles: bool, savePath: str)
+            generateDistrictComplete(scenario_name, calcUserProfiles, saveUserProfiles)
+            generateEnvironment()
+            initializeBuildings(scenario_name)
+            loadDistrict(scenario_name)
+            plot(mode, initialTime, timeHorizon, savePlots, timeStamp, show)
+            saveDistrict()
+            setAdvancedModel(pathAdvancedModel)
+            setResultPath(new_path)
+          }
+          class DemandPlots {
+            color : dict
+            factor
+            filePath
+            l
+            labels : dict
+            months : list
+            plots : list
+            plotsMonthly : list
+            srcPath
+            time
+            titles : dict
+            y : dict
+            defaultPlots(plotResolution, initialTime, timeHorizon, savePlots, timeStamp, show)
+            onePlot(plotType, plotResolution, initialTime, timeHorizon, label, title, color, savePlots, timeStamp, show)
+            preparePlots(data)
+          }
+          class Envelope {
+            A : dict
+            A_m
+            A_tot
+            C_m
+            Delta_theta_er : int
+            F_F : int
+            F_r : dict
+            F_sh_gl : int
+            H_tr_em : dict
+            H_tr_is
+            H_tr_ms
+            H_tr_w
+            H_ve
+            I_sol : dict
+            Lambda : dict
+            R_se : dict
+            R_si : dict
+            T_set_min
+            U : dict
+            V
+            alpha_Sc : dict
+            attributes : list
+            b_floor : float
+            b_tr : dict
+            c_p_air
+            construction_type
+            construction_year
+            cp : dict
+            d : dict
+            d_iso : dict
+            epsilon : dict
+            f_class : dict
+            file_path
+            g_gl : dict
+            h_is : float
+            h_ms : float
+            h_r : dict
+            id
+            kappa : dict
+            lambda_at : float
+            opaque : set
+            opaque_ext : list
+            phi_ia
+            phi_m : dict
+            phi_st : dict
+            retrofit
+            rho : dict
+            rho_air
+            usage_short
+            ventilationRate
+            calcHeatLoad(site, method)
+            calcNormativeProperties(SunRad, internal_gains)
+            loadAreas(prj)
+            loadComponentProperties(prj)
+            loadMaterialID(mat_id, data_class)
+            loadParams()
+            specificHeatCapacity(d, d_iso, density, cp)
+          }
+          class Profiles {
+            activity_profile : NoneType, list
+            app_load : list, ndarray
+            initial_day
+            light_load : list, ndarray
+            nb_days
+            number_occupants
+            occ_profile : list, ndarray
+            prob_profiles_dhw : dict
+            time_resolution
+            generate_activity_profile()
+            generate_dhw_profile()
+            generate_el_profile(irradiance, el_wrapper, annual_demand, do_normalization)
+            generate_gain_profile()
+            generate_occupancy_profiles()
+            loadProbabilitiesDhw()
+          }
+          class Sun {
+            filePath
+            getGeometry(initialTime, timeDiscretization, timesteps, timeZone, location, altitude)
+            getIncidenceAngle(beta, gamma, phi, omega, delta)
+            getSolarGains(initialTime, timeDiscretization, timeSteps, timeZone, location, altitude, beta, gamma, beam, diffuse, albedo)
+            getTotalRadiationTiltedSurface(theta, thetaZ, beamRadiation, diffuseRadiation, airmass, extraterrestrialIrradiance, beta, albedo)
+          }
+          class Users {
+            annual_el_demand : NoneType, ndarray
+            building
+            dhw : NoneType, ndarray
+            el_wrapper : list
+            elec : NoneType, ndarray
+            gains : NoneType, ndarray
+            heat : NoneType, ndarray
+            lighting_index : list
+            nb_flats : NoneType, int
+            nb_occ : list
+            occ : NoneType, ndarray
+            calcHeatingProfile(site, envelope, time_resolution)
+            calcProfiles(site, time_resolution, time_horizon, initital_day)
+            create_el_wrapper()
+            generate_annual_el_consumption()
+            generate_lighting_index()
+            generate_number_flats(area)
+            generate_number_occupants()
+            loadProfiles(unique_name, path)
+            saveHeatingProfile(unique_name, path)
+            saveProfiles(unique_name, path)
+          }
+  
+       </div>
+  </body>
+</html>

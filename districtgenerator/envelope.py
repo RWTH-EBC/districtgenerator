@@ -64,20 +64,22 @@ class Envelope():
         self.loadComponentProperties(prj)
         self.loadAreas(prj)
 
-    def loadParams(self):
+     def loadParams(self):
         """
-        load physical and use-specific parameters
+        load physical and use-specific parameters.
 
         Parameters
         ----------
         physics : json file
-            physical and use-specific parameters
+            Physical and use-specific parameters.
 
+        Returns
+        -------
+        None.
         """
 
         physics = {}
-        with open(os.path.join(self.file_path,
-                               'physics_data.json')) as json_file:
+        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 physics[subData["name"]] = subData["value"]
@@ -86,14 +88,16 @@ class Envelope():
         self.rho_air = physics["rho_air"]  # [kg/m3]
 
         design_data = {}
-        with open(os.path.join(self.file_path,
-                               'design_building_data.json')) as json_file:
+        with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 design_data[subData["name"]] = subData["value"]
 
         self.T_set_min = design_data["T_set_min"]
+        self.T_set_max = design_data["T_set_max"]
         self.ventilationRate = design_data["ventilation_rate"]
+        self.T_bivalent = design_data["T_bivalent"]
+        self.T_heatlimit = design_data["T_heatlimit"]
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
