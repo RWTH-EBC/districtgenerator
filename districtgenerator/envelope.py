@@ -21,6 +21,7 @@ class Envelope():
     file_path : str
         File path.
 
+    
     Attributes
     ----------
     id : int
@@ -523,8 +524,7 @@ class Envelope():
                      self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
                      self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
                      + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - T_ne)
-
-        if method == "bivalent":
+        elif method == "bivalent":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                      self.A["window"]["sum"] * self.U["window"] +
                      self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
@@ -532,13 +532,15 @@ class Envelope():
                      + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
                        * (self.T_set_min - self.T_bivalent)
 
-        if method == "heatlimit":
+        elif method == "heatlimit":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                      self.A["window"]["sum"] * self.U["window"] +
                      self.A["opaque"]["roof"] * self.U["opaque"]["roof"] +
                      self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
                      + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
                        * (self.T_set_min - self.T_heatlimit)
+        else: 
+            raise ValueError(f"Method {method} not supported")
 
         return Q_nHC
 
