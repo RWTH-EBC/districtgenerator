@@ -69,7 +69,7 @@ class Envelope():
         self.loadParams()
         self.loadComponentProperties(prj)
         self.loadAreas(prj)
-
+    
     def loadParams(self):
         """
         load physical and use-specific parameters.
