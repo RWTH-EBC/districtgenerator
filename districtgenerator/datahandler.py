@@ -12,6 +12,7 @@ from districtgenerator.envelope import Envelope
 from districtgenerator.solar import Sun
 from districtgenerator.users import Users
 from districtgenerator.plots import DemandPlots
+import functions.weather_handling as weather_handling 
 
 class Datahandler():
     """
@@ -86,7 +87,17 @@ class Datahandler():
             """
             self.advancedModel = pathAdvancedModel if pathAdvancedModel is not None else None
 
- 
+    def setWeatherFile(self, pathWeatherFile=None):
+            """
+            Sets the path and loads data for weather file
+
+            Args:
+                new_path (str, optional): The new path to set. If not provided, the default path will be used.
+
+            Returns:
+                None
+            """
+            self.weatherFile = pathWeatherFile if pathWeatherFile is not None else None 
 
     def generateEnvironment(self):
         """
@@ -115,19 +126,29 @@ class Datahandler():
         elif self.site["TRYYear"]=="TRY2045":
             first_row = 37
 
-    
+        # Check if a weather file is presented, if not TRY is taken 
         if self.weatherFile != None:
-            # if an weather file is presented, this can be used for calcuation
-            # it should be a csv files with the following columns, according to the DWD TRY files
-            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) float or int
-            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  float or int
-            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund float or int
-            weatherData = pd.read_csv(self.weatherFile)
-            weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
-            temp_sunDirect = weatherData["B"].to_numpy()
-            temp_sunDiff = weatherData["D"].to_numpy()
-            temp_temp = weatherData["t"].to_numpy()
-            
+            if self.weatherFile.endswith(".epw"):
+                # load data from epw file 
+                weatherData = weather_handling.getEpWeather(self.weatherFile)
+                # Set Last hour to the year to first 
+                weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
+                temp_sunDirect = weatherData["Direct Normal Radiation"].to_numpy()
+                temp_sunDiff = weatherData["Diffuse Horizontal Radiation"].to_numpy()
+                temp_temp = weatherData["Dry Bulb Temperature"].to_numpy()
+                print(len(temp_sunDirect), len(temp_sunDiff), len(temp_temp))
+            else:
+                # if an weather file is presented, this can be used for calcuation
+                # it should be a csv files with the following columns, according to the DWD TRY files
+                # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) float or int
+                # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  float or int
+                # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund float or int
+                weatherData = pd.read_csv(self.weatherFile)
+                weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
+                temp_sunDirect = weatherData["B"].to_numpy()
+                temp_sunDiff = weatherData["D"].to_numpy()
+                temp_temp = weatherData["t"].to_numpy() 
+              
         else: 
             # This works for the predefined weather files 
             weather_file = os.path.join(self.filePath, 'weather', 
