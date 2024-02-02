@@ -10,6 +10,7 @@ import numpy as np
 import openpyxl
 import pandas as pd
 from itertools import count
+from typing import Any
 
 from teaser.project import Project
 from classes.envelope import Envelope
@@ -20,8 +21,11 @@ from classes.system import CES
 from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
+
 import functions.clustering_medoid as cm
 import functions.wind_turbines as wind_turbines
+import functions.weather_handling as weather_handling
+
 import EHDO.load_params as load_params_EHDO
 import EHDO.optim_model as optim_model_EHDO
 
@@ -384,7 +388,7 @@ class Datahandler():
             building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
 
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath:str = None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -397,6 +401,8 @@ class Datahandler():
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
+        savePath: string, optional
+            Optional name to save the user profiles in a different folder than the default one 
 
         Returns
         -------
@@ -425,7 +431,11 @@ class Datahandler():
                                               path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
-                    building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                    if savePath is not None:
+                        savePath = os.path.join(self.resultPath, 'results', 'demands', savePath)
+                        building["user"].saveProfiles(building["unique_name"], savePath)
+                    else: 
+                        building["user"].saveProfiles(building["unique_name"], self.resultPath)
 
                 print("Calculate demands of building " + building["unique_name"])
 
@@ -447,7 +457,13 @@ class Datahandler():
                                                 time_resolution=self.time["timeResolution"])
 
             if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                if savePath != None:
+                    savePath = os.path.join(self.resultPath, savePath)
+                    building["user"].saveHeatingProfile(building["unique_name"], savePath)
+                    print(f"Save heating profile of building {building['unique_name']} in {savePath}")
+                else:
+                    building["user"].saveHeatingProfile(building["unique_name"], self.resultPath)
+                    print(f"Save heating profile of building {building['unique_name']} in {savePath}")
 
 
 
@@ -926,3 +942,4 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
