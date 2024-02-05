@@ -149,8 +149,8 @@ class Datahandler:
                                         diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
 
-    #def initializeBuildings(self, list_all, scenario_name='example'):
-    def initializeBuildings(self, scenario_name='example'):
+    # def initializeBuildings(self, list_all, scenario_name='example'):
+    def initializeBuildings(self, list_all: list = [], scenario_name='example'):
         """
         Fill district with buildings from scenario file.
 
@@ -164,25 +164,44 @@ class Datahandler:
         None.
         """
 
+        # self.scenario_name = scenario_name
+        if list_all is None:
+            list_all = []
+
+        if self.district_file is not None:
+            self.scenario = pd.read_csv(self.district_file)
+        else:
+            self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+                                        + "/"
+                                        + self.scenario_name + ".csv",
+                                        header=0, delimiter=";")
+
         self.scenario_name = scenario_name
-        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                    + "/"
-                                    + self.scenario_name + ".csv",
-                                    header=0, delimiter=";")
 
         # initialize buildings for scenario
         # loop over all buildings
-        for id in self.scenario["id"]:
-            #list = list_all[id]
-            #building = pd.Series([list[0],list[1],list[2],list[3],list[4],3,1,2,3,1,2,3,1,2,3,1],
-            #                     index = ['id','building','year', 'retrofit','area','heater','PV',
-            #                              'STC','EV', 'BAT','f_TES','f_BAT', 'f_EV','f_PV', 'f_STC',
-            #                              'gamma_PV',])
-
-            # create empty dict for observed building
+        for id, entry in enumerate(list_all):
+            list = list_all[id]
             building = {}
-            # store features of the observed building
-            building["buildingFeatures"] = self.scenario.loc[id]
+            building["buildingFeatures"] = pd.Series(
+                [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
+                index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+                       'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+                       'gamma_PV', ])
+
+            # initialize buildings for scenario
+            # loop over all buildings
+            # for id in self.scenario["id"]:
+            #     # list = list_all[id]
+            #     # building = pd.Series([list[0],list[1],list[2],list[3],list[4],3,1,2,3,1,2,3,1,2,3,1],
+            #     #                     index = ['id','building','year', 'retrofit','area','heater','PV',
+            #     #                              'STC','EV', 'BAT','f_TES','f_BAT', 'f_EV','f_PV', 'f_STC',
+            #     #                              'gamma_PV',])
+            #
+            #     # create empty dict for observed building
+            #     building = {}
+            #     # store features of the observed building
+            #     building["buildingFeatures"] = self.scenario.loc[id]
 
             # append building to district
             self.district.append(building)
@@ -339,10 +358,11 @@ class Datahandler:
     #        self.outputV1[i]["elec"] = self.district[i]["user"]["elec"]
         return self.outputV1
 
-
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
+    def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
+                                 saveUserProfiles=True,
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-                                 designDevs=False, clustering=False, optimization=False):
+                                 designDevs=False, clustering=False, optimization=False,
+                                 project_path: str = None):
         """
         All in one solution for district and demand generation.
 
@@ -374,9 +394,11 @@ class Datahandler:
         None.
         """
 
+        if project_path is not None:
+            self.district_file = os.path.abspath(project_path)
+
         self.generateEnvironment()
-        self.initializeBuildings(scenario_name)
-        #self.initializeBuildings()
+        self.initializeBuildings(building_list, scenario_name)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
@@ -794,7 +816,7 @@ class Datahandler:
         with open(self.resultPath + "/" + self.scenario_name + ".p", 'wb') as fp:
             pickle.dump(self.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def loadDistrict(self, scenario_name='example'):
+    def loadDistrict(self, list_all: list = [], scenario_name='example'):
         """
         Load district dict from pickle file.
 
@@ -810,8 +832,16 @@ class Datahandler:
 
         self.scenario_name = scenario_name
 
-        with open(self.resultPath + "/" + self.scenario_name + ".p", 'rb') as fp:
-            self.district = pickle.load(fp)
+        # initialize buildings for scenario
+        # loop over all buildings
+        for id, entry in enumerate(list_all):
+            list = list_all[id]
+            building = {}
+            building["buildingFeatures"] = pd.Series(
+                [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
+                index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+                       'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+                       'gamma_PV', ])
 
     def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
         """
