@@ -26,7 +26,7 @@ import sys
 import EHDO.solar_modeling as solar_modeling
 
 
-def load_params(data):
+def load_params(data, demands_district):
 
     # TODO: Änderungen von Marius kontrollieren!
     srcPath = os.path.dirname(os.path.abspath(__file__))
@@ -80,23 +80,21 @@ def load_params(data):
             gains = data.district[b]["user"].gains
             dhw = data.district[b]["user"].dhw
             electricityAppliances = data.district[b]["user"].elec
-            electricityCar = data.district[b]["user"].car
         else:
             heating += data.district[b]["user"].heat / 1000 #kW
             gains += data.district[b]["user"].gains
             dhw += data.district[b]["user"].dhw / 1000 #kW
             electricityAppliances += data.district[b]["user"].elec / 1000 #kW
-            electricityCar += data.district[b]["user"].car
 
 
-    heat_total = heating + dhw
-    electricity_total = electricityAppliances + electricityCar
+    heat_district = demands_district["heat"] + demands_district["dhw"]
+    cooling_district = demands_district["cooling"]
+    electricity_district = demands_district["electricityAppliances"]
 
-    dem_uncl["heat"] = heat_total
-    # TODO: Kühlen ergänzen
-    dem_uncl["cool"] = np.zeros(len(heat_total))
-    dem_uncl["power"] = electricity_total
-    dem_uncl["hydrogen"] = np.zeros(len(heat_total))
+    dem_uncl["heat"] = heat_district
+    dem_uncl["cool"] = cooling_district
+    dem_uncl["power"] = electricity_district
+    dem_uncl["hydrogen"] = np.zeros(len(heat_district))
 
     for k in ["heat", "cool", "power", "hydrogen"]:
         param["peak_"+k] = np.max(dem_uncl[k])

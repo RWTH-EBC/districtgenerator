@@ -47,7 +47,7 @@ def example_generate_custom_district():
     # Generate district with energy profiles
     # We now use the function generateDistrictComplete() to generate a complete district all at once.
     data = Datahandler()
-    data.generateDistrictComplete(scenario_name='BF_Strategie_district', calcUserProfiles=False, saveUserProfiles=False)
+    data.generateDistrictComplete(scenario_name='Typquartier_1', calcUserProfiles=False, saveUserProfiles=True)
 
     # Let's look into our custom district:
 

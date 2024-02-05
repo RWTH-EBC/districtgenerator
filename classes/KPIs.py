@@ -62,14 +62,14 @@ class KPIs:
         self.inputData = inputData
 
         # prepare data to compute KPIs
-        self.prepareData(data)
-        self.calculateResidualLoad(data)
-        self.calculatePeakLoad()
-        self.calculatePeakToValley()
-        self.calculateEnergyExchangeGCP(data)
-        self.calculateEnergyExchangeWithinDistrict(data)
-        self.EnergyAutonomy_year()
-        self.calculateDemandCoverFactor(data)
+        #self.prepareData(data)
+        #self.calculateResidualLoad(data)
+        #self.calculatePeakLoad()
+        #self.calculatePeakToValley()
+        #self.calculateEnergyExchangeGCP(data)
+        #self.calculateEnergyExchangeWithinDistrict(data)
+        #self.EnergyAutonomy_year()
+        #self.calculateDemandCoverFactor(data)
 
 
     def prepareData(self, data):
@@ -290,7 +290,7 @@ class KPIs:
         # list with central operation costs for each cluster [€]
         operationCosts_clusters = []
         for c in range(len(self.inputData["clusters"])):
-            operationCosts_clusters.append(sum(self.inputData["resultsOptimization"][c]["C_total_central"]))
+            operationCosts_clusters.append(sum(self.inputData["resultsOptimization"][c]["Cost_total"]))
 
         # multiply central operation costs of each cluster with the weight of respective cluster
         temp_operationCosts = 0
@@ -373,13 +373,13 @@ class KPIs:
         None.
         """
 
-        self.calculateResidualLoad(data)
-        self.calculatePeakLoad()
-        self.calculatePeakToValley()
-        self.calculateEnergyExchangeGCP(data)
-        self.calculateEnergyExchangeWithinDistrict(data)
-        self.calculateDemandCoverFactor(data)
+        #self.calculateResidualLoad(data)
+        #self.calculatePeakLoad()
+        #self.calculatePeakToValley()
+        #self.calculateEnergyExchangeGCP(data)
+        #self.calculateEnergyExchangeWithinDistrict(data)
+        #self.calculateDemandCoverFactor(data)
         #self.calculateSupplyCoverFactor()
-        #self.calculateOperationCosts()
-        self.calculateCO2emissions(data)
+        self.calculateOperationCosts()
+        #self.calculateCO2emissions(data)
         #self.EnergyAutonomy_year()

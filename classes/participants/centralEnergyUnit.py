@@ -1,4 +1,5 @@
 import gurobipy as gp
+import numpy as np
 from .device import Device
 
 
@@ -73,6 +74,28 @@ class CentralEnergyUnit(Device):
 
         # Global parameters
         self.T_e = self.data.site["T_e_cluster"][self.cluster]  # ambient temperature [°C]
+        self.elec_demand_district = np.zeros(len(self.data.district[0]["user"].elec_cluster[self.cluster]))
+        self.Q_DHW_district = np.zeros(len(self.data.district[0]["user"].elec_cluster[self.cluster]))  # DHW (domestic hot water) demand [W]
+        self.Q_heating_district = np.zeros(len(self.data.district[0]["user"].elec_cluster[self.cluster]))  # space heating [W]
+        self.Q_cooling_district = np.zeros(len(self.data.district[0]["user"].elec_cluster[self.cluster]))  # space cooling [W]
+        self.generationPV_district = np.zeros(len(self.data.district[0]["user"].elec_cluster[self.cluster]))  # electricity generation of PV [W]
+        # Speist STC in der Praxis ein?
+        # self.generationSTC_district = np.zeros(len(self.data.district[id]["user"].elec_cluster[self.cluster]))  # electricity generation of PV [W]
+        self.demand_EV_district = np.zeros(len(self.data.district[0]["user"].elec_cluster[self.cluster]))  # electricity demand electric vehicle (EV) [Wh]
+        for id in range(len(self.data.district)):
+            self.elec_demand_district += self.data.district[id]["user"].elec_cluster[self.cluster]
+            self.Q_DHW_district += self.data.district[id]["user"].dhw_cluster[self.cluster]  # DHW (domestic hot water) demand [W]
+            self.Q_heating_district += self.data.district[id]["user"].heat_cluster[self.cluster]  # space heating [W]
+            self.Q_cooling_district += self.data.district[id]["user"].cooling_cluster[self.cluster]  # space cooling [W]
+            self.generationPV_district += self.data.district[id]["generationPV_cluster"][self.cluster]  # electricity generation of PV [W]
+        #    self.generationSTC_district += self.data.district[id]["generationSTC_cluster"][self.cluster]  # electricity generation of PV [W]
+            self.demand_EV_district += self.data.district[id]["user"].car_cluster[self.cluster]  # electricity demand electric vehicle (EV) [Wh]
+
+        self.C_feed_in_elec = self.ecoData["C_feed_electricity"]
+        self.C_dem_elec = self.ecoData["C_dem_electricity"]
+        self.C_dem_gas = self.ecoData["C_dem_gas"]
+        self.Emission_factor_elec = self.ecoData["Emi_elec"]
+        self.Emission_factor_gas = self.ecoData["Emi_gas"]
 
     def importVariables(self):
         """
@@ -85,11 +108,11 @@ class CentralEnergyUnit(Device):
         """
 
         # heat demand of building connected to the local heat grid [W]
-        self.Q_dem_heat = {}
-        for n in range(self.buildings):
-            self.Q_dem_heat[n] = {}
-            for t in self.timesteps:
-                self.Q_dem_heat[n][t] = self.m.getVarByName("Q_th_grid_" + str(n) + "[" + str(t) + "]")
+        #self.Q_dem_heat = {}
+        #for n in range(self.buildings):
+        #    self.Q_dem_heat[n] = {}
+        #    for t in self.timesteps:
+        #        self.Q_dem_heat[n][t] = self.m.getVarByName("Q_th_grid_" + str(n) + "[" + str(t) + "]")
 
     def setVariables(self):
         """
@@ -139,29 +162,61 @@ class CentralEnergyUnit(Device):
 
         # %% variables of central energy unit (all central devices)
 
-        # Electricity demand of central energy unit [W]
-        self.P_el_dem_centralUnit = self.m.addVars(
+        # Cumulated electricity demand [W] of central devices
+        self.P_dem_total = self.m.addVars(
             self.timesteps,
-            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="P_el_dem_centralUnit"
+            vtype=gp.GRB.CONTINUOUS,
+            lb=0,
+            name="P_dem_total"
         )
 
-        # Electricity net injection of central energy unit [W]
-        self.P_el_inj_centralUnit = self.m.addVars(
+        # Cumulated electricity injection [W] of central devices
+        self.P_inj_total = self.m.addVars(
             self.timesteps,
-            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="P_el_inj_centralUnit"
+            vtype=gp.GRB.CONTINUOUS,
+            lb=0,
+            name="P_inj_total"
+        )
+
+        # District electricity demand at GCP (grid connection point) [W] = el. demand of central energy unit
+        self.P_dem_gcp = self.m.addVars(
+            self.timesteps,
+            vtype=gp.GRB.CONTINUOUS,
+            lb=0,
+            name="P_dem_gcp"
+        )
+
+        # District electricity injection at GCP [W] = el. injection of central energy unit
+        self.P_inj_gcp = self.m.addVars(
+            self.timesteps,
+            vtype=gp.GRB.CONTINUOUS,
+            lb=0,
+            name="P_inj_gcp"
         )
 
         # Gas demand of central energy unit [W]
-        self.P_gas_dem_centralUnit = self.m.addVars(
+        self.P_gas_total = self.m.addVars(
             self.timesteps,
-            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="P_gas_dem_centralUnit"
+            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="P_gas_total"
+        )
+
+        # Costs for electricity and gas demand (- revenue of el. feed-in)
+        self.C_GCP = self.m.addVars(
+            self.timesteps,
+            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="Cost_total"
+        )
+
+        # Caused emission for electricity and gas demand (- revenue of el. feed-in)
+        self.E_GCP = self.m.addVars(
+            self.timesteps,
+            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="Emission_total"
         )
 
         # Heat supply of central energy unit [W]
-        self.Heat_inj_centralUnit = self.m.addVars(
-            self.timesteps,
-            vtype=gp.GRB.CONTINUOUS, lb=0.0, name="Heat_inj_centralUnit"
-        )
+        #self.Heat_inj_centralUnit = self.m.addVars(
+        #    self.timesteps,
+        #    vtype=gp.GRB.CONTINUOUS, lb=0.0, name="Heat_inj_centralUnit"
+        #)
 
     def setConstraints(self):
         """
@@ -250,7 +305,7 @@ class CentralEnergyUnit(Device):
 
         # PV
         self.m.addConstrs(
-            (self.power["PV", t] <=
+            (self.power["PV", t] ==
              self.data.centralDevices["renewableGeneration"]["centralPV_cluster"][self.cluster][t]
              for t in self.timesteps),
             name="Power_PV_central")
@@ -365,7 +420,7 @@ class CentralEnergyUnit(Device):
 
         # Discharging of central TES / Cummulated heat supply of central energy units
         self.m.addConstrs(
-            (self.dch["TES", t] == self.Heat_inj_centralUnit[t]
+            (self.dch["TES", t] == self.Q_DHW_district[t] + self.Q_heating_district[t]
              for t in self.timesteps),
             name="Discharging_centralTES")
 
@@ -377,22 +432,45 @@ class CentralEnergyUnit(Device):
 
         # Electricity balances of central energy unit
         self.m.addConstrs(
-            (self.P_el_dem_centralUnit[t] + self.dch["BAT", t] + self.power["PV", t] + self.power["WT", t]
+            (self.P_dem_gcp[t] + self.generationPV_district[t] + self.dch["BAT", t] + self.power["PV", t] + self.power["WT", t]
              + self.power["CHP", t] + self.power["FC", t]
-             == self.P_el_inj_centralUnit[t] + self.ch["BAT", t] + self.power["HP_air", t] + self.power["HP_geo", t]
-             + self.power["EH", t]
+             == self.P_inj_gcp[t] + self.elec_demand_district[t] + self.demand_EV_district[t] + self.ch["BAT", t]
+             + self.power["HP_air", t] + self.power["HP_geo", t] + self.power["EH", t]
              for t in self.timesteps),
             name="Power_balance_centralUnit")
-        #self.m.addConstrs(
-        #    (self.P_el_dem_centralUnit[t] + self.power["PV", t] + self.power["WT", t] + self.power["CHP", t]
-        #     + self.dch["BAT", t] ==
-        #     self.P_el_inj_centralUnit[t] + self.ch["BAT", t] + self.power["HP_air", t] + self.power["HP_geo", t]
-        #     + self.power["EH", t]
-        #     for t in self.timesteps),
-        #    name="Power_balance_centralUnit")
+
+        # Cumulated demand
+        self.m.addConstrs(
+            (self.P_dem_total[t] == self.elec_demand_district[t] + self.demand_EV_district[t] + self.ch["BAT", t]
+             + self.power["HP_air", t] + self.power["HP_geo", t] + self.power["EH", t]
+             for t in self.timesteps),
+              name="Cumulated_dem" + str(t),
+            )
+
+        # Cumulated injection
+        self.m.addConstrs(
+            (self.P_inj_total[t] == self.generationPV_district[t] + self.dch["BAT", t] + self.power["PV", t]
+                                    + self.power["WT", t] + self.power["CHP", t] + self.power["FC", t]
+            for t in self.timesteps),
+             name="Cumulated_inj" + str(t),
+            )
 
         # Gas balances of central energy unit
         self.m.addConstrs(
-            (self.P_gas_dem_centralUnit[t] == self.gas["CHP", t] + self.gas["BOI", t] + self.gas["FC", t]
+            (self.P_gas_total[t] == self.gas["CHP", t] + self.gas["BOI", t] + self.gas["FC", t]
              for t in self.timesteps),
             name="Gas_dem_centralUnit")
+
+        #
+        self.m.addConstrs(
+            (self.C_GCP[t] == self.P_gas_total[t] * self.C_dem_gas
+                              + self.P_dem_gcp[t] * self.C_dem_elec
+                              - self.P_inj_gcp[t] * self.C_feed_in_elec
+             for t in self.timesteps),
+            name="Cost_total")
+
+        #
+        self.m.addConstrs(
+            (self.E_GCP[t] == self.P_dem_gcp[t] * self.Emission_factor_elec + self.P_gas_total[t] * self.Emission_factor_gas
+             for t in self.timesteps),
+            name="Emission_balance")
