@@ -150,7 +150,7 @@ class Datahandler:
                                         albedo=self.site["albedo"])
 
     # def initializeBuildings(self, list_all, scenario_name='example'):
-    def initializeBuildings(self, list_all: list = [], scenario_name='example'):
+    def initializeBuildings(self, list_all: list = None, scenario_name='example'):
         """
         Fill district with buildings from scenario file.
 
@@ -168,8 +168,8 @@ class Datahandler:
         if list_all is None:
             list_all = []
 
-        if self.district_file is not None:
-            self.scenario = pd.read_csv(self.district_file)
+        if list_all is not None:
+            self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
         else:
             self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
                                         + "/"
@@ -189,21 +189,6 @@ class Datahandler:
                        'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
                        'gamma_PV', ])
 
-            # initialize buildings for scenario
-            # loop over all buildings
-            # for id in self.scenario["id"]:
-            #     # list = list_all[id]
-            #     # building = pd.Series([list[0],list[1],list[2],list[3],list[4],3,1,2,3,1,2,3,1,2,3,1],
-            #     #                     index = ['id','building','year', 'retrofit','area','heater','PV',
-            #     #                              'STC','EV', 'BAT','f_TES','f_BAT', 'f_EV','f_PV', 'f_STC',
-            #     #                              'gamma_PV',])
-            #
-            #     # create empty dict for observed building
-            #     building = {}
-            #     # store features of the observed building
-            #     building["buildingFeatures"] = self.scenario.loc[id]
-
-            # append building to district
             self.district.append(building)
 
     def generateBuildings(self):
@@ -229,7 +214,6 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -338,31 +322,39 @@ class Datahandler:
             district_elec += building["user"].getProfiles()[2]
             district_dhw += building["user"].getProfiles()[3]
 
+        self.outputV1.update({
+            'district_heat': district_heat,
+            'district_cooling': district_cooling,
+            'district_elec': district_elec,
+            'district_dhw': district_dhw,
+        })
+
 
         if saveUserProfiles:
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling, fmt='%1.2f', delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv', district_heat, fmt='%1.2f', delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv', district_dhw, fmt='%1.2f', delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv', district_elec, fmt='%1.2f', delimiter=',')
-
-
+            np.savetxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
+                       fmt='%1.2f', delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv', district_heat, fmt='%1.2f',
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv', district_dhw, fmt='%1.2f',
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv', district_elec, fmt='%1.2f',
+                       delimiter=',')
 
         print("Finished generating demands!")
 
     def outputWebtoolV1(self):
-    #    for i in range(len(self.district)):
-    #        self.outputV1[i] = {}
-    #        self.outputV1[i]["heat"] = self.district[i]["user"]["heat"]
-    #        self.outputV1[i]["cooling"] = self.district[i]["user"]["cooling"]
-    #        self.outputV1[i]["dhw"] = self.district[i]["user"]["dhw"]
-    #        self.outputV1[i]["elec"] = self.district[i]["user"]["elec"]
+        #    for i in range(len(self.district)):
+        #        self.outputV1[i] = {}
+        #        self.outputV1[i]["heat"] = self.district[i]["user"]["heat"]
+        #        self.outputV1[i]["cooling"] = self.district[i]["user"]["cooling"]
+        #        self.outputV1[i]["dhw"] = self.district[i]["user"]["dhw"]
+        #        self.outputV1[i]["elec"] = self.district[i]["user"]["elec"]
         return self.outputV1
 
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
                                  saveUserProfiles=True,
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-                                 designDevs=False, clustering=False, optimization=False,
-                                 project_path: str = None):
+                                 designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
@@ -393,9 +385,6 @@ class Datahandler:
         -------
         None.
         """
-
-        if project_path is not None:
-            self.district_file = os.path.abspath(project_path)
 
         self.generateEnvironment()
         self.initializeBuildings(building_list, scenario_name)
@@ -633,7 +622,7 @@ class Datahandler:
         self.initializeCentralDevices(fileName_centralSystems)
         self.designDecentralDevices(saveGenerationProfiles)
         self.designCentralDevices(saveGenerationProfiles)
-        #TODO: Zentrale Anlagen immer mit EHDO auslegen!
+        # TODO: Zentrale Anlagen immer mit EHDO auslegen!
 
     def clusterProfiles(self):
         """
@@ -660,8 +649,8 @@ class Datahandler:
             # TODO: Ist es sinnvoll stochastische Zeitreihen zu clustern?
             adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
             adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:lenghtArray]
-            #adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
-            #adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
+            # adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
+            # adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
             adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
             adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
             if self.district[id]["buildingFeatures"]["EV"] != 0:
@@ -722,8 +711,8 @@ class Datahandler:
         for id in self.scenario["id"]:
             inputsClustering.append(adjProfiles[id]["elec"])
             inputsClustering.append(adjProfiles[id]["dhw"])
-            #inputsClustering.append(adjProfiles[id]["gains"])
-            #inputsClustering.append(adjProfiles[id]["occ"])
+            # inputsClustering.append(adjProfiles[id]["gains"])
+            # inputsClustering.append(adjProfiles[id]["occ"])
             inputsClustering.append(adjProfiles[id]["car"])
             inputsClustering.append(adjProfiles[id]["generationPV"])
             inputsClustering.append(adjProfiles[id]["generationSTC"])
@@ -757,8 +746,8 @@ class Datahandler:
             index_house = int(7)  # number of profiles per building
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
-            #self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
-            #self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
+            # self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
+            # self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
             # assign real EV, PV and STC generation for clustered data to buildings
             # (array with zeroes if EV, PV or STC does not exist)
             self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2] * self.scenario.loc[id]["EV"]
@@ -908,7 +897,6 @@ class Datahandler:
         self.resultsOptimization = []
 
         for cluster in range(self.time["clusterNumber"]):
-
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster, centralEnergySupply)
             self.optimizer.runOptimization()
@@ -943,10 +931,14 @@ class Datahandler:
         """
 
         demands_district = {}
-        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heat_district.csv', delimiter=',')
-        demands_district["cooling"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', delimiter=',')
-        demands_district["dhw"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv', delimiter=',')
-        demands_district["elec"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv', delimiter=',')
+        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heat_district.csv',
+                                              delimiter=',')
+        demands_district["cooling"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv',
+                                                 delimiter=',')
+        demands_district["dhw"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv',
+                                             delimiter=',')
+        demands_district["elec"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv',
+                                              delimiter=',')
 
         # Load parameters
         param, devs, dem, result_dict = load_params_EHDO.load_params(self, demands_district)
