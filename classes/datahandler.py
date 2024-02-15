@@ -149,8 +149,8 @@ class Datahandler:
                                         diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
 
-    # def initializeBuildings(self, list_all, scenario_name='example'):
-    def initializeBuildings(self, list_all: list = None, scenario_name='example'):
+    def initializeBuildings(self, scenario_name='example'):
+    #def initializeBuildings(self, list_all: list = None, scenario_name='example'):
         """
         Fill district with buildings from scenario file.
 
@@ -164,32 +164,39 @@ class Datahandler:
         None.
         """
 
-        # self.scenario_name = scenario_name
-        if list_all is None:
-            list_all = []
+        self.scenario_name = scenario_name
+        #if list_all is None:
+        #    list_all = []
 
-        if list_all is not None:
-            self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
-        else:
-            self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+        #if list_all is not None:
+        #    self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
+        #else:
+        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
                                         + "/"
                                         + self.scenario_name + ".csv",
                                         header=0, delimiter=";")
 
-        self.scenario_name = scenario_name
+        # initialize buildings for scenario
+        for id in self.scenario["id"]:
+            # create empty dict for observed building
+            building = {}
+            # store features of the observed building
+            building["buildingFeatures"] = self.scenario.loc[id]
+            # append building to district
+            self.district.append(building)
 
         # initialize buildings for scenario
         # loop over all buildings
-        for id, entry in enumerate(list_all):
-            list = list_all[id]
-            building = {}
-            building["buildingFeatures"] = pd.Series(
-                [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
-                index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
-                       'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
-                       'gamma_PV', ])
+        #for id, entry in enumerate(list_all):
+        #    list = list_all[id]
+        #    building = {}
+        #    building["buildingFeatures"] = pd.Series(
+        #        [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
+        #        index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+        #               'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+        #               'gamma_PV', ])
 
-            self.district.append(building)
+        #    self.district.append(building)
 
     def generateBuildings(self):
         """
@@ -351,7 +358,11 @@ class Datahandler:
         #        self.outputV1[i]["elec"] = self.district[i]["user"]["elec"]
         return self.outputV1
 
-    def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
+    #def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
+    #                             saveUserProfiles=True,
+    #                             fileName_centralSystems="central_devices_example", saveGenProfiles=True,
+    #                             designDevs=False, clustering=False, optimization=False):
+    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True,
                                  saveUserProfiles=True,
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
                                  designDevs=False, clustering=False, optimization=False):
@@ -387,7 +398,8 @@ class Datahandler:
         """
 
         self.generateEnvironment()
-        self.initializeBuildings(building_list, scenario_name)
+        #self.initializeBuildings(building_list, scenario_name)
+        self.initializeBuildings(scenario_name)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
@@ -403,51 +415,9 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def initializeCentralDevices(self, fileName_centralSystems="central_devices_example"):
-        """
-        Initialize the central energy unit.
-
-        Parameters
-        ----------
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
-
-        Returns
-        -------
-        None.
-        """
-
-        # initialization
-        self.centralDevices = {}
-
-        # initialize central energy system object
-        self.centralDevices["ces_obj"] = CES()
-
-        # load information about central devices from CSV-file
-        # (units are kW or kWh)
-        self.centralDevices["infos"] = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                                   + "/"
-                                                   + fileName_centralSystems
-                                                   + ".csv",
-                                                   header=0, delimiter=";")
-
-        # load data about central devices from JSON-file
-        self.centralDevices["data"] = {}
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.centralDevices["data"][subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.centralDevices["data"][subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
-        # load data from JSON-file about the heat grid, that connects the central devices and the buildings
-        self.centralDevices["heatGrid"] = {}
-        with open(os.path.join(self.filePath, "heat_grid.json")) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.centralDevices["heatGrid"][subData["name"]] = subData["value"]
 
     def designDecentralDevices(self, saveGenerationProfiles=True):
+    # def designDecentralDevices(self, saveGenerationProfiles=True, input_webtool):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
@@ -464,6 +434,24 @@ class Datahandler:
         """
 
         for building in self.district:
+
+            building["buildingFeatures"]["heater"] = input_webtool[building["buildingFeatures"]["id"]]["heater"] # str
+            building["buildingFeatures"]["f_TES"] = input_webtool[building["buildingFeatures"]["id"]]["tes_input"] # liter
+
+            building["buildingFeatures"]["PV_area"] = input_webtool[building["buildingFeatures"]["id"]]["pv_input"] #m2
+            if building["buildingFeatures"]["PV_area"] > 0:
+                building["buildingFeatures"]["PV"] = 1
+            else:
+                building["buildingFeatures"]["PV"] = 0
+            building["buildingFeatures"]["BAT"] = input_webtool[building["buildingFeatures"]["id"]]["bat_input"] # Wh
+
+            building["buildingFeatures"]["STC_area"] = input_webtool[building["buildingFeatures"]["id"]]["stc_input"] # m2
+            if building["buildingFeatures"]["STC_area"] > 0:
+                building["buildingFeatures"]["STC"] = 1
+            else:
+                building["buildingFeatures"]["STC"] = 0
+
+            building["buildingFeatures"]["BAT"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # S, M, L
 
             # %% load general building information
             # contains definitions and parameters that affect all buildings
@@ -489,13 +477,6 @@ class Datahandler:
             # get capacities of all possible devices
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
-
-            # sum up the design_load and bivalent_load of buldíngs connected to local heat grid
-            if building["buildingFeatures"]["heater"] == 'heat_grid':
-                self.centralDevices["ces_obj"].add_loads(bes_obj)
-
-            # sum up roof area of all buildings in the district
-            self.centralDevices["ces_obj"].add_roofArea(building)
 
             # calculate theoretical PV generation
             potentialPV, potentialSTC = \
@@ -528,7 +509,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self, saveGenerationProfiles=True):
+    def designCentralDevices(self, central_scenario = "central_devices_example", saveGenerationProfiles=True, input_webtool):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -545,9 +526,48 @@ class Datahandler:
         None.
         """
 
+        # initialization
+        self.centralDevices = {}
+
+        # initialize central energy system object
+        self.centralDevices["ces_obj"] = CES()
+
+        demands_district = {}
+        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv',
+                                              delimiter=',')
+        demands_district["cooling"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv',
+                                                 delimiter=',')
+        demands_district["dhw"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv',
+                                             delimiter=',')
+        demands_district["elec"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv',
+                                              delimiter=',')
+
+
+        # Load parameters
+        param, devs, dem, result_dict = load_params_EHDO.load_params(self, demands_district)
+
+        # Input from webtool of devs (feasible = True/False, min/max cap, ....)
+        devs = self.centralDevices["ces_obj"].designCES(self, demands_district, devs, input_webtool)
+
+
+        # load data about central devices from JSON-file
+        self.centralDevices["data"] = {}
+        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.centralDevices["data"][subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    self.centralDevices["data"][subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        # load data from JSON-file about wind turbine
+        self.centralDevices["data"]["WT"]["power_curve"] = {}
+        # open power curve of wind turbine
+        power_curve = pd.read_csv(os.path.join(self.filePath, 'wind_turbine_models/WT_WT_Enercon_E40.csv'),
+                      header=0, delimiter=";")  # wind_speed [m/s], power [kW]
+        self.centralDevices["data"]["WT"]["power_curve"] = power_curve
+
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self.centralDevices["infos"],
-                                                                                     self.centralDevices["data"])
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(energyCentralData)
 
         # calculate potential central PV and STC generation (with the roof area of the hole district for each!)
         # todo: Why are different areas used?
@@ -563,20 +583,10 @@ class Datahandler:
 
         # assign real central PV generation to central energy unit
         self.centralDevices["renewableGeneration"] = {}
-        self.centralDevices["renewableGeneration"]["centralPV"] = \
-            potentialCentralPV \
-            * self.centralDevices["capacities"]["PV"]["area"] / self.centralDevices["ces_obj"].roofAreaDistrict
+        self.centralDevices["renewableGeneration"]["centralPV"] = potentialCentralPV
 
         # assign real central STC generation to central energy unit
-        self.centralDevices["renewableGeneration"]["centralSTC"] = \
-            potentialCentralSTC \
-            * self.centralDevices["infos"].loc[self.centralDevices["infos"]["type"] == "STC", ["f"]].iloc[0, 0]
-
-        # clustering data
-        self.centralDevices["clusteringData"] = {
-            "potentialCentralPV": potentialCentralPV,
-            "potentialCentralSTC": potentialCentralSTC
-        }
+        self.centralDevices["renewableGeneration"]["centralSTC"] = potentialCentralSTC
 
         # calculate potential central WT generation (for one wind turbine)
         factor_windSpeed = wind_turbines.factor_windSpeed(self.centralDevices["data"]["WT"])  # [-]
@@ -584,12 +594,12 @@ class Datahandler:
         potentialCentralWT = \
             wind_turbines.WT_generation(wind_speed_WT, self.centralDevices["capacities"]["WT"]["powerCurve"])  # [W]
 
-        # assign real central WT generation to central energy unit
-        self.centralDevices["renewableGeneration"]["centralWT"] = \
-            potentialCentralWT * self.centralDevices["capacities"]["WT"]["nb_WT"]
-
         # clustering data
-        self.centralDevices["clusteringData"]["potentialCentralWT"] = potentialCentralWT
+        self.centralDevices["clusteringData"] = {
+            "potentialCentralPV": potentialCentralPV,
+            "potentialCentralSTC": potentialCentralSTC,
+            "potentialCentralWT": potentialCentralWT,
+        }
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
@@ -619,12 +629,10 @@ class Datahandler:
         None.
         """
 
-        self.initializeCentralDevices(fileName_centralSystems)
         self.designDecentralDevices(saveGenerationProfiles)
-        self.designCentralDevices(saveGenerationProfiles)
-        # TODO: Zentrale Anlagen immer mit EHDO auslegen!
+        #self.designCentralDevices(saveGenerationProfiles)
 
-    def clusterProfiles(self):
+    def clusterProfiles(self, centralEnergySupply):
         """
         Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
 
@@ -671,38 +679,42 @@ class Datahandler:
                 # no STC installed; but array with just zeros leads to problem while clustering
                 adjProfiles[id]["generationSTC"] = \
                     self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
+
         # solar radiation on surfaces with different orientation
         adjProfiles["Sun"] = {}
         for drct in range(len(self.SunRad)):
             adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
-        # central renewable generation
-        if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
-            existence_centralWT = 1
-            adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
-        else:
-            # no central WT exists; but array with just zeros leads to problem while clustering
-            existence_centralWT = 0
-            adjProfiles["generationCentralWT"] = \
-                self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
-        if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
-            existence_centralPV = 1
-            adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
-        else:
-            # no central PV exists; but array with just zeros leads to problem while clustering
-            existence_centralPV = 0
-            adjProfiles["generationCentralPV"] = \
-                self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
-        if self.centralDevices["capacities"]["STC"]["area"] > 0:
-            existence_centralSTC = 1
-            adjProfiles["generationCentralSTC"] = \
-                self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
-        else:
-            # no central STC exists; but array with just zeros leads to problem while clustering
-            existence_centralSTC = 0
-            adjProfiles["generationCentralSTC"] = \
-                self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
+
+        if centralEnergySupply == True:
+
+            # central renewable generation
+            if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
+                existence_centralWT = 1
+                adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
+            else:
+                # no central WT exists; but array with just zeros leads to problem while clustering
+                existence_centralWT = 0
+                adjProfiles["generationCentralWT"] = \
+                    self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
+                existence_centralPV = 1
+                adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
+            else:
+                # no central PV exists; but array with just zeros leads to problem while clustering
+                existence_centralPV = 0
+                adjProfiles["generationCentralPV"] = \
+                    self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["STC"]["area"] > 0:
+                existence_centralSTC = 1
+                adjProfiles["generationCentralSTC"] = \
+                    self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
+            else:
+                # no central STC exists; but array with just zeros leads to problem while clustering
+                existence_centralSTC = 0
+                adjProfiles["generationCentralSTC"] = \
+                    self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
         # wind speed and ambient temperature
-        adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
+        #adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
@@ -721,12 +733,14 @@ class Datahandler:
         # solar radiation on surfaces with different orientation
         for drct in range(len(self.SunRad)):
             inputsClustering.append(adjProfiles["Sun"][drct])
-        # central renewable generation
-        inputsClustering.append(adjProfiles["generationCentralWT"])
-        inputsClustering.append(adjProfiles["generationCentralPV"])
-        inputsClustering.append(adjProfiles["generationCentralSTC"])
+
+        if centralEnergySupply == True:
+            # central renewable generation
+            inputsClustering.append(adjProfiles["generationCentralWT"])
+            inputsClustering.append(adjProfiles["generationCentralPV"])
+            inputsClustering.append(adjProfiles["generationCentralSTC"])
         # wind speed and ambient temperature
-        inputsClustering.append(adjProfiles["wind_speed"])
+        #inputsClustering.append(adjProfiles["wind_speed"])
         inputsClustering.append(adjProfiles["T_e"])
 
         # weights for clustering algorithm indicating the focus onto this profile
@@ -758,15 +772,18 @@ class Datahandler:
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 5]
             self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 6]
         # safe clustered solar radiation on surfaces with different orientation
+
+        if centralEnergySupply == True:
+            # save clustered data for real central renewable generation
+            self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
+            self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
+            self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
+
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
-            self.SunRad_cluster[drct] = newProfiles[-5 - len(self.SunRad) + drct]
-        # save clustered data for real central renewable generation
-        self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
-        self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
-        self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
+            self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
         # save clustered wind speed and ambient temperature
-        self.site["wind_speed_cluster"] = newProfiles[-2]
+        #self.site["wind_speed_cluster"] = newProfiles[-2]
         self.site["T_e_cluster"] = newProfiles[-1]
 
         # clusters
@@ -884,6 +901,7 @@ class Datahandler:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
 
+
     def optimizationClusters(self, centralEnergySupply):
         """
         Optimize the operation costs for each cluster.
@@ -931,7 +949,7 @@ class Datahandler:
         """
 
         demands_district = {}
-        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heat_district.csv',
+        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv',
                                               delimiter=',')
         demands_district["cooling"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv',
                                                  delimiter=',')
@@ -941,6 +959,7 @@ class Datahandler:
                                               delimiter=',')
 
         # Load parameters
+        # TODO: Input ob devs feasible = True/False, min/max cap, ....
         param, devs, dem, result_dict = load_params_EHDO.load_params(self, demands_district)
 
         # Run optimization

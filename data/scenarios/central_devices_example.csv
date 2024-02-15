@@ -1,11 +1,11 @@
 type;f_heat;f
-HP_air;0;0
-HP_geo;300000;0
-BOI;0;0
+HP_air;300000;0
+HP_geo;;0
+BOI;300000;0
 CHP;0;0
 FC;0;0
 STC;0;0
-PV;0;0
+PV;300000;0
 WT;0;0
-TES;0;0
-BAT;0;0
+TES;300000;0
+BAT;300000;0

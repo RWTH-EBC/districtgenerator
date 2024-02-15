@@ -93,12 +93,6 @@ class BES:
 
         BES = {}
 
-        # check if heating by grid
-        if buildingFeatures["heater"] == "heat_grid":
-            BES["heat_grid"] = 1
-        else:
-            BES["heat_grid"] = 0
-
         for k in dev.keys():
             BES[k] = {}
 
@@ -124,8 +118,6 @@ class BES:
                              * physics["c_p_water"] \
                              * dev["TES"]["T_diff_max"] \
                              / 3600
-                if buildingFeatures["heater"] == "heat_grid":
-                    BES["TES"] = 0
 
                     # battery (BAT)
             if k == "BAT":
@@ -136,6 +128,7 @@ class BES:
                              * building["envelope"].A["opaque"]["roof"] \
                              * buildingFeatures["f_PV"] \
                              * buildingFeatures["BAT"]
+                # BES["BAT"] = buildingFeatures["BAT"]
 
             # electric vehicle (EV)
             if k == "EV":
@@ -153,6 +146,7 @@ class BES:
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
                               * buildingFeatures["f_PV"] \
                               * buildingFeatures["PV"]
+                #areaPV_temp = buildingFeatures["PV_area"]
                 BES["PV"]["nb_modules"] = int(areaPV_temp / dev["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * dev["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * dev["PV"]["P_nominal"]  # [W]
@@ -163,6 +157,7 @@ class BES:
                 BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
                                      * buildingFeatures["f_STC"] \
                                      * buildingFeatures["STC"]
+                # BES["STC"]["area"] = buildingFeatures["STC_area"]
 
         return BES
 
@@ -219,14 +214,12 @@ class CES:
 
         self.roofAreaDistrict += building["envelope"].A["opaque"]["roof"]
 
-    def designCES(self, infos_centralDevices, data_centralDevices):
+    def designCES(self, demands_district, devs, input_webtool):
         """
         Dimensioning of central devices.
 
         Parameters
         ----------
-        infos_centralDevices : pandas DataFrame
-            Information about central devices.
         data_centralDevices : dictionary
             Data of central devices.
 
@@ -236,90 +229,141 @@ class CES:
             The capacities of the central devices.
         """
 
-        '''
-        Information to the used factors:
-        f_heat is defined for HP_air, HP_geo, BOI, CHP and FC
-        f_heat is the ratio between the heat output of these devices and the design load of the heat grid
-        f for STC is the ratio between the area of the central STCs and the roof area of the hole district
-        f for PV is the ratio between the area of the central PV modules and the roof area of the hole district
-        f for WT is the ratio between the nominal power of the central WT and a central PV system using all roof area
-        f for TES is equal to the hours a fully charged central TES can provide the design load of the heat grid 
-        f for BAT is equal to the hours a fully charged central BAT can provide the design load of a central PV with an 
-            area equal to the sum of all roofs
-        '''
-
         # initialise capacities of central devices
-        capacities_centralDevices = {}
+        capacities = {}
 
-        # %% dimensioning of all central devices with heat output
-        # air heat pump and electric heating
-        capacities_centralDevices["HP_air"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "HP_air", ["f_heat"]].iloc[0, 0] # [W]
-
-        # geo-thermal heat pump
-        capacities_centralDevices["HP_geo"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "HP_geo", ["f_heat"]].iloc[0, 0] # [W]
-
-        capacities_centralDevices["EH"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "HP_air", ["f_heat"]].iloc[0, 0] # [W]
-
-        # BOI
-        capacities_centralDevices["BOI"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "BOI", ["f_heat"]].iloc[0, 0] # [W]
-
-        # combined heat and power (CHP)
-        capacities_centralDevices["CHP"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "CHP", ["f_heat"]].iloc[0, 0] # [W]
-
-        # fuel cell (FC)
-        capacities_centralDevices["FC"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "FC", ["f_heat"]].iloc[0, 0] # [W]
-
-        # solar thermal energy (STC)
-        capacities_centralDevices["STC"] = {}
-        capacities_centralDevices["STC"]["area"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "STC", ["f"]].iloc[0, 0] \
-            * self.roofAreaDistrict  # [m²]
-
-        # %% dimensioning of all central devices with only electrical output
-
-        # photovoltaic (PV)
-        capacities_centralDevices["PV"] = {}
-        areaPV_temp = infos_centralDevices.loc[infos_centralDevices["type"] == "PV", ["f"]].iloc[0, 0] \
-                      * self.roofAreaDistrict  # [m²]
-        capacities_centralDevices["PV"]["nb_modules"] = int(areaPV_temp / data_centralDevices["PV"]["area_real"])  # [-]
-        capacities_centralDevices["PV"]["area"] = capacities_centralDevices["PV"]["nb_modules"] \
-                                                  * data_centralDevices["PV"]["area_real"]  # [m²]
-        capacities_centralDevices["PV"]["P_ref"] = capacities_centralDevices["PV"]["area"] \
-                                                   * data_centralDevices["PV"]["P_nominal"]  # [W]
-        nb_modulesPV_roof_max = int(self.roofAreaDistrict / data_centralDevices["PV"]["area_real"])  # [-]
-        P_PV_roof_max = nb_modulesPV_roof_max \
-                        * data_centralDevices["PV"]["area_real"] * data_centralDevices["PV"]["P_nominal"]  # [W]
-
-        # wind turbine(s) (WT)
-        capacities_centralDevices["WT"] = {}
-        capacities_centralDevices["WT"]["P_ref"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "WT", ["f"]].iloc[0, 0]  # [W]
-        if capacities_centralDevices["WT"]["P_ref"] > 0:
-            capacities_centralDevices["WT"]["nb_WT"] = 1
+        if "photovoltaic_check_ehdo" == None:
+            devs["PV"]["feasible"] = False
         else:
-            capacities_centralDevices["WT"]["nb_WT"] = 0
-        capacities_centralDevices["WT"]["powerCurve"] = \
-            wind_turbines.powerCurve(data_centralDevices["WT"]["wind_turbine_model"])  # wind_speed [m/s], power [kW]
-        #P_max_WT = capacities_centralDevices["WT"]["powerCurve"]["power"].max() * 1000  # [W]
-        #capacities_centralDevices["WT"]["nb_WT"] = int(capacities_centralDevices["WT"]["P_ref"] / P_max_WT)
-        #capacities_centralDevices["WT"]["P_ref"] = P_max_WT * capacities_centralDevices["WT"]["nb_WT"]
+            devs["PV"]["feasible"] = True
+            devs["PV"]["min_area"] = str("photovoltaic_min_input_ehdo")
+            devs["PV"]["max_area"] = str("photovoltaic_max_input_ehdo")
 
-        # %% dimensioning of storages
+        if "wind_turbines_check_ehdo" == None:
+            devs["WT"]["feasible"] = False
+        else:
+            devs["WT"]["feasible"] = True
+            devs["WT"]["min_cap"] = str(input_webtool["wind_turbines_min_input_ehdo"])
+            devs["WT"]["max_cap"] = str(input_webtool["wind_turbines_max_input_ehdo"])
 
-        # thermal energy storage (TES)
-        capacities_centralDevices["TES"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "TES", ["f"]].iloc[0, 0]  # [Wh]
+        if "hydropower_check_ehdo" == None:
+            devs["WAT"]["feasible"] = False
+        else:
+            devs["WAT"]["feasible"] = True
+            devs["WAT"]["min_cap"] = str(input_webtool["hydropower_min_input_ehdo"])
+            devs["WAT"]["max_cap"] = str(input_webtool["hydropower_max_input_ehdo"])
 
-        # battery (BAT)
-        '''Is the power input/output of the battery high enough???'''
-        '''IDEA: P_ref could be defined otherwise; e.g. as maximum of P_ref for PV and WT...'''
-        capacities_centralDevices["BAT"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "BAT", ["f"]].iloc[0, 0] # [Wh]
+        if "solar_thermal_collector_check_ehdo" == None:
+            devs["STC"]["feasible"] = False
+        else:
+            devs["STC"]["feasible"] = True
+            devs["STC"]["min_area"] = str("solar_thermal_collector_min_input_ehdo")
+            devs["STC"]["max_area"] = str("solar_thermal_collector_max_input_ehdo")
 
-        return capacities_centralDevices
+        if "heat_pump_check_ehdo" == None:
+            devs["HP"]["feasible"] = False
+        else:
+            devs["HP"]["feasible"] = True
+            devs["HP"]["min_cap"] = str("heat_pump_min_input_ehdo")
+            devs["HP"]["max_cap"] = str("heat_pump_max_input_ehdo")
+
+        if "electric_boiler_check_ehdo" == None:
+            devs["EB"]["feasible"] = False
+        else:
+            devs["EB"]["feasible"] = True
+            devs["EB"]["min_cap"] = str("electric_boiler_min_input_ehdo")
+            devs["EB"]["max_cap"] = str("electric_boiler_max_input_ehdo")
+
+        if "compression_chiller_check_ehdo" == None:
+            devs["CC"]["feasible"] = False
+        else:
+            devs["CC"]["feasible"] = True
+            devs["CC"]["min_cap"] = str("compression_chiller_min_input_ehdo")
+            devs["CC"]["max_cap"] = str("compression_chiller_max_input_ehdo")
+
+        if "absorption_chiller_check_ehdo" == None:
+            devs["AC"]["feasible"] = False
+        else:
+            devs["AC"]["feasible"] = True
+            devs["AC"]["min_cap"] = str("absorption_chiller_min_input_ehdo")
+            devs["AC"]["max_cap"] = str("absorption_chiller_max_input_ehdo")
+
+        if "CHP_unit_check_ehdo" == None:
+            devs["CHP"]["feasible"] = False
+        else:
+            devs["CHP"]["feasible"] = True
+            devs["CHP"]["min_cap"] = str("CHP_unit_min_input_ehdo")
+            devs["CHP"]["max_cap"] = str("CHP_unit_max_input_ehdo")
+
+
+        if "biomass_CHP_check_ehdo" == None:
+            devs["BCHP"]["feasible"] = False
+        else:
+            devs["BCHP"]["feasible"] = True
+            devs["BCHP"]["min_cap"] = str("biomass_CHP_min_input_ehdo")
+            devs["BCHP"]["max_cap"] = str("biomass_CHP_max_input_ehdo")
+
+        if "biomass_boiler_check_ehdo" == None:
+            devs["BBOI"]["feasible"] = False
+        else:
+            devs["BBOI"]["feasible"] = True
+            devs["BBOI"]["min_cap"] = str("biomass_boiler_min_input_ehdo")
+            devs["BBOI"]["max_cap"] = str("biomass_boiler_max_input_ehdo")
+
+        if "waste_CHP_check_ehdo" == None:
+            devs["WCHP"]["feasible"] = False
+        else:
+            devs["WCHP"]["feasible"] = True
+            devs["WCHP"]["min_cap"] = str("waste_CHP_min_input_ehdo")
+            devs["WCHP"]["max_cap"] = str("waste_CHP_max_input_ehdo")
+
+        if "waste_boiler_check_ehdo" == None:
+            devs["WBOI"]["feasible"] = False
+        else:
+            devs["WBOI"]["feasible"] = True
+            devs["WBOI"]["min_cap"] = str("waste_boiler_min_input_ehdo")
+            devs["WBOI"]["max_cap"] = str("waste_boiler_max_input_ehdo")
+
+        if "electrolyzer_check_ehdo" == None:
+            devs["ELYZ"]["feasible"] = False
+        else:
+            devs["ELYZ"]["feasible"] = True
+            devs["ELYZ"]["min_cap"] = str("electrolyzer_min_input_ehdo")
+            devs["ELYZ"]["max_cap"] = str("electrolyzer_max_input_ehdo")
+
+        if "fuel_cell_check_ehdo" == None:
+            devs["FC"]["feasible"] = False
+        else:
+            devs["FC"]["feasible"] = True
+            devs["FC"]["min_cap"] = str("fuel_cell_min_input_ehdo")
+            devs["FC"]["max_cap"] = str("fuel_cell_max_input_ehdo")
+
+        if "hydrogen_storage_check_ehdo" == None:
+            devs["H2S"]["feasible"] = False
+        else:
+            devs["H2S"]["feasible"] = True
+            devs["H2S"]["min_cap"] = str("hydrogen_storage_min_input_ehdo")
+            devs["H2S"]["max_cap"] = str("hydrogen_storage_max_input_ehdo")
+
+        if "heat_check_ehdo" == None:
+            devs["TES"]["feasible"] = False
+        else:
+            devs["TES"]["feasible"] = True
+            devs["TES"]["min_volume"] = str("heat_min_input_ehdo")
+            devs["TES"]["max_volume"] = str("heat_max_input_ehdo")
+
+        if "cold_check_ehdo" == None:
+            devs["CTES"]["feasible"] = False
+        else:
+            devs["CTES"]["feasible"] = True
+            devs["CTES"]["min_volume"] = str("cold_min_input_ehdo")
+            devs["CTES"]["max_volume"] = str("cold_max_input_ehdo")
+
+        if "battery_check_ehdo" == None:
+            devs["BAT"]["feasible"] = False
+        else:
+            devs["BAT"]["feasible"] = True
+            devs["BAT"]["min_cap"] = str("battery_min_input_ehdo")
+            devs["BAT"]["max_cap"] = str("battery_max_input_ehdo")
+
+        return devs

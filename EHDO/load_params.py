@@ -74,22 +74,9 @@ def load_params(data, demands_district):
 
     dem_uncl = {}
 
-    for b in range(len(data.district)):
-        if b == 0:
-            heating = data.district[b]["user"].heat
-            gains = data.district[b]["user"].gains
-            dhw = data.district[b]["user"].dhw
-            electricityAppliances = data.district[b]["user"].elec
-        else:
-            heating += data.district[b]["user"].heat / 1000 #kW
-            gains += data.district[b]["user"].gains
-            dhw += data.district[b]["user"].dhw / 1000 #kW
-            electricityAppliances += data.district[b]["user"].elec / 1000 #kW
-
-
     heat_district = demands_district["heat"] + demands_district["dhw"]
     cooling_district = demands_district["cooling"]
-    electricity_district = demands_district["electricityAppliances"]
+    electricity_district = demands_district["elec"]
 
     dem_uncl["heat"] = heat_district
     dem_uncl["cool"] = cooling_district
@@ -189,6 +176,7 @@ def load_params(data, demands_district):
                                                  T_air = param["T_air"],
                                                  wind_speed = param["wind_speed"]
                                                  )/1e3  # in kW/kWp
+
 
     # Wind turbine
     if devs["WT"]["feasible"] == "True":
