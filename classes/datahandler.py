@@ -168,13 +168,11 @@ class Datahandler:
                                     + "/"
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
-        duration = 0
-        excel_file = os.path.join(self.resultPath, "Duration.xlsx")
 
         # initialize buildings for scenario
         # loop over all buildings
         for id in self.scenario["id"]:
-
+            start_time = datetime.datetime.now()
             # create empty dict for observed building
             building = {}
 
@@ -184,15 +182,6 @@ class Datahandler:
             # append building to district
             self.district.append(building)
 
-            """sheet_name = building["buildingFeatures"]["building"]
-            df = pd.read_excel(excel_file, sheet_name=sheet_name)
-            selected_row = df[df["Area"] == building["buildingFeatures"]["area"]]
-            duration_building = selected_row["Duration"].iloc[0]
-
-            duration += duration_building"""
-
-
-        #print("The district generation will approximatly take " + duration + "minutes.")
 
     def generateBuildings(self):
         """
@@ -218,6 +207,7 @@ class Datahandler:
 
         for building in self.district:
 
+
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -231,7 +221,7 @@ class Datahandler:
                                 year_of_construction=building["buildingFeatures"]["year"],
                                 number_of_floors=3,
                                 height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"],
+                                net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
                                 construction_type=retrofit_level)
 
             # %% create envelope object
@@ -248,6 +238,7 @@ class Datahandler:
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -271,7 +262,6 @@ class Datahandler:
 
         set = []
         for building in self.district:
-            start_time = datetime.datetime.now()
             # %% create unique building name
             # needed for loading and storing data with unique name
             # name is composed of building type, number of flats, serial number of building of this properties
@@ -315,15 +305,6 @@ class Datahandler:
             if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
-            end_time = datetime.datetime.now()
-            duration = end_time - start_time
-
-            excel_file_path = os.path.join(self.resultPath, "Duration.xlsx")
-            new_row = [building["buildingFeatures"]["building"], building["buildingFeatures"]["area"], duration]
-            workbook = openpyxl.load_workbook(excel_file_path)
-            worksheet = workbook['Tabelle1']
-            worksheet.append(new_row)
-            workbook.save(excel_file_path)
 
 
         print("Finished generating demands!")
