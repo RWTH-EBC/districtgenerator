@@ -136,7 +136,6 @@ class Datahandler():
                 temp_sunDirect = weatherData["Direct Normal Radiation"].to_numpy()
                 temp_sunDiff = weatherData["Diffuse Horizontal Radiation"].to_numpy()
                 temp_temp = weatherData["Dry Bulb Temperature"].to_numpy()
-                print(len(temp_sunDirect), len(temp_sunDiff), len(temp_temp))
             else:
                 # if an weather file is presented, this can be used for calcuation
                 # it should be a csv files with the following columns, according to the DWD TRY files
@@ -172,6 +171,9 @@ class Datahandler():
             jsonData = json.load(json_file)
             for subData in jsonData :
                 self.time[subData["name"]] = subData["value"]
+        # check for Gap year and adjust data length 
+        if len(temp_sunDiff) == 8784:
+            self.time["dataLength"] = 8784
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # interpolate input data to achieve required data resolution
