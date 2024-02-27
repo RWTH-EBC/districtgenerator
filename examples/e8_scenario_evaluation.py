@@ -11,31 +11,50 @@ from classes import *
 
 def example8_scenario_evaluation():
 
+
+    import time
+    A_1 = time.time()
+
     # Initialize District
     data = Datahandler()
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='BF_Strategie_district', calcUserProfiles=False, saveUserProfiles=False,
+    data.generateDistrictComplete(scenario_name='Typquartier_1', calcUserProfiles=False, saveUserProfiles=False,
                                   fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
 
+
+    centralEnergySupply = False
     # Sizing of the selected devices
-    data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=False)
+    # data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=True)
+    #input_Quartiersausweis = dataframe
+    if centralEnergySupply == True:
+        data.initializeCentralDevices(fileName_centralSystems="BF_Strategie_central_devices")
+        data.designDecentralDevices(saveGenerationProfiles=True)
+        data.designCentralDevices(saveGenerationProfiles=True)
+
+    else:
+        data.designDecentralDevices(saveGenerationProfiles=True)
+        # data.designDecentralDevices(saveGenerationProfiles=True, input_webtool)
 
     # Within a clustered time series, data points are aggregated across different time periods
     # based on the k-medoids method
-    data.clusterProfiles()
+    data.clusterProfiles(centralEnergySupply)
 
     # Calculation of the devices' optimal operation
-    data.optimizationClusters()
+    data.optimizationClusters(centralEnergySupply)
+
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
     data.calulateKPIs()
 
+    # TODO: erzeuge Energieausweis
+
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
 
-    import time
-    AA = time.time()
+    A_2 = time.time()
+    print(str(A_1))
+    print(str(A_2))
 
     return data
 
