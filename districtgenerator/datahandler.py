@@ -111,6 +111,19 @@ class Datahandler():
                 None
             """
             self.advancedModel = pathAdvancedModel if pathAdvancedModel is not None else None
+    
+    def setWeatherFile(self, pathWeatherFile=None):
+            """
+            Sets the path and loads data for weather file
+
+            Args:
+                new_path (str, optional): The new path to set. If not provided, the default path will be used.
+
+            Returns:
+                None
+            """
+            self.weatherFile = pathWeatherFile if pathWeatherFile is not None else None 
+
 
 
     def select_plz_data(self, plz):
