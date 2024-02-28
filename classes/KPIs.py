@@ -283,7 +283,7 @@ class KPIs:
                 += operationCosts_clusters[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
 
         # central operation costs for one year [€]
-        self.operationCosts = round(temp_operationCosts, 2) * data.time["timeResolution"] / 3600 / 1000
+        self.operationCosts = round(temp_operationCosts, 2) / 1000
 
     def calculateCO2emissions(self, data):
         """

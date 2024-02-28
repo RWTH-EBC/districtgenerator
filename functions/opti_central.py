@@ -266,17 +266,17 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
                 # HP can only run in HP35 mode if building is new enough
                 model.addConstr(power_mode["HP55"][n][t] == 0,
                                 name="Activity_mode_" + str(n) + "_" + str(t))
-            else:
+            elif buildingData[n]["envelope"].construction_year < 1995 and buildingData[n]["capacities"]["HP"] > 0:
                 model.addConstr(power_mode["HP35"][n][t] == 0,
                                 name="Activity_mode_" + str(n) + "_" + str(t))
 
             # Energy conversion heat pump modus 35
-            model.addConstr(heat_mode["HP35"][n][t] == power_mode["HP35"][n][t] * param_dec_devs["HP"]["grade"] * (
-                    273.15 + 35) / (35 - T_e[t]),
+            model.addConstr(heat_mode["HP35"][n][t] == power_mode["HP35"][n][t] * param_dec_devs["HP"]["grade"]
+                            * (273.15 + 35) / (35 - T_e[t]),
                             name="Conversion_HP35_" + str(n) + "_" + str(t))
             # Energy conversion heat pump modus 55
-            model.addConstr(heat_mode["HP55"][n][t] == power_mode["HP55"][n][t] * param_dec_devs["HP"]["grade"] * (
-                    273.15 + 55) / (55 - T_e[t]),
+            model.addConstr(heat_mode["HP55"][n][t] == power_mode["HP55"][n][t] * param_dec_devs["HP"]["grade"]
+                            * (273.15 + 55) / (55 - T_e[t]),
                             name="Conversion_HP55_" + str(n) + "_" + str(t))
 
             # self.m.addConstr(
@@ -285,9 +285,9 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
             #    name="Conversion_heat_35_" + str(self.id))
 
             # Activity of HP modus: HP can only produce heat if modus is activated
-            for device in hp_modi:
-                model.addConstr(heat_mode[device][n][t] <= buildingData[n]["capacities"]["HP"],
-                    name="Activity_mode_" + str(n) + "_" + str(t))
+           # for device in hp_modi:
+           #     model.addConstr(heat_mode[device][n][t] <= buildingData[n]["capacities"]["HP"],
+           #         name="Activity_mode_" + str(n) + "_" + str(t))
 
             # on/off operation of HP
 #            model.addConstr(heat_dom["HP35"][n][t] <= binary["HP35"][n][t] * nodes[n][device]["cap"],
@@ -303,7 +303,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
             # (60-35)/(60-10) = 0.5, (60-55)/(60-10) = 0.1
             # TODO: In oder to ensure flexible operation of EH, just use daily sums. Alternative: time step wise
             if buildingData[n]["capacities"]["HP"] == 0:
-                model.addConstr(dhw_dom["EH"][n][t] == 0,
+                model.addConstr(dhw_dom["EH"][n][t] + heat_dom["EH"][n][t]  == 0,
                                 name="EH_energybalance_" + str(n) + "_" + str(t))
             elif buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
                 model.addConstr(dhw_dom["EH"][n][t] >= Q_DHW[n][t] * (60-35)/(60-10),
@@ -405,7 +405,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
                             + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
-            model.addConstr(dch_dom[device][n][t] >= Q_DHW[n][t] + Q_heating[n][t],
+            model.addConstr(dch_dom[device][n][t] == Q_DHW[n][t] + Q_heating[n][t],
                             name="Heat_discharging_" + str(n) + "_" + str(t))
 
             device = "BAT"
@@ -461,9 +461,9 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
         # Electricity balance neighborhood(Power balance, MW)
         model.addConstr(residual["feed"][t] + power["from_grid"][t] == residual["power"][t] + power["to_grid"][t],
                         name="Elec_balance_neighborhood"+ str(t))
-        model.addConstr(power["to_grid"][t] == residual["feed"][t])
-        model.addConstr(power["from_grid"][t] <= yTrafo[t] * 100000,     name="Binary1_" + str(n) + "_" + str(t))
-        model.addConstr(power["to_grid"][t] <= (1 - yTrafo[t]) * 100000, name="Binary2_" + str(n) + "_" + str(t))
+        #model.addConstr(power["to_grid"][t] == residual["feed"][t])
+        model.addConstr(power["from_grid"][t] <= yTrafo[t] * 10000000,     name="Binary1_" + str(n) + "_" + str(t))
+        model.addConstr(power["to_grid"][t] <= (1 - yTrafo[t]) * 10000000, name="Binary2_" + str(n) + "_" + str(t))
 
 
     # %% SUM UP TOTAL ELECTRICITY FROM AND TO GRID
@@ -494,15 +494,17 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
 
     # Emissions
     model.addConstr(co2_total == dt * sum(power["from_grid"][t] for t in time_steps) * ecoData["Emi_elec"]
-                    + from_grid_total_gas * ecoData["Emi_gas"]) # kWh*kg/kWh
+                                 + dt * sum(power["to_grid"][t] for t in time_steps) * ecoData["Emi_pv"]
+                                 + from_grid_total_gas * ecoData["Emi_gas"]) # kWh*kg/kWh
 
     # daily peaks
     for d in days:
-        model.addConstr(daily_peak[d] >= sum(power["to_grid"][t] for t in range(d*96, d*96+96)))
+        #model.addConstr(daily_peak[d] >= sum(power["to_grid"][t] for t in range(d*96, d*96+96)))
+        model.addConstr(daily_peak[d] == gp.max_(power["from_grid"][t] for t in range(d * 96, d * 96 + 96)))
     model.addConstr(peaksum == sum(daily_peak[d] for d in days))
 
     # Set objective
-    model.addConstr(obj == operational_costs + peaksum * 0.01)
+    model.addConstr(obj == operational_costs + peaksum * 1)
 
     # Carry out optimization
     model.optimize()
@@ -589,6 +591,11 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
                 results[n][device]["ch"].append(ch_dom[device][n][t].X)
                 results[n][device]["dch"].append(dch_dom[device][n][t].X)
                 results[n][device]["soc"].append(soc_dom[device][n][t].X)
+
+    results["peaksum"] = peaksum.X
+    results["daily_peak"] = {}
+    for d in days:
+        results["daily_peak"][d] = daily_peak[d].X
 
 
     """
