@@ -163,7 +163,7 @@ class Datahandler():
             # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
             # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
             # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
-            [temp_sunDirect,  temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
+            [temp_sunDirect, temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
 
         # %% load time information and requirements
         # needed for data conversion into the right time format
@@ -172,10 +172,11 @@ class Datahandler():
             for subData in jsonData :
                 self.time[subData["name"]] = subData["value"]
         # check for Gap year and adjust data length 
-        if len(temp_sunDiff) == 8784:
-            self.time["dataLength"] = 8784
+        if len(temp_sunDiff) == 8785:
+            self.time["dataLength"] =  31622400
+        print(len(temp_sunDiff))
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
-
+        print( type(self.time["dataLength"]), self.time["dataLength"], type(self.time["timeResolution"]), self.time["timeResolution"], type(self.time["dataResolution"]), self.time["dataResolution"], len(temp_sunDirect) )
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
         self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
