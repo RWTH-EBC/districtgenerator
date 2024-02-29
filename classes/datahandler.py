@@ -447,12 +447,7 @@ class Datahandler:
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
-            # sum up the design_load and bivalent_load of buldíngs connected to local heat grid
-            if building["buildingFeatures"]["heater"] == 'heat_grid':
-                self.centralDevices["ces_obj"].add_loads(bes_obj)
 
-            # sum up roof area of all buildings in the district
-            self.centralDevices["ces_obj"].add_roofArea(building)
 
             # calculate theoretical PV generation
             potentialPV, potentialSTC = \
@@ -580,7 +575,7 @@ class Datahandler:
         self.designDecentralDevices(saveGenerationProfiles)
         self.designCentralDevices(saveGenerationProfiles)
 
-    def clusterProfiles(self):
+    def clusterProfiles(self, centralEnergySupply):
         """
         Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
 
@@ -630,34 +625,36 @@ class Datahandler:
         adjProfiles["Sun"] = {}
         for drct in range(len(self.SunRad)):
             adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
-        # central renewable generation
-        if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
-            existence_centralWT = 1
-            adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
-        else:
-            # no central WT exists; but array with just zeros leads to problem while clustering
-            existence_centralWT = 0
-            adjProfiles["generationCentralWT"] = \
-                self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
-        if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
-            existence_centralPV = 1
-            adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
-        else:
-            # no central PV exists; but array with just zeros leads to problem while clustering
-            existence_centralPV = 0
-            adjProfiles["generationCentralPV"] = \
-                self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
-        if self.centralDevices["capacities"]["STC"]["area"] > 0:
-            existence_centralSTC = 1
-            adjProfiles["generationCentralSTC"] = \
-                self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
-        else:
-            # no central STC exists; but array with just zeros leads to problem while clustering
-            existence_centralSTC = 0
-            adjProfiles["generationCentralSTC"] = \
-                self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
+
+        if centralEnergySupply == True:
+            # central renewable generation
+            if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
+                existence_centralWT = 1
+                adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
+            else:
+                # no central WT exists; but array with just zeros leads to problem while clustering
+                existence_centralWT = 0
+                adjProfiles["generationCentralWT"] = \
+                    self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
+                existence_centralPV = 1
+                adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
+            else:
+                # no central PV exists; but array with just zeros leads to problem while clustering
+                existence_centralPV = 0
+                adjProfiles["generationCentralPV"] = \
+                    self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["STC"]["area"] > 0:
+                existence_centralSTC = 1
+                adjProfiles["generationCentralSTC"] = \
+                    self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
+            else:
+                # no central STC exists; but array with just zeros leads to problem while clustering
+                existence_centralSTC = 0
+                adjProfiles["generationCentralSTC"] = \
+                    self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
         # wind speed and ambient temperature
-        adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
+        #adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
@@ -676,12 +673,14 @@ class Datahandler:
         # solar radiation on surfaces with different orientation
         for drct in range(len(self.SunRad)):
             inputsClustering.append(adjProfiles["Sun"][drct])
-        # central renewable generation
-        inputsClustering.append(adjProfiles["generationCentralWT"])
-        inputsClustering.append(adjProfiles["generationCentralPV"])
-        inputsClustering.append(adjProfiles["generationCentralSTC"])
+
+        if centralEnergySupply == True:
+            # central renewable generation
+            inputsClustering.append(adjProfiles["generationCentralWT"])
+            inputsClustering.append(adjProfiles["generationCentralPV"])
+            inputsClustering.append(adjProfiles["generationCentralSTC"])
         # wind speed and ambient temperature
-        inputsClustering.append(adjProfiles["wind_speed"])
+        #inputsClustering.append(adjProfiles["wind_speed"])
         inputsClustering.append(adjProfiles["T_e"])
 
         # weights for clustering algorithm indicating the focus onto this profile
@@ -715,13 +714,14 @@ class Datahandler:
         # safe clustered solar radiation on surfaces with different orientation
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
-            self.SunRad_cluster[drct] = newProfiles[-5 - len(self.SunRad) + drct]
-        # save clustered data for real central renewable generation
-        self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
-        self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
-        self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
+            self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
+        if centralEnergySupply == True:
+            # save clustered data for real central renewable generation
+            self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
+            self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
+            self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
         # save clustered wind speed and ambient temperature
-        self.site["wind_speed_cluster"] = newProfiles[-2]
+        #self.site["wind_speed_cluster"] = newProfiles[-2]
         self.site["T_e_cluster"] = newProfiles[-1]
 
         # clusters
@@ -831,7 +831,7 @@ class Datahandler:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
 
-    def optimizationClusters(self):
+    def optimizationClusters(self, centralEnergySupply):
         """
         Optimize the operation costs for each cluster.
 
@@ -846,11 +846,8 @@ class Datahandler:
         for cluster in range(self.time["clusterNumber"]):
 
             # optimize operating costs of the district for current cluster
-            self.optimizer = Optimizer(self, cluster)
-            self.optimizer.runOptimization()
-
-            # get results for current cluster
-            results_temp = self.optimizer.getResults()
+            self.optimizer = Optimizer(self, cluster, centralEnergySupply)
+            results_temp = self.optimizer.run_cen_opti()
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)

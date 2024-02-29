@@ -99,7 +99,7 @@ class Device:
         path = os.path.split(self.srcPath)[0]
 
         decentralDevs = {}
-        with open(path + "\\data\\" + "decentral_device_data.json") as json_file:
+        with open(path + "\\data\\" + "param_dec_devices.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 decentralDevs[subData["abbreviation"]] = {}

@@ -1,5 +1,5 @@
 {
-  "ModelName": "DistrictOpti",
+  "ModelName": "Central_Operational_Optimization",
   "TimeLimit": 3600,
   "MIPGap": 0.01,
   "MIPFocus": 3,

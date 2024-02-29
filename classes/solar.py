@@ -453,7 +453,7 @@ class Sun:
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
 
-    def calcPVAndSTCProfile(self, time, site, area_roof, devicesType="decentral", beta=35, gamma=0, usageFactorPV=0.4,
+    def calcPVAndSTCProfile(self, time, site, area_roof, beta=35, gamma=0, usageFactorPV=0.4,
                             usageFactorSTC=0.2):
         """
         Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
@@ -507,7 +507,7 @@ class Sun:
         temperatureProfile = site["T_e"]
 
         devices = {}
-        with open(os.path.join(self.filePath, devicesType + '_device_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'param_dec_devices.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 devices[subData["abbreviation"]] = {}

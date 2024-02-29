@@ -181,12 +181,6 @@ class House(Device):
             vtype=gp.GRB.CONTINUOUS, name="res_gas_" + str(self.id)
         )
 
-        # Thermal power from heat grid for each building [W]
-        self.heat_fromGrid = self.m.addVars(
-            self.timesteps,
-            vtype=gp.GRB.CONTINUOUS, lb = 0.0, name="Q_th_grid_" + str(self.id)
-        )
-
 
     def setConstraints(self):
         """
@@ -203,13 +197,6 @@ class House(Device):
              for t in self.timesteps
              for dev in self.ecs_heat),
             name="Max_heating_" + str(self.id))
-
-        # Maximum heating power from grid
-        if self.data["capacities"]["heat_grid"] == 0:
-            self.m.addConstrs(
-                (self.heat_fromGrid[t] == 0
-                 for t in self.timesteps),
-                name="Max_grid_heating_" + str(self.id))
 
         # Energy balance heat pump
         self.m.addConstrs(
@@ -251,7 +238,7 @@ class House(Device):
         if self.data["envelope"].construction_year >= 1995 and self.data["capacities"]["HP"] > 0:
             # HP can only run in HP35 mode if building is new enough
             self.m.addConstrs(
-                (self.heat_mode["HP55", t] == 0
+                (self.heat_mode["HP60", t] == 0
                  for t in self.timesteps),
                 name="Activity_mode_" + str(self.id))
 
@@ -392,7 +379,7 @@ class House(Device):
             name="Heat_balance_1_" + str(self.id))
 
         self.m.addConstrs(
-            (sum(self.heat[dev, t] for dev in self.ecs_heat) + self.heat_fromGrid[t] == self.ch["TES", t]
+            (sum(self.heat[dev, t] for dev in self.ecs_heat) == self.ch["TES", t]
              for t in self.timesteps),
             name="Heat_balance_2_" + str(self.id))
 
