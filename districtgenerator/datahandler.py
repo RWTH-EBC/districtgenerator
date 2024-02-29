@@ -173,10 +173,9 @@ class Datahandler():
                 self.time[subData["name"]] = subData["value"]
         # check for Gap year and adjust data length 
         if len(temp_sunDiff) == 8785:
+            # 31622400 = 60 * 60 * 24 * 366
             self.time["dataLength"] =  31622400
-        print(len(temp_sunDiff))
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
-        print( type(self.time["dataLength"]), self.time["dataLength"], type(self.time["timeResolution"]), self.time["timeResolution"], type(self.time["dataResolution"]), self.time["dataResolution"], len(temp_sunDirect) )
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
         self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
