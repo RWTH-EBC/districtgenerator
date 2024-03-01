@@ -133,10 +133,13 @@ class BES:
             # electric vehicle (EV)
             if k == "EV":
                 # [Wh]
-                BES["EV"] = float(buildingFeatures["EV"]
-                                  * (40000 * (buildingFeatures["f_EV"] == "S")
-                                     + 60000 * (buildingFeatures["f_EV"] == "M")
-                                     + 80000 * (buildingFeatures["f_EV"] == "L")
+                if buildingFeatures["EV"] == 0:
+                    BES["EV"] = float(0)
+                else:
+                    BES["EV"] = float(1
+                                  * (40000 * (buildingFeatures["EV"] == "small")
+                                     + 60000 * (buildingFeatures["EV"] == "medium")
+                                     + 80000 * (buildingFeatures["EV"] == "large")
                                      )
                                   )
 

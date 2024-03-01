@@ -451,7 +451,7 @@ class Datahandler:
             else:
                 building["buildingFeatures"]["STC"] = 0
 
-            building["buildingFeatures"]["BAT"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # S, M, L
+            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # S, M, L
 
             # %% load general building information
             # contains definitions and parameters that affect all buildings
@@ -764,11 +764,18 @@ class Datahandler:
             # self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
             # assign real EV, PV and STC generation for clustered data to buildings
             # (array with zeroes if EV, PV or STC does not exist)
-            self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2] * self.scenario.loc[id]["EV"]
-            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3] \
-                                                        * self.district[id]["buildingFeatures"]["PV"]
-            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] \
-                                                         * self.district[id]["buildingFeatures"]["STC"]
+            if self.district[id]["buildingFeatures"]["EV"] == 0:
+                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2] * 0
+            else:
+                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2]
+            if self.district[id]["buildingFeatures"]["PV"] == 0:
+                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3] * 0
+            else:
+                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3]
+            if self.district[id]["buildingFeatures"]["STC"] == 0:
+                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] *0
+            else:
+                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4]
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 5]
             self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 6]
         # safe clustered solar radiation on surfaces with different orientation
