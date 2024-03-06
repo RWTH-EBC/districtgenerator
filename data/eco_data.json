@@ -1,32 +1,32 @@
 [
     {
         "name": "C_dem_electricity",
-        "value": 0.320,
+        "value": 0.4573,
         "unit": "EUR/kWh",
         "description" : "Price for 1 kWh electricity"
     },
     {
         "name": "C_feed_electricity",
-        "value": 0.065,
+        "value": 0.0811,
         "unit": "EUR/kWh",
         "description" : "Feed-in tarif for 1 kWh of fed in electricity"
     },
     {
         "name": "C_dem_gas",
-        "value": 0.140,
+        "value": 0.108,
         "unit": "EUR/kWh",
         "description" : "Price for 1 kWh gas"
     },
     {
         "name": "Emi_elec",
         "value": 0.434,
-        "unit": "kg/kWh",
+        "unit": "kg/Wh",
         "description" : "CO2 factor of grid electricity"
     },
     {
         "name": "Emi_gas",
         "value": 0.202,
-        "unit": "kg/kWh",
+        "unit": "kg/Wh",
         "description" : "CO2 factor of grid gas"
     },
     {
