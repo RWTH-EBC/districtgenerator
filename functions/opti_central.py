@@ -19,7 +19,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     # load parameters of decentral energy conversion devices
     path = srcPath
     param_dec_devs = {}
-    with open(path + "\\data\\" + "param_dec_devices.json") as json_file:
+    with open(path + "/data/" + "decentral_device_data.json") as json_file:
         jsonData = json.load(json_file)
         for subData in jsonData:
             param_dec_devs[subData["abbreviation"]] = {}
@@ -44,8 +44,8 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     ecoData = {}
     timeData = {}
     for data in ("eco", "time"):
-        with open(path + "\\data\\" + data + "_data.json") as json_file:
-            jsonData = json.load(json_file, encoding='utf-8')
+        with open(path + "/data/" + data + "_data.json") as json_file:
+            jsonData = json.load(json_file)
             for subData in jsonData:
                 if data == "eco":
                     ecoData[subData["name"]] = subData["value"]

@@ -123,12 +123,12 @@ class BES:
             if k == "BAT":
                 # Factor [Wh / W_PV], [Wh = Wh/W * W/m2 * m2]
                 # design refers to buildable roof area (0.4 * area)
-                BES["BAT"] = buildingFeatures["f_BAT"] \
-                             * dev["PV"]["P_nominal"] \
-                             * building["envelope"].A["opaque"]["roof"] \
-                             * buildingFeatures["f_PV"] \
-                             * buildingFeatures["BAT"]
-                # BES["BAT"] = buildingFeatures["BAT"]
+                # BES["BAT"] = buildingFeatures["f_BAT"] \
+                #              * dev["PV"]["P_nominal"] \
+                #              * building["envelope"].A["opaque"]["roof"] \
+                #              * buildingFeatures["f_PV"] \
+                #              * buildingFeatures["BAT"]
+                BES["BAT"] = buildingFeatures["BAT"]
 
             # electric vehicle (EV)
             if k == "EV":
@@ -146,21 +146,21 @@ class BES:
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
-                areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * buildingFeatures["f_PV"] \
-                              * buildingFeatures["PV"]
-                #areaPV_temp = buildingFeatures["PV_area"]
+                # areaPV_temp = building["envelope"].A["opaque"]["roof"] \
+                #               * buildingFeatures["f_PV"] \
+                #               * buildingFeatures["PV"]
+                areaPV_temp = buildingFeatures["PV_area"]
                 BES["PV"]["nb_modules"] = int(areaPV_temp / dev["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * dev["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * dev["PV"]["P_nominal"]  # [W]
 
             # solar thermal energy (STC)
             if k == "STC":
-                BES["STC"] = {}
-                BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
-                                     * buildingFeatures["f_STC"] \
-                                     * buildingFeatures["STC"]
-                # BES["STC"]["area"] = buildingFeatures["STC_area"]
+                # BES["STC"] = {}
+                # BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
+                #                      * buildingFeatures["f_STC"] \
+                #                      * buildingFeatures["STC"]
+                BES["STC"]["area"] = buildingFeatures["STC_area"]
 
         return BES
 
