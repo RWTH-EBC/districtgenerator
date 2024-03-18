@@ -4,6 +4,8 @@ import sys
 import numpy as np
 import os
 import json
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
 
 class KPIs:
@@ -367,3 +369,37 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
+
+    def create_kpi_pdf(self):
+        """
+        Generate a PDF file with a list of KPIs.
+
+        Parameters:
+        - filename: The name of the PDF file to create.
+        - title: The title of the document.
+        - kpis: A list of strings, where each string is a KPI to be written in the document.
+        """
+        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filename = os.path.join(srcPath, "results", "kpi_report.pdf")
+        title = "Neighborhood energy certificate"
+        kpis = [
+            "Emission: $100,000",
+            "Energy cost: 150",
+            # Add more KPIs as needed
+        ]
+
+        c = canvas.Canvas(filename, pagesize=letter)
+        c.setTitle(title)
+
+        # Set up the title
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(72, 750, title)
+
+        # Write each KPI
+        c.setFont("Helvetica", 12)
+        y_position = 720
+        for kpi in kpis:
+            c.drawString(72, y_position, kpi)
+            y_position -= 20
+
+        c.save()

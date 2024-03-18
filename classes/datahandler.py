@@ -968,6 +968,8 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+        # Generate a PDF file with a list of KPIs.
+        self.KPIs.create_kpi_pdf(self)
 
     def optimizationWithEHDO(self):
         """
