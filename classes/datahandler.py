@@ -955,7 +955,7 @@ class Datahandler:
             # save results as attribute
             self.resultsOptimization.append(results_temp)
 
-    def calulateKPIs(self):
+    def calulateKPIs(self,result_path=None):
         """
         Calculate key performance indicators (KPIs).
 
@@ -969,7 +969,7 @@ class Datahandler:
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
         # Generate a PDF file with a list of KPIs.
-        self.KPIs.create_kpi_pdf(self)
+        self.KPIs.create_kpi_pdf(result_path)
 
     def optimizationWithEHDO(self):
         """

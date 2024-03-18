@@ -370,7 +370,7 @@ class KPIs:
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
 
-    def create_kpi_pdf(self):
+    def create_kpi_pdf(self,result_path):
         """
         Generate a PDF file with a list of KPIs.
 
@@ -379,8 +379,12 @@ class KPIs:
         - title: The title of the document.
         - kpis: A list of strings, where each string is a KPI to be written in the document.
         """
-        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filename = os.path.join(srcPath, "results", "kpi_report.pdf")
+
+        if result_path is None:
+            srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            filename = os.path.join(srcPath, "results", "kpi_report.pdf")
+        else:
+            filename = os.path.join(result_path, "kpi_report.pdf")
         title = "Neighborhood energy certificate"
         kpis = [
             "Emission: $100,000",
