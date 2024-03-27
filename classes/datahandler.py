@@ -70,7 +70,48 @@ class Datahandler:
         self.resultPath = os.path.join(self.srcPath, 'results')
         self.KPIs = None
 
-    def generateEnvironment(self):
+    def select_plz_data(self, plz):
+        """
+        Select the closest TRY weather station for the location of the postal code.
+
+        Parameters
+        ----------
+        plz: string
+            Postal code of the district generated.
+
+        Returns
+        -------
+        weatherdatafile_location: int
+            Location of the TRY weather station in lambert projection.
+        """
+
+        # Try to find the location of the postal code and matched TRY weather station
+        try:
+            workbook = openpyxl.load_workbook(self.filePath + "/plz_geocoord_matched_500.xlsx")
+            sheet = workbook.active
+
+            for row in sheet.iter_rows(values_only=True):
+                if plz == row[0]:
+                    latitude = row[3]
+                    longitude = row[4]
+                    break
+
+            workbook = openpyxl.load_workbook(self.filePath + "/geodata_TRY_all.xlsx")
+            sheet = workbook.active
+            for row in sheet.iter_rows(values_only=True):
+                if latitude == row[3] and longitude == row[4]:
+                    weatherdatafile_location = row[0]
+                    weatherdatafile_location = weatherdatafile_location[8:-9]
+                    break
+
+        except Exception as e:
+            # If postal code cannot be found: Message and select weathter data file from Aachen
+            print("Postal code cannot be found, location changed to Aachen")
+            weatherdatafile_location = 507931060546
+
+        return weatherdatafile_location
+
+    def generateEnvironment(self, plz):
         """
         Load physical district environment - site and weather.
 
@@ -86,6 +127,7 @@ class Datahandler:
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
 
+
         # %% load weather data for site
         # extract irradiation and ambient temperature
         if self.site["TRYYear"] == "TRY2015":
@@ -93,12 +135,20 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
+        # select the correct file depending on the TRY weather station location
+        weatherData = np.loadtxt(os.path.join(self.filePath, 'TRY_2015_mittel.tar', 'mittel')
                                  + "/"
-                                 + self.site["TRYYear"] + "_Zone"
-                                 + str(self.site["climateZone"]) + "_"
-                                 + self.site["TRYType"] + ".txt",
+                                 + self.site["TRYYear"] + "_"
+                                 + str(self.select_plz_data(plz)) + "_Jahr"
+                                 + ".dat",
                                  skiprows=first_row - 1)
+        """
+        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', self.site["TRYYear"] + "_" + str(self.site["TRYType"]))
+                                 + "/"
+                                 + self.site["TRYYear"] + "_"
+                                 + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"]) 
+                                 + ".dat",
+                                 skiprows=first_row - 1)"""
 
         # weather data starts with 1st january at 1:00 am.
         # Add data point for 0:00 am to be able to perform interpolation.
@@ -162,7 +212,9 @@ class Datahandler:
         -------
         None.
         """
-
+        duration = datetime.timedelta(minutes=1)
+        num_sfh = 0
+        num_mfh = 0
         self.scenario_name = scenario_name
         self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
                                     + "/"
@@ -172,7 +224,6 @@ class Datahandler:
         # initialize buildings for scenario
         # loop over all buildings
         for id in self.scenario["id"]:
-            start_time = datetime.datetime.now()
             # create empty dict for observed building
             building = {}
 
@@ -182,6 +233,13 @@ class Datahandler:
             # append building to district
             self.district.append(building)
 
+            # Count number of builidings to predict the approximate calculation time
+            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH': num_sfh +=1
+            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
+
+        # Calculate calculation time for the whole district generation
+        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
+        print("This calculation will take about " + str(duration) + " .")
 
     def generateBuildings(self):
         """
@@ -309,7 +367,7 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
+    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz='52072',
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
                                  designDevs=False, clustering=False, optimization=False):
         """
@@ -343,8 +401,12 @@ class Datahandler:
         None.
         """
 
-        self.generateEnvironment()
+
+
+
+
         self.initializeBuildings(scenario_name)
+        self.generateEnvironment(plz)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
@@ -880,3 +942,9 @@ class Datahandler:
 
         # Run optimization
         self.resultsEHDO = optim_model_EHDO.run_optim(devs, param, dem, result_dict)
+
+
+
+
+
+
