@@ -135,6 +135,7 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
+
         # select the correct file depending on the TRY weather station location
         weatherData = np.loadtxt(os.path.join(self.filePath, 'TRY_2015_mittel.tar', 'mittel')
                                  + "/"
@@ -142,6 +143,16 @@ class Datahandler:
                                  + str(self.select_plz_data(plz)) + "_Jahr"
                                  + ".dat",
                                  skiprows=first_row - 1)
+
+        """
+        # Use this function to load old TRY-weather data
+        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
+                                 + "/"
+                                 + self.site["TRYYear"] + "_Zone"
+                                 + str(self.site["climateZone"]) + "_"
+                                 + self.site["TRYType"] + ".txt",
+                                 skiprows=first_row - 1)"""
+
         """
         weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', self.site["TRYYear"] + "_" + str(self.site["TRYType"]))
                                  + "/"
@@ -384,6 +395,8 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
+        plz: string
+            Postal code of the district
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenProfiles: bool, optional
