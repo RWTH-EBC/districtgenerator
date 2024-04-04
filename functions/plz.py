@@ -55,38 +55,32 @@ def lambert_to_wgs84(easting, northing):
     return latitude, longitude
 
 def match_points():
+    workbook = openpyxl.load_workbook("D:/Script/districtgenerator/data/plz_geocoord_matched_Test.xlsx")
+
     # Lese die Daten aus der Excel-Datei für list1 ein
     # Hier den Dateinamen ändern
-    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord_500.xlsx', header=None, names=['PLZ', 'Latitude', 'Longitude'], skiprows=1, dtype={'PLZ': str})
+    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord.xlsx', header=None, names=['PLZ', 'Latitude', 'Longitude'], skiprows=1, dtype={'PLZ': str})
 
     # Lese die Daten aus der Excel-Datei für list2 ein
-    df_list2 = pd.read_excel('D:\Script\districtgenerator\data\geodata_TRY_all.xlsx', usecols=[3,4], names=['Latitude', 'Longitude'], skiprows=1)
+    df_list2 = pd.read_excel('D:\Script\districtgenerator\data\geodata_TRY_all.xlsx', usecols=[0,3,4], names=['file_name', 'Latitude', 'Longitude'], skiprows=1)
 
-    matched_points = {}
-
+    i=0
     for index1, point1 in df_list1.iterrows():
         min_distance = float('inf')
         closest_point = None
 
         for index2, point2 in df_list2.iterrows():
-            dist = distance.distance((point1[1], point1[2]), (point2[0], point2[1])).km
+            dist = distance.distance((point1[1], point1[2]), (point2[1], point2[2])).km
             if dist < min_distance:
                 min_distance = dist
                 closest_point = point2
 
-        matched_points[index1] = closest_point
+        sheet = workbook.active
+        sheet.append([point1[0], point1[1], point1[2], closest_point[0], closest_point[1],closest_point[2]])
         print(point1[0])
-
-    # Füge die Punkte mit dem kürzesten Abstand zu list1 hinzu
-    for index, closest_point in matched_points.items():
-        df_list1.at[index, 'Closest_Latitude'] = closest_point['Latitude']
-        df_list1.at[index, 'Closest_Longitude'] = closest_point['Longitude']
-
-    # Speichere die aktualisierten Daten zurück in die Excel-Datei für list1
-    # Hier den Dateinamen ändern
-    df_list1.to_excel('D:\Script\districtgenerator\data\plz_geocoord_matched_500.xlsx', index=False)
-
-    return matched_points
+        workbook.save("D:/Script/districtgenerator/data/plz_geocoord_matched_Test.xlsx")
+        i += 1
+        if i== 2: break
 
 
 #read_folder('D:\Script\districtgenerator\data\TRY_2015_mittel.tar\mittel', 'TRY2015_38615002933500_Jahr.dat')

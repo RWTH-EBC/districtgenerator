@@ -87,27 +87,25 @@ class Datahandler:
 
         # Try to find the location of the postal code and matched TRY weather station
         try:
-            workbook = openpyxl.load_workbook(self.filePath + "/plz_geocoord_matched_500.xlsx")
+            workbook = openpyxl.load_workbook(self.filePath + "/plz_geocoord_matched.xlsx")
             sheet = workbook.active
 
             for row in sheet.iter_rows(values_only=True):
                 if plz == row[0]:
-                    latitude = row[3]
-                    longitude = row[4]
+                    latitude = row[4]
+                    longitude = row[5]
+                    weatherdatafile = row[3]
+                    weatherdatafile_location = weatherdatafile[8:-9]
                     break
+            else:
+                # If postal code cannot be found: Message and select weather data file from Aachen
+                raise ValueError("Postal code cannot be found")
 
-            workbook = openpyxl.load_workbook(self.filePath + "/geodata_TRY_all.xlsx")
-            sheet = workbook.active
-            for row in sheet.iter_rows(values_only=True):
-                if latitude == row[3] and longitude == row[4]:
-                    weatherdatafile_location = row[0]
-                    weatherdatafile_location = weatherdatafile_location[8:-9]
-                    break
 
         except Exception as e:
             # If postal code cannot be found: Message and select weathter data file from Aachen
             print("Postal code cannot be found, location changed to Aachen")
-            weatherdatafile_location = 507931060546
+            weatherdatafile_location = 37335002675500
 
         return weatherdatafile_location
 
@@ -137,12 +135,12 @@ class Datahandler:
 
 
         # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'TRY_2015_mittel.tar', 'mittel')
-                                 + "/"
-                                 + self.site["TRYYear"] + "_"
-                                 + str(self.select_plz_data(plz)) + "_Jahr"
-                                 + ".dat",
-                                 skiprows=first_row - 1)
+        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"], self.site["TRYType"])
+            + "/"
+            + self.site["TRYYear"] + "_"
+            + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+            + ".dat",
+            skiprows=first_row - 1)
 
         """
         # Use this function to load old TRY-weather data
@@ -151,14 +149,6 @@ class Datahandler:
                                  + self.site["TRYYear"] + "_Zone"
                                  + str(self.site["climateZone"]) + "_"
                                  + self.site["TRYType"] + ".txt",
-                                 skiprows=first_row - 1)"""
-
-        """
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', self.site["TRYYear"] + "_" + str(self.site["TRYType"]))
-                                 + "/"
-                                 + self.site["TRYYear"] + "_"
-                                 + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"]) 
-                                 + ".dat",
                                  skiprows=first_row - 1)"""
 
         # weather data starts with 1st january at 1:00 am.
