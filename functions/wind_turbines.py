@@ -5,6 +5,7 @@
 import sys
 import pandas as pd
 import numpy as np
+import os
 
 
 def windSpeed_h(windSpeed_ref, h_ref, h, exponent):
@@ -145,8 +146,10 @@ def powerCurve(wind_turbine_model):
 
     try:
         # open power curve of wind turbine
-        power_curve = pd.read_csv("C:/Users/jsc/Python/districtgenerator/data/wind_turbine_models/WT_WT_Enercon_E40.csv",
-                                  header=0, delimiter=";")  # wind_speed [m/s], power [kW]
+        data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "districtgenerator", "data")
+        power_curve_path = os.path.join(data_folder, "wind_turbine_models", "WT_" + wind_turbine_model + ".csv")
+        power_curve = pd.read_csv(power_curve_path, header=0, delimiter=";")  # wind_speed [m/s], power [kW]
+
     except:
         # terminate calculation and write error message
         sys.exit("ERROR: No data for selected wind turbine model found!")

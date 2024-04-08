@@ -94,7 +94,7 @@ class KPIs:
         # Load data of decentral devices (to calculate battery losses)
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         decentralDev = {}
-        with open(os.path.join(srcPath, 'data', 'decentral_device_data.json')) as json_file:
+        with open(os.path.join(srcPath, 'data', 'param_dec_devices.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 decentralDev[subData["abbreviation"]] = {}

@@ -84,7 +84,7 @@ class BES:
 
         # Load list of possible devices
         dev = {}
-        with open(os.path.join(self.file_path, 'decentral_device_data.json')) as json_file:
+        with open(os.path.join(self.file_path, 'param_dec_devices.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 dev[subData["abbreviation"]] = {}

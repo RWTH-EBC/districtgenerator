@@ -181,12 +181,6 @@ class House(Device):
             vtype=gp.GRB.CONTINUOUS, name="res_gas_" + str(self.id)
         )
 
-        # Thermal power from heat grid for each building [W]
-        self.heat_fromGrid = self.m.addVars(
-            self.timesteps,
-            vtype=gp.GRB.CONTINUOUS, lb = 0.0, name="Q_th_grid_" + str(self.id)
-        )
-
 
     def setConstraints(self):
         """

@@ -57,6 +57,6 @@ setuptools.setup(name='districtgenerator',
                  ],
 
                  install_requires=['numpy', 'pandas', 'matplotlib', 'scipy',
-                                   'teaser', 'richardsonpy', 'pylightxl', 'gurobipy'],
+                                   'teaser', 'richardsonpy', 'pylightxl', 'gurobipy', 'seaborn', 'openpyxl'],
                  classifiers=["Programming Language :: Python :: 3"],
                  )

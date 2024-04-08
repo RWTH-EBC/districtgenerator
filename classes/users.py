@@ -103,15 +103,13 @@ class Users:
         elif self.building == "TH":
             self.nb_flats = 1
         elif self.building == "MFH":
-            if area <= 4 * 100:
-                self.nb_flats = 4
-            elif area > 4 * 100:
-                self.nb_flats = math.floor(area / 100)
+            if area <= 6 * 100:
+                self.nb_flats = 6
+            elif area > 6 * 100:
+                self.nb_flats = 8
         elif self.building == "AB":
-            if area <= 10 * 100:
-                self.nb_flats = 10
-            elif area > 10 * 100:
-                self.nb_flats = math.floor(area / 100)
+            self.nb_flats = 8
+
 
     def generate_number_occupants(self):
         """
@@ -198,15 +196,15 @@ class Users:
 
         # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
-        standard_consumption = {"SFH": {1: 2300,
+        standard_consumption = {"SFH": {1: 2400,
                                         2: 3000,
-                                        3: 3500,
+                                        3: 3600,
                                         4: 4000,
                                         5: 5000},
-                                "MFH": {1: 1300,
+                                "MFH": {1: 1400,
                                         2: 2000,
-                                        3: 2500,
-                                        4: 2600,
+                                        3: 2600,
+                                        4: 2900,
                                         5: 3000}}
 
         self.annual_el_demand = np.zeros(self.nb_flats)
@@ -291,7 +289,7 @@ class Users:
             #  Create wrapper object
             self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
-    def calcProfiles(self, site, time_resolution, time_horizon, initial_day=1):
+    def calcProfiles(self, site, time_resolution, time_horizon, building, path, initial_day=1):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -317,22 +315,27 @@ class Users:
 
         time_day = 24 * 60 * 60
         nb_days = int(time_horizon/time_day)
+        #if building["unique_name"]
 
         self.occ = np.zeros(int(time_horizon / time_resolution))
         self.dhw = np.zeros(int(time_horizon / time_resolution))
         self.elec = np.zeros(int(time_horizon / time_resolution))
         self.gains = np.zeros(int(time_horizon / time_resolution))
         self.car = np.zeros(int(time_horizon / time_resolution))
+        if building['buildingFeatures']['building'] == "AB":
+            unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+        elif building['buildingFeatures']['building'] == "TH":
+            unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+        else:
+            unique_name = building['unique_name']
+        self.occ = np.loadtxt(path + '/occ_' + unique_name + '.txt', delimiter=',')
         for j in range(self.nb_flats):
             temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
-            self.occ = self.occ + temp_obj.generate_occupancy_profiles()
-            self.dhw = self.dhw + temp_obj.generate_dhw_profile()
-            self.elec = self.elec + temp_obj.generate_el_profile(irradiance=irradiation,
-                                                                 el_wrapper=self.el_wrapper[j],
-                                                                 annual_demand=self.annual_el_demand[j])
-            self.gains = self.gains + temp_obj.generate_gain_profile()
+            self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
         # currently only one car per building possible
-        self.car = self.car + temp_obj.generate_EV_profile()
+        self.car = np.loadtxt(path + '/car_' + unique_name + '.txt', delimiter=',')
+        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.txt', delimiter=',')
+        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.txt', delimiter=',')
 
     def calcHeatingProfile(self, site, envelope, time_resolution):
         """

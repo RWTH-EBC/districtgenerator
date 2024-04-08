@@ -62,7 +62,8 @@ class Aggregator(Device):
                 self.P_dem[n][t] = self.m.getVarByName("res_load_" + str(n) + "[" + str(t) + "]")  # [W]
                 self.P_inj[n][t] = self.m.getVarByName("res_inj_" + str(n) + "[" + str(t) + "]")  # [W]
                 self.P_gas[n][t] = self.m.getVarByName("res_gas_" + str(n) + "[" + str(t) + "]")  # [W]
-        ## variables of the central energy unit
+
+        # variables of the central energy unit
         #self.P_el_dem_centralUnit, self.P_el_inj_centralUnit, self.P_gas_dem_centralUnit, self.Heat_inj_centralUnit = {}, {}, {}, {}
         #for t in self.timesteps:
         #    self.P_el_dem_centralUnit[t] = self.m.getVarByName("P_el_dem_centralUnit" + "[" + str(t) + "]")  # [W]
@@ -225,5 +226,3 @@ class Aggregator(Device):
             (self.E_GCP[t] == self.P_dem_gcp[t] * self.Emission_factor_elec + self.P_gas_total[t] * self.Emission_factor_gas
              for t in self.timesteps),
             name="Emission_total")
-
-

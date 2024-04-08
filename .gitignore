@@ -15,3 +15,5 @@ errorfile.txt
 *.pkl
 __pycache__/
 .idea/
+demands/
+data/TRY_2015_Jahr/

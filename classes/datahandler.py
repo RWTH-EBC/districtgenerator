@@ -5,7 +5,9 @@ import pickle
 import os
 import sys
 import copy
+import datetime
 import numpy as np
+import openpyxl
 import pandas as pd
 from itertools import count
 from teaser.project import Project
@@ -70,7 +72,46 @@ class Datahandler:
         self.resultPath = os.path.join(self.srcPath, 'results')
         self.KPIs = None
 
-    def generateEnvironment(self):
+    def select_plz_data(self, plz):
+        """
+        Select the closest TRY weather station for the location of the postal code.
+
+        Parameters
+        ----------
+        plz: string
+            Postal code of the district generated.
+
+        Returns
+        -------
+        weatherdatafile_location: int
+            Location of the TRY weather station in lambert projection.
+        """
+
+        # Try to find the location of the postal code and matched TRY weather station
+        try:
+            workbook = openpyxl.load_workbook(self.filePath + "/plz_geocoord_matched.xlsx")
+            sheet = workbook.active
+
+            for row in sheet.iter_rows(values_only=True):
+                if plz == row[0]:
+                    latitude = row[4]
+                    longitude = row[5]
+                    weatherdatafile = row[3]
+                    weatherdatafile_location = weatherdatafile[8:-9]
+                    break
+            else:
+                # If postal code cannot be found: Message and select weather data file from Aachen
+                raise ValueError("Postal code cannot be found")
+
+
+        except Exception as e:
+            # If postal code cannot be found: Message and select weathter data file from Aachen
+            print("Postal code cannot be found, location changed to Aachen")
+            weatherdatafile_location = 37335002675500
+
+        return weatherdatafile_location
+
+    def generateEnvironment(self, plz):
         """
         Load physical district environment - site and weather.
 
@@ -93,12 +134,23 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
+
+        # select the correct file depending on the TRY weather station location
+        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"], self.site["TRYType"])
+            + "/"
+            + self.site["TRYYear"] + "_"
+            + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+            + ".dat",
+            skiprows=first_row - 1)
+
+        """
+        # Use this function to load old TRY-weather data
         weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
                                  + "/"
                                  + self.site["TRYYear"] + "_Zone"
                                  + str(self.site["climateZone"]) + "_"
                                  + self.site["TRYType"] + ".txt",
-                                 skiprows=first_row - 1)
+                                 skiprows=first_row - 1)"""
 
         # weather data starts with 1st january at 1:00 am.
         # Add data point for 0:00 am to be able to perform interpolation.
@@ -163,7 +215,9 @@ class Datahandler:
         -------
         None.
         """
-
+        duration = datetime.timedelta(minutes=1)
+        num_sfh = 0
+        num_mfh = 0
         self.scenario_name = scenario_name
         # if list_all is None:
         #    list_all = []
@@ -199,18 +253,13 @@ class Datahandler:
 
            self.district.append(building)
 
-        # initialize buildings for scenario
-        # loop over all buildings
-        #for id, entry in enumerate(list_all):
-        #    list = list_all[id]
-        #    building = {}
-        #    building["buildingFeatures"] = pd.Series(
-        #        [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
-        #        index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
-        #               'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
-        #               'gamma_PV', ])
+            # Count number of builidings to predict the approximate calculation time
+            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH': num_sfh +=1
+            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
 
-        #    self.district.append(building)
+        # Calculate calculation time for the whole district generation
+        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
+        print("This calculation will take about " + str(duration) + " .")
 
     def generateBuildings(self):
         """
@@ -235,6 +284,7 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
+
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -248,7 +298,7 @@ class Datahandler:
                                 year_of_construction=building["buildingFeatures"]["year"],
                                 number_of_floors=3,
                                 height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"],
+                                net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
                                 construction_type=retrofit_level)
 
             # %% create envelope object
@@ -262,6 +312,10 @@ class Datahandler:
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"])
+
+            index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+            building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -306,7 +360,9 @@ class Datahandler:
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
                                               time_resolution=self.time["timeResolution"],
-                                              time_horizon=self.time["dataLength"])
+                                              time_horizon=self.time["dataLength"],
+                                              building=building,
+                                              path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
                     building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
@@ -373,13 +429,9 @@ class Datahandler:
         return self.outputV1
 
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
-                                 saveUserProfiles=True,
+                                 saveUserProfiles=True, plz='52072',
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
                                  designDevs=False, clustering=False, optimization=False):
-        # def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True,
-        #                              saveUserProfiles=True,
-        #                              fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-        #                              designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
@@ -394,6 +446,8 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
+        plz: string
+            Postal code of the district
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenProfiles: bool, optional
@@ -411,9 +465,11 @@ class Datahandler:
         None.
         """
 
-        self.generateEnvironment()
+
+
+
         self.initializeBuildings(building_list, scenario_name)
-        # self.initializeBuildings(scenario_name)
+        self.generateEnvironment(plz)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
@@ -429,7 +485,6 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    # def designDecentralDevices(self, saveGenerationProfiles=True):
     def designDecentralDevices(self, input_webtool: dict, saveGenerationProfiles=True):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
@@ -493,6 +548,8 @@ class Datahandler:
             # get capacities of all possible devices
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
+
+
 
             # calculate theoretical PV generation
 

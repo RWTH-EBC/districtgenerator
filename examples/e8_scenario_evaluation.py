@@ -11,12 +11,16 @@ from classes import *
 
 def example8_scenario_evaluation():
 
+
+    import time
+    A_1 = time.time()
+
     # Initialize District
     data = Datahandler()
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='Typquartier_1', calcUserProfiles=False, saveUserProfiles=False,
-                                  fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=True)
+    data.generateDistrictComplete(scenario_name='Typquartier_1_2', calcUserProfiles=False, saveUserProfiles=False,
+                                  fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
 
 
     centralEnergySupply = False
@@ -48,8 +52,9 @@ def example8_scenario_evaluation():
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
 
-    import time
-    AA = time.time()
+    A_2 = time.time()
+    print(str(A_1))
+    print(str(A_2))
 
     return data
 
