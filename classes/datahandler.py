@@ -7,6 +7,7 @@ import sys
 import copy
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from itertools import count
 from teaser.project import Project
 from classes.envelope import Envelope
@@ -498,14 +499,22 @@ class Datahandler:
 
             sun = Sun(filePath=self.filePath)
 
+            f_PV = building["buildingFeatures"]["PV_area"] / (
+                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] )
+            f_STC = building["buildingFeatures"]["PV_area"] / (
+                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
+
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"],
+                                        #area_roof=building["envelope"].A["opaque"]["roof"],
+                                        area_roof=building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] ,
                                         beta=[35],
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                        usageFactorPV=building["buildingFeatures"]["f_PV"],
-                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        #usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                        #usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        usageFactorPV = f_PV,
+                                        usageFactorSTC = f_STC)
 
             # assign real PV generation to building
             building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
@@ -883,58 +892,73 @@ class Datahandler:
                        'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
                        'gamma_PV', ])
 
-    def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
-        """
-        Create plots of the energy consumption and generation.
+    def plot(self):
 
-        Parameters
-        ----------
-        mode : string, optional
-            Choose a single plot or show all of them as default. The default is 'default'.
-            Possible modes are:
-            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand'].
-        initialTime : integer, optional
-            Start of the plot in seconds from the beginning of the year. The default is 0.
-        timeHorizon : integer, optional
-            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).
-        savePlots : boolean, optional
-            Decision if plots are saved under results/plots/. The default is True.
-        timeStamp : boolean, optional
-            Decision if saved plots get a unique name by adding a time stamp. The default is False.
-        show : boolean, optional
-            Decision if saved plots are presented directly to the user. The default is False.
+        # factor to convert power [kW] for one timestep to energy [kWh] for one timestep
+        factor = self.time['timeResolution'] / 3600
 
-        Returns
-        -------
-        None.
-        """
+        # loop over buildings to sum upp energy consumptions and generations for the hole district
+        demands = {}
+        for b in range(len(self.district)):
+            demands['elec'] += self.district[b]['user'].elec / 1000
+            demands['dhw'] += self.district[b]['user'].dhw / 1000
+            demands['cooling'] += self.district[b]['user'].cooling / 1000
+            demands['heating'] += self.district[b]['user'].heat / 1000
 
-        # initialize plots and prepare data for plotting
-        demandPlots = DemandPlots()
-        demandPlots.preparePlots(self)
+        peakDemands = [np.max(demands['heating']), np.max(demands['cooling']), np.max(demands['dhw']), np.max(demands['elec'])]
+        energyDemands = [np.sum(demands['heating']), np.sum(demands['cooling']), np.sum(demands['dhw']), np.sum(demands['elec'])]
 
-        # check which resolution for plots is used
-        if initialTime == 0 and timeHorizon == 31536000:
-            plotResolution = 'monthly'
-        else:
-            plotResolution = 'stepwise'
+        # days per month and cumulated days of months
+        daysInMonhs = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
+        cumutaltedDays = np.zeros(12)
+        for i in range(len(cumutaltedDays)):
+            if i == 0:
+                cumutaltedDays[i] = daysInMonhs[i]
+            else:
+                cumutaltedDays[i] = cumutaltedDays[i-1] + daysInMonhs[i]
 
-        # the selection of possible plots
-        plotTypes = \
-            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand', 'wt']
+        # array with last time step of each month
+        monthlyDataSteps = cumutaltedDays * 24 * 3600 / self.time['timeResolution']
 
-        if mode == 'default':
-            # create all default plots
-            demandPlots.defaultPlots(plotResolution, initialTime=initialTime, timeHorizon=timeHorizon,
-                                     savePlots=savePlots, timeStamp=timeStamp, show=show)
-        elif mode in plotTypes:
-            # create a plot
-            demandPlots.onePlot(plotType=mode, plotResolution=plotResolution, initialTime=initialTime,
-                                timeHorizon=timeHorizon, savePlots=savePlots, timeStamp=timeStamp, show=show)
-        else:
-            # print massage that input is not valid
-            print('\n Selected plot mode is not valid. So no plot could de generated. \n')
+        # create monthly data for bar plots
+        demands['heat_monthly'] = []
+        demands['cooling_monthly'] = []
+        demands['dhw_monthly'] = []
+        demands['elec_monthly'] = []
 
+        for m in range(len(cumutaltedDays)):
+            if m == 0:
+                # first month starts with time step zero
+                start = 0
+            else:
+                # all the other months starts one time step after the last time step of the previous month
+                start = int(monthlyDataSteps[m - 1]) + 1
+            end = int(monthlyDataSteps[m]) + 1
+            # convert power [W] to energy per month [kWh] by multiplication with factor
+            demands['heating_monthly'].append(np.sum(demands['heating'][start:end] * factor))
+            demands['cooling_monthly'].append(np.sum(demands['cooling'][start:end] * factor))
+            demands['dhw_monthly'].append(np.sum(demands['dhw'][start:end] * factor))
+            demands['elec_monthly'].append(np.sum(demands['elec'][start:end] * factor))
+
+        # plots
+        # Monatsabkürzungen definieren
+        monats_abk = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+        # Farben für die Diagramme definieren
+        farben = ['blue', 'green', 'red', 'purple']
+
+        # Grafiken mit den Anpassungen erstellen
+        fig, axs = plt.subplots(4, 1, figsize=(10, 20))
+        daten = [demands['heating_monthly'], demands['cooling_monthly'], demands['dhw_monthly'], demands['elec_monthly']]
+        for i, ax in enumerate(axs):
+            ax.bar(monats_abk, daten[i], color=farben[i])  # Balkendiagramm mit spezifischer Farbe
+            ax.set_title(f'Grafik {i + 1}')  # Titel setzen
+            ax.set_xlabel('Monat')  # X-Achsenbeschriftung
+            ax.set_ylabel('Energie in kWh')  # Y-Achsenbeschriftung
+
+        plt.tight_layout()
+        plt.savefig('pfad_angeben.png')
+
+        return peakDemands, energyDemands
 
     def optimizationClusters(self, centralEnergySupply):
         """
