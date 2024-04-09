@@ -25,6 +25,8 @@ class KPIs:
         """
 
         # initialize KPIs
+        self.peakDemands = None
+        self.energyDemands = None
         self.sum_res_load = None
         self.sum_res_inj = None
         self.residualLoad = None
@@ -119,7 +121,6 @@ class KPIs:
                 self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
 
         ### for central energy unit
-
 
     def calculateResidualLoad(self, data):
         """
@@ -385,10 +386,22 @@ class KPIs:
             filename = os.path.join(srcPath, "results", "kpi_report.pdf")
         else:
             filename = os.path.join(result_path, "kpi_report.pdf")
-        title = "Neighborhood energy certificate"
+        title = "Quartiersenergieausweis"
+
+        info_texts = [
+            "Die Energiekosten und die CO2-äquivalente Emissionen werden mit dem Strombezug an der\nOrtnetzstation, dem Gasverbrauch der Gebäude sowie den jeweiligen Kosten der beiden Energieträger,\nund dem CO2-Faktoren berechnet.",
+            "Der Eigenverbrauch beschreibt den Anteil der in das Verteilnetz eingespeisten elektrischen Energiemenge,\ndie lokal verbraucht wurde. Dagegen beschreibt der Deckungsgrad den Anteil der aus dem Verteilnetz\nbezogenen elektrischen Energiemenge, die durch lokale Stromerzeugung gedeckt wurde."
+        ]
+        info_text_positions = [0, 3]
+
         kpis = [
-            "Emission: $100,000",
-            "Energy cost: 150",
+            "Energiekosten: " + str(self.operationCosts) + " € pro Jahr",
+            "CO2-äquivalente Emissionen: " + str(self.co2emissions) + " kg pro Jahr",
+            "Elektrische Spitzenlast an der Ortnetzstation: " + str(self.peakDemand) + " kW",
+            "Eigenverbrauch: " + str(self.scf_year) + " %",
+            "Deckungsgrad: " + str(self.dcf_year) + " %",
+            "Strombezug aus der übergeordneten Netzebene: " + str(self.W_dem_GCP_year)+ " kWh",
+            "Stromeinspeisung in die übergeordnete Netzebene: " + str(self.W_inj_GCP_year)+ " kWh",
             # Add more KPIs as needed
         ]
 
@@ -397,13 +410,31 @@ class KPIs:
 
         # Set up the title
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(72, 750, title)
+        c.drawString(72, 800, title)  # Adjusted for A4 page margins
 
-        # Write each KPI
-        c.setFont("Helvetica", 12)
-        y_position = 720
-        for kpi in kpis:
+        # Initialize variables for text positioning
+        c.setFont("Helvetica", 10)  # Smaller font size to fit more content
+        y_position = 780  # Start a bit below the title
+        line_height = 14  # Adjust line height to fit content
+
+        # Write each KPI and the info texts at the specified positions
+        additional_info_index = 0
+        for i, kpi in enumerate(kpis):
+            if additional_info_index < len(info_text_positions) and i == info_text_positions[additional_info_index]:
+                # Display the info text
+                for line in info_texts[additional_info_index].split("\n"):
+                    c.drawString(72, y_position, line.strip())
+                    y_position -= line_height
+                additional_info_index += 1
+
+            # Check if we need to create a new page
+            if y_position < 50:  # Consider a bottom margin
+                c.showPage()
+                c.setFont("Helvetica", 10)
+                y_position = 780  # Reset position for new page
+
             c.drawString(72, y_position, kpi)
-            y_position -= 20
+            y_position -= line_height
 
         c.save()
+
