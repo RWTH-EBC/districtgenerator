@@ -89,11 +89,15 @@ class Datahandler:
 
         # Try to find the location of the postal code and matched TRY weather station
         try:
+            print("################################")
+            print(self.filePath)
             workbook = openpyxl.load_workbook(self.filePath + "/plz_geocoord_matched.xlsx")
             sheet = workbook.active
 
             for row in sheet.iter_rows(values_only=True):
-                if plz == row[0]:
+                print(row)
+
+                if plz == str(row[0]):
                     latitude = row[4]
                     longitude = row[5]
                     weatherdatafile = row[3]
@@ -134,9 +138,10 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-
         # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"], self.site["TRYType"])
+        weatherData = np.loadtxt(
+            os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
+                         self.site["TRYType"])
             + "/"
             + self.site["TRYYear"] + "_"
             + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
@@ -219,46 +224,32 @@ class Datahandler:
         num_sfh = 0
         num_mfh = 0
         self.scenario_name = scenario_name
-        # if list_all is None:
-        #    list_all = []
-
         if list_all is not None:
-           self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
+            self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
         else:
             self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
                                         + "/"
                                         + self.scenario_name + ".csv",
                                         header=0, delimiter=";")
 
-        # # initialize buildings for scenario
-        # for id in self.scenario["id"]:
-        #     # create empty dict for observed building
-        #     building = {}
-        #     # store features of the observed building
-        #     building["buildingFeatures"] = self.scenario.loc[id]
-        #     # append building to district
-        #     self.district.append(building)
-
-        # initialize buildings for scenario
-        # loop over all buildings
-
         for id, entry in enumerate(list_all):
-           list = list_all[id]
-           building = {}
-           building["buildingFeatures"] = pd.Series(
-               [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
-               index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
-                      'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
-                      'gamma_PV', ])
+            list = list_all[id]
+            building = {}
+            building["buildingFeatures"] = pd.Series(
+                [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
+                index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+                       'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+                       'gamma_PV', ])
 
-           self.district.append(building)
+            self.district.append(building)
 
-            # Count number of builidings to predict the approximate calculation time
-            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH': num_sfh +=1
-            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
+            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH':
+                num_sfh += 1
+            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB':
+                num_mfh += 1
 
         # Calculate calculation time for the whole district generation
-        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
+        duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print("This calculation will take about " + str(duration) + " .")
 
     def generateBuildings(self):
@@ -284,7 +275,6 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -298,7 +288,8 @@ class Datahandler:
                                 year_of_construction=building["buildingFeatures"]["year"],
                                 number_of_floors=3,
                                 height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][
+                                    bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
                                 construction_type=retrofit_level)
 
             # %% create envelope object
@@ -315,7 +306,6 @@ class Datahandler:
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
-
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -362,7 +352,7 @@ class Datahandler:
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
                                               building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+                                              path=os.path.join(self.filePath, 'demands'))
 
                 if saveUserProfiles:
                     building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
@@ -406,7 +396,6 @@ class Datahandler:
             'district_dhw': district_dhw,
         })
 
-
         if saveUserProfiles:
             np.savetxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
                        fmt='%1.2f', delimiter=',')
@@ -429,7 +418,7 @@ class Datahandler:
         return self.outputV1
 
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
-                                 saveUserProfiles=True, plz='52072',
+                                 saveUserProfiles=True, plz='52064',
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
                                  designDevs=False, clustering=False, optimization=False):
         """
@@ -464,9 +453,6 @@ class Datahandler:
         -------
         None.
         """
-
-
-
 
         self.initializeBuildings(building_list, scenario_name)
         self.generateEnvironment(plz)
@@ -522,7 +508,8 @@ class Datahandler:
             else:
                 building["buildingFeatures"]["STC"] = 0
 
-            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # S, M, L
+            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]][
+                "ev_input"]  # S, M, L
 
             # %% load general building information
             # contains definitions and parameters that affect all buildings
@@ -548,8 +535,6 @@ class Datahandler:
             # get capacities of all possible devices
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
-
-
 
             # calculate theoretical PV generation
 
@@ -585,10 +570,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-
-
         print("done with optimizing")
-
 
     def designCentralDevices(self, input_webtool, central_scenario="central_devices_example",
                              saveGenerationProfiles=True, ):
@@ -624,13 +606,11 @@ class Datahandler:
         demands_district["elec"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv',
                                               delimiter=',')
 
-
         # Load parameters
         param, devs, dem, result_dict = load_params_EHDO.load_params(self, demands_district)
 
         # Input from webtool of devs (feasible = True/False, min/max cap, ....)
         devs = self.centralDevices["ces_obj"].designCES(self, demands_district, devs, input_webtool)
-
 
         # load data about central devices from JSON-file
         self.centralDevices["data"] = {}
@@ -857,7 +837,7 @@ class Datahandler:
             else:
                 self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3]
             if self.district[id]["buildingFeatures"]["STC"] == 0:
-                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] *0
+                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] * 0
             else:
                 self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4]
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 5]
@@ -992,7 +972,6 @@ class Datahandler:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
 
-
     def optimizationClusters(self, centralEnergySupply):
         """
         Optimize the operation costs for each cluster.
@@ -1012,7 +991,7 @@ class Datahandler:
             # save results as attribute
             self.resultsOptimization.append(results_temp)
 
-    def calulateKPIs(self,result_path=None):
+    def calulateKPIs(self, result_path=None):
         """
         Calculate key performance indicators (KPIs).
 
