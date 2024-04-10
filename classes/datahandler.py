@@ -537,9 +537,24 @@ class Datahandler:
 
             sun = Sun(filePath=self.filePath)
 
-            f_PV = building["buildingFeatures"]["PV_area"] / (
+            if building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] == 0:
+                f_PV = 0.1
+                f_STC = 0
+            elif building["buildingFeatures"]["PV_area"] == None and building["buildingFeatures"]["STC_area"] == None:
+                f_PV = 0.1
+                f_STC = 0.1
+            elif building["buildingFeatures"]["PV_area"] == None:
+                building["buildingFeatures"]["PV_area"] = 0
+                f_PV = 0.01
+                f_STC = 0.99
+            elif building["buildingFeatures"]["STC_area"] == None:
+                building["buildingFeatures"]["STC_area"] = 0
+                f_STC = 0.01
+                f_PV = 0.99
+            else:
+                f_PV = building["buildingFeatures"]["PV_area"] / (
                     building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
-            f_STC = building["buildingFeatures"]["PV_area"] / (
+                f_STC = building["buildingFeatures"]["PV_area"] / (
                     building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
 
             potentialPV, potentialSTC = \
