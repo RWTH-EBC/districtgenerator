@@ -6,6 +6,7 @@ import os
 import json
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+import datetime
 
 
 class KPIs:
@@ -383,20 +384,20 @@ class KPIs:
 
         if result_path is None:
             srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            filename = os.path.join(srcPath, "results", "kpi_report.pdf")
+            filename = os.path.join(srcPath, "results", "Quartiersenergieausweis.pdf")
         else:
-            filename = os.path.join(result_path, "kpi_report.pdf")
+            filename = os.path.join(result_path, "Quartiersenergieausweis.pdf")
         title = "Quartiersenergieausweis"
 
         info_texts = [
-            "Die Energiekosten und die CO2-äquivalente Emissionen werden mit dem Strombezug an der\nOrtnetzstation, dem Gasverbrauch der Gebäude sowie den jeweiligen Kosten der beiden Energieträger,\nund dem CO2-Faktoren berechnet.",
+            "Die Energiekosten und die CO2-äquivalente Emissionen werden mit dem Strombezug an der\nOrtnetzstation, dem Gasverbrauch der Gebäude sowie den jeweiligen Kosten der beiden Energieträger,\nund den CO2-Faktoren berechnet.",
             "Der Eigenverbrauch beschreibt den Anteil der in das Verteilnetz eingespeisten elektrischen Energiemenge,\ndie lokal verbraucht wurde. Dagegen beschreibt der Deckungsgrad den Anteil der aus dem Verteilnetz\nbezogenen elektrischen Energiemenge, die durch lokale Stromerzeugung gedeckt wurde."
         ]
         info_text_positions = [0, 3]
 
         kpis = [
             "Energiekosten: " + str(self.operationCosts) + " € pro Jahr",
-            "CO2-äquivalente Emissionen: " + str(self.co2emissions) + " kg pro Jahr",
+            "CO2-äquivalente Emissionen: " + str(np.sum(self.co2emissions)) + " kg pro Jahr",
             "Elektrische Spitzenlast an der Ortnetzstation: " + str(self.peakDemand) + " kW",
             "Eigenverbrauch: " + str(self.scf_year) + " %",
             "Deckungsgrad: " + str(self.dcf_year) + " %",
@@ -408,24 +409,42 @@ class KPIs:
         c = canvas.Canvas(filename, pagesize=letter)
         c.setTitle(title)
 
-        # Set up the title
+        def add_footer():
+            # Get current date and time
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Set footer text
+            footer_text = f"Erstellt am: {now}"
+            # Position footer text at the bottom
+            c.setFont("Helvetica", 8)
+            c.drawString(72, 30, footer_text)
+
+        # Set up the main title
+        c.setFont("Helvetica-Bold", 20)
+        y_position = 800  # Start position near top of the page
+        c.drawString(72, y_position, "Quartiersenergieausweis")
+        y_position -= 2 * 14  # Move down 2 lines
+
+        # Set the document title below the main title
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(72, 800, title)  # Adjusted for A4 page margins
+        c.drawString(72, y_position, title)
+        y_position -= 2 * 14  # Move down 2 lines to start information text
 
         # Initialize variables for text positioning
-        c.setFont("Helvetica", 10)  # Smaller font size to fit more content
-        y_position = 780  # Start a bit below the title
+        c.setFont("Helvetica", 10)  # Font size for content
         line_height = 14  # Adjust line height to fit content
 
-        # Write each KPI and the info texts at the specified positions
+        # Write the information texts
         additional_info_index = 0
         for i, kpi in enumerate(kpis):
             if additional_info_index < len(info_text_positions) and i == info_text_positions[additional_info_index]:
+                if additional_info_index == 1:  # Before the second info text
+                    y_position -= line_height  # Add an extra empty line
                 # Display the info text
                 for line in info_texts[additional_info_index].split("\n"):
                     c.drawString(72, y_position, line.strip())
                     y_position -= line_height
                 additional_info_index += 1
+                y_position -= 1 * line_height  # Add 2 lines of spacing after the info text
 
             # Check if we need to create a new page
             if y_position < 50:  # Consider a bottom margin
@@ -436,5 +455,6 @@ class KPIs:
             c.drawString(72, y_position, kpi)
             y_position -= line_height
 
+        add_footer()
         c.save()
 
