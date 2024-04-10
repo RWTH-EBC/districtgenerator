@@ -90,14 +90,10 @@ class Datahandler:
 
         # Try to find the location of the postal code and matched TRY weather station
         try:
-            print("################################")
-            print(self.filePath)
             workbook = openpyxl.load_workbook(self.filePath + "/plz_geocoord_matched.xlsx")
             sheet = workbook.active
 
             for row in sheet.iter_rows(values_only=True):
-                print(row)
-
                 if plz == str(row[0]):
                     latitude = row[4]
                     longitude = row[5]
@@ -542,21 +538,22 @@ class Datahandler:
             sun = Sun(filePath=self.filePath)
 
             f_PV = building["buildingFeatures"]["PV_area"] / (
-                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] )
+                    building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
             f_STC = building["buildingFeatures"]["PV_area"] / (
-                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
+                    building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
 
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        #area_roof=building["envelope"].A["opaque"]["roof"],
-                                        area_roof=building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] ,
+                                        # area_roof=building["envelope"].A["opaque"]["roof"],
+                                        area_roof=building["buildingFeatures"]["PV_area"] +
+                                                  building["buildingFeatures"]["STC_area"],
                                         beta=[35],
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                        #usageFactorPV=building["buildingFeatures"]["f_PV"],
-                                        #usageFactorSTC=building["buildingFeatures"]["f_STC"])
-                                        usageFactorPV = f_PV,
-                                        usageFactorSTC = f_STC)
+                                        # usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                        # usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        usageFactorPV=f_PV,
+                                        usageFactorSTC=f_STC)
 
             # assign real PV generation to building
             building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
@@ -929,21 +926,28 @@ class Datahandler:
                        'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
                        'gamma_PV', ])
 
-    def plot(self):
+    def plot(self, result_path):
 
         # factor to convert power [kW] for one timestep to energy [kWh] for one timestep
         factor = self.time['timeResolution'] / 3600
 
         # loop over buildings to sum upp energy consumptions and generations for the hole district
-        demands = {}
+        demands = {
+            'elec': np.zeros(len(self.district[0]['user'].elec)),
+            'dhw': np.zeros(len(self.district[0]['user'].dhw)),
+            'cooling': np.zeros(len(self.district[0]['user'].cooling)),
+            'heating': np.zeros(len(self.district[0]['user'].heat))
+        }
         for b in range(len(self.district)):
             demands['elec'] += self.district[b]['user'].elec / 1000
             demands['dhw'] += self.district[b]['user'].dhw / 1000
             demands['cooling'] += self.district[b]['user'].cooling / 1000
             demands['heating'] += self.district[b]['user'].heat / 1000
 
-        peakDemands = [np.max(demands['heating']), np.max(demands['cooling']), np.max(demands['dhw']), np.max(demands['elec'])]
-        energyDemands = [np.sum(demands['heating']), np.sum(demands['cooling']), np.sum(demands['dhw']), np.sum(demands['elec'])]
+        peakDemands = [np.max(demands['heating']), np.max(demands['cooling']), np.max(demands['dhw']),
+                       np.max(demands['elec'])]
+        energyDemands = [np.sum(demands['heating']), np.sum(demands['cooling']), np.sum(demands['dhw']),
+                         np.sum(demands['elec'])]
 
         # days per month and cumulated days of months
         daysInMonhs = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
@@ -952,13 +956,13 @@ class Datahandler:
             if i == 0:
                 cumutaltedDays[i] = daysInMonhs[i]
             else:
-                cumutaltedDays[i] = cumutaltedDays[i-1] + daysInMonhs[i]
+                cumutaltedDays[i] = cumutaltedDays[i - 1] + daysInMonhs[i]
 
         # array with last time step of each month
         monthlyDataSteps = cumutaltedDays * 24 * 3600 / self.time['timeResolution']
 
         # create monthly data for bar plots
-        demands['heat_monthly'] = []
+        demands['heating_monthly'] = []
         demands['cooling_monthly'] = []
         demands['dhw_monthly'] = []
         demands['elec_monthly'] = []
@@ -985,7 +989,8 @@ class Datahandler:
 
         # Grafiken mit den Anpassungen erstellen
         fig, axs = plt.subplots(4, 1, figsize=(10, 20))
-        daten = [demands['heating_monthly'], demands['cooling_monthly'], demands['dhw_monthly'], demands['elec_monthly']]
+        daten = [demands['heating_monthly'], demands['cooling_monthly'], demands['dhw_monthly'],
+                 demands['elec_monthly']]
         for i, ax in enumerate(axs):
             ax.bar(monats_abk, daten[i], color=farben[i])  # Balkendiagramm mit spezifischer Farbe
             ax.set_title(f'Grafik {i + 1}')  # Titel setzen
@@ -993,7 +998,18 @@ class Datahandler:
             ax.set_ylabel('Energie in kWh')  # Y-Achsenbeschriftung
 
         plt.tight_layout()
-        plt.savefig('pfad_angeben.png')
+
+        try:
+
+            if result_path is None:
+                srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                filename = os.path.join(srcPath, "plots", "plot.png")
+            else:
+                filename = os.path.join(result_path, "plot.png")
+
+            plt.savefig(filename)
+        except:
+            print("error file plotting")
 
         return peakDemands, energyDemands
 
