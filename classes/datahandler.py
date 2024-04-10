@@ -953,15 +953,16 @@ class Datahandler:
             'heating': np.zeros(len(self.district[0]['user'].heat))
         }
         for b in range(len(self.district)):
-            demands['elec'] += self.district[b]['user'].elec / 1000
+            demands['elec'] += self.district[b]['user'].elec
             demands['dhw'] += self.district[b]['user'].dhw / 1000
             demands['cooling'] += self.district[b]['user'].cooling / 1000
             demands['heating'] += self.district[b]['user'].heat / 1000
 
-        peakDemands = [np.max(demands['heating']), np.max(demands['cooling']), np.max(demands['dhw']),
-                       np.max(demands['elec'])]
-        energyDemands = [np.sum(demands['heating']), np.sum(demands['cooling']), np.sum(demands['dhw']),
-                         np.sum(demands['elec'])]
+        peakDemands = [np.max(demands['heating'])/ 1000, np.max(demands['cooling'])/ 1000, np.max(demands['dhw'])/ 1000,
+                       np.max(demands['elec'])/ 1000]
+        energyDemands = [np.sum(demands['heating'])*factor, np.sum(demands['cooling'])*factor,
+                         np.sum(demands['dhw'])*factor,
+                         np.sum(demands['elec'])*factor]
 
         # days per month and cumulated days of months
         daysInMonhs = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])

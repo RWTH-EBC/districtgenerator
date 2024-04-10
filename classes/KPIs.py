@@ -396,13 +396,13 @@ class KPIs:
         info_text_positions = [0, 3]
 
         kpis = [
-            "Energiekosten: " + str(self.operationCosts) + " € pro Jahr",
-            "CO2-äquivalente Emissionen: " + str(np.sum(self.co2emissions)) + " kg pro Jahr",
-            "Elektrische Spitzenlast an der Ortnetzstation: " + str(self.peakDemand) + " kW",
-            "Eigenverbrauch: " + str(self.scf_year) + " %",
-            "Deckungsgrad: " + str(self.dcf_year) + " %",
-            "Strombezug aus der übergeordneten Netzebene: " + str(self.W_dem_GCP_year)+ " kWh",
-            "Stromeinspeisung in die übergeordnete Netzebene: " + str(self.W_inj_GCP_year)+ " kWh",
+            "Energiekosten: " + str(round(self.operationCosts, 0)) + " € pro Jahr",
+            "CO2-äquivalente Emissionen: " + str(round(np.sum(self.co2emissions,0)) + " kg pro Jahr",
+            "Elektrische Spitzenlast an der Ortnetzstation: " + str(round(self.peakDemand,0) + " kW",
+            "Eigenverbrauch: " + str(round(self.scf_year,0) + " %",
+            "Deckungsgrad: " + str(round(self.dcf_year,0) + " %",
+            "Strombezug aus der übergeordneten Netzebene: " + str(round(self.W_dem_GCP_year,0)+ " kWh",
+            "Stromeinspeisung in die übergeordnete Netzebene: " + str(round(self.W_inj_GCP_year,0)+ " kWh",
             # Add more KPIs as needed
         ]
 
