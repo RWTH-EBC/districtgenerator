@@ -538,17 +538,21 @@ class Datahandler:
             sun = Sun(filePath=self.filePath)
 
             if building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] == 0:
+                building["buildingFeatures"]["PV_area"] = 1
+                building["buildingFeatures"]["STC_area"] = 1
                 f_PV = 0.1
-                f_STC = 0
+                f_STC = 0.1
             elif building["buildingFeatures"]["PV_area"] == None and building["buildingFeatures"]["STC_area"] == None:
+                building["buildingFeatures"]["PV_area"] = 1
+                building["buildingFeatures"]["STC_area"] = 1
                 f_PV = 0.1
                 f_STC = 0.1
             elif building["buildingFeatures"]["PV_area"] == None:
-                building["buildingFeatures"]["PV_area"] = 0
+                building["buildingFeatures"]["PV_area"] = 1
                 f_PV = 0.01
                 f_STC = 0.99
             elif building["buildingFeatures"]["STC_area"] == None:
-                building["buildingFeatures"]["STC_area"] = 0
+                building["buildingFeatures"]["STC_area"] = 1
                 f_STC = 0.01
                 f_PV = 0.99
             else:
