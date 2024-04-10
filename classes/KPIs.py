@@ -6,7 +6,7 @@ import os
 import json
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import datetime
+from datetime import datetime
 
 
 class KPIs:
