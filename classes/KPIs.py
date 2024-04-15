@@ -390,19 +390,19 @@ class KPIs:
         title = "Quartiersenergieausweis"
 
         info_texts = [
-            "Die Energiekosten und die CO2-äquivalente Emissionen werden mit dem Strombezug an der\nOrtnetzstation, dem Gasverbrauch der Gebäude sowie den jeweiligen Kosten der beiden Energieträger,\nund den CO2-Faktoren berechnet.",
+            "Die Energiekosten und die CO2-äquivalenten Emissionen werden mit dem Strombezug an der\nOrtsnetzstation, dem Gasverbrauch der Gebäude sowie den jeweiligen Kosten der beiden Energieträger,\nund den CO2-Faktoren berechnet.",
             "Der Eigenverbrauch beschreibt den Anteil der in das Verteilnetz eingespeisten elektrischen Energiemenge,\ndie lokal verbraucht wurde. Dagegen beschreibt der Deckungsgrad den Anteil der aus dem Verteilnetz\nbezogenen elektrischen Energiemenge, die durch lokale Stromerzeugung gedeckt wurde."
         ]
         info_text_positions = [0, 3]
 
         kpis = [
             "Energiekosten: " + str(round(self.operationCosts, 0)) + " € pro Jahr",
-            "CO2-äquivalente Emissionen: " + str(round(np.sum(self.co2emissions,0)) + " kg pro Jahr",
-            "Elektrische Spitzenlast an der Ortnetzstation: " + str(round(self.peakDemand,0) + " kW",
-            "Eigenverbrauch: " + str(round(self.scf_year,0) + " %",
-            "Deckungsgrad: " + str(round(self.dcf_year,0) + " %",
-            "Strombezug aus der übergeordneten Netzebene: " + str(round(self.W_dem_GCP_year,0)+ " kWh",
-            "Stromeinspeisung in die übergeordnete Netzebene: " + str(round(self.W_inj_GCP_year,0)+ " kWh",
+            "CO2-äquivalente Emissionen: " + str(round(np.sum(self.co2emissions,0))) + " kg pro Jahr",
+            "Elektrische Spitzenlast an der Ortnetzstation: " + str(round(self.peakDemand,0)) + " kW",
+            "Eigenverbrauch: " + str(round(self.scf_year*100,0)) + " %",
+            "Deckungsgrad: " + str(round(self.dcf_year*100,0)) + " %",
+            "Strombezug aus der übergeordneten Netzebene: " + str(round(self.W_dem_GCP_year,0))+ " kWh",
+            "Stromeinspeisung in die übergeordnete Netzebene: " + str(round(self.W_inj_GCP_year,0))+ " kWh",
             # Add more KPIs as needed
         ]
 

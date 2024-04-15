@@ -552,9 +552,9 @@ class Datahandler:
                 f_PV = 0.99
             else:
                 f_PV = building["buildingFeatures"]["PV_area"] / (
-                    building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
+                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
                 f_STC = building["buildingFeatures"]["PV_area"] / (
-                    building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
+                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
 
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
@@ -953,16 +953,16 @@ class Datahandler:
             'heating': np.zeros(len(self.district[0]['user'].heat))
         }
         for b in range(len(self.district)):
-            demands['elec'] += self.district[b]['user'].elec
+            demands['elec'] += self.district[b]['user'].elec / 1000
             demands['dhw'] += self.district[b]['user'].dhw / 1000
             demands['cooling'] += self.district[b]['user'].cooling / 1000
             demands['heating'] += self.district[b]['user'].heat / 1000
 
-        peakDemands = [np.max(demands['heating'])/ 1000, np.max(demands['cooling'])/ 1000, np.max(demands['dhw'])/ 1000,
-                       np.max(demands['elec'])/ 1000]
-        energyDemands = [np.sum(demands['heating'])*factor, np.sum(demands['cooling'])*factor,
-                         np.sum(demands['dhw'])*factor,
-                         np.sum(demands['elec'])*factor]
+        peakDemands = [np.max(demands['heating']), np.max(demands['cooling']), np.max(demands['dhw']),
+                       np.max(demands['elec'])]
+        energyDemands = [np.sum(demands['heating']) * factor, np.sum(demands['cooling']) * factor,
+                         np.sum(demands['dhw']) * factor,
+                         np.sum(demands['elec']) * factor]
 
         # days per month and cumulated days of months
         daysInMonhs = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
@@ -1000,7 +1000,8 @@ class Datahandler:
         # Monatsabkürzungen definieren
         monats_abk = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
         # Farben für die Diagramme definieren
-        farben = ['blue', 'green', 'red', 'purple']
+        farben = ['red', 'blue', 'purple', 'green']
+        title = ['Heizwärmebedarf', 'Kühlbedarf', 'Trinkwarmwasserbedarf', 'Haushaltsstrombedarf']
 
         # Grafiken mit den Anpassungen erstellen
         fig, axs = plt.subplots(4, 1, figsize=(10, 20))
@@ -1008,7 +1009,7 @@ class Datahandler:
                  demands['elec_monthly']]
         for i, ax in enumerate(axs):
             ax.bar(monats_abk, daten[i], color=farben[i])  # Balkendiagramm mit spezifischer Farbe
-            ax.set_title(f'Grafik {i + 1}')  # Titel setzen
+            ax.set_title(title[i])  # Titel setzen
             ax.set_xlabel('Monat')  # X-Achsenbeschriftung
             ax.set_ylabel('Energie in kWh')  # Y-Achsenbeschriftung
 
