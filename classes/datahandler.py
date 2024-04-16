@@ -105,7 +105,7 @@ class Datahandler:
         except Exception as e:
             # If postal code cannot be found: Message and select weathter data file from Aachen
             print("Postal code cannot be found, location changed to Aachen")
-            weatherdatafile_location = 37335002675500
+            weatherdatafile_location = 507755060854
 
         return weatherdatafile_location
 
@@ -135,7 +135,7 @@ class Datahandler:
 
 
         # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"], self.site["TRYType"])
+        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
             + "/"
             + self.site["TRYYear"] + "_"
             + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
