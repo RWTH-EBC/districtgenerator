@@ -1,0 +1,98 @@
+hk_geb;uk_geb;schedule_name
+Büro-, Verwaltungs- oder Amtsgebäude;Parlaments- oder Gerichtsgebäude;Bueros_SchalterhalleEmpfang
+Büro-, Verwaltungs- oder Amtsgebäude;Öffentliches Verwaltungs- oder Ämtergebäude, Rathaus;Bueros_SchalterhalleEmpfang
+Büro-, Verwaltungs- oder Amtsgebäude;Bürogebäude;Bueros_SchalterhalleEmpfang
+Büro-, Verwaltungs- oder Amtsgebäude;Rundfunk- oder Fernsehanstalt;Bueros_SchalterhalleEmpfang
+Büro-, Verwaltungs- oder Amtsgebäude;Polizeipräsidium oder -station, Bürogebäude sonstiger Bereitschaftsdienste;Bueros_SchalterhalleEmpfang
+Gebäude für Forschung und Hochschullehre;Hörsaalgebäude;Schulzimmer_Hoersaal
+Gebäude für Forschung und Hochschullehre;Verwaltungs- oder Seminargebäude;Bueros_SchalterhalleEmpfang
+Gebäude für Forschung und Hochschullehre;Institutsgebäude für Forschung und Lehre (Labor mit geringen Anforderungen an die Raumlufttechnik, z.B. Medizin, Informatik);Schulzimmer_Hoersaal
+Gebäude für Forschung und Hochschullehre;Institutsgebäude für Forschung und Lehre (Labor mit hohen Anforderungen an die Raumlufttechnik, z.B. Chemie, Tierforschung);Schulzimmer_Hoersaal
+Gebäude für Forschung und Hochschullehre;Bürogebäude von Forschungsanstalten ohne Lehre;Schulzimmer_Hoersaal
+Gebäude für Forschung und Hochschullehre;Laborgebäude von Forschungsanstalten und Unternehmen (Labor mit geringen Anforderungen an die Raumlufttechnik);Laborraum
+Gebäude für Forschung und Hochschullehre;Laborgebäude von Forschungsanstalten und Unternehmen (Labor mit hohen Anforderungen an die Raumlufttechnik);Laborraum
+Gebäude für Gesundheit und Pflege;Hochschulklinik;Krankenhausmix
+Gebäude für Gesundheit und Pflege;Krankenhaus;Krankenhausmix
+Gebäude für Gesundheit und Pflege;Gebäude für teilstationäre Versorgung (z.B. Tagesklinik, Geburtshaus);Bueros_SchalterhalleEmpfang
+Gebäude für Gesundheit und Pflege;Rehabilitation;Stationszimmer
+Gebäude für Gesundheit und Pflege;Kur und Genesung;Stationszimmer
+Gebäude für Gesundheit und Pflege;Medizinisches Versorgungszentrum, Ärztehaus;Behandlungsraum
+Gebäude für Gesundheit und Pflege;Arztpraxis;Behandlungsraum
+Gebäude für Gesundheit und Pflege;Notfallpraxis;Behandlungsraum
+Gebäude für Gesundheit und Pflege;Altenheim/Altenpflegeheim (ohne eigene Haushaltsführung der Bewohner/innen);Stationszimmer
+Gebäude für Gesundheit und Pflege;Pflegeheim für Behinderte (ohne eigene Haushaltsführung der Bewohner/innen);Stationszimmer
+Gebäude für Gesundheit und Pflege;Psychiatrische Pflegeheim (ohne eigene Haushaltsführung der Bewohner/innen);Stationszimmer
+Gebäude für Gesundheit und Pflege;Tagespflegeeinrichtung;Stationszimmer
+Gebäude für Gesundheit und Pflege;Hospiz;Stationszimmer
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Schule, allgemein;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Ganztagesschule;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Internatsschule;Wohnen
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Förder-, Sonderschule;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Berufsbildende Schule (gewerblich, wirtschaftlich);Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Berufsbildende Schule (mit höherer technischer Ausstattung, z.B. Werkstätten);Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Berufsakademie, Berufskolleg;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Bildungszentrum;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Ausbildungsstätte;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Volkshochschule;Vorstellungsraum
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;KiTa;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;KiTa mit Küche;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Studentenhaus;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Altentagesstätte;Schulzimmer_Hoersaal
+Schule, Kindertagesstätte und sonstiges Betreuungsgebäude;Jugendzentrum;Schulzimmer_Hoersaal
+Gebäude für Kultur und Freizeit;Bibliothek/Archiv (einfach, z.B. Stadtbücherei);Bibliothek
+Gebäude für Kultur und Freizeit;Bibliothek/Archiv (höher technisiert, z.B. Unibibliothek);Bibliothek
+Gebäude für Kultur und Freizeit;Ausstellungsgebäude (Museen, Galerien);Ausstellungshalle
+Gebäude für Kultur und Freizeit;Oper, Theater und Veranstaltungshalle, Kino, Konferenzzentrum;Vorstellungsraum
+Gebäude für Kultur und Freizeit;Freizeit-, Gemeinschafts-, Bürgerhaus;Vorstellungsraum
+Gebäude für Kultur und Freizeit;Spielkasino, -bank, -halle;Vorstellungsraum
+Sportgebäude;Einfeldhalle;Turnhalle
+Sportgebäude;Mehrfeldhalle;Turnhalle
+Sportgebäude;Gymnastikhalle;Turnhalle
+Sportgebäude;Sporthalle mit Mehrzwecknutzung;Mehrzweckhalle
+Sportgebäude;Hallenbad;Fitnessraum_Schwimmhalle
+Sportgebäude;Spaß- und Freizeitbad;Fitnessraum_Schwimmhalle
+Sportgebäude;Thermalbad;Fitnessraum_Schwimmhalle
+Sportgebäude;Hallenbad mit Freibadanlage;Fitnessraum_Schwimmhalle
+Sportgebäude;Kegelbahn/Bowling;Turnhalle
+Sportgebäude;Schießstand;Turnhalle
+Sportgebäude;Raumschießanlage;Turnhalle
+Sportgebäude;Reithalle;Turnhalle
+Sportgebäude;Eissporthalle;Turnhalle
+Sportgebäude;Tennishalle;Turnhalle
+Sportgebäude;Fitnessstudio;Fitnessraum_Schwimmhalle
+Sportgebäude;Gebäude für Sportaußenanlage (Tribünen-, Umkleidegebäude);GarderobeDusche
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Herberge, Ferienheim, Ferienhaus, Hotel/Pension einfach;Hotelzimmer
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Sterne-Hotel;Hotelzimmer
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Ausschankwirtschaft;Restaurant
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Speisegaststätte (einfach);Restaurant
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Restaurant (gehoben);Restaurant
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Mensa/Kantine;Selbstbedienungsrestaurant
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Gemeinschaftsunterkunft (z.B. Flüchtlingsheim, Kaserne, Kloster);Wohnen
+Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude;Sonstige Gebäudefunktion;Verkehrsflaeche_Nebenraum
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Gebäude für gewerbliche Produktion und Verarbeitung (z.B. Brauerei, Molkerei, Schlachthof);ProduktionGrob
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Gebäude für industrielle Produktion und Verarbeitung (z.B. Chemie, Metall, Textilien, Lebensmittel, Holz);ProduktionGrob
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Werkstattgebäude allgemein (z.B. von Handwerksbetrieben wie Klempner, Schlosser, Schreiner);ProduktionGrob
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Werkstattgebäude zur Wartung, Instandsetzung, Reparatur (von z.B. Kfz);ProduktionGrob
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Logistikimmobilie mit Toren bzw. Rampen;Lagerhalle
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Sonstiges Gebäude für Lagerung;Lagerhalle
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Feuerwehr, Rettungswache;Bueros_SchalterhalleEmpfang
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Straßenmeisterei, Bauhof u.ä.;Lagerhalle
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Fuhrpark;Parkhaus
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;zentrales Wirtschaftsgebäude (z.B. Zentralküche oder -wäscherei in Krankenhaus);KuecheTeekueche
+Produktions-, Werkstatt-, Lager- oder Betriebsgebäude;Rechenzentrum;Serverraum
+Handelsgebäude;Handelsgebäude des Lebensmitteleinzel- und -großhandels;Lebensmittelverkauf
+Handelsgebäude;Handelsgebäude des Non-Food-Einzel- und -Großhandels;Fachgeschaeft
+Handelsgebäude;Einkaufszentrum, Shopping-Mall;Bueros_SchalterhalleEmpfang
+Handelsgebäude;Markthalle;Lebensmittelverkauf
+Handelsgebäude;Messehalle;Ausstellungshalle
+Handelsgebäude;von Dienstleistern (z.B. Frisör, Kosmetik) genutztes Ladengebäude;Fachgeschaeft
+Technikgebäude (Ver- und Entsorgung);Kraftwerk (Gesamtanlage für Energieversorgung);ProduktionGrob
+Technikgebäude (Ver- und Entsorgung);Gebäude für Lenkung, Steuerung, Überwachung und Nachrichtenübermittlung (z.B. Stellwerk, Leuchtturm);Bueros_SchalterhalleEmpfang
+Technikgebäude (Ver- und Entsorgung);Gebäude für Energieversorgung (z.B. Fernheizwerk, Tankstelle);Bueros_SchalterhalleEmpfang
+Technikgebäude (Ver- und Entsorgung);Gebäude für Wasserversorgung;Bueros_SchalterhalleEmpfang
+Technikgebäude (Ver- und Entsorgung);Gebäude für Abwasserbehandlung;Bueros_SchalterhalleEmpfang
+Technikgebäude (Ver- und Entsorgung);Gebäude für Abfallbehandlung;Bueros_SchalterhalleEmpfang
+Verkehrsgebäude;Park-/Garagengebäude, Fahrradparkhaus;Parkhaus
+Verkehrsgebäude;Halle für sonstige Verkehrsmittel (z.B. für Flugzeuge, Schienenfahrzeuge);Verkehrsflaeche_Nebenraum
+Verkehrsgebäude;Gebäude zur Pflege von Fahrzeugen (z.B. Waschstraße);Lagerhalle
+Verkehrsgebäude;Empfangsgebäude (Bahnhof, Busbahnhof, Flughafen, Schiffsterminal);Bueros_SchalterhalleEmpfang

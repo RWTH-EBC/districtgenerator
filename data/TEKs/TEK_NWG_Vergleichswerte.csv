@@ -1,0 +1,58 @@
+TEK_Category;TEK Heizung;TEK Warmwasser;TEK Lüftung;TEK eingebaute Beleuchtung;TEK Kälte;TEK Hilfsenergie für Kälte;TEK Be- und Entfeuchtung;TEK Sonstiges;Lfd.-Nr.
+Verwaltungsgebäude (allgemein);48,5;6,9;3,2;10,7;2,6;3,1;0,1;2,8;1
+Parlaments- und Gerichtsgebäude;49,9;6,8;3;9,5;1,2;0,9;1,7;0,6;2
+Ministerien, Ämter und Behörden;48,3;7,4;3,7;10,8;1,5;1,2;1;0,7;3
+Polizeidienstgebäude;52,4;7,4;2,5;10,4;0,5;0,4;0;0,7;4
+Gebäude für öffentliche Bereitschaftsdienste;51,6;10,2;3;7,8;0,3;0,2;0;4;5
+Feuerwehrdienstgebäude;50,8;7,1;3,2;6,7;0,3;0,2;0;3,7;6
+Bürogebäude;49;8,1;4,7;12,9;2,9;2,2;0;2,8;7
+Bürogebäude – überwiegend Großraumbüros;47,4;12,8;7,3;16,6;6;4,3;0;0,9;8
+Bankgebäude;48;6,4;1,6;10,7;1,5;1,1;0;0,6;9
+Hochschule und Forschung (allgemein);66,5;6,7;13,3;11;3,4;2,2;3,8;1,2;10
+Gebäude für Lehre;57,2;5,6;8,7;8,5;2,5;1,5;0,4;1,1;11
+Institute für Lehre und Forschung;65;7,6;13,8;11,7;3,5;2,4;14,7;2,1;12
+Gebäude für Forschung ohne Lehre;87,8;7,4;14,9;14,8;3,5;2,4;0;1,2;13
+Laborgebäude;82,8;8;20,3;13,5;4,2;2,9;1,7;1,3;14
+Gesundheitswesen (allgemein);55,7;15,3;4,9;17,4;1,6;1,3;0;1,1;15
+Krankenhäuser (ohne Forschung und Lehre);64,1;40,8;10,4;15,8;1,7;1,6;0;1,2;16
+Krankenhäuser (ohne Forschung und Lehre) und teilstationäre Versorgung;61,7;33,6;9,2;15,9;1,7;1,6;0;0,9;17
+Medizinische Einrichtungen für nicht stationäre Versorgung;51,2;8,6;2,2;18,3;1,4;1;0;1,3;18
+Gebäude für Reha, Kur und Genesung;59,4;22,1;6;14,6;0,9;0,7;0;3,5;19
+Bildungseinrichtungen (allgemein);49,7;19,5;4,1;5,5;0,2;0,2;0;0,6;20
+Schulen;49,3;22,4;3,9;5,5;0,3;0,2;0;0,6;21
+Kinderbetreuungseinrichtungen;50,4;17,3;4,2;5,5;0,1;0,1;0;0,6;22
+Kultureinrichtungen (allgemein);55,9;7,5;6,7;9;1,6;1,2;0,1;0,3;23
+Bibliotheken / Archive;49;5;2,1;14,3;0,5;0,4;0;0,3;24
+Ausstellungsgebäude;57,6;7,7;6,3;7,8;1,7;1,3;0,3;0,2;25
+Veranstaltungsgebäude;58,4;9,1;7;8,9;1,3;0,9;0,1;0,3;26
+Gemeinschafts- / Gemeindehäuser;63,6;10;5,6;10,8;0,8;0,6;0,1;6;27
+Opern / Theater;58,8;7,6;9,1;8,6;2;1,3;0;0,9;28
+Sporteinrichtungen (allgemein);65,5;27,3;6,4;14,5;0,6;0,6;0;1,9;29
+Sporthallen;68,6;22;4,6;14,3;0,2;0,2;0;0,1;30
+Fitnessstudios;60,6;62,2;11,9;24,5;4;4,2;0;8,9;31
+Schwimmhallen;63,8;24,7;8,3;13,4;1,1;1,1;30;7,3;32
+Gebäude für Sportaußenanlagen;75,2;22,5;5,7;10,2;0;0;0;5,5;33
+Verpflegungseinrichtungen (allgemein);75,9;77,7;16,6;18,1;3,5;3;0;24,8;34
+Beherbergungsstätten (allgemein);52,1;86;9,1;9,1;3,3;2,7;0;7;35
+Hotels / Pensionen;51,2;89,1;9,1;8,6;3,5;2,9;0;6,8;36
+Jugendherbergen u. Ferienhäuser;63,4;50,9;1,9;12,6;0;0;0;8,8;37
+Gaststätten;77,8;79;13,7;19,7;3,8;3,3;0;25,2;38
+Mensen u. Kantinen;67;67,3;21;11,4;0,7;0,5;0;22,7;39
+Gewerbliche und industrielle Gebäude (allgemein);38,7;12,6;2,1;9,6;0,8;0,5;0;12,2;40
+Gewerbliche und industrielle Gebäude – schwere Arbeit, stehende Tätigkeit;37,8;20;3,1;11,8;1;0,6;0;22,6;41
+Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;36;24,2;3,8;13;2,1;1,2;0;24,9;42
+Gewerbliche und industrielle Gebäude – leichte Arbeit, überwiegend sitzende Tätigkeit;38,1;19,8;3,3;15,2;1,9;1,1;0;22,3;43
+Gebäude für Lagerung;38,1;19,3;3,3;13,2;1,7;1;0;21,6;44
+Verkaufsstätten (allgemein);47,9;7,6;5,6;16,3;2,6;2;0;6,9;45
+Kaufhäuser;45,9;6,4;6;16,6;1,1;0,9;0;2,7;46
+Kaufhauszentren / Einkaufszentren;47,3;11,1;7,4;16,6;4,6;3,5;0,1;5,5;47
+Märkte;48,7;6,2;7,3;17,3;2,8;2,1;0;10,5;48
+Märkte mit sehr hohem Anteil von Kühlung für Lebensmittel;48,7;6,2;7,3;17,3;2,8;2,1;0;72,5;49
+Läden;46,8;6,4;1,9;15,8;0,9;0,7;0;2,1;50
+Läden mit sehr hohem Anteil von Kühlung für Lebensmittel;46,8;6,4;1,9;15,8;0,9;0,7;0;54,1;51
+Fernmeldetechnik;38,4;4;3,4;16;0;0;0;53,7;52
+Beherbergungsstätten und Verpflegungseinrichtungen;51,65;87,55;9,1;8,85;3,4;2,8;0;6,9;53
+Verkehrsgebäude;38,4;4;3,4;16;0;0;0;53,7;54
+Rechenzentrum;5;5;20;10;100;20;20;100;55
+Technikgebäude (Ver- und Entsorgung);40;2;10;10;1;0;1;20;56
+Sonstiges Nichtwohngebäude;2;2;0;10;0;0;0;5;57
