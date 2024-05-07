@@ -1,0 +1,2 @@
+The occupancy schedules were developed on the basis of SIA 2024 "Raumnutzungsdaten für Energie- und Gebäudetechnik".
+The profile for hospitals is taken from The City Energy Analyst (CEA) (https://github.com/architecture-building-systems/CityEnergyAnalyst)
