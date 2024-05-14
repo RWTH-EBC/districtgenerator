@@ -6,21 +6,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.68,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.44,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.53,
-                "Mittlere u_wueua_mfl in W/m²K": 1.07
+                "Mittlere u_wueua_mfl in W/m²K": 1.07,
+                "Mittlere u_geb_mfl [W/m²K]": 1.16
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.48,
                 "Mittlere u_fen_mfl in W/m²K": 1.89,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.24,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.14,
-                "Mittlere u_wueua_mfl in W/m²K": 0.27
+                "Mittlere u_wueua_mfl in W/m²K": 0.27,
+                "Mittlere u_geb_mfl [W/m²K]": 0.60
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.19,
                 "Mittlere u_fen_mfl in W/m²K": 1.08,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.14,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.21
+                "Mittlere u_wueua_mfl in W/m²K": 0.21,
+                "Mittlere u_geb_mfl [W/m²K]": 0.30
             }
         }
     },
@@ -31,21 +34,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 3.10,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.40,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.19,
-                "Mittlere u_wueua_mfl in W/m²K": 0.82
+                "Mittlere u_wueua_mfl in W/m²K": 0.82,
+                "Mittlere u_geb_mfl [W/m²K]": 1.44
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.29,
                 "Mittlere u_fen_mfl in W/m²K": 1.74,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.13,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.62,
-                "Mittlere u_wueua_mfl in W/m²K": 0.53
+                "Mittlere u_wueua_mfl in W/m²K": 0.53,
+                "Mittlere u_geb_mfl [W/m²K]": 0.58
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.20,
                 "Mittlere u_fen_mfl in W/m²K": 1.24,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.14,
                 "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.23
+                "Mittlere u_wueua_mfl in W/m²K": 0.23,
+                "Mittlere u_geb_mfl [W/m²K]": 0.25
             }
         }
     },
@@ -56,21 +62,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.72,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.31,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.76,
-                "Mittlere u_wueua_mfl in W/m²K": 0.70
+                "Mittlere u_wueua_mfl in W/m²K": 0.70,
+                "Mittlere u_geb_mfl [W/m²K]": 1.31
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.44,
                 "Mittlere u_fen_mfl in W/m²K": 2.24,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.23,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.25
+                "Mittlere u_wueua_mfl in W/m²K": 0.25,
+                "Mittlere u_geb_mfl [W/m²K]": 0.59
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.21,
                 "Mittlere u_fen_mfl in W/m²K": 1.25,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.09,
                 "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.14
+                "Mittlere u_wueua_mfl in W/m²K": 0.14,
+                "Mittlere u_geb_mfl [W/m²K]": 0.31
             }
         }
     },
@@ -81,21 +90,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.22,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.44,
                 "Mittlere u_d_fen_mfl in W/m²K": 3.17,
-                "Mittlere u_wueua_mfl in W/m²K": 0.79
+                "Mittlere u_wueua_mfl in W/m²K": 0.79,
+                "Mittlere u_geb_mfl [W/m²K]": 1.12
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.51,
                 "Mittlere u_fen_mfl in W/m²K": 2.05,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.25,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.64,
-                "Mittlere u_wueua_mfl in W/m²K": 0.44
+                "Mittlere u_wueua_mfl in W/m²K": 0.44,
+                "Mittlere u_geb_mfl [W/m²K]": 0.70
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.23,
                 "Mittlere u_fen_mfl in W/m²K": 1.17,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.14,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.27,
-                "Mittlere u_wueua_mfl in W/m²K": 0.18
+                "Mittlere u_wueua_mfl in W/m²K": 0.18,
+                "Mittlere u_geb_mfl [W/m²K]": 0.33
             }
         }
     },
@@ -106,21 +118,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.56,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.75,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.68,
-                "Mittlere u_wueua_mfl in W/m²K": 0.99
+                "Mittlere u_wueua_mfl in W/m²K": 0.99,
+                "Mittlere u_geb_mfl [W/m²K]": 1.16
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.53,
                 "Mittlere u_fen_mfl in W/m²K": 2.04,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.33,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.94,
-                "Mittlere u_wueua_mfl in W/m²K": 0.44
+                "Mittlere u_wueua_mfl in W/m²K": 0.44,
+                "Mittlere u_geb_mfl [W/m²K]": 0.52
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.51,
                 "Mittlere u_fen_mfl in W/m²K": 0.96,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.33,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.90,
-                "Mittlere u_wueua_mfl in W/m²K": 0.54
+                "Mittlere u_wueua_mfl in W/m²K": 0.54,
+                "Mittlere u_geb_mfl [W/m²K]": 0.30
             }
         }
     },
@@ -131,21 +146,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 3.09,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.40,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.57
+                "Mittlere u_wueua_mfl in W/m²K": 0.57,
+                "Mittlere u_geb_mfl [W/m²K]": 1.06
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.55,
                 "Mittlere u_fen_mfl in W/m²K": 2.56,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.34,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.05,
-                "Mittlere u_wueua_mfl in W/m²K": 0.57
+                "Mittlere u_wueua_mfl in W/m²K": 0.57,
+                "Mittlere u_geb_mfl [W/m²K]": 0.66
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.27,
                 "Mittlere u_fen_mfl in W/m²K": 1.07,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.99
+                "Mittlere u_wueua_mfl in W/m²K": 0.99,
+                "Mittlere u_geb_mfl [W/m²K]": 0.39
             }
         }
     },
@@ -156,21 +174,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.76,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.80,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.83
+                "Mittlere u_wueua_mfl in W/m²K": 0.83,
+                "Mittlere u_geb_mfl [W/m²K]": 1.24
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.47,
                 "Mittlere u_fen_mfl in W/m²K": 2.07,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.29,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.78,
-                "Mittlere u_wueua_mfl in W/m²K": 0.37
+                "Mittlere u_wueua_mfl in W/m²K": 0.37,
+                "Mittlere u_geb_mfl [W/m²K]": 0.79
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.32,
                 "Mittlere u_fen_mfl in W/m²K": 1.24,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.18,
                 "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.26
+                "Mittlere u_wueua_mfl in W/m²K": 0.26,
+                "Mittlere u_geb_mfl [W/m²K]": 0.38
             }
         }
     },
@@ -181,21 +202,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.99,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.53,
                 "Mittlere u_d_fen_mfl in W/m²K": 3.84,
-                "Mittlere u_wueua_mfl in W/m²K": 1.01
+                "Mittlere u_wueua_mfl in W/m²K": 1.01,
+                "Mittlere u_geb_mfl [W/m²K]": 1.12
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.51,
                 "Mittlere u_fen_mfl in W/m²K": 2.17,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.24,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.05,
-                "Mittlere u_wueua_mfl in W/m²K": 0.41
+                "Mittlere u_wueua_mfl in W/m²K": 0.41,
+                "Mittlere u_geb_mfl [W/m²K]": 0.54
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.24,
                 "Mittlere u_fen_mfl in W/m²K": 1.20,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.11,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.22
+                "Mittlere u_wueua_mfl in W/m²K": 0.22,
+                "Mittlere u_geb_mfl [W/m²K]": 0.28
             }
         }
     },
@@ -206,21 +230,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 3.03,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.22,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.37
+                "Mittlere u_wueua_mfl in W/m²K": 0.37,
+                "Mittlere u_geb_mfl [W/m²K]": 1.32
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.40,
                 "Mittlere u_fen_mfl in W/m²K": 2.10,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.31,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.35,
-                "Mittlere u_wueua_mfl in W/m²K": 0.50
+                "Mittlere u_wueua_mfl in W/m²K": 0.50,
+                "Mittlere u_geb_mfl [W/m²K]": 0.50
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.25,
                 "Mittlere u_fen_mfl in W/m²K": 1.05,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.16,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.90,
-                "Mittlere u_wueua_mfl in W/m²K": 0.12
+                "Mittlere u_wueua_mfl in W/m²K": 0.12,
+                "Mittlere u_geb_mfl [W/m²K]": 0.33
             }
         }
     },
@@ -231,21 +258,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 4.20,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.99,
                 "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 1.51
+                "Mittlere u_wueua_mfl in W/m²K": 1.51,
+                "Mittlere u_geb_mfl [W/m²K]": 1.30
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.47,
                 "Mittlere u_fen_mfl in W/m²K": 2.02,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.22,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.00,
-                "Mittlere u_wueua_mfl in W/m²K": 0.37
+                "Mittlere u_wueua_mfl in W/m²K": 0.37,
+                "Mittlere u_geb_mfl [W/m²K]": 0.55
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.16,
                 "Mittlere u_fen_mfl in W/m²K": 1.30,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
                 "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.24
+                "Mittlere u_wueua_mfl in W/m²K": 0.24,
+                "Mittlere u_geb_mfl [W/m²K]": 0.24
             }
         }
     },
@@ -256,21 +286,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 5.00,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 1.41,
                 "Mittlere u_d_fen_mfl in W/m²K": 5.00,
-                "Mittlere u_wueua_mfl in W/m²K": 0.98
+                "Mittlere u_wueua_mfl in W/m²K": 0.98,
+                "Mittlere u_geb_mfl [W/m²K]": 1.43
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.63,
                 "Mittlere u_fen_mfl in W/m²K": 8.36,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.41,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.00,
-                "Mittlere u_wueua_mfl in W/m²K": 0.61
+                "Mittlere u_wueua_mfl in W/m²K": 0.61,
+                "Mittlere u_geb_mfl [W/m²K]": 0.68
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.16,
                 "Mittlere u_fen_mfl in W/m²K": 1.30,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
                 "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.24
+                "Mittlere u_wueua_mfl in W/m²K": 0.24,
+                "Mittlere u_geb_mfl [W/m²K]": 0.22
             }
         }
     },
@@ -281,21 +314,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 2.70,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.38,
                 "Mittlere u_d_fen_mfl in W/m²K": 0.66,
-                "Mittlere u_wueua_mfl in W/m²K": 0.64
+                "Mittlere u_wueua_mfl in W/m²K": 0.64,
+                "Mittlere u_geb_mfl [W/m²K]": 1.20
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.48,
                 "Mittlere u_fen_mfl in W/m²K": 2.04,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.28,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.03,
-                "Mittlere u_wueua_mfl in W/m²K": 0.41
+                "Mittlere u_wueua_mfl in W/m²K": 0.41,
+                "Mittlere u_geb_mfl [W/m²K]": 0.62
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.25,
                 "Mittlere u_fen_mfl in W/m²K": 1.14,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.13,
-                "Mittlere u_wueua_mfl in W/m²K": 0.20
+                "Mittlere u_wueua_mfl in W/m²K": 0.20,
+                "Mittlere u_geb_mfl [W/m²K]": 0.31
             }
         }
     },
@@ -306,21 +342,24 @@
                 "Mittlere u_fen_mfl in W/m²K": 3.11,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.56,
                 "Mittlere u_d_fen_mfl in W/m²K": 4.00,
-                "Mittlere u_wueua_mfl in W/m²K": 1.02
+                "Mittlere u_wueua_mfl in W/m²K": 1.02,
+                "Mittlere u_geb_mfl [W/m²K]": 1.14
             },
             "1979 - 2009": {
                 "Mittlere u_aw_mfl in W/m²K": 0.51,
                 "Mittlere u_fen_mfl in W/m²K": 2.18,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.25,
                 "Mittlere u_d_fen_mfl in W/m²K": 2.01,
-                "Mittlere u_wueua_mfl in W/m²K": 0.39
+                "Mittlere u_wueua_mfl in W/m²K": 0.39,
+                "Mittlere u_geb_mfl [W/m²K]": 0.54
             },
             "2010 - 2030": {
                 "Mittlere u_aw_mfl in W/m²K": 0.24,
                 "Mittlere u_fen_mfl in W/m²K": 1.20,
                 "Mittlere u_wueoa_opak_mfl in W/m²K": 0.11,
                 "Mittlere u_d_fen_mfl in W/m²K": 1.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.22
+                "Mittlere u_wueua_mfl in W/m²K": 0.22,
+                "Mittlere u_geb_mfl [W/m²K]": 0.28
             }
         }
     }
