@@ -1,0 +1,3 @@
+## Information
+
+Data about Non-Residential Buildings and their archetypes is taken from: [German non-residential building typology](https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-Deutschland)
