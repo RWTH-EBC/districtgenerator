@@ -1,3 +1,15 @@
 ## Information
 
 Data about Non-Residential Buildings and their archetypes is taken from: [German non-residential building typology](https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-Deutschland)
+
+
+| German Description                                                                 | Key        | Unit    | Explanation in English                                             |
+|------------------------------------------------------------------------------------|------------|---------|---------------------------------------------------------------------|
+| U-Wert Außenwand                                                                   | u_aw       | [W/m²K] | Average area-weighted U-value of the exterior wall                  |
+| U-Wert Fenster                                                                     | u_fen      | [W/m²K] | Average area-weighted U-value of the windows                        |
+| U-Wert Dach                                                                        | u_d_opak   | [W/m²K] | Average area-weighted U-value of the opaque parts of the roof       |
+| U-Wert Dachfenster                                                                 | u_d_transp | [W/m²K] | Average area-weighted U-value of the roof windows                   |
+| U-Wert der unteren Gebäudeabschlusses                                              | u_ug       | [W/m²K] | Average area-weighted U-value of the lower building closure         |
+| U-Wert des Gebäudes                                                                | u_geb      | [W/m²K] | Average area-weighted U-value of the building                       |
+
+
