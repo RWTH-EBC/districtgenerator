@@ -2,6 +2,8 @@
 
 Data about Non-Residential Buildings and their archetypes is taken from: [German non-residential building typology](https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-Deutschland)
 
+Wall Window Ratio have been obtained from the same typology. As there is no data on placement of windows, they are eqully distributed. 
+
 
 | German Description                                                                 | Key        | Unit    | Explanation in English                                             |
 |------------------------------------------------------------------------------------|------------|---------|---------------------------------------------------------------------|
@@ -11,5 +13,25 @@ Data about Non-Residential Buildings and their archetypes is taken from: [German
 | U-Wert Dachfenster                                                                 | u_d_transp | [W/m²K] | Average area-weighted U-value of the roof windows                   |
 | U-Wert der unteren Gebäudeabschlusses                                              | u_ug       | [W/m²K] | Average area-weighted U-value of the lower building closure         |
 | U-Wert des Gebäudes                                                                | u_geb      | [W/m²K] | Average area-weighted U-value of the building                       |
+| Prozentuale Verteilung der Festerflächen                                           |  "wwr_north", "wwr_south", "wwr_east",  "wwr_west"   | - | Average ratio of windows per wall in north, south, east and west                    |
+
+
+The building types are named according to the following table: 
+
+| Deutsch                                                                                             | English                                                                                             | Abbreviation |
+|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|--------------|
+| IWU Büro-, Verwaltungs- oder Amtsgebäude                                                           | IWU Office, Administrative or Government Buildings                                                 | oag          |
+| IWU Gebäude für Forschung und Hochschullehre                                                       | IWU Research and University Teaching                                                                | rnt          |
+| IWU Gebäude für Gesundheit und Pflege                                                              | IWU Health and Care                                                                                 | hlc          |
+| IWU Schule, Kindertagesstätte und sonstiges Betreuungsgebäude                                      | IWU School, Day Nursery and other Care                                                              | sdc          |
+| IWU Gebäude für Kultur und Freizeit                                                                | IWU Culture and Leisure                                                                             | clt          |
+| IWU Sportgebäude                                                                                   | IWU Sports Facilities                                                                               | spf          |
+| IWU Beherbergungs- oder Unterbringungsgebäude, Gastronomie- oder Verpflegungsgebäude               | IWU Hotels, Boarding, Restaurants or Catering                                                       | hbr          |
+| IWU Produktions-, Werkstatt-, Lager- oder Betriebsgebäude                                          | IWU Production, Workshop, Warehouse or Operations                                                   | pwo          |
+| IWU Handelsgebäude                                                                                 | IWU Trade Buildings                                                                                 | trd          |
+| IWU Technikgebäude (Ver- und Entsorgung)                                                           | IWU Technical and Utility (supply and disposal)                                                     | tud          |
+| IWU Verkehrsgebäude                                                                                | IWU Transport                                                                                       | trs          |
+| IWU Generalisierte Dienstleistungsgebäude, beinhaltet Kategorien (1) bis (7) und (9)               | IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)                       | gs1          |
+| IWU Generalisierte Produktionsgebäude und ähnliche, beinhaltet Kategorien (8), (10), (11)          | IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)                 | gs2          |
 
 

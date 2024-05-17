@@ -12,6 +12,7 @@ from districtgenerator.envelope import Envelope
 from districtgenerator.solar import Sun
 from districtgenerator.users import Users
 from districtgenerator.plots import DemandPlots
+from districtgenerator.non_residential import NonResidential
 import functions.weather_handling as weather_handling 
 
 class Datahandler():
@@ -277,54 +278,102 @@ class Datahandler():
             
 
         for building in self.district:
-
-            # convert short names into designation needes for TEASER
-            building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
-            retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
-
-             
-            # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
-            if self.advancedModel is not None:
-                number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
-                height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+            # check if building type is residential or non residential 
+            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
             
-            else:  
-                number_of_floors = 3
-                height_of_floors = 3.125
-            # adds residentials buildings to TEASER project
-            # To Do: Write code to add non residential buildings 
-            prj.add_residential(
-                method='tabula_de',
-                usage=building_type,
-                name="ResidentialBuildingTabula",
-                year_of_construction=building["buildingFeatures"]["year"],
-                number_of_floors=number_of_floors,
-                height_of_floors=height_of_floors,
-                net_leased_area=building["buildingFeatures"]["area"],
-                construction_type=retrofit_level)
+                # convert short names into designation needes for TEASER
+                building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+                retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
-            # %% create envelope object
-            # containing all physical data of the envelope
-            building["envelope"] = Envelope(prj=prj,
-                                            building_params=building["buildingFeatures"],
-                                            construction_type=retrofit_level,
-                                            file_path = self.filePath)
-            
+                
+                # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
+                if self.advancedModel is not None:
+                    number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                    height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                
+                else:  
+                    number_of_floors = 3
+                    height_of_floors = 3.125
+                # adds residentials buildings to TEASER project
+                # To Do: Write code to add non residential buildings 
 
-            # %% create user object
-            # containing number occupants, electricity demand,...
-            building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                    prj.add_residential(
+                        method='tabula_de',
+                        usage=building_type,
+                        name="ResidentialBuildingTabula",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        number_of_floors=number_of_floors,
+                        height_of_floors=height_of_floors,
+                        net_leased_area=building["buildingFeatures"]["area"],
+                        construction_type=retrofit_level)
 
-            # %% calculate design heat loads
-            # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-            # at heatimg limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+                    # %% create envelope object
+                    # containing all physical data of the envelope
+                    building["envelope"] = Envelope(prj=prj,
+                                                    building_params=building["buildingFeatures"],
+                                                    construction_type=retrofit_level,
+                                                    file_path = self.filePath)
+                    
+
+                    # %% create user object
+                    # containing number occupants, electricity demand,...
+                    building["user"] = Users(building=building["buildingFeatures"]["building"],
+                                            area=building["buildingFeatures"]["area"])
+
+                    # %% calculate design heat loads
+                    # at norm outside temperature
+                    building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+                    # at bivalent temperature
+                    building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+                    # at heatimg limit temperature
+                    building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+                    # for drinking hot water
+                    building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+            # Check if the building type is a supported non residential building. 
+            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"]:
+                print("We are about to generate a Non Resdeintal building.")
+                 # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
+                if self.advancedModel is not None:
+                    number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                    height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                
+                else:  
+                    number_of_floors = 3
+                    height_of_floors = 3.125
+                print("Test,", number_of_floors, height_of_floors)
+
+                nrb_prj = NonResidential(
+                        usage=building["buildingFeatures"]["building"],
+                        name="IWUNonResidentialBuilding",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        number_of_floors=number_of_floors,
+                        height_of_floors=height_of_floors,
+                        net_leased_area=building["buildingFeatures"]["area"],)
+                # %% create envelope object
+                # containing all physical data of the envelope
+                building["envelope"] = Envelope(prj=nrb_prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=None,
+                                                file_path = self.filePath)
+                
+
+                # %% create user object
+                # containing number occupants, electricity demand,...
+                building["user"] = Users(building=building["buildingFeatures"]["building"],
+                                        area=building["buildingFeatures"]["area"])
+
+                # %% calculate design heat loads
+                # at norm outside temperature
+                building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+                # at bivalent temperature
+                building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+                # at heatimg limit temperature
+                building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+                # for drinking hot water
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+                
+            else:
+                raise AttributeError(f"The building type {building_type} is currently not supported.")
 
 
 
