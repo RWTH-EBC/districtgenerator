@@ -244,6 +244,11 @@ class Datahandler():
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
+        # check for Gap year and adjust data length 
+        if len(temp_sunDiff) == 8785:
+            # 31622400 = 60 * 60 * 24 * 366
+            self.time["dataLength"] =  31622400
+
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # interpolate input data to achieve required data resolution
@@ -354,58 +359,98 @@ class Datahandler():
                 model_data['storeys_above_ground'] = pd.to_numeric(model_data['storeys_above_ground'], errors='coerce')
 
         for building in self.district:
-
-
-            # convert short names into designation needed for TEASER
-            building_type = \
-                bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
-            retrofit_level = \
-                bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+            # check if building type is residential or non residential 
+            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
             
-            # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
-            if self.advancedModel is not None:
-                number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
-                height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
-                print(number_of_floors, height_of_floors)
-            
-            else:  
-                number_of_floors = 3
-                height_of_floors = 3.125
-            # adds residentials buildings to TEASER project
+                # convert short names into designation needes for TEASER
+                building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+                retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
-            # add buildings to TEASER project
-            prj.add_residential(method='tabula_de',
-                                usage=building_type,
-                                name="ResidentialBuildingTabula",
-                                year_of_construction=building["buildingFeatures"]["year"],
-                                number_of_floors=number_of_floors,
-                                height_of_floors=height_of_floors,
-                                net_leased_area=building["buildingFeatures"]["area"],
-                                construction_type=retrofit_level)
+                
+                # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
+                if self.advancedModel is not None:
+                    number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                    height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                
+                else:  
+                    number_of_floors = 3
+                    height_of_floors = 3.125
 
-            # %% create envelope object
-            # containing all physical data of the envelope
-            building["envelope"] = Envelope(prj=prj,
-                                            building_params=building["buildingFeatures"],
-                                            construction_type=retrofit_level,
-                                            file_path=self.filePath)
 
-            # %% create user object
-            # containing number occupants, electricity demand,...
-            building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                # add buildings to TEASER project
+                prj.add_residential(method='tabula_de',
+                                    usage=building_type,
+                                    name="ResidentialBuildingTabula",
+                                    year_of_construction=building["buildingFeatures"]["year"],
+                                    number_of_floors=number_of_floors,
+                                    height_of_floors=height_of_floors,
+                                    net_leased_area=building["buildingFeatures"]["area"],
+                                    construction_type=retrofit_level)
 
-            index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
-            building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
-             # %% calculate design heat loads
-            # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalenz")
-            # at heatimg limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+                # %% create envelope object
+                # containing all physical data of the envelope
+                building["envelope"] = Envelope(prj=prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=retrofit_level,
+                                                file_path=self.filePath)
+
+                # %% create user object
+                # containing number occupants, electricity demand,...
+                building["user"] = Users(building=building["buildingFeatures"]["building"],
+                                        area=building["buildingFeatures"]["area"])
+
+                index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+                building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+                # %% calculate design heat loads
+                # at norm outside temperature
+                building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+                # at bivalent temperature
+                building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalenz")
+                # at heatimg limit temperature
+                building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+                # for drinking hot water
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+        
+            # Check if the building type is a supported non residential building. 
+            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"]:
+                print("We are about to generate a Non Resdeintal building.")
+                 # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
+                if self.advancedModel is not None:
+                    number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                    height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                
+                else:  
+                    number_of_floors = 3
+                    height_of_floors = 3.125
+
+                nrb_prj = NonResidential(
+                        usage=building["buildingFeatures"]["building"],
+                        name="IWUNonResidentialBuilding",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        number_of_floors=number_of_floors,
+                        height_of_floors=height_of_floors,
+                        net_leased_area=building["buildingFeatures"]["area"],)
+                # %% create envelope object
+                # containing all physical data of the envelope
+                building["envelope"] = Envelope(prj=nrb_prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=None,
+                                                file_path = self.filePath)
+                
+                # %% create user object
+                # containing number occupants, electricity demand,...
+                building["user"] = Users(building=building["buildingFeatures"]["building"],
+                                        area=building["buildingFeatures"]["area"])
+                
+
+                # %% calculate design heat loads
+                building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+                building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+                building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+                
+            else:
+                raise AttributeError(f"The building type {building_type} is currently not supported.")
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath:str = None):
@@ -962,4 +1007,3 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-

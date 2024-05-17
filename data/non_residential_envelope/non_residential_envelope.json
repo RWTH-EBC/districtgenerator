@@ -1,365 +1,521 @@
 {
-    "IWU Office, Administrative or Government Buildings": {
+    "oag": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.29,
-                "Mittlere u_fen_mfl in W/m²K": 2.68,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.44,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.53,
-                "Mittlere u_wueua_mfl in W/m²K": 1.07,
-                "Mittlere u_geb_mfl [W/m²K]": 1.16
+                "u_aw": 1.29,
+                "u_fen": 2.68,
+                "u_d_opak": 0.44,
+                "u_d_transp": 1.53,
+                "u_ug": 1.07,
+                "u_geb": 1.16,
+                "wwr_north": 0.3,
+                "wwr_south": 0.3,
+                "wwr_east": 0.3,
+                "wwr_west": 0.3
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.48,
-                "Mittlere u_fen_mfl in W/m²K": 1.89,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.24,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.14,
-                "Mittlere u_wueua_mfl in W/m²K": 0.27,
-                "Mittlere u_geb_mfl [W/m²K]": 0.60
+                "u_aw": 0.48,
+                "u_fen": 1.89,
+                "u_d_opak": 0.24,
+                "u_d_transp": 2.14,
+                "u_ug": 0.27,
+                "u_geb": 0.60,
+                "wwr_north": 0.39,
+                "wwr_south": 0.39,
+                "wwr_east": 0.39,
+                "wwr_west": 0.39
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.19,
-                "Mittlere u_fen_mfl in W/m²K": 1.08,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.14,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.21,
-                "Mittlere u_geb_mfl [W/m²K]": 0.30
+                "u_aw": 0.19,
+                "u_fen": 1.08,
+                "u_d_opak": 0.14,
+                "u_d_transp": 1.30,
+                "u_ug": 0.21,
+                "u_geb": 0.30,
+                "wwr_north": 0.37,
+                "wwr_south": 0.37,
+                "wwr_east": 0.37,
+                "wwr_west": 0.37
             }
         }
     },
-    "IWU Research and University Teaching (2)": {
+    "IWU Research and University Teaching": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.28,
-                "Mittlere u_fen_mfl in W/m²K": 3.10,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.40,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.19,
-                "Mittlere u_wueua_mfl in W/m²K": 0.82,
-                "Mittlere u_geb_mfl [W/m²K]": 1.44
+                "u_aw": 1.28,
+                "u_fen": 3.10,
+                "u_d_opak": 0.40,
+                "u_d_transp": 2.19,
+                "u_ug": 0.82,
+                "u_geb": 1.44,
+                "wwr_north": 0.37,
+                "wwr_south": 0.37,
+                "wwr_east": 0.37,
+                "wwr_west": 0.37
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.29,
-                "Mittlere u_fen_mfl in W/m²K": 1.74,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.13,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.62,
-                "Mittlere u_wueua_mfl in W/m²K": 0.53,
-                "Mittlere u_geb_mfl [W/m²K]": 0.58
+                "u_aw": 0.29,
+                "u_fen": 1.74,
+                "u_d_opak": 0.13,
+                "u_d_transp": 0.62,
+                "u_ug": 0.53,
+                "u_geb": 0.58,
+                "wwr_north": 0.40,
+                "wwr_south": 0.40,
+                "wwr_east": 0.40,
+                "wwr_west": 0.40
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.20,
-                "Mittlere u_fen_mfl in W/m²K": 1.24,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.14,
-                "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.23,
-                "Mittlere u_geb_mfl [W/m²K]": 0.25
+                "u_aw": 0.20,
+                "u_fen": 1.24,
+                "u_d_opak": 0.14,
+                "u_d_transp": 0.00,
+                "u_ug": 0.23,
+                "u_geb": 0.25,
+                "wwr_north": 0.46,
+                "wwr_south": 0.46,
+                "wwr_east": 0.46,
+                "wwr_west": 0.46
             }
         }
     },
-    "IWU Health and Care (3)": {
+    "IWU Health and Care": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 0.95,
-                "Mittlere u_fen_mfl in W/m²K": 2.72,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.31,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.76,
-                "Mittlere u_wueua_mfl in W/m²K": 0.70,
-                "Mittlere u_geb_mfl [W/m²K]": 1.31
+                "u_aw": 0.95,
+                "u_fen": 2.72,
+                "u_d_opak": 0.31,
+                "u_d_transp": 0.76,
+                "u_ug": 0.70,
+                "u_geb": 1.31,
+                "wwr_north": 0.27,
+                "wwr_south": 0.27,
+                "wwr_east": 0.27,
+                "wwr_west": 0.27
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.44,
-                "Mittlere u_fen_mfl in W/m²K": 2.24,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.23,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.25,
-                "Mittlere u_geb_mfl [W/m²K]": 0.59
+                "u_aw": 0.44,
+                "u_fen": 2.24,
+                "u_d_opak": 0.23,
+                "u_d_transp": 2.07,
+                "u_ug": 0.25,
+                "u_geb": 0.59,
+                "wwr_north": 0.34,
+                "wwr_south": 0.34,
+                "wwr_east": 0.34,
+                "wwr_west": 0.34
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.21,
-                "Mittlere u_fen_mfl in W/m²K": 1.25,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.09,
-                "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.14,
-                "Mittlere u_geb_mfl [W/m²K]": 0.31
+                "u_aw": 0.21,
+                "u_fen": 1.25,
+                "u_d_opak": 0.09,
+                "u_d_transp": 0.00,
+                "u_ug": 0.14,
+                "u_geb": 0.31,
+                "wwr_north": 0.47,
+                "wwr_south": 0.47,
+                "wwr_east": 0.47,
+                "wwr_west": 0.47
             }
         }
     },
-    "IWU School, Day Nursery and other Care (4)": {
+    "IWU School, Day Nursery and other Care": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.09,
-                "Mittlere u_fen_mfl in W/m²K": 2.22,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.44,
-                "Mittlere u_d_fen_mfl in W/m²K": 3.17,
-                "Mittlere u_wueua_mfl in W/m²K": 0.79,
-                "Mittlere u_geb_mfl [W/m²K]": 1.12
+                "u_aw": 1.09,
+                "u_fen": 2.22,
+                "u_d_opak": 0.44,
+                "u_d_transp": 3.17,
+                "u_ug": 0.79,
+                "u_geb": 1.12,
+                "wwr_north": 0.40,
+                "wwr_south": 0.40,
+                "wwr_east": 0.40,
+                "wwr_west": 0.40
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.51,
-                "Mittlere u_fen_mfl in W/m²K": 2.05,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.25,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.64,
-                "Mittlere u_wueua_mfl in W/m²K": 0.44,
-                "Mittlere u_geb_mfl [W/m²K]": 0.70
+                "u_aw": 0.51,
+                "u_fen": 2.05,
+                "u_d_opak": 0.25,
+                "u_d_transp": 1.64,
+                "u_ug": 0.44,
+                "u_geb": 0.70,
+                "wwr_north": 0.43,
+                "wwr_south": 0.43,
+                "wwr_east": 0.43,
+                "wwr_west": 0.43
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.23,
-                "Mittlere u_fen_mfl in W/m²K": 1.17,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.14,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.27,
-                "Mittlere u_wueua_mfl in W/m²K": 0.18,
-                "Mittlere u_geb_mfl [W/m²K]": 0.33
+                "u_aw": 0.23,
+                "u_fen": 1.17,
+                "u_d_opak": 0.14,
+                "u_d_transp": 1.27,
+                "u_ug": 0.18,
+                "u_geb": 0.33,
+                "wwr_north": 0.36,
+                "wwr_south": 0.36,
+                "wwr_east": 0.36,
+                "wwr_west": 0.36
             }
         }
     },
-    "IWU Culture and Leisure (5)": {
+    "IWU Culture and Leisure": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.39,
-                "Mittlere u_fen_mfl in W/m²K": 2.56,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.75,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.68,
-                "Mittlere u_wueua_mfl in W/m²K": 0.99,
-                "Mittlere u_geb_mfl [W/m²K]": 1.16
+                "u_aw": 1.39,
+                "u_fen": 2.56,
+                "u_d_opak": 0.75,
+                "u_d_transp": 2.68,
+                "u_ug": 0.99,
+                "u_geb": 1.16,
+                "wwr_north": 0.30,
+                "wwr_south": 0.30,
+                "wwr_east": 0.30,
+                "wwr_west": 0.30
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.53,
-                "Mittlere u_fen_mfl in W/m²K": 2.04,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.33,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.94,
-                "Mittlere u_wueua_mfl in W/m²K": 0.44,
-                "Mittlere u_geb_mfl [W/m²K]": 0.52
+                "u_aw": 0.53,
+                "u_fen": 2.04,
+                "u_d_opak": 0.33,
+                "u_d_transp": 1.94,
+                "u_ug": 0.44,
+                "u_geb": 0.52,
+                "wwr_north": 0.29,
+                "wwr_south": 0.29,
+                "wwr_east": 0.29,
+                "wwr_west": 0.29
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.51,
-                "Mittlere u_fen_mfl in W/m²K": 0.96,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.33,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.90,
-                "Mittlere u_wueua_mfl in W/m²K": 0.54,
-                "Mittlere u_geb_mfl [W/m²K]": 0.30
+                "u_aw": 0.51,
+                "u_fen": 0.96,
+                "u_d_opak": 0.33,
+                "u_d_transp": 0.90,
+                "u_ug": 0.54,
+                "u_geb": 0.30,
+                "wwr_north": 0.51,
+                "wwr_south": 0.51,
+                "wwr_east": 0.51,
+                "wwr_west": 0.51
             }
         }
     },
-    "IWU Sports Facilities (6)": {
+    "IWU Sports Facilities": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.35,
-                "Mittlere u_fen_mfl in W/m²K": 3.09,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.40,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.57,
-                "Mittlere u_geb_mfl [W/m²K]": 1.06
+                "u_aw": 1.35,
+                "u_fen": 3.09,
+                "u_d_opak": 0.40,
+                "u_d_transp": 1.30,
+                "u_ug": 0.57,
+                "u_geb": 1.06,
+                "wwr_north": 0.59,
+                "wwr_south": 0.59,
+                "wwr_east": 0.59,
+                "wwr_west": 0.59
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.55,
-                "Mittlere u_fen_mfl in W/m²K": 2.56,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.34,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.05,
-                "Mittlere u_wueua_mfl in W/m²K": 0.57,
-                "Mittlere u_geb_mfl [W/m²K]": 0.66
+                "u_aw": 0.55,
+                "u_fen": 2.56,
+                "u_d_opak": 0.34,
+                "u_d_transp": 1.05,
+                "u_ug": 0.57,
+                "u_geb": 0.66,
+                "wwr_north": 0.27,
+                "wwr_south": 0.27,
+                "wwr_east": 0.27,
+                "wwr_west": 0.27
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.27,
-                "Mittlere u_fen_mfl in W/m²K": 1.07,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.99,
-                "Mittlere u_geb_mfl [W/m²K]": 0.39
+                "u_aw": 0.27,
+                "u_fen": 1.07,
+                "u_d_opak": 0.15,
+                "u_d_transp": 1.30,
+                "u_ug": 0.99,
+                "u_geb": 0.39,
+                "wwr_north": 0.13,
+                "wwr_south": 0.13,
+                "wwr_east": 0.13,
+                "wwr_west": 0.13
             }
         }
     },
-    "IWU Hotels, Boarding, Restaurants or Catering (7)": {
+    "IWU Hotels, Boarding, Restaurants or Catering": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.20,
-                "Mittlere u_fen_mfl in W/m²K": 2.76,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.80,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.30,
-                "Mittlere u_wueua_mfl in W/m²K": 0.83,
-                "Mittlere u_geb_mfl [W/m²K]": 1.24
+                "u_aw": 1.20,
+                "u_fen": 2.76,
+                "u_d_opak": 0.80,
+                "u_d_transp": 2.30,
+                "u_ug": 0.83,
+                "u_geb": 1.24,
+                "wwr_north": 0.30,
+                "wwr_south": 0.30,
+                "wwr_east": 0.30,
+                "wwr_west": 0.30
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.47,
-                "Mittlere u_fen_mfl in W/m²K": 2.07,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.29,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.78,
-                "Mittlere u_wueua_mfl in W/m²K": 0.37,
-                "Mittlere u_geb_mfl [W/m²K]": 0.79
+                "u_aw": 0.47,
+                "u_fen": 2.07,
+                "u_d_opak": 0.29,
+                "u_d_transp": 2.78,
+                "u_ug": 0.37,
+                "u_geb": 0.79,
+                "wwr_north": 0.33,
+                "wwr_south": 0.33,
+                "wwr_east": 0.33,
+                "wwr_west": 0.33
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.32,
-                "Mittlere u_fen_mfl in W/m²K": 1.24,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.18,
-                "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.26,
-                "Mittlere u_geb_mfl [W/m²K]": 0.38
+                "u_aw": 0.32,
+                "u_fen": 1.24,
+                "u_d_opak": 0.18,
+                "u_d_transp": 0.00,
+                "u_ug": 0.26,
+                "u_geb": 0.38,
+                "wwr_north": 0.32,
+                "wwr_south": 0.32,
+                "wwr_east": 0.32,
+                "wwr_west": 0.32
             }
         }
     },
-    "IWU Production, Workshop, Warehouse or Operations (8)": {
+    "IWU Production, Workshop, Warehouse or Operations": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.03,
-                "Mittlere u_fen_mfl in W/m²K": 2.99,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.53,
-                "Mittlere u_d_fen_mfl in W/m²K": 3.84,
-                "Mittlere u_wueua_mfl in W/m²K": 1.01,
-                "Mittlere u_geb_mfl [W/m²K]": 1.12
+                "u_aw": 1.03,
+                "u_fen": 2.99,
+                "u_d_opak": 0.53,
+                "u_d_transp": 3.84,
+                "u_ug": 1.01,
+                "u_geb": 1.12,
+                "wwr_north": 0.26,
+                "wwr_south": 0.26,
+                "wwr_east": 0.26,
+                "wwr_west": 0.26
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.51,
-                "Mittlere u_fen_mfl in W/m²K": 2.17,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.24,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.05,
-                "Mittlere u_wueua_mfl in W/m²K": 0.41,
-                "Mittlere u_geb_mfl [W/m²K]": 0.54
+                "u_aw": 0.51,
+                "u_fen": 2.17,
+                "u_d_opak": 0.24,
+                "u_d_transp": 2.05,
+                "u_ug": 0.41,
+                "u_geb": 0.54,
+                "wwr_north": 0.21,
+                "wwr_south": 0.21,
+                "wwr_east": 0.21,
+                "wwr_west": 0.21
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.24,
-                "Mittlere u_fen_mfl in W/m²K": 1.20,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.11,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.22,
-                "Mittlere u_geb_mfl [W/m²K]": 0.28
+                "u_aw": 0.24,
+                "u_fen": 1.20,
+                "u_d_opak": 0.11,
+                "u_d_transp": 1.07,
+                "u_ug": 0.22,
+                "u_geb": 0.28,
+                "wwr_north": 0.19,
+                "wwr_south": 0.19,
+                "wwr_east": 0.19,
+                "wwr_west": 0.19
             }
         }
     },
-    "IWU Trade Buildings (9)": {
+    "IWU Trade Buildings": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 0.55,
-                "Mittlere u_fen_mfl in W/m²K": 3.03,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.22,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.37,
-                "Mittlere u_geb_mfl [W/m²K]": 1.32
+                "u_aw": 0.55,
+                "u_fen": 3.03,
+                "u_d_opak": 0.22,
+                "u_d_transp": 0.07,
+                "u_ug": 0.37,
+                "u_geb": 1.32,
+                "wwr_north": 0.20,
+                "wwr_south": 0.20,
+                "wwr_east": 0.20,
+                "wwr_west": 0.20
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.40,
-                "Mittlere u_fen_mfl in W/m²K": 2.10,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.31,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.35,
-                "Mittlere u_wueua_mfl in W/m²K": 0.50,
-                "Mittlere u_geb_mfl [W/m²K]": 0.50
+                "u_aw": 0.40,
+                "u_fen": 2.10,
+                "u_d_opak": 0.31,
+                "u_d_transp": 2.35,
+                "u_ug": 0.50,
+                "u_geb": 0.50,
+                "wwr_north": 0.23,
+                "wwr_south": 0.23,
+                "wwr_east": 0.23,
+                "wwr_west": 0.23
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.25,
-                "Mittlere u_fen_mfl in W/m²K": 1.05,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.16,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.90,
-                "Mittlere u_wueua_mfl in W/m²K": 0.12,
-                "Mittlere u_geb_mfl [W/m²K]": 0.33
+                "u_aw": 0.25,
+                "u_fen": 1.05,
+                "u_d_opak": 0.16,
+                "u_d_transp": 0.90,
+                "u_ug": 0.12,
+                "u_geb": 0.33,
+                "wwr_north": 0.40,
+                "wwr_south": 0.40,
+                "wwr_east": 0.40,
+                "wwr_west": 0.40
             }
         }
     },
-    "IWU Technical and Utility (supply and disposal) (10)": {
+    "IWU Technical and Utility (supply and disposal)": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.98,
-                "Mittlere u_fen_mfl in W/m²K": 4.20,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.99,
-                "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 1.51,
-                "Mittlere u_geb_mfl [W/m²K]": 1.30
+                "u_aw": 1.98,
+                "u_fen": 4.20,
+                "u_d_opak": 0.99,
+                "u_d_transp": 0.00,
+                "u_ug": 1.51,
+                "u_geb": 1.30,
+                "wwr_north": 0.23,
+                "wwr_south": 0.23,
+                "wwr_east": 0.23,
+                "wwr_west": 0.23
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.47,
-                "Mittlere u_fen_mfl in W/m²K": 2.02,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.22,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.00,
-                "Mittlere u_wueua_mfl in W/m²K": 0.37,
-                "Mittlere u_geb_mfl [W/m²K]": 0.55
+                "u_aw": 0.47,
+                "u_fen": 2.02,
+                "u_d_opak": 0.22,
+                "u_d_transp": 0.00,
+                "u_ug": 0.37,
+                "u_geb": 0.55,
+                "wwr_north": 0.12,
+                "wwr_south": 0.12,
+                "wwr_east": 0.12,
+                "wwr_west": 0.12
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.16,
-                "Mittlere u_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
-                "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.24,
-                "Mittlere u_geb_mfl [W/m²K]": 0.24
+                "u_aw": 0.16,
+                "u_fen": 1.30,
+                "u_d_opak": 0.15,
+                "u_d_transp": 0.00,
+                "u_ug": 0.24,
+                "u_geb": 0.24,
+                "wwr_north": 0.00,
+                "wwr_south": 0.00,
+                "wwr_east": 0.00,
+                "wwr_west": 0.00
             }
         }
     },
-    "IWU Transport (11)": {
+    "IWU Transport": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.78,
-                "Mittlere u_fen_mfl in W/m²K": 5.00,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 1.41,
-                "Mittlere u_d_fen_mfl in W/m²K": 5.00,
-                "Mittlere u_wueua_mfl in W/m²K": 0.98,
-                "Mittlere u_geb_mfl [W/m²K]": 1.43
+                "u_aw": 1.78,
+                "u_fen": 5.00,
+                "u_d_opak": 1.41,
+                "u_d_transp": 5.00,
+                "u_ug": 0.98,
+                "u_geb": 1.43,
+                "wwr_north": 0.42,
+                "wwr_south": 0.42,
+                "wwr_east": 0.42,
+                "wwr_west": 0.42
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.63,
-                "Mittlere u_fen_mfl in W/m²K": 8.36,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.41,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.00,
-                "Mittlere u_wueua_mfl in W/m²K": 0.61,
-                "Mittlere u_geb_mfl [W/m²K]": 0.68
+                "u_aw": 0.63,
+                "u_fen": 0.41,
+                "u_d_opak": 0.41,
+                "u_d_transp": 0.00,
+                "u_ug": 0.61,
+                "u_geb": 0.68,
+                "wwr_north": 0.06,
+                "wwr_south": 0.06,
+                "wwr_east": 0.06,
+                "wwr_west": 0.06
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.16,
-                "Mittlere u_fen_mfl in W/m²K": 1.30,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
-                "Mittlere u_d_fen_mfl in W/m²K": "#DIV/0!",
-                "Mittlere u_wueua_mfl in W/m²K": 0.24,
-                "Mittlere u_geb_mfl [W/m²K]": 0.22
+                "u_aw": 0.16,
+                "u_fen": 1.30,
+                "u_d_opak": 0.15,
+                "u_d_transp": 0.00,
+                "u_ug": 0.24,
+                "u_geb": 0.22,
+                "wwr_north": 0.00,
+                "wwr_south": 0.00,
+                "wwr_east": 0.00,
+                "wwr_west": 0.00
             }
         }
     },
     "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.11,
-                "Mittlere u_fen_mfl in W/m²K": 2.70,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.38,
-                "Mittlere u_d_fen_mfl in W/m²K": 0.66,
-                "Mittlere u_wueua_mfl in W/m²K": 0.64,
-                "Mittlere u_geb_mfl [W/m²K]": 1.20
+                "u_aw": 1.11,
+                "u_fen": 2.80,
+                "u_d_opak": 0.45,
+                "u_d_transp": 0.66,
+                "u_ug": 0.64,
+                "u_geb": 1.20,
+                "wwr_north": 0.34,
+                "wwr_south": 0.34,
+                "wwr_east": 0.34,
+                "wwr_west": 0.34
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.48,
-                "Mittlere u_fen_mfl in W/m²K": 2.04,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.28,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.03,
-                "Mittlere u_wueua_mfl in W/m²K": 0.41,
-                "Mittlere u_geb_mfl [W/m²K]": 0.62
+                "u_aw": 0.48,
+                "u_fen": 2.10,
+                "u_d_opak": 0.27,
+                "u_d_transp": 2.03,
+                "u_ug": 0.41,
+                "u_geb": 0.62,
+                "wwr_north": 0.34,
+                "wwr_south": 0.34,
+                "wwr_east": 0.34,
+                "wwr_west": 0.34
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.25,
-                "Mittlere u_fen_mfl in W/m²K": 1.14,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.15,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.13,
-                "Mittlere u_wueua_mfl in W/m²K": 0.20,
-                "Mittlere u_geb_mfl [W/m²K]": 0.31
+                "u_aw": 0.25,
+                "u_fen": 1.12,
+                "u_d_opak": 0.13,
+                "u_d_transp": 1.13,
+                "u_ug": 0.20,
+                "u_geb": 0.31,
+                "wwr_north": 0.38,
+                "wwr_south": 0.38,
+                "wwr_east": 0.38,
+                "wwr_west": 0.38
             }
         }
     },
     "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)": {
         "building_age_group": {
             "1860 - 1978": {
-                "Mittlere u_aw_mfl in W/m²K": 1.03,
-                "Mittlere u_fen_mfl in W/m²K": 3.11,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.56,
-                "Mittlere u_d_fen_mfl in W/m²K": 4.00,
-                "Mittlere u_wueua_mfl in W/m²K": 1.02,
-                "Mittlere u_geb_mfl [W/m²K]": 1.14
+                "u_aw": 1.78,
+                "u_fen": 5.00,
+                "u_d_opak": 1.41,
+                "u_d_transp": 5.00,
+                "u_ug": 0.98,
+                "u_geb": 1.43,
+                "wwr_north": 0.26,
+                "wwr_south": 0.26,
+                "wwr_east": 0.26,
+                "wwr_west": 0.26
             },
             "1979 - 2009": {
-                "Mittlere u_aw_mfl in W/m²K": 0.51,
-                "Mittlere u_fen_mfl in W/m²K": 2.18,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.25,
-                "Mittlere u_d_fen_mfl in W/m²K": 2.01,
-                "Mittlere u_wueua_mfl in W/m²K": 0.39,
-                "Mittlere u_geb_mfl [W/m²K]": 0.54
+                "u_aw": 0.63,
+                "u_fen": 0.41,
+                "u_d_opak": 0.41,
+                "u_d_transp": 0.00,
+                "u_ug": 0.61,
+                "u_geb": 0.68,
+                "wwr_north": 0.20,
+                "wwr_south": 0.20,
+                "wwr_east": 0.20,
+                "wwr_west": 0.20
             },
             "2010 - 2030": {
-                "Mittlere u_aw_mfl in W/m²K": 0.24,
-                "Mittlere u_fen_mfl in W/m²K": 1.20,
-                "Mittlere u_wueoa_opak_mfl in W/m²K": 0.11,
-                "Mittlere u_d_fen_mfl in W/m²K": 1.07,
-                "Mittlere u_wueua_mfl in W/m²K": 0.22,
-                "Mittlere u_geb_mfl [W/m²K]": 0.28
+                "u_aw": 0.24,
+                "u_fen": 1.20,
+                "u_d_opak": 0.11,
+                "u_d_transp": 1.07,
+                "u_ug": 0.22,
+                "u_geb": 0.28,
+                "wwr_north": 0.19,
+                "wwr_south": 0.19,
+                "wwr_east": 0.19,
+                "wwr_west": 0.19
             }
         }
     }
