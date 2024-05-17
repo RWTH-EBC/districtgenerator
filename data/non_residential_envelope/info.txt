@@ -34,4 +34,11 @@ The building types are named according to the following table:
 | IWU Generalisierte Dienstleistungsgebäude, beinhaltet Kategorien (1) bis (7) und (9)               | IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)                       | gs1          |
 | IWU Generalisierte Produktionsgebäude und ähnliche, beinhaltet Kategorien (8), (10), (11)          | IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)                 | gs2          |
 
+Surface estimation factors have been calculated according to: 
+
+ow1  = aw_fl [m2] / nrf_2 [m2]
+win1 = fen_fl [m²] / nrf_2 [m2]
+rwt1 = D_fl_wueoA_opak [m2] / nrf_2 [m2]
+gf1 = UG_fl_wueuA / nrf_2 [m2]
+
 
