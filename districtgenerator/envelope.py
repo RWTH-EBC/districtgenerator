@@ -606,6 +606,7 @@ class Envelope():
             self.A = {}  # in m2
              
             self.A["f"] = prj.net_leased_area
+            # need to check all data for each orientation 
             
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
@@ -714,6 +715,49 @@ class Envelope():
             raise ValueError(f"Method {method} not supported")
 
         return Q_nHC
+    
+    def calculateHeatCapacity(self, prj):
+        if isinstance(prj, Project): 
+            self.C_m = sum((self.kappa["opaque"][x]
+                                * self.A["opaque"][x]) for x in self.opaque)
+        elif isinstance(prj, NonResidential):
+              # Assumption of thermal heat capacity 
+            # According to EN ISO 13790:2008-09, S. 81 / DIBS
+            # -----------------------------------------------------------------------------------------
+            # |   Building Mass   |      Am [in m^2]       |           Cm [in J/K]                      |
+            # -----------------------------------------------------------------------------------------
+            # |    Very Light     |        2.5 * Af        |         80000 * Af                         |
+            # |      Light        |        2.5 * Af        |         110000 * Af                        |
+            # |      Medium       |        2.5 * Af        |         165000 * Af                        |
+            # |      Heavy        |          3 * Af        |         260000 * Af                        |
+            # |   Very Heavy      |        3.5 * Af        |         370000 * Af                        |
+            # -----------------------------------------------------------------------------------------
+            # in City Energy Analyst german database the following values are chosen 
+            # -----------------------------------------------------------------------------------------
+            # |      Description       |         Code           |      Cm_Af                           |
+            # -----------------------------------------------------------------------------------------
+            # |  Light construction    |  CONSTRUCTION_AS1      |    110000                             |
+            # |  Medium construction   |  CONSTRUCTION_AS2      |    165000                             |
+            # |  Heavy construction    |  CONSTRUCTION_AS3      |    300000                             |
+            # |  TABULA standard value |  CONSTRUCTION_TAB      |    162000                             |
+            # -----------------------------------------------------------------------------------------
+            # Af are condioned areas
+            # In TEASER multiple heat capacity are calculated, which are then summarized to one
+            # in Non-Residential only one is given 
+            if prj.construction_type is "Tabula":
+                self.C_m = 2.5 * 162000 * prj.net_leased_area
+            elif prj.construction_type is "Light":
+                self.C_m = 2.5 * 110000 * prj.net_leased_area
+            elif prj.construction_type is "Medium":
+                self.C_m = 2.5 * 165000 * prj.net_leased_area
+            elif prj.construction_type is "Heavy":
+                self.C_m = 2.5 * 300000 * prj.net_leased_area
+            else:
+                raise ValueError(f"{prj.construction_type} currently not implemented for calculateHeatCapacity for Non Residential Buildings")
+            
+        else:
+            raise TypeError(f"Currently no method implemented for caluclation of average Heat Capacity for type f{type(prj)}")
+
 
     def calcNormativeProperties(self, SunRad, internal_gains):
         """
@@ -733,8 +777,8 @@ class Envelope():
 
         if SunRad is None:
             SunRad = []
-        self.C_m = sum((self.kappa["opaque"][x]
-                        * self.A["opaque"][x]) for x in self.opaque)
+       
+        C_m = self.calculateHeatCapacity(self.prj)
         temp = self.C_m / self.A["f"]
 
         # 5 possible building classes DIN EN ISO 13790

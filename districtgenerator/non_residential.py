@@ -19,9 +19,21 @@ class NonResidential(object):
         - prj.buildings[self.id].outer_area
         - prj.buildings[self.id].window_area -> has to be caculated, as it is not present in data NWG.
 
-    Several parameters are are obligatory (name,  name, year_of_construction,
-    net_leased_area, type). 
+    Teasers uses typical layers and material for the build envrionment according to MASEA ( https://www.masea-ensan.de/ ). 
+    Currently, the gathering and combinatory selection of this is not feasible. 
 
+    Several parameters are are obligatory: name, year_of_construction, net_leased_area, type.
+    
+    Other parameters are optional, and are implemented to provide further options for configuration. 
+
+    In accordance with TEASER it is assumed, that each building has four orientations of outer walls and windows (north,
+    east, south and west), two orientations for rooftops (south and north), 
+    with tilt of 35 degree and one orientation for ground floors and one door (default orientation is west).
+
+    In TEASER it is assumed,  thath the surface is the product of the given net_leased_area and specific estimation factors. These
+    estimation factors where build by dividing the given 'surface area' by the 'reference floor area' in TABULA. The same approach is followed here. 
+    The factors are given in: 
+        - 
 
     Obliagotry Parameters
     ----------
@@ -117,7 +129,8 @@ class NonResidential(object):
         net_leased_area,
         usage,  
         number_of_floors,
-        height_of_floors
+        height_of_floors,
+        construction_type = "Tabula", 
     ):
         self.name = name 
         self.year_of_construction = year_of_construction
@@ -126,8 +139,19 @@ class NonResidential(object):
         self.height = None
         self.number_of_floors=float(number_of_floors)
         self.height_of_floors=float(height_of_floors)
+
+        # Validate construction_type
+        valid_construction_types = ["Light", "Medium", "Heavy", "Tabula"]
+        if construction_type and construction_type not in valid_construction_types:
+            raise ValueError(f"Invalid construction_type '{construction_type}'. Must be one of {valid_construction_types}.")
+        
+        # check Orientation 
+        
+
+
         self.volume = self.calculate_volume()
         self.parameters = self.load_building_data()
+        self.facade_estimation_factors = self.load_surface_estimation_factors()
 
         self.outer_wall_names = {
             "Exterior Facade North": [90.0, 0.0],
@@ -161,6 +185,41 @@ class NonResidential(object):
 
     def calculate_volume(self):
         self.volume = self.net_leased_area * self.number_of_floors * self.height_of_floors
+
+    def load_surface_estimation_factors(self):
+        """
+        Load surface estimation factors data from a JSON file
+
+       
+        Returns
+        -------
+        dict
+            Dictionary with the surface estimation factors:
+            {
+                'rt1': 0.625,
+                'ow1': 0.77604,
+                'gf1': 0.625,
+                'win1': 0.18854
+                }
+        """
+        DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential_envelope', 'suface_estimation_factors.json')
+        with open(DATA_PATH, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+    
+        # Validate if the archetype exists in the data
+        if self.usage not in data:
+            raise ValueError(f"Archetype '{self.usage}' not found in the data.")
+    
+        # Get the building age groups for the specified archetype
+        age_groups = data[self.usage]["building_age_group"]
+        
+        # Validate if the year_of_construction falls within any age group
+        for age_range, parameters in age_groups.items():
+            start_year, end_year = map(int, age_range.split(' - '))
+            if start_year <= self.year_of_construction <= end_year:
+                return parameters
+
     
     def load_building_data(self):
         """
