@@ -134,7 +134,11 @@ class NonResidential(object):
         usage,  
         number_of_floors,
         height_of_floors,
-        construction_type = "Tabula", 
+        construction_type = "Tabula",
+        street_name = "",
+        city = "",
+        longitude = 6.06,
+        latitude = 50.79, 
     ):
         self.name = name 
         self.year_of_construction = year_of_construction
@@ -142,7 +146,11 @@ class NonResidential(object):
         self.usage = usage 
         self.height = None
         self.number_of_floors=float(number_of_floors)
-        self.height_of_floors=float(height_of_floors)
+        self.height_of_floors=float(height_of_floors)     
+        self.street_name = street_name
+        self.city = city
+        self.longitude = longitude
+        self.latitude = latitude
 
         # To-Do: Check zone factors
         self.zone_area_factors = {"SingleDwelling": [1, "Living"]} 
@@ -153,35 +161,28 @@ class NonResidential(object):
             raise ValueError(f"Invalid construction_type '{construction_type}'. Must be one of {valid_construction_types}.")
         
         # check Orientation 
-        
-
+    
 
         self.volume = self.calculate_volume()
         self.parameters = self.load_building_data()
         self.facade_estimation_factors = self.load_surface_estimation_factors()
 
-        self.street_name = ""
-        self.city = ""
-        self.longitude = 6.05
-        self.latitude = 50.79
+   
 
-        self._thermal_zones = []
-        self._outer_area = {}
-        self._window_area = {}
-
-        self.outer_wall_names = {
+        # [tilt, orientation]
+        self._outer_wall_names = {
             "Exterior Facade North": [90.0, 0.0],
             "Exterior Facade East": [90.0, 90.0],
             "Exterior Facade South": [90.0, 180.0],
             "Exterior Facade West": [90.0, 270.0],
         }
-        # [tilt, orientation]
+       
 
-        self.roof_names = {"Rooftop": [0, -1]}  # [0, -1]
+        self._roof_names = {"Rooftop": [0, -1]}  # [0, -1]
 
-        self.ground_floor_names = {"Ground Floor": [0, -2]}  # [0, -2]
+        self._ground_floor_names = {"Ground Floor": [0, -2]}  # [0, -2]
 
-        self.window_names = {
+        self._window_names = {
             "Window Facade North": [90.0, 0.0],
             "Window Facade East": [90.0, 90.0],
             "Window Facade South": [90.0, 180.0],
@@ -189,10 +190,31 @@ class NonResidential(object):
         }
         # no information about the door, inner walls, or ceiling in the archetype
         # Hence No self.door_names, self.inner_wall_names, self.ceiling_names are given
-        # 
+        # As there is no TABULA Classes present, 
+        # the strucutre for districtgenerators needs to be copied for area calcluation in a dicitonary. 
 
-        self.fill_outer_area_dict()
-        self.fill_window_area_dict()
+        self.structure = {
+            "floor": {"rooms": 3, "area": 120},
+            "ceiling": {"type": "flat", "material": "concrete"},
+            "innerWall": {"color": "white", "material": "brick"},
+            "door": {"count": 5, "material": "wood"},
+            "rooftop": {"type": "gable", "material": "shingles"},
+            "groundfloor": {"area": 100},
+            "window": {"count": 10, "material": "glass"},
+            "outerWall": {"color": "gray", "material": "concrete"}
+        }      
+        
+        self._thermal_zones = []
+        self.outer_area = {}
+        self.window_area = {}
+        self.outer_wall = {}
+    
+
+    
+
+        #self.fill_outer_area_dict()
+        #self.fill_window_area_dict()
+        self.generate_archetype()
 
     def _check_year_of_construction(self):
         """Assigns the bldg age group according to year of construction"""
@@ -219,89 +241,71 @@ class NonResidential(object):
         """
 
         self.thermal_zones = None
-        self._check_year_of_construction(self.year_of_construction)
+        # self._check_year_of_construction(self.year_of_construction)
         # help area for the correct building area setting while using typeBldgs
         type_bldg_area = self.net_leased_area
         self.net_leased_area = 0.0
-
+        print(self.facade_estimation_factors)
         for key, value in self.zone_area_factors.items():
             zone = ThermalZone(parent=self)
             zone.name = key
             zone.area = type_bldg_area * value[0]
-            use_cond = UseCond(parent=zone)
-            use_cond.load_use_conditions(zone_usage=value[1])
-            zone.use_conditions = use_cond
+            #use_cond = UseCond(parent=zone)
+            #use_cond.load_use_conditions(zone_usage=value[1])
+            #zone.use_conditions = use_cond
 
-            zone.use_conditions.with_ahu = False
-        if self.facade_estimation_factors[self.building_age_group]["ow1"] != 0:
-            for key, value in self._outer_wall_names_1.items():
+            #zone.use_conditions.with_ahu = False
+            self.thermal_zones.append(zone)
+        if self.facade_estimation_factors["ow1"] != 0:
+            for key, value in self._outer_wall_names.items():
+                self.outer_area[key] = {}  
+                self.outer_area[key]["name"] = key
                 for zone in self.thermal_zones:
-                    outer_wall = OuterWall(zone)
-                    outer_wall.load_type_element(
-                        year=self.year_of_construction,
-                        construction=self._construction_type_1,
-                        data_class=self.parent.data,
-                    )
-                    outer_wall.name = key
-                    outer_wall.tilt = value[0]
-                    outer_wall.orientation = value[1]
-                    outer_wall.area = (
-                        self.facade_estimation_factors[self.building_age_group]["ow1"]
+                    self.outer_area[key]["tilt"] = value[0]
+                    self.outer_area[key]["orientation"] = value[1]
+                    self.outer_area[key]["area"] = (
+                        self.facade_estimation_factors["ow1"]
                         * zone.area
-                    ) / len(self._outer_wall_names_1)
-        
-        if self.facade_estimation_factors[self.building_age_group]["win1"] != 0:
-            for key, value in self.window_names_1.items():
-                for zone in self.thermal_zones:
-                    window = Window(zone)
-                    window.load_type_element(
-                        self.year_of_construction,
-                        construction=self._construction_type_1,
-                        data_class=self.parent.data,
-                    )
-                    window.name = key
-                    window.tilt = value[0]
-                    window.orientation = value[1]
-                    window.area = (
-                        self.facade_estimation_factors[self.building_age_group]["win1"]
-                        * zone.area
-                    ) / len(self.window_names_1)
-        
-        if self.facade_estimation_factors[self.building_age_group]["gf1"] != 0:
-            for key, value in self.ground_floor_names_1.items():
+                    ) / len(self._outer_wall_names)
 
-                for zone in self.thermal_zones:
-                    gf = GroundFloor(zone)
-                    gf.load_type_element(
-                        year=self.year_of_construction,
-                        construction=self._construction_type_1,
-                        data_class=self.parent.data,
-                    )
-                    gf.name = key
-                    gf.tilt = value[0]
-                    gf.orientation = value[1]
-                    gf.area = (
-                        self.facade_estimation_factors[self.building_age_group]["gf1"]
+        if self.facade_estimation_factors["win1"] != 0:
+            for key, value in self._window_names.items():
+               self.window_area[key] = {}
+               self.window_area[key]["name"] = key
+               for zone in self.thermal_zones:
+                    self.window_area[key]["tilt"] = value[0]
+                    self.window_area[key]["orientation"] = value[1]
+                    self.window_area[key]["area"] = (
+                        self.facade_estimation_factors["win1"]
                         * zone.area
-                    ) / len(self.ground_floor_names_1)
+                            ) / len(self._window_names)
+        
+        if self.facade_estimation_factors["gf1"] != 0:
+            self.ground_floor = {}  # Initialize self.ground_floor as a dictionary
+            for key, value in self._ground_floor_names.items():
+                self.outer_area[key] = {}  # Initialize the nested dictionary for each key
+                self.outer_area[key]["name"] = key
+                for zone in self.thermal_zones:
+                    self.outer_area[key]["tilt"] = value[0]
+                    self.outer_area[key]["orientation"] = value[1]
+                    self.outer_area[key]["area"] = (
+                        self.facade_estimation_factors["gf1"]
+                        * zone.area
+                    ) / len(self._ground_floor_names)
         
         
-        if self.facade_estimation_factors[self.building_age_group]["rt1"] != 0:
-            for key, value in self.roof_names_1.items():
+        if self.facade_estimation_factors["rt1"] != 0:
 
+            for key, value in self._roof_names.items():
+                self.outer_area[key] = {}  # Initialize the nested dictionary for each key
+                self.outer_area[key]["name"] = key
                 for zone in self.thermal_zones:
-                    rt = Rooftop(zone)
-                    rt.load_type_element(
-                        year=self.year_of_construction,
-                        construction=self._construction_type_1,
-                        data_class=self.parent.data,
-                    )
-                    rt.name = key
-                    rt.tilt = value[0]
-                    rt.orientation = value[1]
-                    rt.area = (
-                        self.facade_estimation_factors[self.building_age_group]["rt1"]
+                    self.outer_area[key]["tilt"] = value[0]
+                    self.outer_area[key]["orientation"] = value[1]
+                    self.outer_area[key]["area"] = (
+                        self.facade_estimation_factors["rt1"]
                         * zone.area
+                    ) / len(self._roof_names)
 
         
 
@@ -381,66 +385,7 @@ class NonResidential(object):
           # If no matching age group is found
         raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.bldg_type}'.")
     
-    def set_outer_wall_area(self, new_area, orientation):
-        """Outer area wall setter
 
-        sets the outer wall area of all walls of one direction and weights
-        them according to zone size. This function covers OuterWalls,
-        Rooftops, GroundFloors.
-
-        Parameters
-        ----------
-        new_area : float
-            new_area of all outer walls of one orientation
-        orientation : float
-            orientation of the obtained walls
-        """
-
-        for zone in self.thermal_zones:
-            for wall in zone.outer_walls:
-                if wall.orientation == orientation:
-                    wall.area = ((new_area / self.net_leased_area) * zone.area) / sum(
-                        count.orientation == orientation for count in zone.outer_walls
-                    )
-
-            for roof in zone.rooftops:
-                if roof.orientation == orientation:
-                    roof.area = ((new_area / self.net_leased_area) * zone.area) / sum(
-                        count.orientation == orientation for count in zone.rooftops
-                    )
-
-            for ground in zone.ground_floors:
-                if ground.orientation == orientation:
-                    ground.area = ((new_area / self.net_leased_area) * zone.area) / sum(
-                        count.orientation == orientation for count in zone.ground_floors
-                    )
-
-            for door in zone.doors:
-                if door.orientation == orientation:
-                    door.area = ((new_area / self.net_leased_area) * zone.area) / sum(
-                        count.orientation == orientation for count in zone.doors
-                    )
-
-    def set_window_area(self, new_area, orientation):
-        """Window area setter
-
-        sets the window area of all windows of one direction and weights
-        them according to zone size
-
-        Parameters
-        ----------
-        new_area : float
-            new_area of all window of one orientation
-        orientation : float
-            orientation of the obtained windows
-        """
-
-        for zone in self.thermal_zones:
-            for win in zone.windows:
-                if win.orientation == orientation:
-                    win.area = ((new_area / self.net_leased_area) * zone.area) / sum(
-                        count.orientation == orientation for count in zone.windows
-                    )
 
     def get_outer_wall_area(self, orientation):
         """Get aggregated wall area of one orientation
@@ -503,26 +448,6 @@ class NonResidential(object):
         return sum_area
 
 
-    def fill_outer_area_dict(self):
-        """Fills the attribute outer_area
-
-        Fills the dictionary outer_area with the sum of outer wall area
-        corresponding to the orientations of the building. This function
-        covers OuterWalls, GroundFloors and Rooftops.
-
-        """
-        self.outer_area = {}
-        for zone_count in self.thermal_zones:
-            for wall_count in zone_count.outer_walls:
-                self.outer_area[wall_count.orientation] = None
-            for roof in zone_count.rooftops:
-                self.outer_area[roof.orientation] = None
-            for ground in zone_count.ground_floors:
-                self.outer_area[ground.orientation] = None
-
-        for key in self.outer_area:
-            self.outer_area[key] = self.get_outer_wall_area(key)
-
     def fill_window_area_dict(self):
         """Fills the attribute
 
@@ -584,7 +509,7 @@ class NonResidential(object):
     def calculate_estimated_area(self, orientation, area_type):
         """Calculate an estimated area based on orientation and type."""
         factor = self.facade_estimation_factors.get(f"{area_type[0:3]}1", 1)
-        return self.net_leased_area * factor / len(self.outer_wall_names if area_type == "outer_wall" else self.window_names)
+        return self.net_leased_area * factor / len(self._outer_wall_names if area_type == "outer_wall" else self._window_names)
 
     @property
     def thermal_zones(self):

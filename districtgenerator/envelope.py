@@ -589,22 +589,22 @@ class Envelope():
             
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
-            self.A["opaque"]["south"] = prj.outer_area[0.0]
-            self.A["opaque"]["north"] = prj.outer_area[180.0]
+            self.A["opaque"]["south"] = prj.outer_area["Exterior Facade South"]["area"]
+            self.A["opaque"]["north"] = prj.outer_area["Exterior Facade North"]["area"]
             try:
-                self.A["opaque"]["west"] = prj.outer_area[90.0]
-                self.A["opaque"]["east"] = prj.outer_area[270.0]
+                self.A["opaque"]["west"] = prj.outer_area["Exterior Facade West"]["area"]
+                self.A["opaque"]["east"] = prj.outer_area["Exterior Facade East"]["area"]
             except KeyError:
                 self.A["opaque"]["west"] = 0.0
                 self.A["opaque"]["east"] = 0.0
 
             try:
-                self.A["opaque"]["roof"] = prj.outer_area[-1]
+                self.A["opaque"]["roof"] = prj.outer_area["Rooftop"]["area"]
             except KeyError:
                 self.A["opaque"]["roof"] = 1.2 * prj.buildings[
                     self.id].outer_area[-2]
 
-            self.A["opaque"]["floor"] = prj.outer_area[-2]
+            self.A["opaque"]["floor"] = prj.outer_area["Ground Floor"]["area"]
             self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
             # Fläche hausinterner Fußboden entspricht Nutzfläche
@@ -615,15 +615,17 @@ class Envelope():
             self.A["opaque"]["intWall"] = 1.5 * self.A["opaque"]["wall"]
 
             self.A["window"] = {}
-            self.A["window"]["south"] = prj.window_area[0.0]
-            self.A["window"]["north"] = prj.window_area[180.0]
+            self.A["window"]["south"] = prj.window_area["Window Facade South"]["area"]
+            self.A["window"]["north"] = prj.window_area["Window Facade North"]["area"]
             try:
-                self.A["window"]["west"] = prj.window_area[90.0]
-                self.A["window"]["east"] = prj.window_area[270.0]
+                self.A["window"]["west"] = prj.window_area["Window Facade West"]["area"]
+                self.A["window"]["east"] = prj.window_area["Window Facade East"]["area"]
             except KeyError:
                 self.A["window"]["west"] = 0.0
                 self.A["window"]["east"] = 0.0
 
+            # To-Do: In IWU Non-Residential Information about Roof Windows are present
+            # This can be implemented
             self.A["window"]["roof"] = 0.0
             self.A["window"]["floor"] = 0.0
 
