@@ -21,6 +21,8 @@ from classes.system import CES
 from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
+from classes.non_residential import NonResidential
+from classes.non_residential_users import NonResidentialUsers 
 
 import functions.clustering_medoid as cm
 import functions.wind_turbines as wind_turbines
@@ -439,8 +441,8 @@ class Datahandler():
                 
                 # %% create user object
                 # containing number occupants, electricity demand,...
-                building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                        area=building["buildingFeatures"]["area"])
+                building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
+                                                       area=building["buildingFeatures"]["area"])
                 
 
                 # %% calculate design heat loads

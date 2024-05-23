@@ -28,6 +28,7 @@ def example8_1_generate_first_non_residential_district():
 
     data.initializeBuildings('example_nrb')
     data.generateBuildings()
+    data.generateDemands()
     
 
     # As last step we generate individual demand profiles for our buildings.

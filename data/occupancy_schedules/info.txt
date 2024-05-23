@@ -1,0 +1,66 @@
+## Information 
+
+Due to heterogenity in the Non-Residential building sector and the multi-zone approach of the 18599
+for non-residential buildings it is hard to gather reliable data on occupancy. 
+We collect data about average occupancy per m2 for calculation. 
+
+Data about offices (oad), with a differentation about kind of office and city: 
+
+
+| Branche                                      | A-Städte | B-Städte | Sonstige Großstädte | Sonstige Kreise | Durchschnitt |
+|----------------------------------------------|----------|----------|---------------------|-----------------|--------------|
+| Banken, Finanzdienstleister                  | 31,0 m²  | 24,6 m²  | 23,0 m²             | 21,3 m²         | 24,1 m²      |
+| Bau, Immobilien                              | 32,3 m²  | 25,6 m²  | 24,0 m²             | 22,2 m²         | 25,1 m²      |
+| EDV                                          | 28,4 m²  | 22,5 m²  | 21,1 m²             | 19,7 m²         | 22,0 m²      |
+| Industrie                                    | 25,3 m²  | 20,1 m²  | 18,8 m²             | 17,4 m²         | 20,0 m²      |
+| Transport, Verkehr, Lagerhaltung             | 26,2 m²  | 20,8 m²  | 19,5 m²             | 18,1 m²         | 20,4 m²      |
+| Dienstleistungsunternehmen                   | 33,5 m²  | 26,6 m²  | 25,1 m²             | 23,1 m²         | 26,0 m²      |
+| Handel                                       | 34,9 m²  | 27,7 m²  | 25,9 m²             | 24,2 m²         | 27,1 m²      |
+| Gesamter Durchschnitt                        | 30,9 m²  | 24,5 m²  | 23,1 m²             | 21,5 m²         | 24,0 m²      |
+
+*Source: [1] R. Henger et al., “Büroimmobilien Energetischer Zustand und Anreize zur Steigerung der Energieeffizienz,” 05/17. [Online]. Available: https://www.iwkoeln.de/fileadmin/publikationen/2017/342693/Studie_IW_Koeln_dena_Bueroimmobilien_Energieeffizienz.pdf
+
+
+Accodring to DIN 18599, the following occupancy is fitting: 
+
+| Nutzung                                      | Gering (m² je Person) | Mittel (m² je Person) | Hoch (m² je Person) |
+|----------------------------------------------|-----------------------|-----------------------|---------------------|
+| Einzelbüro                                   | 18                    | 14                    | 10                  |
+| Gruppenbüro (zwei bis sechs Arbeitsplätze)   | 14                    | 12                    | 10                  |
+| Großraumbüro (ab sieben Arbeitsplätze)       | 12                    | 10                    | 8                   |
+| Besprechungs-/Sitzungszimmer/Seminar         | 2                     | 1.8                   | 1.5                 |
+| Schalterhalle                                | 4                     | 3.5                   | 3                   |
+| Einzelhandel/Kaufhaus                        | 4                     | 3.5                   | 3                   |
+| Einzelhandel/Kaufhaus (Lebensmittel)         | 3                     | 2.5                   | 2                   |
+| Klassenzimmer (Schule), Gruppenraum          | 2                     | 1.8                   | 1.5                 |
+| Hörsaal, Auditorium                          | 1.5                   | 1.2                   | 1                   |
+| Bettenzimmer                                 | 14                    | 12                    | 10                  |
+| Hotelzimmer                                  | 20                    | 15                    | 10                  |
+| Kantine                                      | 3                     | 2.5                   | 2                   |
+| Restaurant                                   | 3                     | 2.5                   | 2                   |
+| Küche in Nichtwohngebäuden                   | 6                     | 5                     | 4                   |
+| Küche – Vorbereitung, Lager                  | 6                     | 5                     | 4                   |
+| WC und Sanitärräume in Nichtwohngebäuden     | 10                    | 8                     | 6                   |
+| Sonstige Aufenthaltsräume                    | 2                     | 1.8                   | 1.5                 |
+| Nebenflächen ohne Aufenthaltsräume           | 5                     | 4                     | 3                   |
+| Verkehrsfläche                               | 10                    | 8                     | 6                   |
+| Lager                                        | 30                    | 25                    | 20                  |
+| Rechenzentrum                                | 40                    | 35                    | 30                  |
+| Gewerbliche und industrielle Hallen – schwer | 20                    | 15                    | 10                  |
+| Gewerbliche und industrielle Hallen – mittel | 15                    | 12                    | 10                  |
+| Gewerbliche und industrielle Hallen – leicht | 10                    | 8                     | 6                   |
+| Zuschauerbereich                             | 1                     | 0.8                   | 0.5                 |
+| Theater – Foyer                              | 2                     | 1.8                   | 1.5                 |
+| Bühne                                        | 10                    | 8                     | 6                   |
+| Messe/Kongress                               | 3                     | 2.5                   | 2                   |
+| Ausstellungsräume und Museum                 | 2                     | 1.8                   | 1.5                 |
+| Bibliothek – Lesesaal                        | 2                     | 1.8                   | 1.5                 |
+| Bibliothek – Freihandbereich                 | 2                     | 1.8                   | 1.5                 |
+| Bibliothek – Magazin und Depot               | 5                     | 4                     | 3                   |
+| Turnhalle                                    | 5                     | 4                     | 3                   |
+| Parkhaus (Büro- und Privatnutzung)           | 20                    | 15                    | 10                  |
+| Parkhaus (öffentliche Nutzung)               | 20                    | 15                    | 10                  |
+
+*Source: [1] “DIN V 18599-10:2018-09: Energetische Bewertung von Gebäuden - Berechnung des Nutz-, End- und Primärenergiebedarfs für Heizung, Kühlung, Lüftung, Trinkwarmwasser und Beleuchtung - Teil 10: Nutzungsrandbedingungen, Klimadaten.” Beuth Verlag GmbH, Sep. 2018. doi: https://dx.doi.org/10.31030/2874436.
+
+ 
