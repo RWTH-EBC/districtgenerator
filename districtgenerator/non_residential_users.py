@@ -5,11 +5,11 @@
 import os, math
 import random as rd
 import numpy as np
-from districtgenerator.profils import Profiles
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
+from districtgenerator.profils import Profiles
 import functions.heating_profile_5R1C as heating
 
 class NonResidentialUsers():
@@ -51,12 +51,12 @@ class NonResidentialUsers():
 
 
 
-    def __init__(self, building, area):
+    def __init__(self, building_usage, area):
         """
         Constructor of Users Class
         """
 
-        self.building = building
+        self.usage = building_usage 
         self.nb_flats = None
         self.annual_el_demand = None
         self.lighting_index = []
@@ -68,12 +68,13 @@ class NonResidentialUsers():
         self.gains = None
         self.heat = None
 
-        self.generate_number_flats(area)
+        # self.generate_number_flats(area)
         self.generate_number_occupants()
         self.generate_annual_el_consumption()
         self.generate_lighting_index()
         self.create_el_wrapper()
-
+    
+    # Number of flats not necessary for Non-Residential Buildings
 
     def generate_number_flats(self,area):
         '''
@@ -103,6 +104,7 @@ class NonResidentialUsers():
     def generate_number_occupants(self):
         '''
         Generate number of occupants for different of building types.
+        According to 
 
         Parameters
         ----------
@@ -169,8 +171,8 @@ class NonResidentialUsers():
 
     def generate_annual_el_consumption(self):
         '''
-        Generate annual elictricity consumption
-        in dependency of the building type and the number of occupants
+        Generate annual elictricity consumption in dependency of the building type and the average area. 
+        
 
         Parameters
         ----------

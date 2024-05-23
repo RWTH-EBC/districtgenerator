@@ -13,6 +13,7 @@ from districtgenerator.solar import Sun
 from districtgenerator.users import Users
 from districtgenerator.plots import DemandPlots
 from districtgenerator.non_residential import NonResidential
+from districtgenerator.non_residential_users import NonResidentialUsers
 import functions.weather_handling as weather_handling 
 
 class Datahandler():
@@ -330,8 +331,10 @@ class Datahandler():
                     # for drinking hot water
                     building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
             # Check if the building type is a supported non residential building. 
-            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"]:
-                print("We are about to generate a Non Resdeintal building.")
+            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
+                                                              "spf", "hbr", "pwo", "trd", "tud", 
+                                                              "trs", "gs1", "gs2"]:
+                print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
                     number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
@@ -359,8 +362,8 @@ class Datahandler():
 
                 # %% create user object
                 # containing number occupants, electricity demand,...
-                building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                        area=building["buildingFeatures"]["area"])
+                building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
+                                                       area=building["buildingFeatures"]["area"])
 
                 # %% calculate design heat loads
                 # at norm outside temperature
@@ -502,7 +505,8 @@ class Datahandler():
             self.district = pickle.load(fp)
 
 
-    def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
+    def plot(self, mode='default', initialTime=0, timeHorizon=31536000, 
+             savePlots=True, timeStamp=False, show=False):
         """
         Create plots of the energy consumption and generation.
 
