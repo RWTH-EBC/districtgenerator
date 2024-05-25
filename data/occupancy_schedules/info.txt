@@ -61,6 +61,31 @@ Accodring to DIN 18599, the following occupancy is fitting:
 | Parkhaus (Büro- und Privatnutzung)           | 20                    | 15                    | 10                  |
 | Parkhaus (öffentliche Nutzung)               | 20                    | 15                    | 10                  |
 
-*Source: [1] “DIN V 18599-10:2018-09: Energetische Bewertung von Gebäuden - Berechnung des Nutz-, End- und Primärenergiebedarfs für Heizung, Kühlung, Lüftung, Trinkwarmwasser und Beleuchtung - Teil 10: Nutzungsrandbedingungen, Klimadaten.” Beuth Verlag GmbH, Sep. 2018. doi: https://dx.doi.org/10.31030/2874436.
+*Source: [2] “DIN V 18599-10:2018-09: Energetische Bewertung von Gebäuden - Berechnung des Nutz-, End- und Primärenergiebedarfs für Heizung, Kühlung, Lüftung, Trinkwarmwasser und Beleuchtung - Teil 10: Nutzungsrandbedingungen, Klimadaten.” Beuth Verlag GmbH, Sep. 2018. doi: https://dx.doi.org/10.31030/2874436.
+
+
+In [3] the authors calculate an average occupancy 15,37 m2 for open plan offices and between 34,48m2 to 28,18 m2 for counter halls. 
+
+Source: [3] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+
+The IWU Non Non-Residential Typology has been mapped accordingly to this table: 
+
+
+| DIN V 18599 Usage Type                            | Key                                              | Gering | Mittel | Hoch |
+|--------------------------------------------------|--------------------------------------------------|--------|--------|------|
+| Einzelbüro                                       | oag                                              | 18     | 14     | 10   |
+| Hörsaal, Auditorium                               | IWU Research and University Teaching             | 1.5     | 1.2     | 1   |
+| Bettenzimmer                                     | IWU Health and Care                               | 14     | 12     | 10   |
+| Klassenzimmer (Schule), Gruppenraum              | IWU School, Day Nursery and other Care            | 2      | 1.8    | 1.5  |
+| Ausstellungsräume und Museum                      | IWU Culture and Leisure                           | 2      | 1.8    | 1.5    |
+|  Turnhalle                            | IWU Sports Facilities                             | 5      | 4    | 3    |
+|   Hotelzimmer            | IWU Hotels, Boarding, Restaurants or Catering     | 20      | 15    | 10    |
+|   Gewerbliche und industrielle Hallen – mittel            | IWU Production, Workshop, Warehouse or Operations | 15      | 12   | 10  |
+|     Einzelhandel/Kaufhaus                          | IWU Trade Buildings                               | 4    | 3.5    | 3    |
+|      Gewerbliche und industrielle Hallen – schwer                                | IWU Technical and Utility (supply and disposal)   | 20     | 15    | 10   |
+|          Parkhaus (Büro- und Privatnutzung)                                | IWU Transport                                     | 20     | 15     | 10   |
+|    Einzelbüro                                        | IWU Generalized (1) Services building             | 18      | 14    | 10    |
+|   Gewerbliche und industrielle Hallen – mittel                     | IWU Generalized (2) Production buildings          | 15      | 12      | 10    |
+
 
  
