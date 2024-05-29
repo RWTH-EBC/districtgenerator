@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 """
-
 import os
 import numpy as np
 import random as rd
@@ -9,7 +8,6 @@ import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
 import functions.dhw_stochastical as dhw_profil
 import pylightxl as xl
-
 
 class Profiles():
     """
@@ -93,7 +91,7 @@ class Profiles():
             Numpy-arry with acctive occupants 10-minutes-wise.
 
         """
-
+        # To-Do: Check wheter 10 min is really necessary 
         tr_min = int(self.time_resolution/60)
         sia_profile_daily_min = np.concatenate((np.ones(60*8),
                                                 np.zeros(60*13),
