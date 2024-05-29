@@ -1,0 +1,67 @@
+{
+    "oag": {
+        "Gering": 4.5,
+        "Mittel": 6.5,
+        "Hoch": 23
+    },
+    "IWU Research and University Teaching": {
+        "Gering": 0,
+        "Mittel": 0.05,
+        "Hoch": 0.3
+    },
+    "IWU Health and Care": {
+        "Gering": 3.41,
+        "Mittel": 7.88,
+        "Hoch": 15.57
+    },
+    "IWU School, Day Nursery and other Care": {
+        "Gering": 0.29,
+        "Mittel": 3.0,
+        "Hoch": 6.5
+    },
+    "IWU Culture and Leisure": {
+        "Gering": 0,
+        "Mittel": 1.97,
+        "Hoch": 17.79
+    },
+    "IWU Sports Facilities": {
+        "Gering": 0,
+        "Mittel": 0.06,
+        "Hoch": 0.22
+    },
+    "IWU Hotels, Boarding, Restaurants or Catering": {
+        "Gering": 2.39,
+        "Mittel": 4.01,
+        "Hoch": 7.66
+    },
+    "IWU Production, Workshop, Warehouse or Operations": {
+        "Gering": null,
+        "Mittel": null,
+        "Hoch": null
+    },
+    "IWU Trade Buildings": {
+        "Gering": 0.12,
+        "Mittel": 3.30,
+        "Hoch": 30.49
+    },
+    "IWU Technical and Utility (supply and disposal)": {
+        "Gering": null,
+        "Mittel": null,
+        "Hoch": null
+    },
+    "IWU Transport": {
+        "Gering": 0,
+        "Mittel": 0,
+        "Hoch": 0
+    },
+    "IWU Generalized (1) Services building": {
+        "Gering": 4.5,
+        "Mittel": 6.5,
+        "Hoch": 23
+    },
+    "IWU Generalized (2) Production buildings": {
+        "Gering": null,
+        "Mittel": null,
+        "Hoch": null
+    }
+}
