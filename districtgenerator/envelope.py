@@ -516,12 +516,13 @@ class Envelope():
             # Af are condioned areas
             # In TEASER multiple heat capacity are calculated, which are then summarized to one
             # in Non-Residential only one is given 
-            self.kappa["opaque"]["wall"] = 162000 * 2.5 
-            self.kappa["opaque"]["roof"]  = 162000 * 2.5 
-            self.kappa["opaque"]["floor"]  = 162000 * 2.5 
-            self.kappa["opaque"]["intWall"] = 162000 * 2.5  
-            self.kappa["opaque"]["ceiling"]  = 162000 * 2.5  
-            self.kappa["opaque"]["intFloor"] = 162000 * 2.5  
+            # To-Do: Check CM Calculcation and adding type 
+            self.kappa["opaque"]["wall"] = 162000 * 2.5
+            self.kappa["opaque"]["roof"]  = 162000 * 2.5
+            self.kappa["opaque"]["floor"]  = 162000 * 2.5
+            self.kappa["opaque"]["intWall"] = 162000 * 2.5
+            self.kappa["opaque"]["ceiling"]  = 162000 * 2.5
+            self.kappa["opaque"]["intFloor"] = 162000 * 2.5
 
 
         else:
@@ -746,13 +747,13 @@ class Envelope():
             # Af are condioned areas
             # In TEASER multiple heat capacity are calculated, which are then summarized to one
             # in Non-Residential only one is given 
-            if prj.construction_type is "Tabula":
+            if prj.construction_type == "Tabula":
                 self.C_m = 2.5 * 162000 * prj.net_leased_area
-            elif prj.construction_type is "Light":
+            elif prj.construction_type == "Light":
                 self.C_m = 2.5 * 110000 * prj.net_leased_area
-            elif prj.construction_type is "Medium":
+            elif prj.construction_type == "Medium":
                 self.C_m = 2.5 * 165000 * prj.net_leased_area
-            elif prj.construction_type is "Heavy":
+            elif prj.construction_type == "Heavy":
                 self.C_m = 2.5 * 300000 * prj.net_leased_area
             else:
                 raise ValueError(f"{prj.construction_type} currently not implemented for calculateHeatCapacity for Non Residential Buildings")
