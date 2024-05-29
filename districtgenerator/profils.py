@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-
+"""
+"""
 import os
 import random as rd
 import json
@@ -10,7 +11,6 @@ import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
 import functions.OpenDHW as OpenDHW
 import functions.dhw_stochastical as dhw_profil
-
 
 class Profiles():
     """
@@ -103,7 +103,7 @@ class Profiles():
         self.occ_profile : array-like
             Number of present occupants.
         """
-
+        # To-Do: Check wheter 10 min is really necessary 
         tr_min = int(self.time_resolution/60)
         sia_profile_daily_min = np.concatenate((np.ones(60*8),
                                                 np.zeros(60*13),
