@@ -1,5 +1,5 @@
-import os 
-import pandas as pd 
+import os
+import pandas as pd
 
 def get_schedule(building_type):
     """
@@ -15,17 +15,17 @@ def get_schedule(building_type):
         "oag": "office.csv",
         "IWU Research and University Teaching": "Hörsaal, Auditorium.csv",
         "IWU Health and Care": "Bettenzimmer.csv", 
-        "IWU School, Day Nursery and other Care": "Klassenzimmer (Schule), Gruppenraum.csv",
-        "IWU Culture and Leisure": "Ausstellungsräume und Museum.csv",
+        "IWU School, Day Nursery and other Care": "KSchulzimmer_Hoersaal.csv",
+        "IWU Culture and Leisure": "Ausstellungshalle.csv",
         "IWU Sports Facilities":  "Turnhalle.csv",
         "IWU Hotels, Boarding, Restaurants or Catering":  "Hotelzimmer.csv",
-        "IWU Production, Workshop, Warehouse or Operations": "Gewerbliche und industrielle Hallen – mittel.csv",
-        "IWU Trade Buildings": "Einzelhandel/Kaufhaus.csv", 
-        "IWU Technical and Utility (supply and disposal)":  "Gewerbliche und industrielle Hallen – schwer.csv",
-        "IWU Transport": "Parkhaus (Büro- und Privatnutzung).csv",
+        "IWU Production, Workshop, Warehouse or Operations": "ProduktionGrob.csv",
+        "IWU Trade Buildings": "Fachgeschaeft.csv", 
+        "IWU Technical and Utility (supply and disposal)":  "Lagerhalle.csv",
+        "IWU Transport": "Parkhaus.csv",
         "IWU Generalized (1) Services building": "office.csv",
-        "IWU Generalized (2) Production buildings":  "Gewerbliche und industrielle Hallen – mittel.csv"
-    }
+        "IWU Generalized (2) Production buildings":  "Lagerhalle.csv"
+        }
 
     schedule_name = type_assignment.get(building_type)
     if schedule_name is None:
