@@ -348,7 +348,7 @@ class Profiles():
             Internal gain of each flat
 
         """
-
+        # To - Do adjust to personal heat gains depending on builiding type 
         personGain = 70.0  # [Watt]
         lightGain = 0.65
         appGain = 0.33
