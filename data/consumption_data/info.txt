@@ -8,6 +8,9 @@ be considered-
 Data for the following profiles is not given:
 -- 25 Theaterbühne, due to the influence of the event
 -- 26 Messe, due to the influence of the event 
+-- 22 Gewerblicheund industrielle Hallen and the respective subprofiles, 
+        as the industry is highly affecting the personal usage and is ranging between 
+        2.75 kWh / m2a and 1812.83  kWh / m2a 
 
 The following exception are given:
 
@@ -16,6 +19,24 @@ The following exception are given:
 - 16 WC	und	Sanitärräum in	NWG, 19 Verkehrsflächen, and 20 Lager,	Technik,	Archiv, have a differentation between general and areas with user devices. 
 
 
+The data is mapped accordingly to the IWU categories: 
+
+| DIN V 18599 Usage Type                           | Key                                              | Low usage kWh/m2a | Medium usage kWh/m2a  | High usage kWh/m2a |
+|--------------------------------------------------|--------------------------------------------------|--------|--------|------|
+| Einzelbüro                                       | oag                                              | 4.5     | 6.5     | 23   |
+| Hörsaal, Auditorium                              | IWU Research and University Teaching             | 0    | 0.05    | 0.3    |
+| Arztpraxen und Therapeutische Praxen             | IWU Health and Care                              | 3.41     | 7.88         | 15.57   |
+| Klassenzimmer (Schule), Gruppenraum              | IWU School, Day Nursery and other Care           | 0.29      | 3.0    | 6.5  |
+| Ausstellungsräume und Museum                     | IWU Culture and Leisure                          | 0      | 1.97    | 17.79  |
+| Turnhalle                                        | IWU Sports Facilities                            | 0      | 0.06      | 0.22    |
+| Hotelzimmer                                      | IWU Hotels, Boarding, Restaurants or Catering    | 2.39     | 4.01     | 7.66   |
+| Gewerbliche und industrielle Hallen – mittel     | IWU Production, Workshop, Warehouse or Operations| -     | -    | -   |
+| Einzelhandel/Kaufhaus                            | IWU Trade Buildings                              | 0.12      | 3.30    | 30.49    |
+| Gewerbliche und industrielle Hallen – schwer     | IWU Technical and Utility (supply and disposal)  | -     | -     | -  |
+| Parkhaus (Büro- und Privatnutzung)               | IWU Transport                                    | 0     | 0     | 0   |
+| Einzelbüro                                       | IWU Generalized (1) Services building            | 4.5     | 6.5    | 23    |
+| Gewerbliche und industrielle Hallen – mittel     | IWU Generalized (2) Production buildings         | -     | -   | -   |
+
 ## Sources
 
 [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
@@ -23,4 +44,3 @@ The following exception are given:
 [2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
 
  
-8
