@@ -1,0 +1,26 @@
+## Information
+
+Data about the user specific electricity demand of Non-Residential Buildings is taken from: [1] and  [2]. 
+The sources also describe a typcial set-up for each of the categories. In addition to the user specific 
+electricity demand, central services ("Zentrale Dienste") and other equipment ("Diverse Technik") needs to 
+be considered-
+
+Data for the following profiles is not given:
+-- 25 Theaterbühne, due to the influence of the event
+-- 26 Messe, due to the influence of the event 
+
+The following exception are given:
+
+- There is no differentation between:  „32 Parkhaus (Büro- und Privatnutzung)“ an  „33 Parkhaus (öffentliche Nutzung)"
+- If a Fittnessraum ahs both equipment ("Geräteausstatung") and a hall ("Tresen / Emfpangs"), the latter needs to be added.
+- 16 WC	und	Sanitärräum in	NWG, 19 Verkehrsflächen, and 20 Lager,	Technik,	Archiv, have a differentation between general and areas with user devices. 
+
+
+## Sources
+
+[1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+
+[2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
+
+ 
+8
