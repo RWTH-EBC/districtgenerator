@@ -3,6 +3,7 @@
 """
 
 import os, math
+import json 
 import random as rd
 import numpy as np
 import richardsonpy
@@ -57,6 +58,7 @@ class NonResidentialUsers():
         """
 
         self.usage = building_usage 
+        self.area = area
         self.nb_flats = None
         self.annual_el_demand = None
         self.lighting_index = []
@@ -68,111 +70,93 @@ class NonResidentialUsers():
         self.gains = None
         self.heat = None
 
+        
+        # Define the path to the JSON file
+        base_path = os.getcwd()
+        occupancy_json_path = os.path.join(base_path,  'data', 'occupancy_schedules', 
+                                           'average_occupancy.json')
+        electricity_json_path = os.path.join(base_path,  'data', 'consumption_data', 
+                                             'average_electricity_per_occupants.json')
+
+        # Load the JSON data from the specified path
+        self.occupancy_data = self.load_json_data(occupancy_json_path)
+        self.electricity_data = self.load_json_data(electricity_json_path)
+        
+
+
         # self.generate_number_flats(area)
         self.generate_number_occupants()
         self.generate_annual_el_consumption()
-        self.generate_lighting_index()
+        # self.generate_lighting_index()
         self.create_el_wrapper()
+
+        
     
-    # Number of flats not necessary for Non-Residential Buildings
 
-    def generate_number_flats(self,area):
-        '''
-        Generate number of flats for different of building types.
+    
+    def load_json_data(self, json_path):
+        with open(json_path, 'r') as file:
+            data = json.load(file)
+            return data
 
-        Parameters
-        ----------
-        area : integer
-            Floor area of different building types
-
-        '''
-        if self.building == "SFH":
-            self.nb_flats = 1
-        elif self.building == "TH":
-            self.nb_flats = 1
-        elif self.building == "MFH":
-            if area <= 4*100:
-                self.nb_flats = 4
-            elif area > 4 * 100:
-                self.nb_flats = math.floor(area/100)
-        elif self.building == "AB":
-            if area <= 10*100:
-                self.nb_flats = 10
-            elif area > 10*100:
-                self.nb_flats = math.floor(area/100)
 
     def generate_number_occupants(self):
         '''
         Generate number of occupants for different of building types.
-        According to 
+        According to the data in  data\occupancy_schedules\average_occupancy.json
 
         Parameters
         ----------
         random_nb : random number in [0,1)
 
         '''
-
-        if self.building == "SFH":
-            # choose random number of occupants (2-5) for single family houses  (assumption)
-
-            # loop over all flats of current multi family house
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
-                j = 1  # staring with one (additional) occupant
-                # the random number decides how many occupants are chosen (2-5)
-                while j <= 4 :
-                    if random_nb < j / 4 :
-                        self.nb_occ.append(1 + j)  # minimum is 2 occupants
-                        break
-                    j += 1
-
-        if self.building == "TH":
-            # choose random number of occupants (2-5) for single family houses  (assumption)
-
-            # loop over all flats of current multi family house
-            for j in range(self.nb_flats) :
-                random_nb = rd.random()  # picking random number in [0,1)
-                j = 1  # staring with one (additional) occupant
-                # the random number decides how many occupants are chosen (2-5)
-                while j <= 4 :
-                    if random_nb < j / 4 :
-                        self.nb_occ.append(1 + j)  # minimum is 2 occupants
-                        break
-                    j += 1
-
-        if self.building == "MFH":
-            # choose random number of occupants (1-4) for each flat in the multi family house  (assumption)
-
-            # loop over all flats of current multi family house
-            for j in range(self.nb_flats) :
-                random_nb = rd.random()  # picking random number in [0,1)
-                k = 1
-                # the random number decides how many occupants are chosen (1-5)
-                while k <= 4 :
-                    if random_nb < k / 4 :
-                        self.nb_occ.append(k)
-                        break
-                    k += 1
-
-        if self.building == "AB":
-            # choose random number of occupants (1-4) for each flat in the apartment block  (assumption)
-
-            # loop over all flats of current multi family house
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
-                k = 1
-                # the random number decides how many occupants are chosen (1-5)
-                while k <= 4 :
-                    if random_nb < k / 4 :
-                        self.nb_occ.append(k)
-                        break
-                    k += 1
+        keys = [
+            "oag",
+            "IWU Research and University Teaching",
+            "IWU Health and Care",
+            "IWU School, Day Nursery and other Care",
+            "IWU Culture and Leisure",
+            "IWU Sports Facilities",
+            "IWU Hotels, Boarding, Restaurants or Catering",
+            "IWU Production, Workshop, Warehouse or Operations",
+            "IWU Trade Buildings",
+            "IWU Technical and Utility (supply and disposal)",
+            "IWU Transport",
+            "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)",
+            "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)"
+        ]
 
 
-    def generate_annual_el_consumption(self):
+
+    
+        if self.usage in self.occupancy_data:
+            occupancy_values = self.occupancy_data[self.usage]
+            random_nb = rd.random()  # picking random number in [0,1)
+            if random_nb < 1 / 3:
+                self.nb_occ.append(self.area/occupancy_values["Gering"])
+                self.occupancy = "Gering"
+            elif random_nb < 2 / 3:
+                self.nb_occ.append(self.area/occupancy_values["Mittel"])
+                self.occupancy = "Mittel"
+            else:
+                self.nb_occ.append(self.area/occupancy_values["Hoch"])
+                self.occupancy = "Hoch"
+        else:
+            print(f"No data available for building type: {self.usage}")
+
+
+    def generate_annual_el_consumption(self, equipment="Mittel"):
         '''
         Generate annual elictricity consumption in dependency of the building type and the average area. 
         
+        Attributes
+        ---------
+        equipment - depending on the class of equipment, the electricity demand is caclulated. 
+        Data is described in: data\consumption_data\info.txt
+        Possible Values are: "Gering", "Mittel", "Hoch". Default is "Mittel. 
+            "Gering": 4.5,
+            "Mittel": 6.5,
+            "Hoch": 23
 
         Parameters
         ----------
@@ -180,39 +164,26 @@ class NonResidentialUsers():
          - dhw demand is not included 
 
         '''
+        # For Residential buildings,
+        # the Stromspiegel is used
+        # In DIBS only electricity used for heating is simulated
+        # Several approaches might be used for Non-Residential,
+        # such as calculation bases on users, tasks, e.g. 
 
-        # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
-        # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
-        standard_consumption = {"SFH" : {1 : 2300,
-                                         2 : 3000,
-                                         3 : 3500,
-                                         4 : 4000,
-                                         5 : 5000},
-                                "MFH" : {1 : 1300,
-                                         2 : 2000,
-                                         3 : 2500,
-                                         4 : 2600,
-                                         5 : 3000}}
+        
+        if self.usage in self.electricity_data:
+            electricity_values = self.electricity_data[self.usage]
+            try: 
+                annual_el_demand_temp = electricity_values[equipment] * self.area 
+                self.annual_el_demand = rd.gauss(annual_el_demand_temp,
+                                                        annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
 
-        self.annual_el_demand = np.zeros(self.nb_flats)
-        for j in range(self.nb_flats):
-            if self.building == "SFH":
-                annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
-            if self.building == "TH":
-                annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
-            if self.building == "MFH":
-                annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
-            if self.building == "AB":
-                annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
-
+            except KeyError:
+                print(f"No data available for building type: {self.usage}")
+            # To Do 
+            # Check if randomifaction of electriciy set up works  
+        else:
+            print(f"No data available for building type: {self.usage}")
 
     def generate_lighting_index(self):
         '''
@@ -249,32 +220,36 @@ class NonResidentialUsers():
 
         '''
 
+        # Write a function, that returns the respective 
         src_path = os.path.dirname(richardsonpy.__file__)
         path_app = os.path.join(src_path,'inputs','Appliances.csv')
         path_light = os.path.join(src_path,'inputs','LightBulbs.csv')
 
+        # To-Do: Adjust thte code, so it wraps the lightning
+        
+        # Full Electricity Demand equals to:
+        # User_related_Demand + Central Demand + Diverse Demand 
+        #  
+        # Source: [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+        # Pages: 80-81
+        # To-Do: Find factor for calclulation of annaul demand  
 
-        for j in range(self.nb_flats):
+        appliancesDemand =  self.annual_el_demand + 0 
 
-            # annual demand of the elictric appliances (annual demand minus lighting)
-            # source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel
-            # values from diagram for 2018 without heating, dhw and cooling: 8,1 / 81,1 = 10,0%
-            appliancesDemand = 0.9 * self.annual_el_demand[j]
+        #  Create and save appliances object
+        appliances = \
+            app_model.Appliances(path_app,
+                                annual_consumption=appliancesDemand,
+                                randomize_appliances=True,
+                                max_iter=15,
+                                prev_heat_dev=True)
 
-            #  Create and save appliances object
-            appliances = \
-                app_model.Appliances(path_app,
-                                 annual_consumption=appliancesDemand,
-                                 randomize_appliances=True,
-                                 max_iter=15,
-                                 prev_heat_dev=True)
+        # Create and save light configuration object
+        lights = light_model.load_lighting_profile(filename=path_light,
+                                                index=self.lighting_index)
 
-            # Create and save light configuration object
-            lights = light_model.load_lighting_profile(filename=path_light,
-                                                   index=self.lighting_index[j])
-
-            #  Create wrapper object
-            self.el_wrapper.append(wrap.ElectricityProfile(appliances,lights))
+        #  Create wrapper object
+        self.el_wrapper.append(wrap.ElectricityProfile(appliances,lights))
 
 
     def calcProfiles(self, site, time_resolution, time_horizon, initital_day=1):
@@ -308,14 +283,22 @@ class NonResidentialUsers():
         self.dhw = np.zeros(int(time_horizon/time_resolution))
         self.elec = np.zeros(int(time_horizon/time_resolution))
         self.gains = np.zeros(int(time_horizon/time_resolution))
-        for j in range(self.nb_flats):
-            temp_obj = Profiles(self.nb_occ[j],initital_day,nb_days,time_resolution)
-            self.occ = self.occ + temp_obj.generate_occupancy_profiles()
-            self.dhw = self.dhw + temp_obj.generate_dhw_profile()
-            self.elec = self.elec + temp_obj.generate_el_profile(irradiance=irradiation,
-                                                                 el_wrapper=self.el_wrapper[j],
-                                                                 annual_demand=self.annual_el_demand[j])
-            self.gains = self.gains + temp_obj.generate_gain_profile()
+        
+        # To-Do
+        # Write a funtion, that get's occupancy data 
+        # based on amount of occupants and SIA profiles 
+        # Write Function that generates an lighning profile
+        # Write DHW function
+
+
+        temp_obj = Profiles(self.nb_occ,initital_day,nb_days,time_resolution)
+        self.occ = temp_obj.generate_occupancy_profiles()
+        self.dhw = temp_obj.generate_dhw_profile()
+        self.elec = temp_obj.generate_el_profile(irradiance=irradiation,
+                                                 el_wrapper=self.el_wrapper,
+                                                 annual_demand=self.annual_el_demand)
+        self.gains = temp_obj.generate_gain_profile()
+        
 
     def calcHeatingProfile(self,site,envelope,time_resolution) :
 
@@ -401,6 +384,35 @@ class NonResidentialUsers():
         self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',')
         self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
         self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
+
+
+class NonResidentialLighting(object):
+
+      def __init__(self, building_usage):
+        """
+        Constructor of Non Residential Lighning Class. 
+
+        
+
+        #ToDo: 
+        """
+
+        self.usage = building_usage 
+        # self.area = area
+        # self.nb_flats = None
+        self.annual_el_demand = None
+        self.lighting_index = []
+        self.el_wrapper = []
+        self.nb_occ = []
+        self.occ = None
+        self.dhw = None
+        self.elec = None
+        self.gains = None
+        self.heat = None
+    
+
+
+    
 
 
 if __name__ == '__main__':
