@@ -19,7 +19,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     # load parameters of decentral energy conversion devices
     path = srcPath
     param_dec_devs = {}
-    with open(path + "\\data\\" + "param_dec_devices.json") as json_file:
+    with open(path + "/data/" + "decentral_device_data.json") as json_file:
         jsonData = json.load(json_file)
         for subData in jsonData:
             param_dec_devs[subData["abbreviation"]] = {}
@@ -44,8 +44,8 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     ecoData = {}
     timeData = {}
     for data in ("eco", "time"):
-        with open(path + "\\data\\" + data + "_data.json") as json_file:
-            jsonData = json.load(json_file, encoding='utf-8')
+        with open(path + "/data/" + data + "_data.json") as json_file:
+            jsonData = json.load(json_file)
             for subData in jsonData:
                 if data == "eco":
                     ecoData[subData["name"]] = subData["value"]
@@ -60,7 +60,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     # heat generation devices (heat pump (HP), electric heating (EH),
     # combined heat and power (CHP), fuel cell (FC), boiler (BOI), solar thermal collector (STC))
     # TODO: add STC
-    ecs_heat = ("HP", "EH", "CHP", "FC", "BOI")
+    ecs_heat = ("HP", "EH", "CHP", "FC", "BOI", "STC")
     ecs_power = ("HP", "EH", "CHP", "FC", "PV")  # power consuming/producing devices (photovoltaic (PV))
     ecs_sell = ("CHP", "FC", "PV", "BAT")
     ecs_gas = ("CHP", "FC", "BOI")  # gas consuming devices
@@ -251,6 +251,10 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
             for device in ["EH", ]:
                 model.addConstr(power_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_heat_cap_" + str(n))
 
+    for n in range(nb):
+        for t in time_steps:
+            model.addConstr(heat_dom["STC"][n][t] <= STC_heat[n][t], name=str("STC") + "_heat_cap_" + str(n) + str(t))
+
 
     for n in range(nb):
         for t in time_steps:
@@ -403,7 +407,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
                                 - dch_dom[device][n][t] * dt,name= str(device) + "_storage_balance_" + str(n) + "_" + str(t))
 
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
-                            + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t],
+                            + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
             model.addConstr(dch_dom[device][n][t] == Q_DHW[n][t] + Q_heating[n][t],
                             name="Heat_discharging_" + str(n) + "_" + str(t))
