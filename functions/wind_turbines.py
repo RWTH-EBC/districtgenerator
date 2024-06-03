@@ -146,7 +146,7 @@ def powerCurve(wind_turbine_model):
 
     try:
         # open power curve of wind turbine
-        data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "districtgenerator", "data")
+        data_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
         power_curve_path = os.path.join(data_folder, "wind_turbine_models", "WT_" + wind_turbine_model + ".csv")
         power_curve = pd.read_csv(power_curve_path, header=0, delimiter=";")  # wind_speed [m/s], power [kW]
 

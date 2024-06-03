@@ -572,7 +572,7 @@ class Datahandler:
             sun.calcPVAndSTCProfile(time=self.time,
                                     site=self.site,
                                     area_roof=self.centralDevices["ces_obj"].roofAreaDistrict,
-                                    devicesType="central",
+                                    #devicesType="central",
                                     beta=[35],
                                     gamma=[0],
                                     usageFactorPV=1,
