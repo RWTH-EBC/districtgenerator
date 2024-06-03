@@ -4,20 +4,21 @@ from collections import defaultdict
 from contextlib import contextmanager
 import functions.opti_central as opti_central
 
+
 @contextmanager
 def suppress_stdout():
     """
-    
+
 
     Returns
     -------
     None.
     """
-    
+
     with open(os.devnull, "w") as devnull:
         old_stdout = sys.stdout
         sys.stdout = devnull
-        try:  
+        try:
             yield
         finally:
             sys.stdout = old_stdout
@@ -89,7 +90,7 @@ class Optimizer:
         -------
         None.
         """
-        
+
         self.model = gp.Model(self.optiSettings["ModelName"])
         # Set the parameters of the gurobi model.
         self.model.setParam("NonConvex", self.optiSettings["NonConvex"])
@@ -106,6 +107,7 @@ class Optimizer:
         None.
         """
 
-        results = opti_central.run_opti_central(self.model, self.data.district, self.data.site, self.cluster, self.srcPath)
+        results = opti_central.run_opti_central(self.model, self.data.district, self.data.site, self.cluster,
+                                                self.srcPath)
 
         return results

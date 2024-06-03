@@ -507,7 +507,7 @@ class Sun:
         temperatureProfile = site["T_e"]
 
         devices = {}
-        with open(os.path.join(self.filePath, 'param_dec_devices.json')) as json_file:
+        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 devices[subData["abbreviation"]] = {}
