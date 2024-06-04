@@ -146,7 +146,7 @@ class NonResidential(object):
         self.usage = usage 
         self.height = None
         self.number_of_floors=float(number_of_floors)
-        self.height_of_floors=float(height_of_floors)     
+        self.height_of_floors=float(height_of_floors)    
         self.street_name = street_name
         self.city = city
         self.longitude = longitude
@@ -310,7 +310,7 @@ class NonResidential(object):
         
 
     def calculate_volume(self):
-        self.volume = self.net_leased_area * self.number_of_floors * self.height_of_floors
+        return self.net_leased_area * self.number_of_floors * self.height_of_floors
 
     def load_surface_estimation_factors(self):
         """
