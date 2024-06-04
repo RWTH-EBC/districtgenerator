@@ -86,6 +86,48 @@ def expand_dataframe(df, total_days):
     
     return result_df
 
+def get_tek(building_type):
+    """
+    Returns the TEK Values, according to the building type.
+
+    All data (not only the ones used) are in: data\TEKs\TEK_NWG_Vergleichswerte.csv
+
+    returns dataframe and schedule name
+    :return: df_schedule, schedule_name
+    :rtype: DataFrame (with floats), string
+    """
+    tek_assignment = {
+        "oag": "Bürogebäude",
+        "IWU Research and University Teaching": "Hochschule und Forschung (allgemein)",
+        "IWU Health and Care": "Beherbergungsstätten (allgemein)",
+        "IWU School, Day Nursery and other Care": "Schulen",
+        "IWU Culture and Leisure": "Ausstellungsgebäude",
+        "IWU Sports Facilities": "Sporthallen",
+        "IWU Hotels, Boarding, Restaurants or Catering": "Hotels / Pensionen",
+        "IWU Production, Workshop, Warehouse or Operations": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit",
+        "IWU Trade Buildings": "Verkaufsstätten (allgemein)",
+        "IWU Generalized (1) Services building": "Verwaltungsgebäude (allgemein)",
+        "IWU Generalized (2) Production buildings": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit"
+    }
+
+    tek_name = tek_assignment.get(building_type)
+    if tek_name is None:
+        print(f"No schedule for building type {building_type}")
+        return None, None
+
+    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    data_path = os.path.join(data_dir_path, 'data', 'TEKs', 'TEK_NWG_Vergleichswerte.csv')
+
+    try:
+        data_schedule = pd.read_csv(data_path, sep=',')
+        warm_water_value = data_schedule[data_schedule["TEK"] == tek_name]["TEK Warmwasser"].iloc[0]
+        return warm_water_value, tek_name
+    except FileNotFoundError:
+        print(f"File not found: {data_path}")
+        return None, None
+    except IndexError:
+        print(f"No data available for {tek_name}")
+        return None, None
 
 
 if __name__ == '__main__':

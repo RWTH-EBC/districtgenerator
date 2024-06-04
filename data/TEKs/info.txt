@@ -1,0 +1,21 @@
+## Information
+
+Original data has been obtained from [DIBS](https://github.com/IWUGERMANY/DIBS---Dynamic-ISO-Building-Simulator). 
+
+In DIBS there is a matching propsed, which is stated here: data\TEKs\TEK_NWG_Vergleichswerte_zuweisung.csv 
+
+| TEK | Key | TEK Heizung | TEK Warmwasser | TEK Lüftung | TEK eingebaute Beleuchtung | TEK Kälte | TEK Hilfsenergie für Kälte | TEK Be- und Entfeuchtung | TEK Sonstiges |
+|---|---|---|---|---|---|---|---|---|---|
+| Bürogebäude | oag | 49.0 | 8.1 | 4.7 | 12.9 | 2.9 | 2.2 | 0.0 | 2.8 |
+| Hochschule und Forschung (allgemein) | IWU Research and University Teaching | 66.5 | 6.7 | 13.3 | 11.0 | 3.4 | 2.2 | 3.8 | 1.2 |
+| Beherbergungsstätten (allgemein) | IWU Health and Care | 52.1 | 86.0 | 9.1 | 9.1 | 3.3 | 2.7 | 0.0 | 7.0 |
+| Schulen | IWU School, Day Nursery and other Care | 49.3 | 22.4 | 3.9 | 5.5 | 0.3 | 0.2 | 0.0 | 0.6 |
+| Ausstellungsgebäude | IWU Culture and Leisure | 57.6 | 7.7 | 6.3 | 7.8 | 1.7 | 1.3 | 0.3 | 0.2 |
+| Sporthallen | IWU Sports Facilities | 68.6 | 22.0 | 4.6 | 14.3 | 0.2 | 0.2 | 0.0 | 0.1 |
+| Hotels / Pensionen | IWU Hotels, Boarding, Restaurants or Catering | 51.2 | 89.1 | 9.1 | 8.6 | 3.5 | 2.9 | 0.0 | 6.8 |
+| Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit | IWU Production, Workshop, Warehouse or Operations | 36.0 | 24.2 | 3.8 | 13.0 | 2.1 | 1.2 | 0.0 | 24.9 |
+| Verkaufsstätten (allgemein) | IWU Trade Buildings | 47.9 | 7.6 | 5.6 | 16.3 | 2.6 | 2.0 | 0.0 | 6.9 |
+| Verwaltungsgebäude (allgemein) | IWU Generalized (1) Services building | 48.5 | 6.9 | 3.2 | 10.7 | 2.6 | 3.1 | 0.1 | 2.8 |
+| Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit | IWU Generalized (2) Production buildings | 36.0 | 24.2 | 3.8 | 13.0 | 2.1 | 1.2 | 0.0 | 24.9 |
+
+
