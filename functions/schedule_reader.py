@@ -36,11 +36,57 @@ def get_schedule(building_type):
     data_path = os.path.join(data_dir_path, 'data', 'occupancy_schedules', schedule_name)
 
     try:
-        data_schedule = pd.read_csv(data_path)
+        data_schedule = pd.read_csv(data_path, sep=';')
         return data_schedule, schedule_name
     except FileNotFoundError:
         print(f"File not found: {data_path}")
         return None, None
+
+def adjust_schedule(inital_day, schedule, nb_of_days):
+    """
+    Function returns the schedule, 
+    adjusted to the initial_day and the last 
+    """
+    # Create a custom sorter index
+    sorter = rotate_list(initial_day=inital_day)
+    sorter_index = {day: index for index, day in enumerate(sorter)}
+
+    # Apply sorting
+    schedule['DAY'] = pd.Categorical(schedule['DAY'], categories=sorter, ordered=True)
+    schedule.sort_values(by=['DAY', 'HOUR'], inplace=True)
+    schedule = expand_dataframe(schedule, total_days=nb_of_days)
+    return schedule 
+
+
+def rotate_list(initial_day):
+    # Number of days in the schedule
+    lst = [0 , 1, 2, 3, 4, 5, 6]
+    # Find the index of the start day
+    start_index = lst.index(initial_day)
+    # Rotate the list from that index
+    return lst[start_index:] + lst[:start_index]
+
+
+
+def expand_dataframe(df, total_days):
+    unique_days = df['DAY'].unique()
+    num_days = len(unique_days)
+    
+    # Calculate the number of full weeks and extra days needed
+    full_cycles = total_days // num_days
+    extra_days = total_days % num_days
+    
+    # Replicate the DataFrame for the number of full cycles
+    result_df = pd.concat([df] * full_cycles, ignore_index=True)
+    
+    # If there are extra days, append the needed days from a new cycle
+    if extra_days > 0:
+        extra_data = df[df['DAY'].isin(unique_days[:extra_days])]
+        result_df = pd.concat([result_df, extra_data], ignore_index=True)
+    
+    return result_df
+
+
 
 if __name__ == '__main__':
     schedule, name = get_schedule('oag')
