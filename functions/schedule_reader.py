@@ -42,7 +42,7 @@ def get_schedule(building_type):
         print(f"File not found: {data_path}")
         return None, None
 
-def adjust_schedule(inital_day, schedule, nb_of_days):
+def adjust_schedule(inital_day, schedule, nb_days):
     """
     Function returns the schedule, 
     adjusted to the initial_day and the last 
@@ -54,7 +54,7 @@ def adjust_schedule(inital_day, schedule, nb_of_days):
     # Apply sorting
     schedule['DAY'] = pd.Categorical(schedule['DAY'], categories=sorter, ordered=True)
     schedule.sort_values(by=['DAY', 'HOUR'], inplace=True)
-    schedule = expand_dataframe(schedule, total_days=nb_of_days)
+    schedule = expand_dataframe(schedule, total_days=nb_days)
     return schedule 
 
 
