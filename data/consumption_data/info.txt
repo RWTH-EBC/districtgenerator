@@ -8,7 +8,7 @@ be considered-
 Data for the following profiles is not given:
 -- 25 Theaterbühne, due to the influence of the event
 -- 26 Messe, due to the influence of the event 
--- 22 Gewerblicheund industrielle Hallen and the respective subprofiles, 
+-- 22 Gewerbliche und industrielle Hallen and the respective subprofiles, 
         as the industry is highly affecting the personal usage and is ranging between 
         2.75 kWh / m2a and 1812.83  kWh / m2a 
 
@@ -37,10 +37,43 @@ The data is mapped accordingly to the IWU categories:
 | Einzelbüro                                       | IWU Generalized (1) Services building            | 4.5     | 6.5    | 23    |
 | Gewerbliche und industrielle Hallen – mittel     | IWU Generalized (2) Production buildings         | -     | -   | -   |
 
+## Data about internal lightning loads
+
+Internal lightning loads could be calculated accordingly to [3]. However, a majority of data is lacking (e.g. reflection, 
+amount of lamps). Hence, we take the assumptions of CEA and map them to our model accordingly to the following table. 
+Building types that have a '-' present, are modeled in CEA but not in districtgenerator.
+
+| building_type                                 | cea_code     |
+|-----------------------------------------------|--------------|
+| AB                                            | MULTI_RES    |
+| MFH                                           | MULTI_RES    |
+| SFH                                           | SINGLE_RES   |
+| TH                                            | SINGLE_RES   |
+| IWU Hotels, Boarding, Restaurants or Catering | HOTEL        |
+| oag                                           | OFFICE       |
+| IWU Trade Buildings                           | RETAIL       |
+| -                                             | FOODSTORE    |
+| -                                             | RESTAURANT   |
+| IWU Technical and Utility (supply and disposal)| INDUSTRIAL  |
+| IWU School, Day Nursery and other Care        | SCHOOL       |
+| IWU Health and Care                           | HOSPITAL     |
+| IWU Sports Facilities                         | GYM          |
+| -                                             | SWIMMING     |
+| -                                             | SERVERROOM   |
+| IWU Transport                                 | PARKING      |
+| -                                             | COOLROOM     |
+| -                                             | LAB          |
+| IWU Culture and Leisure                       | MUSEUM       |
+| -                                             | LIBRARY      |
+| IWU Research and University Teaching          | UNIVERSITY   |
+| IWU Generalized (1) Services building         | OFFICE       |
+| IWU Generalized (2) Production buildings      | INDUSTRIAL   |
+
+
 ## Sources
 
 [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
 
 [2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
 
- 
+[3] “DIN V 18599-10:2018-09: Energetische Bewertung von Gebäuden - Berechnung des Nutz-, End- und Primärenergiebedarfs für Heizung, Kühlung, Lüftung, Trinkwarmwasser und Beleuchtung - Teil 10: Nutzungsrandbedingungen, Klimadaten.” Beuth Verlag GmbH, Sep. 2018. doi: https://dx.doi.org/10.31030/2874436.
