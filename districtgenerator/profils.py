@@ -11,6 +11,8 @@ import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
 import functions.OpenDHW as OpenDHW
 import functions.dhw_stochastical as dhw_profil
+import functions.schedule_reader as schedule_reader 
+import pylightxl as xl
 
 class Profiles():
     """
@@ -103,6 +105,7 @@ class Profiles():
         self.occ_profile : array-like
             Number of present occupants.
         """
+        # To-Do: calculate the 
         # To-Do: Check wheter 10 min is really necessary 
         tr_min = int(self.time_resolution/60)
         sia_profile_daily_min = np.concatenate((np.ones(60*8),
@@ -317,7 +320,8 @@ class Profiles():
 
         return loadcurve
 
-    def generate_gain_profile(self):
+
+    def generate_gain_profile(self, personGain=70.0):
         """
         Generate profile of internal gains
 
@@ -396,7 +400,7 @@ class Profiles():
 
         return car_demand_total
 
-class NRProfiles():
+class NonResidentialProfiles():
     """
     Profile class 
     calculating user related profiles for Non-Residential Buildings
@@ -425,7 +429,7 @@ class NRProfiles():
         Electric load profile of lighting in W.
     """
 
-    def __init__(self, building_type, max_number_occupants, 
+    def __init__(self, building_type, max_number_occupants, area,
                  initital_day, nb_days, time_resolution):
 
         """
@@ -433,6 +437,7 @@ class NRProfiles():
         """
         self.building_type = building_type 
         self.max_number_occupants = max_number_occupants
+        self.area = area
         self.initial_day = initital_day
         self.nb_days = nb_days
         self.time_resolution = time_resolution
@@ -465,9 +470,30 @@ class NRProfiles():
             Number of days for which a stochastic profile is generated.
 
         """
-        activity
-        activity = occ.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
-        self.activity_profile = activity.occupancy
+        # To-Do: Fix the coccupancy 
+        # activity  = NonResidentialProfiles(building_type=self.building_type, 
+        #                                   max_number_occupants=self.max_number_occupants,
+        #                                   initital_day=self.initial_day,
+        #                                   time_resolution=self.time_resolution)
+        #activity = occ.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
+        #self.activity_profile = activity.occupancy
+        # Write a Function, that checks based on the type, and initial day, 
+        # generates a profile multiplicates it with the max_number_occupants 
+        # and scales it to the time resolution using nump 
+        # Data can be gathered from 
+        df_schedules, schedule = schedule_reader.get_schedule(self.building_type)
+        print(df_schedules.head())
+
+        df_schedules = schedule_reader.adjust_schedule(inital_day=self.initial_day,
+                                                                schedule=df_schedules,
+                                                                nb_days=self.nb_days)
+        self.activity_profile = df_schedules["OCCUPANCY"]
+        
+
+        # Generate a set, starting with the initital day, 
+        # that has number of days as entries * 24 
+
+
 
 
     def generate_occupancy_profiles(self):
@@ -550,6 +576,9 @@ class NRProfiles():
 
     def generate_dhw_profile(self):
         """
+        Generates a dhw profile
+        Based on the TEK Ansatz and DIBS. 
+
         Generate a stochastic dhw profile
         (on base of pycity_base)
 
@@ -575,12 +604,17 @@ class NRProfiles():
         # Run simulation
         # run the simulation for just x days
         # therefor occupancy has to have the length of x days
-        (dhw_water, dhw_heat) = dhw_profil.full_year_computation(self.activity_profile,
-                                                         self.prob_profiles_dhw,
-                                                         self.time_resolution,
-                                                         self.initial_day)
+        # TEK for Water and heat? 
+        TEK_dhw, TEK_name = schedule_reader.get_tek(self.building_type)  # TEK_dhw in kWh/m2*a
+        # To-Do,  Figure whty there is a 1000 in the formula
+        # Code taken from DIBS and adjusted for
+        # style and attributes to fit districtgenerator
+        occupancy_full_usage_hours = self.activity_profile.sum()  # in h/a
+        TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
 
-        return dhw_heat
+        dhw_water = self.occ_profile * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
+
+        return dhw_water
 
 
     def generate_el_profile(self, irradiance, el_wrapper,
@@ -738,6 +772,7 @@ class NRProfiles():
             Internal gain of each flat
 
         """
+        # 
 
         personGain = 70.0  # [Watt]
         lightGain = 0.65

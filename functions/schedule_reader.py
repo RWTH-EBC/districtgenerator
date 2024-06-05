@@ -116,11 +116,12 @@ def get_tek(building_type):
         return None, None
 
     data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(data_dir_path, 'data', 'TEKs', 'TEK_NWG_Vergleichswerte.csv')
+    data_path = os.path.join(data_dir_path, 'data', 'TEKs', 'TEK_districtgenerator.csv')
 
     try:
-        data_schedule = pd.read_csv(data_path, sep=',')
+        data_schedule = pd.read_csv(data_path, sep=',',)
         warm_water_value = data_schedule[data_schedule["TEK"] == tek_name]["TEK Warmwasser"].iloc[0]
+        print(f"Das ist der Wert {warm_water_value}")
         return warm_water_value, tek_name
     except FileNotFoundError:
         print(f"File not found: {data_path}")
@@ -128,7 +129,6 @@ def get_tek(building_type):
     except IndexError:
         print(f"No data available for {tek_name}")
         return None, None
-
 
 if __name__ == '__main__':
     schedule, name = get_schedule('oag')
