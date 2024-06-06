@@ -417,3 +417,121 @@ class Sun():
 
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
+
+class SunIlluminance(Sun):
+    """
+    Extension of the Sun class to include calculations for illuminance on tilted surfaces.
+    """
+    
+    def calcIlluminance(self, initialTime, timeDiscretization, timeSteps, 
+                        timeZone, location, altitude, beta, gamma, 
+                        normal_direct_illuminance, horizontal_diffuse_illuminance):
+        """
+        Calculates the illuminance on various surfaces over specified time steps.
+
+        Parameters:
+        initialTime : integer
+            Time passed since January 1st, 00:00:00 in seconds
+        timeDiscretization : integer
+            Time between two consecutive time steps in seconds
+        timeSteps : integer
+            Number of investigated / requested time steps
+        timeZone : integer
+            Shift between the location's time and GMT in hours
+        location : tuple
+            (latitude, longitude) of the simulated system's position
+        altitude : float
+            The location's altitude in meters
+        beta : list
+            Array of all slopes of building walls and roof
+        gamma : list
+            Array of surface azimuth angles
+        normal_direct_illuminance : array_like
+            Normal direct illuminance from a weather file [Lx]
+        horizontal_diffuse_illuminance : array_like
+            Horizontal diffuse illuminance from a weather file [Lx]
+
+        Returns:
+        array_like
+            Illuminance profiles for different surface azimuth angles in gamma
+        """
+        
+        # Geometry calculation for given parameters
+        geometry = self.getGeometry(initialTime, timeDiscretization, timeSteps, timeZone, location, altitude)
+        omega, delta, thetaZ, airmass, Gon = geometry
+
+        # Prepare storage for results
+        illuminance_results = []
+
+        # Iterate over all surfaces
+        for i in range(len(gamma)):
+            # Compute incidence angle on each surface
+            theta = self.getIncidenceAngle(beta[i], gamma[i], location[0], omega, delta)
+            theta = theta[1]  # Only need the angle
+
+            # Compute illuminance on tilted surface for each surface
+            illuminance = self.getIlluminanceTiltedSurface(theta, thetaZ, normal_direct_illuminance, horizontal_diffuse_illuminance, beta[i])
+            illuminance_results.append(illuminance)
+
+        # Return illuminance on each surface
+        return np.array(illuminance_results)
+
+    def getIlluminanceTiltedSurface(self, theta, thetaZ, normal_direct_illuminance, horizontal_diffuse_illuminance, beta):
+        """
+        Compute the total illuminance on a tilted surface using the direct and diffuse illuminance components.
+
+        Parameters:
+        theta : float
+            Incidence angle on the surface in degrees
+        thetaZ : float
+            Zenith angle in degrees
+        normal_direct_illuminance : float
+            Direct illuminance at normal incidence [Lx]
+        horizontal_diffuse_illuminance : float
+            Diffuse illuminance at horizontal incidence [Lx]
+        beta : float
+            Slope of the surface in degrees
+
+        Returns:
+        float
+            Total illuminance on the tilted surface [Lx]
+        """
+        # Calculate direct and diffuse illuminance factors similarly to Window's method
+        direct_illuminance = normal_direct_illuminance * max(np.cos(np.radians(theta)), 0)
+        diffuse_illuminance = horizontal_diffuse_illuminance * (1 + np.cos(np.radians(beta))) / 2
+
+        # Total illuminance on the tilted surface
+        total_illuminance = direct_illuminance + diffuse_illuminance
+        return 
+
+
+
+if __name__ == "__main__":
+
+    # Initialize the class with a hypothetical file path for solar data
+    sun_illuminance = SunIlluminance(filePath="path_to_your_solar_data.csv")
+
+    # Define parameters
+    initialTime = 0  # Start of the year, in seconds
+    timeDiscretization = 3600  # One hour, in seconds
+    timeSteps = 24  # One day's worth of hourly steps
+    timeZone = 1  # Central European Time
+    location = (50.76, 6.07)  # Coordinates for Aachen, Germany
+    altitude = 200  # Altitude in meters
+    beta = [90, 90, 90, 90]  # All surfaces are vertical
+    gamma = [-90, 0, 90, 180]  # East, South, West, North
+
+    # Simulated normal direct and diffuse illuminance data (hourly for one day)
+    normal_direct_illuminance = np.random.rand(timeSteps) * 1000  # Random values as example
+    horizontal_diffuse_illuminance = np.random.rand(timeSteps) * 500  # Random values as example
+
+    # Calculate illuminance
+    illuminance_results = sun_illuminance.calcIlluminance(
+        initialTime, timeDiscretization, timeSteps, timeZone,
+        location, altitude, beta, gamma,
+        normal_direct_illuminance, horizontal_diffuse_illuminance
+    )
+
+    # Print the results
+    print("Illuminance Results for each orientation (East, South, West, North):")
+    print(illuminance_results)
