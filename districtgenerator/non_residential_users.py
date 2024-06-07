@@ -10,8 +10,9 @@ import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
-from districtgenerator.profils import Profiles
+from districtgenerator.profils import Profiles , NonResidentialProfiles
 import functions.heating_profile_5R1C as heating
+import functions.schedule_reader as schedules
 
 class NonResidentialUsers():
     '''
@@ -59,7 +60,7 @@ class NonResidentialUsers():
 
         self.usage = building_usage 
         self.area = area
-        self.nb_flats = None
+        #self.nb_flats = None
         self.annual_el_demand = None
         self.lighting_index = []
         self.el_wrapper = []
@@ -69,7 +70,9 @@ class NonResidentialUsers():
         self.elec = None
         self.gains = None
         self.heat = None
-
+        self.occupancy_schedule = None
+        self.appliance_schedule = None
+        self.lighntning_schedule = None
         
         # Define the path to the JSON file
         base_path = os.getcwd()
@@ -87,11 +90,9 @@ class NonResidentialUsers():
         # self.generate_number_flats(area)
         self.generate_number_occupants()
         self.generate_annual_el_consumption()
+        self.generate_schedules()
         # self.generate_lighting_index()
-        self.create_el_wrapper()
-
-        
-    
+        # self.create_el_wrapper()
 
     
     def load_json_data(self, json_path):
@@ -203,11 +204,24 @@ class NonResidentialUsers():
             random_nb = rd.random()
             self.lighting_index.append(int(random_nb * 100))
 
+    def generate_schedules(self):
+        # get schedules occupancy
+        df_schedules, schedule = schedules.get_schedule(self.usage)
+        print(df_schedules)
+        self.occupancy_schedule = df_schedules["OCCUPANCY"]
+        self.appliance_schedule = df_schedules["APPLIANCES"]
+        #To-Do: Replace with key
+        self.lighntning_schedule = df_schedules["LIGHTING"]
+        
+        
+
 
     def create_el_wrapper(self) :
         '''
-        Creat a wrapper-object
-        holding information about the lighting and appliance configuration.
+        Smiliar to thec creat a wrapper-object in the Residential configuration, 
+        this generates the information about lighning and appliances. 
+
+
 
         Parameters
         ----------
@@ -221,6 +235,7 @@ class NonResidentialUsers():
         '''
 
         # Write a function, that returns the respective 
+        # Can be deleted 
         src_path = os.path.dirname(richardsonpy.__file__)
         path_app = os.path.join(src_path,'inputs','Appliances.csv')
         path_light = os.path.join(src_path,'inputs','LightBulbs.csv')
@@ -230,9 +245,11 @@ class NonResidentialUsers():
         # Full Electricity Demand equals to:
         # User_related_Demand + Central Demand + Diverse Demand 
         #  
-        # Source: [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+        # Source: [1] S. Henning and K. Jagnow, 
+        # “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 
+        # 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
         # Pages: 80-81
-        # To-Do: Find factor for calclulation of annaul demand  
+        # To-Do: Find factor for calclulation of annual demand  
 
         appliancesDemand =  self.annual_el_demand + 0 
 
@@ -290,10 +307,12 @@ class NonResidentialUsers():
         # Write Function that generates an lighning profile
         # Write DHW function
 
-
-        temp_obj = Profiles(self.nb_occ,initital_day,nb_days,time_resolution)
+        temp_obj = NonResidentialProfiles(building_type=self.usage, max_number_occupants=self.nb_occ, area=self.area,
+                                          initital_day=initital_day, nb_days=nb_days, time_resolution=time_resolution)
         self.occ = temp_obj.generate_occupancy_profiles()
         self.dhw = temp_obj.generate_dhw_profile()
+        # Electircal profile needs to be generated for this 
+        # Calculation of user demand + lighning + other 
         self.elec = temp_obj.generate_el_profile(irradiance=irradiation,
                                                  el_wrapper=self.el_wrapper,
                                                  annual_demand=self.annual_el_demand)
@@ -392,7 +411,7 @@ class NonResidentialLighting(object):
         """
         Constructor of Non Residential Lighning Class. 
 
-        
+
 
         #ToDo: 
         """

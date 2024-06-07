@@ -643,12 +643,28 @@ class NonResidentialProfiles():
             # (10-minutes-timestep assumed)
             current_occupancy = self.activity_profile[144 * i: 144 * (i + 1)]
 
-            day_of_the_year = 0 # only necessary for electric heating
+            day_of_the_year = 0 
+            # only necessary for electric heating
             # Perform lighting and appliance usage simulation for one day
+            # Figure out, how to get el_p, light_p and app_p 
+            # In richardsonnpy the following return is stated: 
+            # Returns
+            # -------
+            # tup_res : tuple (of arrays)
+            #     Results tuple (power_el_total, power_el_light,
+            #     power_el_app)
+            #     power_el_total : array
+            #         Array holding total el. power values in Watt
+            #     power_el_light : array
+            #         Array holding el. power values for light usage in Watt
+            #     power_el_app : array
+            #         Array holding el. power values for appliance usage in Watt
             (el_p_curve, light_p_curve, app_p_curve) = el_wrapper.power_sim(irradiation=irrad_day_minutewise,
                                                                             weekend=weekend,
                                                                             day=i+day_of_the_year,
-                                                                            occupancy=current_occupancy)
+            # Substitution of caluclations 
+            # Lighniging 
+            # If occupancy -> occupancy electricity                                                                 occupancy=current_occupancy)
             # Append results
             demand.append(el_p_curve)
             self.light_load.append(light_p_curve)

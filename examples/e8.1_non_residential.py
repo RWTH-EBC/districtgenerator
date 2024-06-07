@@ -3,7 +3,7 @@
 """
 Next step: create an environment.
 """
-
+#!python 
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator import *
 

@@ -61,9 +61,9 @@ class Datahandler():
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
-        self.weatherFile = weather_file 
-        self.sheetFile = sheet_file 
-        self.advancedModel = None 
+        self.weatherFile = weather_file
+        self.sheetFile = sheet_file
+        self.advancedModel = None
 
     def setResultPath(self, new_path=None):
             """
@@ -148,7 +148,7 @@ class Datahandler():
                 weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
                 temp_sunDirect = weatherData["B"].to_numpy()
                 temp_sunDiff = weatherData["D"].to_numpy()
-                temp_temp = weatherData["t"].to_numpy() 
+                temp_temp = weatherData["t"].to_numpy()
               
         else: 
             # This works for the predefined weather files 
@@ -373,7 +373,10 @@ class Datahandler():
                 # at heatimg limit temperature
                 building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
                 # for drinking hot water
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
+                # To-Do figure hot water demand out for Non Residential
+                # in DIBS the IWU Approach of Teilenergiekennwerte is chosen 
+                # 
+                # building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
                 
             else:
                 raise AttributeError(f"The building type {building_type} is currently not supported.")
@@ -400,16 +403,26 @@ class Datahandler():
 
         set = []
         for building in self.district:
-
-            # %% create unique building name
-            # needed for loading and storing data with unique name
-            # name is composed of building type, number of flats, serial number of building of this properties
-            name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
-            if name not in set:
-                set.append(name)
-                self.counter[name] = count()
-            nb = next(self.counter[name])
-            building["unique_name"] = name + "_" + str(nb)
+            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+                # %% create unique building name
+                # needed for loading and storing data with unique name
+                # name is composed of building type, number of flats, serial number of building of this properties
+                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
+                if name not in set:
+                    set.append(name)
+                    self.counter[name] = count()
+                nb = next(self.counter[name])
+                building["unique_name"] = name + "_" + str(nb)
+            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
+                                                              "spf", "hbr", "pwo", "trd", "tud", 
+                                                              "trs", "gs1", "gs2"]:
+                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_occ)
+                if name not in set:
+                    set.append(name)
+                    self.counter[name] = count()
+                nb = next(self.counter[name])
+                building["unique_name"] = name + "_" + str(nb)
+                
 
             # calculate or load user profiles
             if calcUserProfiles:

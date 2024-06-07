@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-"""
+# To-Do: Validate script
 
 import math
 import numpy as np
@@ -497,12 +496,12 @@ class SunIlluminance(Sun):
             Total illuminance on the tilted surface [Lx]
         """
         # Calculate direct and diffuse illuminance factors similarly to Window's method
-        direct_illuminance = normal_direct_illuminance * max(np.cos(np.radians(theta)), 0)
+        direct_illuminance = normal_direct_illuminance * np.maximum(np.cos(np.radians(theta)), 0)
         diffuse_illuminance = horizontal_diffuse_illuminance * (1 + np.cos(np.radians(beta))) / 2
 
         # Total illuminance on the tilted surface
         total_illuminance = direct_illuminance + diffuse_illuminance
-        return 
+        return total_illuminance
 
 
 
