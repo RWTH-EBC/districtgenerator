@@ -112,6 +112,8 @@ class Datahandler():
         -------
 
         """
+        # To-Do: Illuminance calculation for both epw and DWD
+        # To-Do: Set time stamp for epw
 
         # %% load information about of the site under consideration
         # important for weather conditions
@@ -162,9 +164,9 @@ class Datahandler():
 
             # get weather data of interest
             # variables according to dwd sheet
-            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) 
-            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  
-            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene) 
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund
             [temp_sunDirect, temp_sunDiff, temp_temp] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5]]
 
         # %% load time information and requirements
