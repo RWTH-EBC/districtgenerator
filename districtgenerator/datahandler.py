@@ -414,8 +414,10 @@ class Datahandler():
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
         
             # Check if the building type is a supported non residential building. 
-            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"]:
-                print("We are about to generate a Non Resdeintal building.")
+            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
+                                                              "spf", "hbr", "pwo", "trd", "tud", 
+                                                              "trs", "gs1", "gs2"]:
+                print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
                     number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
@@ -482,12 +484,22 @@ class Datahandler():
             # %% create unique building name
             # needed for loading and storing data with unique name
             # name is composed of building type, number of flats, serial number of building of this properties
-            name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
-            if name not in set:
-                set.append(name)
-                self.counter[name] = count()
-            nb = next(self.counter[name])
-            building["unique_name"] = name + "_" + str(nb)
+            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
+                if name not in set:
+                    set.append(name)
+                    self.counter[name] = count()
+                nb = next(self.counter[name])
+                building["unique_name"] = name + "_" + str(nb)
+             elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
+                                                              "spf", "hbr", "pwo", "trd", "tud", 
+                                                              "trs", "gs1", "gs2"]:
+                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_occ)
+                if name not in set:
+                    set.append(name)
+                    self.counter[name] = count()
+                nb = next(self.counter[name])
+                building["unique_name"] = name + "_" + str(nb)
 
             # calculate or load user profiles
             if calcUserProfiles:
@@ -1009,3 +1021,4 @@ class Datahandler():
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+

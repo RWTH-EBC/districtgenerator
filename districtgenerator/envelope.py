@@ -492,6 +492,7 @@ class Envelope():
             self.U["opaque"]["roof"] = prj.parameters["u_d_opak"]
             self.U["opaque"]["floor"] = prj.parameters["u_ug"]
             self.U["opaque"]["window"] =prj.parameters["u_fen"]
+            self.U["window"]  = prj.parameters["u_fen"]
 
             # Assumption of thermal heat capacity 
             # According to EN ISO 13790:2008-09, S. 81 / DIBS
