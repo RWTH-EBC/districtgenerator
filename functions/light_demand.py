@@ -9,40 +9,6 @@ import pandas as pd
 import functions.schedule_reader as schedule_reader
 
 
-def calculate_illuminance(list_windows, sun_altitude, sun_azimuth, normal_direct_illuminance,
-                           horizontal_diffuse_illuminance): 
-
-    """
-    Calculates the illuminance in a building zone through the set window areas. 
-
-    Function is taken and adapted from DIBS.
-
-    :param sun_altitude: Altitude Angle of the Sun in Degrees
-    :type sun_altitude: float
-    :param sun_azimuth: Azimuth angle of the sun in degrees
-    :type sun_azimuth: float
-    :param normal_direct_illuminance: Normal Direct Illuminance from weather file [Lx]
-    :type normal_direct_illuminance: float
-    :param horizontal_diffuse_illuminance: Horizontal Diffuse Illuminance from weather file [Lx]
-    :type horizontal_diffuse_illuminance: float
-    :return: self.incident_illuminance, Incident Illuminance on window [Lumens]
-    :return: self.transmitted_illuminance - Illuminance in building after transmitting through the window [Lumens]
-    :rtype: float
-    """
-    #ToDo - check which of these functions have been taken
-    # To-Do: Delete
-    direct_factor = self.calc_direct_solar_factor(sun_altitude, sun_azimuth, )
-    diffuse_factor = self.calc_diffuse_solar_factor()
-
-    direct_illuminance = direct_factor * normal_direct_illuminance
-    diffuse_illuminance = diffuse_factor * horizontal_diffuse_illuminance
-    for window in list_windows:
-
-        incident_illuminance = (direct_illuminance + diffuse_illuminance) * window.area
-        transmitted_illuminance = self.incident_illuminance * \
-                                        self.glass_light_transmittance
-    
-    return transmitted_illuminance 
 
 
 def get_lighntning_load(building_type):
