@@ -628,8 +628,7 @@ class Envelope():
 
             # To-Do: In IWU Non-Residential Information about Roof Windows are present
             # This can be implemented
-            self.A["window"]["roof"] = 0.0
-            self.A["window"]["floor"] = 0.0
+            #self.A["window"]["roof"] = 0.0
 
             self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
     
