@@ -6,6 +6,7 @@
 
 import os
 import pandas as pd
+import functions.schedule_reader as schedule_reader
 
 
 def calculate_illuminance(list_windows, sun_altitude, sun_azimuth, normal_direct_illuminance,
@@ -29,6 +30,7 @@ def calculate_illuminance(list_windows, sun_altitude, sun_azimuth, normal_direct
     :rtype: float
     """
     #ToDo - check which of these functions have been taken
+    # To-Do: Delete
     direct_factor = self.calc_direct_solar_factor(sun_altitude, sun_azimuth, )
     diffuse_factor = self.calc_diffuse_solar_factor()
 
@@ -50,20 +52,9 @@ def get_lighntning_load(building_type):
     However, at urban scale this is not feasibale, due to lack of information. 
     For example kind of lighning. Hence, we use the factors from CEA, El_Wm2. 
     """
-    _assignment = {
-        "oag": "Bürogebäude",
-        "IWU Research and University Teaching": "Hochschule und Forschung (allgemein)",
-        "IWU Health and Care": "Beherbergungsstätten (allgemein)",
-        "IWU School, Day Nursery and other Care": "Schulen",
-        "IWU Culture and Leisure": "Ausstellungsgebäude",
-        "IWU Sports Facilities": "Sporthallen",
-        "IWU Hotels, Boarding, Restaurants or Catering": "Hotels / Pensionen",
-        "IWU Production, Workshop, Warehouse or Operations": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit",
-        "IWU Trade Buildings": "Verkaufsstätten (allgemein)",
-        "IWU Generalized (1) Services building": "Verwaltungsgebäude (allgemein)",
-        "IWU Generalized (2) Production buildings": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit"
-    }
-    data_type = _assignment.get(building_type)
+
+    #data_type = _assignment.get(building_type)
+    data_type = schedule_reader.get_building_type(kind='18599', term=building_type)
     if data_type is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -74,7 +65,10 @@ def get_lighntning_load(building_type):
 
 
     try:
-        load_data = pd.read_csv(load_data_path, sep=',')
+        print(f"This is the path: {load_data_path}"
+              )
+        load_data = pd.read_csv(load_data_path, sep=';', decimal=',')
+        print(load_data, "Tjtit")
         lighntning_control = load_data[load_data["building_type"] == data_type]["El_Wm2"].iloc[0]
 
         return  lighntning_control
@@ -94,22 +88,9 @@ def get_lightning_control(building_type):
     Map 'E_m' from data_18599_10_4 to building_data
 
     """ 
-    #To-Do: Write function to replace all data assignement in a central function
 
-    _assignment = {
-        "oag": "Bürogebäude",
-        "IWU Research and University Teaching": "Hochschule und Forschung (allgemein)",
-        "IWU Health and Care": "Beherbergungsstätten (allgemein)",
-        "IWU School, Day Nursery and other Care": "Schulen",
-        "IWU Culture and Leisure": "Ausstellungsgebäude",
-        "IWU Sports Facilities": "Sporthallen",
-        "IWU Hotels, Boarding, Restaurants or Catering": "Hotels / Pensionen",
-        "IWU Production, Workshop, Warehouse or Operations": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit",
-        "IWU Trade Buildings": "Verkaufsstätten (allgemein)",
-        "IWU Generalized (1) Services building": "Verwaltungsgebäude (allgemein)",
-        "IWU Generalized (2) Production buildings": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit"
-    }
-    data_type = _assignment.get(building_type)
+    # data_type = _assignment.get(building_type)
+    data_type = schedule_reader.get_building_type(kind='18599', term=building_type)
     if data_type is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -119,7 +100,7 @@ def get_lightning_control(building_type):
 
 
     try:
-        maintenance_data_schedule = pd.read_csv(maintenance_data_path, sep=',')
+        maintenance_data_schedule = pd.read_csv(maintenance_data_path, sep=';')
 
         lighntning_control = maintenance_data_schedule[maintenance_data_schedule["typ_18599"] == data_type]["E_m"].iloc[0]
 
@@ -161,10 +142,11 @@ def calculate_light_demand(building_type,
        # To-Do: figure lighning_control
        lighting_load = get_lighntning_load(building_type) # W/m2 get_lighning_control
        lighting_utilisation_factor = 0.45 # According to DIBS and Jayathissa, P. (2020). 5R1C Building Simulation Model. url: https://github.com/architecture-building-systems/RC_BuildingSimulator (besucht am 22. 03. 2020)
-       lighting_control = get_light_factors(building_type=building_type)
        #To-Do: dobule check, whether lighting_control or 
        lighting_control = get_lightning_control(building_type=building_type)
-       lightning_maintenance_factor  = get_lighting_maintenance_factor(building_type=)
+       lightning_maintenance_factor  = get_lighting_maintenance_factor(building_type=building_type)
+       print(occupancy)
+       
        lighting_demand = pd.Series(0, index=occupancy.index)
        lux = (illuminance * lighting_utilisation_factor * lightning_maintenance_factor) / area
        mask = (lux < lighting_control) & (occupancy > 0)

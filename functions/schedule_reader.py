@@ -1,6 +1,33 @@
 import os
 import pandas as pd
 
+def get_building_type(term, kind):
+    """
+    Retrieve the value from a specified column based on a match in the 'districtgenerator' column.
+    
+    Parameters:
+    term (str): The term to match in the 'districtgenerator' column.
+    kind (str): The column name from which to retrieve the value.
+    
+    Returns:
+    str: The value from the specified column if a match is found; otherwise, None.
+    """
+    df = pd.read_csv(r'data/building_types.csv', sep=';')
+    # Check if the kind column exists
+    if kind not in df.columns:
+        raise ValueError(f"Column '{kind}' does not exist in the table.")
+    
+    # Find the row that matches the term in 'districtgenerator'
+    match = df[df['districtgenerator'] == term]
+    
+    # If a match is found, return the value from the specified column
+    if not match.empty:
+        return match[kind].values[0]
+    else:
+        return None
+
+
+
 def get_schedule(building_type):
     """
     Returns the schedules from SIA, according to the building type.
@@ -15,7 +42,7 @@ def get_schedule(building_type):
         "oag": "office.csv",
         "IWU Research and University Teaching": "Hörsaal, Auditorium.csv",
         "IWU Health and Care": "Bettenzimmer.csv", 
-        "IWU School, Day Nursery and other Care": "KSchulzimmer_Hoersaal.csv",
+        "IWU School, Day Nursery and other Care": "Schulzimmer_Hoersaal.csv",
         "IWU Culture and Leisure": "Ausstellungshalle.csv",
         "IWU Sports Facilities":  "Turnhalle.csv",
         "IWU Hotels, Boarding, Restaurants or Catering":  "Hotelzimmer.csv",
@@ -27,7 +54,8 @@ def get_schedule(building_type):
         "IWU Generalized (2) Production buildings":  "Lagerhalle.csv"
         }
 
-    schedule_name = type_assignment.get(building_type)
+    #schedule_name = type_assignment.get(building_type)
+    schedule_name = get_building_type(term='SIA', kind=building_type)
     if schedule_name is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -110,7 +138,8 @@ def get_tek(building_type):
         "IWU Generalized (2) Production buildings": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit"
     }
 
-    tek_name = tek_assignment.get(building_type)
+    #tek_name = tek_assignment.get(building_type)
+    tek_name = get_building_type("TEK", kind=building_type)
     if tek_name is None:
         print(f"No schedule for building type {building_type}")
         return None, None
