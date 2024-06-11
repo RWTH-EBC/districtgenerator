@@ -2,7 +2,7 @@
 
 import pandas as pd 
 
-def getEpWeather(file_path:str):
+def getEpWeather(file_path:str) -> pd.DataFrame:
     """
     Function gets EPW weather data from a file and returns it as a pandas dataframe. 
 
