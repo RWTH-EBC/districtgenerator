@@ -200,7 +200,10 @@ class Datahandler():
                 temp_sunDirect = weatherData["Direct Normal Radiation"].to_numpy()
                 temp_sunDiff = weatherData["Diffuse Horizontal Radiation"].to_numpy()
                 temp_temp = weatherData["Dry Bulb Temperature"].to_numpy()
+                direct_illuminance = weatherData["Direct Normal Illuminance"].to_numpy()
+                diffuse_illuminance = weatherData["Diffuse Horizontal Illuminance"].to_numpy()
             else:
+                # To-Do: Figure out, how to gather illuminance from a DWD file?
                 # if an weather file is presented, this can be used for calcuation
                 # it should be a csv files with the following columns, according to the DWD TRY files
                 # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) float or int
@@ -267,6 +270,12 @@ class Datahandler():
         self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_wind)[0:-1]
+        self.site["IlluminanceDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                           direct_illuminance)[0:-1]
+        self.site["IlluminaceDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                           diffuse_illuminance)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
 

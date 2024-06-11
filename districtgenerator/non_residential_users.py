@@ -13,10 +13,14 @@ import richardsonpy.classes.lighting as light_model
 from districtgenerator.profils import Profiles , NonResidentialProfiles
 import functions.heating_profile_5R1C as heating
 import functions.schedule_reader as schedules
+import functions.light_demand as light_demand
+from districtgenerator.solar import SunIlluminance
+
 
 class NonResidentialUsers():
     '''
-    Building Users class describing the number of occupants and their configs
+    Building Users class describing the number of occupants and their configs. 
+
 
     Parameters
     ----------
@@ -24,6 +28,7 @@ class NonResidentialUsers():
         buildings objects of TEASER project
     area : integer
         Floor area of different building types
+  
 
     Attributes
     ----------
@@ -53,17 +58,19 @@ class NonResidentialUsers():
 
 
 
-    def __init__(self, building_usage, area):
+    def __init__(self, building_usage, area, file, envelope, site, time):
         """
         Constructor of Users Class
         """
 
         self.usage = building_usage 
         self.area = area
+        self.file = file
+        self.envelope = envelope
+        self.site = site 
+        self.time = time
         #self.nb_flats = None
         self.annual_el_demand = None
-        self.lighting_index = []
-        self.el_wrapper = []
         self.nb_occ = []
         self.occ = None
         self.dhw = None
@@ -89,7 +96,8 @@ class NonResidentialUsers():
 
         # self.generate_number_flats(area)
         self.generate_number_occupants()
-        self.generate_annual_el_consumption()
+        self.generate_annual_el_consumption_equipment()
+        self.generate_annual_el_consumption_lightning()
         self.generate_schedules()
         # self.generate_lighting_index()
         # self.create_el_wrapper()
@@ -145,8 +153,18 @@ class NonResidentialUsers():
         else:
             print(f"No data available for building type: {self.usage}")
 
-
-    def generate_annual_el_consumption(self, equipment="Mittel"):
+    def generate_schedules(self):
+        # get schedules occupancy
+        df_schedules, schedule = schedules.get_schedule(self.usage)
+        nb_days =  timeDiscretization=self.time["timeResolution"],
+                                          timeSteps=self.time["timeSteps"]
+        schedules.adjust_schedule(inital_day=0, nb_days=)
+        self.occupancy_schedule = df_schedules["OCCUPANCY"]
+        self.appliance_schedule = df_schedules["APPLIANCES"]
+        #To-Do: Replace with key
+        self.lighntning_schedule = df_schedules["LIGHTING"]
+        
+    def generate_annual_el_consumption_equipment(self, equipment="Mittel"):
         '''
         Generate annual elictricity consumption in dependency of the building type and the average area. 
         
@@ -170,6 +188,11 @@ class NonResidentialUsers():
         # In DIBS only electricity used for heating is simulated
         # Several approaches might be used for Non-Residential,
         # such as calculation bases on users, tasks, e.g. 
+        # Here the calculation is done, based on the average equipment in the building type 
+        # For more information see: 
+        # [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+        # [2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
+
 
         
         if self.usage in self.electricity_data:
@@ -180,40 +203,41 @@ class NonResidentialUsers():
                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
 
             except KeyError:
-                print(f"No data available for building type: {self.usage}")
+                print(f"No data about annual electrical consumption available for building type: {self.usage}")
             # To Do 
             # Check if randomifaction of electriciy set up works  
         else:
-            print(f"No data available for building type: {self.usage}")
+            print(f"No data about annual electrical consumption available available for building type: {self.usage}")
 
-    def generate_lighting_index(self):
-        '''
-        Choose a random lighting index between 0 and 99.
-        This index defines the lighting configuration of the houshold.
-        There are 100 predifined ligthing configurations.
+    def generate_annual_el_consumption_lightning(self):
+        """
+        Creates 
+        """
+        # Mapping cardinal directions to azimuth angles
+        windows = self.envelope.A["window"] # ["window"]
+        # Filter out the 'sum' key if present
+        windows = {key: value for key, value in windows.items() if key != 'sum'}
+        orientations = {
+            'north': 0,
+            'east': 90,
+            'south': 180,
+            'west': 270
+        }
 
-        Assumption: All light configurations are equally probable. 
-        No distinction is made between SHF and MFH.
-
-        Parameters
-        ----------
-        random_nb : random number in [0,1)
-        '''
-
-        for j in range(self.nb_flats):
-            random_nb = rd.random()
-            self.lighting_index.append(int(random_nb * 100))
-
-    def generate_schedules(self):
-        # get schedules occupancy
-        df_schedules, schedule = schedules.get_schedule(self.usage)
-        print(df_schedules)
-        self.occupancy_schedule = df_schedules["OCCUPANCY"]
-        self.appliance_schedule = df_schedules["APPLIANCES"]
-        #To-Do: Replace with key
-        self.lighntning_schedule = df_schedules["LIGHTING"]
-        
-        
+        beta = [90] * len(windows)  # tilt for all windows
+        gamma = [orientations[key] for key in windows.keys()]  # azimuths based on orientation
+        Sun = SunIlluminance(filePath=self.envelope.file_path)
+        illuminance = Sun.calcIlluminance(initialTime=0, timeDiscretization=self.time["timeResolution"],
+                                          timeSteps=self.time["timeSteps"], timeZone=self.site["timeZone"], location=self.site["location"], altitude=self.site["altitude"],
+                                          beta=beta, gamma=gamma,
+                                          normal_direct_illuminance=self.site["IlluminanceDirect"], 
+                                          horizontal_diffuse_illuminance=self.site["IlluminaceDiffuse"])
+        print(illuminance, "This is the illuminance")
+        # To-Do: 
+        # Calculate Energy Demand throuhg lighning
+        self.annual_lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
+                                                                           occupancy=self.occupancy, area=self.area)
+    
 
 
     def create_el_wrapper(self) :
@@ -314,12 +338,11 @@ class NonResidentialUsers():
         # Electircal profile needs to be generated for this 
         # Calculation of user demand + lighning + other 
         self.elec = temp_obj.generate_el_profile(irradiance=irradiation,
-                                                 el_wrapper=self.el_wrapper,
                                                  annual_demand=self.annual_el_demand)
         self.gains = temp_obj.generate_gain_profile()
         
 
-    def calcHeatingProfile(self,site,envelope,time_resolution) :
+    def calcHeatingProfile(self,site,envelope,time_resolution):
 
         '''
         Calclulate heat demand for each building
@@ -403,6 +426,9 @@ class NonResidentialUsers():
         self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',')
         self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
         self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
+
+
+    
 
 
 class NonResidentialLighting(object):
