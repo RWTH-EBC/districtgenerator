@@ -404,10 +404,6 @@ class Datahandler:
         None.
         """
 
-
-
-
-
         self.initializeBuildings(scenario_name)
         self.generateEnvironment(plz)
         self.generateBuildings()
@@ -425,49 +421,6 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def initializeCentralDevices(self, fileName_centralSystems="central_devices_example"):
-        """
-        Initialize the central energy unit.
-
-        Parameters
-        ----------
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
-
-        Returns
-        -------
-        None.
-        """
-
-        # initialization
-        self.centralDevices = {}
-
-        # initialize central energy system object
-        self.centralDevices["ces_obj"] = CES()
-
-        # load information about central devices from CSV-file
-        # (units are kW or kWh)
-        self.centralDevices["infos"] = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                                   + "/"
-                                                   + fileName_centralSystems
-                                                   + ".csv",
-                                                   header=0, delimiter=";")
-
-        # load data about central devices from JSON-file
-        self.centralDevices["data"] = {}
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.centralDevices["data"][subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.centralDevices["data"][subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
-        # load data from JSON-file about the heat grid, that connects the central devices and the buildings
-        self.centralDevices["heatGrid"] = {}
-        with open(os.path.join(self.filePath, "heat_grid.json")) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.centralDevices["heatGrid"][subData["name"]] = subData["value"]
 
     def designDecentralDevices(self, saveGenerationProfiles=True):
         """
@@ -561,13 +514,18 @@ class Datahandler:
         -------
         None.
         """
+        # initialization
+        self.centralDevices = {}
+
+        # initialize central energy system object
+        self.centralDevices["ces_obj"] = CES()
 
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self.centralDevices["infos"],
-                                                                                     self.centralDevices["data"])
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
 
         # calculate potential central PV and STC generation (with the roof area of the hole district for each!)
-        # todo: Why are different areas used?
+        # todo: put into CES() object --> there new function
+        """
         potentialCentralPV, potentialCentralSTC = \
             sun.calcPVAndSTCProfile(time=self.time,
                                     site=self.site,
@@ -619,6 +577,7 @@ class Datahandler:
             np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralWT.csv',
                        self.centralDevices["renewableGeneration"]["centralWT"],
                        delimiter=',')
+        """
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
@@ -636,7 +595,6 @@ class Datahandler:
         None.
         """
 
-        self.initializeCentralDevices(fileName_centralSystems)
         self.designDecentralDevices(saveGenerationProfiles)
         self.designCentralDevices(saveGenerationProfiles)
 
@@ -930,24 +888,3 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-
-    def optimizationWithEHDO(self):
-        """
-        Optimization with EHDO.
-
-        Returns
-        -------
-        None.
-        """
-
-        # Load parameters
-        param, devs, dem, result_dict = load_params_EHDO.load_params(self)
-
-        # Run optimization
-        self.resultsEHDO = optim_model_EHDO.run_optim(devs, param, dem, result_dict)
-
-
-
-
-
-

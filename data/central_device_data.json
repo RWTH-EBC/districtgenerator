@@ -1,325 +1,227 @@
-[
-  {
-  "device": "air heat pump" ,
-  "abbreviation": "HP_air" ,
-  "description": "Air-to-water heat pump." ,
-  "specifications": [
-    {
-      "name": "grade" ,
-      "value": 0.4 ,
-      "unit": "-" ,
-      "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
-    }
-  ]
+{
+  "Photovoltaic": {
+    "feasible": true,
+    "eta": 0.15,
+    "life_time": 25,
+    "inv_var": 1000,
+    "cost_om": 0.02,
+    "max_area": 10000,
+    "min_area": 10,
+    "G_stc": 1
   },
-  {
-  "device": "geothermal heat pump" ,
-  "abbreviation": "HP_geo" ,
-  "description": "Geo-to-water heat pump." ,
-  "specifications": [
-    {
-      "name": "grade" ,
-      "value": 0.4 ,
-      "unit": "-" ,
-      "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
-    },
-    {
-      "name": "T_geo" ,
-      "value": 10.0 ,
-      "unit": "degree Celsius" ,
-      "description": "Temperature of the geological heat source."
-    }
-  ]
+  "WindTurbine": {
+    "feasible": true,
+    "inv_var": 1500,
+    "life_time": 20,
+    "cost_om": 0.015,
+    "min_cap": 100,
+    "max_cap": 3000,
+    "h_coeff": 0.2,
+    "hub_h": 100,
+    "ref_h": 10,
+    "norm_power": 0.85
   },
-  {
-  "device": "electric heater" ,
-  "abbreviation": "EH" ,
-  "description": "Electric heating device for bivalent operation in combination with the heat pump." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 1.0 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    }
-  ]
+  "Hydropower": {
+    "feasible": true,
+    "inv_var": 2000,
+    "life_time": 30,
+    "cost_om": 0.01,
+    "min_cap": 50,
+    "max_cap": 2000,
+    "potential": 50000
   },
-  {
-  "device": "gas boiler" ,
-  "abbreviation": "BOI" ,
-  "description": "Gas boiler." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 0.97 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    }
-  ]
+  "SolarThermalCollector": {
+    "feasible": true,
+    "eta": 0.7,
+    "inv_var": 800,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "max_area": 5000,
+    "min_area": 10,
+    "G_stc": 1
   },
-  {
-  "device": "combined heat and power plant" ,
-  "abbreviation": "CHP" ,
-  "description": "Gas based combined heat an power plant." ,
-  "specifications": [
-    {
-      "name": "eta_th",
-      "value": 0.62,
-      "unit": "-",
-      "description": "Thermal efficiency."
-    },
-    {
-      "name": "eta_el" ,
-      "value": 0.30 ,
-      "unit": "-" ,
-      "description": "Electrical efficiency."
-    }
-  ]
+  "CHP": {
+    "feasible": true,
+    "inv_var": 1200,
+    "eta_el": 0.4,
+    "eta_th": 0.5,
+    "life_time": 20,
+    "cost_om": 0.03,
+    "min_cap": 50,
+    "max_cap": 1000
   },
-  {
-  "device": "fuel cell" ,
-  "abbreviation": "FC" ,
-  "description": "Gas based fuel cell." ,
-  "specifications": [
-    {
-      "name": "eta_th",
-      "value": 0.53,
-      "unit": "-",
-      "description": "Thermal efficiency."
-    },
-    {
-      "name": "eta_el" ,
-      "value": 0.39 ,
-      "unit": "-" ,
-      "description": "Electrical efficiency."
-    }
-  ]
+  "GasBoiler": {
+    "feasible": true,
+    "inv_var": 500,
+    "eta_th": 0.9,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 500
   },
-  {
-  "device": "photovoltaics" ,
-  "abbreviation": "PV" ,
-  "description": "photovoltaics" ,
-  "specifications": [
-    {
-      "name": "area_real",
-      "value": 1.6,
-      "unit": "squaremeters",
-      "description": "Module area."
-    },
-    {
-      "name": "eta_el_ref",
-      "value": 0.199,
-      "unit": "-",
-      "description": "Electrical efficiency under refernce conditions."
-    },
-    {
-      "name": "t_cell_ref",
-      "value": 25,
-      "unit": "degree Celsius",
-      "description": "Refernce ambient air temperature."
-    },
-    {
-      "name": "G_ref",
-      "value": 1000,
-      "unit": "Watt per squaremeter",
-      "description": "Refernce solar irradiance."
-    },
-    {
-      "name": "t_cell_noct",
-      "value": 44,
-      "unit": "degree Celsius",
-      "description": "Cell temperature under normal test conditions (NOCT)."
-    },
-    {
-      "name": "t_air_noct",
-      "value": 20,
-      "unit": "degree Celsius",
-      "description": "Ambient air temperature under normal test conditions (NOCT)."
-    },
-    {
-      "name": "G_noct",
-      "value": 800,
-      "unit": "Watt per squaremeter",
-      "description": "Irradiance under normal test conditions (NOCT)."
-    },
-    {
-      "name": "gamma",
-      "value": 0.003,
-      "unit": "Percent per Kelvin",
-      "description": "loss coefficient"
-    },
-    {
-      "name": "eta_inv",
-      "value": 0.96,
-      "unit": "-",
-      "description": "Inverter efficiency."
-    },
-    {
-      "name": "eta_opt",
-      "value": 0.9,
-      "unit": "-",
-      "description": "Optical efficiency."
-    },
-    {
-      "name": "P_nominal",
-      "value": 220.0,
-      "unit": "Watt per squaremeter",
-      "description": "Reference power per squaremeter. Used for Battery sizing."
-    }
-  ]
+  "GasHeatPump": {
+    "feasible": false,
+    "inv_var": 1000,
+    "COP": 3.5,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 500
   },
-  {
-  "device": "wind turbine" ,
-  "abbreviation": "WT" ,
-  "description": "Central wind turbine." ,
-  "specifications": [
-    {
-      "name": "wind_turbine_model" ,
-      "value": "Enercon_E40" ,
-      "unit": "-" ,
-      "description": "Name of the installed wind turbine model."
-    },
-    {
-      "name": "H_ref" ,
-      "value": 10.0 ,
-      "unit": "meter" ,
-      "description": "Referece hight at which the wind speed data was measured."
-    },
-    {
-      "name": "H" ,
-      "value": 65.0 ,
-      "unit": "meter" ,
-      "description": "Hight of the wind turbine."
-    },
-    {
-      "name": "alfa" ,
-      "value": 0.14 ,
-      "unit": "-" ,
-      "description": "Hellmann exponent."
-    }
-  ]
+  "HeatPump": {
+    "feasible": true,
+    "inv_var": 800,
+    "life_time": 20,
+    "cost_om": 0.015,
+    "min_cap": 10,
+    "max_cap": 500,
+    "ASHP_carnot_eff": 0.4,
+    "ASHP_supply_temp": 60
+
   },
-  {
-  "device": "solar thermal collector" ,
-  "abbreviation": "STC" ,
-  "description": "solar thermal collector" ,
-  "specifications": [
-    {
-      "name": "T_flow",
-      "value": 50,
-      "unit": "degree celsius",
-      "description": "Flow temperature."
-    },
-    {
-      "name": "zero_loss",
-      "value": 0.786,
-      "unit": "-",
-      "description": "Optical efficiency."
-    },
-    {
-      "name": "first_order",
-      "value": 0.003345,
-      "unit": "Watt per squaremeter per Kelvin",
-      "description": "First order efficiency. Linear thermal losses."
-    },
-    {
-      "name": "second_order",
-      "value": 0.0000142,
-      "unit": "Watt per squaremeter per Kelvin square",
-      "description": "Second order efficiency. Quadratic thermal losses."
-    }
-  ]
+  "ElectricBoiler": {
+    "feasible": true,
+    "inv_var": 600,
+    "eta_th": 0.99,
+    "life_time": 20,
+    "cost_om": 0.01,
+    "min_cap": 10,
+    "max_cap": 300
   },
-  {
-  "device": "thermal energy storage" ,
-  "abbreviation": "TES" ,
-  "description": "thermal energy storage" ,
-  "specifications": [
-    {
-      "name": "soc_min",
-      "value": 0.0,
-      "unit": "-",
-      "description": "Minimum state of charge."
-    },
-    {
-      "name": "soc_max",
-      "value": 1.0,
-      "unit": "-",
-      "description": "Maximum state of charge."
-    },
-    {
-      "name": "eta_standby",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Standby efficiency."
-    },
-    {
-      "name": "eta_ch",
-      "value": 1.0,
-      "unit": "-",
-      "description": "Charging and discharging efficiency."
-    },
-    {
-      "name": "coeff_ch",
-      "value": 1000.0,
-      "unit": "Watt per Watthour",
-      "description": "Charging and discharging coefficient."
-    },
-    {
-      "name": "init",
-      "value": 0.5,
-      "unit": "-",
-      "description": "Initial state of charge."
-    },
-    {
-      "name": "T_diff_max",
-      "value": 35,
-      "unit": "degree Celsius",
-      "description": "Maximum temperature difference. At a temperature difference of 35 degree the upper level temperature is 60 degree and the lower level temperature is 25 degree."
-    }
-  ]
+  "CompressionChiller": {
+    "feasible": true,
+    "inv_var": 700,
+    "COP": 3.5,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 500
   },
-  {
-  "device": "battery",
-  "abbreviation": "BAT",
-  "description": "electrical home storage system",
-  "specifications": [
-    {
-      "name": "soc_min",
-      "value": 0.05,
-      "unit": "-",
-      "description": "Minimum state of charge."
-    },
-    {
-      "name": "soc_max",
-      "value": 0.95,
-      "unit": "-",
-      "description": "Maximum state of charge."
-    },
-    {
-      "name": "eta_standby",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Standby efficiency."
-    },
-    {
-      "name": "eta_ch",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Charging and discharging efficiency."
-    },
-    {
-      "name": "coeff_ch",
-      "value": 0.6,
-      "unit": "Watt per Watthour",
-      "description": "Charging and discharging coefficient."
-    },
-    {
-      "name": "init",
-      "value": 0.5,
-      "unit": "-",
-      "description": "Initial state of charge."
-    }
-  ]
+  "AbsorptionChiller": {
+    "feasible": true,
+    "inv_var": 1000,
+    "eta_th": 0.75,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 500
+  },
+  "BiomassCHP": {
+    "feasible": true,
+    "inv_var": 1500,
+    "eta_el": 0.35,
+    "eta_th": 0.55,
+    "life_time": 20,
+    "cost_om": 0.03,
+    "min_cap": 50,
+    "max_cap": 1000
+  },
+  "BiomassBoiler": {
+    "feasible": true,
+    "inv_var": 600,
+    "eta_th": 0.85,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 500
+  },
+  "WasteCHP": {
+    "feasible": true,
+    "inv_var": 2000,
+    "eta_el": 0.3,
+    "eta_th": 0.6,
+    "life_time": 20,
+    "cost_om": 0.03,
+    "min_cap": 50,
+    "max_cap": 1000
+  },
+  "WasteBoiler": {
+    "feasible": true,
+    "inv_var": 700,
+    "eta_th": 0.8,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 500
+  },
+  "Electrolyzer": {
+    "feasible": true,
+    "inv_var": 1500,
+    "eta_el": 0.7,
+    "life_time": 20,
+    "cost_om": 0.03,
+    "min_cap": 50,
+    "max_cap": 1000
+  },
+  "FuelCell": {
+    "feasible": true,
+    "inv_var": 1800,
+    "eta_el": 0.5,
+    "eta_th": 0.4,
+    "life_time": 20,
+    "cost_om": 0.03,
+    "min_cap": 50,
+    "max_cap": 1000,
+    "enable_heat_diss": true
+  },
+  "H2Storage": {
+    "feasible": true,
+    "inv_var": 1200,
+    "sto_loss": 0,
+    "life_time": 20,
+    "cost_om": 0.02,
+    "min_cap": 100,
+    "max_cap": 5000
+  },
+  "SabatierReactor": {
+    "feasible": true,
+    "inv_var": 2000,
+    "eta": 0.6,
+    "life_time": 20,
+    "cost_om": 0.03,
+    "min_cap": 50,
+    "max_cap": 1000
+  },
+  "HeatStorage": {
+    "feasible": true,
+    "inv_var": 1200,
+    "sto_loss": 0.01,
+    "life_time": 20,
+    "cost_om": 0.01,
+    "min_vol": 100,
+    "max_vol": 5000,
+    "delta_T": 30,
+    "soc_init": 0.5
+  },
+  "ColdStorage": {
+    "feasible": true,
+    "inv_var": 1300,
+    "sto_loss": 0.01,
+    "life_time": 20,
+    "cost_om": 0.01,
+    "min_vol": 100,
+    "max_vol": 5000,
+    "delta_T": 30,
+    "soc_init": 0.5
+  },
+  "Battery": {
+    "feasible": true,
+    "inv_var": 200,
+    "life_time": 15,
+    "cost_om": 0.02,
+    "min_cap": 10,
+    "max_cap": 200,
+    "sto_loss": 0,
+    "soc_init": 0.5
+  },
+  "GasStorage": {
+    "feasible": true,
+    "inv_var": 150,
+    "life_time": 20,
+    "cost_om": 0.01,
+    "min_cap": 1000,
+    "max_cap": 10000,
+    "sto_loss": 0,
+    "soc_init": 0.5
   }
-]
+}

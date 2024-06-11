@@ -2,7 +2,8 @@
 
 import json
 import os
-import functions.wind_turbines as wind_turbines
+import functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
+import functions.load_params_central_devices as load_params_central_devices
 
 
 class BES:
@@ -84,7 +85,7 @@ class BES:
 
         # Load list of possible devices
         dev = {}
-        with open(os.path.join(self.file_path, 'param_dec_devices.json')) as json_file:
+        with open(os.path.join(self.file_path, 'decentral_device_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 dev[subData["abbreviation"]] = {}
@@ -181,54 +182,13 @@ class CES:
         None.
         """
 
-        self.central_design_load = 0
-        self.central_bivalent_load = 0
 
-        self.roofAreaDistrict = 0
-
-    def add_loads(self, bes_obj):
+    def designCES(self, data):
         """
-        Add loads of building, that is provided with heat by the central devices, to cumulated sum.
+        Dimensioning of central devices with EHDO
 
         Parameters
         ----------
-        bes_obj : building energy system (BES) object
-            BES-object contains the loads.
-
-        Returns
-        -------
-        None.
-        """
-
-        self.central_design_load += bes_obj.design_load  # [W]
-        self.central_bivalent_load += bes_obj.bivalent_load  # [W]
-
-    def add_roofArea(self, building):
-        """
-        Add roof area of building to roof area of district.
-
-        Parameters
-        ----------
-        building : dictionary
-            Contains envelope-object with roof area of building.
-
-        Returns
-        -------
-        None.
-        """
-
-        self.roofAreaDistrict += building["envelope"].A["opaque"]["roof"]
-
-    def designCES(self, infos_centralDevices, data_centralDevices):
-        """
-        Dimensioning of central devices.
-
-        Parameters
-        ----------
-        infos_centralDevices : pandas DataFrame
-            Information about central devices.
-        data_centralDevices : dictionary
-            Data of central devices.
 
         Returns
         -------
@@ -236,90 +196,11 @@ class CES:
             The capacities of the central devices.
         """
 
-        '''
-        Information to the used factors:
-        f_heat is defined for HP_air, HP_geo, BOI, CHP and FC
-        f_heat is the ratio between the heat output of these devices and the design load of the heat grid
-        f for STC is the ratio between the area of the central STCs and the roof area of the hole district
-        f for PV is the ratio between the area of the central PV modules and the roof area of the hole district
-        f for WT is the ratio between the nominal power of the central WT and a central PV system using all roof area
-        f for TES is equal to the hours a fully charged central TES can provide the design load of the heat grid 
-        f for BAT is equal to the hours a fully charged central BAT can provide the design load of a central PV with an 
-            area equal to the sum of all roofs
-        '''
+        # Load parameters
+        param, devs, dem, result_dict = load_params_central_devices.load_params(data)
 
-        # initialise capacities of central devices
-        capacities_centralDevices = {}
+        # Run optimization
+        capacities_centralDevices = opti_dimensioning_central_devices.run_optim(devs, param, dem, result_dict)
 
-        # %% dimensioning of all central devices with heat output
-        # air heat pump and electric heating
-        capacities_centralDevices["HP_air"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "HP_air", ["f_heat"]].iloc[0, 0] # [W]
-
-        # geo-thermal heat pump
-        capacities_centralDevices["HP_geo"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "HP_geo", ["f_heat"]].iloc[0, 0] # [W]
-
-        capacities_centralDevices["EH"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "HP_air", ["f_heat"]].iloc[0, 0] # [W]
-
-        # BOI
-        capacities_centralDevices["BOI"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "BOI", ["f_heat"]].iloc[0, 0] # [W]
-
-        # combined heat and power (CHP)
-        capacities_centralDevices["CHP"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "CHP", ["f_heat"]].iloc[0, 0] # [W]
-
-        # fuel cell (FC)
-        capacities_centralDevices["FC"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "FC", ["f_heat"]].iloc[0, 0] # [W]
-
-        # solar thermal energy (STC)
-        capacities_centralDevices["STC"] = {}
-        capacities_centralDevices["STC"]["area"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "STC", ["f"]].iloc[0, 0] \
-            * self.roofAreaDistrict  # [m²]
-
-        # %% dimensioning of all central devices with only electrical output
-
-        # photovoltaic (PV)
-        capacities_centralDevices["PV"] = {}
-        areaPV_temp = infos_centralDevices.loc[infos_centralDevices["type"] == "PV", ["f"]].iloc[0, 0] \
-                      * self.roofAreaDistrict  # [m²]
-        capacities_centralDevices["PV"]["nb_modules"] = int(areaPV_temp / data_centralDevices["PV"]["area_real"])  # [-]
-        capacities_centralDevices["PV"]["area"] = capacities_centralDevices["PV"]["nb_modules"] \
-                                                  * data_centralDevices["PV"]["area_real"]  # [m²]
-        capacities_centralDevices["PV"]["P_ref"] = capacities_centralDevices["PV"]["area"] \
-                                                   * data_centralDevices["PV"]["P_nominal"]  # [W]
-        nb_modulesPV_roof_max = int(self.roofAreaDistrict / data_centralDevices["PV"]["area_real"])  # [-]
-        P_PV_roof_max = nb_modulesPV_roof_max \
-                        * data_centralDevices["PV"]["area_real"] * data_centralDevices["PV"]["P_nominal"]  # [W]
-
-        # wind turbine(s) (WT)
-        capacities_centralDevices["WT"] = {}
-        capacities_centralDevices["WT"]["P_ref"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "WT", ["f"]].iloc[0, 0]  # [W]
-        if capacities_centralDevices["WT"]["P_ref"] > 0:
-            capacities_centralDevices["WT"]["nb_WT"] = 1
-        else:
-            capacities_centralDevices["WT"]["nb_WT"] = 0
-        capacities_centralDevices["WT"]["powerCurve"] = \
-            wind_turbines.powerCurve(data_centralDevices["WT"]["wind_turbine_model"])  # wind_speed [m/s], power [kW]
-        #P_max_WT = capacities_centralDevices["WT"]["powerCurve"]["power"].max() * 1000  # [W]
-        #capacities_centralDevices["WT"]["nb_WT"] = int(capacities_centralDevices["WT"]["P_ref"] / P_max_WT)
-        #capacities_centralDevices["WT"]["P_ref"] = P_max_WT * capacities_centralDevices["WT"]["nb_WT"]
-
-        # %% dimensioning of storages
-
-        # thermal energy storage (TES)
-        capacities_centralDevices["TES"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "TES", ["f"]].iloc[0, 0]  # [Wh]
-
-        # battery (BAT)
-        '''Is the power input/output of the battery high enough???'''
-        '''IDEA: P_ref could be defined otherwise; e.g. as maximum of P_ref for PV and WT...'''
-        capacities_centralDevices["BAT"] = \
-            infos_centralDevices.loc[infos_centralDevices["type"] == "BAT", ["f"]].iloc[0, 0] # [Wh]
 
         return capacities_centralDevices

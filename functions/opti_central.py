@@ -220,13 +220,13 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     days = [0,1,2,3,4,5,6]
     daily_peak = {}
     for d in days:
-        daily_peak[d] = model.addVar(vtype="c",lb=-gp.GRB.INFINITY,name="peak_network_load")
+        daily_peak[d] = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="peak_network_load")
     peaksum = model.addVar(vtype="c",lb=-gp.GRB.INFINITY,name="sum_peak_daily_network_load")
 
     # Total operational costs
     operational_costs = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="Cost_total")
     # Total gross CO2 emissions
-    co2_total = model.addVar(vtype="c",lb=-gp.GRB.INFINITY,name="Emission_total")
+    co2_total = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="Emission_total")
 
     # Objective function
     obj = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="obj")
@@ -504,7 +504,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     # daily peaks
     for d in days:
         #model.addConstr(daily_peak[d] >= sum(power["to_grid"][t] for t in range(d*96, d*96+96)))
-        model.addConstr(daily_peak[d] == gp.max_(power["from_grid"][t] for t in range(d * 96, d * 96 + 96)))
+        model.addConstr(daily_peak[d] == gp.max_(power["from_grid"][t] for t in range(d * int(24/dt), d * int(24/dt) + int(24/dt))))
     model.addConstr(peaksum == sum(daily_peak[d] for d in days))
 
     # Set objective

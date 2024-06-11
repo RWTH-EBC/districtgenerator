@@ -13,7 +13,7 @@ def example7_optiEnergyCentral_EHDO():
     data = Datahandler()
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='BF_Strategie_district', calcUserProfiles=False, saveUserProfiles=False,
+    data.generateDistrictComplete(scenario_name='Quartier_3', calcUserProfiles=False, saveUserProfiles=False,
                                   saveGenProfiles=False)
 
     # As last step we use the EHDO tool to get an optimized energy central for neighborhoods. EHDO is a tool for
@@ -25,7 +25,7 @@ def example7_optiEnergyCentral_EHDO():
     # the neighborhood generator. Further information about the technologies to be considered for the dimensioning of
     # the energy central and economic parameters are read in from further .csv and . json. data sources
 
-    #data.optimizationWithEHDO()
+    data.designCentralDevices()
     # Within data the results of EHDO are given. For each device the annual generated amount of
     # electricity or heat as well as the nominal power or storage capacity are calculate.
     # Furthermore, ecological and economic indicators are calculated.
