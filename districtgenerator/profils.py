@@ -440,7 +440,6 @@ class NonResidentialProfiles():
         # and scales it to the time resolution using nump 
         # Data can be gathered from 
         df_schedules, schedule = schedule_reader.get_schedule(self.building_type)
-        print(df_schedules.head())
 
         df_schedules = schedule_reader.adjust_schedule(inital_day=self.initial_day,
                                                                 schedule=df_schedules,
@@ -450,8 +449,7 @@ class NonResidentialProfiles():
 
         # Generate a set, starting with the initital day, 
         # that has number of days as entries * 24 
-
-
+        # That should be done in gerate occupancy
 
 
     def generate_occupancy_profiles(self):
@@ -467,7 +465,8 @@ class NonResidentialProfiles():
             Numpy-arry with acctive occupants 10-minutes-wise.
 
         """
-
+        # To-Do: This needs to turn the activity profile into an occupancy profile
+        # 
         tr_min = int(self.time_resolution/60)
         sia_profile_daily_min = np.concatenate((np.ones(60*8),
                                                 np.zeros(60*13),
@@ -491,7 +490,6 @@ class NonResidentialProfiles():
             activity_profile_min[t] = max(self.activity_profile[int(t/10)],sia_profile[t])
         for t in range(len(self.occ_profile)):
             self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t*tr_min):(t*tr_min+tr_min)]))
-
         return self.occ_profile
 
 
@@ -575,8 +573,7 @@ class NonResidentialProfiles():
         return dhw_water
 
 
-    def generate_el_profile(self, irradiance, el_wrapper,
-                            annual_demand, do_normalization = True):
+    def generate_el_profile(self, irradiance, annual_demand, do_normalization = True):
         """
         Generate electric load profile for one household
 
@@ -661,7 +658,7 @@ class NonResidentialProfiles():
             #         Array holding el. power values for appliance usage in Watt
             (el_p_curve, light_p_curve, app_p_curve) = el_wrapper.power_sim(irradiation=irrad_day_minutewise,
                                                                             weekend=weekend,
-                                                                            day=i+day_of_the_year,
+                                                                            day=i+day_of_the_year,)
             # Substitution of caluclations 
             # Lighniging 
             # If occupancy -> occupancy electricity                                                                 occupancy=current_occupancy)
@@ -669,7 +666,9 @@ class NonResidentialProfiles():
             demand.append(el_p_curve)
             self.light_load.append(light_p_curve)
             self.app_load.append(app_p_curve)
-
+        # To-Do: Get data to be turned into profiles
+        # Occupancy based + Lightning + common electricity
+        # 
         # Convert to nd-arrays
         res = np.array(demand)
         self.light_load = np.array(self.light_load)

@@ -111,7 +111,7 @@ def calculate_light_demand(building_type,
        #To-Do: dobule check, whether lighting_control or 
        lighting_control = get_lightning_control(building_type=building_type)
        lightning_maintenance_factor  = get_lighting_maintenance_factor(building_type=building_type)
-       print(occupancy)
+       occupancy = schedule_reader.adjust_schedule(inital_day=0, schedule=occupancy, nb_days=365)
        
        lighting_demand = pd.Series(0, index=occupancy.index)
        lux = (illuminance * lighting_utilisation_factor * lightning_maintenance_factor) / area

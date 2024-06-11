@@ -40,13 +40,14 @@ def getEpWeather(file_path:str):
     df['Timestamp'] = df['Timestamp'].dt.strftime('%Y-%m-%d-%H-00-00')
     
     # Select the required columns
-    df = df[['Timestamp', 'Direct Normal Radiation', 'Diffuse Horizontal Radiation', 'Dry Bulb Temperature']]
+    df = df[['Timestamp', 'Direct Normal Radiation', 'Diffuse Horizontal Radiation', 'Dry Bulb Temperature', 
+              "Direct Normal Illuminance",  "Diffuse Horizontal Illuminance",]]
     
     return df
 
 
 if __name__ == "__main__":
-    print("This is a module, it should not be run standalone") 
+    print("This is a module, it should not be run standalone")
 
     # Test Run with
     # 

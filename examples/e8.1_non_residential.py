@@ -12,6 +12,8 @@ def example8_1_generate_first_non_residential_district():
     # Initialize District
     data = Datahandler()
 
+    data.setWeatherFile(r"data\weather\EPW\DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw")
+
 
     # Next we generate an environment.
     # Based on the location of the district this includes outside temperatures and sun radiation.

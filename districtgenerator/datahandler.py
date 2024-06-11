@@ -45,6 +45,9 @@ class Datahandler():
         temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
         temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)
         temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+        direct_illuminance = direct illuminance, only present in epw file
+        diffuse_illuminance = diffuse illuminance, only present in epw file
+
     sheetFile:
         path to scenario file, which is a csv file. If None, the csv file is used.
         Can be used to provide more detailed information for gerneation of the buildings models in the district
@@ -140,12 +143,15 @@ class Datahandler():
                 temp_sunDirect = weatherData["Direct Normal Radiation"].to_numpy()
                 temp_sunDiff = weatherData["Diffuse Horizontal Radiation"].to_numpy()
                 temp_temp = weatherData["Dry Bulb Temperature"].to_numpy()
+                direct_illuminance = weatherData["Direct Normal Illuminance"].to_numpy()
+                diffuse_illuminance = weatherData["Diffuse Horizontal Illuminance"].to_numpy()
             else:
                 # if an weather file is presented, this can be used for calcuation
                 # it should be a csv files with the following columns, according to the DWD TRY files
                 # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene) float or int
                 # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)  float or int
                 # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund float or int
+                # To-Do: Figure out, how to gather illuminance from a DWD file?
                 weatherData = pd.read_csv(self.weatherFile)
                 weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
                 temp_sunDirect = weatherData["B"].to_numpy()
@@ -154,7 +160,7 @@ class Datahandler():
               
         else: 
             # This works for the predefined weather files 
-            weather_file = os.path.join(self.filePath, 'weather', 
+            weather_file = os.path.join(self.filePath, 'weather', 'DWD',
                                 f"{self.site['TRYYear']}_Zone{self.site['climateZone']}_{self.site['TRYType']}.txt")
             weatherData = np.loadtxt(weather_file,
                                  skiprows=first_row - 1)
@@ -191,8 +197,18 @@ class Datahandler():
         self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
                                      np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
                                      temp_temp)[0:-1]
+        
+        self.site["IlluminanceDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                           direct_illuminance)[0:-1]
+        
+        self.site["IlluminaceDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                           diffuse_illuminance)[0:-1]
+        
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
+
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
@@ -361,11 +377,17 @@ class Datahandler():
                                                 construction_type=None,
                                                 file_path = self.filePath)
                 
+                #illuminance = Sun
 
                 # %% create user object
                 # containing number occupants, electricity demand,...
                 building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
-                                                       area=building["buildingFeatures"]["area"])
+                                                       area=building["buildingFeatures"]["area"],
+                                                       envelope= building["envelope"],
+                                                       file=self.filePath, site=self.site, time=self.time)
+            
+                
+                
 
                 # %% calculate design heat loads
                 # at norm outside temperature

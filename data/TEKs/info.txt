@@ -19,3 +19,6 @@ In DIBS there is a matching propsed, which is stated here: data\TEKs\TEK_NWG_Ver
 | Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit | IWU Generalized (2) Production buildings | 36.0 | 24.2 | 3.8 | 13.0 | 2.1 | 1.2 | 0.0 | 24.9 |
 
 
+#To-Do: 
+
+Look up TEK Verkerhsgebäude
