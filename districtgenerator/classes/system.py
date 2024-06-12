@@ -2,8 +2,8 @@
 
 import json
 import os
-import functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
-import functions.load_params_central_devices as load_params_central_devices
+import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
+import districtgenerator.functions.load_params_central_devices as load_params_central_devices
 
 
 class BES:

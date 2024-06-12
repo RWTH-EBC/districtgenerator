@@ -8,8 +8,8 @@ import numpy as np
 import pylightxl as xl
 import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
-import functions.OpenDHW as OpenDHW
-import functions.dhw_stochastical as dhw_profil
+import districtgenerator.functions.OpenDHW as OpenDHW
+import districtgenerator.functions.dhw_stochastical as dhw_profil
 
 
 class Profiles:

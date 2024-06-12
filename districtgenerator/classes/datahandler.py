@@ -11,18 +11,19 @@ import openpyxl
 import pandas as pd
 from itertools import count
 from teaser.project import Project
-from classes.envelope import Envelope
-from classes.solar import Sun
-from classes.users import Users
-from classes.system import BES
-from classes.system import CES
-from classes.plots import DemandPlots
-from classes.optimizer import Optimizer
-from classes.KPIs import KPIs
-import functions.clustering_medoid as cm
-import functions.wind_turbines as wind_turbines
-import EHDO.load_params as load_params_EHDO
-import EHDO.optim_model as optim_model_EHDO
+from districtgenerator.classes.envelope import Envelope
+from districtgenerator.classes.solar import Sun
+from districtgenerator.classes.users import Users
+from districtgenerator.classes.system import BES
+from districtgenerator.classes.system import CES
+from districtgenerator.classes.plots import DemandPlots
+from districtgenerator.classes.optimizer import Optimizer
+from districtgenerator.classes.KPIs import KPIs
+import districtgenerator.functions.clustering_medoid as cm
+import districtgenerator.functions.wind_turbines as wind_turbines
+import districtgenerator.EHDO.load_params as load_params_EHDO
+import districtgenerator.EHDO.optim_model as optim_model_EHDO
+
 
 
 class Datahandler:

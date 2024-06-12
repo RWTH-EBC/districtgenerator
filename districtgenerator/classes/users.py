@@ -8,7 +8,7 @@ import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
-import functions.heating_profile_5R1C as heating
+import districtgenerator.functions.heating_profile_5R1C as heating
 
 
 class Users:
