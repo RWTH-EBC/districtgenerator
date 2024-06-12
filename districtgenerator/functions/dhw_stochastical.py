@@ -11,7 +11,7 @@ import os
 import numpy as np
 import math
 import random
-import functions.change_resolution as chres
+import districtgenerator.functions.change_resolution as chres
 import pylightxl as xl
 
 def load_profiles(filename):

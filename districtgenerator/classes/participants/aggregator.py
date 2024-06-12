@@ -1,6 +1,5 @@
 import gurobipy as gp
-from .device import Device
-
+from districtgenerator.classes.participants.device import Device
 
 class Aggregator(Device):
     """ Switch Unit model """

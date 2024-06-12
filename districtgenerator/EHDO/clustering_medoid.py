@@ -18,7 +18,8 @@ Contact:        Marco Wirtz
 from __future__ import division
 import numpy as np
 import math
-import EHDO.k_medoids as k_medoids
+import districtgenerator.EHDO.k_medoids as k_medoids
+
 
 def _distances(values, norm=2):
     """
