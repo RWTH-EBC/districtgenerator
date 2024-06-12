@@ -4,7 +4,7 @@
 Do you know the seed method? This example will show you, what it is good for and how to use it.
 """
 
-from classes import *
+from districtgenerator.classes import *
 import matplotlib.pyplot as plt
 import random as rd
 import os

@@ -3,7 +3,7 @@
 import os, sys, json
 import numpy as np
 
-from classes import *
+from districtgenerator.classes import *
 
 
 # Generate district data

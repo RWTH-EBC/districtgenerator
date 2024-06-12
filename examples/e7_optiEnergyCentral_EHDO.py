@@ -4,7 +4,7 @@
 In this example we use the EHDO tool to """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 
 def example7_optiEnergyCentral_EHDO():

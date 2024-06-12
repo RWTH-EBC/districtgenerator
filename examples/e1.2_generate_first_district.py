@@ -5,7 +5,7 @@ Now let's add our buildings to the district.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 def example1_2_generate_first_district():
 
@@ -13,7 +13,7 @@ def example1_2_generate_first_district():
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz=52074)
 
     # We initialize the buildings in our district. As input the name of a scenario file is required.
     # In this example we use the existing example-file example.csv.

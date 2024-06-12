@@ -5,7 +5,7 @@ We reached the final step, to generate our first district: Generate demand profi
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 
 def example1_4_generate_first_district():

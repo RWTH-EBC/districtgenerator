@@ -5,7 +5,7 @@ In this step, we fill our buildings with more informations.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 
 def example1_3_generate_first_district() :
@@ -13,7 +13,7 @@ def example1_3_generate_first_district() :
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz=52074)
 
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")

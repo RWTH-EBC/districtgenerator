@@ -6,7 +6,7 @@ In this second example we will learn how to create a custom district.
 
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 # For this example we need to make same PREPARATIONS:
 

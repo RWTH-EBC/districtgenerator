@@ -6,7 +6,7 @@ Example six will show you the impact of the minimum indoor temperature.
 
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 #PREPARATION: Change the minimum indoor temperature
 

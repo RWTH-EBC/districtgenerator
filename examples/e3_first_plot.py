@@ -7,7 +7,7 @@ The third example will show you how easy you can create some plots.
 
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 
 def example_fist_plots():

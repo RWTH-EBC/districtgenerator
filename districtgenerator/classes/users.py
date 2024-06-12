@@ -3,7 +3,7 @@
 import os, math
 import random as rd
 import numpy as np
-from classes.profils import Profiles
+from districtgenerator.classes.profils import Profiles
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model

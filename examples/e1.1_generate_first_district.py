@@ -5,7 +5,7 @@ Next step: create an environment.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 def example1_1_generate_first_district():
 
@@ -23,7 +23,7 @@ def example1_1_generate_first_district():
     # The weather data is taken from a Test Reference Year Database from the DWD.
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz=52074)
 
     print("\nOur district now looks like this:")
     print("District:" + str(data.district))
