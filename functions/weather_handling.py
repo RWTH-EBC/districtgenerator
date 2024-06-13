@@ -37,7 +37,7 @@ def getEpWeather(file_path:str) -> pd.DataFrame:
     df['Timestamp'] = pd.to_datetime(df[['Year', 'Month', 'Day', 'Hour']]) - pd.Timedelta(hours=1)
     
     # Adjust the minute and second to 00:00, as EPW files do not contain this information
-    df['Timestamp'] = df['Timestamp'].dt.strftime('%Y-%m-%d-%H-00-00')
+    #df['Timestamp'] = df['Timestamp'].dt.strftime('%Y-%m-%d-%H-00-00')
     
     # Select the required columns
     df = df[['Timestamp', 'Direct Normal Radiation', 'Diffuse Horizontal Radiation', 'Dry Bulb Temperature', 
@@ -56,20 +56,53 @@ def getTryWeather(file_path: str) -> pd.DataFrame:
     Returns:
     - weather: pd.DataFrame, a DataFrame with a timestamp.
     """
-    col_names = ['Year', 'Month', 'Day', 'Hour'] + ['extra_{}'.format(i) for i in range(20)]  # Adjust according to actual data structure
-    df = pd.read_csv(file_path, sep='\s+', names=col_names, skiprows=1)  # Adjust skiprows based on actual file header
-    df['Timestamp'] = pd.to_datetime(df[['Year', 'Month', 'Day', 'Hour']])
+    if "2015" or "2045" in file_path:
+        if "2015" in file_path:
+            year = 2015
+        elif "2045" in file_path:
+            year = 2015
+        with open(file_path, "r") as file:
+            for line_number, line in enumerate(file, start=1):
+                if "***" in line:
+                    header_row = (
+                        line_number - 1 - 1
+                    )  # -1 for header above *** and -1 for start to count at 0
+                    break
+
+   
+
+    else:
+        raise ValueError("Unsupported format type for TRY files. Only 2015 and 2045 are supported.")
+    df = pd.read_table(
+        filepath_or_buffer=file_path,
+        header=header_row,
+        sep='\s+',
+        skip_blank_lines=False,
+        encoding="latin",
+    )
+    df = df.iloc[1:]
+    df["YEAR"] = year 
+    df["MONTH"] = df["MM"].astype(int)
+    df["DAY"] = df["DD"].astype(int)
+    df["HOUR"] = df["HH"].astype(int)
+    df['Timestamp'] = pd.to_datetime(df[["YEAR", 'MONTH', 'DAY', 'HOUR']])
     return df
 
-def get_time_horizon(file_path: str) -> int:
+def get_time_horizon(file_path: str) -> pd.Series:
     """
-    Determine the number of days covered in the specified weather file.
+    Extracts timestamps from a weather file and returns them as a pandas Series.
 
     Parameters:
-    - file_path: str, path to the weather data file.
+    - file_path: str
+      The path to the weather data file.
 
     Returns:
-    - int, number of days covered in the weather file.
+    - pd.Series
+      A pandas Series object containing the timestamps extracted from the weather file, formatted as 'YYYY-MM-DD-HH'.
+
+    Raises:
+    - ValueError
+      If the file type is not supported. Only EPW and TRY files are supported.
     """
     if file_path.lower().endswith('.epw'):
         df = getEpWeather(file_path)
@@ -78,10 +111,7 @@ def get_time_horizon(file_path: str) -> int:
     else:
         raise ValueError("Unsupported file type. Only EPW and TRY files are supported.")
     
-    # Assuming 'Timestamp' is formatted as 'YYYY-MM-DD-HH'
-    return df['Timestamp'].str.slice(0, 10).nunique()
-
-def get_time_hoirzon(file_path:str):
+    return df['Timestamp']
     
 
 if __name__ == "__main__":

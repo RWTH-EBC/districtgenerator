@@ -12,7 +12,10 @@ def get_building_type(term, kind):
     Returns:
     str: The value from the specified column if a match is found; otherwise, None.
     """
-    df = pd.read_csv(r'data/building_types.csv', sep=';')
+    
+    srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    building_types_file  = os.path.join(srcPath, 'data', 'building_types.csv')
+    df = pd.read_csv(building_types_file, sep=';')
     # Check if the kind column exists
     if kind not in df.columns:
         raise ValueError(f"Column '{kind}' does not exist in the table.")
@@ -55,13 +58,13 @@ def get_schedule(building_type):
         }
 
     #schedule_name = type_assignment.get(building_type)
-    schedule_name = get_building_type(term='SIA', kind=building_type)
+    schedule_name = get_building_type(term=building_type, kind="SIA")
     if schedule_name is None:
         print(f"No schedule for building type {building_type}")
         return None, None
 
     data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(data_dir_path, 'data', 'occupancy_schedules', schedule_name)
+    data_path = os.path.join(data_dir_path, 'data', 'occupancy_schedules', f'{schedule_name}.csv')
 
     try:
         data_schedule = pd.read_csv(data_path, sep=';')
@@ -75,15 +78,18 @@ def adjust_schedule(inital_day, schedule, nb_days):
     Function returns the schedule, 
     adjusted to the initial_day and the last 
     """
+    print("adjust schedule", inital_day, schedule, nb_days)
     # Create a custom sorter index
     sorter = rotate_list(initial_day=inital_day)
     sorter_index = {day: index for index, day in enumerate(sorter)}
 
     # Apply sorting
+    # To-Do: Fix A value is trying to be set on a copy of a slice from a DataFrame
+
     schedule['DAY'] = pd.Categorical(schedule['DAY'], categories=sorter, ordered=True)
     schedule.sort_values(by=['DAY', 'HOUR'], inplace=True)
     schedule = expand_dataframe(schedule, total_days=nb_days)
-    return schedule 
+    return schedule
 
 
 def rotate_list(initial_day):
@@ -139,7 +145,7 @@ def get_tek(building_type):
     }
 
     #tek_name = tek_assignment.get(building_type)
-    tek_name = get_building_type("TEK", kind=building_type)
+    tek_name = get_building_type(kind="TEK", term=building_type)
     if tek_name is None:
         print(f"No schedule for building type {building_type}")
         return None, None

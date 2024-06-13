@@ -58,7 +58,7 @@ class NonResidentialUsers():
 
 
 
-    def __init__(self, building_usage, area, file, envelope, site, time):
+    def __init__(self, building_usage, area, file, envelope, site, time, nb_of_days):
         """
         Constructor of Users Class
         """
@@ -67,10 +67,13 @@ class NonResidentialUsers():
         self.area = area
         self.file = file
         self.envelope = envelope
+        
         self.site = site 
         self.time = time
+        self.nb_of_days = nb_of_days
         #self.nb_flats = None
-        self.annual_el_demand = None
+        self.annual_appliance_demand = None
+        self.annual_lightning_demand = None
         self.nb_occ = []
         self.occ = None
         self.dhw = None
@@ -91,14 +94,15 @@ class NonResidentialUsers():
         # Load the JSON data from the specified path
         self.occupancy_data = self.load_json_data(occupancy_json_path)
         self.electricity_data = self.load_json_data(electricity_json_path)
-        
+        self.generate_schedules()
 
 
         # self.generate_number_flats(area)
         self.generate_number_occupants()
         self.generate_annual_el_consumption_equipment()
         self.generate_annual_el_consumption_lightning()
-        self.generate_schedules()
+        # To-Do: Validate Sum of electricity
+        self.elec = self.annual_appliance_demand + self.annual_lightning_demand
         # self.generate_lighting_index()
         # self.create_el_wrapper()
 
@@ -151,18 +155,19 @@ class NonResidentialUsers():
                 self.nb_occ.append(self.area/occupancy_values["Hoch"])
                 self.occupancy = "Hoch"
         else:
-            print(f"No data available for building type: {self.usage}")
+            print(f"No data about number of occupants available for building type: {self.usage}")
 
     def generate_schedules(self):
         # get schedules occupancy
         df_schedules, schedule = schedules.get_schedule(self.usage)
-        nb_days =  timeDiscretization=self.time["timeResolution"],
-                                          timeSteps=self.time["timeSteps"]
-        schedules.adjust_schedule(inital_day=0, nb_days=)
-        self.occupancy_schedule = df_schedules["OCCUPANCY"]
-        self.appliance_schedule = df_schedules["APPLIANCES"]
+        print("There generate_schedules")
+        print(df_schedules.head())
+        # df_schedules = schedules.adjust_schedule(inital_day=0, nb_days=self.nb_of_days)
+        self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
+        self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
+        self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
         #To-Do: Replace with key
-        self.lighntning_schedule = df_schedules["LIGHTING"]
+        #self.lighntning_schedule = df_schedules["LIGHTING"]
         
     def generate_annual_el_consumption_equipment(self, equipment="Mittel"):
         '''
@@ -199,7 +204,7 @@ class NonResidentialUsers():
             electricity_values = self.electricity_data[self.usage]
             try: 
                 annual_el_demand_temp = electricity_values[equipment] * self.area 
-                self.annual_el_demand = rd.gauss(annual_el_demand_temp,
+                self.annual_appliance_demand = rd.gauss(annual_el_demand_temp,
                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
 
             except KeyError:
@@ -216,7 +221,7 @@ class NonResidentialUsers():
         # Mapping cardinal directions to azimuth angles
         windows = self.envelope.A["window"] # ["window"]
         # Filter out the 'sum' key if present
-        windows = {key: value for key, value in windows.items() if key != 'sum'}
+        windows = {key: value for key, value in windows.items() if key not in  ['roof', 'floor', 'sum']}
         orientations = {
             'north': 0,
             'east': 90,
@@ -233,11 +238,62 @@ class NonResidentialUsers():
                                           normal_direct_illuminance=self.site["IlluminanceDirect"], 
                                           horizontal_diffuse_illuminance=self.site["IlluminaceDiffuse"])
         print(illuminance, "This is the illuminance")
+        print(f"Initial Time: {0}")
+        print(f"Time Discretization: {self.time['timeResolution']}")
+        print(f"Time Steps: {self.time['timeSteps']}")
+        print(f"Time Zone: {self.site['timeZone']}")
+        print(f"Location: {self.site['location']}")
+        print(f"Altitude: {self.site['altitude']}")
+        print(f"Beta: {beta}")
+        print(f"Gamma: {gamma}")
+        print(f"Normal Direct Illuminance: {self.site['IlluminanceDirect']}")
+        print(f"Horizontal Diffuse Illuminance: {self.site['IlluminaceDiffuse']}")
+
         # To-Do: 
         # Calculate Energy Demand throuhg lighning
         self.annual_lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
-                                                                           occupancy=self.occupancy, area=self.area)
+                                                                           occupancy_schedule=self.occupancy_schedule, area=self.area)
     
+    def generate_dhw_profile(self):
+        """
+        Generates a dhw profile
+        Based on the TEK Ansatz and DIBS. 
+
+        Generate a stochastic dhw profile
+        (on base of pycity_base)
+
+        Parameters
+        ----------
+        time_resolution : integer
+            resolution of time steps of output array in seconds.
+        activity_profile : array
+            Numpy-arry with acctive occupants 10-minutes-wise.
+        prob_profiles_dhw: array
+            probabilities of dhw usage
+        initial_day : integer
+            Day of the week with which the generation starts
+            1-7 for monday-sunday.
+
+        Returns
+        -------
+        dhw_heat : array
+            Numpy-array with heat demand of dhw consumption in W.
+
+        """
+
+        # Run simulation
+        # run the simulation for just x days
+        # therefor occupancy has to have the length of x days
+        # TEK for Water and heat? 
+        TEK_dhw, TEK_name = schedules.get_tek(self.usage)  # TEK_dhw in kWh/m2*a
+        # To-Do,  Figure whty there is a 1000 in the formula
+        # Code taken from DIBS and adjusted for
+        # style and attributes to fit districtgenerator
+        occupancy_full_usage_hours = self.occupancy_schedule["OCCUPANCY"].sum()  # in h/a
+        TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
+
+        self.dhw= self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
+
 
 
     def create_el_wrapper(self) :
@@ -334,13 +390,58 @@ class NonResidentialUsers():
         temp_obj = NonResidentialProfiles(building_type=self.usage, max_number_occupants=self.nb_occ, area=self.area,
                                           initital_day=initital_day, nb_days=nb_days, time_resolution=time_resolution)
         self.occ = temp_obj.generate_occupancy_profiles()
-        self.dhw = temp_obj.generate_dhw_profile()
+        self.generate_dhw_profile()
         # Electircal profile needs to be generated for this 
         # Calculation of user demand + lighning + other 
-        self.elec = temp_obj.generate_el_profile(irradiance=irradiation,
-                                                 annual_demand=self.annual_el_demand)
-        self.gains = temp_obj.generate_gain_profile()
+        #self.elec = temp_obj.generate_el_profile(irradiance=irradiation,
+        #                                         annual_demand=self.annual_elctric_demand, 
+        #                                         appliance_demand=self.annual_appliance_demand,
+        #                                         light_demand=self.annual_lightning_demand)
+        self.calculate_gain_profile()
         
+    def calculate_gain_profile(self):
+        """
+        Generate profile of internal gains
+
+        Parameters
+        -------
+        personGain : float
+            Heat dissipation of one person
+            Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik
+        lightGain : float
+            share of waste heat (LED)
+            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+            62 (2014), Januar, 32–41.
+        appGain :
+            share of waste heat (assumed)
+            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+            62 (2014), Januar, 32–41.
+        occ_profile : float
+             stochastic occupancy profiles for a district
+        app_load : Array-like
+            Electric load profile of appliances in W.
+        light_load : Array-like
+            Electric load profile of lighting in W.
+
+        Returns
+        -------
+        gains : array
+            Internal gain of each flat
+
+        """
+        # To - Do adjust to personal heat gains depending on builiding type 
+        # To-Do: check that the correct data is used from SIA
+        personGain = 70.0  # [Watt]
+        lightGain = 0.65
+        appGain = 0.33
+
+        self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
+
+        
+        
+
 
     def calcHeatingProfile(self,site,envelope,time_resolution):
 
@@ -431,30 +532,6 @@ class NonResidentialUsers():
     
 
 
-class NonResidentialLighting(object):
-
-      def __init__(self, building_usage):
-        """
-        Constructor of Non Residential Lighning Class. 
-
-
-
-        #ToDo: 
-        """
-
-        self.usage = building_usage 
-        # self.area = area
-        # self.nb_flats = None
-        self.annual_el_demand = None
-        self.lighting_index = []
-        self.el_wrapper = []
-        self.nb_occ = []
-        self.occ = None
-        self.dhw = None
-        self.elec = None
-        self.gains = None
-        self.heat = None
-    
 
 
     
