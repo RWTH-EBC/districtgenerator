@@ -149,6 +149,7 @@ class NonResidential(object):
         self.height_of_floors=float(height_of_floors)    
         self.street_name = street_name
         self.city = city
+        self.construction_type = construction_type
         self.longitude = longitude
         self.latitude = latitude
 
@@ -383,7 +384,7 @@ class NonResidential(object):
                 return parameters
 
           # If no matching age group is found
-        raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.bldg_type}'.")
+        raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.usage}'.")
     
 
 
