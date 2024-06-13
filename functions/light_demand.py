@@ -6,12 +6,13 @@
 
 import os
 import pandas as pd
+import numpy as np
 import functions.schedule_reader as schedule_reader
 
 
 
 
-def get_lighntning_load(building_type):
+def get_lightning_load(building_type):
     """
     Get the lighning load from data\consumption_data\internal_loads.csv
     In 18599 loads are calculated per zone. In file 09, there is an approach to calculate lighning demand.
@@ -20,7 +21,7 @@ def get_lighntning_load(building_type):
     """
 
     #data_type = _assignment.get(building_type)
-    data_type = schedule_reader.get_building_type(kind='18599', term=building_type)
+    data_type = schedule_reader.get_building_type(kind='CEA', term=building_type)
     if data_type is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -34,15 +35,14 @@ def get_lighntning_load(building_type):
         print(f"This is the path: {load_data_path}"
               )
         load_data = pd.read_csv(load_data_path, sep=';', decimal=',')
-        print(load_data, "Tjtit")
-        lighntning_control = load_data[load_data["building_type"] == data_type]["El_Wm2"].iloc[0]
+        lighntning_control = load_data[load_data["cea_code"] == data_type]["El_Wm2"].iloc[0]
 
         return  lighntning_control
     except FileNotFoundError:
         print(f"File not found: {load_data_path}")
         return None
     except IndexError:
-        print(f"No data available for {building_type}")
+        print(f"No data about lighntning load available for {building_type}")
         return None
 
 
@@ -67,7 +67,6 @@ def get_lightning_control(building_type):
 
     try:
         maintenance_data_schedule = pd.read_csv(maintenance_data_path, sep=';')
-
         lighntning_control = maintenance_data_schedule[maintenance_data_schedule["typ_18599"] == data_type]["E_m"].iloc[0]
 
         return  lighntning_control
@@ -78,47 +77,51 @@ def get_lightning_control(building_type):
         print(f"No data available for {building_type}")
         return None
 
-def calculate_light_demand(building_type, 
-                           occupancy, 
-                           illuminance,
-                           area,
-                           ):
-       """
-        Calculates the lighting demand for a series. 
-        
-        Daylighting is based on methods in 
-        Szokolay, S.V. (1980): Environmental Science Handbook vor architects and builders. Unknown Edition, The Construction Press, Lancaster/London/New York, ISBN: 0-86095-813-2, p. 105ff.
-        respectively
-        Szokolay, S.V. (2008): Introduction to Architectural Science. The Basis of Sustainable Design. 2nd Edition, Elsevier/Architectural Press, Oxford, ISBN: 978-0-7506-8704-1, p. 154ff.
 
-        Idea is taken and adapted from DIBS by vectorization and adoption of variables.
+def calculate_light_demand(building_type, occupancy_schedule, illuminance, area):
+    """
+    Calculates the lighting demand for a building based on illuminance, occupancy, and area.
+    
+    References:
+    Szokolay, S.V. (1980): Environmental Science Handbook for Architects and Builders. 
+    Unknown Edition, The Construction Press, Lancaster/London/New York, ISBN: 0-86095-813-2, p. 105ff.
+    Szokolay, S.V. (2008): Introduction to Architectural Science. The Basis of Sustainable Design. 
+    2nd Edition, Elsevier/Architectural Press, Oxford, ISBN: 978-0-7506-8704-1, p. 154ff.
 
-        :param illuminance: Illuminance transmitted through the window [Lumens]
-        :type illuminance: float
-        :param occupancy: Probability of full occupancy
-        :type occupancy: float
+    :param building_type: The type of building (affects lighting load and control)
+    :type building_type: str
+    :param occupancy_schedule: Probability of full occupancy at each time step
+    :type occupancy_schedule: pd.Series
+    :param illuminance: Illuminance transmitted through the window [Lumens] for each side of the building
+    :type illuminance: list of pd.Series
+    :param area: Area of the space [m^2]
+    :type area: float
+    
+    :return: Lighting Energy Required for the timestep
+    :rtype: pd.Series
+    """
+   
 
-        :return: self.lighting_demand, Lighting Energy Required for the timestep
-        :rtype: float
+    # Calculate summed illuminance if a list of Series is provided
+    if isinstance(illuminance, list):
+        illuminance = pd.concat(illuminance, axis=1).sum(axis=1)
+    if isinstance(illuminance, np.ndarray):
+        total_illuminance = np.sum(illuminance, axis=0)
+        # Convert the resulting array to a pandas Series
+        illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
 
-        """
-       # | `El_Wm2` |  Peak specific electrical load due to artificial lighting (refers to “code”)| DIN V 18599-4 Anhang B (Abbildung B.12) =  6,4 W/m²  |
-       # lighting_load = data_schedule[data_schedule["TEK"] == data_type]["TEK Warmwasser"].iloc[0]
-       # To-Do: figure better assumptions for lighning-load 
-       # To-Do: figure lighning_control
-       lighting_load = get_lighntning_load(building_type) # W/m2 get_lighning_control
-       lighting_utilisation_factor = 0.45 # According to DIBS and Jayathissa, P. (2020). 5R1C Building Simulation Model. url: https://github.com/architecture-building-systems/RC_BuildingSimulator (besucht am 22. 03. 2020)
-       #To-Do: dobule check, whether lighting_control or 
-       lighting_control = get_lightning_control(building_type=building_type)
-       lightning_maintenance_factor  = get_lighting_maintenance_factor(building_type=building_type)
-       occupancy = schedule_reader.adjust_schedule(inital_day=0, schedule=occupancy, nb_days=365)
-       
-       lighting_demand = pd.Series(0, index=occupancy.index)
-       lux = (illuminance * lighting_utilisation_factor * lightning_maintenance_factor) / area
-       mask = (lux < lighting_control) & (occupancy > 0)
-       lighting_demand[mask] = lighting_load * area * occupancy[mask]
-       return lighting_demand
+    # Calculate the lighting demand
+    lighting_load = get_lightning_load(building_type)  # W/m2
+    lighting_control = get_lightning_control(building_type)  # Lux threshold
+    lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
+    #breakpoint()
+    lux = (illuminance * 0.45 * lighting_maintenance_factor) / area  # Calculate lux at each timestep
+    #
+    mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)  # Determine when artificial lighting is needed
+    lighting_demand = pd.Series(0, index=occupancy_schedule.index)
+    lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]  # Calculate energy demand
 
+    return lighting_demand
 
 
 

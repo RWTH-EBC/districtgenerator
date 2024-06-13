@@ -446,9 +446,11 @@ class NonResidentialProfiles():
         self.occ_profile = []
         self.light_load = []
         self.app_load = []
+        self.appliance_demand = None
+        self.lightning_demand = None 
 
         self.generate_activity_profile()
-        self.loadProbabilitiesDhw()
+        #self.loadProbabilitiesDhw()
 
     # check for alternative
 
@@ -535,43 +537,6 @@ class NonResidentialProfiles():
         return self.occ_profile
 
 
-    def loadProbabilitiesDhw(self):
-        """
-        Load probabilities of dhw usage
-        """
-
-        #  Define src path
-        src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        filename = 'dhw_stochastical.xlsx'
-        path_DHW = os.path.join(src_path, 'districtgenerator', 'data', filename)
-
-
-        # Initialization
-        profiles = {"we": {}, "wd": {}}
-        # book = xlrd.open_workbook(filename)
-        book = xl.readxl(fn=path_DHW)
-        sheetnames = book.ws_names
-
-        # Iterate over all sheets
-        for sheetname in sheetnames:
-            # sheet = xl.readxl(fn=filename, ws=sheetname)
-
-            # Read values
-            values = [book.ws(ws=sheetname).index(row=i, col=1) for i in
-                      range(1, 1441)]  # [sheet.cell_value(i,0) for i in range(1440)]
-
-            # Store values in dictionary
-            if sheetname in ("wd_mw", "we_mw"):
-                profiles[sheetname] = np.array(values)
-            elif sheetname[1] == "e":
-                profiles["we"][int(sheetname[2])] = np.array(values)
-            else:
-                profiles["wd"][int(sheetname[2])] = np.array(values)
-
-        # Load profiles
-        self.prob_profiles_dhw = profiles
-
-
     def generate_dhw_profile(self):
         """
         Generates a dhw profile
@@ -615,7 +580,8 @@ class NonResidentialProfiles():
         return dhw_water
 
 
-    def generate_el_profile(self, irradiance, annual_demand, do_normalization = True):
+    def generate_el_profile(self, irradiance, annual_demand, appliance_demand,
+                             light_demand, do_normalization = True):
         """
         Generate electric load profile for one household
 
@@ -662,6 +628,8 @@ class NonResidentialProfiles():
         ### the timesteps of the irradiance array in minutes
         given_timestamp = self.time_resolution / _timestep_rich * np.arange(timesteps_per_Day)
 
+        """
+        
         #  Loop over all days
         for i in range(self.nb_days):
 
@@ -708,6 +676,7 @@ class NonResidentialProfiles():
             demand.append(el_p_curve)
             self.light_load.append(light_p_curve)
             self.app_load.append(app_p_curve)
+        """ 
         # To-Do: Get data to be turned into profiles
         # Occupancy based + Lightning + common electricity
         # 
@@ -720,7 +689,7 @@ class NonResidentialProfiles():
         res = np.reshape(res, res.size)
         self.light_load = np.reshape(self.light_load, self.light_load.size)
         self.app_load = np.reshape(self.app_load, self.app_load.size)
-
+        breakpoint()
         # Change time resolution to timestep defined by user
         loadcurve = cr.change_resolution(res, _timestep_rich, self.time_resolution)
         self.light_load = cr.change_resolution(self.light_load, _timestep_rich,
@@ -787,7 +756,7 @@ class NonResidentialProfiles():
             Internal gain of each flat
 
         """
-        # 
+        # To-Do: get Data from 19599 or CEA
 
         personGain = 70.0  # [Watt]
         lightGain = 0.65
