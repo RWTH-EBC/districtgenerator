@@ -41,7 +41,7 @@ class Envelope():
 
     """
 
-    def __init__(self, prj, building_params, construction_type, file_path):
+    def __init__(self, prj, building_params, construction_type, file_path, teaser_id=None):
         """
         Constructor of Envelope class.
 
@@ -70,6 +70,8 @@ class Envelope():
         self.retrofit = building_params["retrofit"]
         self.usage_short = building_params["building"]
         self.file_path = file_path
+        # Paramter needed to model mixe-use districts 
+        self.teaser_id = teaser_id
         self.loadParams()
         self.loadComponentProperties(prj)
         self.loadAreas(prj)
@@ -519,7 +521,7 @@ class Envelope():
             # Af are condioned areas
             # In TEASER multiple heat capacity are calculated, which are then summarized to one
             # in Non-Residential only one is given 
-            # To-Do: Check CM Calculcation and adding type 
+            # To-Do: Check CM Calculcation and adding type
             self.kappa["opaque"]["wall"] = 162000 * 2.5
             self.kappa["opaque"]["roof"]  = 162000 * 2.5
             self.kappa["opaque"]["floor"]  = 162000 * 2.5
@@ -548,19 +550,18 @@ class Envelope():
 
         if isinstance(prj, Project):
 
-
-            self.V = prj.buildings[self.id].volume
+            self.V = prj.buildings[self.teaser_id].volume
 
             self.A = {}  # in m2
-            self.A["f"] = prj.buildings[self.id].net_leased_area
+            self.A["f"] = prj.buildings[self.teaser_id].net_leased_area
 
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
-            self.A["opaque"]["south"] = prj.buildings[self.id].outer_area[0.0]
-            self.A["opaque"]["north"] = prj.buildings[self.id].outer_area[180.0]
+            self.A["opaque"]["south"] = prj.buildings[self.teaser_id].outer_area[0.0]
+            self.A["opaque"]["north"] = prj.buildings[self.teaser_id].outer_area[180.0]
             try:
-                self.A["opaque"]["west"] = prj.buildings[self.id].outer_area[90.0]
-                self.A["opaque"]["east"] = prj.buildings[self.id].outer_area[270.0]
+                self.A["opaque"]["west"] = prj.buildings[self.teaser_id].outer_area[90.0]
+                self.A["opaque"]["east"] = prj.buildings[self.teaser_id].outer_area[270.0]
             except KeyError:
                 self.A["opaque"]["west"] = 0.0
                 self.A["opaque"]["east"] = 0.0
@@ -572,12 +573,12 @@ class Envelope():
         # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)
         self.A["opaque"]["intWall"] = 1.5 * self.A["opaque"]["wall"]
             try:
-                self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]
+                self.A["opaque"]["roof"] = prj.buildings[self.teaser_id].outer_area[-1]
             except KeyError:
                 self.A["opaque"]["roof"] = 1.2 * prj.buildings[
-                    self.id].outer_area[-2]
+                    self.teaser_id].outer_area[-2]
 
-            self.A["opaque"]["floor"] = prj.buildings[self.id].outer_area[-2]
+            self.A["opaque"]["floor"] = prj.buildings[self.teaser_id].outer_area[-2]
             self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
             # Fläche hausinterner Fußboden entspricht Nutzfläche
@@ -588,12 +589,12 @@ class Envelope():
             self.A["opaque"]["intWall"] = 1.5 * self.A["opaque"]["wall"]
 
             self.A["window"] = {}
-            self.A["window"]["south"] = prj.buildings[self.id].window_area[0.0]
-            self.A["window"]["north"] = prj.buildings[self.id].window_area[180.0]
+            self.A["window"]["south"] = prj.buildings[self.teaser_id].window_area[0.0]
+            self.A["window"]["north"] = prj.buildings[self.teaser_id].window_area[180.0]
             try:
-                self.A["window"]["west"] = prj.buildings[self.id].window_area[90.0]
+                self.A["window"]["west"] = prj.buildings[self.teaser_id].window_area[90.0]
                 self.A["window"]["east"] = prj.buildings[
-                    self.id].window_area[270.0]
+                    self.teaser_id].window_area[270.0]
             except KeyError:
                 self.A["window"]["west"] = 0.0
                 self.A["window"]["east"] = 0.0
@@ -995,3 +996,11 @@ class Envelope():
                                   * self.U["opaque"][drct2] * self.b_tr[drct2][t]
                                   for drct2 in direction2)
             
+    
+    def validate_id(self, prj):
+        """
+        In modeling Mixed-Used Districts, 
+        Mix-Ups can happen, due to incosistent IDs.
+        """
+        try:  prj.buildings[self.id]
+        except: IndexError

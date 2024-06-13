@@ -1096,6 +1096,7 @@ class Datahandler():
         self.scenario_name = None
         self.scenario = None
         self.counter = {}
+        self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
@@ -1300,7 +1301,29 @@ class Datahandler():
             # append building to district
             self.district.append(building)
 
+        self.generate_building_dict()
 
+    def generate_building_dict(self):
+        """
+        Processes the scenario file and checks wheter or wheter not the building is in 'SFH', 'TH', 'MFH', 'AB'. 
+        Creates a temp storage, to handle TEASER prj with ids starting from ß. 
+
+        Args:
+            csv_file (str): Path to the CSV file containing building data with 'id' and 'building' columns.
+
+        Returns:
+            None: Modifies the internal building_dict attribute of the class.
+        """
+
+        
+        # Filter the data for specified building types
+        filtered_data = self.scenario[self.scenario['building'].isin(['SFH', 'TH', 'MFH', 'AB'])]
+        
+        # Generate the dictionary
+        temp_id = 0
+        for index, row in filtered_data.iterrows():
+            self.building_dict[row['id']] = temp_id
+            temp_id += 1
 
     def generateBuildings(self):
         """
@@ -1320,10 +1343,7 @@ class Datahandler():
             for subData in jsonData:
                 bldgs[subData["name"]] = subData["value"]
         
-        # %% create TEASER project
-        # create one project for the whole district
-        prj = Project(load_data=True)
-        prj.name = self.scenario_name
+   
 
         if self.advancedModel is not None:
             # if a model file is presented, this can be used for advanced parameterization of the buildings 
@@ -1336,11 +1356,15 @@ class Datahandler():
             if not np.issubdtype(model_data['storeys_above_ground'].dtype, np.number):
                 model_data['storeys_above_ground'] = pd.to_numeric(model_data['storeys_above_ground'], errors='coerce')
 
-            
+                # %% create TEASER project
+        # create one project for the whole district
+        prj = Project(load_data=True)
+        prj.name = self.scenario_name    
 
         for building in self.district:
             # check if building type is residential or non residential 
             if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+   
             
                 # convert short names into designation needes for TEASER
                 building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -1370,10 +1394,13 @@ class Datahandler():
 
                     # %% create envelope object
                     # containing all physical data of the envelope
+                    teaser_id = self.building_dict[building["buildingFeatures"]["id"]]
+
                     building["envelope"] = Envelope(prj=prj,
                                                     building_params=building["buildingFeatures"],
                                                     construction_type=retrofit_level,
-                                                    file_path = self.filePath)
+                                                    file_path = self.filePath,
+                                                    teaser_id=teaser_id)
                     
 
                     # %% create user object

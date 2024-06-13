@@ -3,6 +3,7 @@ data/scenarios/*
 !data/scenarios/example.csv
 !data/scenarios/central_devices_example.csv
 !data/scenarios/example_nrb.csv
+!data/scenarios/example_mix_used.csv
 !data/scenarios/info.txt
 errorfile.txt
 *.bk
