@@ -67,6 +67,9 @@ class Datahandler():
         self.weatherFile = weather_file
         self.sheetFile = sheet_file
         self.advancedModel = None
+        if weather_file is not None:
+            self.timestamp = weather_handling.get_time_horizon(self.weatherFile)
+
 
     def setResultPath(self, new_path=None):
             """
@@ -102,7 +105,10 @@ class Datahandler():
             Returns:
                 None
             """
-            self.weatherFile = pathWeatherFile if pathWeatherFile is not None else None 
+            self.weatherFile = pathWeatherFile if pathWeatherFile is not None else None
+            # Update of time stamp
+            if pathWeatherFile is not None:
+                self.timestamp  = weather_handling.get_time_horizon(self.weatherFile)
 
     def generateEnvironment(self):
         """
@@ -197,15 +203,16 @@ class Datahandler():
         self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
                                      np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
                                      temp_temp)[0:-1]
-        
-        self.site["IlluminanceDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
-                                           direct_illuminance)[0:-1]
-        
-        self.site["IlluminaceDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
-                                           diffuse_illuminance)[0:-1]
-        
+        if self.weatherFile != None:
+            if self.weatherFile.endswith(".epw"):
+                self.site["IlluminanceDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                                np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                                direct_illuminance)[0:-1]
+                
+                self.site["IlluminaceDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                                np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                                diffuse_illuminance)[0:-1]
+            
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
 
@@ -372,19 +379,22 @@ class Datahandler():
                         net_leased_area=building["buildingFeatures"]["area"],)
                 # %% create envelope object
                 # containing all physical data of the envelope
+                
                 building["envelope"] = Envelope(prj=nrb_prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_type=None,
                                                 file_path = self.filePath)
+              
                 
                 #illuminance = Sun
 
                 # %% create user object
                 # containing number occupants, electricity demand,...
+                nb_of_days = self.timestamp.dt.date.nunique()
                 building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
                                                        area=building["buildingFeatures"]["area"],
                                                        envelope= building["envelope"],
-                                                       file=self.filePath, site=self.site, time=self.time)
+                                                       file=self.filePath, site=self.site, time=self.time, nb_of_days=nb_of_days)
             
                 
                 
