@@ -12,6 +12,10 @@ def example8_1_generate_first_non_residential_district():
     # Initialize District
     data = Datahandler()
 
+
+    # Set a custom weather file 
+    # This need to be EPW, if used with Non-Residential Buildings. 
+
     data.setWeatherFile(r"data\weather\EPW\DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw")
 
 

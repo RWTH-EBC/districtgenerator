@@ -12,6 +12,10 @@ def example8_2_generate_first_mix_used_district():
     # Initialize District
     data = Datahandler()
 
+     # Set a custom weather file 
+    # This need to be EPW, if used with Non-Residential Buildings. 
+
+    data.setWeatherFile(r"data\weather\EPW\DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw")
 
     # Next we generate an environment.
     # Based on the location of the district this includes outside temperatures and sun radiation.
@@ -26,8 +30,15 @@ def example8_2_generate_first_mix_used_district():
     
     data.generateEnvironment()
 
+    data.initializeBuildings('example_mix_used')
+    data.generateBuildings()
+
+    data.generateEnvironment()
+
     data.initializeBuildings('example_nrb')
     data.generateBuildings()
+    data.generateDemands()
+    
     
 
     # As last step we generate individual demand profiles for our buildings.
@@ -85,8 +96,10 @@ def example8_2_generate_first_mix_used_district():
 
 
 if __name__ == '__main__':
-    data = example8_2_generate_first_mix_used_district()
+     print("Let's generate a mixed use district!")
+     
+     data = example8_2_generate_first_mix_used_district()
 
-    print("Let's generate a mixed use district!")
+   
 
 
