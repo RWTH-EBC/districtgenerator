@@ -18,46 +18,87 @@ from districtgenerator.solar import SunIlluminance
 
 
 class NonResidentialUsers():
-    '''
-    Building Users class describing the number of occupants and their configs. 
-
+    """
+    A class for modeling non-residential building usage profiles, including occupancy, 
+    electricity, and water heating demands based on the building's usage type and area. 
+    This class leverages TEASER project data structures and is designed to support 
+    energy analysis tasks.
 
     Parameters
     ----------
-    building : object
-        buildings objects of TEASER project
-    area : integer
-        Floor area of different building types
-  
+    building_usage : str
+        The usage type of the building, which should match keys in occupancy and 
+        electricity data files.
+    area : float
+        Total floor area of the building in square meters.
+    file : str
+        Path to the building envelope data file.
+    envelope : object
+        An object representing the physical envelope of the building including 
+        attributes like windows, walls, and thermal properties.
+    site : dict
+        A dictionary containing site-specific data such as timezone, location, and 
+        local climate data.
+    time : dict
+        A dictionary with time resolution and time steps for simulation.
+    nb_of_days : int
+        Number of days for which the simulation is to be run.
 
     Attributes
     ----------
-    building : string
-        building type according to TABULA database
-    nb_flats : integer
-        number of flats in building
-    annual_el_demand : array
-        annual elictricity consumption in dependency of the building type and the number of occupants
-    lighting_index : integer
-        This index defines the lighting configuration of the houshold.
-    el_wrapper : object
-        This objects holdes information about the lighting and appliance configuration.
-    nc_occ : list
-        list with the number of occupants for each flat of the current building.
-    occ : array
-        occupancy profile for each flat of the current building.
-    dhw :
-        drinking hot water profile for each building.
-    elec :
-        electrical demand for each building.
-    gains :
-        internal gains for each building.
-    heat :
-        heat demand for each building.
-    '''
+    annual_appliance_demand : float
+        The calculated annual demand for appliances in kWh.
+    annual_lightning_demand : float
+        The calculated annual lighting demand in kWh.
+    nb_occ : list
+        List of number of occupants based on building usage type.
+    occ : np.array
+        Occupancy profile for the building.
+    dhw : np.array
+        Daily hot water usage profile for the building.
+    elec : np.array
+        Electrical demand profile for the building.
+    gains : np.array
+        Internal gains from occupants, appliances, and lighting.
+    heat : np.array
+        Heating demand profile for the building.
+    occupancy_schedule : np.array
+        Scheduled occupancy profile based on typical usage patterns.
+    appliance_schedule : np.array
+        Scheduled appliance usage profile.
+    lighntning_schedule : np.array
+        Scheduled lighting usage profile.
+    occupancy_data : dict
+        Loaded occupancy data from JSON.
+    electricity_data : dict
+        Loaded electricity data from JSON.
 
+    Methods
+    -------
+    load_json_data(json_path)
+        Loads data from a JSON file located at the specified path.
+    generate_number_occupants()
+        Calculates the number of occupants based on building usage and area.
+    generate_schedules()
+        Generates daily usage schedules for occupancy, appliances, and lighting.
+    generate_annual_el_consumption_equipment()
+        Calculates annual electricity consumption for equipment based on building type.
+    generate_annual_el_consumption_lightning()
+        Calculates annual electricity consumption for lighting.
+    generate_dhw_profile()
+        Generates a daily hot water usage profile based on occupancy and building type.
+    create_el_wrapper()
+        Creates an electricity usage profile wrapper for lighting and appliances.
+    calcProfiles(site, time_resolution, time_horizon, initital_day=1)
+        Calculates and aggregates all profiles (occupancy, electricity, dhw, etc.) for the building.
+    calcHeatingProfile(site, envelope, time_resolution)
+        Calculates the heating demand for the building based on the envelope and site data.
+    saveProfiles(unique_name, path)
+        Saves generated profiles to CSV files.
+    loadProfiles(unique_name, path)
+        Loads profiles from previously saved CSV files.
 
-
+    """
     def __init__(self, building_usage, area, file, envelope, site, time, nb_of_days):
         """
         Constructor of Users Class
@@ -237,17 +278,6 @@ class NonResidentialUsers():
                                           beta=beta, gamma=gamma,
                                           normal_direct_illuminance=self.site["IlluminanceDirect"], 
                                           horizontal_diffuse_illuminance=self.site["IlluminaceDiffuse"])
-        print(illuminance, "This is the illuminance")
-        print(f"Initial Time: {0}")
-        print(f"Time Discretization: {self.time['timeResolution']}")
-        print(f"Time Steps: {self.time['timeSteps']}")
-        print(f"Time Zone: {self.site['timeZone']}")
-        print(f"Location: {self.site['location']}")
-        print(f"Altitude: {self.site['altitude']}")
-        print(f"Beta: {beta}")
-        print(f"Gamma: {gamma}")
-        print(f"Normal Direct Illuminance: {self.site['IlluminanceDirect']}")
-        print(f"Horizontal Diffuse Illuminance: {self.site['IlluminaceDiffuse']}")
 
         # To-Do: 
         # Calculate Energy Demand throuhg lighning
@@ -398,6 +428,10 @@ class NonResidentialUsers():
         #                                         appliance_demand=self.annual_appliance_demand,
         #                                         light_demand=self.annual_lightning_demand)
         self.calculate_gain_profile()
+        self.gen
+    
+    def generate_el_demand(self, normalization=True):
+
         
     def calculate_gain_profile(self):
         """
