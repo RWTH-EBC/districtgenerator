@@ -41,4 +41,10 @@ win1 = fen_fl [m²] / nrf_2 [m2]
 rwt1 = D_fl_wueoA_opak [m2] / nrf_2 [m2]
 gf1 = UG_fl_wueuA / nrf_2 [m2]
 
+g_value for windows is obtained from Tabula and the following classes: 
 
+| IWU-Non-Residential Age Group | TABULA Window Model                                  | g-Value |
+|-------------------------------|------------------------------------------------------|---------|
+| 1860 - 1978                   | Window_[0, 1978]_Kunststofffenster, Isolierverglasung | 0.78    |
+| 1979 - 2009                   | Window_[1984, 1994]_Kunststofffenster, Isolierverglasung | 0.78    |
+| 2010 - 2030                   | Window_[1995, 2015]_Kunststofffenster, Isolierverglasung | 0.67    |

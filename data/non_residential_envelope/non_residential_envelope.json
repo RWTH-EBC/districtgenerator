@@ -1,522 +1,561 @@
 {
-    "oag": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.29,
-                "u_fen": 2.68,
-                "u_d_opak": 0.44,
-                "u_d_transp": 1.53,
-                "u_ug": 1.07,
-                "u_geb": 1.16,
-                "wwr_north": 0.3,
-                "wwr_south": 0.3,
-                "wwr_east": 0.3,
-                "wwr_west": 0.3
-            },
-            "1979 - 2009": {
-                "u_aw": 0.48,
-                "u_fen": 1.89,
-                "u_d_opak": 0.24,
-                "u_d_transp": 2.14,
-                "u_ug": 0.27,
-                "u_geb": 0.60,
-                "wwr_north": 0.39,
-                "wwr_south": 0.39,
-                "wwr_east": 0.39,
-                "wwr_west": 0.39
-            },
-            "2010 - 2030": {
-                "u_aw": 0.19,
-                "u_fen": 1.08,
-                "u_d_opak": 0.14,
-                "u_d_transp": 1.30,
-                "u_ug": 0.21,
-                "u_geb": 0.30,
-                "wwr_north": 0.37,
-                "wwr_south": 0.37,
-                "wwr_east": 0.37,
-                "wwr_west": 0.37
-            }
-        }
-    },
-    "IWU Research and University Teaching": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.28,
-                "u_fen": 3.10,
-                "u_d_opak": 0.40,
-                "u_d_transp": 2.19,
-                "u_ug": 0.82,
-                "u_geb": 1.44,
-                "wwr_north": 0.37,
-                "wwr_south": 0.37,
-                "wwr_east": 0.37,
-                "wwr_west": 0.37
-            },
-            "1979 - 2009": {
-                "u_aw": 0.29,
-                "u_fen": 1.74,
-                "u_d_opak": 0.13,
-                "u_d_transp": 0.62,
-                "u_ug": 0.53,
-                "u_geb": 0.58,
-                "wwr_north": 0.40,
-                "wwr_south": 0.40,
-                "wwr_east": 0.40,
-                "wwr_west": 0.40
-            },
-            "2010 - 2030": {
-                "u_aw": 0.20,
-                "u_fen": 1.24,
-                "u_d_opak": 0.14,
-                "u_d_transp": 0.00,
-                "u_ug": 0.23,
-                "u_geb": 0.25,
-                "wwr_north": 0.46,
-                "wwr_south": 0.46,
-                "wwr_east": 0.46,
-                "wwr_west": 0.46
-            }
-        }
-    },
-    "IWU Health and Care": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 0.95,
-                "u_fen": 2.72,
-                "u_d_opak": 0.31,
-                "u_d_transp": 0.76,
-                "u_ug": 0.70,
-                "u_geb": 1.31,
-                "wwr_north": 0.27,
-                "wwr_south": 0.27,
-                "wwr_east": 0.27,
-                "wwr_west": 0.27
-            },
-            "1979 - 2009": {
-                "u_aw": 0.44,
-                "u_fen": 2.24,
-                "u_d_opak": 0.23,
-                "u_d_transp": 2.07,
-                "u_ug": 0.25,
-                "u_geb": 0.59,
-                "wwr_north": 0.34,
-                "wwr_south": 0.34,
-                "wwr_east": 0.34,
-                "wwr_west": 0.34
-            },
-            "2010 - 2030": {
-                "u_aw": 0.21,
-                "u_fen": 1.25,
-                "u_d_opak": 0.09,
-                "u_d_transp": 0.00,
-                "u_ug": 0.14,
-                "u_geb": 0.31,
-                "wwr_north": 0.47,
-                "wwr_south": 0.47,
-                "wwr_east": 0.47,
-                "wwr_west": 0.47
-            }
-        }
-    },
-    "IWU School, Day Nursery and other Care": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.09,
-                "u_fen": 2.22,
-                "u_d_opak": 0.44,
-                "u_d_transp": 3.17,
-                "u_ug": 0.79,
-                "u_geb": 1.12,
-                "wwr_north": 0.40,
-                "wwr_south": 0.40,
-                "wwr_east": 0.40,
-                "wwr_west": 0.40
-            },
-            "1979 - 2009": {
-                "u_aw": 0.51,
-                "u_fen": 2.05,
-                "u_d_opak": 0.25,
-                "u_d_transp": 1.64,
-                "u_ug": 0.44,
-                "u_geb": 0.70,
-                "wwr_north": 0.43,
-                "wwr_south": 0.43,
-                "wwr_east": 0.43,
-                "wwr_west": 0.43
-            },
-            "2010 - 2030": {
-                "u_aw": 0.23,
-                "u_fen": 1.17,
-                "u_d_opak": 0.14,
-                "u_d_transp": 1.27,
-                "u_ug": 0.18,
-                "u_geb": 0.33,
-                "wwr_north": 0.36,
-                "wwr_south": 0.36,
-                "wwr_east": 0.36,
-                "wwr_west": 0.36
-            }
-        }
-    },
-    "IWU Culture and Leisure": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.39,
-                "u_fen": 2.56,
-                "u_d_opak": 0.75,
-                "u_d_transp": 2.68,
-                "u_ug": 0.99,
-                "u_geb": 1.16,
-                "wwr_north": 0.30,
-                "wwr_south": 0.30,
-                "wwr_east": 0.30,
-                "wwr_west": 0.30
-            },
-            "1979 - 2009": {
-                "u_aw": 0.53,
-                "u_fen": 2.04,
-                "u_d_opak": 0.33,
-                "u_d_transp": 1.94,
-                "u_ug": 0.44,
-                "u_geb": 0.52,
-                "wwr_north": 0.29,
-                "wwr_south": 0.29,
-                "wwr_east": 0.29,
-                "wwr_west": 0.29
-            },
-            "2010 - 2030": {
-                "u_aw": 0.51,
-                "u_fen": 0.96,
-                "u_d_opak": 0.33,
-                "u_d_transp": 0.90,
-                "u_ug": 0.54,
-                "u_geb": 0.30,
-                "wwr_north": 0.51,
-                "wwr_south": 0.51,
-                "wwr_east": 0.51,
-                "wwr_west": 0.51
-            }
-        }
-    },
-    "IWU Sports Facilities": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.35,
-                "u_fen": 3.09,
-                "u_d_opak": 0.40,
-                "u_d_transp": 1.30,
-                "u_ug": 0.57,
-                "u_geb": 1.06,
-                "wwr_north": 0.59,
-                "wwr_south": 0.59,
-                "wwr_east": 0.59,
-                "wwr_west": 0.59
-            },
-            "1979 - 2009": {
-                "u_aw": 0.55,
-                "u_fen": 2.56,
-                "u_d_opak": 0.34,
-                "u_d_transp": 1.05,
-                "u_ug": 0.57,
-                "u_geb": 0.66,
-                "wwr_north": 0.27,
-                "wwr_south": 0.27,
-                "wwr_east": 0.27,
-                "wwr_west": 0.27
-            },
-            "2010 - 2030": {
-                "u_aw": 0.27,
-                "u_fen": 1.07,
-                "u_d_opak": 0.15,
-                "u_d_transp": 1.30,
-                "u_ug": 0.99,
-                "u_geb": 0.39,
-                "wwr_north": 0.13,
-                "wwr_south": 0.13,
-                "wwr_east": 0.13,
-                "wwr_west": 0.13
-            }
-        }
-    },
-    "IWU Hotels, Boarding, Restaurants or Catering": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.20,
-                "u_fen": 2.76,
-                "u_d_opak": 0.80,
-                "u_d_transp": 2.30,
-                "u_ug": 0.83,
-                "u_geb": 1.24,
-                "wwr_north": 0.30,
-                "wwr_south": 0.30,
-                "wwr_east": 0.30,
-                "wwr_west": 0.30
-            },
-            "1979 - 2009": {
-                "u_aw": 0.47,
-                "u_fen": 2.07,
-                "u_d_opak": 0.29,
-                "u_d_transp": 2.78,
-                "u_ug": 0.37,
-                "u_geb": 0.79,
-                "wwr_north": 0.33,
-                "wwr_south": 0.33,
-                "wwr_east": 0.33,
-                "wwr_west": 0.33
-            },
-            "2010 - 2030": {
-                "u_aw": 0.32,
-                "u_fen": 1.24,
-                "u_d_opak": 0.18,
-                "u_d_transp": 0.00,
-                "u_ug": 0.26,
-                "u_geb": 0.38,
-                "wwr_north": 0.32,
-                "wwr_south": 0.32,
-                "wwr_east": 0.32,
-                "wwr_west": 0.32
-            }
-        }
-    },
-    "IWU Production, Workshop, Warehouse or Operations": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.03,
-                "u_fen": 2.99,
-                "u_d_opak": 0.53,
-                "u_d_transp": 3.84,
-                "u_ug": 1.01,
-                "u_geb": 1.12,
-                "wwr_north": 0.26,
-                "wwr_south": 0.26,
-                "wwr_east": 0.26,
-                "wwr_west": 0.26
-            },
-            "1979 - 2009": {
-                "u_aw": 0.51,
-                "u_fen": 2.17,
-                "u_d_opak": 0.24,
-                "u_d_transp": 2.05,
-                "u_ug": 0.41,
-                "u_geb": 0.54,
-                "wwr_north": 0.21,
-                "wwr_south": 0.21,
-                "wwr_east": 0.21,
-                "wwr_west": 0.21
-            },
-            "2010 - 2030": {
-                "u_aw": 0.24,
-                "u_fen": 1.20,
-                "u_d_opak": 0.11,
-                "u_d_transp": 1.07,
-                "u_ug": 0.22,
-                "u_geb": 0.28,
-                "wwr_north": 0.19,
-                "wwr_south": 0.19,
-                "wwr_east": 0.19,
-                "wwr_west": 0.19
-            }
-        }
-    },
-    "IWU Trade Buildings": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 0.55,
-                "u_fen": 3.03,
-                "u_d_opak": 0.22,
-                "u_d_transp": 0.07,
-                "u_ug": 0.37,
-                "u_geb": 1.32,
-                "wwr_north": 0.20,
-                "wwr_south": 0.20,
-                "wwr_east": 0.20,
-                "wwr_west": 0.20
-            },
-            "1979 - 2009": {
-                "u_aw": 0.40,
-                "u_fen": 2.10,
-                "u_d_opak": 0.31,
-                "u_d_transp": 2.35,
-                "u_ug": 0.50,
-                "u_geb": 0.50,
-                "wwr_north": 0.23,
-                "wwr_south": 0.23,
-                "wwr_east": 0.23,
-                "wwr_west": 0.23
-            },
-            "2010 - 2030": {
-                "u_aw": 0.25,
-                "u_fen": 1.05,
-                "u_d_opak": 0.16,
-                "u_d_transp": 0.90,
-                "u_ug": 0.12,
-                "u_geb": 0.33,
-                "wwr_north": 0.40,
-                "wwr_south": 0.40,
-                "wwr_east": 0.40,
-                "wwr_west": 0.40
-            }
-        }
-    },
-    "IWU Technical and Utility (supply and disposal)": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.98,
-                "u_fen": 4.20,
-                "u_d_opak": 0.99,
-                "u_d_transp": 0.00,
-                "u_ug": 1.51,
-                "u_geb": 1.30,
-                "wwr_north": 0.23,
-                "wwr_south": 0.23,
-                "wwr_east": 0.23,
-                "wwr_west": 0.23
-            },
-            "1979 - 2009": {
-                "u_aw": 0.47,
-                "u_fen": 2.02,
-                "u_d_opak": 0.22,
-                "u_d_transp": 0.00,
-                "u_ug": 0.37,
-                "u_geb": 0.55,
-                "wwr_north": 0.12,
-                "wwr_south": 0.12,
-                "wwr_east": 0.12,
-                "wwr_west": 0.12
-            },
-            "2010 - 2030": {
-                "u_aw": 0.16,
-                "u_fen": 1.30,
-                "u_d_opak": 0.15,
-                "u_d_transp": 0.00,
-                "u_ug": 0.24,
-                "u_geb": 0.24,
-                "wwr_north": 0.00,
-                "wwr_south": 0.00,
-                "wwr_east": 0.00,
-                "wwr_west": 0.00
-            }
-        }
-    },
-    "IWU Transport": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.78,
-                "u_fen": 5.00,
-                "u_d_opak": 1.41,
-                "u_d_transp": 5.00,
-                "u_ug": 0.98,
-                "u_geb": 1.43,
-                "wwr_north": 0.42,
-                "wwr_south": 0.42,
-                "wwr_east": 0.42,
-                "wwr_west": 0.42
-            },
-            "1979 - 2009": {
-                "u_aw": 0.63,
-                "u_fen": 0.41,
-                "u_d_opak": 0.41,
-                "u_d_transp": 0.00,
-                "u_ug": 0.61,
-                "u_geb": 0.68,
-                "wwr_north": 0.06,
-                "wwr_south": 0.06,
-                "wwr_east": 0.06,
-                "wwr_west": 0.06
-            },
-            "2010 - 2030": {
-                "u_aw": 0.16,
-                "u_fen": 1.30,
-                "u_d_opak": 0.15,
-                "u_d_transp": 0.00,
-                "u_ug": 0.24,
-                "u_geb": 0.22,
-                "wwr_north": 0.00,
-                "wwr_south": 0.00,
-                "wwr_east": 0.00,
-                "wwr_west": 0.00
-            }
-        }
-    },
-    "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.11,
-                "u_fen": 2.80,
-                "u_d_opak": 0.45,
-                "u_d_transp": 0.66,
-                "u_ug": 0.64,
-                "u_geb": 1.20,
-                "wwr_north": 0.34,
-                "wwr_south": 0.34,
-                "wwr_east": 0.34,
-                "wwr_west": 0.34
-            },
-            "1979 - 2009": {
-                "u_aw": 0.48,
-                "u_fen": 2.10,
-                "u_d_opak": 0.27,
-                "u_d_transp": 2.03,
-                "u_ug": 0.41,
-                "u_geb": 0.62,
-                "wwr_north": 0.34,
-                "wwr_south": 0.34,
-                "wwr_east": 0.34,
-                "wwr_west": 0.34
-            },
-            "2010 - 2030": {
-                "u_aw": 0.25,
-                "u_fen": 1.12,
-                "u_d_opak": 0.13,
-                "u_d_transp": 1.13,
-                "u_ug": 0.20,
-                "u_geb": 0.31,
-                "wwr_north": 0.38,
-                "wwr_south": 0.38,
-                "wwr_east": 0.38,
-                "wwr_west": 0.38
-            }
-        }
-    },
-    "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)": {
-        "building_age_group": {
-            "1860 - 1978": {
-                "u_aw": 1.78,
-                "u_fen": 5.00,
-                "u_d_opak": 1.41,
-                "u_d_transp": 5.00,
-                "u_ug": 0.98,
-                "u_geb": 1.43,
-                "wwr_north": 0.26,
-                "wwr_south": 0.26,
-                "wwr_east": 0.26,
-                "wwr_west": 0.26
-            },
-            "1979 - 2009": {
-                "u_aw": 0.63,
-                "u_fen": 0.41,
-                "u_d_opak": 0.41,
-                "u_d_transp": 0.00,
-                "u_ug": 0.61,
-                "u_geb": 0.68,
-                "wwr_north": 0.20,
-                "wwr_south": 0.20,
-                "wwr_east": 0.20,
-                "wwr_west": 0.20
-            },
-            "2010 - 2030": {
-                "u_aw": 0.24,
-                "u_fen": 1.20,
-                "u_d_opak": 0.11,
-                "u_d_transp": 1.07,
-                "u_ug": 0.22,
-                "u_geb": 0.28,
-                "wwr_north": 0.19,
-                "wwr_south": 0.19,
-                "wwr_east": 0.19,
-                "wwr_west": 0.19
-            }
-        }
+  "oag": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.29,
+        "u_fen": 2.68,
+        "u_d_opak": 0.44,
+        "u_d_transp": 1.53,
+        "u_ug": 1.07,
+        "u_geb": 1.16,
+        "wwr_north": 0.3,
+        "wwr_south": 0.3,
+        "wwr_east": 0.3,
+        "wwr_west": 0.3,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.48,
+        "u_fen": 1.89,
+        "u_d_opak": 0.24,
+        "u_d_transp": 2.14,
+        "u_ug": 0.27,
+        "u_geb": 0.6,
+        "wwr_north": 0.39,
+        "wwr_south": 0.39,
+        "wwr_east": 0.39,
+        "wwr_west": 0.39,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.19,
+        "u_fen": 1.08,
+        "u_d_opak": 0.14,
+        "u_d_transp": 1.3,
+        "u_ug": 0.21,
+        "u_geb": 0.3,
+        "wwr_north": 0.37,
+        "wwr_south": 0.37,
+        "wwr_east": 0.37,
+        "wwr_west": 0.37,
+        "g_gl_fen": 0.67
+      }
     }
+  },
+  "IWU Research and University Teaching": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.28,
+        "u_fen": 3.1,
+        "u_d_opak": 0.4,
+        "u_d_transp": 2.19,
+        "u_ug": 0.82,
+        "u_geb": 1.44,
+        "wwr_north": 0.37,
+        "wwr_south": 0.37,
+        "wwr_east": 0.37,
+        "wwr_west": 0.37,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.29,
+        "u_fen": 1.74,
+        "u_d_opak": 0.13,
+        "u_d_transp": 0.62,
+        "u_ug": 0.53,
+        "u_geb": 0.58,
+        "wwr_north": 0.4,
+        "wwr_south": 0.4,
+        "wwr_east": 0.4,
+        "wwr_west": 0.4,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.2,
+        "u_fen": 1.24,
+        "u_d_opak": 0.14,
+        "u_d_transp": 0.0,
+        "u_ug": 0.23,
+        "u_geb": 0.25,
+        "wwr_north": 0.46,
+        "wwr_south": 0.46,
+        "wwr_east": 0.46,
+        "wwr_west": 0.46,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Health and Care": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 0.95,
+        "u_fen": 2.72,
+        "u_d_opak": 0.31,
+        "u_d_transp": 0.76,
+        "u_ug": 0.7,
+        "u_geb": 1.31,
+        "wwr_north": 0.27,
+        "wwr_south": 0.27,
+        "wwr_east": 0.27,
+        "wwr_west": 0.27,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.44,
+        "u_fen": 2.24,
+        "u_d_opak": 0.23,
+        "u_d_transp": 2.07,
+        "u_ug": 0.25,
+        "u_geb": 0.59,
+        "wwr_north": 0.34,
+        "wwr_south": 0.34,
+        "wwr_east": 0.34,
+        "wwr_west": 0.34,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.21,
+        "u_fen": 1.25,
+        "u_d_opak": 0.09,
+        "u_d_transp": 0.0,
+        "u_ug": 0.14,
+        "u_geb": 0.31,
+        "wwr_north": 0.47,
+        "wwr_south": 0.47,
+        "wwr_east": 0.47,
+        "wwr_west": 0.47,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU School, Day Nursery and other Care": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.09,
+        "u_fen": 2.22,
+        "u_d_opak": 0.44,
+        "u_d_transp": 3.17,
+        "u_ug": 0.79,
+        "u_geb": 1.12,
+        "wwr_north": 0.4,
+        "wwr_south": 0.4,
+        "wwr_east": 0.4,
+        "wwr_west": 0.4,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.51,
+        "u_fen": 2.05,
+        "u_d_opak": 0.25,
+        "u_d_transp": 1.64,
+        "u_ug": 0.44,
+        "u_geb": 0.7,
+        "wwr_north": 0.43,
+        "wwr_south": 0.43,
+        "wwr_east": 0.43,
+        "wwr_west": 0.43,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.23,
+        "u_fen": 1.17,
+        "u_d_opak": 0.14,
+        "u_d_transp": 1.27,
+        "u_ug": 0.18,
+        "u_geb": 0.33,
+        "wwr_north": 0.36,
+        "wwr_south": 0.36,
+        "wwr_east": 0.36,
+        "wwr_west": 0.36,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Culture and Leisure": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.39,
+        "u_fen": 2.56,
+        "u_d_opak": 0.75,
+        "u_d_transp": 2.68,
+        "u_ug": 0.99,
+        "u_geb": 1.16,
+        "wwr_north": 0.3,
+        "wwr_south": 0.3,
+        "wwr_east": 0.3,
+        "wwr_west": 0.3,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.53,
+        "u_fen": 2.04,
+        "u_d_opak": 0.33,
+        "u_d_transp": 1.94,
+        "u_ug": 0.44,
+        "u_geb": 0.52,
+        "wwr_north": 0.29,
+        "wwr_south": 0.29,
+        "wwr_east": 0.29,
+        "wwr_west": 0.29,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.51,
+        "u_fen": 0.96,
+        "u_d_opak": 0.33,
+        "u_d_transp": 0.9,
+        "u_ug": 0.54,
+        "u_geb": 0.3,
+        "wwr_north": 0.51,
+        "wwr_south": 0.51,
+        "wwr_east": 0.51,
+        "wwr_west": 0.51,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Sports Facilities": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.35,
+        "u_fen": 3.09,
+        "u_d_opak": 0.4,
+        "u_d_transp": 1.3,
+        "u_ug": 0.57,
+        "u_geb": 1.06,
+        "wwr_north": 0.59,
+        "wwr_south": 0.59,
+        "wwr_east": 0.59,
+        "wwr_west": 0.59,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.55,
+        "u_fen": 2.56,
+        "u_d_opak": 0.34,
+        "u_d_transp": 1.05,
+        "u_ug": 0.57,
+        "u_geb": 0.66,
+        "wwr_north": 0.27,
+        "wwr_south": 0.27,
+        "wwr_east": 0.27,
+        "wwr_west": 0.27,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.27,
+        "u_fen": 1.07,
+        "u_d_opak": 0.15,
+        "u_d_transp": 1.3,
+        "u_ug": 0.99,
+        "u_geb": 0.39,
+        "wwr_north": 0.13,
+        "wwr_south": 0.13,
+        "wwr_east": 0.13,
+        "wwr_west": 0.13,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Hotels, Boarding, Restaurants or Catering": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.2,
+        "u_fen": 2.76,
+        "u_d_opak": 0.8,
+        "u_d_transp": 2.3,
+        "u_ug": 0.83,
+        "u_geb": 1.24,
+        "wwr_north": 0.3,
+        "wwr_south": 0.3,
+        "wwr_east": 0.3,
+        "wwr_west": 0.3,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.47,
+        "u_fen": 2.07,
+        "u_d_opak": 0.29,
+        "u_d_transp": 2.78,
+        "u_ug": 0.37,
+        "u_geb": 0.79,
+        "wwr_north": 0.33,
+        "wwr_south": 0.33,
+        "wwr_east": 0.33,
+        "wwr_west": 0.33,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.32,
+        "u_fen": 1.24,
+        "u_d_opak": 0.18,
+        "u_d_transp": 0.0,
+        "u_ug": 0.26,
+        "u_geb": 0.38,
+        "wwr_north": 0.32,
+        "wwr_south": 0.32,
+        "wwr_east": 0.32,
+        "wwr_west": 0.32,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Production, Workshop, Warehouse or Operations": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.03,
+        "u_fen": 2.99,
+        "u_d_opak": 0.53,
+        "u_d_transp": 3.84,
+        "u_ug": 1.01,
+        "u_geb": 1.12,
+        "wwr_north": 0.26,
+        "wwr_south": 0.26,
+        "wwr_east": 0.26,
+        "wwr_west": 0.26,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.51,
+        "u_fen": 2.17,
+        "u_d_opak": 0.24,
+        "u_d_transp": 2.05,
+        "u_ug": 0.41,
+        "u_geb": 0.54,
+        "wwr_north": 0.21,
+        "wwr_south": 0.21,
+        "wwr_east": 0.21,
+        "wwr_west": 0.21,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.24,
+        "u_fen": 1.2,
+        "u_d_opak": 0.11,
+        "u_d_transp": 1.07,
+        "u_ug": 0.22,
+        "u_geb": 0.28,
+        "wwr_north": 0.19,
+        "wwr_south": 0.19,
+        "wwr_east": 0.19,
+        "wwr_west": 0.19,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Trade Buildings": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 0.55,
+        "u_fen": 3.03,
+        "u_d_opak": 0.22,
+        "u_d_transp": 0.07,
+        "u_ug": 0.37,
+        "u_geb": 1.32,
+        "wwr_north": 0.2,
+        "wwr_south": 0.2,
+        "wwr_east": 0.2,
+        "wwr_west": 0.2,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.4,
+        "u_fen": 2.1,
+        "u_d_opak": 0.31,
+        "u_d_transp": 2.35,
+        "u_ug": 0.5,
+        "u_geb": 0.5,
+        "wwr_north": 0.23,
+        "wwr_south": 0.23,
+        "wwr_east": 0.23,
+        "wwr_west": 0.23,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.25,
+        "u_fen": 1.05,
+        "u_d_opak": 0.16,
+        "u_d_transp": 0.9,
+        "u_ug": 0.12,
+        "u_geb": 0.33,
+        "wwr_north": 0.4,
+        "wwr_south": 0.4,
+        "wwr_east": 0.4,
+        "wwr_west": 0.4,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Technical and Utility (supply and disposal)": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.98,
+        "u_fen": 4.2,
+        "u_d_opak": 0.99,
+        "u_d_transp": 0.0,
+        "u_ug": 1.51,
+        "u_geb": 1.3,
+        "wwr_north": 0.23,
+        "wwr_south": 0.23,
+        "wwr_east": 0.23,
+        "wwr_west": 0.23,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.47,
+        "u_fen": 2.02,
+        "u_d_opak": 0.22,
+        "u_d_transp": 0.0,
+        "u_ug": 0.37,
+        "u_geb": 0.55,
+        "wwr_north": 0.12,
+        "wwr_south": 0.12,
+        "wwr_east": 0.12,
+        "wwr_west": 0.12,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.16,
+        "u_fen": 1.3,
+        "u_d_opak": 0.15,
+        "u_d_transp": 0.0,
+        "u_ug": 0.24,
+        "u_geb": 0.24,
+        "wwr_north": 0.0,
+        "wwr_south": 0.0,
+        "wwr_east": 0.0,
+        "wwr_west": 0.0,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Transport": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.78,
+        "u_fen": 5.0,
+        "u_d_opak": 1.41,
+        "u_d_transp": 5.0,
+        "u_ug": 0.98,
+        "u_geb": 1.43,
+        "wwr_north": 0.42,
+        "wwr_south": 0.42,
+        "wwr_east": 0.42,
+        "wwr_west": 0.42,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.63,
+        "u_fen": 0.41,
+        "u_d_opak": 0.41,
+        "u_d_transp": 0.0,
+        "u_ug": 0.61,
+        "u_geb": 0.68,
+        "wwr_north": 0.06,
+        "wwr_south": 0.06,
+        "wwr_east": 0.06,
+        "wwr_west": 0.06,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.16,
+        "u_fen": 1.3,
+        "u_d_opak": 0.15,
+        "u_d_transp": 0.0,
+        "u_ug": 0.24,
+        "u_geb": 0.22,
+        "wwr_north": 0.0,
+        "wwr_south": 0.0,
+        "wwr_east": 0.0,
+        "wwr_west": 0.0,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.11,
+        "u_fen": 2.8,
+        "u_d_opak": 0.45,
+        "u_d_transp": 0.66,
+        "u_ug": 0.64,
+        "u_geb": 1.2,
+        "wwr_north": 0.34,
+        "wwr_south": 0.34,
+        "wwr_east": 0.34,
+        "wwr_west": 0.34,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.48,
+        "u_fen": 2.1,
+        "u_d_opak": 0.27,
+        "u_d_transp": 2.03,
+        "u_ug": 0.41,
+        "u_geb": 0.62,
+        "wwr_north": 0.34,
+        "wwr_south": 0.34,
+        "wwr_east": 0.34,
+        "wwr_west": 0.34,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.25,
+        "u_fen": 1.12,
+        "u_d_opak": 0.13,
+        "u_d_transp": 1.13,
+        "u_ug": 0.2,
+        "u_geb": 0.31,
+        "wwr_north": 0.38,
+        "wwr_south": 0.38,
+        "wwr_east": 0.38,
+        "wwr_west": 0.38,
+        "g_gl_fen": 0.67
+      }
+    }
+  },
+  "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "u_aw": 1.78,
+        "u_fen": 5.0,
+        "u_d_opak": 1.41,
+        "u_d_transp": 5.0,
+        "u_ug": 0.98,
+        "u_geb": 1.43,
+        "wwr_north": 0.26,
+        "wwr_south": 0.26,
+        "wwr_east": 0.26,
+        "wwr_west": 0.26,
+        "g_gl_fen": 0.78
+      },
+      "1979 - 2009": {
+        "u_aw": 0.63,
+        "u_fen": 0.41,
+        "u_d_opak": 0.41,
+        "u_d_transp": 0.0,
+        "u_ug": 0.61,
+        "u_geb": 0.68,
+        "wwr_north": 0.2,
+        "wwr_south": 0.2,
+        "wwr_east": 0.2,
+        "wwr_west": 0.2,
+        "g_gl_fen": 0.78
+      },
+      "2010 - 2030": {
+        "u_aw": 0.24,
+        "u_fen": 1.2,
+        "u_d_opak": 0.11,
+        "u_d_transp": 1.07,
+        "u_ug": 0.22,
+        "u_geb": 0.28,
+        "wwr_north": 0.19,
+        "wwr_south": 0.19,
+        "wwr_east": 0.19,
+        "wwr_west": 0.19,
+        "g_gl_fen": 0.67
+      }
+    }
+  }
 }

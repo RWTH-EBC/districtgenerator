@@ -57,6 +57,7 @@ class Envelope():
         self.epsilon = {}
         self.alpha_Sc = {}
 
+        self.prj = prj
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_type = construction_type
@@ -480,6 +481,7 @@ class Envelope():
             self.U["opaque"]["floor"] = prj.parameters["u_ug"]
             self.U["opaque"]["window"] =prj.parameters["u_fen"]
             self.U["window"]  = prj.parameters["u_fen"]
+            self.g_gl["window"] = prj.parameters["g_gl_fen"]
 
             # Assumption of thermal heat capacity 
             # According to EN ISO 13790:2008-09, S. 81 / DIBS
@@ -629,6 +631,8 @@ class Envelope():
             # To-Do: In IWU Non-Residential Information about Roof Windows are present
             # This can be implemented
             #self.A["window"]["roof"] = 0.0
+            self.A["window"]["roof"] = 0.0
+            self.A["window"]["floor"] = 0.0
 
             self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
     
@@ -726,6 +730,7 @@ class Envelope():
             # Af are condioned areas
             # In TEASER multiple heat capacity are calculated, which are then summarized to one
             # in Non-Residential only one is given 
+            # To-Do: Implement Construction Type in Non-Residential Class
             if prj.construction_type == "Tabula":
                 self.C_m = 2.5 * 162000 * prj.net_leased_area
             elif prj.construction_type == "Light":
@@ -755,7 +760,6 @@ class Envelope():
 
         if SunRad is None:
             SunRad = []
-       
         C_m = self.calculateHeatCapacity(self.prj)
         temp = self.C_m / self.A["f"]
 
@@ -915,7 +919,8 @@ class Envelope():
                                       * self.I_sol[drct4][t]
                                       - self.h_r["opaque", drct4] * self.F_r[
                                           drct4] * self.Delta_theta_er))
-
+            #To-Do: Model g_gl
+            #breakpoint()
             for drct in direction:
                 B_i_k[t, drct] = self.A["window"][drct] \
                                  * (self.g_gl["window"] * (1 - self.F_F)
