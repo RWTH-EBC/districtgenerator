@@ -70,13 +70,17 @@
   },
   "HeatPump": {
     "feasible": true,
+    "CCOP_feasible": false,
+    "ASHP_feasible": false,
+    "CSV_feasible": true,
     "inv_var": 800,
     "life_time": 20,
     "cost_om": 0.015,
     "min_cap": 10,
     "max_cap": 500,
     "ASHP_carnot_eff": 0.4,
-    "ASHP_supply_temp": 60
+    "ASHP_supply_temp": 60,
+    "COP_const": 4
 
   },
   "ElectricBoiler": {

@@ -28,7 +28,7 @@ def example7_optiEnergyCentral_EHDO():
     data.designCentralDevices()
     # Within data the results of EHDO are given. For each device the annual generated amount of
     # electricity or heat as well as the nominal power or storage capacity are calculate.
-    # Furthermore, ecological and economic indicators are calculated.
+    # Furthermore, ecological and economic indicatoers are calculated.
 
     print("Congratulations! You generated your energy central for the selected neighborhood!")
 
