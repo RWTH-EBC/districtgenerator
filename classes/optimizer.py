@@ -98,7 +98,7 @@ class Optimizer:
         self.model.setParam("TimeLimit", self.optiSettings["TimeLimit"])
         self.model.setParam("DualReductions", self.optiSettings["DualReductions"])
 
-    def run_cen_opti(self):
+    def run_cen_opti(self, optiData):
         """
         Load the variables and constrains into the model.
 
@@ -108,6 +108,6 @@ class Optimizer:
         """
 
         results = opti_central.run_opti_central(self.model, self.data.district, self.data.site, self.cluster,
-                                                self.srcPath)
+                                                self.srcPath, optiData)
 
         return results

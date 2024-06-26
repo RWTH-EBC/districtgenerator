@@ -19,7 +19,7 @@ def example8_scenario_evaluation():
     data = Datahandler()
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='Quartier_3', calcUserProfiles=False, saveUserProfiles=False,
+    data.generateDistrictComplete(scenario_name='Quartier_3', calcUserProfiles=True, saveUserProfiles=False,
                                   fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
 
 

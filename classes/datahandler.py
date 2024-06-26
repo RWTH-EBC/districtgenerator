@@ -472,7 +472,9 @@ class Datahandler:
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
                                         area_roof=building["envelope"].A["opaque"]["roof"],
+                                        # In Germany, this is a roof pitch between 30 and 35 degrees
                                         beta=[35],
+                                        # surface azimuth angles (Orientation to the south: 0°)
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"])
@@ -522,62 +524,6 @@ class Datahandler:
 
         # dimensioning of central devices
         self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
-
-        # calculate potential central PV and STC generation (with the roof area of the hole district for each!)
-        # todo: put into CES() object --> there new function
-        """
-        potentialCentralPV, potentialCentralSTC = \
-            sun.calcPVAndSTCProfile(time=self.time,
-                                    site=self.site,
-                                    area_roof=self.centralDevices["ces_obj"].roofAreaDistrict,
-                                    #devicesType="central",
-                                    beta=[35],
-                                    gamma=[0],
-                                    usageFactorPV=1,
-                                    usageFactorSTC=1)
-
-        # assign real central PV generation to central energy unit
-        self.centralDevices["renewableGeneration"] = {}
-        self.centralDevices["renewableGeneration"]["centralPV"] = \
-            potentialCentralPV \
-            * self.centralDevices["capacities"]["PV"]["area"] / self.centralDevices["ces_obj"].roofAreaDistrict
-
-        # assign real central STC generation to central energy unit
-        self.centralDevices["renewableGeneration"]["centralSTC"] = \
-            potentialCentralSTC \
-            * self.centralDevices["infos"].loc[self.centralDevices["infos"]["type"] == "STC", ["f"]].iloc[0, 0]
-
-        # clustering data
-        self.centralDevices["clusteringData"] = {
-            "potentialCentralPV": potentialCentralPV,
-            "potentialCentralSTC": potentialCentralSTC
-        }
-
-        # calculate potential central WT generation (for one wind turbine)
-        factor_windSpeed = wind_turbines.factor_windSpeed(self.centralDevices["data"]["WT"])  # [-]
-        wind_speed_WT = self.site["wind_speed"] * factor_windSpeed  # [m/s]
-        potentialCentralWT = \
-            wind_turbines.WT_generation(wind_speed_WT, self.centralDevices["capacities"]["WT"]["powerCurve"])  # [W]
-
-        # assign real central WT generation to central energy unit
-        self.centralDevices["renewableGeneration"]["centralWT"] = \
-            potentialCentralWT * self.centralDevices["capacities"]["WT"]["nb_WT"]
-
-        # clustering data
-        self.centralDevices["clusteringData"]["potentialCentralWT"] = potentialCentralWT
-
-        # optionally save generation profiles
-        if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralPV.csv',
-                       self.centralDevices["renewableGeneration"]["centralPV"],
-                       delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralSTC.csv',
-                       self.centralDevices["renewableGeneration"]["centralSTC"],
-                       delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralWT.csv',
-                       self.centralDevices["renewableGeneration"]["centralWT"],
-                       delimiter=',')
-        """
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
@@ -862,6 +808,7 @@ class Datahandler:
         -------
         None.
         """
+        optiData = {}
 
         # initialize result list for all clusters
         self.resultsOptimization = []
@@ -870,7 +817,7 @@ class Datahandler:
 
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster, centralEnergySupply)
-            results_temp = self.optimizer.run_cen_opti()
+            results_temp = self.optimizer.run_cen_opti(optiData)
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)

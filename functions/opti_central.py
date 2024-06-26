@@ -8,9 +8,12 @@ import os, json
 import gurobipy as gp
 import time
 
-def run_opti_central(model, buildingData, site, cluster, srcPath):
-    now = time.time()
+def run_opti_central(model, buildingData, site, cluster, srcPath, optiData = {}):
 
+    if optiData == {}:
+        optiData["webtool"] = False
+
+    now = time.time()
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Setting up the model
     # number of buildings in neighborhood
@@ -33,6 +36,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     STC_heat = {}   # electricity generation of PV [W]
     EV_dem = {}     # electricity demand electric vehicle (EV) [Wh]
     elec_dem = {}   # electricity demand for appliances and lighting [W]
+    occ = {}
     for n in range(nb):
         Q_DHW[n] = buildingData[n]["user"].dhw_cluster[cluster]
         Q_heating[n] = buildingData[n]["user"].heat_cluster[cluster]
@@ -40,6 +44,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
         STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
         EV_dem[n] = buildingData[n]["user"].car_cluster[cluster]
         elec_dem[n] = buildingData[n]["user"].elec_cluster[cluster]
+        occ[n] = buildingData[n]["user"].occ[:len(elec_dem[n])]
 
     ecoData = {}
     timeData = {}
@@ -64,7 +69,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     ecs_power = ("HP", "EH", "CHP", "FC", "PV")  # power consuming/producing devices (photovoltaic (PV))
     ecs_sell = ("CHP", "FC", "PV", "BAT")
     ecs_gas = ("CHP", "FC", "BOI")  # gas consuming devices
-    ecs_storage = ("BAT", "TES") #, "EV")  # battery (BAT), thermal energy storage (TES), electric vehicle (EV)
+    ecs_storage = ("BAT", "TES", "EV")  # battery (BAT), thermal energy storage (TES), electric vehicle (EV)
     hp_modi = ("HP35", "HP55")  # modi of the HP with different HP supply temperatures in °C
 
     # %% TECHNICAL PARAMETERS
@@ -283,22 +288,7 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
                             * (273.15 + 55) / (55 - T_e[t]),
                             name="Conversion_HP55_" + str(n) + "_" + str(t))
 
-            # self.m.addConstr(
-            #    (self.heat_mode["HP35", t] == self.heat_mode_eh[t] + self.heat_mode_tes[t]
-            #     for t in self.timesteps),
-            #    name="Conversion_heat_35_" + str(self.id))
 
-            # Activity of HP modus: HP can only produce heat if modus is activated
-           # for device in hp_modi:
-           #     model.addConstr(heat_mode[device][n][t] <= buildingData[n]["capacities"]["HP"],
-           #         name="Activity_mode_" + str(n) + "_" + str(t))
-
-            # on/off operation of HP
-#            model.addConstr(heat_dom["HP35"][n][t] <= binary["HP35"][n][t] * nodes[n][device]["cap"],
-#                            name="heatpump_operation_binary" + str(n) + "_" + str(t))
-#            # on/off limit for HP due to TES temperatures
-#            model.addConstr(soc_dom["TES"][n][t] <= (1 - binary["HP35"][n][t] * (1 - 15/30)) * soc_nom["TES"][n],
-#                            name="heatpump_soc_temp_relation" + str(n) + "_" + str(t))
             # Electric heater
             model.addConstr(heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] == power_dom["EH"][n][t],
                                 name="EH_heat_power_dhw_balance_" + str(n) + "_" + str(t))
@@ -350,41 +340,43 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
 
     # %% EV CONSTRAINTS CONSTRAINTS
     device = "EV"
-    #for n in nodes:
-    #    # Energy balance
-    #    for t in time_steps:
-    #        if t == 0:
-    #            soc_prev = soc_init[device][n]
-    #        else:
-    #            soc_prev = soc_dom[device][n][t - 1]
+    for n in range(nb):
+        # Energy balance
+        for t in time_steps:
+            if t == 0:
+                soc_prev = soc_init[device][n]
+            else:
+                soc_prev = soc_dom[device][n][t - 1]
 
-    #        model.addConstr(soc_dom[device][n][t] == soc_prev
-    #                        + ch_dom[device][n][t] * nodes[n][device]["eta_ch_ev"] * dt
-    #                        - dch_dom[device][n][t] / nodes[n][device]["eta_dch_ev"] * dt
-    #                        - nodes[n]["ev_dem_leave"][:,idx][t])
+            model.addConstr(soc_dom[device][n][t] == soc_prev
+                            + ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"]* dt
+                            - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"] * dt
+                            - EV_dem[n][t])
 
-    #        if t == last_time_step:
-    #            model.addConstr(soc_dom[device][n][t] == soc_init[device][n])
+            if t == last_time_step:
+                model.addConstr(soc_dom[device][n][t] == soc_init[device][n])
 
-     #       model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * nodes[n][device]["max_dch_ev"],
-    #                        name="Binary1_ev" + str(n) + "_" + str(t))
-    #        model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * nodes[n][device]["max_ch_ev"],
-    #                        name="Binary2_ev" + str(n) + "_" + str(t))
+            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 1000000,
+                            name="Binary1_ev" + str(n) + "_" + str(t))
+            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 1000000,
+                            name="Binary2_ev" + str(n) + "_" + str(t))
 
-    #        model.addConstr(soc_dom[device][n][t] >= nodes[n][device]["min_soc"] * nodes[n][device]["cap"])
-    #        model.addConstr(soc_dom[device][n][t] <= nodes[n][device]["max_soc"] * nodes[n][device]["cap"])
-
-    #        if options["ev_charging"] == "on_demand":
-    #            model.addConstr(ch_dom[device][n][t] == nodes[n]["ev_dem_arrive"][:,idx][t], name="res_power_ev")
-     #           model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
-     #       else:
-     #           if t == last_time_step:
-     #               model.addConstr(ch_dom[device][n][t] <= nodes[n][device]["cap"])
-     #           else: model.addConstr(ch_dom[device][n][t] <= nodes[n]["ev_avail"][:,idx][t] * nodes[n][device]["max_ch_ev"])
-     #           if options["ev_charging"] == "bi_directional":
-     #               model.addConstr(dch_dom[device][n][t] <= nodes[n]["ev_avail"][:, idx][t] * nodes[n][device]["max_dch_ev"])
-     #           else:
-     #               model.addConstr(dch_dom[device][n][t] == 0)
+            if buildingData[n]["buildingFeatures"]["ev_charging"] == "on_demand":
+                model.addConstr(ch_dom[device][n][t] >= EV_dem[n][t], name="res_power_ev")
+                model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
+            else:
+                # Charging only possible when someone is at home
+                if occ[n][t] != 0:
+                    #if t == last_time_step:
+                    #    model.addConstr(ch_dom[device][n][t] <= nodes[n][device]["cap"])
+                    #else: model.addConstr(ch_dom[device][n][t] <= nodes[n]["ev_avail"][:,idx][t] * nodes[n][device]["max_ch_ev"])
+                    if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
+                        model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"])
+                    else:
+                        model.addConstr(dch_dom[device][n][t] == 0)
+                else:
+                    model.addConstr(ch_dom[device][n][t] == 0)
+                    model.addConstr(dch_dom[device][n][t] == 0)
 
     # %% DOMESTIC FLEXIBILITIES
 
@@ -392,19 +384,20 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     for n in range(nb):
         # Energy balance energy storages
         for t in time_steps:
-            #for device in ecs_storage:
             device = "TES"
             if t == 0:
                     soc_prev = soc_init[device][n]
             else:
                     soc_prev = soc_dom[device][n][t - 1]
-                #if t == last_time_step:
-                #    model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
-                #                    name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
             model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"]
-                                + ch_dom[device][n][t] * dt
-                                - dch_dom[device][n][t] * dt,name= str(device) + "_storage_balance_" + str(n) + "_" + str(t))
+                                + ch_dom[device][n][t] * dt * param_dec_devs[device]["eta_ch"]
+                                - dch_dom[device][n][t] / dt * param_dec_devs[device]["eta_ch"],
+                            name= str(device) + "_storage_balance_" + str(n) + "_" + str(t))
+
+            if t == last_time_step:
+                model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
+                                name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
                             + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
@@ -417,25 +410,28 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
                 soc_prev = soc_init[device][n]
             else:
                 soc_prev = soc_dom[device][n][t - 1]
-            # if t == last_time_step:
-            #    model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
-            #                    name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
             model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"]
-                            + ch_dom[device][n][t] * dt
-                            - dch_dom[device][n][t] * dt,
+                            + ch_dom[device][n][t] * dt * param_dec_devs[device]["eta_ch"]
+                            - dch_dom[device][n][t] / dt * param_dec_devs[device]["eta_ch"],
                             name=str(device) + "_storage_balance_" + str(n) + "_" + str(t))
 
+            if t == last_time_step:
+                model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
+                                name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
-
+            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 1000000,
+                            name="Binary1_ev" + str(n) + "_" + str(t))
+            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 1000000,
+                            name="Binary2_ev" + str(n) + "_" + str(t))
 
     # %% ENERGY BALANCES (Power balance, kW)
 
     for n in range(nb):
         for t in time_steps:
             model.addConstr(res_dom["power"][n][t] + PV_gen[n][t]
-                            + power_dom["CHP"][n][t] + dch_dom["BAT"][n][t] #+ dch_dom["EV"][n][t]
-                            == elec_dem[n][t] #+ ch_dom["EV"][n][t]
+                            + power_dom["CHP"][n][t] + dch_dom["BAT"][n][t] + dch_dom["EV"][n][t]
+                            == elec_dem[n][t] + ch_dom["EV"][n][t]
                             + power_dom["HP"][n][t] + power_dom["EH"][n][t] +
                             ch_dom["BAT"][n][t]  + res_dom["feed"][n][t],
                             name="Electricity_balance_" + str(n) + "_" + str(t))
@@ -488,27 +484,38 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     # select the objective function based on input parameters
 
     ### Total operational costs
-    #model.addConstr(
-    #    operational_costs == from_grid_total_el * params["eco"]["elec_price"]
-    #    + power["from_grid"][t] * params["eco"]["peak_price"] - to_grid_total_el * params["eco"]["eeg_pv"])
-    ### Total operational costs without peak price
-    model.addConstr(operational_costs == from_grid_total_el * ecoData["C_dem_electricity"]
-                                        - to_grid_total_el * ecoData["C_feed_electricity"]
-                                        + from_grid_total_gas * ecoData["C_dem_gas"], name="operational_costs")
+    if optiData["webtool"] == True:
+        model.addConstr(operational_costs == from_grid_total_el * optiData["C_dem_electricity"]
+                                            - to_grid_total_el * optiData["C_feed_electricity"]
+                                            + from_grid_total_gas * optiData["C_dem_gas"], name="operational_costs")
+    else:
+        model.addConstr(operational_costs == from_grid_total_el * ecoData["C_dem_electricity"]
+                                            - to_grid_total_el * ecoData["C_feed_electricity"]
+                                            + from_grid_total_gas * ecoData["C_dem_gas"], name="operational_costs")
 
     # Emissions
-    model.addConstr(co2_total == dt * sum(power["from_grid"][t] for t in time_steps) * ecoData["Emi_elec"]
-                                 + dt * sum(power["to_grid"][t] for t in time_steps) * ecoData["Emi_pv"]
-                                 + from_grid_total_gas * ecoData["Emi_gas"]) # kWh*kg/kWh
+    if optiData["webtool"] == True:
+        model.addConstr(co2_total == dt * sum(power["from_grid"][t] for t in time_steps) * optiData["Emi_elec"]
+                                    + dt * sum(power["to_grid"][t] for t in time_steps) * optiData["Emi_pv"]
+                                    + from_grid_total_gas * optiData["Emi_gas"]) # kWh*kg/kWh
+    else:
+        model.addConstr(co2_total == dt * sum(power["from_grid"][t] for t in time_steps) * ecoData["Emi_elec"]
+                                    + dt * sum(power["to_grid"][t] for t in time_steps) * ecoData["Emi_pv"]
+                                    + from_grid_total_gas * ecoData["Emi_gas"]) # kWh*kg/kWh
 
     # daily peaks
     for d in days:
-        #model.addConstr(daily_peak[d] >= sum(power["to_grid"][t] for t in range(d*96, d*96+96)))
         model.addConstr(daily_peak[d] == gp.max_(power["from_grid"][t] for t in range(d * int(24/dt), d * int(24/dt) + int(24/dt))))
     model.addConstr(peaksum == sum(daily_peak[d] for d in days))
 
     # Set objective
-    model.addConstr(obj == operational_costs + peaksum * 1)
+    if optiData["webtool"] == True:
+        if optiData["obj"] == "costs":
+            model.addConstr(obj == operational_costs + peaksum * 1)
+        elif optiData["obj"] == "co2_total":
+            model.addConstr(obj == co2_total + peaksum * 1)
+    else:
+        model.addConstr(obj == operational_costs + peaksum * 1)
 
     # Carry out optimization
     model.optimize()
@@ -600,30 +607,6 @@ def run_opti_central(model, buildingData, site, cluster, srcPath):
     results["daily_peak"] = {}
     for d in days:
         results["daily_peak"][d] = daily_peak[d].X
-
-
-    """
-
-    # add results of the decentral devices
-    dev_var = 
-    device = ("TES", "BAT", "EV")
-    for n in range(nb):  # loop over buildings
-        for dev in device:
-            for v in dev_var:
-                for t in time_steps:
-                    results[n][str(dev) + "_" + v].append(round(model.getVarByName(v + "_" + str(id) + "[" + str(t) + "]").x, 0))
-
-    # add results of the decentral devices
-    dev_var = ("ch", "dch", "soc")
-    device = ("TES", "BAT", "EV")
-    for n in range(nb):  # loop over buildings
-        for dev in device:
-            for v in dev_var:
-                for t in time_steps:
-                    results[n][str(dev) + "_" + v].append(round(model.getVarByName(v + "_" + str(id) + "[" + str(t) + "]").x, 0))
-    """
-
-
 
 
     return results
