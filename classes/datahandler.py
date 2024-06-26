@@ -304,7 +304,7 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, path=None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -343,6 +343,11 @@ class Datahandler:
             building["unique_name"] = name + "_" + str(nb)
             self.outputV1[building["unique_name"]] = {}
 
+
+            import sys
+            print(sys.path)
+
+
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
@@ -352,11 +357,15 @@ class Datahandler:
                                               path=os.path.join(self.filePath, 'demands'))
 
                 if saveUserProfiles:
+                    # if path is not None:
+                    #     building["user"].saveProfiles(building["unique_name"], os.path.join(path, 'files','demands'))
                     building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
+                # if path is not None:
+                #     building["user"].loadProfiles(building["unique_name"], os.path.join(path, 'files', 'demands'))
                 building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
@@ -417,7 +426,7 @@ class Datahandler:
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
                                  saveUserProfiles=True, plz='52064',
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-                                 designDevs=False, clustering=False, optimization=False):
+                                 designDevs=False, clustering=False, optimization=False, path=None):
         """
         All in one solution for district and demand generation.
 
@@ -454,7 +463,7 @@ class Datahandler:
         self.initializeBuildings(building_list, scenario_name)
         self.generateEnvironment(plz)
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, path)
         if designDevs:
             self.designDevicesComplete(fileName_centralSystems, saveGenProfiles)
         if clustering:
@@ -590,10 +599,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-        print("done with optimizing")
-
-    def designCentralDevices(self, input_webtool, central_scenario="central_devices_example",
-                             saveGenerationProfiles=True, ):
+    def designCentralDevices(self, input_webtool, saveGenerationProfiles=True):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 

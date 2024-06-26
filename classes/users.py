@@ -399,11 +399,11 @@ class Users:
         None.
         """
 
-        np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/car_' + unique_name + '.csv', self.car, fmt='%1.2f', delimiter=',')
+        np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',', header="Electricity demand in W", comments="")
+        np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',', header="Drinking hot water in W", comments="")
+        np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',', header="Occupancy of persons", comments="")
+        np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',', header="Internal gains in W", comments="")
+        np.savetxt(path + '/car_' + unique_name + '.csv', self.car, fmt='%1.2f', delimiter=',', header="Electricity demand of EV in W", comments="")
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]
@@ -428,8 +428,8 @@ class Users:
         None.
         """
 
-        np.savetxt(path + '/cooling_' + unique_name + '.csv', self.cooling, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/heating_' + unique_name + '.csv', self.heat, fmt='%1.2f', delimiter=',')
+        np.savetxt(path + '/cooling_' + unique_name + '.csv', self.cooling, fmt='%1.2f', delimiter=',', header="Cooling demand in W", comments="")
+        np.savetxt(path + '/heating_' + unique_name + '.csv', self.heat, fmt='%1.2f', delimiter=',', header="Heat demand in W", comments="")
 
     def loadProfiles(self, unique_name, path):
         """
@@ -447,11 +447,11 @@ class Users:
         None.
         """
 
-        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
-        self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',')
-        self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
-        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
-        self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
+        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',', skiprows=1)
+        self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',', skiprows=1)
+        self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',', skiprows=1)
+        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',', skiprows=1)
+        self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',', skiprows=1)
 
 
 if __name__ == '__main__':
