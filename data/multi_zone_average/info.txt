@@ -1,0 +1,47 @@
+## Information
+
+Data about multi-zone average is used, due to the fact hat single zone information present in data such as 18599 does not fit to single-zone building simultion, where multiple zones are aggregated. Hence data needs to be obtained. 
+
+We gather data from: [IWU](https://github.com/IWUGERMANY/Non-domestic-multi-zone-average-usage-profiles-for-German) [1-2]. The data has the following information present: 
+
+| Variable          | German Label                                                          | English Label                                                                 |
+|-------------------|-----------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| t_start           | Nutzung Beginn                                                        | start time of usage                                                           |
+| t_end             | Nutzung Ende                                                          | end time of usage                                                             |
+| t_nutz_d          | tägliche Nutzungsstunden                                              | daily usage hours                                                             |
+| d_nutz_a          | jährliche Nutzungstage                                                | annual days of usage                                                          |
+| t_Tag             | jährliche Nutzungsstunden zur Tagzeit                                 | annual usage hours during daylight                                            |
+| t_Nacht           | jährliche Nutzungsstunden zur Nachtzeit                               | annual usage hours during darkness                                            |
+| t_v_op_d          | tägliche Betriebsstunden RLT und Kühlung                              | daily system usage hours for ventilation and cooling systems                  |
+| d_op_a            | jährliche Betriebstage für jeweils RLT, Kühlung und Heizung           | annual system usage days for ventilation, cooling and heating systems         |
+| t_h_op_d          | tägliche Betriebsstunden Heizung                                      | daily system usage hours for heating systems                                  |
+| E_m               | Wartungswert der Beleuchtungsstärke                                   | maintenance value of the illuminance                                          |
+| h_Ne              | Höhe der Nutzebene                                                   | height above the floor of the to be illuminated working plane                 |
+| k_A               | Minderungsfaktor Bereich Sehaufgabe                                   | reduction factor for the area of visual working                               |
+| C_A               | Relative Abwesenheit                                                  | relative absence                                                              |
+| k                 | Raumindex                                                             | room index (type of room geometry for lighting calculation)                   |
+| F_t               | Teilbetriebsfaktor der Gebäudebetriebszeit für Beleuchtung            | partial operation factor of the building operation time for lighting          |
+| k_VB              | Anpassungsfaktor zur Beleuchtung vertikaler Flächen                   | adaption factor for the lighting of vertical areas                            |
+| theta_i_h_soll    | Raum-Solltemperatur Heizung                                           | required temperature for the heating case                                     |
+| theta_i_c_soll    | Raum-Solltemperatur Kühlung                                           | required temperature for the cooling case                                     |
+| deltaTheta_i_NA   | Temperaturabsenkung reduzierter Betrieb                               | temperature reduction during times of reduced building operation              |
+| theta_i_h_min     | Minimaltemperatur Auslegung Heizung                                   | minimum design temperature for heating case                                   |
+| theta_i_c_max     | Maximaltemperatur Auslegung Kühlung                                   | maximum design temperature for cooling case                                   |
+| Feuchte           | Feuchteanforderung                                                    | humidity requirement                                                          |
+| Vd_A              | Mindestaußenluftvolumenstrom                                          | minimum required air change rate of fresh air from outside the building       |
+| Vd_A_Geb          | MindestaußenVolumenstrom für Gebäude (Klasse II Schadstoffarm DIN EN 15251) | minimum required air change rate of fresh air from outside the building for buildings meeting the pollutants low-emission class II of the DIN EN 15251 |
+| c_RLT             | Relative Abwesenheit RLT                                              | relative absence for ventilation                                              |
+| F_RLT             | Teilbetriebsfaktor der Gebäudebetriebszeit RLT                        | partial operation factor of the building operation time for ventilation        |
+| q_I_p             | Wärmequellen durch Personen                                           | internal gains through people's metabolism                                    |
+| q_I_fac           | Wärmequellen durch Arbeitshilfen                                      | internal gains through appliances                                             |
+
+
+Full data is given here: data\multi_zone_average\Non-domestic-multi-zone-average-usage-profiles-for-Germany.xlsx (Note the xlsx file)
+
+Relevant archetypes are given here: data\multi_zone_average\Non-domestic-multi-zone-average-usage-profiles-for-Germany.csv 
+
+## Sources
+
+
+   [1] Karczewski, Christian; Bischof, Julian; Hörner, Michael. Multi-zone average usage profiles for non-domestic building usage categories in Germany. GitHub: https://github.com/IWUGERMANY/Non-domestic-multi-zone-average-usage-profiles-for-Germany. Supplementary Material to the article "Evaluating non-domestic building stock simulation based on single-zone models with multi-zone average usage profiles" published in the proceedings of the ECEEE-Summer Study 2024. 2024.
+   [2] Karczewski, Christian; Bischof, Julian; Hörner, Michael (2024): Evaluating non-domestic building stock simulation based on single-zone models with multi-zone average usage profiles. In ECEEE SUMMER STUDY PROCEEDINGS 2024 (8-068-24), pp. 991–1000. Available online at https://www.researchgate.net/publication/381440367_Evaluating_non-domestic_building_stock_simulation_based_on_single-zone_models_with_multi-zone_average_usage_profiles, checked on 6/28/2024.
