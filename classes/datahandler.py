@@ -500,7 +500,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self, saveGenerationProfiles=True):
+    def designCentralDevices(self, webtool):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -523,7 +523,7 @@ class Datahandler:
         self.centralDevices["ces_obj"] = CES()
 
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self, webtool)
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """

@@ -183,7 +183,7 @@ class CES:
         """
 
 
-    def designCES(self, data):
+    def designCES(self, data, webtool):
         """
         Dimensioning of central devices with EHDO
 
@@ -197,7 +197,7 @@ class CES:
         """
 
         # Load parameters
-        param, devs, dem, result_dict = load_params_central_devices.load_params(data)
+        param, devs, dem, result_dict = load_params_central_devices.load_params(data, webtool)
 
         # Run optimization
         capacities_centralDevices = opti_dimensioning_central_devices.run_optim(devs, param, dem, result_dict)
