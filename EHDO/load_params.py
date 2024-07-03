@@ -26,7 +26,7 @@ import sys
 import EHDO.solar_modeling as solar_modeling
 
 
-def load_params(data, webtool):
+def load_params(data):
 
     # TODO: Änderungen von Marius kontrollieren!
     srcPath = os.path.dirname(os.path.abspath(__file__))
@@ -161,9 +161,9 @@ def load_params(data, webtool):
     ################################################################
     # LOAD TECHNICAL PARAMETERS
 
-    #with open(os.path.join(os.path.dirname(srcPath), 'data', 'central_device_data.json')) as json_file:
-    #    central_device_data = json.load(json_file)
-    central_device_data = webtool
+    with open(os.path.join(os.path.dirname(srcPath), 'data', 'central_device_data.json')) as json_file:
+        central_device_data = json.load(json_file)
+    #central_device_data = webtool
 
     all_models = {}
 
