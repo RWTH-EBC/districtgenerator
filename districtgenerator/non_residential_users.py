@@ -154,6 +154,7 @@ class NonResidentialUsers():
             return data
 
 
+
     def generate_number_occupants(self):
         '''
         Generate number of occupants for different of building types.
@@ -164,23 +165,6 @@ class NonResidentialUsers():
         random_nb : random number in [0,1)
 
         '''
-        keys = [
-            "oag",
-            "IWU Research and University Teaching",
-            "IWU Health and Care",
-            "IWU School, Day Nursery and other Care",
-            "IWU Culture and Leisure",
-            "IWU Sports Facilities",
-            "IWU Hotels, Boarding, Restaurants or Catering",
-            "IWU Production, Workshop, Warehouse or Operations",
-            "IWU Trade Buildings",
-            "IWU Technical and Utility (supply and disposal)",
-            "IWU Transport",
-            "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)",
-            "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)"
-        ]
-
-
 
     
         if self.usage in self.occupancy_data:
@@ -201,14 +185,13 @@ class NonResidentialUsers():
     def generate_schedules(self):
         # get schedules occupancy
         df_schedules, schedule = schedules.get_schedule(self.usage)
-        print("There generate_schedules")
-        print(df_schedules.head())
-        # df_schedules = schedules.adjust_schedule(inital_day=0, nb_days=self.nb_of_days)
         self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
         self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
         self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
-        #To-Do: Replace with key
-        #self.lighntning_schedule = df_schedules["LIGHTING"]
+
+    
+    def generate_occupancy(self):
+        self.occ = self.occupancy_schedule["OCCUPANCY"] * self.nb_occ
         
     def generate_annual_el_consumption_equipment(self, equipment="Mittel"):
         '''
@@ -326,57 +309,6 @@ class NonResidentialUsers():
 
 
 
-    def create_el_wrapper(self) :
-        '''
-        Smiliar to thec creat a wrapper-object in the Residential configuration, 
-        this generates the information about lighning and appliances. 
-
-
-
-        Parameters
-        ----------
-        annual_demand : integer
-            Annual elictricity demand in kWh.
-        light_config : integer
-            This index defines the lighting configuration of the houshold.
-            There are 100 predifined ligthing configurations.
-
-
-        '''
-
-        # Write a function, that returns the respective 
-        # Can be deleted 
-        src_path = os.path.dirname(richardsonpy.__file__)
-        path_app = os.path.join(src_path,'inputs','Appliances.csv')
-        path_light = os.path.join(src_path,'inputs','LightBulbs.csv')
-
-        # To-Do: Adjust thte code, so it wraps the lightning
-        
-        # Full Electricity Demand equals to:
-        # User_related_Demand + Central Demand + Diverse Demand 
-        #  
-        # Source: [1] S. Henning and K. Jagnow, 
-        # “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 
-        # 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
-        # Pages: 80-81
-        # To-Do: Find factor for calclulation of annual demand  
-
-        appliancesDemand =  self.annual_el_demand + 0 
-
-        #  Create and save appliances object
-        appliances = \
-            app_model.Appliances(path_app,
-                                annual_consumption=appliancesDemand,
-                                randomize_appliances=True,
-                                max_iter=15,
-                                prev_heat_dev=True)
-
-        # Create and save light configuration object
-        lights = light_model.load_lighting_profile(filename=path_light,
-                                                index=self.lighting_index)
-
-        #  Create wrapper object
-        self.el_wrapper.append(wrap.ElectricityProfile(appliances,lights))
 
 
     def calcProfiles(self, site, time_resolution, time_horizon, initital_day=1):
@@ -417,9 +349,9 @@ class NonResidentialUsers():
         # Write Function that generates an lighning profile
         # Write DHW function
 
-        temp_obj = NonResidentialProfiles(building_type=self.usage, max_number_occupants=self.nb_occ, area=self.area,
-                                          initital_day=initital_day, nb_days=nb_days, time_resolution=time_resolution)
-        self.occ = temp_obj.generate_occupancy_profiles()
+        #temp_obj = NonResidentialProfiles(building_type=self.usage, max_number_occupants=self.nb_occ, area=self.area,
+        #                                  initital_day=initital_day, nb_days=nb_days, time_resolution=time_resolution)
+        #self.occ = temp_obj.generate_occupancy_profiles()
         self.generate_dhw_profile()
         # Electircal profile needs to be generated for this 
         # Calculation of user demand + lighning + other 
@@ -428,9 +360,11 @@ class NonResidentialUsers():
         #                                         appliance_demand=self.annual_appliance_demand,
         #                                         light_demand=self.annual_lightning_demand)
         self.calculate_gain_profile()
-        self.gen
+        self.generate_el_demand()
+        self.generate_occupancy()
     
     def generate_el_demand(self, normalization=True):
+        self.elec = self.annual_lightning_demand + self.annual_appliance_demand
 
         
     def calculate_gain_profile(self):
@@ -470,6 +404,7 @@ class NonResidentialUsers():
         personGain = 70.0  # [Watt]
         lightGain = 0.65
         appGain = 0.33
+        #To-Do: Write function to gather correct data
 
         self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
 

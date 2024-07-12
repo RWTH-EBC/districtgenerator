@@ -14,6 +14,7 @@ def example8_2_generate_first_mix_used_district():
 
      # Set a custom weather file 
     # This need to be EPW, if used with Non-Residential Buildings. 
+    # Set the weather file for the district. This file is used to generate the environment.
 
     data.setWeatherFile(r"data\weather\EPW\DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw")
 
@@ -35,10 +36,6 @@ def example8_2_generate_first_mix_used_district():
 
     data.generateEnvironment()
 
-    data.initializeBuildings('example_nrb')
-    data.generateBuildings()
-    data.generateDemands()
-    
     
 
     # As last step we generate individual demand profiles for our buildings.
@@ -53,7 +50,7 @@ def example8_2_generate_first_mix_used_district():
     # But for now we want to get new profiles.
 
     # Generate demand profiles
-    #data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+    #ata.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
     # We now have a complete district. Instead of using all the steps separately, like we have done in this example,
     # we can also generate a complete district with the following commands:

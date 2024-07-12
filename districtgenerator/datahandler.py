@@ -188,7 +188,7 @@ class Datahandler():
             jsonData = json.load(json_file)
             for subData in jsonData :
                 self.time[subData["name"]] = subData["value"]
-        # check for Gap year and adjust data length 
+        # check for Gap year and adjust data length
         if len(temp_sunDiff) == 8785:
             # 31622400 = 60 * 60 * 24 * 366
             self.time["dataLength"] =  31622400
@@ -325,7 +325,7 @@ class Datahandler():
         # create one project for the whole district
         prj = Project(load_data=True)
         prj.name = self.scenario_name    
-
+        breakpoint()
         for building in self.district:
             # check if building type is residential or non residential 
             if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:

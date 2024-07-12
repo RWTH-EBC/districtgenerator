@@ -310,6 +310,7 @@ class Users():
             temp_obj = Profiles(self.nb_occ[j],initital_day,nb_days,time_resolution)
             self.occ = self.occ + temp_obj.generate_occupancy_profiles()
             self.dhw = self.dhw + temp_obj.generate_dhw_profile()
+            #To-Do: Check how the irridation is modeled here and why it is not illuminance
             self.elec = self.elec + temp_obj.generate_el_profile(irradiance=irradiation,
                                                                  el_wrapper=self.el_wrapper[j],
                                                                  annual_demand=self.annual_el_demand[j])
