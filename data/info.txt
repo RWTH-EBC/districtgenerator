@@ -1,0 +1,6 @@
+## Information
+
+To enable the simulation of Mix-Used Districts a variety of data needs to be gathered, from archetypes for different building types, to assumptions about usage, e.g. 
+
+
+This 

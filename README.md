@@ -4,8 +4,7 @@
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
 
-The districtgenerator is a Python tool for generating building-specific thermal, electrical and occupancy profiles for 
-residential districts. 
+The districtgenerator is a Python tool for generating building-specific thermal, electrical and occupancy profiles for districts. 
 By integrating several open-source data bases and tools like [TEASER](https://github.com/RWTH-EBC/TEASER) and 
 [richardsonpy](https://github.com/RWTH-EBC/richardsonpy), 
 the districtgenerator is designed to provide easy access to profile generation. 
