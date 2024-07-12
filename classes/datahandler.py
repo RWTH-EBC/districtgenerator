@@ -343,11 +343,6 @@ class Datahandler:
             building["unique_name"] = name + "_" + str(nb)
             self.outputV1[building["unique_name"]] = {}
 
-
-            import sys
-            print(sys.path)
-
-
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
@@ -357,16 +352,16 @@ class Datahandler:
                                               path=os.path.join(self.filePath, 'demands'))
 
                 if saveUserProfiles:
-                    # if path is not None:
-                    #     building["user"].saveProfiles(building["unique_name"], os.path.join(path, 'files','demands'))
-                    building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                    if path is not None:
+                        building["user"].saveProfiles(building["unique_name"], os.path.join(path, 'files', 'demands'))
+                    # building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                # if path is not None:
-                #     building["user"].loadProfiles(building["unique_name"], os.path.join(path, 'files', 'demands'))
-                building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                if path is not None:
+                    building["user"].loadProfiles(building["unique_name"], os.path.join(path, 'files', 'demands'))
+                # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
             # check if EV exist
@@ -599,7 +594,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self, input_webtool, saveGenerationProfiles=True):
+    def designCentralDevices(self, webtool):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -622,84 +617,9 @@ class Datahandler:
         # initialize central energy system object
         self.centralDevices["ces_obj"] = CES()
 
-        demands_district = {}
-        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv',
-                                              delimiter=',')
-        demands_district["cooling"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv',
-                                                 delimiter=',')
-        demands_district["dhw"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv',
-                                             delimiter=',')
-        demands_district["elec"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv',
-                                              delimiter=',')
-
-        # Load parameters
-        param, devs, dem, result_dict = load_params_EHDO.load_params(self, demands_district)
-
-        # Input from webtool of devs (feasible = True/False, min/max cap, ....)
-        devs = self.centralDevices["ces_obj"].designCES(self, demands_district, devs, input_webtool)
-
-        # load data about central devices from JSON-file
-        self.centralDevices["data"] = {}
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.centralDevices["data"][subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.centralDevices["data"][subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
-        # load data from JSON-file about wind turbine
-        self.centralDevices["data"]["WT"]["power_curve"] = {}
-        # open power curve of wind turbine
-        power_curve = pd.read_csv(os.path.join(self.filePath, 'wind_turbine_models/WT_WT_Enercon_E40.csv'),
-                                  header=0, delimiter=";")  # wind_speed [m/s], power [kW]
-        self.centralDevices["data"]["WT"]["power_curve"] = power_curve
-
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(energyCentralData)
-
-        # calculate potential central PV and STC generation (with the roof area of the hole district for each!)
-        # todo: Why are different areas used?
-        potentialCentralPV, potentialCentralSTC = \
-            sun.calcPVAndSTCProfile(time=self.time,
-                                    site=self.site,
-                                    area_roof=self.centralDevices["ces_obj"].roofAreaDistrict,
-                                    devicesType="central",
-                                    beta=[35],
-                                    gamma=[0],
-                                    usageFactorPV=1,
-                                    usageFactorSTC=1)
-
-        # assign real central PV generation to central energy unit
-        self.centralDevices["renewableGeneration"] = {}
-        self.centralDevices["renewableGeneration"]["centralPV"] = potentialCentralPV
-
-        # assign real central STC generation to central energy unit
-        self.centralDevices["renewableGeneration"]["centralSTC"] = potentialCentralSTC
-
-        # calculate potential central WT generation (for one wind turbine)
-        factor_windSpeed = wind_turbines.factor_windSpeed(self.centralDevices["data"]["WT"])  # [-]
-        wind_speed_WT = self.site["wind_speed"] * factor_windSpeed  # [m/s]
-        potentialCentralWT = \
-            wind_turbines.WT_generation(wind_speed_WT, self.centralDevices["capacities"]["WT"]["powerCurve"])  # [W]
-
-        # clustering data
-        self.centralDevices["clusteringData"] = {
-            "potentialCentralPV": potentialCentralPV,
-            "potentialCentralSTC": potentialCentralSTC,
-            "potentialCentralWT": potentialCentralWT,
-        }
-
-        # optionally save generation profiles
-        if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralPV.csv',
-                       self.centralDevices["renewableGeneration"]["centralPV"],
-                       delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralSTC.csv',
-                       self.centralDevices["renewableGeneration"]["centralSTC"],
-                       delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration') + '/centralWT.csv',
-                       self.centralDevices["renewableGeneration"]["centralWT"],
-                       delimiter=',')
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self, webtool)
+        return
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """

@@ -160,9 +160,10 @@ def load_params(data, webtool):
 
     ################################################################
     # LOAD TECHNICAL PARAMETERS
+    #
+    # with open(os.path.join(os.path.dirname(srcPath), 'data', 'central_device_data.json')) as json_file:
+    #     central_device_data = json.load(json_file)
 
-    #with open(os.path.join(os.path.dirname(srcPath), 'data', 'central_device_data.json')) as json_file:
-    #    central_device_data = json.load(json_file)
     central_device_data = webtool
 
     all_models = {}
@@ -170,6 +171,9 @@ def load_params(data, webtool):
     for key, value in central_device_data.items():
         all_models[key] = {
             "enabled": value.get("feasible", False),
+            "CCOP_feasible": value.get("CCOP_feasible", False),
+            "ASHP_feasible": value.get("ASHP_feasible", False),
+            "CSV_feasible": value.get("CSV_feasible", False),
             "eta": value.get("eta", 0) * 100,
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
@@ -179,6 +183,8 @@ def load_params(data, webtool):
             "G_stc": value.get("G_stc", 0),
             "min_cap": value.get("min_cap", 0),
             "max_cap": value.get("max_cap", 0),
+            "min_vol": value.get("min_vol", 0),
+            "max_vol": value.get("max_vol", 0),
             "h_coeff": value.get("h_coeff", 0),
             "hub_h": value.get("hub_h", 0),
             "ref_h": value.get("ref_h", 0),
@@ -187,6 +193,9 @@ def load_params(data, webtool):
             "eta_el": value.get("eta_el", 0) * 100,
             "eta_th": value.get("eta_th", 0) * 100,
             "COP": value.get("COP", 0),
+            "ASHP_carnot_eff": value.get("ASHP_carnot_eff", 0),
+            "ASHP_supply_temp": value.get("ASHP_supply_temp", 0),
+            "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
             "soc_init": value.get("soc_init", 0),
@@ -198,50 +207,56 @@ def load_params(data, webtool):
     # Photovoltaics
     devs["PV"] = {
         "feasible": all_models["Photovoltaic"]["enabled"],
-        "eta": all_models["Photovoltaic"].eta / 100,
-        "life_time": all_models["Photovoltaic"].life_time,
-        "inv_var": all_models["Photovoltaic"].inv_var,
-        "cost_om": all_models["Photovoltaic"].cost_om / 100,
-        "max_area": all_models["Photovoltaic"].max_area,
-        "min_area": all_models["Photovoltaic"].min_area,
+        "eta": all_models["Photovoltaic"]["eta"] / 100,
+        "life_time": all_models["Photovoltaic"]["life_time"],
+        "inv_var": all_models["Photovoltaic"]["inv_var"],
+        "cost_om": all_models["Photovoltaic"]["cost_om"] / 100,
+        "max_area": all_models["Photovoltaic"]["max_area"],
+        "min_area": all_models["Photovoltaic"]["min_area"],
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
     }
+    #devs["PV"]["norm_power"] = solar_modeling.pv_system(direct_tilted_irrad = param["GHI"] - param["DHI"],
+    #                                             diffuse_tilted_irrad = param["DHI"],
+    #                                             theta = 0,
+    #                                             T_air = param["T_air"],
+    #                                             wind_speed = param["wind_speed"]
+    #                                             )/1e3  # in kW/kWp
 
     # Wind turbine
     devs["WT"] = {
-        "feasible": all_models["WindTurbine"].enabled,
-        "inv_var": all_models["WindTurbine"].inv_var,
-        "life_time": all_models["WindTurbine"].life_time,
-        "cost_om": all_models["WindTurbine"].cost_om / 100,
-        "min_cap": all_models["WindTurbine"].min_cap,
-        "max_cap": all_models["WindTurbine"].max_cap,
-        "h_coeff": all_models["WindTurbine"].h_coeff,  # hellmann_coeff
-        "hub_h": all_models["WindTurbine"].hub_h,
-        "ref_h": all_models["WindTurbine"].ref_h,
+        "feasible": all_models["WindTurbine"]["enabled"],
+        "inv_var": all_models["WindTurbine"]["inv_var"],
+        "life_time": all_models["WindTurbine"]["life_time"],
+        "cost_om": all_models["WindTurbine"]["cost_om"] / 100,
+        "min_cap": all_models["WindTurbine"]["min_cap"],
+        "max_cap": all_models["WindTurbine"]["max_cap"],
+        "h_coeff": all_models["WindTurbine"]["h_coeff"],  # hellmann_coeff
+        "hub_h": all_models["WindTurbine"]["hub_h"],
+        "ref_h": all_models["WindTurbine"]["ref_h"],
     }
     devs["WT"]["norm_power"] = calc_WT_power(devs, param)  # relative power between 0 and 1
 
     # Hydropower
     devs["WAT"] = {
-        "feasible": all_models["Hydropower"].enabled,
-        "inv_var": all_models["Hydropower"].inv_var,
-        "life_time": all_models["Hydropower"].life_time,
-        "cost_om": all_models["Hydropower"].cost_om / 100,
-        "min_cap": all_models["Hydropower"].min_cap,
-        "max_cap": all_models["Hydropower"].max_cap,
-        "potential": all_models["Hydropower"].potential,
+        "feasible": all_models["Hydropower"]["enabled"],
+        "inv_var": all_models["Hydropower"]["inv_var"],
+        "life_time": all_models["Hydropower"]["life_time"],
+        "cost_om": all_models["Hydropower"]["cost_om"] / 100,
+        "min_cap": all_models["Hydropower"]["min_cap"],
+        "max_cap": all_models["Hydropower"]["max_cap"],
+        "potential": all_models["Hydropower"]["potential"],
     }
 
     # Solar thermal collector
     devs["STC"] = {
-        "feasible": all_models["SolarThermalCollector"].enabled,
-        "eta": all_models["SolarThermalCollector"].eta / 100,
-        "inv_var": all_models["SolarThermalCollector"].inv_var,
-        "life_time": all_models["SolarThermalCollector"].life_time,
-        "cost_om": all_models["SolarThermalCollector"].cost_om / 100,
-        "max_area": all_models["SolarThermalCollector"].max_area,
-        "min_area": all_models["SolarThermalCollector"].min_area,
+        "feasible": all_models["SolarThermalCollector"]["enabled"],
+        "eta": all_models["SolarThermalCollector"]["eta"] / 100,
+        "inv_var": all_models["SolarThermalCollector"]["inv_var"],
+        "life_time": all_models["SolarThermalCollector"]["life_time"],
+        "cost_om": all_models["SolarThermalCollector"]["cost_om"] / 100,
+        "max_area": all_models["SolarThermalCollector"]["max_area"],
+        "min_area": all_models["SolarThermalCollector"]["min_area"],
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
     }
@@ -250,243 +265,278 @@ def load_params(data, webtool):
 
     # CHP
     devs["CHP"] = {
-        "feasible": all_models["CHP"].enabled,
-        "inv_var": all_models["CHP"].inv_var,
-        "eta_el": all_models["CHP"].eta_el / 100,
-        "eta_th": all_models["CHP"].eta_th / 100,
-        "life_time": all_models["CHP"].life_time,
-        "cost_om": all_models["CHP"].cost_om / 100,
-        "min_cap": all_models["CHP"].min_cap,
-        "max_cap": all_models["CHP"].max_cap,
+        "feasible": all_models["CHP"]["enabled"],
+        "inv_var": all_models["CHP"]["inv_var"],
+        "eta_el": all_models["CHP"]["eta_el"] / 100,
+        "eta_th": all_models["CHP"]["eta_th"] / 100,
+        "life_time": all_models["CHP"]["life_time"],
+        "cost_om": all_models["CHP"]["cost_om"] / 100,
+        "min_cap": all_models["CHP"]["min_cap"],
+        "max_cap": all_models["CHP"]["max_cap"],
     }
 
     # Gas boiler
     devs["BOI"] = {
-        "feasible": all_models["GasBoiler"].enabled,
-        "inv_var": all_models["GasBoiler"].inv_var,
-        "eta_th": all_models["GasBoiler"].eta_th / 100,
-        "life_time": all_models["GasBoiler"].life_time,
-        "cost_om": all_models["GasBoiler"].cost_om / 100,
-        "min_cap": all_models["GasBoiler"].min_cap,
-        "max_cap": all_models["GasBoiler"].max_cap,
+        "feasible": all_models["GasBoiler"]["enabled"],
+        "inv_var": all_models["GasBoiler"]["inv_var"],
+        "eta_th": all_models["GasBoiler"]["eta_th"] / 100,
+        "life_time": all_models["GasBoiler"]["life_time"],
+        "cost_om": all_models["GasBoiler"]["cost_om"] / 100,
+        "min_cap": all_models["GasBoiler"]["min_cap"],
+        "max_cap": all_models["GasBoiler"]["max_cap"],
     }
 
     # Gas heat pump
     devs["GHP"] = {
-        "feasible": all_models["GasHeatPump"].enabled,
-        "inv_var": all_models["GasHeatPump"].inv_var,
-        "COP": all_models["GasHeatPump"].COP,
-        "life_time": all_models["GasHeatPump"].life_time,
-        "cost_om": all_models["GasHeatPump"].cost_om / 100,
-        "min_cap": all_models["GasHeatPump"].min_cap,
-        "max_cap": all_models["GasHeatPump"].max_cap,
+        "feasible": all_models["GasHeatPump"]["enabled"],
+        "inv_var": all_models["GasHeatPump"]["inv_var"],
+        "COP": all_models["GasHeatPump"]["COP"],
+        "life_time": all_models["GasHeatPump"]["life_time"],
+        "cost_om": all_models["GasHeatPump"]["cost_om"] / 100,
+        "min_cap": all_models["GasHeatPump"]["min_cap"],
+        "max_cap": all_models["GasHeatPump"]["max_cap"],
     }
 
     ### Heating and cooling ###
 
     # Heat pump (depending on investment and COP, it can be air source or ground source heat pump)
     devs["HP"] = {
-        "feasible": all_models["HeatPump"].enabled,
-        "inv_var": all_models["HeatPump"].inv_var,
-        "life_time": all_models["HeatPump"].life_time,
-        "cost_om": all_models["HeatPump"].cost_om / 100,
-        "min_cap": all_models["HeatPump"].min_cap,
-        "max_cap": all_models["HeatPump"].max_cap,
+        "feasible": all_models["HeatPump"]["enabled"],
+        "CCOP_feasible": all_models["HeatPump"]["CCOP_feasible"],
+        "ASHP_feasible": all_models["HeatPump"]["ASHP_feasible"],
+        "CSV_feasible": all_models["HeatPump"]["CSV_feasible"],
+        "COP_const": all_models["HeatPump"]["COP_const"],
+        "inv_var": all_models["HeatPump"]["inv_var"],
+        "life_time": all_models["HeatPump"]["life_time"],
+        "cost_om": all_models["HeatPump"]["cost_om"] / 100,
+        "min_cap": all_models["HeatPump"]["min_cap"],
+        "max_cap": all_models["HeatPump"]["max_cap"],
     }
     # COP assignment
 
     COP = np.ones((param["n_clusters"], 24))
-    eta_carnot = all_models["HeatPump"].ASHP_carnot_eff / 100
-    supply_temp = all_models["HeatPump"].ASHP_supply_temp
+    eta_carnot = all_models["HeatPump"]["ASHP_carnot_eff"] / 100
+    supply_temp = all_models["HeatPump"]["ASHP_supply_temp"]
     for d in range(param["n_clusters"]):
         for t in range(24):
             COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
     devs["HP"]["COP"] = COP
 
+    # COP assignment
+    if all_models["HeatPump"]["enabled"]:
+        #if (not all_models["HeatPump"]["CCOP_feasible"]) and (not all_models["HeatPump"]["ASHP_feasible"]) and (
+        #not all_models["HeatPump"]["CSV_feasible"]):
+        #    flags["HeatPump_no_COP_option_selected"] = False
+        if all_models["HeatPump"]["CCOP_feasible"]:
+            devs["HP"]["COP"] = np.ones((param["n_clusters"], 24)) * all_models["HeatPump"]["COP_const"]
+        elif all_models["HeatPump"]["ASHP_feasible"]:
+            COP = np.ones((param["n_clusters"], 24))
+            eta_carnot = all_models["HeatPump"]["ASHP_carnot_eff"] / 100
+            supply_temp = all_models["HeatPump"]["ASHP_supply_temp"]
+            for d in range(param["n_clusters"]):
+                for t in range(24):
+                    COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
+            devs["HP"]["COP"] = COP
+
+        elif all_models["HeatPump"]["CSV_feasible"]:
+            #try:
+                COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(srcPath), 'data', 'coefficient_of_performance.txt'))
+                # Cluster COP time series
+                COP_clustered = np.zeros((param["n_clusters"], 24))
+                for d in range(param["n_clusters"]):
+                    for t in range(24):
+                        COP_clustered[d][t] = COP_unclustered[24 * typedays[d] + t]
+                # Replace original time series with the clustered one
+                devs["HP"]["COP"] = COP_clustered
+            #except:
+            #    flags["HeatPump_invalid_file"] = False
+    else:
+        devs["HP"]["COP"] = np.ones((param["n_clusters"], 24))
+
 
     # Electric boiler
     devs["EB"] = {
-        "feasible": all_models["ElectricBoiler"].enabled,
-        "inv_var": all_models["ElectricBoiler"].inv_var,
-        "eta_th": all_models["ElectricBoiler"].eta_th / 100,
-        "life_time": all_models["ElectricBoiler"].life_time,
-        "cost_om": all_models["ElectricBoiler"].cost_om / 100,
-        "min_cap": all_models["ElectricBoiler"].min_cap,
-        "max_cap": all_models["ElectricBoiler"].max_cap,
+        "feasible": all_models["ElectricBoiler"]["enabled"],
+        "inv_var": all_models["ElectricBoiler"]["inv_var"],
+        "eta_th": all_models["ElectricBoiler"]["eta_th"] / 100,
+        "life_time": all_models["ElectricBoiler"]["life_time"],
+        "cost_om": all_models["ElectricBoiler"]["cost_om"] / 100,
+        "min_cap": all_models["ElectricBoiler"]["min_cap"],
+        "max_cap": all_models["ElectricBoiler"]["max_cap"],
     }
 
     # Compression chiller
     devs["CC"] = {
-        "feasible": all_models["CompressionChiller"].enabled,
-        "inv_var": all_models["CompressionChiller"].inv_var,
-        "COP": all_models["CompressionChiller"].COP,
-        "life_time": all_models["CompressionChiller"].life_time,
-        "cost_om": all_models["CompressionChiller"].cost_om / 100,
-        "min_cap": all_models["CompressionChiller"].min_cap,
-        "max_cap": all_models["CompressionChiller"].max_cap,
+        "feasible": all_models["CompressionChiller"]["enabled"],
+        "inv_var": all_models["CompressionChiller"]["inv_var"],
+        "COP": all_models["CompressionChiller"]["COP"],
+        "life_time": all_models["CompressionChiller"]["life_time"],
+        "cost_om": all_models["CompressionChiller"]["cost_om"] / 100,
+        "min_cap": all_models["CompressionChiller"]["min_cap"],
+        "max_cap": all_models["CompressionChiller"]["max_cap"],
     }
 
     # Absorption chiller
     devs["AC"] = {
-        "feasible": all_models["AbsorptionChiller"].enabled,
-        "inv_var": all_models["AbsorptionChiller"].inv_var,
-        "eta_th": all_models["AbsorptionChiller"].eta_th,
-        "life_time": all_models["AbsorptionChiller"].life_time,
-        "cost_om": all_models["AbsorptionChiller"].cost_om / 100,
-        "min_cap": all_models["AbsorptionChiller"].min_cap,
-        "max_cap": all_models["AbsorptionChiller"].max_cap,
+        "feasible": all_models["AbsorptionChiller"]["enabled"],
+        "inv_var": all_models["AbsorptionChiller"]["inv_var"],
+        "eta_th": all_models["AbsorptionChiller"]["eta_th"],
+        "life_time": all_models["AbsorptionChiller"]["life_time"],
+        "cost_om": all_models["AbsorptionChiller"]["cost_om"] / 100,
+        "min_cap": all_models["AbsorptionChiller"]["min_cap"],
+        "max_cap": all_models["AbsorptionChiller"]["max_cap"],
     }
 
     ### Biomass and waste ###
 
     # Biomass CHP
     devs["BCHP"] = {
-        "feasible": all_models["BiomassCHP"].enabled,
-        "inv_var": all_models["BiomassCHP"].inv_var,
-        "eta_el": all_models["BiomassCHP"].eta_el / 100,
-        "eta_th": all_models["BiomassCHP"].eta_th / 100,
-        "life_time": all_models["BiomassCHP"].life_time,
-        "cost_om": all_models["BiomassCHP"].cost_om / 100,
-        "min_cap": all_models["BiomassCHP"].min_cap,
-        "max_cap": all_models["BiomassCHP"].max_cap,
+        "feasible": all_models["BiomassCHP"]["enabled"],
+        "inv_var": all_models["BiomassCHP"]["inv_var"],
+        "eta_el": all_models["BiomassCHP"]["eta_el"] / 100,
+        "eta_th": all_models["BiomassCHP"]["eta_th"] / 100,
+        "life_time": all_models["BiomassCHP"]["life_time"],
+        "cost_om": all_models["BiomassCHP"]["cost_om"] / 100,
+        "min_cap": all_models["BiomassCHP"]["min_cap"],
+        "max_cap": all_models["BiomassCHP"]["max_cap"],
     }
 
     # Biomass boiler
     devs["BBOI"] = {
-        "feasible": all_models["BiomassBoiler"].enabled,
-        "inv_var": all_models["BiomassBoiler"].inv_var,
-        "eta_th": all_models["BiomassBoiler"].eta_th / 100,
-        "life_time": all_models["BiomassBoiler"].life_time,
-        "cost_om": all_models["BiomassBoiler"].cost_om / 100,
-        "min_cap": all_models["BiomassBoiler"].min_cap,
-        "max_cap": all_models["BiomassBoiler"].max_cap,
+        "feasible": all_models["BiomassBoiler"]["enabled"],
+        "inv_var": all_models["BiomassBoiler"]["inv_var"],
+        "eta_th": all_models["BiomassBoiler"]["eta_th"] / 100,
+        "life_time": all_models["BiomassBoiler"]["life_time"],
+        "cost_om": all_models["BiomassBoiler"]["cost_om"] / 100,
+        "min_cap": all_models["BiomassBoiler"]["min_cap"],
+        "max_cap": all_models["BiomassBoiler"]["max_cap"],
     }
 
     # Waste CHP
     devs["WCHP"] = {
-        "feasible": all_models["WasteCHP"].enabled,
-        "inv_var": all_models["WasteCHP"].inv_var,
-        "eta_el": all_models["WasteCHP"].eta_el / 100,
-        "eta_th": all_models["WasteCHP"].eta_th / 100,
-        "life_time": all_models["WasteCHP"].life_time,
-        "cost_om": all_models["WasteCHP"].cost_om / 100,
-        "min_cap": all_models["WasteCHP"].min_cap,
-        "max_cap": all_models["WasteCHP"].max_cap,
+        "feasible": all_models["WasteCHP"]["enabled"],
+        "inv_var": all_models["WasteCHP"]["inv_var"],
+        "eta_el": all_models["WasteCHP"]["eta_el"] / 100,
+        "eta_th": all_models["WasteCHP"]["eta_th"] / 100,
+        "life_time": all_models["WasteCHP"]["life_time"],
+        "cost_om": all_models["WasteCHP"]["cost_om"] / 100,
+        "min_cap": all_models["WasteCHP"]["min_cap"],
+        "max_cap": all_models["WasteCHP"]["max_cap"],
     }
 
     # Waste boiler
     devs["WBOI"] = {
-        "feasible": all_models["WasteBoiler"].enabled,
-        "inv_var": all_models["WasteBoiler"].inv_var,
-        "eta_th": all_models["WasteBoiler"].eta_th / 100,
-        "life_time": all_models["WasteBoiler"].life_time,
-        "cost_om": all_models["WasteBoiler"].cost_om / 100,
-        "min_cap": all_models["WasteBoiler"].min_cap,
-        "max_cap": all_models["WasteBoiler"].max_cap,
+        "feasible": all_models["WasteBoiler"]["enabled"],
+        "inv_var": all_models["WasteBoiler"]["inv_var"],
+        "eta_th": all_models["WasteBoiler"]["eta_th"] / 100,
+        "life_time": all_models["WasteBoiler"]["life_time"],
+        "cost_om": all_models["WasteBoiler"]["cost_om"] / 100,
+        "min_cap": all_models["WasteBoiler"]["min_cap"],
+        "max_cap": all_models["WasteBoiler"]["max_cap"],
     }
 
     ### Hydrogen ###
 
     # Electrolyzer
     devs["ELYZ"] = {
-        "feasible": all_models["Electrolyzer"].enabled,
-        "inv_var": all_models["Electrolyzer"].inv_var,
-        "eta_el": all_models["Electrolyzer"].eta_el / 100,
-        "life_time": all_models["Electrolyzer"].life_time,
-        "cost_om": all_models["Electrolyzer"].cost_om / 100,
-        "min_cap": all_models["Electrolyzer"].min_cap,
-        "max_cap": all_models["Electrolyzer"].max_cap,
+        "feasible": all_models["Electrolyzer"]["enabled"],
+        "inv_var": all_models["Electrolyzer"]["inv_var"],
+        "eta_el": all_models["Electrolyzer"]["eta_el"] / 100,
+        "life_time": all_models["Electrolyzer"]["life_time"],
+        "cost_om": all_models["Electrolyzer"]["cost_om"] / 100,
+        "min_cap": all_models["Electrolyzer"]["min_cap"],
+        "max_cap": all_models["Electrolyzer"]["max_cap"],
     }
 
     # Fuel cell
     devs["FC"] = {
-        "feasible": all_models["FuelCell"].enabled,
-        "inv_var": all_models["FuelCell"].inv_var,
-        "eta_el": all_models["FuelCell"].eta_el / 100,
-        "eta_th": all_models["FuelCell"].eta_th / 100,
-        "life_time": all_models["FuelCell"].life_time,
-        "cost_om": all_models["FuelCell"].cost_om / 100,
-        "min_cap": all_models["FuelCell"].min_cap,
-        "max_cap": all_models["FuelCell"].max_cap,
-        "enable_heat_diss": all_models["FuelCell"].enable_heat_diss,
+        "feasible": all_models["FuelCell"]["enabled"],
+        "inv_var": all_models["FuelCell"]["inv_var"],
+        "eta_el": all_models["FuelCell"]["eta_el"] / 100,
+        "eta_th": all_models["FuelCell"]["eta_th"] / 100,
+        "life_time": all_models["FuelCell"]["life_time"],
+        "cost_om": all_models["FuelCell"]["cost_om"] / 100,
+        "min_cap": all_models["FuelCell"]["min_cap"],
+        "max_cap": all_models["FuelCell"]["max_cap"],
+        "enable_heat_diss": all_models["FuelCell"]["enable_heat_diss"],
     }
 
     # Hydrogen storage
     devs["H2S"] = {
-        "feasible": all_models["H2Storage"].enabled,
-        "inv_var": all_models["H2Storage"].inv_var,
+        "feasible": all_models["H2Storage"]["enabled"],
+        "inv_var": all_models["H2Storage"]["inv_var"],
         "sto_loss": 0,
-        "life_time": all_models["H2Storage"].life_time,
-        "cost_om": all_models["H2Storage"].cost_om / 100,
-        "min_cap": all_models["H2Storage"].min_cap,
-        "max_cap": all_models["H2Storage"].max_cap,
+        "life_time": all_models["H2Storage"]["life_time"],
+        "cost_om": all_models["H2Storage"]["cost_om"] / 100,
+        "min_cap": all_models["H2Storage"]["min_cap"],
+        "max_cap": all_models["H2Storage"]["max_cap"],
     }
 
     # Sabatier reactor
     devs["SAB"] = {
-        "feasible": all_models["SabatierReactor"].enabled,
-        "inv_var": all_models["SabatierReactor"].inv_var,
-        "eta": all_models["SabatierReactor"].eta / 100,
-        "life_time": all_models["SabatierReactor"].life_time,
-        "cost_om": all_models["SabatierReactor"].cost_om / 100,
-        "min_cap": all_models["SabatierReactor"].min_cap,
-        "max_cap": all_models["SabatierReactor"].max_cap,
+        "feasible": all_models["SabatierReactor"]["enabled"],
+        "inv_var": all_models["SabatierReactor"]["inv_var"],
+        "eta": all_models["SabatierReactor"]["eta"] / 100,
+        "life_time": all_models["SabatierReactor"]["life_time"],
+        "cost_om": all_models["SabatierReactor"]["cost_om"] / 100,
+        "min_cap": all_models["SabatierReactor"]["min_cap"],
+        "max_cap": all_models["SabatierReactor"]["max_cap"],
     }
 
     ### Storages ###
 
     # Heat thermal energy storage
     devs["TES"] = {
-        "feasible": all_models["HeatStorage"].enabled,
-        "inv_var": all_models["HeatStorage"].inv_var / (
-                    param["rho_w"] * param["c_w"] * all_models["HeatStorage"].delta_T / 3600),  # EUR/kWh
-        "sto_loss": all_models["HeatStorage"].sto_loss / 100,
-        "life_time": all_models["HeatStorage"].life_time,
-        "cost_om": all_models["HeatStorage"].cost_om / 100,
-        "min_cap": all_models["HeatStorage"].min_vol * param["rho_w"] * param["c_w"] * all_models[
-            "HeatStorage"].delta_T / 3600,  # kWh
-        "max_cap": all_models["HeatStorage"].max_vol * param["rho_w"] * param["c_w"] * all_models[
-            "HeatStorage"].delta_T / 3600,  # kWh
-        "delta_T": all_models["HeatStorage"].delta_T,  # K
+        "feasible": all_models["HeatStorage"]["enabled"],
+        "inv_var": all_models["HeatStorage"]["inv_var"] / (
+                    param["rho_w"] * param["c_w"] * all_models["HeatStorage"]["delta_T"] / 3600),  # EUR/kWh
+        "sto_loss": all_models["HeatStorage"]["sto_loss"] / 100,
+        "life_time": all_models["HeatStorage"]["life_time"],
+        "cost_om": all_models["HeatStorage"]["cost_om"] / 100,
+        "min_cap": all_models["HeatStorage"]["min_vol"] * param["rho_w"] * param["c_w"] * all_models[
+            "HeatStorage"]["delta_T"] / 3600,  # kWh
+        "max_cap": all_models["HeatStorage"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
+            "HeatStorage"]["delta_T"] / 3600,  # kWh
+        "delta_T": all_models["HeatStorage"]["delta_T"],  # K
         "soc_init": 0.5,  # ---,              maximum initial state of charge
     }
 
     # Cold thermal energy storage
     devs["CTES"] = {
-        "feasible": all_models["ColdStorage"].enabled,
-        "inv_var": all_models["ColdStorage"].inv_var / (
-                    param["rho_w"] * param["c_w"] * all_models["ColdStorage"].delta_T / 3600),  # EUR/kWh
-        "sto_loss": all_models["ColdStorage"].sto_loss / 100,
-        "life_time": all_models["ColdStorage"].life_time,
-        "cost_om": all_models["ColdStorage"].cost_om / 100,
-        "min_cap": all_models["ColdStorage"].min_vol * param["rho_w"] * param["c_w"] * all_models[
-            "ColdStorage"].delta_T / 3600,  # kWh
-        "max_cap": all_models["ColdStorage"].max_vol * param["rho_w"] * param["c_w"] * all_models[
-            "ColdStorage"].delta_T / 3600,  # kWh
-        "delta_T": all_models["ColdStorage"].delta_T,  # K,
+        "feasible": all_models["ColdStorage"]["enabled"],
+        "inv_var": all_models["ColdStorage"]["inv_var"] / (
+                    param["rho_w"] * param["c_w"] * all_models["ColdStorage"]["delta_T"] / 3600),  # EUR/kWh
+        "sto_loss": all_models["ColdStorage"]["sto_loss"] / 100,
+        "life_time": all_models["ColdStorage"]["life_time"],
+        "cost_om": all_models["ColdStorage"]["cost_om"] / 100,
+        "min_cap": all_models["ColdStorage"]["min_vol"] * param["rho_w"] * param["c_w"] * all_models[
+            "ColdStorage"]["delta_T"] / 3600,  # kWh
+        "max_cap": all_models["ColdStorage"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
+            "ColdStorage"]["delta_T"] / 3600,  # kWh
+        "delta_T": all_models["ColdStorage"]["delta_T"],  # K,
         "soc_init": 0.5,  # ---,              maximum initial state of charge
     }
 
     # Battery
     devs["BAT"] = {
-        "feasible": all_models["Battery"].enabled,
-        "inv_var": all_models["Battery"].inv_var,
-        "life_time": all_models["Battery"].life_time,
-        "cost_om": all_models["Battery"].cost_om / 100,
-        "min_cap": all_models["Battery"].min_cap,
-        "max_cap": all_models["Battery"].max_cap,
+        "feasible": all_models["Battery"]["enabled"],
+        "inv_var": all_models["Battery"]["inv_var"],
+        "life_time": all_models["Battery"]["life_time"],
+        "cost_om": all_models["Battery"]["cost_om"] / 100,
+        "min_cap": all_models["Battery"]["min_cap"],
+        "max_cap": all_models["Battery"]["max_cap"],
         "sto_loss": 0,  # 1/h,              standby losses over one time step
         "soc_init": 0.5,  # ---,              maximum initial state of charge
     }
 
     # Gas storage
     devs["GS"] = {
-        "feasible": all_models["GasStorage"].enabled,
-        "inv_var": all_models["GasStorage"].inv_var,  # EUR/kWh
-        "life_time": all_models["GasStorage"].life_time,
-        "cost_om": all_models["GasStorage"].cost_om / 100,
-        "min_cap": all_models["GasStorage"].min_cap,  # kWh
-        "max_cap": all_models["GasStorage"].max_cap,  # kWh
+        "feasible": all_models["GasStorage"]["enabled"],
+        "inv_var": all_models["GasStorage"]["inv_var"],  # EUR/kWh
+        "life_time": all_models["GasStorage"]["life_time"],
+        "cost_om": all_models["GasStorage"]["cost_om"] / 100,
+        "min_cap": all_models["GasStorage"]["min_cap"],  # kWh
+        "max_cap": all_models["GasStorage"]["max_cap"],  # kWh
         "sto_loss": 0,  # 1/h,              standby losses over one time step
         "soc_init": 0.5,  # ---,              maximum initial state of charge
     }

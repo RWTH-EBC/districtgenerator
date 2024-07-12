@@ -2,7 +2,8 @@
 
 import json
 import os
-import functions.wind_turbines as wind_turbines
+import functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
+import functions.load_params_central_devices as load_params_central_devices
 
 
 class BES:
@@ -179,52 +180,13 @@ class CES:
         None.
         """
 
-        self.central_design_load = 0
-        self.central_bivalent_load = 0
 
-        self.roofAreaDistrict = 0
-
-    def add_loads(self, bes_obj):
+    def designCES(self, data, webtool):
         """
-        Add loads of building, that is provided with heat by the central devices, to cumulated sum.
+        Dimensioning of central devices with EHDO
 
         Parameters
         ----------
-        bes_obj : building energy system (BES) object
-            BES-object contains the loads.
-
-        Returns
-        -------
-        None.
-        """
-
-        self.central_design_load += bes_obj.design_load  # [W]
-        self.central_bivalent_load += bes_obj.bivalent_load  # [W]
-
-    def add_roofArea(self, building):
-        """
-        Add roof area of building to roof area of district.
-
-        Parameters
-        ----------
-        building : dictionary
-            Contains envelope-object with roof area of building.
-
-        Returns
-        -------
-        None.
-        """
-
-        self.roofAreaDistrict += building["envelope"].A["opaque"]["roof"]
-
-    def designCES(self, demands_district, devs, input_webtool):
-        """
-        Dimensioning of central devices.
-
-        Parameters
-        ----------
-        data_centralDevices : dictionary
-            Data of central devices.
 
         Returns
         -------
@@ -232,141 +194,11 @@ class CES:
             The capacities of the central devices.
         """
 
-        # initialise capacities of central devices
-        capacities = {}
+        # Load parameters
+        param, devs, dem, result_dict = load_params_central_devices.load_params(data, webtool)
 
-        if "photovoltaic_check_ehdo" == None:
-            devs["PV"]["feasible"] = False
-        else:
-            devs["PV"]["feasible"] = True
-            devs["PV"]["min_area"] = str("photovoltaic_min_input_ehdo")
-            devs["PV"]["max_area"] = str("photovoltaic_max_input_ehdo")
-
-        if "wind_turbines_check_ehdo" == None:
-            devs["WT"]["feasible"] = False
-        else:
-            devs["WT"]["feasible"] = True
-            devs["WT"]["min_cap"] = str(input_webtool["wind_turbines_min_input_ehdo"])
-            devs["WT"]["max_cap"] = str(input_webtool["wind_turbines_max_input_ehdo"])
-
-        if "hydropower_check_ehdo" == None:
-            devs["WAT"]["feasible"] = False
-        else:
-            devs["WAT"]["feasible"] = True
-            devs["WAT"]["min_cap"] = str(input_webtool["hydropower_min_input_ehdo"])
-            devs["WAT"]["max_cap"] = str(input_webtool["hydropower_max_input_ehdo"])
-
-        if "solar_thermal_collector_check_ehdo" == None:
-            devs["STC"]["feasible"] = False
-        else:
-            devs["STC"]["feasible"] = True
-            devs["STC"]["min_area"] = str("solar_thermal_collector_min_input_ehdo")
-            devs["STC"]["max_area"] = str("solar_thermal_collector_max_input_ehdo")
-
-        if "heat_pump_check_ehdo" == None:
-            devs["HP"]["feasible"] = False
-        else:
-            devs["HP"]["feasible"] = True
-            devs["HP"]["min_cap"] = str("heat_pump_min_input_ehdo")
-            devs["HP"]["max_cap"] = str("heat_pump_max_input_ehdo")
-
-        if "electric_boiler_check_ehdo" == None:
-            devs["EB"]["feasible"] = False
-        else:
-            devs["EB"]["feasible"] = True
-            devs["EB"]["min_cap"] = str("electric_boiler_min_input_ehdo")
-            devs["EB"]["max_cap"] = str("electric_boiler_max_input_ehdo")
-
-        if "compression_chiller_check_ehdo" == None:
-            devs["CC"]["feasible"] = False
-        else:
-            devs["CC"]["feasible"] = True
-            devs["CC"]["min_cap"] = str("compression_chiller_min_input_ehdo")
-            devs["CC"]["max_cap"] = str("compression_chiller_max_input_ehdo")
-
-        if "absorption_chiller_check_ehdo" == None:
-            devs["AC"]["feasible"] = False
-        else:
-            devs["AC"]["feasible"] = True
-            devs["AC"]["min_cap"] = str("absorption_chiller_min_input_ehdo")
-            devs["AC"]["max_cap"] = str("absorption_chiller_max_input_ehdo")
-
-        if "CHP_unit_check_ehdo" == None:
-            devs["CHP"]["feasible"] = False
-        else:
-            devs["CHP"]["feasible"] = True
-            devs["CHP"]["min_cap"] = str("CHP_unit_min_input_ehdo")
-            devs["CHP"]["max_cap"] = str("CHP_unit_max_input_ehdo")
+        # Run optimization
+        capacities_centralDevices = opti_dimensioning_central_devices.run_optim(devs, param, dem, result_dict)
 
 
-        if "biomass_CHP_check_ehdo" == None:
-            devs["BCHP"]["feasible"] = False
-        else:
-            devs["BCHP"]["feasible"] = True
-            devs["BCHP"]["min_cap"] = str("biomass_CHP_min_input_ehdo")
-            devs["BCHP"]["max_cap"] = str("biomass_CHP_max_input_ehdo")
-
-        if "biomass_boiler_check_ehdo" == None:
-            devs["BBOI"]["feasible"] = False
-        else:
-            devs["BBOI"]["feasible"] = True
-            devs["BBOI"]["min_cap"] = str("biomass_boiler_min_input_ehdo")
-            devs["BBOI"]["max_cap"] = str("biomass_boiler_max_input_ehdo")
-
-        if "waste_CHP_check_ehdo" == None:
-            devs["WCHP"]["feasible"] = False
-        else:
-            devs["WCHP"]["feasible"] = True
-            devs["WCHP"]["min_cap"] = str("waste_CHP_min_input_ehdo")
-            devs["WCHP"]["max_cap"] = str("waste_CHP_max_input_ehdo")
-
-        if "waste_boiler_check_ehdo" == None:
-            devs["WBOI"]["feasible"] = False
-        else:
-            devs["WBOI"]["feasible"] = True
-            devs["WBOI"]["min_cap"] = str("waste_boiler_min_input_ehdo")
-            devs["WBOI"]["max_cap"] = str("waste_boiler_max_input_ehdo")
-
-        if "electrolyzer_check_ehdo" == None:
-            devs["ELYZ"]["feasible"] = False
-        else:
-            devs["ELYZ"]["feasible"] = True
-            devs["ELYZ"]["min_cap"] = str("electrolyzer_min_input_ehdo")
-            devs["ELYZ"]["max_cap"] = str("electrolyzer_max_input_ehdo")
-
-        if "fuel_cell_check_ehdo" == None:
-            devs["FC"]["feasible"] = False
-        else:
-            devs["FC"]["feasible"] = True
-            devs["FC"]["min_cap"] = str("fuel_cell_min_input_ehdo")
-            devs["FC"]["max_cap"] = str("fuel_cell_max_input_ehdo")
-
-        if "hydrogen_storage_check_ehdo" == None:
-            devs["H2S"]["feasible"] = False
-        else:
-            devs["H2S"]["feasible"] = True
-            devs["H2S"]["min_cap"] = str("hydrogen_storage_min_input_ehdo")
-            devs["H2S"]["max_cap"] = str("hydrogen_storage_max_input_ehdo")
-
-        if "heat_check_ehdo" == None:
-            devs["TES"]["feasible"] = False
-        else:
-            devs["TES"]["feasible"] = True
-            devs["TES"]["min_volume"] = str("heat_min_input_ehdo")
-            devs["TES"]["max_volume"] = str("heat_max_input_ehdo")
-
-        if "cold_check_ehdo" == None:
-            devs["CTES"]["feasible"] = False
-        else:
-            devs["CTES"]["feasible"] = True
-            devs["CTES"]["min_volume"] = str("cold_min_input_ehdo")
-            devs["CTES"]["max_volume"] = str("cold_max_input_ehdo")
-
-        if "battery_check_ehdo" == None:
-            devs["BAT"]["feasible"] = False
-        else:
-            devs["BAT"]["feasible"] = True
-            devs["BAT"]["min_cap"] = str("battery_min_input_ehdo")
-            devs["BAT"]["max_cap"] = str("battery_max_input_ehdo")
-
-        return devs
+        return capacities_centralDevices
