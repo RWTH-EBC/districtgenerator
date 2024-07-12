@@ -114,7 +114,6 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     lighting_load = get_lightning_load(building_type)  # W/m2
     lighting_control = get_lightning_control(building_type)  # Lux threshold
     lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
-    #breakpoint()
     lux = (illuminance * 0.45 * lighting_maintenance_factor) / area  # Calculate lux at each timestep
     #
     mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)  # Determine when artificial lighting is needed
