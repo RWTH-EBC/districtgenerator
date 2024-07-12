@@ -922,7 +922,6 @@ class Envelope():
                                       - self.h_r["opaque", drct4] * self.F_r[
                                           drct4] * self.Delta_theta_er))
             #To-Do: Model g_gl
-            #breakpoint()
             for drct in direction:
                 B_i_k[t, drct] = self.A["window"][drct] \
                                  * (self.g_gl["window"] * (1 - self.F_F)
