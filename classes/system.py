@@ -138,9 +138,9 @@ class BES:
                     BES["EV"] = float(0)
                 else:
                     BES["EV"] = float(1
-                                  * (40000 * (buildingFeatures["EV"] == "small")
-                                     + 60000 * (buildingFeatures["EV"] == "medium")
-                                     + 80000 * (buildingFeatures["EV"] == "large")
+                                  * (16000 * (buildingFeatures["EV"] == "small")
+                                     + 40000  * (buildingFeatures["EV"] == "medium")
+                                     + 95000 * (buildingFeatures["EV"] == "large")
                                      )
                                   )
 

@@ -328,14 +328,16 @@ class Users:
             unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
         else:
             unique_name = building['unique_name']
+        # elec, gains and occ already calculated to safe calculation time
+        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.txt', delimiter=',')
+        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.txt', delimiter=',')
         self.occ = np.loadtxt(path + '/occ_' + unique_name + '.txt', delimiter=',')
         for j in range(self.nb_flats):
             temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
             self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
         # currently only one car per building possible
-        self.car = np.loadtxt(path + '/car_' + unique_name + '.txt', delimiter=',')
-        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.txt', delimiter=',')
-        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.txt', delimiter=',')
+        self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']["EV"])
+
 
     def calcHeatingProfile(self, site, envelope, time_resolution):
         """

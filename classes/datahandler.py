@@ -508,9 +508,10 @@ class Datahandler:
                 building["buildingFeatures"]["STC"] = 1
             else:
                 building["buildingFeatures"]["STC"] = 0
+            building["buildingFeatures"]["gamma"] = input_webtool[building["buildingFeatures"]["id"]]["gamma"]
+            building["buildingFeatures"]["beta"] = input_webtool[building["buildingFeatures"]["id"]]["beta"]
 
-            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]][
-                "ev_input"]  # S, M, L
+            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # 0, small, medium or large
 
             # %% load general building information
             # contains definitions and parameters that affect all buildings
@@ -566,8 +567,8 @@ class Datahandler:
                                         # area_roof=building["envelope"].A["opaque"]["roof"],
                                         area_roof=building["buildingFeatures"]["PV_area"] +
                                                   building["buildingFeatures"]["STC_area"],
-                                        beta=[35],
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
+                                        beta=[building["buildingFeatures"]["beta"]],
+                                        gamma=[building["buildingFeatures"]["gamma"]],
                                         # usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         # usageFactorSTC=building["buildingFeatures"]["f_STC"])
                                         usageFactorPV=f_PV,
