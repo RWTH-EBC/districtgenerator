@@ -494,101 +494,224 @@ def load_params(data):
     ################################################################
     # LOAD MODEL PARAMETERS
 
-    # load economic and ecologic data (of the district generator)
-    ecoData = {}
-    with open(os.path.join(os.path.dirname(srcPath), 'data', 'eco_data.json')) as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            ecoData[subData["name"]] = subData["value"]
 
-    ### Energy costs ###
-    # Electricity costs
-    if param["enable_supply_el"] == "True":
-        param["enable_supply_el"] = True
-    elif param["enable_supply_el"] == "False":
-        param["enable_supply_el"] = False
+
+    model_parameter = {}
+    model_parameter["webtool"] = {}
+    if model_parameter["webtool"] == {}:
+
+        # load economic and ecologic data (of the district generator)
+        ecoData = {}
+        with open(os.path.join(os.path.dirname(srcPath), 'data', 'eco_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                ecoData[subData["name"]] = subData["value"]
+
+        ### Energy costs ###
+        # Electricity costs
+        if param["enable_supply_el"] == "True":
+            param["enable_supply_el"] = True
+        elif param["enable_supply_el"] == "False":
+            param["enable_supply_el"] = False
+        else:
+            sys.exit("Invalid input!")
+        param["price_supply_el"] = ecoData["C_dem_electricity"]
+
+        param["price_cap_el"] = 0  # kEUR/MW
+        if param["enable_feed_in_el"] == "True":
+            param["enable_feed_in_el"] = True
+        elif param["enable_feed_in_el"] == "False":
+            param["enable_feed_in_el"] = False
+        else:
+            sys.exit("Invalid input!")
+        param["revenue_feed_in_el"] = ecoData["C_feed_electricity"]
+
+        param["enable_cap_limit_el"] = False
+        param["cap_limit_el"]        = 1000  # kW
+
+        param["enable_supply_limit_el"] = False
+        param["supply_limit_el"]        = 100000 # kWh/a
+
+
+        # Natural gas
+        if param["enable_supply_gas"] == "True":
+            param["enable_supply_gas"] = True
+        elif param["enable_supply_gas"] == "False":
+            param["enable_supply_gas"] = False
+        else:
+            sys.exit("Invalid input!")
+        param["price_supply_gas"] = ecoData["C_dem_gas"]
+        param["price_cap_gas"] = 0
+        param["enable_feed_in_gas"]      = False
+        param["revenue_feed_in_gas"]     = 0.01
+
+        param["enable_cap_limit_gas"]    = False
+        param["cap_limit_gas"]           = 100  # kW
+        param["enable_supply_limit_gas"] = False
+        param["supply_limit_gas"]        = 100000 # kWh/a
+
+
+        # Biomass
+        param["enable_supply_biomass"]    = False
+        param["price_biomass"]            = 0.2  # EUR/kWh
+        param["enable_supply_limit_biom"] = False
+        param["supply_limit_biomass"]     = 100000  #kWh
+
+
+        # Hydrogen
+        param["enable_supply_hydrogen"]       = False
+        param["price_hydrogen"]               = 0.4  # EUR/kWh
+        param["enable_supply_limit_hydrogen"] = False
+        param["supply_limit_hydrogen"]        = 100000  #kWh
+
+
+        # Waste
+        param["enable_supply_waste"]       = False
+        param["price_waste"]               = 0.05  # EUR/kWh
+        param["enable_supply_limit_waste"] = False
+        param["supply_limit_waste"]        = 100000  #kWh
+
+
+        ### Ecological impact ###
+        """param["co2_tax"]         = 180 / 1000"""  # EUR/kg
+        param["co2_el_grid"]     = ecoData["Emi_elec"] # kg/kWh
+        """param["co2_el_feed_in"]  = 0.3""" # kg/kWh
+        param["co2_gas"]         = ecoData["Emi_gas"] # kg/kWh
+        param["co2_gas_feed_in"] = 0.2 # kg/kWh
+        param["co2_biom"]        = 0.6 # kg/kWh
+        param["co2_waste"]       = 0.7 / 1000  # kg/kWh
+        param["co2_hydrogen"]    = 0.4 / 1000  # kg/kWh
+
+
+        ### General ###
+        """param["optim_focus"]       = 0
+        param["interest_rate"]     = 0.05
+        param["observation_time"]  = 20"""
+        param["peak_dem_met_conv"] = True
+
     else:
-        sys.exit("Invalid input!")
-    param["price_supply_el"] = ecoData["C_dem_electricity"]
+        ### Energy costs ###
+        # Electricity costs
+        if model_parameter["enable_supply_el"] == "True":
+            param["enable_supply_el"] = True
+        elif model_parameter["enable_supply_el"] == "False":
+            param["enable_supply_el"] = False
+        else:
+            sys.exit("Invalid input!")
+        param["price_supply_el"] = model_parameter["price_supply_el"]
 
-    param["price_cap_el"] = 0  # kEUR/MW
-    if param["enable_feed_in_el"] == "True":
-        param["enable_feed_in_el"] = True
-    elif param["enable_feed_in_el"] == "False":
-        param["enable_feed_in_el"] = False
-    else:
-        sys.exit("Invalid input!")
-    param["revenue_feed_in_el"] = ecoData["C_feed_electricity"]
+        if model_parameter["enable_feed_in_el"] == "True":
+            param["enable_feed_in_el"] = True
+        elif model_parameter["enable_feed_in_el"] == "False":
+            param["enable_feed_in_el"] = False
+        else:
+            sys.exit("Invalid input!")
+        param["revenue_feed_in_el"] = model_parameter["revenue_feed_in_el"]
 
-    param["enable_cap_limit_el"] = False
-    param["cap_limit_el"]        = 1000  # kW
+        if model_parameter["enable_price_cap_el"] == "True":
+            param["price_cap_el"] = 0  # kEUR/MW
+        else:
+            param["price_cap_el"] = model_parameter["price_cap_el"]  # kEUR/MW
 
-    param["enable_supply_limit_el"] = False
-    param["supply_limit_el"]        = 100000 # kWh/a
+        if model_parameter["enable_cap_limit_el"] == "True":
+            param["enable_cap_limit_el"] = True
+            param["cap_limit_el"] = model_parameter["cap_limit_el"]  # kW
+        else:
+            param["enable_cap_limit_el"] = False
+
+        if model_parameter["enable_supply_limit_el"] == "True":
+            param["enable_supply_limit_el"] = True
+            param["supply_limit_el"] = 100000  # kWh/a
+        else:
+            param["enable_supply_limit_el"] = False
+
+        # Natural gas
+        if model_parameter["enable_supply_gas"] == "True":
+            param["enable_supply_gas"] = True
+        elif model_parameter["enable_supply_gas"] == "False":
+            param["enable_supply_gas"] = False
+        else:
+            sys.exit("Invalid input!")
+        param["price_supply_gas"] = model_parameter["price_supply_gas"]
+
+        if model_parameter["enable_price_cap_gas"] == "True":
+            param["price_cap_gas"] = model_parameter["price_cap_gas"]
+        else:
+            param["price_cap_gas"] = 0
+
+        if model_parameter["enable_feed_in_gas"] == "True":
+            param["enable_feed_in_gas"] = True
+        else:
+            param["enable_feed_in_gas"] = False
+        param["revenue_feed_in_gas"] = model_parameter["revenue_feed_in_gas"]
+
+        if model_parameter["enable_cap_limit_gas"] == "True":
+            param["enable_cap_limit_gas"] = True
+            param["cap_limit_gas"] = model_parameter["cap_limit_gas"]  # kW
+        else:
+            param["enable_cap_limit_gas"] = False
+
+        if model_parameter["enable_supply_limit_gas"] == "True":
+            param["enable_supply_limit_gas"] = True
+            param["supply_limit_gas"] = model_parameter["supply_limit_gas"]  # kWh/a
+        else:
+            param["enable_supply_limit_gas"] = False
+
+        # Biomass
+        if model_parameter["enable_supply_biomass"] == "True":
+            param["enable_supply_biomass"] = True
+            param["price_biomass"] = model_parameter["price_biomass"]   # EUR/kWh
+        else:
+            model_parameter["enable_supply_biomass"] = False
+
+        if model_parameter["enable_supply_limit_biomass"] == "True":
+            param["enable_supply_limit_biomass"] = True
+            param["supply_limit_biomass"] = model_parameter["supply_limit_biomass"]  # kWh
+        else:
+            model_parameter["enable_supply_limit_biomass"] = False
 
 
-    # Natural gas
-    if param["enable_supply_gas"] == "True":
-        param["enable_supply_gas"] = True
-    elif param["enable_supply_gas"] == "False":
-        param["enable_supply_gas"] = False
-    else:
-        sys.exit("Invalid input!")
-    param["price_supply_gas"] = ecoData["C_dem_gas"]
-    param["price_cap_gas"] = 0
-    param["enable_feed_in_gas"]      = False
-    param["revenue_feed_in_gas"]     = 0.01
+        # Hydrogen
+        if model_parameter["enable_supply_hydrogen"] == "True":
+            param["enable_supply_hydrogen"] = True
+            param["price_hydrogen"] = model_parameter["price_hydrogen"]  # EUR/kWh
+        else:
+            model_parameter["enable_supply_hydrogen"] = False
 
-    param["enable_cap_limit_gas"]    = False
-    param["cap_limit_gas"]           = 100  # kW
-    param["enable_supply_limit_gas"] = False
-    param["supply_limit_gas"]        = 100000 # kWh/a
+        if model_parameter["enable_supply_limit_hydrogen"] == "True":
+            param["enable_supply_limit_hydrogen"] = True
+            param["supply_limit_hydrogen"] = model_parameter["supply_limit_hydrogen"]  # kWh
+        else:
+            model_parameter["enable_supply_limit_hydrogen"] = False
 
+        # Waste
+        if model_parameter["enable_supply_waste"] == "True":
+            param["enable_supply_waste"] = True
+            param["price_waste"] = model_parameter["price_waste"]  # EUR/kWh
+        else:
+            model_parameter["enable_supply_waste"] = False
 
-    # Biomass
-    param["enable_supply_biomass"]    = False
-    param["price_biomass"]            = 0.2  # EUR/kWh
-    param["enable_supply_limit_biom"] = False
-    param["supply_limit_biomass"]     = 100000  #kWh
+        if model_parameter["enable_supply_limit_waste"] == "True":
+            param["enable_supply_limit_waste"] = True
+            param["supply_limit_waste"] = model_parameter["supply_limit_waste"]  # kWh
+        else:
+            model_parameter["enable_supply_limit_waste"] = False
 
+        ### Ecological impact ###
+        param["co2_tax"]         = model_parameter["co2_tax"]       # EUR/kg
+        param["co2_el_grid"] = model_parameter["co2_el_grid"]  # kg/kWh
+        param["co2_el_feed_in"]  = model_parameter["co2_el_feed_in"]              # kg/kWh
+        param["co2_gas"] = model_parameter["co2_gas"]       # kg/kWh
+        param["co2_gas_feed_in"] = model_parameter["co2_gas_feed_in"]            # kg/kWh
+        param["co2_biom"] = model_parameter["co2_biom"]                     # kg/kWh
+        param["co2_waste"] = model_parameter["co2_waste"]             # kg/kWh
+        param["co2_hydrogen"] = model_parameter["co2_hydrogen"]      # kg/kWh
 
-    # Hydrogen
-    param["enable_supply_hydrogen"]       = False
-    param["price_hydrogen"]               = 0.4  # EUR/kWh
-    param["enable_supply_limit_hydrogen"] = False
-    param["supply_limit_hydrogen"]        = 100000  #kWh
-
-
-    # Waste
-    param["enable_supply_waste"]       = False
-    param["price_waste"]               = 0.05  # EUR/kWh
-    param["enable_supply_limit_waste"] = False
-    param["supply_limit_waste"]        = 100000  #kWh
-
-
-    ### Ecological impact ###
-    """param["co2_tax"]         = 180 / 1000"""  # EUR/kg
-    param["co2_el_grid"]     = ecoData["Emi_elec"] # kg/kWh
-    """param["co2_el_feed_in"]  = 0.3""" # kg/kWh
-    param["co2_gas"]         = ecoData["Emi_gas"] # kg/kWh
-    param["co2_gas_feed_in"] = 0.2 # kg/kWh
-    param["co2_biom"]        = 0.6 # kg/kWh
-    param["co2_waste"]       = 0.7 / 1000  # kg/kWh
-    param["co2_hydrogen"]    = 0.4 / 1000  # kg/kWh
-
-
-    ### General ###
-    """param["optim_focus"]       = 0
-    param["interest_rate"]     = 0.05
-    param["observation_time"]  = 20"""
-    param["peak_dem_met_conv"] = True
-
-    ### Reference scenario ###
-    """param["ref"] = {}
-    param["ref"]["enable_hp"]  = False
-    param["ref"]["cop_hp"]     = 5
-    param["ref"]["cop_cc"]     = 5
-    param["ref"]["enable_chp"] = False"""
+        ### General ###
+        param["optim_focus"]       = model_parameter["optim_focus"]
+        param["interest_rate"]     = model_parameter["interest_rate"]
+        param["observation_time"]  = model_parameter["observation_time"]
+        param["peak_dem_met_conv"] = model_parameter["peak_dem_met_conv"]
 
 
     ################################################################
