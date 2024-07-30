@@ -373,6 +373,9 @@ class Profiles:
         car_demand_total = []
         # loop over all days
         for day in range(self.nb_days):
+
+            demand = 0
+
             # slice occupancy profile for current day
             occ_day = occ[day * array:(day + 1) * array]
             # initialize electricity demand of EV for current day
@@ -392,9 +395,9 @@ class Profiles:
                 demand = max(0, rd.gauss(7500, 0.5 * 7500))
             elif size_ev == 95000:
                 demand = max(0, rd.gauss(15000, 0.5 * 15000))
-            # demand for the energy system at home just relevant with return of EV
-            # assumption: just last return of the day is relevant, because EV is not connected at home between
-            # first leave and last return of the day
+                # demand for the energy system at home just relevant with return of EV
+                # assumption: just last return of the day is relevant, because EV is not connected at home between
+                # first leave and last return of the day
             car_demand_day[car_almost_arrives] = demand
             # add current day to demand for all days
             car_demand_total[day * array:(day + 1) * array] = car_demand_day

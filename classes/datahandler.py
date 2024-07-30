@@ -136,8 +136,16 @@ class Datahandler:
             first_row = 37
 
         # select the correct file depending on the TRY weather station location
+        # weatherData = np.loadtxt(
+        #     os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
+        #                  self.site["TRYType"])
+        #     + "/"
+        #     + self.site["TRYYear"] + "_"
+        #     + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+        #     + ".dat",
+        #     skiprows=first_row - 1)
         weatherData = np.loadtxt(
-            os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
+            os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
                          self.site["TRYType"])
             + "/"
             + self.site["TRYYear"] + "_"
@@ -285,8 +293,7 @@ class Datahandler:
                                 year_of_construction=building["buildingFeatures"]["year"],
                                 number_of_floors=3,
                                 height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][
-                                    bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                net_leased_area=building["buildingFeatures"]["area"],
                                 construction_type=retrofit_level)
 
             # %% create envelope object
