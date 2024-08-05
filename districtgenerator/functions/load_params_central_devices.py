@@ -169,6 +169,9 @@ def load_params(data):
     for key, value in central_device_data.items():
         all_models[key] = {
             "enabled": value.get("feasible", False),
+            "CCOP_feasible": value.get("CCOP_feasible", False),
+            "ASHP_feasible": value.get("ASHP_feasible", False),
+            "CSV_feasible": value.get("CSV_feasible", False),
             "eta": value.get("eta", 0) * 100,
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
@@ -190,6 +193,7 @@ def load_params(data):
             "COP": value.get("COP", 0),
             "ASHP_carnot_eff": value.get("ASHP_carnot_eff", 0),
             "ASHP_supply_temp": value.get("ASHP_supply_temp", 0),
+            "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
             "soc_init": value.get("soc_init", 0),
@@ -296,6 +300,10 @@ def load_params(data):
     # Heat pump (depending on investment and COP, it can be air source or ground source heat pump)
     devs["HP"] = {
         "feasible": all_models["HeatPump"]["enabled"],
+        "CCOP_feasible": all_models["HeatPump"]["CCOP_feasible"],
+        "ASHP_feasible": all_models["HeatPump"]["ASHP_feasible"],
+        "CSV_feasible": all_models["HeatPump"]["CSV_feasible"],
+        "COP_const": all_models["HeatPump"]["COP_const"],
         "inv_var": all_models["HeatPump"]["inv_var"],
         "life_time": all_models["HeatPump"]["life_time"],
         "cost_om": all_models["HeatPump"]["cost_om"] / 100,
@@ -311,6 +319,37 @@ def load_params(data):
         for t in range(24):
             COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
     devs["HP"]["COP"] = COP
+
+    # COP assignment
+    if all_models["HeatPump"]["enabled"]:
+        #if (not all_models["HeatPump"]["CCOP_feasible"]) and (not all_models["HeatPump"]["ASHP_feasible"]) and (
+        #not all_models["HeatPump"]["CSV_feasible"]):
+        #    flags["HeatPump_no_COP_option_selected"] = False
+        if all_models["HeatPump"]["CCOP_feasible"]:
+            devs["HP"]["COP"] = np.ones((param["n_clusters"], 24)) * all_models["HeatPump"]["COP_const"]
+        elif all_models["HeatPump"]["ASHP_feasible"]:
+            COP = np.ones((param["n_clusters"], 24))
+            eta_carnot = all_models["HeatPump"]["ASHP_carnot_eff"] / 100
+            supply_temp = all_models["HeatPump"]["ASHP_supply_temp"]
+            for d in range(param["n_clusters"]):
+                for t in range(24):
+                    COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
+            devs["HP"]["COP"] = COP
+
+        elif all_models["HeatPump"]["CSV_feasible"]:
+            #try:
+                COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(srcPath), 'data', 'coefficient_of_performance.txt'))
+                # Cluster COP time series
+                COP_clustered = np.zeros((param["n_clusters"], 24))
+                for d in range(param["n_clusters"]):
+                    for t in range(24):
+                        COP_clustered[d][t] = COP_unclustered[24 * typedays[d] + t]
+                # Replace original time series with the clustered one
+                devs["HP"]["COP"] = COP_clustered
+            #except:
+            #    flags["HeatPump_invalid_file"] = False
+    else:
+        devs["HP"]["COP"] = np.ones((param["n_clusters"], 24))
 
 
     # Electric boiler

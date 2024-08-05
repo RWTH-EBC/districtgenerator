@@ -1,0 +1,10 @@
+id;building;year;retrofit;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV
+0;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+1;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+2;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+3;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+4;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+5;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+6;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+7;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
+8;MFH;1978;2;654;heat_grid;1;0;0;0;35;1;S;0.4;0.04;0
