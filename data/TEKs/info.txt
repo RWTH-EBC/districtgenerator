@@ -21,4 +21,4 @@ In DIBS there is a matching propsed, which is stated here: data\TEKs\TEK_NWG_Ver
 
 #To-Do: 
 
-Look up TEK Verkerhsgebäude
+Look up TEK Verkehrsgebäude
