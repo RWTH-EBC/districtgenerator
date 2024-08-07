@@ -702,6 +702,19 @@ def run_optim(devs, param, dem, result_dict):
                     result_dict["heat_kW"][device].append(heat[device][d][t].X)
             result_dict["heat_kW"][device] = max(result_dict["heat_kW"][device])
 
+        # soc devices
+        result_dict["soc"] = {}
+        result_dict["ch"] = {}
+        for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
+            result_dict["soc"][device] = []
+            result_dict["ch"][device] = []
+            for d in days:
+                for t in time_steps:
+                    result_dict["soc"][device].append(soc[device][d][t].X)
+                    result_dict["ch"][device].append(ch[device][d][t].X)
+            result_dict["soc"][device] = max(result_dict["soc"][device])
+            result_dict["ch"][device] = max(result_dict["ch"][device])
+
 
         # Calculate generation
         eps = 0.01
