@@ -702,6 +702,18 @@ def run_optim(devs, param, dem, result_dict):
                     result_dict["heat_kW"][device].append(heat[device][d][t].X)
             result_dict["heat_kW"][device] = max(result_dict["heat_kW"][device])
 
+        # soc devices
+        result_dict["soc"] = {}
+        result_dict["ch"] = {}
+        for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
+            result_dict["soc"][device] = []
+            result_dict["ch"][device] = []
+            for d in days:
+                for t in time_steps:
+                    result_dict["soc"][device].append(soc[device][d][t].X)
+                    result_dict["ch"][device].append(ch[device][d][t].X)
+            result_dict["soc"][device] = max(result_dict["soc"][device])
+            result_dict["ch"][device] = max(result_dict["ch"][device])
 
         # Calculate generation
         eps = 0.01
@@ -774,6 +786,7 @@ def run_optim(devs, param, dem, result_dict):
         #result_dict["share_renew"] = round((result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"])/(result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"] + from_el_grid_total.X + from_gas_grid_total.X + biom_import_total.X + waste_import_total.X + hydrogen_import_total.X)*100, 1)  #
 #
 #        # Calculate relative savings compared to reference scenario
+        """
         if not result_dict["ref"]["tac"] == 0:
             if result_dict["tac"] <= result_dict["ref"]["tac"]:
                 result_dict["ref"]["tac_sav"] = round((1-(result_dict["tac"]/result_dict["ref"]["tac"])) * 100, 1)
@@ -793,6 +806,8 @@ def run_optim(devs, param, dem, result_dict):
                 result_dict["ref"]["co2_sav_pos"] = False
         else:
             result_dict["ref"]["co2_sav"] = 0
+            
+        """
 #
 #
 #
