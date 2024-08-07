@@ -486,8 +486,8 @@ def run_optim(devs, param, dem, result_dict):
     # Limitation of biomass supply (user input)
     if param["enable_supply_biomass"] != True:
         model.addConstr(biom_import_total == 0)
-    if param["enable_supply_limit_biom"] == True:
-        model.addConstr(biom_import_total <= param["supply_limit_biom"])
+    if param["enable_supply_limit_biomass"] == True:
+        model.addConstr(biom_import_total <= param["supply_limit_biomass"])
 
     # Limitation of waste supply (user input)
     if param["enable_supply_waste"] != True:
@@ -787,25 +787,25 @@ def run_optim(devs, param, dem, result_dict):
         #result_dict["share_renew"] = round((result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"])/(result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"] + from_el_grid_total.X + from_gas_grid_total.X + biom_import_total.X + waste_import_total.X + hydrogen_import_total.X)*100, 1)  #
 #
 #        # Calculate relative savings compared to reference scenario
-        if not result_dict["ref"]["tac"] == 0:
-            if result_dict["tac"] <= result_dict["ref"]["tac"]:
-                result_dict["ref"]["tac_sav"] = round((1-(result_dict["tac"]/result_dict["ref"]["tac"])) * 100, 1)
-                result_dict["ref"]["tac_sav_pos"] = True
-            else:
-                result_dict["ref"]["tac_sav"] = round(((result_dict["tac"]/result_dict["ref"]["tac"])-1) * 100, 1)
-                result_dict["ref"]["tac_sav_pos"] = False
-        else:
-            result_dict["ref"]["tac_sav"] = 0
-#
-        if not result_dict["ref"]["co2"] == 0:
-            if result_dict["co2"] <= result_dict["ref"]["co2"]:
-                result_dict["ref"]["co2_sav"] = round((1-(result_dict["co2"]/result_dict["ref"]["co2"])) * 100, 1)
-                result_dict["ref"]["co2_sav_pos"] = True
-            else:
-                result_dict["ref"]["co2_sav"] = round(((result_dict["co2"]/result_dict["ref"]["co2"])-1) * 100, 1)
-                result_dict["ref"]["co2_sav_pos"] = False
-        else:
-            result_dict["ref"]["co2_sav"] = 0
+#         if not result_dict["ref"]["tac"] == 0:
+#             if result_dict["tac"] <= result_dict["ref"]["tac"]:
+#                 result_dict["ref"]["tac_sav"] = round((1-(result_dict["tac"]/result_dict["ref"]["tac"])) * 100, 1)
+#                 result_dict["ref"]["tac_sav_pos"] = True
+#             else:
+#                 result_dict["ref"]["tac_sav"] = round(((result_dict["tac"]/result_dict["ref"]["tac"])-1) * 100, 1)
+#                 result_dict["ref"]["tac_sav_pos"] = False
+#         else:
+#             result_dict["ref"]["tac_sav"] = 0
+# #
+#         if not result_dict["ref"]["co2"] == 0:
+#             if result_dict["co2"] <= result_dict["ref"]["co2"]:
+#                 result_dict["ref"]["co2_sav"] = round((1-(result_dict["co2"]/result_dict["ref"]["co2"])) * 100, 1)
+#                 result_dict["ref"]["co2_sav_pos"] = True
+#             else:
+#                 result_dict["ref"]["co2_sav"] = round(((result_dict["co2"]/result_dict["ref"]["co2"])-1) * 100, 1)
+#                 result_dict["ref"]["co2_sav_pos"] = False
+#         else:
+#             result_dict["ref"]["co2_sav"] = 0
 #
 #
 #
