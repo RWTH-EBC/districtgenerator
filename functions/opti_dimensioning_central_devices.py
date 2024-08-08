@@ -691,7 +691,7 @@ def run_optim(devs, param, dem, result_dict):
             for d in days:
                 for t in time_steps:
                     result_dict["power_kW"][device].append(power[device][d][t].X)
-            result_dict["power_kW"][device] = max(result_dict["power_kW"][device])
+            result_dict["power_kW"][device] = int(max(result_dict["power_kW"][device]))
 
         # Heat to/from devices
         result_dict["heat_kW"] = {}
@@ -700,7 +700,7 @@ def run_optim(devs, param, dem, result_dict):
             for d in days:
                 for t in time_steps:
                     result_dict["heat_kW"][device].append(heat[device][d][t].X)
-            result_dict["heat_kW"][device] = max(result_dict["heat_kW"][device])
+            result_dict["heat_kW"][device] = int(max(result_dict["heat_kW"][device]))
 
         # soc devices
         result_dict["soc"] = {}
@@ -712,8 +712,8 @@ def run_optim(devs, param, dem, result_dict):
                 for t in time_steps:
                     result_dict["soc"][device].append(soc[device][d][t].X)
                     result_dict["ch"][device].append(ch[device][d][t].X)
-            result_dict["soc"][device] = max(result_dict["soc"][device])
-            result_dict["ch"][device] = max(result_dict["ch"][device])
+            result_dict["soc"][device] = int(max(result_dict["soc"][device]))
+            result_dict["ch"][device] = int(max(result_dict["ch"][device]))
 
         # Calculate generation
         eps = 0.01
