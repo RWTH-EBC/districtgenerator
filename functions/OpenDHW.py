@@ -646,14 +646,13 @@ def generate_single_drawoff_inside_boundaries(cats_series, s_step):
     return drawoff  # in L/h
 
 
-def compute_heat(timeseries_df, temp_dT=35):
+def compute_heat(timeseries_df, temp_dT):
     """
     Add heat columns to the timeseries
 
     :param timeseries_df:   df:     Pandas Dataframe with all the timeseries
     :param temp_dT:         int:    temperature difference between freshwater
-                                    and average DHW outlet temperature. F.e.
-                                    35°C.
+                                    and average DHW outlet temperature.
 
     :return: timeseries_df: df:     Dataframe with added 'Heat' Column
     """

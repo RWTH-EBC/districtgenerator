@@ -11,8 +11,11 @@ import os
 import numpy as np
 import math
 import random
-import functions.change_resolution as chres
+import districtgenerator.functions.change_resolution as chres
 import pylightxl as xl
+
+
+
 
 def load_profiles(filename):
     """
@@ -44,7 +47,7 @@ def load_profiles(filename):
 
 
 def compute_daily_demand(probability_profiles, average_profile, occupancy,
-                         current_day, temperature_difference=35):
+                         current_day, temperature_difference):
     """
     Parameters
     ----------
@@ -77,7 +80,7 @@ def compute_daily_demand(probability_profiles, average_profile, occupancy,
     water = []
     timesteps = 1440
     time = np.arange(timesteps)
-    
+
     # Compute seasonal factor
     # Introduce abbreviation to stay below 80 characters per line
     arg = math.pi * (2 / 365 * (current_day + time / timesteps) - 1 / 4)
@@ -114,11 +117,11 @@ def compute_daily_demand(probability_profiles, average_profile, occupancy,
     return (water, heat)
 
 
-def full_year_computation(occupancy, 
-                          profiles, 
+def full_year_computation(occupancy,
+                          profiles,
+                          temperature_difference,
                           time_dis=3600,
-                          initial_day=0, 
-                          temperature_difference=35):
+                          initial_day=0):
     """
     Parameters
     ----------
@@ -155,7 +158,7 @@ def full_year_computation(occupancy,
     """
     # Initialization
     number_days = int(len(occupancy) / 144)
-    
+
     water = np.zeros(len(occupancy) * 10)
     heat = np.zeros(len(occupancy) * 10)
     
@@ -173,7 +176,7 @@ def full_year_computation(occupancy,
                                    average_profile,
                                    occupancy[day*144:(day+1)*144],
                                    day, 
-                                   temperature_difference)
+                                   temperature_difference[day*1440:(day+1)*1440])
         (current_water, current_heat) = res
         
         # Include current_water and current_heat in water and heat
