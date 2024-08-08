@@ -3,13 +3,14 @@
 import os
 import random as rd
 import json
+import math
 
 import numpy as np
 import pylightxl as xl
 import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
-import functions.OpenDHW as OpenDHW
-import functions.dhw_stochastical as dhw_profil
+import districtgenerator.functions.OpenDHW as OpenDHW
+import districtgenerator.functions.dhw_stochastical as dhw_profil
 
 
 class Profiles:
@@ -50,6 +51,14 @@ class Profiles:
         None.
         """
 
+        temperatur_out = []
+        temperatur_in = []
+        for day in range(365):
+            temperatur_out.append(50 + (5 * np.cos(math.pi * (2 / 365 * (day) - 2 * 355 / 365))))
+            temperatur_in.append(15 + (5 * np.cos(math.pi * (2 / 365 * (day) - 2 * 172 / 365))))
+
+        temperature_difference_day = [T_out - T_in for T_out, T_in in zip(temperatur_out, temperatur_in)]
+
         self.number_occupants = number_occupants
         self.initial_day = initial_day
         self.nb_days = nb_days
@@ -59,7 +68,7 @@ class Profiles:
         self.occ_profile = []
         self.light_load = []
         self.app_load = []
-
+        self.temperature_difference = [T for T in temperature_difference_day for _ in range(24)]
         self.generate_activity_profile()
         self.loadProbabilitiesDhw()
 
@@ -103,12 +112,12 @@ class Profiles:
         self.occ_profile : array-like
             Number of present occupants.
         """
-
+        #RH: Wieso kombinieren wir SIA Profile und die Richardson Methode?
         tr_min = int(self.time_resolution/60)
         sia_profile_daily_min = np.concatenate((np.ones(60*8),
                                                 np.zeros(60*13),
                                                 np.ones(60*3)),
-                                                axis=None)
+                                                axis=None)           # warum nehmen wir an, dass es zeros and ones nur gibt? In der Quelle ist es ja nicht nur so "W:\EBC_Public\Literatur\Normen\SIA_2024_RaumnutzungsdatenEnergieGebaeudetechnik_2015.pdf"
 
         # generate array for minutely profile
         activity_profile_min = np.zeros(len(self.activity_profile) * 10)
@@ -195,7 +204,7 @@ class Profiles:
 
         dhw_profile = OpenDHW.generate_dhw_profile(s_step=60, categories=1, occupancy=self.number_occupants, mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"])
         dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
-        dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=35)
+        dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=self.temperature_difference)
 
         return dhw_heat["Heat_W"].values
 
