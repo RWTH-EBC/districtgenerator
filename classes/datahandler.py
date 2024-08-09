@@ -519,6 +519,7 @@ class Datahandler:
             building["buildingFeatures"]["beta"] = input_webtool[building["buildingFeatures"]["id"]]["beta"]
 
             building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # 0, small, medium or large
+            building["buildingFeatures"]["ev_charging"] = input_webtool[building["buildingFeatures"]["id"]]["ev_charging"]
 
             # %% load general building information
             # contains definitions and parameters that affect all buildings
@@ -963,7 +964,7 @@ class Datahandler:
 
         return peakDemands, energyDemands
 
-    def optimizationClusters(self, centralEnergySupply):
+    def optimizationClusters(self, centralEnergySupply,webtool):
         """
         Optimize the operation costs for each cluster.
 
@@ -978,7 +979,7 @@ class Datahandler:
         for cluster in range(self.time["clusterNumber"]):
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster, centralEnergySupply)
-            results_temp = self.optimizer.run_cen_opti()
+            results_temp = self.optimizer.run_cen_opti(webtool)
             # save results as attribute
             self.resultsOptimization.append(results_temp)
 

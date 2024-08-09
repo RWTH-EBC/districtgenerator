@@ -337,6 +337,7 @@ class Users:
             self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
         # currently only one car per building possible
         self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']["EV"])
+        print("hier")
 
 
     def calcHeatingProfile(self, site, envelope, time_resolution):

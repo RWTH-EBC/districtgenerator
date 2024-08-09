@@ -374,7 +374,7 @@ class Profiles:
         # loop over all days
         for day in range(self.nb_days):
 
-            demand = 0
+            demand = 1
 
             # slice occupancy profile for current day
             occ_day = occ[day * array:(day + 1) * array]
