@@ -462,8 +462,8 @@ def run_opti_central(model, buildingData, site, cluster, srcPath, optiData = {})
         model.addConstr(residual["feed"][t] + power["from_grid"][t] == residual["power"][t] + power["to_grid"][t],
                         name="Elec_balance_neighborhood"+ str(t))
         #model.addConstr(power["to_grid"][t] == residual["feed"][t])
-        model.addConstr(power["from_grid"][t] <= yTrafo[t] * 10000000,     name="Binary1_" + str(n) + "_" + str(t))
-        model.addConstr(power["to_grid"][t] <= (1 - yTrafo[t]) * 10000000, name="Binary2_" + str(n) + "_" + str(t))
+        model.addConstr(power["from_grid"][t] <= yTrafo[t] * 10000000,     name="Binary1_" + str(t))
+        model.addConstr(power["to_grid"][t] <= (1 - yTrafo[t]) * 10000000, name="Binary2_" + str(t))
 
 
     # %% SUM UP TOTAL ELECTRICITY FROM AND TO GRID
