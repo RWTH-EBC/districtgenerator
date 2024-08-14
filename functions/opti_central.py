@@ -391,8 +391,8 @@ def run_opti_central(model, buildingData, site, cluster, srcPath, optiData = {})
                     soc_prev = soc_dom[device][n][t - 1]
 
             model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"]
-                                + ch_dom[device][n][t] * dt * param_dec_devs[device]["eta_ch"]
-                                - dch_dom[device][n][t] / dt * param_dec_devs[device]["eta_ch"],
+                                                     + (ch_dom[device][n][t]  * param_dec_devs[device]["eta_ch"]
+                                                     - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"])*dt,
                             name= str(device) + "_storage_balance_" + str(n) + "_" + str(t))
 
             if t == last_time_step:
@@ -412,8 +412,8 @@ def run_opti_central(model, buildingData, site, cluster, srcPath, optiData = {})
                 soc_prev = soc_dom[device][n][t - 1]
 
             model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"]
-                            + ch_dom[device][n][t] * dt * param_dec_devs[device]["eta_ch"]
-                            - dch_dom[device][n][t] / dt * param_dec_devs[device]["eta_ch"],
+                            + (ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"]
+                            - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"])*dt,
                             name=str(device) + "_storage_balance_" + str(n) + "_" + str(t))
 
             if t == last_time_step:
