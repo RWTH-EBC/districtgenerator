@@ -212,7 +212,7 @@ class Datahandler:
                                         albedo=self.site["albedo"])
 
     # def initializeBuildings(self, scenario_name='example'):
-    def initializeBuildings(self, list_all: list = None, scenario_name='example'):
+    def initializeBuildings(self, list_all: list = None, scenario_name='example', path=None):
         """
         Fill district with buildings from scenario file.
 
@@ -229,31 +229,67 @@ class Datahandler:
         num_sfh = 0
         num_mfh = 0
         self.scenario_name = scenario_name
-        if list_all is not None:
+        if list_all is not None and len(list_all) != 0:
             self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
         else:
-            self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                        + "/"
-                                        + self.scenario_name + ".csv",
-                                        header=0, delimiter=";")
-
-        for id, entry in enumerate(list_all):
-            list = list_all[id]
-            building = {}
-            building["buildingFeatures"] = pd.Series(
-                [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
-                index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
-                       'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
-                       'gamma_PV', ])
-
-            self.district.append(building)
-
-            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH':
-                num_sfh += 1
-            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB':
-                num_mfh += 1
+            if path is None:
+                self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+                                            + "/"
+                                            + self.scenario_name + ".csv",
+                                            header=0, delimiter=";")
+            else:
+                self.scenario = pd.read_csv(os.path.join(path)
+                                            + "/"
+                                            + self.scenario_name + ".csv",
+                                            header=0, delimiter=";")
 
         # Calculate calculation time for the whole district generation
+        if list_all:
+            building_df_list = []
+            for id, entry in enumerate(list_all):
+                list = list_all[id]
+                building = {}
+                building["buildingFeatures"] = pd.Series(
+                    [list[0], list[1], list[2], list[3], list[4], "BOI", 0, 0, 0, 0, 20, 0, "S", 0.4, 0.04, 0],
+                    index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+                           'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+                           'gamma_PV', ])
+
+                self.district.append(building)
+                # building_series_list.append(building["buildingFeatures"])
+                df = pd.DataFrame(data=building["buildingFeatures"]).transpose()
+                df.set_index("id")
+                # df.drop(df.columns[0], axis=1)
+                building_df_list.append(df)
+
+                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"][
+                    "building"] == 'TH':
+                    num_sfh += 1
+                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"][
+                    "building"] == 'AB':
+                    num_mfh += 1
+            file_path = os.path.join(path, 'files') + "/" + self.scenario_name + ".csv"
+            pd.concat(building_df_list).to_csv(file_path, index=False,sep=";")
+
+        else:
+            for id in self.scenario["id"]:
+                # create empty dict for observed building
+                building = {}
+
+                # store features of the observed building
+                building["buildingFeatures"] = self.scenario.loc[id]
+
+                # append building to district
+                self.district.append(building)
+
+                # Count number of builidings to predict the approximate calculation time
+                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"][
+                    "building"] == 'TH':
+                    num_sfh += 1
+                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"][
+                    "building"] == 'AB':
+                    num_mfh += 1
+
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print("This calculation will take about " + str(duration) + " .")
 
@@ -367,7 +403,7 @@ class Datahandler:
 
             else:
                 if path is not None:
-                    building["user"].loadProfiles(building["unique_name"], os.path.join(path, 'files', 'demands'))
+                    building["user"].loadProfiles(building["unique_name"], os.path.join(path, 'demands'))
                 # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
@@ -385,7 +421,7 @@ class Datahandler:
                                                 time_resolution=self.time["timeResolution"])
 
             if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(path,"files", 'demands'))
 
             self.outputV1[building["unique_name"]]["heat"] = building["user"].getProfiles()[0]
             self.outputV1[building["unique_name"]]["cooling"] = building["user"].getProfiles()[1]
@@ -417,12 +453,6 @@ class Datahandler:
         print("Finished generating demands!")
 
     def outputWebtoolV1(self):
-        #    for i in range(len(self.district)):
-        #        self.outputV1[i] = {}
-        #        self.outputV1[i]["heat"] = self.district[i]["user"]["heat"]
-        #        self.outputV1[i]["cooling"] = self.district[i]["user"]["cooling"]
-        #        self.outputV1[i]["dhw"] = self.district[i]["user"]["dhw"]
-        #        self.outputV1[i]["elec"] = self.district[i]["user"]["elec"]
         return self.outputV1
 
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
@@ -462,7 +492,7 @@ class Datahandler:
         None.
         """
 
-        self.initializeBuildings(building_list, scenario_name)
+        self.initializeBuildings(building_list, scenario_name, path)
         self.generateEnvironment(plz)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles, path)
@@ -479,7 +509,7 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def designDecentralDevices(self, input_webtool: dict, saveGenerationProfiles=True):
+    def designDecentralDevices(self, input_webtool: dict = {}, saveGenerationProfiles=True):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
@@ -518,8 +548,10 @@ class Datahandler:
             building["buildingFeatures"]["gamma"] = input_webtool[building["buildingFeatures"]["id"]]["gamma"]
             building["buildingFeatures"]["beta"] = input_webtool[building["buildingFeatures"]["id"]]["beta"]
 
-            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"] # 0, small, medium or large
-            building["buildingFeatures"]["ev_charging"] = input_webtool[building["buildingFeatures"]["id"]]["ev_charging"]
+            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]][
+                "ev_input"]  # 0, small, medium or large
+            building["buildingFeatures"]["ev_charging"] = input_webtool[building["buildingFeatures"]["id"]][
+                "ev_charging"]
 
             # %% load general building information
             # contains definitions and parameters that affect all buildings
@@ -537,6 +569,7 @@ class Datahandler:
             # at heating limit temperature
             building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
+            # building["dhwload"] = 10000
             building["dhwload"] = \
                 bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
                 building["user"].nb_flats
@@ -964,7 +997,7 @@ class Datahandler:
 
         return peakDemands, energyDemands
 
-    def optimizationClusters(self, centralEnergySupply,webtool):
+    def optimizationClusters(self, centralEnergySupply, webtool={}):
         """
         Optimize the operation costs for each cluster.
 
