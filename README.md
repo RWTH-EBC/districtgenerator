@@ -22,12 +22,20 @@ The districtgenerator is an ongoing research project. The current version is v0.
 ### Install the districtgenerator
 
 To install, first clone this repository with
+
 ```
 git clone https://github.com/RWTH-EBC/districtgenerator
+
 ```
-and secondly run:
+
 ```
-pip install -e districtgenerator
+python -m venv .venv      
+```
+
+activate the envrionment and run:
+
+```
+pip install -e <path-to-districtgenerator> .
 ```
 
 ### How to get started?
