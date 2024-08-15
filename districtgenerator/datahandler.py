@@ -325,7 +325,6 @@ class Datahandler():
         # create one project for the whole district
         prj = Project(load_data=True)
         prj.name = self.scenario_name    
-        breakpoint()
         for building in self.district:
             # check if building type is residential or non residential 
             if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
@@ -385,7 +384,10 @@ class Datahandler():
             # Check if the building type is a supported non residential building. 
             elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
                                                               "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2"]:
+                                                              "trs", "gs1", "gs2", "IWU Office", 
+                                                              "IWU Retail", "IWU Trade Buildings",
+                                                                  "IWU Transport", 
+                                                              ]:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
@@ -440,7 +442,7 @@ class Datahandler():
                 # building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
                 
             else:
-                raise AttributeError(f"The building type {building_type} is currently not supported.")
+                raise AttributeError(f"The building type {building_type} is currently not supported. Plase check the type of {building} and try again.")
 
 
 
