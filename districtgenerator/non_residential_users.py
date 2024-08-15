@@ -158,7 +158,7 @@ class NonResidentialUsers():
     def generate_number_occupants(self) -> None:
         '''
         Generate number of occupants for different of building types.
-        According to the data in  data\occupancy_schedules\average_occupancy.json
+        According to the data in  data/occupancy_schedules/average_occupancy.json
 
         Parameters
         ----------
@@ -200,7 +200,7 @@ class NonResidentialUsers():
         Attributes
         ---------
         equipment - depending on the class of equipment, the electricity demand is caclulated. 
-        Data is described in: data\consumption_data\info.txt
+        Data is described in: data/consumption_data/info.txt
         Possible Values are: "Gering", "Mittel", "Hoch". Default is "Mittel. 
             "Gering": 4.5,
             "Mittel": 6.5,
