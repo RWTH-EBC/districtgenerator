@@ -9,7 +9,6 @@ from pyproj import Proj, transform, CRS, transformer
 import pandas as pd
 
 
-
 def extract_coordinates(filename):
     parts = filename.split('_')
     easting = int(parts[1][:7])
@@ -17,6 +16,7 @@ def extract_coordinates(filename):
     latitude, longitude = lambert_to_wgs84(easting, northing)
 
     return easting, northing, latitude, longitude
+
 
 def read_folder(directory, start_filename):
     # Öffne die Excel-Datei nur einmal außerhalb der Schleife
@@ -54,17 +54,20 @@ def lambert_to_wgs84(easting, northing):
 
     return latitude, longitude
 
+
 def match_points():
     workbook = openpyxl.load_workbook("D:/Script/districtgenerator/data/plz_geocoord_matched_Test.xlsx")
 
     # Lese die Daten aus der Excel-Datei für list1 ein
     # Hier den Dateinamen ändern
-    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord.xlsx', header=None, names=['PLZ', 'Latitude', 'Longitude'], skiprows=1, dtype={'PLZ': str})
+    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord.xlsx', header=None,
+                             names=['PLZ', 'Latitude', 'Longitude'], skiprows=1, dtype={'PLZ': str})
 
     # Lese die Daten aus der Excel-Datei für list2 ein
-    df_list2 = pd.read_excel('D:\Script\districtgenerator\data\geodata_TRY_all.xlsx', usecols=[0,3,4], names=['file_name', 'Latitude', 'Longitude'], skiprows=1)
+    df_list2 = pd.read_excel('D:\Script\districtgenerator\data\geodata_TRY_all.xlsx', usecols=[0, 3, 4],
+                             names=['file_name', 'Latitude', 'Longitude'], skiprows=1)
 
-    i=0
+    i = 0
     for index1, point1 in df_list1.iterrows():
         min_distance = float('inf')
         closest_point = None
@@ -76,16 +79,13 @@ def match_points():
                 closest_point = point2
 
         sheet = workbook.active
-        sheet.append([point1[0], point1[1], point1[2], closest_point[0], closest_point[1],closest_point[2]])
+        sheet.append([point1[0], point1[1], point1[2], closest_point[0], closest_point[1], closest_point[2]])
         print(point1[0])
         workbook.save("D:/Script/districtgenerator/data/plz_geocoord_matched_Test.xlsx")
         i += 1
-        if i== 2: break
+        if i == 2: break
 
 
-#read_folder('D:\Script\districtgenerator\data\TRY_2015_mittel.tar\mittel', 'TRY2015_38615002933500_Jahr.dat')
+# read_folder('D:\Script\districtgenerator\data\TRY_2015_mittel.tar\mittel', 'TRY2015_38615002933500_Jahr.dat')
 
 match_points()
-
-
-
