@@ -112,7 +112,7 @@ class Datahandler:
 
         return weatherdatafile_location
 
-    def generateEnvironment(self, plz):
+    def generateEnvironment(self, plz, TRY: int = None, weather_conditions: str = None):
         """
         Load physical district environment - site and weather.
 
@@ -130,20 +130,17 @@ class Datahandler:
 
         # %% load weather data for site
         # extract irradiation and ambient temperature
+        if TRY is not None:
+            self.site["TRYYear"] = "TRY" + str(TRY)
+
+        if weather_conditions is not None:
+            self.site["TRYType"] = weather_conditions
+
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-        # select the correct file depending on the TRY weather station location
-        # weatherData = np.loadtxt(
-        #     os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
-        #                  self.site["TRYType"])
-        #     + "/"
-        #     + self.site["TRYYear"] + "_"
-        #     + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
-        #     + ".dat",
-        #     skiprows=first_row - 1)
         weatherData = np.loadtxt(
             os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
                          self.site["TRYType"])
@@ -269,7 +266,7 @@ class Datahandler:
                     "building"] == 'AB':
                     num_mfh += 1
             file_path = os.path.join(path, 'files') + "/" + self.scenario_name + ".csv"
-            pd.concat(building_df_list).to_csv(file_path, index=False,sep=";")
+            pd.concat(building_df_list).to_csv(file_path, index=False, sep=";")
 
         else:
             for id in self.scenario["id"]:
@@ -421,7 +418,7 @@ class Datahandler:
                                                 time_resolution=self.time["timeResolution"])
 
             if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(path,"files", 'demands'))
+                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(path, "files", 'demands'))
 
             self.outputV1[building["unique_name"]]["heat"] = building["user"].getProfiles()[0]
             self.outputV1[building["unique_name"]]["cooling"] = building["user"].getProfiles()[1]
@@ -458,7 +455,8 @@ class Datahandler:
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
                                  saveUserProfiles=True, plz='52064',
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-                                 designDevs=False, clustering=False, optimization=False, path=None):
+                                 designDevs=False, clustering=False, optimization=False, path=None, TRY: int = None,
+                                 weather_conditions: str = None):
         """
         All in one solution for district and demand generation.
 
@@ -493,7 +491,7 @@ class Datahandler:
         """
 
         self.initializeBuildings(building_list, scenario_name, path)
-        self.generateEnvironment(plz)
+        self.generateEnvironment(plz, TRY, weather_conditions)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles, path)
         if designDevs:
