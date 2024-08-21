@@ -36,6 +36,8 @@ def example1_4_generate_first_district():
     # Generate demand profiles
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
+    outputWebtoolV1 = data.outputWebtoolV1()
+
     # We now have a complete district. Instead of using all the steps separately, like we have done in this example,
     # we can also generate a complete district with the following commands:
     # data= Datahandler()

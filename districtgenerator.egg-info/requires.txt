@@ -1,0 +1,7 @@
+numpy
+pandas
+matplotlib
+scipy
+teaser
+richardsonpy
+pylightxl
