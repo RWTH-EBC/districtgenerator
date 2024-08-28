@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-def get_building_type(term, kind):
+def getBuildingType(term, kind):
     """
     Retrieve the value from a specified column based on a match in the 'districtgenerator' column.
     
@@ -12,7 +12,6 @@ def get_building_type(term, kind):
     Returns:
     str: The value from the specified column if a match is found; otherwise, None.
     """
-    
     srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     building_types_file  = os.path.join(srcPath, 'data', 'building_types.csv')
     df = pd.read_csv(building_types_file, sep=';')
@@ -22,7 +21,10 @@ def get_building_type(term, kind):
     
     # Find the row that matches the term in 'districtgenerator'
     match = df[df['districtgenerator'] == term]
-    
+    print(f"Match: {match}")
+    print(f"Kind: {kind}")
+    print(f"Term: {term}")
+    print(f"df: {df}")
     # If a match is found, return the value from the specified column
     if not match.empty:
         return match[kind].values[0]
@@ -31,7 +33,7 @@ def get_building_type(term, kind):
 
 
 
-def get_schedule(building_type):
+def getSchedule(building_type):
     """
     Returns the schedules from SIA, according to the building type.
 
@@ -41,8 +43,8 @@ def get_schedule(building_type):
     :return: df_schedule, schedule_name
     :rtype: DataFrame (with floats), string
     """
-    type_assignment = {
-        "oag": "office.csv",
+    typeAssignment = {
+        "IWU Office, Administrative or Government Buildings": "office.csv",
         "IWU Research and University Teaching": "Hörsaal, Auditorium.csv",
         "IWU Health and Care": "Bettenzimmer.csv", 
         "IWU School, Day Nursery and other Care": "Schulzimmer_Hoersaal.csv",
@@ -57,18 +59,18 @@ def get_schedule(building_type):
         "IWU Generalized (2) Production buildings":  "Lagerhalle.csv"
         }
 
-    #schedule_name = type_assignment.get(building_type)
-    schedule_name = get_building_type(term=building_type, kind="SIA")
-    if schedule_name is None:
+    #scheduleName = type_assignment.get(building_type)
+    scheduleName = getBuildingType(term=building_type, kind="SIA")
+    if scheduleName is None:
         print(f"No schedule for building type {building_type}")
         return None, None
 
-    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(data_dir_path, 'data', 'occupancy_schedules', f'{schedule_name}.csv')
+    dataDirPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    data_path = os.path.join(dataDirPath, 'data', 'occupancy_schedules', f'{scheduleName}.csv')
 
     try:
         data_schedule = pd.read_csv(data_path, sep=',')
-        return data_schedule, schedule_name
+        return data_schedule, scheduleName
     except FileNotFoundError:
         print(f"File not found: {data_path}")
         return None, None
@@ -78,7 +80,6 @@ def adjust_schedule(inital_day, schedule, nb_days):
     Function returns the schedule, 
     adjusted to the initial_day and the last 
     """
-    print("adjust schedule", inital_day, schedule, nb_days)
     # Create a custom sorter index
     sorter = rotate_list(initial_day=inital_day)
     sorter_index = {day: index for index, day in enumerate(sorter)}
@@ -145,7 +146,7 @@ def get_tek(building_type):
     }
 
     #tek_name = tek_assignment.get(building_type)
-    tek_name = get_building_type(kind="TEK", term=building_type)
+    tek_name = getBuildingType(kind="TEK", term=building_type)
     if tek_name is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -170,7 +171,7 @@ def get_multi_zone_average(building_type):
     """
     
     """
-    multi_zone_name = get_building_type(kind="TEK", term=building_type)
+    multi_zone_name = getBuildingType(kind="TEK", term=building_type)
     if tek_name is None:
         print(f"No schedule for building type {building_type}")
         return None, None

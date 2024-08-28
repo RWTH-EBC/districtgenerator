@@ -4,7 +4,7 @@ MFH;MULTI_RES;Wohnen (MFH);-;;-
 SFH;SINGLE_RES;Wohnen (EFH);-;-;-
 TH;SINGLE_RES;Wohnen (MFH);-;-;-
 IWU Hotels, Boarding, Restaurants or Catering;HOTEL;Hotelzimmer;IWU Hotels, Boarding, Restaurants or Catering;Hotels / Pensionen;Hotelzimmer
-oag;OFFICE;Einzelbüro;oag;Bürogebäude;office
+IWU Office, Administrative or Government Buildings;OFFICE;Einzelbüro;IWU Office, Administrative or Government Buildings;Bürogebäude;office
 IWU Trade Buildings;RETAIL;Einzelhandel/Kaufhaus ;IWU Trade Buildings; Verkaufsstätten (allgemein;Fachgeschaeft
 -;FOODSTORE;-;-;-;-
 -;RESTAURANT;-;-;-;-
@@ -14,12 +14,12 @@ IWU Health and Care;HOSPITAL;Bettenzimmer;IWU Health and Care;Beherbergungsstät
 IWU Sports Facilities;GYM;Turnhalle;IWU Sports Facilities;Sporthallen;Turnhalle
 -;SWIMMING;-;-;-;-
 -;SERVERROOM;-;-;-;-
-IWU Transport ;PARKING;Parkhaus (Büro- und Privatnutzung) ;IWU Transport ;Verkehrsgebäude;Parkhaus
+IWU Transport;PARKING;Parkhaus (Büro- und Privatnutzung) ;IWU Transport;Verkehrsgebäude;Parkhaus
 -;COOLROOM;-;-;-;-
 -;LAB;-;-;-;-
-IWU Culture and Leisure ;MUSEUM;Ausstellungsräume und Museum  ;IWU Culture and Leisure ;Ausstellungsgebäude;Ausstellungshalle
+IWU Culture and Leisure;MUSEUM;Ausstellungsräume und Museum  ;IWU Culture and Leisure;Ausstellungsgebäude;Ausstellungshalle
 -;LIBRARY;-;-;-;-
-IWU Research and University Teaching ;UNIVERSITY;Hörsaal, Auditorium ;IWU Research and University Teaching ;Hochschule und Forschung (allgemein);Hörsaal, Auditorium
+IWU Research and University Teaching;UNIVERSITY;Hörsaal, Auditorium ;IWU Research and University Teaching;Hochschule und Forschung (allgemein);Hörsaal, Auditorium
 gs1;OFFICE;Einzelbüro;IWU Generalized (1) Services building;Verwaltungsgebäude (allgemein);office
 gs2;INDUSTRIAL;Gewerbliche und industrielle Hallen – mittel ;IWU Generalized (2) Production buildings; Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;Lagerhalle
 IWU Production, Workshop, Warehouse or Operations;INDUSTRIAL;Gewerbliche und industrielle Hallen – mittel ;IWU Production, Workshop, Warehouse or Operations; Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;ProduktionGro

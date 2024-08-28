@@ -1,5 +1,5 @@
 {
-    "oag": {
+    "IWU Office, Administrative or Government Buildings": {
     "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.367275866,
@@ -20,7 +20,7 @@
         "gf1": 0.369112228
       }}
     },
-    "Gebaeude fuer Forschung und Hochschullehre (2)": { 
+    "IWU Research and University Teaching": { 
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.302686357,
@@ -41,7 +41,7 @@
         "gf1": 0.272474144
       }}
     },
-    "Gebaeude fuer Gesundheit und Pflege (3)": {   
+    "IWU Health and Care": {   
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.37044787,
@@ -62,7 +62,7 @@
         "gf1": 0.375986013
       }
     },
-    "Schule, Kindertagesstaette und sonstiges Betreuungsgebaeude (4)": {  
+    "IWU School, Day Nursery and other Care  ": {  
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.319407585,
@@ -83,7 +83,7 @@
         "gf1": 0.520150289
       }
     }},
-    "Gebaeude fuer Kultur und Freizeit (5)": {  
+    "IWU Culture and Leisure": {  
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.481897466,
@@ -104,7 +104,7 @@
         "gf1": 0.601984854
       }
     }},
-    "Sportgebaeude (6)": {
+    "IWU Sports Facilities": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.554841274,
@@ -125,7 +125,7 @@
         "gf1": 0.811914518
       }
     }},
-    "Beherbergungs- oder Unterbringungsgebaeude, Gastronomie- oder Verpflegungsgebaeude (7)": {
+    "IWU Hotels, Boarding, Restaurants or Catering": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.571613483,
@@ -146,7 +146,7 @@
         "gf1": 0.281604254
       }
     }},
-    "Produktions-, Werkstatt-, Lager- oder Betriebsgebaeude (8)": {
+    "IWU Production, Workshop, Warehouse or Operations": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.434041692,
@@ -167,7 +167,7 @@
         "gf1": 0.870384841
       }
     }},
-    "Handelsgebaeude (9)": {
+    "IWU Trade Buildings": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.368695829,
@@ -188,7 +188,7 @@
         "gf1": 0.894054076
       }}
     },
-    "Technikgebaeude (Ver- und Entsorgung) (10)": {
+    "IWU Technical and Utility (supply and disposal)": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.784967654,
@@ -209,7 +209,7 @@
         "gf1": 0.627446828
       }}
     },
-    "Verkehrsgebaeude (11)": {
+    "IWU Transport": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.638685232,
@@ -230,7 +230,7 @@
         "gf1": 1.123595506
       }}
     },
-    "(1) Dienstleistungsgebaeude, HK_Geb = (1) bis (7) und (9)": {
+    "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.395625694,
@@ -251,7 +251,7 @@
         "gf1": 0.53858165
       }}
     },
-    "(2) Produktions- und aehnliche Gebaeude, HK_Geb = (8), (10), (11)": {
+    "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.447687773,
