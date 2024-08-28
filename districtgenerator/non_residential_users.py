@@ -96,7 +96,8 @@ class NonResidentialUsers():
         Loads profiles from previously saved CSV files.
 
     """
-    def __init__(self, building_usage: str, area: float, file: str, envelope: Any, site: Dict[str, Any], time: Dict[str, Any], nb_of_days: int) -> None:
+    def __init__(self, building_usage: str, area: float, file: str, envelope: Any,
+                site: Dict[str, Any], time: Dict[str, Any], nb_of_days: int) -> None:
         """
         Constructor of Users Class
         """
@@ -123,15 +124,15 @@ class NonResidentialUsers():
         self.lighntning_schedule = None
         
         # Define the path to the JSON file
-        base_path = os.getcwd()
-        occupancy_json_path = os.path.join(base_path,  'data', 'occupancy_schedules',
-                                           'average_occupancy.json')
-        electricity_json_path = os.path.join(base_path,  'data', 'consumption_data',
-                                             'average_electricity_per_occupants.json')
+        basePath = os.getcwd()
+        occupancyJsonPath = os.path.join(basePath, 'data', 'occupancy_schedules',
+                                         'average_occupancy.json')
+        electricityJsonPath = os.path.join(basePath, 'data', 'consumption_data',
+                                           'average_electricity_per_occupants.json')
 
         # Load the JSON data from the specified path
-        self.occupancy_data = self.load_json_data(occupancy_json_path)
-        self.electricity_data = self.load_json_data(electricity_json_path)
+        self.occupancy_data = self.load_json_data(occupancyJsonPath)
+        self.electricity_data = self.load_json_data(electricityJsonPath)
         self.generate_schedules()
 
 
@@ -146,9 +147,17 @@ class NonResidentialUsers():
 
     
     def load_json_data(self, json_path: str) -> Dict[str, Any]:
-        with open(json_path, 'r') as file:
-            return json.load(file)
+        """
+        Load JSON data from the specified file path.
 
+        Args:
+            json_path (str): Path to the JSON file.
+
+        Returns:
+            Dict[str, Any]: Loaded JSON data as a dictionary.
+        """
+        with open(json_path, 'r', encoding='utf-8') as file:
+            return json.load(file)
 
 
     def generate_number_occupants(self) -> None:
@@ -161,8 +170,6 @@ class NonResidentialUsers():
         random_nb : random number in [0,1)
 
         '''
-
-    
         if self.usage in self.occupancy_data:
             occupancy_values = self.occupancy_data[self.usage]
             random_nb = rd.random()  # picking random number in [0,1)
@@ -178,9 +185,10 @@ class NonResidentialUsers():
         else:
             print(f"No data about number of occupants available for building type: {self.usage}")
 
+
     def generate_schedules(self) -> None:
         # get schedules occupancy
-        df_schedules, schedule = schedules.get_schedule(self.usage)
+        df_schedules, schedule = schedules.getSchedule(self.usage)
         print(df_schedules, schedule, "These are the schedules")
 
         breakpoint()
@@ -305,8 +313,6 @@ class NonResidentialUsers():
         TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
 
         self.dhw= self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
-
-
 
 
 
@@ -499,16 +505,11 @@ class NonResidentialUsers():
 
     
 
-
-
-
-    
-
-
 if __name__ == '__main__':
 
     test = NonResidentialUsers(building="SFH",
                 area=1000)
 
+    test.calcProfiles()
     test.calcProfiles()
     test.calcProfiles()
