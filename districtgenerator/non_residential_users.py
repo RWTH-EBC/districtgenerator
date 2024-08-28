@@ -6,15 +6,11 @@ import os, math
 import json 
 import random as rd
 import numpy as np
-import richardsonpy
-import richardsonpy.classes.stochastic_el_load_wrapper as wrap
-import richardsonpy.classes.appliance as app_model
-import richardsonpy.classes.lighting as light_model
-from districtgenerator.profils import Profiles , NonResidentialProfiles
+from districtgenerator.profils import Profiles, NonResidentialProfiles
+from districtgenerator.solar import SunIlluminance
 import functions.heating_profile_5R1C as heating
 import functions.schedule_reader as schedules
 import functions.light_demand as light_demand
-from districtgenerator.solar import SunIlluminance
 from typing import Dict, List, Any, Optional
 
 
@@ -128,9 +124,9 @@ class NonResidentialUsers():
         
         # Define the path to the JSON file
         base_path = os.getcwd()
-        occupancy_json_path = os.path.join(base_path,  'data', 'occupancy_schedules', 
+        occupancy_json_path = os.path.join(base_path,  'data', 'occupancy_schedules',
                                            'average_occupancy.json')
-        electricity_json_path = os.path.join(base_path,  'data', 'consumption_data', 
+        electricity_json_path = os.path.join(base_path,  'data', 'consumption_data',
                                              'average_electricity_per_occupants.json')
 
         # Load the JSON data from the specified path
@@ -185,6 +181,9 @@ class NonResidentialUsers():
     def generate_schedules(self) -> None:
         # get schedules occupancy
         df_schedules, schedule = schedules.get_schedule(self.usage)
+        print(df_schedules, schedule, "These are the schedules")
+
+        breakpoint()
         self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
         self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
         self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
@@ -511,4 +510,5 @@ if __name__ == '__main__':
     test = NonResidentialUsers(building="SFH",
                 area=1000)
 
+    test.calcProfiles()
     test.calcProfiles()
