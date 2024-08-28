@@ -15,6 +15,7 @@ import functions.heating_profile_5R1C as heating
 import functions.schedule_reader as schedules
 import functions.light_demand as light_demand
 from districtgenerator.solar import SunIlluminance
+from typing import Dict, List, Any, Optional
 
 
 class NonResidentialUsers():
@@ -99,7 +100,7 @@ class NonResidentialUsers():
         Loads profiles from previously saved CSV files.
 
     """
-    def __init__(self, building_usage, area, file, envelope, site, time, nb_of_days):
+    def __init__(self, building_usage: str, area: float, file: str, envelope: Any, site: Dict[str, Any], time: Dict[str, Any], nb_of_days: int) -> None:
         """
         Constructor of Users Class
         """
@@ -148,14 +149,13 @@ class NonResidentialUsers():
         # self.create_el_wrapper()
 
     
-    def load_json_data(self, json_path):
+    def load_json_data(self, json_path: str) -> Dict[str, Any]:
         with open(json_path, 'r') as file:
-            data = json.load(file)
-            return data
+            return json.load(file)
 
 
 
-    def generate_number_occupants(self):
+    def generate_number_occupants(self) -> None:
         '''
         Generate number of occupants for different of building types.
         According to the data in  data\occupancy_schedules\average_occupancy.json
@@ -182,7 +182,7 @@ class NonResidentialUsers():
         else:
             print(f"No data about number of occupants available for building type: {self.usage}")
 
-    def generate_schedules(self):
+    def generate_schedules(self) -> None:
         # get schedules occupancy
         df_schedules, schedule = schedules.get_schedule(self.usage)
         self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
@@ -190,10 +190,10 @@ class NonResidentialUsers():
         self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
 
     
-    def generate_occupancy(self):
+    def generate_occupancy(self) -> None:
         self.occ = self.occupancy_schedule["OCCUPANCY"] * self.nb_occ
         
-    def generate_annual_el_consumption_equipment(self, equipment="Mittel"):
+    def generate_annual_el_consumption_equipment(self, equipment: str = "Mittel") -> None:
         '''
         Generate annual elictricity consumption in dependency of the building type and the average area. 
         
@@ -219,8 +219,8 @@ class NonResidentialUsers():
         # such as calculation bases on users, tasks, e.g. 
         # Here the calculation is done, based on the average equipment in the building type 
         # For more information see: 
-        # [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
-        # [2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
+        # [1] S. Henning and K. Jagnow, "Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung)," 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+        # [2] K. Jagnow and S. Henning, "Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden," Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
 
 
         
@@ -238,7 +238,7 @@ class NonResidentialUsers():
         else:
             print(f"No data about annual electrical consumption available available for building type: {self.usage}")
 
-    def generate_annual_el_consumption_lightning(self):
+    def generate_annual_el_consumption_lightning(self) -> None:
         """
         Creates 
         """
@@ -267,7 +267,7 @@ class NonResidentialUsers():
         self.annual_lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
                                                                            occupancy_schedule=self.occupancy_schedule, area=self.area)
     
-    def generate_dhw_profile(self):
+    def generate_dhw_profile(self) -> None:
         """
         Generates a dhw profile
         Based on the TEK Ansatz and DIBS. 
@@ -311,7 +311,7 @@ class NonResidentialUsers():
 
 
 
-    def calcProfiles(self, site, time_resolution, time_horizon, initital_day=1):
+    def calcProfiles(self, site: Dict[str, Any], time_resolution: int, time_horizon: int, initital_day: int = 1) -> None:
         '''
         Calclulate profiles for every flat and summarize them for the whole building
 
@@ -363,11 +363,11 @@ class NonResidentialUsers():
         self.generate_el_demand()
         self.generate_occupancy()
     
-    def generate_el_demand(self, normalization=True):
+    def generate_el_demand(self, normalization: bool = True) -> None:
         self.elec = self.annual_lightning_demand + self.annual_appliance_demand
 
         
-    def calculate_gain_profile(self):
+    def calculate_gain_profile(self) -> None:
         """
         Generate profile of internal gains
 
@@ -412,7 +412,7 @@ class NonResidentialUsers():
         
 
 
-    def calcHeatingProfile(self,site,envelope,time_resolution):
+    def calcHeatingProfile(self,site: Dict[str, Any],envelope: Any,time_resolution: int) -> None:
 
         '''
         Calclulate heat demand for each building
@@ -440,7 +440,7 @@ class NonResidentialUsers():
         for t in range(len(Q_HC)):
             self.heat[t] = max(0,Q_HC[t])
 
-    def saveProfiles(self,unique_name,path):
+    def saveProfiles(self,unique_name: str,path: str) -> None:
         '''
         Save profiles to csv
 
@@ -465,7 +465,7 @@ class NonResidentialUsers():
             writer.writerow(fields)
         '''
 
-    def saveHeatingProfile(self,unique_name,path) :
+    def saveHeatingProfile(self,unique_name: str,path: str) -> None:
         '''
         Save heat demand to csv
 
@@ -480,7 +480,7 @@ class NonResidentialUsers():
 
         np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
 
-    def loadProfiles(self,unique_name,path):
+    def loadProfiles(self,unique_name: str,path: str) -> None:
         '''
         Load profiles from csv
 
@@ -508,7 +508,7 @@ class NonResidentialUsers():
 
 if __name__ == '__main__':
 
-    test = Users(building="SFH",
+    test = NonResidentialUsers(building="SFH",
                 area=1000)
 
     test.calcProfiles()
