@@ -324,8 +324,7 @@ class Datahandler():
                 # %% create TEASER project
         # create one project for the whole district
         prj = Project(load_data=True)
-        prj.name = self.scenario_name    
-        breakpoint()
+        prj.name = self.scenario_name
         for building in self.district:
             # check if building type is residential or non residential 
             if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
@@ -338,7 +337,9 @@ class Datahandler():
                 
                 # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
-                    number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                    number_of_floors = model_data['storeys_above_ground'].values[
+                        building['buildingFeatures'].id
+                    ]
                     height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
                 
                 else:  
@@ -389,7 +390,9 @@ class Datahandler():
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
-                    number_of_floors =  model_data['storeys_above_ground'].values[building['buildingFeatures'].id]
+                    number_of_floors = model_data['storeys_above_ground'].values[
+                        building['buildingFeatures'].id
+                    ]
                     height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
                 
                 else:  
