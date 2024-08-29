@@ -16,7 +16,7 @@ We gather data from: [IWU](https://github.com/IWUGERMANY/Non-domestic-multi-zone
 | d_op_a            | jährliche Betriebstage für jeweils RLT, Kühlung und Heizung           | annual system usage days for ventilation, cooling and heating systems         |
 | t_h_op_d          | tägliche Betriebsstunden Heizung                                      | daily system usage hours for heating systems                                  |
 | E_m               | Wartungswert der Beleuchtungsstärke                                   | maintenance value of the illuminance                                          |
-| h_Ne              | Höhe der Nutzebene                                                   | height above the floor of the to be illuminated working plane                 |
+| h_Ne              | Höhe der Nutzebene                                                    | height above the floor of the to be illuminated working plane                 |
 | k_A               | Minderungsfaktor Bereich Sehaufgabe                                   | reduction factor for the area of visual working                               |
 | C_A               | Relative Abwesenheit                                                  | relative absence                                                              |
 | k                 | Raumindex                                                             | room index (type of room geometry for lighting calculation)                   |
