@@ -60,7 +60,9 @@ class Datahandler():
         file should follow the following format, according to DWD naming conventions 
         temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
         temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene)
-        temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund 
+        temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund
+        direct_illuminance = direct illuminance, only present in epw file
+        diffuse_illuminance = diffuse illuminance, only present in epw file
     sheetFile:
         path to scenario file, which is a csv file. If None, the csv file is used.
         Can be used to provide more detailed information for gerneation of the buildings models in the district
@@ -82,11 +84,14 @@ class Datahandler():
         self.scenario_name = None
         self.scenario = None
         self.counter = {}
+        self.building_dict = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
         self.KPIs = None
         self.weatherFile = weatherFile
+        if weather_file is not None:
+            self.timestamp = weather_handling.get_time_horizon(self.weatherFile)
         self.sheetFile = sheetFile
         self.advancedModel = None
 
@@ -124,7 +129,10 @@ class Datahandler():
             Returns:
                 None
             """
-            self.weatherFile = pathWeatherFile if pathWeatherFile is not None else None 
+            self.weatherFile = pathWeatherFile if pathWeatherFile is not None else None
+            # Update of time stamp
+            if pathWeatherFile is not None:
+                self.timestamp  = weather_handling.get_time_horizon(self.weatherFile)
 
 
 
@@ -335,6 +343,30 @@ class Datahandler():
         # Calculate calculation time for the whole district generation
         duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
         print("This calculation will take about " + str(duration) + " .")
+        self.generate_building_dict()
+
+    def generate_building_dict(self):
+        """
+        Processes the scenario file and checks wheter or wheter not the building is in 'SFH', 'TH', 'MFH', 'AB'. 
+        Creates a temp storage, to handle TEASER prj with ids starting from ß. 
+
+        Args:
+            csv_file (str): Path to the CSV file containing building data with 'id' and 'building' columns.
+
+        Returns:
+            None: Modifies the internal building_dict attribute of the class.
+        """
+
+        
+        # Filter the data for specified building types
+        filtered_data = self.scenario[self.scenario['building'].isin(['SFH', 'TH', 'MFH', 'AB'])]
+        
+        # Generate the dictionary
+        temp_id = 0
+        for index, row in filtered_data.iterrows():
+            self.building_dict[row['id']] = temp_id
+            temp_id += 1
+
 
     def generateBuildings(self):
         """
@@ -425,7 +457,10 @@ class Datahandler():
             # Check if the building type is a supported non residential building. 
             elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
                                                               "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2"]:
+                                                              "trs", "gs1", "gs2", "IWU Office", 
+                                                              "IWU Retail", "IWU Trade Buildings",
+                                                              "IWU Transport", "IWU Technical and Utility (supply and disposal)",
+                                                              "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings"]:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
