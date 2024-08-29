@@ -24,7 +24,6 @@ def getBuildingType(term, kind):
     print(f"Match: {match}")
     print(f"Kind: {kind}")
     print(f"Term: {term}")
-    print(f"df: {df}")
     # If a match is found, return the value from the specified column
     if not match.empty:
         return match[kind].values[0]
@@ -84,13 +83,14 @@ def adjust_schedule(inital_day, schedule, nb_days):
     sorter = rotate_list(initial_day=inital_day)
     sorter_index = {day: index for index, day in enumerate(sorter)}
 
-    # Apply sorting
-    # To-Do: Fix A value is trying to be set on a copy of a slice from a DataFrame
+    # Create a copy of the schedule DataFrame
+    schedule_copy = schedule.copy()
 
-    schedule['DAY'] = pd.Categorical(schedule['DAY'], categories=sorter, ordered=True)
-    schedule.sort_values(by=['DAY', 'HOUR'], inplace=True)
-    schedule = expand_dataframe(schedule, total_days=nb_days)
-    return schedule
+    # Use the copy for modifications
+    schedule_copy['DAY'] = pd.Categorical(schedule_copy['DAY'], categories=sorter, ordered=True)
+    schedule_copy = schedule_copy.sort_values(by=['DAY', 'HOUR'])
+    schedule_copy = expand_dataframe(schedule_copy, total_days=nb_days)
+    return schedule_copy
 
 
 def rotate_list(initial_day):

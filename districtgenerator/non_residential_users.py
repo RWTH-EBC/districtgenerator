@@ -190,8 +190,6 @@ class NonResidentialUsers():
         # get schedules occupancy
         df_schedules, schedule = schedules.getSchedule(self.usage)
         print(df_schedules, schedule, "These are the schedules")
-
-        breakpoint()
         self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
         self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
         self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
@@ -241,7 +239,9 @@ class NonResidentialUsers():
             except KeyError:
                 print(f"No data about annual electrical consumption available for building type: {self.usage}")
             # To Do 
-            # Check if randomifaction of electriciy set up works  
+            # Check if randomifaction of electriciy set up works 
+            except TypeError:
+                print("Data was 0 for building type: {self.usage}")
         else:
             print(f"No data about annual electrical consumption available available for building type: {self.usage}")
 

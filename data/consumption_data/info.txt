@@ -3,7 +3,7 @@
 Data about the user specific electricity demand of Non-Residential Buildings is taken from: [1] and  [2]. 
 The sources also describe a typcial set-up for each of the categories. In addition to the user specific 
 electricity demand, central services ("Zentrale Dienste") and other equipment ("Diverse Technik") needs to 
-be considered-
+be considered. 
 
 Data for the following profiles is not given:
 -- 25 Theaterbühne, due to the influence of the event
@@ -11,6 +11,8 @@ Data for the following profiles is not given:
 -- 22 Gewerbliche und industrielle Hallen and the respective subprofiles, 
         as the industry is highly affecting the personal usage and is ranging between 
         2.75 kWh / m2a and 1812.83  kWh / m2a 
+
+
 
 The following exception are given:
 
@@ -20,54 +22,55 @@ The following exception are given:
 
 
 The data is mapped accordingly to the IWU categories: 
+| DIN V 18599 Usage Type                           | Key                                              | Low usage kWh/m2a | Medium usage kWh/m2a | High usage kWh/m2a |
+|--------------------------------------------------|--------------------------------------------------|-------------------|----------------------|--------------------|
+| Einzelbüro                                       | IWU Office, Administrative or Government Buildings | 4.5               | 6.5                  | 23                 |
+| Hörsaal, Auditorium                              | IWU Research and University Teaching             | 0                 | 0.05                 | 0.3                |
+| Arztpraxen und Therapeutische Praxen             | IWU Health and Care                              | 3.41              | 7.88                 | 15.57              |
+| Klassenzimmer (Schule), Gruppenraum              | IWU School, Day Nursery and other Care           | 0.29              | 3.0                  | 6.5                |
+| Ausstellungsräume und Museum                     | IWU Culture and Leisure                          | 0                 | 1.97                 | 17.79              |
+| Turnhalle                                        | IWU Sports Facilities                            | 0                 | 0.06                 | 0.22               |
+| Hotelzimmer                                      | IWU Hotels, Boarding, Restaurants or Catering    | 2.39              | 4.01                 | 7.66               |
+| Gewerbliche und industrielle Hallen – mittel     | IWU Production, Workshop, Warehouse or Operations| -                 | -                    | -                  |
+| Einzelhandel/Kaufhaus                            | IWU Trade Buildings                              | 0.12              | 3.30                 | 30.49              |
+| Gewerbliche und industrielle Hallen – schwer     | IWU Technical and Utility (supply and disposal)  | -                 | -                    | -                  |
+| Parkhaus (Büro- und Privatnutzung)               | IWU Transport                                    | 0                 | 0                    | 0                  |
+| Einzelbüro                                       | IWU Generalized (1) Services building            | 4.5               | 6.5                  | 23                 |
+| Gewerbliche und industrielle Hallen – mittel     | IWU Generalized (2) Production buildings         | -                 | -                    | -                  |
 
-| DIN V 18599 Usage Type                           | Key                                              | Low usage kWh/m2a | Medium usage kWh/m2a  | High usage kWh/m2a |
-|--------------------------------------------------|--------------------------------------------------|--------|--------|------|
-| Einzelbüro                                       | oag                                              | 4.5     | 6.5     | 23   |
-| Hörsaal, Auditorium                              | IWU Research and University Teaching             | 0    | 0.05    | 0.3    |
-| Arztpraxen und Therapeutische Praxen             | IWU Health and Care                              | 3.41     | 7.88         | 15.57   |
-| Klassenzimmer (Schule), Gruppenraum              | IWU School, Day Nursery and other Care           | 0.29      | 3.0    | 6.5  |
-| Ausstellungsräume und Museum                     | IWU Culture and Leisure                          | 0      | 1.97    | 17.79  |
-| Turnhalle                                        | IWU Sports Facilities                            | 0      | 0.06      | 0.22    |
-| Hotelzimmer                                      | IWU Hotels, Boarding, Restaurants or Catering    | 2.39     | 4.01     | 7.66   |
-| Gewerbliche und industrielle Hallen – mittel     | IWU Production, Workshop, Warehouse or Operations| -     | -    | -   |
-| Einzelhandel/Kaufhaus                            | IWU Trade Buildings                              | 0.12      | 3.30    | 30.49    |
-| Gewerbliche und industrielle Hallen – schwer     | IWU Technical and Utility (supply and disposal)  | -     | -     | -  |
-| Parkhaus (Büro- und Privatnutzung)               | IWU Transport                                    | 0     | 0     | 0   |
-| Einzelbüro                                       | IWU Generalized (1) Services building            | 4.5     | 6.5    | 23    |
-| Gewerbliche und industrielle Hallen – mittel     | IWU Generalized (2) Production buildings         | -     | -   | -   |
+
+In CEA the following numbers are stated for INDUSTRIAL, 
 
 ## Data about internal lightning loads
 
 Internal lightning loads could be calculated accordingly to [3]. However, a majority of data is lacking (e.g. reflection, 
 amount of lamps). Hence, we take the assumptions of CEA and map them to our model accordingly to the following table. 
 Building types that have a '-' present, are modeled in CEA but not in districtgenerator.
-
-| building_type                                 | cea_code     |
-|-----------------------------------------------|--------------|
-| AB                                            | MULTI_RES    |
-| MFH                                           | MULTI_RES    |
-| SFH                                           | SINGLE_RES   |
-| TH                                            | SINGLE_RES   |
-| IWU Hotels, Boarding, Restaurants or Catering | HOTEL        |
-| oag                                           | OFFICE       |
-| IWU Trade Buildings                           | RETAIL       |
-| -                                             | FOODSTORE    |
-| -                                             | RESTAURANT   |
-| IWU Technical and Utility (supply and disposal)| INDUSTRIAL  |
-| IWU School, Day Nursery and other Care        | SCHOOL       |
-| IWU Health and Care                           | HOSPITAL     |
-| IWU Sports Facilities                         | GYM          |
-| -                                             | SWIMMING     |
-| -                                             | SERVERROOM   |
-| IWU Transport                                 | PARKING      |
-| -                                             | COOLROOM     |
-| -                                             | LAB          |
-| IWU Culture and Leisure                       | MUSEUM       |
-| -                                             | LIBRARY      |
-| IWU Research and University Teaching          | UNIVERSITY   |
-| IWU Generalized (1) Services building         | OFFICE       |
-| IWU Generalized (2) Production buildings      | INDUSTRIAL   |
+| building_type                                        | cea_code   |
+|------------------------------------------------------|------------|
+| AB                                                   | MULTI_RES  |
+| MFH                                                  | MULTI_RES  |
+| SFH                                                  | SINGLE_RES |
+| TH                                                   | SINGLE_RES |
+| IWU Hotels, Boarding, Restaurants or Catering        | HOTEL      |
+| IWU Office, Administrative or Government Buildings   | OFFICE     |
+| IWU Trade Buildings                                  | RETAIL     |
+| -                                                    | FOODSTORE  |
+| -                                                    | RESTAURANT |
+| IWU Technical and Utility (supply and disposal)      | INDUSTRIAL |
+| IWU School, Day Nursery and other Care               | SCHOOL     |
+| IWU Health and Care                                  | HOSPITAL   |
+| IWU Sports Facilities                                | GYM        |
+| -                                                    | SWIMMING   |
+| -                                                    | SERVERROOM |
+| IWU Transport                                        | PARKING    |
+| -                                                    | COOLROOM   |
+| -                                                    | LAB        |
+| IWU Culture and Leisure                              | MUSEUM     |
+| -                                                    | LIBRARY    |
+| IWU Research and University Teaching                 | UNIVERSITY |
+| IWU Generalized (1) Services building                | OFFICE     |
+| IWU Generalized (2) Production buildings             | INDUSTRIAL |
 
 
 ## Sources

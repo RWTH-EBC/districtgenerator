@@ -388,7 +388,8 @@ class Datahandler():
                                                               "spf", "hbr", "pwo", "trd", "tud", 
                                                               "trs", "gs1", "gs2", "IWU Office", 
                                                               "IWU Retail", "IWU Trade Buildings",
-                                                                  "IWU Transport", 
+                                                              "IWU Transport", "IWU Technical and Utility (supply and disposal)",
+                                                              "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings",
                                                               ]:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
@@ -401,7 +402,6 @@ class Datahandler():
                 else:  
                     number_of_floors = 3
                     height_of_floors = 3.125
-                print("Test,", number_of_floors, height_of_floors)
 
                 nrb_prj = NonResidential(
                         usage=building["buildingFeatures"]["building"],
@@ -446,7 +446,7 @@ class Datahandler():
                 # building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
                 
             else:
-                raise AttributeError(f"The building type {building_type} is currently not supported. Plase check the type of {building} and try again.")
+                raise AttributeError(f"The building type {building_type} is currently not supported. Please check the type of {building} and try again.")
 
 
 
