@@ -84,7 +84,7 @@ class Datahandler():
         self.scenario_name = None
         self.scenario = None
         self.counter = {}
-        self.building_dict = {}
+        self.building_dict = {} # Dictionary to store Residential Building IDs to get another proxy ID for TEASER
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results', 'demands')
@@ -278,12 +278,15 @@ class Datahandler():
         self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_wind)[0:-1]
-        self.site["IlluminanceDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
-                                           direct_illuminance)[0:-1]
-        self.site["IlluminaceDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
-                                           np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
-                                           diffuse_illuminance)[0:-1]
+        if self.weatherFile != None:
+            if self.weatherFile.endswith(".epw"):
+                self.site["IlluminanceDirect"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                                np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                                direct_illuminance)[0:-1]
+                
+                self.site["IlluminaceDiffuse"] = np.interp(np.arange(0, self.time["dataLength"]+1, self.time["timeResolution"]),
+                                                np.arange(0, self.time["dataLength"]+1, self.time["dataResolution"]),
+                                                diffuse_illuminance)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
 
@@ -457,10 +460,12 @@ class Datahandler():
             # Check if the building type is a supported non residential building. 
             elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
                                                               "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2", "IWU Office", 
-                                                              "IWU Retail", "IWU Trade Buildings",
-                                                              "IWU Transport", "IWU Technical and Utility (supply and disposal)",
-                                                              "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings"]:
+                                                              "trs", "gs1", "gs2", "IWU Office, Administrative or Government Buildings", 
+                                                              "IWU Retail", "IWU Research and University Teaching", "IWU Health and Care", "IWU School, Day Nursery and other Care",
+                                                              "IWU Culture and Leisure", "IWU Sports Facilities", "IWU Hotels, Boarding, Restaurants or Catering",
+                                                              "IWU Production, Workshop, Warehouse or Operations", "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)",
+                                                              "IWU Transport", "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings",
+                                                              ]:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
@@ -487,6 +492,7 @@ class Datahandler():
                 
                 # %% create user object
                 # containing number occupants, electricity demand,...
+                nb_of_days = self.timestamp.dt.date.nunique()
                 building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
                                                        area=building["buildingFeatures"]["area"])
                 
@@ -498,7 +504,7 @@ class Datahandler():
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
                 
             else:
-                raise AttributeError(f"The building type {building_type} is currently not supported.")
+                raise AttributeError(f"The building type {building_type} is currently not supported. Please check the type of {building} and try again.")
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath:str = None):
