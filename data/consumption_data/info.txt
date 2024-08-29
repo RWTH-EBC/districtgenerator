@@ -18,7 +18,7 @@ The following exception are given:
 
 - There is no differentation between:  „32 Parkhaus (Büro- und Privatnutzung)“ an  „33 Parkhaus (öffentliche Nutzung)"
 - If a Fittnessraum ahs both equipment ("Geräteausstatung") and a hall ("Tresen / Emfpangs"), the latter needs to be added.
-- 16 WC	und	Sanitärräum in	NWG, 19 Verkehrsflächen, and 20 Lager,	Technik,	Archiv, have a differentation between general and areas with user devices. 
+- 16 WC	und Sanitärräum in NWG, 19 Verkehrsflächen, and 20 Lager, Technik, Archiv, have a differentation between general and areas with user devices. 
 
 
 The data is mapped accordingly to the IWU categories: 
@@ -41,11 +41,21 @@ The data is mapped accordingly to the IWU categories:
 
 In CEA the following numbers are stated for INDUSTRIAL, 
 
+| CEA Type | Electric load appliance W/m2 | Electric load lighting W/m2 | Electric industrial processes W/m2 |
+|----------|-------------------------|
+| INDUSTRIAL | 10 | 10.8 | 16.5 |
+| PARKING | 1.0 | 2.9 | 0.0 |
+
+
+We consider the summary of electric load appliance and the electrical industrial processes for low usage, medium usage and high usage, with IWU Technical and Utility (supply and disposal), 
+IWU Production, Workshop, Warehouse or Operations,  and IWU Generalized (2) Production buildings for INDUSTRIAL ( 26.6 W/m2 ). Parking is modeled as 0.
+
 ## Data about internal lightning loads
 
 Internal lightning loads could be calculated accordingly to [3]. However, a majority of data is lacking (e.g. reflection, 
 amount of lamps). Hence, we take the assumptions of CEA and map them to our model accordingly to the following table. 
 Building types that have a '-' present, are modeled in CEA but not in districtgenerator.
+
 | building_type                                        | cea_code   |
 |------------------------------------------------------|------------|
 | AB                                                   | MULTI_RES  |
