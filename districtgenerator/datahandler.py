@@ -386,10 +386,11 @@ class Datahandler():
             # Check if the building type is a supported non residential building. 
             elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
                                                               "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2", "IWU Office", 
-                                                              "IWU Retail", "IWU Trade Buildings",
-                                                              "IWU Transport", "IWU Technical and Utility (supply and disposal)",
-                                                              "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings",
+                                                              "trs", "gs1", "gs2", "IWU Office, Administrative or Government Buildings", 
+                                                              "IWU Retail", "IWU Research and University Teaching", "IWU Health and Care", "IWU School, Day Nursery and other Care",
+                                                              "IWU Culture and Leisure", "IWU Sports Facilities", "IWU Hotels, Boarding, Restaurants or Catering",
+                                                              "IWU Production, Workshop, Warehouse or Operations", "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)",
+                                                              "IWU Transport", "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings",
                                                               ]:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
