@@ -8,13 +8,13 @@ IWU Office, Administrative or Government Buildings;OFFICE;Einzelbüro;IWU Office
 IWU Trade Buildings;RETAIL;Einzelhandel/Kaufhaus ;IWU Trade Buildings; Verkaufsstätten (allgemein;Fachgeschaeft
 -;FOODSTORE;-;-;-;-
 -;RESTAURANT;-;-;-;-
-IWU Technical and Utility (supply and disposal);INDUSTRIAL;Gewerbliche und industrielle Hallen – schwer;IWU Technical and Utility (supply and disposal);;Lagerhalle
+IWU Technical and Utility (supply and disposal);INDUSTRIAL;Gewerbliche und industrielle Hallen – schwer;IWU Technical and Utility (supply and disposal);;INDUSTRIAL
 IWU School, Day Nursery and other Care;SCHOOL;Klassenzimmer (Schule), Gruppenraum    ;IWU School, Day Nursery and other Care;Schulen;Schulzimmer_Hoersaal
 IWU Health and Care;HOSPITAL;Bettenzimmer;IWU Health and Care;Beherbergungsstätten (allgemein);Bettenzimmer
 IWU Sports Facilities;GYM;Turnhalle;IWU Sports Facilities;Sporthallen;Turnhalle
 -;SWIMMING;-;-;-;-
 -;SERVERROOM;-;-;-;-
-IWU Transport;PARKING;Parkhaus (Büro- und Privatnutzung) ;IWU Transport;Verkehrsgebäude;Parkhaus
+IWU Transport;PARKING;Parkhaus (Büro- und Privatnutzung) ;IWU Transport;Verkehrsgebäude;PARKING
 -;COOLROOM;-;-;-;-
 -;LAB;-;-;-;-
 IWU Culture and Leisure;MUSEUM;Ausstellungsräume und Museum  ;IWU Culture and Leisure;Ausstellungsgebäude;Ausstellungshalle
