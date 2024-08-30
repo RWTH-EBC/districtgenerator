@@ -537,6 +537,8 @@ class Datahandler():
 
 
         set = []
+        if not os.path.exists(self.resultPath):
+            os.makedirs(self.resultPath)
         for building in self.district:
             # %% create unique building name
             # needed for loading and storing data with unique name
