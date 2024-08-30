@@ -386,9 +386,19 @@ class Users():
         path : string
             results path
         '''
-        print(path)
 
         np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
+        if not os.path.exists(path):
+            os.makedirs(path)
+        file_path = path + f'/{unique_name}'+ '.csv'
+        if os.path.exists(file_path):
+            data = pd.read_csv(file_path)
+            data['heat'] = self.heat
+        else:
+            data = pd.DataFrame({
+                'heat': self.heat
+            })
+            data.to_csv(file_path, index=False)
 
     def loadProfiles(self,unique_name,path):
         '''
