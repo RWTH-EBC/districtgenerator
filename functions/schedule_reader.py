@@ -202,10 +202,10 @@ def get_multi_zone_average(building_type):
         return person_gains, app_gains, multi_zone_name
     except FileNotFoundError:
         print(f"File not found: {data_path}")
-        return None, None, None
+        return None, None, multi_zone_name
     except IndexError:
         print(f"No data available for {building_type}")
-        return None, None, None
+        return None, None, multi_zone_name
 
 if __name__ == '__main__':
     person_gains, app_gains, name = get_multi_zone_average('IWU Trade Buildings')
