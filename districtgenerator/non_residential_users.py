@@ -12,6 +12,7 @@ import functions.heating_profile_5R1C as heating
 import functions.schedule_reader as schedules
 import functions.light_demand as light_demand
 from typing import Dict, List, Any, Optional
+import pandas as pd
 
 
 class NonResidentialUsers():
@@ -420,8 +421,15 @@ class NonResidentialUsers():
         # lightGain = constant value for all buildings
         # q_I_fac = appGain  
         # data\multi_zone_average\info.txt
-        schedules.get_multi_zone_average(self.usage)
-        
+        q_I_p, q_I_fac, multi_zone_name = schedules.get_multi_zone_average(self.usage)
+        if q_I_p is not None:
+            personGain = q_I_p
+        else:
+            print(f"No data about person gains available for building type: {self.usage}")
+        if q_I_fac is not None:
+            appGain = q_I_fac
+        else:
+            print(f"No data about appliance gains available for building type: {self.usage}")
         
 
         self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
@@ -457,7 +465,7 @@ class NonResidentialUsers():
         self.heat = np.zeros(len(Q_HC))
         for t in range(len(Q_HC)):
             self.heat[t] = max(0,Q_HC[t])
-
+            
     def saveProfiles(self,unique_name: str,path: str) -> None:
         '''
         Save profiles to csv
@@ -471,10 +479,14 @@ class NonResidentialUsers():
         '''
         if not os.path.exists(path):
             os.makedirs(path)
-        np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',')
+ 
+        data = pd.DataFrame({
+            'elec': self.elec,
+            'dhw': self.dhw,
+            'occ': self.occ,
+            'gains': self.gains
+        })
+        data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]

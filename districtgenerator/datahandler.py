@@ -333,6 +333,7 @@ class Datahandler():
                                     + "/"
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
+        self.resultPath = os.path.join(self.srcPath, 'results', 'demands', self.scenario_name)
 
         # initialize buildings for scenario
         # loop over all buildings
