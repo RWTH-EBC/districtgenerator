@@ -435,10 +435,15 @@ class Datahandler():
 
                 # %% create envelope object
                 # containing all physical data of the envelope
+                teaser_id = self.building_dict[building["buildingFeatures"]["id"]]
+
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_type=retrofit_level,
-                                                file_path=self.filePath)
+                                                file_path = self.filePath,
+                                                teaser_id=teaser_id)
+                    
+
 
                 # %% create user object
                 # containing number occupants, electricity demand,...
@@ -494,7 +499,9 @@ class Datahandler():
                 # containing number occupants, electricity demand,...
                 nb_of_days = self.timestamp.dt.date.nunique()
                 building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
-                                                       area=building["buildingFeatures"]["area"])
+                                                       area=building["buildingFeatures"]["area"],
+                                                       envelope= building["envelope"],
+                                                       file=self.filePath, site=self.site, time=self.time, nb_of_days=nb_of_days)
                 
 
                 # %% calculate design heat loads
