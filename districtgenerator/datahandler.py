@@ -14,7 +14,13 @@ from districtgenerator.users import Users
 from districtgenerator.plots import DemandPlots
 from districtgenerator.non_residential import NonResidential
 from districtgenerator.non_residential_users import NonResidentialUsers
-import functions.weather_handling as weather_handling 
+import functions.weather_handling as weather_handling
+
+RESIDENTIAL_BUILDING_TYPES = ["SFH", "TH", "MFH", "AB"]
+NON_RESIDENTIAL_BUILDING_TYPES = ["IWU Hotels, Boarding, Restaurants or Catering", "IWU Office, Administrative or Government Buildings", "IWU Technical and Utility",
+                                  "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)", "IWU School, Day Nursery and other Care", "IWU Transport",
+                                  "IWU Health and Care", "IWU Sports Facilities", "IWU Culture and Leisure", "IWU Research and University Teaching", "IWU Technical and Utility (supply and disposal)",
+                                  "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings", "IWU Production, Workshop, Warehouse or Operations"]
 
 class Datahandler():
     """
@@ -38,6 +44,7 @@ class Datahandler():
     srcPath:
         source path
     filePath:
+
         file path
     weatherFile::
         path to weather file, which is not a TRY file. If None, the TRY file is used. 
@@ -325,9 +332,11 @@ class Datahandler():
         # create one project for the whole district
         prj = Project(load_data=True)
         prj.name = self.scenario_name
+        print(f"Creating buildings for {self.scenario_name}")
         for building in self.district:
+            print(f"Creating building {building["buildingFeatures"]["building"]}")
             # check if building type is residential or non residential 
-            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+            if building["buildingFeatures"]["building"] in  RESIDENTIAL_BUILDING_TYPES:
    
             
                 # convert short names into designation needes for TEASER
@@ -384,14 +393,7 @@ class Datahandler():
                     # for drinking hot water
                     building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
             # Check if the building type is a supported non residential building. 
-            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
-                                                              "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2", "IWU Office, Administrative or Government Buildings", 
-                                                              "IWU Retail", "IWU Research and University Teaching", "IWU Health and Care", "IWU School, Day Nursery and other Care",
-                                                              "IWU Culture and Leisure", "IWU Sports Facilities", "IWU Hotels, Boarding, Restaurants or Catering",
-                                                              "IWU Production, Workshop, Warehouse or Operations", "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)",
-                                                              "IWU Transport", "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings",
-                                                              ]:
+            elif building["buildingFeatures"]["building"] in NON_RESIDENTIAL_BUILDING_TYPES:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
@@ -399,8 +401,7 @@ class Datahandler():
                         building['buildingFeatures'].id
                     ]
                     height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
-                
-                else:  
+                else:
                     number_of_floors = 3
                     height_of_floors = 3.125
 
@@ -445,9 +446,10 @@ class Datahandler():
                 # in DIBS the IWU Approach of Teilenergiekennwerte is chosen 
                 # 
                 # building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
-                
+            elif building["buildingFeatures"]["building"] not in NON_RESIDENTIAL_BUILDING_TYPES and building["buildingFeatures"]["building"] not in RESIDENTIAL_BUILDING_TYPES:
+                print(f"The building type {building["buildingFeatures"]["building"]} is currently not supported. Please check the type of {building} and try again.")
             else:
-                raise AttributeError(f"The building type {building_type} is currently not supported. Please check the type of {building} and try again.")
+                raise AttributeError(f"The building type {building['buildingFeatures']['building']} is currently not supported. ")
 
 
 
@@ -471,7 +473,7 @@ class Datahandler():
 
         set = []
         for building in self.district:
-            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+            if building["buildingFeatures"]["building"] in RESIDENTIAL_BUILDING_TYPES:
                 # %% create unique building name
                 # needed for loading and storing data with unique name
                 # name is composed of building type, number of flats, serial number of building of this properties
@@ -481,15 +483,19 @@ class Datahandler():
                     self.counter[name] = count()
                 nb = next(self.counter[name])
                 building["unique_name"] = name + "_" + str(nb)
-            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
-                                                              "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2"]:
+            elif building["buildingFeatures"]["building"] in NON_RESIDENTIAL_BUILDING_TYPES:
                 name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_occ)
                 if name not in set:
                     set.append(name)
                     self.counter[name] = count()
                 nb = next(self.counter[name])
                 building["unique_name"] = name + "_" + str(nb)
+            elif building["buildingFeatures"]["building"] not in NON_RESIDENTIAL_BUILDING_TYPES and building["buildingFeatures"]["building"] not in RESIDENTIAL_BUILDING_TYPES:
+                print(f"The building type {building['buildingFeatures']['building']} is currently not supported. "
+                      f"Please check the type of building {building} and try again.")
+            else:
+                raise AttributeError(f"The building type {building['buildingFeatures']['building']} is currently not supported. "
+                                     f"Please check the type of building {building} and try again.")
                 
 
             # calculate or load user profiles

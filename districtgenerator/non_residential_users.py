@@ -189,10 +189,12 @@ class NonResidentialUsers():
     def generate_schedules(self) -> None:
         # get schedules occupancy
         df_schedules, schedule = schedules.getSchedule(self.usage)
-        print(df_schedules, schedule, "These are the schedules")
-        self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
-        self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
-        self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
+        if df_schedules is not None:
+            self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
+            self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
+            self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
+        else:
+            print(f"No schedules found for {self.usage} and {schedule}")
 
     
     def generate_occupancy(self) -> None:
@@ -278,10 +280,9 @@ class NonResidentialUsers():
         """
         Generates a dhw profile
         Based on the TEK Ansatz and DIBS. 
+        Original data by: BBSR https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
 
-        Generate a stochastic dhw profile
-        (on base of pycity_base)
-
+        For "Verkehrsgebäude" the TEK is set to zero, as there is not data vailable. 
         Parameters
         ----------
         time_resolution : integer
@@ -309,14 +310,18 @@ class NonResidentialUsers():
         # To-Do,  Figure whty there is a 1000 in the formula
         # Code taken from DIBS and adjusted for
         # style and attributes to fit districtgenerator
-        occupancy_full_usage_hours = self.occupancy_schedule["OCCUPANCY"].sum()  # in h/a
-        TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
+        if TEK_dhw is not None:
+            occupancy_full_usage_hours = self.occupancy_schedule["OCCUPANCY"].sum()  # in h/a
+            TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
+            self.dhw = self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
+        else:
+            print(f"No data about annual dhw consumption available for building type: {self.usage}. DHW demand is set to zero.")
+            self.dhw = np.zeros(len(self.occupancy_schedule))
 
-        self.dhw= self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
 
 
-
-    def calcProfiles(self, site: Dict[str, Any], time_resolution: int, time_horizon: int, initital_day: int = 1) -> None:
+    def calcProfiles(self, site: Dict[str, Any], time_resolution: int, 
+                     time_horizon: int, initital_day: int = 1) -> None:
         '''
         Calclulate profiles for every flat and summarize them for the whole building
 
@@ -406,10 +411,18 @@ class NonResidentialUsers():
         """
         # To - Do adjust to personal heat gains depending on builiding type 
         # To-Do: check that the correct data is used from SIA
+        # These are default values for residential buildings
         personGain = 70.0  # [Watt]
         lightGain = 0.65
         appGain = 0.33
-        #To-Do: Write function to gather correct data
+        
+         # q_I_p = personGain
+        # lightGain = constant value for all buildings
+        # q_I_fac = appGain  
+        # data\multi_zone_average\info.txt
+        schedules.get_multi_zone_average(self.usage)
+        
+        
 
         self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
 

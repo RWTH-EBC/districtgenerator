@@ -21,9 +21,6 @@ def getBuildingType(term, kind):
     
     # Find the row that matches the term in 'districtgenerator'
     match = df[df['districtgenerator'] == term]
-    print(f"Match: {match}")
-    print(f"Kind: {kind}")
-    print(f"Term: {term}")
     # If a match is found, return the value from the specified column
     if not match.empty:
         return match[kind].values[0]
@@ -125,7 +122,7 @@ def get_tek(building_type):
     """
     Returns the TEK Values, according to the building type.
 
-    All data (not only the ones used) are in: data\TEKs\TEK_NWG_Vergleichswerte.csv
+    All data (not only the ones used) are in: data/TEKs/TEK_NWG_Vergleichswerte.csv
 
     returns dataframe and schedule name
     :return: df_schedule, schedule_name
@@ -169,30 +166,49 @@ def get_tek(building_type):
 
 def get_multi_zone_average(building_type):
     """
-    
+    Retrieves multi-zone average usage profiles for non-domestic buildings in Germany.
+
+    This function fetches person and appliance gains data for a given building type
+    from a CSV file containing multi-zone average usage profiles.
+
+    Parameters:
+    building_type (str): The type of building for which to retrieve data.
+
+    Returns:
+    tuple: A tuple containing three elements:
+        - person_gains (float or None): The average person gains (q_I_p) for the building type.
+        - app_gains (float or None): The average appliance gains (q_I_fac) for the building type.
+        - multi_zone_name (str or None): The standardized name of the building type used in the dataset.
+
+    If the building type is not found or there's an error reading the data, all returned values will be None.
+
+    Raises:
+    FileNotFoundError: If the CSV file containing the data is not found.
+    IndexError: If no data is available for the specified building type.
     """
-    multi_zone_name = getBuildingType(kind="TEK", term=building_type)
-    if tek_name is None:
+    multi_zone_name = getBuildingType(kind="MULTI_ZONE", term=building_type)
+    if multi_zone_name is None:
         print(f"No schedule for building type {building_type}")
-        return None, None
+        return None, None, None
 
     data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(data_dir_path, 'data', 'TEKs', 'TEK_districtgenerator.csv')
-
+    data_path = os.path.join(data_dir_path, 'data', 'multi_zone_average', 
+                             'Non-domestic-multi-zone-average-usage-profiles-for-Germany.csv')
+    
     try:
-        data_schedule = pd.read_csv(data_path, sep=',',)
-        warm_water_value = data_schedule[data_schedule["TEK"] == tek_name]["TEK Warmwasser"].iloc[0]
-        print(f"Das ist der Wert {warm_water_value}")
-        return warm_water_value, tek_name
+        data_schedule = pd.read_csv(data_path, sep=';', index_col=0)
+        person_gains = data_schedule[data_schedule["Bez_HK_Enob_Eng"] == multi_zone_name]["q_I_p"].iloc[0]
+        app_gains = data_schedule[data_schedule["Bez_HK_Enob_Eng"] == multi_zone_name]["q_I_fac"].iloc[0]
+        return person_gains, app_gains, multi_zone_name
     except FileNotFoundError:
         print(f"File not found: {data_path}")
-        return None, None
+        return None, None, None
     except IndexError:
-        print(f"No data available for {tek_name}")
-        return None, None
+        print(f"No data available for {building_type}")
+        return None, None, None
 
 if __name__ == '__main__':
-    schedule, name = get_schedule('oag')
-    if schedule is not None:
-        print(f"Loaded schedule {name}")
-        print(schedule)
+    person_gains, app_gains, name = get_multi_zone_average('IWU Trade Buildings')
+    if person_gains is not None:
+        print(f"Loaded schedule {person_gains}")
+        print(person_gains)

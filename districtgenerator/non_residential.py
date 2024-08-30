@@ -161,9 +161,7 @@ class NonResidential(object):
         if construction_type and construction_type not in valid_construction_types:
             raise ValueError(f"Invalid construction_type '{construction_type}'. Must be one of {valid_construction_types}.")
         
-        # check Orientation 
-    
-
+        # check Orientation
         self.volume = self.calculate_volume()
         self.parameters = self.load_building_data()
         self.facade_estimation_factors = self.load_surface_estimation_factors()
@@ -191,8 +189,8 @@ class NonResidential(object):
         }
         # no information about the door, inner walls, or ceiling in the archetype
         # Hence No self.door_names, self.inner_wall_names, self.ceiling_names are given
-        # As there is no TABULA Classes present, 
-        # the strucutre for districtgenerators needs to be copied for area calcluation in a dicitonary. 
+        # As there is no TABULA Classes present
+        # the strucutre for districtgenerators needs to be copied for area calcluation in a dictionary
 
         self.structure = {
             "floor": {"rooms": 3, "area": 120},
@@ -209,9 +207,6 @@ class NonResidential(object):
         self.outer_area = {}
         self.window_area = {}
         self.outer_wall = {}
-    
-
-    
 
         #self.fill_outer_area_dict()
         #self.fill_window_area_dict()
@@ -241,7 +236,7 @@ class NonResidential(object):
 
         """
 
-        self.thermal_zones = None
+        self.thermal_zones = []
         # self._check_year_of_construction(self.year_of_construction)
         # help area for the correct building area setting while using typeBldgs
         type_bldg_area = self.net_leased_area
@@ -257,6 +252,7 @@ class NonResidential(object):
 
             #zone.use_conditions.with_ahu = False
             self.thermal_zones.append(zone)
+        print(self.facade_estimation_factors, "Thesese are the facade estimation factors for building ", self.usage, zone.area, self.year_of_construction)
         if self.facade_estimation_factors["ow1"] != 0:
             for key, value in self._outer_wall_names.items():
                 self.outer_area[key] = {}  
@@ -337,6 +333,9 @@ class NonResidential(object):
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
     
+        print(f"Available building types: {list(data.keys())}")
+        print(f"Current usage: {self.usage}")
+
         # Validate if the archetype exists in the data
         if self.usage not in data:
             raise ValueError(f"Archetype '{self.usage}' not found in the data.")
@@ -370,6 +369,9 @@ class NonResidential(object):
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
     
+        print(f"Available building types: {list(data.keys())}")
+        print(f"Current usage: {self.usage}")
+
         # Validate if the archetype exists in the data
         if self.usage not in data:
             raise ValueError(f"Archetype '{self.usage}' not found in the data.")

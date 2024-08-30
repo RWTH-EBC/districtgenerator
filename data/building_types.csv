@@ -5,10 +5,10 @@ SFH;SINGLE_RES;Wohnen (EFH);-;-;-;-
 TH;SINGLE_RES;Wohnen (MFH);-;-;-;-
 IWU Hotels, Boarding, Restaurants or Catering;HOTEL;Hotelzimmer;IWU Hotels, Boarding, Restaurants or Catering;Hotels / Pensionen;HOTEL;-
 IWU Office, Administrative or Government Buildings;OFFICE;Einzelbüro;IWU Office, Administrative or Government Buildings;Bürogebäude;OFFICE;Office, Administrative or Government Buildings
-IWU Trade Buildings;RETAIL;Einzelhandel/Kaufhaus ;IWU Trade Buildings; Verkaufsstätten (allgemein);RETAIL;Trade Buildings
+IWU Trade Buildings;RETAIL;Einzelhandel/Kaufhaus ;IWU Trade Buildings;Verkaufsstätten (allgemein);RETAIL;Trade Buildings
 -;FOODSTORE;-;-;-;-
 -;RESTAURANT;-;-;-;-
-IWU Technical and Utility (supply and disposal);INDUSTRIAL;Gewerbliche und industrielle Hallen – schwer;IWU Technical and Utility (supply and disposal);;INDUSTRIAL;-
+IWU Technical and Utility (supply and disposal);INDUSTRIAL;Gewerbliche und industrielle Hallen – schwer;IWU Technical and Utility (supply and disposal);Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;INDUSTRIAL;-
 IWU School, Day Nursery and other Care;SCHOOL;Klassenzimmer (Schule), Gruppenraum    ;IWU School, Day Nursery and other Care;Schulen;SCHOOL;-
 IWU Health and Care;HOSPITAL;Bettenzimmer;IWU Health and Care;Beherbergungsstätten (allgemein);HOSPITAL;Buildings for Health and Care
 IWU Sports Facilities;GYM;Turnhalle;IWU Sports Facilities;Sporthallen;GYM;Sports Facility Buildings
