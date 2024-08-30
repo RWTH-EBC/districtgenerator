@@ -21,7 +21,7 @@ def get_lightning_load(building_type):
     """
 
     #data_type = _assignment.get(building_type)
-    data_type = schedule_reader.get_building_type(kind='CEA', term=building_type)
+    data_type = schedule_reader.getBuildingType(kind='CEA', term=building_type)
     if data_type is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -56,7 +56,7 @@ def get_lightning_control(building_type):
     """ 
 
     # data_type = _assignment.get(building_type)
-    data_type = schedule_reader.get_building_type(kind='18599', term=building_type)
+    data_type = schedule_reader.getBuildingType(kind='18599', term=building_type)
     if data_type is None:
         print(f"No schedule for building type {building_type}")
         return None, None
@@ -152,5 +152,4 @@ def get_lighting_maintenance_factor(building_type):
         lighting_maintenance_factor = 0.8
     else:
         lighting_maintenance_factor = 0.9
-    return lighting_maintenance_factor 
-
+    return lighting_maintenance_factor

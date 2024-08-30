@@ -6,7 +6,8 @@ def getEpWeather(file_path:str) -> pd.DataFrame:
     """
     Function gets EPW weather data from a file and returns it as a pandas dataframe. 
 
-    Information about epw files: https://bigladdersoftware.com/epx/docs/8-3/auxiliary-programs/energyplus-weather-file-epw-data-dictionary.html#field-dry-bulb-temperature 
+    Information about epw files:
+    https://bigladdersoftware.com/epx/docs/8-3/auxiliary-programs/energyplus-weather-file-epw-data-dictionary.html#field-dry-bulb-temperature 
     Returns:
     weather: pandas dataframe  with the columns: 
         - DirNormRad

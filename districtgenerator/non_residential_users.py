@@ -6,15 +6,12 @@ import os, math
 import json 
 import random as rd
 import numpy as np
-import richardsonpy
-import richardsonpy.classes.stochastic_el_load_wrapper as wrap
-import richardsonpy.classes.appliance as app_model
-import richardsonpy.classes.lighting as light_model
-from districtgenerator.profils import Profiles , NonResidentialProfiles
+from districtgenerator.profils import Profiles, NonResidentialProfiles
+from districtgenerator.solar import SunIlluminance
 import functions.heating_profile_5R1C as heating
 import functions.schedule_reader as schedules
 import functions.light_demand as light_demand
-from districtgenerator.solar import SunIlluminance
+from typing import Dict, List, Any, Optional
 
 
 class NonResidentialUsers():
@@ -99,7 +96,8 @@ class NonResidentialUsers():
         Loads profiles from previously saved CSV files.
 
     """
-    def __init__(self, building_usage, area, file, envelope, site, time, nb_of_days):
+    def __init__(self, building_usage: str, area: float, file: str, envelope: Any,
+                site: Dict[str, Any], time: Dict[str, Any], nb_of_days: int) -> None:
         """
         Constructor of Users Class
         """
@@ -126,15 +124,15 @@ class NonResidentialUsers():
         self.lighntning_schedule = None
         
         # Define the path to the JSON file
-        base_path = os.getcwd()
-        occupancy_json_path = os.path.join(base_path,  'data', 'occupancy_schedules', 
-                                           'average_occupancy.json')
-        electricity_json_path = os.path.join(base_path,  'data', 'consumption_data', 
-                                             'average_electricity_per_occupants.json')
+        basePath = os.getcwd()
+        occupancyJsonPath = os.path.join(basePath, 'data', 'occupancy_schedules',
+                                         'average_occupancy.json')
+        electricityJsonPath = os.path.join(basePath, 'data', 'consumption_data',
+                                           'average_electricity_per_occupants.json')
 
         # Load the JSON data from the specified path
-        self.occupancy_data = self.load_json_data(occupancy_json_path)
-        self.electricity_data = self.load_json_data(electricity_json_path)
+        self.occupancy_data = self.load_json_data(occupancyJsonPath)
+        self.electricity_data = self.load_json_data(electricityJsonPath)
         self.generate_schedules()
 
 
@@ -148,25 +146,30 @@ class NonResidentialUsers():
         # self.create_el_wrapper()
 
     
-    def load_json_data(self, json_path):
-        with open(json_path, 'r') as file:
-            data = json.load(file)
-            return data
+    def load_json_data(self, json_path: str) -> Dict[str, Any]:
+        """
+        Load JSON data from the specified file path.
+
+        Args:
+            json_path (str): Path to the JSON file.
+
+        Returns:
+            Dict[str, Any]: Loaded JSON data as a dictionary.
+        """
+        with open(json_path, 'r', encoding='utf-8') as file:
+            return json.load(file)
 
 
-
-    def generate_number_occupants(self):
+    def generate_number_occupants(self) -> None:
         '''
         Generate number of occupants for different of building types.
-        According to the data in  data\occupancy_schedules\average_occupancy.json
+        According to the data in  data/occupancy_schedules/average_occupancy.json
 
         Parameters
         ----------
         random_nb : random number in [0,1)
 
         '''
-
-    
         if self.usage in self.occupancy_data:
             occupancy_values = self.occupancy_data[self.usage]
             random_nb = rd.random()  # picking random number in [0,1)
@@ -182,25 +185,29 @@ class NonResidentialUsers():
         else:
             print(f"No data about number of occupants available for building type: {self.usage}")
 
-    def generate_schedules(self):
+
+    def generate_schedules(self) -> None:
         # get schedules occupancy
-        df_schedules, schedule = schedules.get_schedule(self.usage)
-        self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
-        self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
-        self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
+        df_schedules, schedule = schedules.getSchedule(self.usage)
+        if df_schedules is not None:
+            self.occupancy_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "OCCUPANCY"]], nb_days=self.nb_of_days)
+            self.appliance_schedule =  schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "APPLIANCES"]], nb_days=self.nb_of_days)
+            self.lighntning_schedule = schedules.adjust_schedule(inital_day= 0, schedule=df_schedules[["DAY", "HOUR", "LIGHTING"]], nb_days=self.nb_of_days)
+        else:
+            print(f"No schedules found for {self.usage} and {schedule}")
 
     
-    def generate_occupancy(self):
+    def generate_occupancy(self) -> None:
         self.occ = self.occupancy_schedule["OCCUPANCY"] * self.nb_occ
         
-    def generate_annual_el_consumption_equipment(self, equipment="Mittel"):
+    def generate_annual_el_consumption_equipment(self, equipment: str = "Mittel") -> None:
         '''
         Generate annual elictricity consumption in dependency of the building type and the average area. 
         
         Attributes
         ---------
         equipment - depending on the class of equipment, the electricity demand is caclulated. 
-        Data is described in: data\consumption_data\info.txt
+        Data is described in: data/consumption_data/info.txt
         Possible Values are: "Gering", "Mittel", "Hoch". Default is "Mittel. 
             "Gering": 4.5,
             "Mittel": 6.5,
@@ -234,11 +241,13 @@ class NonResidentialUsers():
             except KeyError:
                 print(f"No data about annual electrical consumption available for building type: {self.usage}")
             # To Do 
-            # Check if randomifaction of electriciy set up works  
+            # Check if randomifaction of electriciy set up works 
+            except TypeError:
+                print("Data was 0 for building type: {self.usage}")
         else:
             print(f"No data about annual electrical consumption available available for building type: {self.usage}")
 
-    def generate_annual_el_consumption_lightning(self):
+    def generate_annual_el_consumption_lightning(self) -> None:
         """
         Creates 
         """
@@ -267,14 +276,13 @@ class NonResidentialUsers():
         self.annual_lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
                                                                            occupancy_schedule=self.occupancy_schedule, area=self.area)
     
-    def generate_dhw_profile(self):
+    def generate_dhw_profile(self) -> None:
         """
         Generates a dhw profile
         Based on the TEK Ansatz and DIBS. 
+        Original data by: BBSR https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
 
-        Generate a stochastic dhw profile
-        (on base of pycity_base)
-
+        For "Verkehrsgebäude" the TEK is set to zero, as there is not data vailable. 
         Parameters
         ----------
         time_resolution : integer
@@ -302,16 +310,18 @@ class NonResidentialUsers():
         # To-Do,  Figure whty there is a 1000 in the formula
         # Code taken from DIBS and adjusted for
         # style and attributes to fit districtgenerator
-        occupancy_full_usage_hours = self.occupancy_schedule["OCCUPANCY"].sum()  # in h/a
-        TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
+        if TEK_dhw is not None:
+            occupancy_full_usage_hours = self.occupancy_schedule["OCCUPANCY"].sum()  # in h/a
+            TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*h
+            self.dhw = self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
+        else:
+            print(f"No data about annual dhw consumption available for building type: {self.usage}. DHW demand is set to zero.")
+            self.dhw = np.zeros(len(self.occupancy_schedule))
 
-        self.dhw= self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
 
 
-
-
-
-    def calcProfiles(self, site, time_resolution, time_horizon, initital_day=1):
+    def calcProfiles(self, site: Dict[str, Any], time_resolution: int, 
+                     time_horizon: int, initital_day: int = 1) -> None:
         '''
         Calclulate profiles for every flat and summarize them for the whole building
 
@@ -363,11 +373,11 @@ class NonResidentialUsers():
         self.generate_el_demand()
         self.generate_occupancy()
     
-    def generate_el_demand(self, normalization=True):
+    def generate_el_demand(self, normalization: bool = True) -> None:
         self.elec = self.annual_lightning_demand + self.annual_appliance_demand
 
         
-    def calculate_gain_profile(self):
+    def calculate_gain_profile(self) -> None:
         """
         Generate profile of internal gains
 
@@ -401,10 +411,18 @@ class NonResidentialUsers():
         """
         # To - Do adjust to personal heat gains depending on builiding type 
         # To-Do: check that the correct data is used from SIA
+        # These are default values for residential buildings
         personGain = 70.0  # [Watt]
         lightGain = 0.65
         appGain = 0.33
-        #To-Do: Write function to gather correct data
+        
+         # q_I_p = personGain
+        # lightGain = constant value for all buildings
+        # q_I_fac = appGain  
+        # data\multi_zone_average\info.txt
+        schedules.get_multi_zone_average(self.usage)
+        
+        
 
         self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
 
@@ -412,7 +430,7 @@ class NonResidentialUsers():
         
 
 
-    def calcHeatingProfile(self,site,envelope,time_resolution):
+    def calcHeatingProfile(self,site: Dict[str, Any],envelope: Any,time_resolution: int) -> None:
 
         '''
         Calclulate heat demand for each building
@@ -440,7 +458,7 @@ class NonResidentialUsers():
         for t in range(len(Q_HC)):
             self.heat[t] = max(0,Q_HC[t])
 
-    def saveProfiles(self,unique_name,path):
+    def saveProfiles(self,unique_name: str,path: str) -> None:
         '''
         Save profiles to csv
 
@@ -465,7 +483,7 @@ class NonResidentialUsers():
             writer.writerow(fields)
         '''
 
-    def saveHeatingProfile(self,unique_name,path) :
+    def saveHeatingProfile(self,unique_name: str,path: str) -> None:
         '''
         Save heat demand to csv
 
@@ -480,7 +498,7 @@ class NonResidentialUsers():
 
         np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
 
-    def loadProfiles(self,unique_name,path):
+    def loadProfiles(self,unique_name: str,path: str) -> None:
         '''
         Load profiles from csv
 
@@ -500,15 +518,11 @@ class NonResidentialUsers():
 
     
 
-
-
-
-    
-
-
 if __name__ == '__main__':
 
-    test = Users(building="SFH",
+    test = NonResidentialUsers(building="SFH",
                 area=1000)
 
+    test.calcProfiles()
+    test.calcProfiles()
     test.calcProfiles()

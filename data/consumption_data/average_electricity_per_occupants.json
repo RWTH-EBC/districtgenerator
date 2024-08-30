@@ -1,5 +1,5 @@
 {
-    "oag": {
+    "IWU Office, Administrative or Government Buildings": {
         "Gering": 4.5,
         "Mittel": 6.5,
         "Hoch": 23
@@ -35,9 +35,9 @@
         "Hoch": 7.66
     },
     "IWU Production, Workshop, Warehouse or Operations": {
-        "Gering": null,
-        "Mittel": null,
-        "Hoch": null
+        "Gering": 26.5,
+        "Mittel": 26.5,
+        "Hoch": 26.5
     },
     "IWU Trade Buildings": {
         "Gering": 0.12,
@@ -45,9 +45,9 @@
         "Hoch": 30.49
     },
     "IWU Technical and Utility (supply and disposal)": {
-        "Gering": null,
-        "Mittel": null,
-        "Hoch": null
+        "Gering": 26.5,
+        "Mittel": 26.5,
+        "Hoch": 26.5
     },
     "IWU Transport": {
         "Gering": 0,
@@ -60,8 +60,8 @@
         "Hoch": 23
     },
     "IWU Generalized (2) Production buildings": {
-        "Gering": null,
-        "Mittel": null,
-        "Hoch": null
+        "Gering": 26.5,
+        "Mittel": 26.5,
+        "Hoch": 26.5
     }
 }
