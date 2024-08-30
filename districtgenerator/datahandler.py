@@ -261,6 +261,8 @@ class Datahandler():
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
         
+        self.resultPath = os.path.join(self.srcPath, 'results', 'demands', self.scenario_name)
+        
 
         # initialize buildings for scenario
         for id in self.scenario["id"]:
@@ -470,8 +472,9 @@ class Datahandler():
         Returns
         -------
         """
-
         set = []
+        if not os.path.exists(self.resultPath):
+            os.makedirs(self.resultPath)
         for building in self.district:
             if building["buildingFeatures"]["building"] in RESIDENTIAL_BUILDING_TYPES:
                 # %% create unique building name
