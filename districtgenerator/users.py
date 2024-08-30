@@ -12,7 +12,7 @@ import functions.heating_profile_5R1C as heating
 
 
 
-class Users:
+class Users():
     """
     Building Users class describing the number of occupants and their configs.
 
@@ -410,7 +410,8 @@ class Users:
             'gains': (self.gains, "Internal gains in W"),
             'car': (self.car, "Electricity demand of EV in W")
         }
-
+        if not os.path.exists(path):
+            os.makedirs(path)
         excel_file = os.path.join(path, unique_name + '.xlsx')
 
         with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
