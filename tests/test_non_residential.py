@@ -11,7 +11,7 @@ class TestNonResidential(unittest.TestCase):
     def setUp(self):
         # Create test scenario
         self.test_data = { 
-            'id': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            'id': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
             'building': [
                 "IWU Office, Administrative or Government Buildings", 
                 "IWU Research and University Teaching",
@@ -25,9 +25,9 @@ class TestNonResidential(unittest.TestCase):
                 "IWU Generalized (1) Services building",
                 "IWU Generalized (2) Production buildings",
             ],
-            'year': [rd.randint(1900, 2024) for _ in range(10)],
-            'retrofit': [0] * 10,
-            'area': [rd.randint(100, 10000) for _ in range(10)]
+            'year': [rd.randint(1900, 2024) for _ in range(11)],
+            'retrofit': [0] * 11,
+            'area': [rd.randint(100, 10000) for _ in range(11)]
         }
 
         df = pd.DataFrame(self.test_data, columns=self.test_data.keys())
@@ -54,7 +54,7 @@ class TestNonResidential(unittest.TestCase):
         self.assertTrue(os.path.exists(self.scenario_path))
         self.assertGreater(os.path.getsize(self.scenario_path), 0)
 
-        # You might want to add more specific assertions here to check the generated data
+       # Check if the results exist and are not zero
 
     def tearDown(self):
         # Delete all files created in the test

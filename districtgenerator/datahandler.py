@@ -32,6 +32,13 @@ import EHDO.load_params as load_params_EHDO
 import EHDO.optim_model as optim_model_EHDO
 
 
+RESIDENTIAL_BUILDING_TYPES = ["SFH", "TH", "MFH", "AB"]
+NON_RESIDENTIAL_BUILDING_TYPES = ["IWU Hotels, Boarding, Restaurants or Catering", "IWU Office, Administrative or Government Buildings", "IWU Technical and Utility",
+                                  "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)", "IWU School, Day Nursery and other Care", "IWU Transport",
+                                  "IWU Health and Care", "IWU Sports Facilities", "IWU Culture and Leisure", "IWU Research and University Teaching", "IWU Technical and Utility (supply and disposal)",
+                                  "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings", "IWU Production, Workshop, Warehouse or Operations"]
+
+
 class Datahandler():
     """
     Abstract class for data handling.
@@ -406,7 +413,7 @@ class Datahandler():
 
         for building in self.district:
             # check if building type is residential or non residential 
-            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+            if building["buildingFeatures"]["building"] in RESIDENTIAL_BUILDING_TYPES:
             
                 # convert short names into designation needes for TEASER
                 building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -463,14 +470,7 @@ class Datahandler():
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
         
             # Check if the building type is a supported non residential building. 
-            elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
-                                                              "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2", "IWU Office, Administrative or Government Buildings", 
-                                                              "IWU Retail", "IWU Research and University Teaching", "IWU Health and Care", "IWU School, Day Nursery and other Care",
-                                                              "IWU Culture and Leisure", "IWU Sports Facilities", "IWU Hotels, Boarding, Restaurants or Catering",
-                                                              "IWU Production, Workshop, Warehouse or Operations", "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)",
-                                                              "IWU Transport", "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings",
-                                                              ]:
+            elif building["buildingFeatures"]["building"] in NON_RESIDENTIAL_BUILDING_TYPES:
                 print("We are about to generate a Non Residential building.")
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
@@ -509,9 +509,9 @@ class Datahandler():
                 building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
                 building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
-                
-            else:
-                raise AttributeError(f"The building type {building_type} is currently not supported. Please check the type of {building} and try again.")
+            
+            elif building["buildingFeatures"]["building"] not in NON_RESIDENTIAL_BUILDING_TYPES and building["buildingFeatures"]["building"] not in RESIDENTIAL_BUILDING_TYPES:
+                print(f"The building type {building["buildingFeatures"]["building"]} is currently not supported. Please check the type of {building} and try again.")
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, savePath:str = None):
@@ -541,16 +541,14 @@ class Datahandler():
             # %% create unique building name
             # needed for loading and storing data with unique name
             # name is composed of building type, number of flats, serial number of building of this properties
-            if building["buildingFeatures"]["building"] in  ["SFH", "MFH", "TH", "AB"]:
+            if building["buildingFeatures"]["building"] in  RESIDENTIAL_BUILDING_TYPES:
                 name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
                 if name not in set:
                     set.append(name)
                     self.counter[name] = count()
                 nb = next(self.counter[name])
                 building["unique_name"] = name + "_" + str(nb)
-             elif building["buildingFeatures"]["building"] in ["oag", "rnt", "hlc", "sdc", "clt", 
-                                                              "spf", "hbr", "pwo", "trd", "tud", 
-                                                              "trs", "gs1", "gs2"]:
+            elif building["buildingFeatures"]["building"] in NON_RESIDENTIAL_BUILDING_TYPES:
                 name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_occ)
                 if name not in set:
                     set.append(name)

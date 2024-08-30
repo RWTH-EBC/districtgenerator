@@ -22,3 +22,4 @@ In DIBS there is a matching propsed, which is stated here: data\TEKs\TEK_NWG_Ver
 #To-Do: 
 
 Look up TEK Verkehrsgebäude
+Currently, assume it is 0. 

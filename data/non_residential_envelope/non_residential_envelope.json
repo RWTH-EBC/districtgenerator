@@ -472,7 +472,7 @@
       }
     }
   },
-  "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)": {
+  "IWU Generalized (1) Services building": {
     "building_age_group": {
       "1860 - 1978": {
         "u_aw": 1.11,
@@ -515,7 +515,7 @@
       }
     }
   },
-  "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)": {
+  "IWU Generalized (2) Production buildings": {
     "building_age_group": {
       "1860 - 1978": {
         "u_aw": 1.78,
