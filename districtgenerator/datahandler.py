@@ -261,6 +261,8 @@ class Datahandler():
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
         
+        self.resultPath = os.path.join(self.srcPath, 'results', 'demands', self.scenario_name)
+        
 
         # initialize buildings for scenario
         for id in self.scenario["id"]:
@@ -470,21 +472,24 @@ class Datahandler():
         Returns
         -------
         """
-
         set = []
+        if not os.path.exists(self.resultPath):
+            os.makedirs(self.resultPath)
+        if os.path.exists(self.resultPath):
+            print("The folder already exists. Will overwrite existing files.")
         for building in self.district:
             if building["buildingFeatures"]["building"] in RESIDENTIAL_BUILDING_TYPES:
                 # %% create unique building name
                 # needed for loading and storing data with unique name
                 # name is composed of building type, number of flats, serial number of building of this properties
-                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
+                name = str(building["buildingFeatures"]["id"]) + "_" + building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
                 if name not in set:
                     set.append(name)
                     self.counter[name] = count()
                 nb = next(self.counter[name])
                 building["unique_name"] = name + "_" + str(nb)
             elif building["buildingFeatures"]["building"] in NON_RESIDENTIAL_BUILDING_TYPES:
-                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_occ)
+                name = str(building["buildingFeatures"]["id"]) + "_" + building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_occ)
                 if name not in set:
                     set.append(name)
                     self.counter[name] = count()

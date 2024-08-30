@@ -5,6 +5,7 @@
 import os, math
 import random as rd
 import numpy as np
+import pandas as pd
 from districtgenerator.profils import Profiles
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
@@ -357,10 +358,15 @@ class Users():
         '''
         if not os.path.exists(path):
             os.makedirs(path)
-        np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',')
-        np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',')
+ 
+        data = pd.DataFrame({
+            'elec': self.elec,
+            'dhw': self.dhw,
+            'occ': self.occ,
+            'gains': self.gains
+        })
+        data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
+
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]

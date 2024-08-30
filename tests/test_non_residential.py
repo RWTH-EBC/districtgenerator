@@ -63,7 +63,7 @@ class TestNonResidential(unittest.TestCase):
         
         # Delete any other files that might have been created during the test
         folder_path = os.path.dirname(os.getcwd())
-        results_path = os.path.join(folder_path, 'results')
+        results_path = os.path.join(folder_path, 'results', 'demands', 'test_scenario')
         if os.path.exists(results_path):
             for file in os.listdir(results_path):
                 file_path = os.path.join(results_path, file)
