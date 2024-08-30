@@ -48,7 +48,7 @@
         "win1": 0.183285088,
         "rt1": 0.301624217,
         "gf1": 0.376533116
-      }},
+      },
       "1979 - 2009": {
         "ow1": 0.268994466,
         "win1": 0.208330434,
@@ -61,7 +61,7 @@
         "rt1": 0.326843238,
         "gf1": 0.375986013
       }
-    },
+    }},
     "IWU School, Day Nursery and other Care": {  
         "building_age_group": {
       "1860 - 1978": {
@@ -230,7 +230,7 @@
         "gf1": 1.123595506
       }}
     },
-    "IWU Generalized (1) Services building, Includes categories (1) to (7) and (9)": {
+    "IWU Generalized (1) Services building": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.395625694,
@@ -251,7 +251,7 @@
         "gf1": 0.53858165
       }}
     },
-    "IWU Generalized (2) Production buildings and similar, Includes cat. (8), (10), (11)": {
+    "IWU Generalized (2) Production buildings": {
         "building_age_group": {
       "1860 - 1978": {
         "ow1": 0.447687773,
@@ -273,4 +273,3 @@
       }
     }}
   }
-  
