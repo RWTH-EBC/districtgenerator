@@ -74,7 +74,7 @@ def get_lightning_control(building_type):
         print(f"File not found: {maintenance_data_path}")
         return None
     except IndexError:
-        print(f"No data available for {building_type}")
+        print(f"No data for light demand available for {building_type}")
         return None
 
 

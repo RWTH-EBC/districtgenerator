@@ -160,7 +160,7 @@ def get_tek(building_type):
         print(f"File not found: {data_path}")
         return None, None
     except IndexError:
-        print(f"No data available for {tek_name}")
+        print(f"No data for TEK available for {tek_name}")
         return None, None
     
 
@@ -204,7 +204,7 @@ def get_multi_zone_average(building_type):
         print(f"File not found: {data_path}")
         return None, None, multi_zone_name
     except IndexError:
-        print(f"No data available for {building_type}")
+        print(f"No data for multizone average available for {building_type}")
         return None, None, multi_zone_name
 
 if __name__ == '__main__':
