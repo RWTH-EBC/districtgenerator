@@ -363,7 +363,8 @@ class Users():
             'elec': self.elec,
             'dhw': self.dhw,
             'occ': self.occ,
-            'gains': self.gains
+            'gains': self.gains,
+            'heat': self.heat
         })
         data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
 
