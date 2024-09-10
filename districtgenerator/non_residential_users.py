@@ -227,8 +227,8 @@ class NonResidentialUsers():
         # such as calculation bases on users, tasks, e.g. 
         # Here the calculation is done, based on the average equipment in the building type 
         # For more information see: 
-        # [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
-        # [2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
+        # [1] S. Henning and K. Jagnow, "Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung)," 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+        # [2] K. Jagnow and S. Henning, "Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden," Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
 
 
         
@@ -484,9 +484,10 @@ class NonResidentialUsers():
             'elec': self.elec,
             'dhw': self.dhw,
             'occ': self.occ,
-            'gains': self.gains
+            'gains': self.gains,
+            'heat': self.heat  
         })
-        data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
+        data.to_csv(os.path.join(path, f'{unique_name}.csv'), index=False)
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]
@@ -494,32 +495,6 @@ class NonResidentialUsers():
             writer = csv.writer(f)
             writer.writerow(fields)
         '''
-
-    def saveHeatingProfile(self,unique_name: str,path: str) -> None:
-        '''
-        Save heat demand to csv
-
-        Parameters
-        ----------
-        unique_name : string
-            unique building name
-        path : string
-            results path
-        '''
-
-        np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
-        if not os.path.exists(path):
-            os.makedirs(path)
-        file_path = path + f'/{unique_name}'+ '.csv'
-        if os.path.exists(file_path):
-            data = pd.read_csv(file_path)
-            data['heat'] = self.heat
-        else:
-            data = pd.DataFrame({
-                'heat': self.heat
-            })
-            data.to_csv(file_path, index=False)
-    
 
     def loadProfiles(self,unique_name: str,path: str) -> None:
         '''
