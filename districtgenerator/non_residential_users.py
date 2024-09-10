@@ -175,13 +175,13 @@ class NonResidentialUsers():
             occupancy_values = self.occupancy_data[self.usage]
             random_nb = rd.random()  # picking random number in [0,1)
             if random_nb < 1 / 3:
-                self.nb_occ.append(self.area/occupancy_values["Gering"])
+                self.nb_occ.append(round(self.area/occupancy_values["Gering"]))
                 self.occupancy = "Gering"
             elif random_nb < 2 / 3:
-                self.nb_occ.append(self.area/occupancy_values["Mittel"])
+                self.nb_occ.append(round(self.area/occupancy_values["Mittel"]))
                 self.occupancy = "Mittel"
             else:
-                self.nb_occ.append(self.area/occupancy_values["Hoch"])
+                self.nb_occ.append(round(self.area/occupancy_values["Hoch"]))
                 self.occupancy = "Hoch"
         else:
             print(f"No data about number of occupants available for building type: {self.usage}")
