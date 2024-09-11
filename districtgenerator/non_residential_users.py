@@ -353,12 +353,7 @@ class NonResidentialUsers():
         self.dhw = np.zeros(int(time_horizon/time_resolution))
         self.elec = np.zeros(int(time_horizon/time_resolution))
         self.gains = np.zeros(int(time_horizon/time_resolution))
-        
-        # To-Do
-        # Write a funtion, that get's occupancy data 
-        # based on amount of occupants and SIA profiles 
-        # Write Function that generates an lighning profile
-        # Write DHW function
+    
 
         #temp_obj = NonResidentialProfiles(building_type=self.usage, max_number_occupants=self.nb_occ, area=self.area,
         #                                  initital_day=initital_day, nb_days=nb_days, time_resolution=time_resolution)
@@ -410,9 +405,12 @@ class NonResidentialUsers():
             Internal gain of each flat
 
         """
-        # To - Do adjust to personal heat gains depending on builiding type 
+        
         # To-Do: check that the correct data is used from SIA
         # These are default values for residential buildings
+        # To-Do: Checck Units 
+        # Use Dibs documentaiton https://iwugermany.github.io/dibs/
+
         personGain = 70.0  # [Watt]
         lightGain = 0.65
         appGain = 0.33
@@ -424,15 +422,24 @@ class NonResidentialUsers():
         q_I_p, q_I_fac, multi_zone_name = schedules.get_multi_zone_average(self.usage)
         if q_I_p is not None:
             personGain = q_I_p
+            # 
         else:
             print(f"No data about person gains available for building type: {self.usage}")
         if q_I_fac is not None:
             appGain = q_I_fac
+            # 
         else:
             print(f"No data about appliance gains available for building type: {self.usage}")
         
 
         self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
+        if self.gains.sum() < 0:
+            print("Internal gains are negative. Setting to zero.")
+            print("Occupancy gains:", (self.occupancy_schedule["OCCUPANCY"] * personGain).sum())
+            print("Lighting gains:", (self.lighntning_schedule["LIGHTING"] * lightGain).sum())
+            print("Appliance gains:", (self.appliance_schedule["APPLIANCES"] * appGain).sum())
+            print("Total gains:", self.gains.sum())
+            self.gains = np.zeros(len(self.gains))
 
         
         
@@ -463,8 +470,8 @@ class NonResidentialUsers():
         (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope,site["T_e"],dt)
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.heat[t] = max(0,Q_HC[t])
+        self.heat = np.maximum(0, Q_HC)
+
             
     def saveProfiles(self,unique_name: str,path: str) -> None:
         '''

@@ -342,8 +342,7 @@ class Users():
         (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope,site["T_e"],dt)
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.heat[t] = max(0,Q_HC[t])
+        self.heat = np.maximum(0, Q_HC)
 
     def saveProfiles(self,unique_name,path):
         '''
