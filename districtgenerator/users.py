@@ -376,14 +376,12 @@ class Users():
         #(Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], dt)
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.heat[t] = max(0, Q_HC[t])
+        self.heat = np.maximum(0, Q_HC)
         self.annual_heat_demand = np.sum(self.heat)
 
         (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
         self.cooling = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.cooling[t] = min(0, Q_HC[t]) * (-1)
+        self.cooling = np.minimum(0, Q_HC) * -1
         self.annual_cooling_demand = np.sum(self.cooling)
 
 
