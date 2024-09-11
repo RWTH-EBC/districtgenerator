@@ -3,13 +3,13 @@ AB;MULTI_RES;Wohnen (MFH);-;;-;-;Wohnen (MFH)
 MFH;MULTI_RES;Wohnen (MFH);-;;-;-;Wohnen (MFH)
 SFH;SINGLE_RES;Wohnen (EFH);-;-;-;-;Wohnen (EFH)
 TH;SINGLE_RES;Wohnen (EFH);-;-;-;-;Wohnen (EFH)
-IWU Hotels, Boarding, Restaurants or Catering;HOTEL;Hotelzimmer;IWU Hotels, Boarding, Restaurants or Catering;Hotels / Pensionen;HOTEL;-;Hotelzimmer (Doppelzimmer)
+IWU Hotels, Boarding, Restaurants or Catering;HOTEL;Hotelzimmer;IWU Hotels, Boarding, Restaurants or Catering;Hotels / Pensionen;HOTEL;Buildings providing Boarding, Hotels, Restaurants or Catering;Hotelzimmer (Doppelzimmer)
 IWU Office, Administrative or Government Buildings;OFFICE;Einzelbüro;IWU Office, Administrative or Government Buildings;Bürogebäude;OFFICE;Office, Administrative or Government Buildings;Einzelbüro
-IWU Trade Buildings;RETAIL;Einzelhandel/Kaufhaus ;IWU Trade Buildings;Verkaufsstätten (allgemein);RETAIL;Trade Buildings
+IWU Trade Buildings;RETAIL;Einzelhandel/Kaufhaus ;IWU Trade Buildings;Verkaufsstätten (allgemein);RETAIL;Trade Buildings;Einzelhandel/Kaufhaus
 -;FOODSTORE;-;-;-;-;
 -;RESTAURANT;-;-;-;-;
-IWU Technical and Utility (supply and disposal);INDUSTRIAL;Gewerbliche und industrielle Hallen – schwer;IWU Technical and Utility (supply and disposal);Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;INDUSTRIAL;-;Gewerbliche und industrielle Hallen (schwere Arbeit, stehende Tätigkeit)
-IWU School, Day Nursery and other Care;SCHOOL;Klassenzimmer (Schule), Gruppenraum    ;IWU School, Day Nursery and other Care;Schulen;SCHOOL;-;Klassenzimmer (Schule), Gruppenraum (Kindergarten)
+IWU Technical and Utility (supply and disposal);INDUSTRIAL;Gewerbliche und industrielle Hallen – schwer;IWU Technical and Utility (supply and disposal);Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;INDUSTRIAL;Technical and Utility Buildings (supply and disposal);Gewerbliche und industrielle Hallen (schwere Arbeit, stehende Tätigkeit)
+IWU School, Day Nursery and other Care;SCHOOL;Klassenzimmer (Schule), Gruppenraum;IWU School, Day Nursery and other Care;Schulen;SCHOOL;School, Day Nursery and other Care Buildings;Klassenzimmer (Schule), Gruppenraum (Kindergarten)
 IWU Health and Care;HOSPITAL;Bettenzimmer;IWU Health and Care;Beherbergungsstätten (allgemein);HOSPITAL;Buildings for Health and Care;Bettenzimmer (Zweibettzimmer im Krankenhaus, Pflegeheim)
 IWU Sports Facilities;GYM;Turnhalle;IWU Sports Facilities;Sporthallen;GYM;Sports Facility Buildings;Turnhalle
 -;SWIMMING;-;-;-;-;-;
@@ -22,4 +22,4 @@ IWU Culture and Leisure;MUSEUM;Ausstellungsräume und Museum;IWU Culture and Lei
 IWU Research and University Teaching;UNIVERSITY;Hörsaal, Auditorium ;IWU Research and University Teaching;Hochschule und Forschung (allgemein);UNIVERSITY;Buildings for Research and University Teaching;Hörsaal, Auditorium
 IWU Generalized (1) Services building;OFFICE;Einzelbüro;IWU Generalized (1) Services building;Verwaltungsgebäude (allgemein);OFFICE;Office, Administrative or Government Buildings;Einzelbüro
 IWU Generalized (2) Production buildings;INDUSTRIAL;Gewerbliche und industrielle Hallen – mittel ;IWU Generalized (2) Production buildings; Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;INDUSTRIAL;Technical and Utility Buildings (supply and disposal);Gewerbliche und industrielle Hallen (mittelschwere Arbeit, überw. stehende Tätigkeit)
-IWU Production, Workshop, Warehouse or Operations;INDUSTRIAL;Gewerbliche und industrielle Hallen – mittel ;IWU Production, Workshop, Warehouse or Operations; Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;INDUSTRIAL;Technical and Utility Buildings (supply and disposal)Gewerbliche und industrielle Hallen (mittelschwere Arbeit, überw. stehende Tätigkeit)
+IWU Production, Workshop, Warehouse or Operations;INDUSTRIAL;Gewerbliche und industrielle Hallen – mittel ;IWU Production, Workshop, Warehouse or Operations; Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit;INDUSTRIAL;Production, Workshop, Warehouse or Operations Buildings;Technical and Utility Buildings (supply and disposal)Gewerbliche und industrielle Hallen (mittelschwere Arbeit, überw. stehende Tätigkeit)
