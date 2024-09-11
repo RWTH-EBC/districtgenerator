@@ -199,6 +199,7 @@ class NonResidentialUsers():
 
     
     def generate_occupancy(self) -> None:
+        """Generate occupancy profile based on schedule and number of occupants."""
         self.occ = self.occupancy_schedule["OCCUPANCY"] * self.nb_occ
         
     def generate_annual_el_consumption_equipment(self, equipment: str = "Mittel") -> None:
@@ -271,17 +272,20 @@ class NonResidentialUsers():
                                           beta=beta, gamma=gamma,
                                           normal_direct_illuminance=self.site["IlluminanceDirect"], 
                                           horizontal_diffuse_illuminance=self.site["IlluminaceDiffuse"])
+        
 
         # To-Do: 
         # Calculate Energy Demand throuhg lighning
         self.annual_lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
                                                                            occupancy_schedule=self.occupancy_schedule, area=self.area)
+        
     
     def generate_dhw_profile(self) -> None:
         """
         Generates a dhw profile
         Based on the TEK Ansatz and DIBS. 
-        Original data by: BBSR https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
+        Original data by: BBSR 
+        https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
 
         For "Verkehrsgebäude" the TEK is set to zero, as there is not data vailable. 
         Parameters
@@ -427,7 +431,6 @@ class NonResidentialUsers():
             print(f"No data about person gains available for building type: {self.usage}")
         if q_I_fac is not None:
             appGain = q_I_fac
-            # 
         else:
             print(f"No data about appliance gains available for building type: {self.usage}")
         
@@ -439,9 +442,6 @@ class NonResidentialUsers():
             print("Lighting gains:", (self.lighntning_schedule["LIGHTING"] * lightGain).sum())
             print("Appliance gains:", (self.appliance_schedule["APPLIANCES"] * appGain).sum())
             print("Total gains:", self.gains.sum())
-            self.gains = np.zeros(len(self.gains))
-
-        
         
 
 
@@ -471,6 +471,8 @@ class NonResidentialUsers():
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
         self.heat = np.maximum(0, Q_HC)
+        self.cool = np.zeros(len(Q_HC))
+        self.cool = np.minimum(0, Q_HC)
 
             
     def saveProfiles(self,unique_name: str,path: str) -> None:

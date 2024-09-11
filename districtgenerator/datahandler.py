@@ -112,7 +112,12 @@ class Datahandler():
             Returns:
                 None
             """
-            self.resultsPath = new_path if new_path is not None else os.path.join(self.srcPath, 'data')
+            if new_path is not None:
+                new_path = path_checks.check_path(new_path)
+            else: 
+                new_path = os.path.join(self.srcPath, 'results', 'demands', f'{self.scenario_name}')
+                new_path = path_checks.check_path(new_path)
+            self.resultPath = new_path 
     
     def setAdvancedModel(self, pathAdvancedModel=None):
             """
