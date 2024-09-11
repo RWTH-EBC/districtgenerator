@@ -48,6 +48,37 @@ def get_lightning_load(building_type):
 
 
 
+def get_lightning_control(building_type):
+    """
+    Get Lichtausnutzungsgrad der Verglasung (lighting_control), 
+    Lux threshold at which the light turns on
+    Map 'E_m' from data_18599_10_4 to building_data
+
+    """ 
+
+    # data_type = _assignment.get(building_type)
+    data_type = schedule_reader.getBuildingType(kind='18599', term=building_type)
+    if data_type is None:
+        print(f"No schedule for building type {building_type}")
+        return None, None
+   
+    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    maintenance_data_path = os.path.join(data_dir_path, 'data', 'norm_profiles', '18599_10_4_data.csv')
+
+
+    try:
+        maintenance_data_schedule = pd.read_csv(maintenance_data_path, sep=';')
+        lighntning_control = maintenance_data_schedule[maintenance_data_schedule["typ_18599"] == data_type]["E_m"].iloc[0]
+
+        return  lighntning_control
+    except FileNotFoundError:
+        print(f"File not found: {maintenance_data_path}")
+        return None
+    except IndexError:
+        print(f"No data for light demand available for {building_type}")
+        return None
+
+
 
 def calculate_light_demand(building_type, occupancy_schedule, illuminance, area):
     """
