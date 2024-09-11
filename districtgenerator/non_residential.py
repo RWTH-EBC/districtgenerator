@@ -241,7 +241,6 @@ class NonResidential(object):
         # help area for the correct building area setting while using typeBldgs
         type_bldg_area = self.net_leased_area
         self.net_leased_area = 0.0
-        print(self.facade_estimation_factors)
         for key, value in self.zone_area_factors.items():
             zone = ThermalZone(parent=self)
             zone.name = key
@@ -252,7 +251,6 @@ class NonResidential(object):
 
             #zone.use_conditions.with_ahu = False
             self.thermal_zones.append(zone)
-        print(self.facade_estimation_factors, "Thesese are the facade estimation factors for building ", self.usage, zone.area, self.year_of_construction)
         if self.facade_estimation_factors["ow1"] != 0:
             for key, value in self._outer_wall_names.items():
                 self.outer_area[key] = {}  
@@ -332,9 +330,6 @@ class NonResidential(object):
         DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential_envelope', 'suface_estimation_factors.json')
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
-    
-        print(f"Available building types: {list(data.keys())}")
-        print(f"Current usage: {self.usage}")
 
         # Validate if the archetype exists in the data
         if self.usage not in data:

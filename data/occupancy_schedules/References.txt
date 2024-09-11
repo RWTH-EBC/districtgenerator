@@ -1,2 +1,7 @@
 The occupancy schedules were developed on the basis of SIA 2024 "Raumnutzungsdaten für Energie- und Gebäudetechnik".
-The profile for hospitals is taken from The City Energy Analyst (CEA) (https://github.com/architecture-building-systems/CityEnergyAnalyst)
+The profile for hospitals is taken from The City Energy Analyst (CEA) (https://github.com/architecture-building-systems/CityEnergyAnalyst),
+
+Average occupancy rates were taken from: DIN 18599 and  “Leitfaden Ingenieurmethoden des Brandschutz,” Technisch-Wissenschaftlicher Beirat (TWB) der Vereinigung zur Förderung des Deutschen Brandschutzes e.V. (vfdb), Münster; Braunschweig, vfdb TB 04-01, Mar. 2020. [Online]. Available: https://www.vfdb.de/media/doc/technischeberichte/TB_04_01_Leitfaden_IngMethoden_4Auflage_2020-03-26.pdf
+
+
+The data is given in square meter per person.

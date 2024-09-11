@@ -39,21 +39,6 @@ def getSchedule(building_type):
     :return: df_schedule, schedule_name
     :rtype: DataFrame (with floats), string
     """
-    typeAssignment = {
-        "IWU Office, Administrative or Government Buildings": "office.csv",
-        "IWU Research and University Teaching": "Hörsaal, Auditorium.csv",
-        "IWU Health and Care": "Bettenzimmer.csv", 
-        "IWU School, Day Nursery and other Care": "Schulzimmer_Hoersaal.csv",
-        "IWU Culture and Leisure": "Ausstellungshalle.csv",
-        "IWU Sports Facilities":  "Turnhalle.csv",
-        "IWU Hotels, Boarding, Restaurants or Catering":  "Hotelzimmer.csv",
-        "IWU Production, Workshop, Warehouse or Operations": "ProduktionGrob.csv",
-        "IWU Trade Buildings": "Fachgeschaeft.csv", 
-        "IWU Technical and Utility (supply and disposal)":  "Lagerhalle.csv",
-        "IWU Transport": "Parkhaus.csv",
-        "IWU Generalized (1) Services building": "office.csv",
-        "IWU Generalized (2) Production buildings":  "Lagerhalle.csv"
-        }
 
     #scheduleName = type_assignment.get(building_type)
     scheduleName = getBuildingType(term=building_type, kind="SIA")
@@ -99,7 +84,6 @@ def rotate_list(initial_day):
     return lst[start_index:] + lst[:start_index]
 
 
-
 def expand_dataframe(df, total_days):
     unique_days = df['DAY'].unique()
     num_days = len(unique_days)
@@ -128,20 +112,6 @@ def get_tek(building_type):
     :return: df_schedule, schedule_name
     :rtype: DataFrame (with floats), string
     """
-    tek_assignment = {
-        "oag": "Bürogebäude",
-        "IWU Research and University Teaching": "Hochschule und Forschung (allgemein)",
-        "IWU Health and Care": "Beherbergungsstätten (allgemein)",
-        "IWU School, Day Nursery and other Care": "Schulen",
-        "IWU Culture and Leisure": "Ausstellungsgebäude",
-        "IWU Sports Facilities": "Sporthallen",
-        "IWU Hotels, Boarding, Restaurants or Catering": "Hotels / Pensionen",
-        "IWU Production, Workshop, Warehouse or Operations": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit",
-        "IWU Trade Buildings": "Verkaufsstätten (allgemein)",
-        "IWU Generalized (1) Services building": "Verwaltungsgebäude (allgemein)",
-        "IWU Generalized (2) Production buildings": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit"
-    }
-
     #tek_name = tek_assignment.get(building_type)
     tek_name = getBuildingType(kind="TEK", term=building_type)
     if tek_name is None:
@@ -154,13 +124,12 @@ def get_tek(building_type):
     try:
         data_schedule = pd.read_csv(data_path, sep=',',)
         warm_water_value = data_schedule[data_schedule["TEK"] == tek_name]["TEK Warmwasser"].iloc[0]
-        print(f"Das ist der Wert {warm_water_value}")
         return warm_water_value, tek_name
     except FileNotFoundError:
         print(f"File not found: {data_path}")
         return None, None
     except IndexError:
-        print(f"No data available for {tek_name}")
+        print(f"No data about TEK available for {tek_name}")
         return None, None
     
 
@@ -204,8 +173,40 @@ def get_multi_zone_average(building_type):
         print(f"File not found: {data_path}")
         return None, None, multi_zone_name
     except IndexError:
-        print(f"No data available for {building_type}")
+        print(f"No data about multi-zone average available for {building_type}")
         return None, None, multi_zone_name
+
+
+def get_lightning_control(building_type):
+    """
+    Get Lichtausnutzungsgrad der Verglasung (lighting_control), 
+    Lux threshold at which the light turns on
+    Map 'E_m' from data_18599_10_4 to building_data
+    """
+    data_type = getBuildingType(kind='18599_lightning', term=building_type)
+    
+
+    # data_type = _assignment.get(building_type)
+    if data_type is None:
+        print(f"No schedule for building type {building_type}")
+        return None, None
+   
+    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    maintenance_data_path = os.path.join(data_dir_path, 'data', 'norm_profiles', '18599_10_4_data.csv')
+
+
+    try:
+        maintenance_data_schedule = pd.read_csv(maintenance_data_path, sep=';')
+        lighntning_control = maintenance_data_schedule[maintenance_data_schedule["typ_18599"] == data_type]["E_m"].iloc[0]
+
+        return  lighntning_control
+    except FileNotFoundError:
+        print(f"File not found: {maintenance_data_path}")
+        return None
+    except IndexError:
+        print(f"No data about lighntning control available for {building_type} and data type {data_type}")
+        return None
+
 
 if __name__ == '__main__':
     person_gains, app_gains, name = get_multi_zone_average('IWU Trade Buildings')
