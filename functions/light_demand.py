@@ -47,6 +47,7 @@ def get_lightning_load(building_type):
 
 
 
+
 def get_lightning_control(building_type):
     """
     Get Lichtausnutzungsgrad der Verglasung (lighting_control), 
@@ -78,6 +79,7 @@ def get_lightning_control(building_type):
         return None
 
 
+
 def calculate_light_demand(building_type, occupancy_schedule, illuminance, area):
     """
     Calculates the lighting demand for a building based on illuminance, occupancy, and area.
@@ -100,25 +102,37 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     :return: Lighting Energy Required for the timestep
     :rtype: pd.Series
     """
-   
+   # To-Do:
+   # Find error 
 
     # Calculate summed illuminance if a list of Series is provided
+    # This is necessary, as the illuminance is calculted for each facade and then 
+    # the sum of all facades is provided when considering lightning 
     if isinstance(illuminance, list):
         illuminance = pd.concat(illuminance, axis=1).sum(axis=1)
     if isinstance(illuminance, np.ndarray):
-        total_illuminance = np.sum(illuminance, axis=0)
-        # Convert the resulting array to a pandas Series
-        illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
+         total_illuminance = np.sum(illuminance, axis=0)
+         # Convert the resulting array to a pandas Series
+         illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
 
     # Calculate the lighting demand
     lighting_load = get_lightning_load(building_type)  # W/m2
-    lighting_control = get_lightning_control(building_type)  # Lux threshold
+    #lighting_control = get_lightning_control(building_type)  # Lux threshold
+    lighting_control = schedule_reader.get_lightning_control(building_type)
     lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
     lux = (illuminance * 0.45 * lighting_maintenance_factor) / area  # Calculate lux at each timestep
-    #
+    print(f"Lux: {lux}",
+          f"Lighting control: {lighting_control}",
+          f"Lighting load: {lighting_load}",
+          f"Lighting maintenance factor: {lighting_maintenance_factor}",
+          f"Area: {area}",
+          f"Illuminance: {illuminance}",
+          f"Occupancy schedule: {occupancy_schedule}",
+          f"Building type: {building_type}")
+    
     mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)  # Determine when artificial lighting is needed
     lighting_demand = pd.Series(0, index=occupancy_schedule.index)
-    lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]  # Calculate energy demand
+    lighting_demand = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]  # Calculate energy demand
 
     return lighting_demand
 
@@ -135,7 +149,7 @@ def get_lighting_maintenance_factor(building_type):
     and clean is assumed for all other building types
     """
     _assignment = {
-        "oag": "Bürogebäude",
+        "IWU Office, Administrative or Government Buildings": "Bürogebäude",
         "IWU Research and University Teaching": "Hochschule und Forschung (allgemein)",
         "IWU Health and Care": "Beherbergungsstätten (allgemein)",
         "IWU School, Day Nursery and other Care": "Schulen",
@@ -148,7 +162,9 @@ def get_lighting_maintenance_factor(building_type):
         "IWU Generalized (2) Production buildings": "Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit"
     }
     data_type = _assignment.get(building_type)
-    if data_type == 'Produktions-, Werkstatt-, Lager- oder Betriebsgebäude' or '"IWU Generalized (2) Production buildings"':
+    if (data_type == 'Produktions-, Werkstatt-, Lager- oder Betriebsgebäude' or
+        data_type == 'IWU Generalized (2) Production buildings' or
+        data_type == 'Gewerbliche und industrielle Gebäude – Mischung aus leichter u. schwerer Arbeit'):
         lighting_maintenance_factor = 0.8
     else:
         lighting_maintenance_factor = 0.9

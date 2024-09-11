@@ -2,5 +2,5 @@
 max-line-length = 80
 
 [tool.pylint.basic]
-variable-naming-style = "camelCase"
+variable-naming-style = "snake_case"
 function-naming-style = "camelCase"

@@ -175,13 +175,13 @@ class NonResidentialUsers():
             occupancy_values = self.occupancy_data[self.usage]
             random_nb = rd.random()  # picking random number in [0,1)
             if random_nb < 1 / 3:
-                self.nb_occ.append(self.area/occupancy_values["Gering"])
+                self.nb_occ.append(round(self.area/occupancy_values["Gering"]))
                 self.occupancy = "Gering"
             elif random_nb < 2 / 3:
-                self.nb_occ.append(self.area/occupancy_values["Mittel"])
+                self.nb_occ.append(round(self.area/occupancy_values["Mittel"]))
                 self.occupancy = "Mittel"
             else:
-                self.nb_occ.append(self.area/occupancy_values["Hoch"])
+                self.nb_occ.append(round(self.area/occupancy_values["Hoch"]))
                 self.occupancy = "Hoch"
         else:
             print(f"No data about number of occupants available for building type: {self.usage}")
@@ -199,6 +199,7 @@ class NonResidentialUsers():
 
     
     def generate_occupancy(self) -> None:
+        """Generate occupancy profile based on schedule and number of occupants."""
         self.occ = self.occupancy_schedule["OCCUPANCY"] * self.nb_occ
         
     def generate_annual_el_consumption_equipment(self, equipment: str = "Mittel") -> None:
@@ -227,8 +228,8 @@ class NonResidentialUsers():
         # such as calculation bases on users, tasks, e.g. 
         # Here the calculation is done, based on the average equipment in the building type 
         # For more information see: 
-        # [1] S. Henning and K. Jagnow, “Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung),” 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
-        # [2] K. Jagnow and S. Henning, “Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden,” Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
+        # [1] S. Henning and K. Jagnow, "Statistische Untersuchung der Flächen- und Nutzstromanateile von Zonen in Nichtwohngebäuden (Fortführung)," 51/2023, Jul. 2023. [Online]. Available: https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2023/bbsr-online-51-2023-dl.pdf?__blob=publicationFile&v=3
+        # [2] K. Jagnow and S. Henning, "Statistische Untersuchung der Flächen- und Nutzstromanteile von Zonen in Nichtwohngebäuden," Hochschule	Magdeburg-Stendal, Mar. 2020. [Online]. Available: https://www.h2.de/fileadmin/user_upload/Fachbereiche/Bauwesen/Forschung/Forschungsberichte/Endbericht_SWD-10.08.18.7-18.29.pdf
 
 
         
@@ -271,17 +272,20 @@ class NonResidentialUsers():
                                           beta=beta, gamma=gamma,
                                           normal_direct_illuminance=self.site["IlluminanceDirect"], 
                                           horizontal_diffuse_illuminance=self.site["IlluminaceDiffuse"])
+        
 
         # To-Do: 
         # Calculate Energy Demand throuhg lighning
         self.annual_lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
                                                                            occupancy_schedule=self.occupancy_schedule, area=self.area)
+        
     
     def generate_dhw_profile(self) -> None:
         """
         Generates a dhw profile
         Based on the TEK Ansatz and DIBS. 
-        Original data by: BBSR https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
+        Original data by: BBSR 
+        https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
 
         For "Verkehrsgebäude" the TEK is set to zero, as there is not data vailable. 
         Parameters
@@ -353,12 +357,7 @@ class NonResidentialUsers():
         self.dhw = np.zeros(int(time_horizon/time_resolution))
         self.elec = np.zeros(int(time_horizon/time_resolution))
         self.gains = np.zeros(int(time_horizon/time_resolution))
-        
-        # To-Do
-        # Write a funtion, that get's occupancy data 
-        # based on amount of occupants and SIA profiles 
-        # Write Function that generates an lighning profile
-        # Write DHW function
+    
 
         #temp_obj = NonResidentialProfiles(building_type=self.usage, max_number_occupants=self.nb_occ, area=self.area,
         #                                  initital_day=initital_day, nb_days=nb_days, time_resolution=time_resolution)
@@ -410,9 +409,12 @@ class NonResidentialUsers():
             Internal gain of each flat
 
         """
-        # To - Do adjust to personal heat gains depending on builiding type 
+        
         # To-Do: check that the correct data is used from SIA
         # These are default values for residential buildings
+        # To-Do: Checck Units 
+        # Use Dibs documentaiton https://iwugermany.github.io/dibs/
+
         personGain = 70.0  # [Watt]
         lightGain = 0.65
         appGain = 0.33
@@ -424,6 +426,7 @@ class NonResidentialUsers():
         q_I_p, q_I_fac, multi_zone_name = schedules.get_multi_zone_average(self.usage)
         if q_I_p is not None:
             personGain = q_I_p
+            # 
         else:
             print(f"No data about person gains available for building type: {self.usage}")
         if q_I_fac is not None:
@@ -433,8 +436,12 @@ class NonResidentialUsers():
         
 
         self.gains = self.occupancy_schedule["OCCUPANCY"] * personGain + self.lighntning_schedule["LIGHTING"] * lightGain + self.appliance_schedule["APPLIANCES"] * appGain
-
-        
+        if self.gains.sum() < 0:
+            print("Internal gains are negative. Setting to zero.")
+            print("Occupancy gains:", (self.occupancy_schedule["OCCUPANCY"] * personGain).sum())
+            print("Lighting gains:", (self.lighntning_schedule["LIGHTING"] * lightGain).sum())
+            print("Appliance gains:", (self.appliance_schedule["APPLIANCES"] * appGain).sum())
+            print("Total gains:", self.gains.sum())
         
 
 
@@ -463,8 +470,10 @@ class NonResidentialUsers():
         (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope,site["T_e"],dt)
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.heat[t] = max(0,Q_HC[t])
+        self.heat = np.maximum(0, Q_HC)
+        self.cool = np.zeros(len(Q_HC))
+        self.cool = np.minimum(0, Q_HC)
+
             
     def saveProfiles(self,unique_name: str,path: str) -> None:
         '''
@@ -484,9 +493,10 @@ class NonResidentialUsers():
             'elec': self.elec,
             'dhw': self.dhw,
             'occ': self.occ,
-            'gains': self.gains
+            'gains': self.gains,
+            'heat': self.heat  
         })
-        data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
+        data.to_csv(os.path.join(path, f'{unique_name}.csv'), index=False)
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]
@@ -494,32 +504,6 @@ class NonResidentialUsers():
             writer = csv.writer(f)
             writer.writerow(fields)
         '''
-
-    def saveHeatingProfile(self,unique_name: str,path: str) -> None:
-        '''
-        Save heat demand to csv
-
-        Parameters
-        ----------
-        unique_name : string
-            unique building name
-        path : string
-            results path
-        '''
-
-        np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
-        if not os.path.exists(path):
-            os.makedirs(path)
-        file_path = path + f'/{unique_name}'+ '.csv'
-        if os.path.exists(file_path):
-            data = pd.read_csv(file_path)
-            data['heat'] = self.heat
-        else:
-            data = pd.DataFrame({
-                'heat': self.heat
-            })
-            data.to_csv(file_path, index=False)
-    
 
     def loadProfiles(self,unique_name: str,path: str) -> None:
         '''
