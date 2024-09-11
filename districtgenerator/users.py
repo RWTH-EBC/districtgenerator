@@ -343,6 +343,9 @@ class Users():
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
         self.heat = np.maximum(0, Q_HC)
+        self.cool = np.zeros(len(Q_HC))
+        self.cool = np.minimum(0, Q_HC)
+    
 
     def saveProfiles(self,unique_name,path):
         '''
@@ -363,7 +366,8 @@ class Users():
             'dhw': self.dhw,
             'occ': self.occ,
             'gains': self.gains,
-            'heat': self.heat
+            'heat': self.heat,
+            'cool': self.cool
         })
         data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
 

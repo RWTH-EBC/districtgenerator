@@ -475,7 +475,8 @@ class SunIlluminance(Sun):
         # Return illuminance on each surface
         return np.array(illuminance_results)
 
-    def getIlluminanceTiltedSurface(self, theta, thetaZ, normal_direct_illuminance, horizontal_diffuse_illuminance, beta):
+    def getIlluminanceTiltedSurface(self, theta, thetaZ, normal_direct_illuminance,
+                                    horizontal_diffuse_illuminance, beta):
         """
         Compute the total illuminance on a tilted surface using the direct and diffuse illuminance components.
 
