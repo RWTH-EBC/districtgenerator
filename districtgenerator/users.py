@@ -68,6 +68,7 @@ class Users():
         self.elec = None
         self.gains = None
         self.heat = None
+        self.cool = None
 
         self.generate_number_flats(area)
         self.generate_number_occupants()
