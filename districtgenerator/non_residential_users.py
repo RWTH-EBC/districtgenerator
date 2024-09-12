@@ -120,6 +120,7 @@ class NonResidentialUsers():
         self.elec = None
         self.gains = None
         self.heat = None
+        self.cool = None
         self.occupancy_schedule = None
         self.appliance_schedule = None
         self.lighntning_schedule = None
@@ -236,6 +237,8 @@ class NonResidentialUsers():
         if self.usage in self.electricity_data:
             electricity_values = self.electricity_data[self.usage]
             try: 
+                # To-Do: Check if data is atually in w 
+                # To-Do: Check if data is series
                 annual_el_demand_temp = electricity_values[equipment] * self.area 
                 self.annual_appliance_demand = rd.gauss(annual_el_demand_temp,
                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
@@ -494,7 +497,8 @@ class NonResidentialUsers():
             'dhw': self.dhw,
             'occ': self.occ,
             'gains': self.gains,
-            'heat': self.heat  
+            'heat': self.heat,
+            'cool': self.cool  
         })
         data.to_csv(os.path.join(path, f'{unique_name}.csv'), index=False)
 

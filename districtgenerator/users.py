@@ -72,7 +72,7 @@ class Users():
         self.elec = None
         self.gains = None
         self.heat = None
-        self.cooling = None
+        self.cool = None
 
         self.generate_number_flats(area)
         self.generate_number_occupants()
@@ -380,9 +380,9 @@ class Users():
         self.annual_heat_demand = np.sum(self.heat)
 
         (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
-        self.cooling = np.zeros(len(Q_HC))
-        self.cooling = np.minimum(0, Q_HC) * -1
-        self.annual_cooling_demand = np.sum(self.cooling)
+        self.cool = np.zeros(len(Q_HC))
+        self.cool = np.minimum(0, Q_HC) * -1
+        self.annual_cooling_demand = np.sum(self.cool)
 
 
     def saveProfiles(self, unique_name, path):
