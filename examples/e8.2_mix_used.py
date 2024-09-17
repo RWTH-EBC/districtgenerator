@@ -50,7 +50,7 @@ def example8_2_generate_first_mix_used_district():
     # But for now we want to get new profiles.
 
     # Generate demand profiles
-    #ata.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
     # We now have a complete district. Instead of using all the steps separately, like we have done in this example,
     # we can also generate a complete district with the following commands:
