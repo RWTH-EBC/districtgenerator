@@ -1,8 +1,10 @@
 ## Information
 
+
 To enable the simulation of Mix-Used Districts a variety of data needs to be gathered, from archetypes for different building types, to assumptions about usage, e.g.. 
 
 ## Data Structure
+
 
 The data folder contains essential information for simulating mixed-use districts. Here's an overview of the key components:
 
@@ -39,4 +41,6 @@ The data folder contains essential information for simulating mixed-use district
 This structure allows for flexible and comprehensive modeling of various building types and their characteristics, enabling accurate simulation of mixed-use districts.
 
 
- 
+
+This information is structed in the repository.
+
