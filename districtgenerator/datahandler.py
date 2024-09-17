@@ -27,6 +27,8 @@ from classes.non_residential_users import NonResidentialUsers
 import functions.clustering_medoid as cm
 import functions.wind_turbines as wind_turbines
 import functions.weather_handling as weather_handling
+import functions.path_checks as path_checks
+
 
 import EHDO.load_params as load_params_EHDO
 import EHDO.optim_model as optim_model_EHDO
