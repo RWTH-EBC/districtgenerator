@@ -342,7 +342,7 @@ class Datahandler():
         prj.name = self.scenario_name
         print(f"Creating buildings for {self.scenario_name}")
         for building in self.district:
-            print(f"Creating building {building["buildingFeatures"]["building"]}")
+            print(f"Creating building {building['buildingFeatures']['building']}")
             # check if building type is residential or non residential 
             if building["buildingFeatures"]["building"] in  RESIDENTIAL_BUILDING_TYPES:
    
@@ -455,7 +455,7 @@ class Datahandler():
                 # 
                 # building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * building["user"].nb_flats
             elif building["buildingFeatures"]["building"] not in NON_RESIDENTIAL_BUILDING_TYPES and building["buildingFeatures"]["building"] not in RESIDENTIAL_BUILDING_TYPES:
-                print(f"The building type {building["buildingFeatures"]["building"]} is currently not supported. Please check the type of {building} and try again.")
+                print(f"The building type {building['buildingFeatures']['building']} is currently not supported. Please check the type of {building} and try again.")
             else:
                 raise AttributeError(f"The building type {building['buildingFeatures']['building']} is currently not supported. ")
 
