@@ -15,7 +15,7 @@ import functions.change_resolution as chres
 import pylightxl as xl
 
 def load_profiles(filename):
- """
+    """
     Load domestic hot water profiles from an Excel file.
 
     Parameters
