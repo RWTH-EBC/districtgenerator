@@ -14,6 +14,8 @@ import functions.light_demand as light_demand
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
+current_file_path = os.path.abspath(__file__)
+base_path = os.path.dirname(os.path.dirname(current_file_path))
 
 class NonResidentialUsers():
     """
@@ -125,11 +127,9 @@ class NonResidentialUsers():
         self.appliance_schedule = None
         self.lighntning_schedule = None
         
-        # Define the path to the JSON file
-        basePath = os.getcwd()
-        occupancyJsonPath = os.path.join(basePath, 'data', 'occupancy_schedules',
+        occupancyJsonPath = os.path.join(base_path, 'data', 'occupancy_schedules',
                                          'average_occupancy.json')
-        electricityJsonPath = os.path.join(basePath, 'data', 'consumption_data',
+        electricityJsonPath = os.path.join(base_path, 'data', 'consumption_data',
                                            'average_electricity_per_occupants.json')
 
         # Load the JSON data from the specified path
