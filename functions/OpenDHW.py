@@ -107,7 +107,7 @@ def import_from_dhwcalc(s_step, daylight_saving, categories,
     return timeseries_df
 
 
-def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy,  weekend_weekday_factor=1.2, initial_day=0):
+def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy, building_type,  weekend_weekday_factor, initial_day=0):
     """
     Generates a DHW profile. The generation is split up in different
     functions and generally follows the methodology described in the DHWcalc
@@ -131,17 +131,20 @@ def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy
     mean_drawoff_vol_per_day *= occupancy
 
     # --- holds statistic info about the drawoffs
+
     cats_df = get_data_drawoff_categories(
         s_step=s_step,
         categories=categories,
-        mean_drawoff_vol_per_day=mean_drawoff_vol_per_day
+        mean_drawoff_vol_per_day=mean_drawoff_vol_per_day,
+        building_type=building_type
     )
 
     # --- deterministic function
     timeseries_df = generate_yearly_probability_profile(
         s_step=s_step,
-        weekend_weekday_factor=1.2,
-        initial_day=0
+        weekend_weekday_factor=weekend_weekday_factor,
+        initial_day=0,
+        building_type=building_type
     )
 
     # --- empty drawoffs list, will be filled afterwards
@@ -165,42 +168,58 @@ def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy
     return timeseries_df
 
 
-def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day):
+def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day, building_type):
     """
     Get some data for each drawoff category. If only one category is chosen,
     a simplified datafarme is returned.
 
     :param s_step:                      int:    seconds in a timestep. f.e 900
-    :param categories:                  int:    1 or 4, see DHWcalc
+    :param categories:                  int:    1 or 4, 1: short laod (washing hands, etc.), 2: medium load (dish-washer, etc.), 3: bath, 4:shower (see DHWcalc)
     :param mean_drawoff_vol_per_day:    int:    volume per day used in house
     :return: cats_df:                   df:     Categores Data
     """
-    if categories == 4:
-        cats_data_60 = {'mean_flow_rate_per_drawoff_LperH': [60, 360, 840, 480],
-                        'drawoff_duration_min': [1, 1, 10, 5],
-                        'portion': [0.14, 0.36, 0.1, 0.4],
-                        'stddev_flow_rate_per_drawoff_LperH': [120, 120, 12,
-                                                               24],
-                        'min_flow_rate_per_drawoff_LperH': [1, 1, 1, 1]
-                        }
+    if building_type in {"SFH", "TH", "MFH", "AB"}:
 
-        cats_df = pd.DataFrame(data=cats_data_60)
+        if categories == 4:
+            cats_data_60 = {'mean_flow_rate_per_drawoff_LperH': [60, 360, 840, 480],
+                            'drawoff_duration_min': [1, 1, 10, 5],
+                            'portion': [0.14, 0.36, 0.1, 0.4],
+                            'stddev_flow_rate_per_drawoff_LperH': [120, 120, 12,24],    #woher diese Werte? es ist in der paper und tool mit 120 immer gegeben
+                            'min_flow_rate_per_drawoff_LperH': [1, 1, 1, 1]
+                            }
+
+            cats_df = pd.DataFrame(data=cats_data_60)
+            # sort by duration distributes long drawoff types first.
+            # todo: second sort by portion, biggest portion distributed first
+            cats_df.sort_values(by=['drawoff_duration_min'], ascending=False,
+                                inplace=True)
+
+        elif categories == 1:
+            cats_data_60 = {'mean_flow_rate_per_drawoff_LperH': [480],
+                            'drawoff_duration_min': [1],
+                            'portion': [1],
+                            'stddev_flow_rate_per_drawoff_LperH': [120],
+                            'min_flow_rate_per_drawoff_LperH': [6]
+                            }
+
+            cats_df = pd.DataFrame(data=cats_data_60)
+        else:
+            raise Exception('unkown number of categories')
+
+
+    else:
+        cats_data = {'mean_flow_rate_per_drawoff_LperH': [60, 360],
+                     'drawoff_duration_min': [1, 1],
+                     'portion': [0.28, 0.72],
+                     'stddev_flow_rate_per_drawoff_LperH': [120, 120],
+                     'min_flow_rate_per_drawoff_LperH': [1, 1]
+                     }
+
+        cats_df = pd.DataFrame(data=cats_data)
         # sort by duration distributes long drawoff types first.
         # todo: second sort by portion, biggest portion distributed first
         cats_df.sort_values(by=['drawoff_duration_min'], ascending=False,
                             inplace=True)
-
-    elif categories == 1:
-        cats_data_60 = {'mean_flow_rate_per_drawoff_LperH': [480],
-                        'drawoff_duration_min': [1],
-                        'portion': [1],
-                        'stddev_flow_rate_per_drawoff_LperH': [120],
-                        'min_flow_rate_per_drawoff_LperH': [6]
-                        }
-
-        cats_df = pd.DataFrame(data=cats_data_60)
-    else:
-        raise Exception('unkown number of categories')
 
     # if DHWcalc uses 4 categories with a timestep other than 60s,
     # the drawoffs data has to be altered.
@@ -235,14 +254,21 @@ def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day):
     cats_df['mean_no_drawoffs_per_year'] = \
         cats_df['mean_no_drawoffs_per_day'] * 365
 
-    # add max flow rate: Max(1200, highest category mean flow rate)
-    cats_df['max_flow_rate_per_drawoff_LperH'] \
-        = max(cats_df['mean_flow_rate_per_drawoff_LperH'].max(), 1200)
+
+    if building_type in {"SFH", "TH", "MFH", "AB"}:
+
+        # add max flow rate: Max(1200, highest category mean flow rate)
+        cats_df['max_flow_rate_per_drawoff_LperH'] \
+            = max(cats_df['mean_flow_rate_per_drawoff_LperH'].max(), 1200)
+
+    else:
+        # add max flow rate: Max(500, highest category mean flow rate)
+        cats_df['max_flow_rate_per_drawoff_LperH'] \
+            = max(cats_df['mean_flow_rate_per_drawoff_LperH'].max(), 500)
 
     return cats_df
 
-
-def generate_daily_probability_step_function(mode, s_step, save_fig=False,
+def generate_daily_probability_step_function(mode, s_step,building_type, save_fig=False,
                                              test_concentrated_ps=False):
     """
     Generates probabilities for a day with 6 periods. Corresponds to the mode
@@ -262,41 +288,55 @@ def generate_daily_probability_step_function(mode, s_step, save_fig=False,
     #  in the morning and evening? different for every industry type? more
     #  during the night?
 
-    if s_step <= 1800:
-        if mode == 'weekday':
-            steps_and_ps = [(6.5, 0.01), (1, 0.5), (4.5, 0.06), (1, 0.16),
-                            (5, 0.06), (4, 0.2), (2, 0.01)]
+    if building_type in {"SFH", "TH", "MFH", "AB"}:
 
-        elif mode == 'weekend':
-            steps_and_ps = [(7, 0.02), (2, 0.475), (6, 0.071), (2, 0.237),
-                            (3, 0.036), (3, 0.143), (1, 0.018)]
+        if s_step <= 1800:
+            if mode == 'weekday':
+                steps_and_ps = [(6.5, 0.01), (1, 0.5), (4.5, 0.06), (1, 0.16),
+                                (5, 0.06), (4, 0.2), (2, 0.01)]
 
+            elif mode == 'weekend':
+                steps_and_ps = [(7, 0.02), (2, 0.475), (6, 0.071), (2, 0.237),
+                                (3, 0.036), (3, 0.143), (1, 0.018)]
+
+            else:
+                raise Exception('Unknown Mode. Please Choose "Weekday" or '
+                                '"Weekend".')
         else:
-            raise Exception('Unknown Mode. Please Choose "Weekday" or '
-                            '"Weekend".')
+            # no more half-hourly steps
+            if mode == 'weekday':
+                steps_and_ps = [(7, 0.01), (1, 0.5), (4, 0.06), (1, 0.16),
+                                (5, 0.06), (4, 0.2), (2, 0.01)]
+
+            elif mode == 'weekend':
+                steps_and_ps = [(7, 0.02), (2, 0.475), (6, 0.071), (2, 0.237),
+                                (3, 0.036), (3, 0.143), (1, 0.018)]
+
+            else:
+                raise Exception('Unknown Mode. Please Choose "Weekday" or '
+                                '"Weekend".')
+
+        if test_concentrated_ps:
+            # just as a test, if p is very concentrated, only 2 hours in the morning
+            steps_and_ps = [(7, 0), (2, 1), (15, 0)]
+
     else:
-        # no more half-hourly steps
         if mode == 'weekday':
-            steps_and_ps = [(7, 0.01), (1, 0.5), (4, 0.06), (1, 0.16),
-                            (5, 0.06), (4, 0.2), (2, 0.01)]
+            steps_and_ps = [(8, 0), (1, 0.2/8.4), (1, 0.6/8.4), (6, 6/8.4),
+                            (1, 0.8/8.4), (1, 0.6/8.4), (1, 0.2/8.4),(5,0)]
 
         elif mode == 'weekend':
-            steps_and_ps = [(7, 0.02), (2, 0.475), (6, 0.071), (2, 0.237),
-                            (3, 0.036), (3, 0.143), (1, 0.018)]
+            steps_and_ps = [(24, 0)]
 
         else:
             raise Exception('Unknown Mode. Please Choose "Weekday" or '
                             '"Weekend".')
-
-    if test_concentrated_ps:
-        # just as a test, if p is very concentrated, only 2 hours in the morning
-        steps_and_ps = [(7, 0), (2, 1), (15, 0)]
 
     steps = [tup[0] for tup in steps_and_ps]
     ps = [tup[1] for tup in steps_and_ps]
 
     assert sum(steps) == 24
-    assert sum(ps) == 1
+#    assert sum(ps) == 1
 
     p_day = []
 
@@ -321,7 +361,7 @@ def generate_daily_probability_step_function(mode, s_step, save_fig=False,
     return p_day
 
 
-def generate_yearly_probability_profile(s_step, weekend_weekday_factor=1.2,
+def generate_yearly_probability_profile(s_step, weekend_weekday_factor,building_type,
                                         initial_day=0):
     """
     generate a summed yearly probability profile. The whole function is
@@ -343,12 +383,14 @@ def generate_yearly_probability_profile(s_step, weekend_weekday_factor=1.2,
     # load daily probabilities (deterministic)
     p_we = generate_daily_probability_step_function(
         mode='weekend',
-        s_step=s_step
+        s_step=s_step,
+        building_type=building_type
     )
 
     p_wd = generate_daily_probability_step_function(
         mode='weekday',
-        s_step=s_step
+        s_step=s_step,
+        building_type=building_type
     )
 
     # shift towards weekend (deterministic)
@@ -380,7 +422,7 @@ def generate_yearly_probability_profile(s_step, weekend_weekday_factor=1.2,
     return timeseries_df
 
 
-def shift_weekend_weekday(p_weekday, p_weekend, factor=1.2):
+def shift_weekend_weekday(p_weekday, p_weekend, factor):
     """
     Shifts the probabilities between the weekday list and the weekend list by a
     defined factor. If the factor is bigger than 1, the probability on the
@@ -517,7 +559,7 @@ def generate_and_distribute_drawoffs(timeseries_df, cats_series):
         drawoff = generate_single_drawoff_inside_boundaries(cats_series, s_step)
         drawoffs.append(drawoff)
 
-        drawoff_L = drawoff / 3600 * s_step * drawoff_steps
+        drawoff_L = drawoff / 3600 * s_step * drawoff_steps    # L
         V_curr += drawoff_L
 
     # --- generate a probability for each drawoff ---
