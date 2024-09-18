@@ -16,14 +16,14 @@ Contact:        Marco Wirtz
 
 import numpy as np
 import math
-import EHDO.clustering_medoid as clustering
+import districtgenerator.EHDO.clustering_medoid as clustering
 import time
 import os
 import csv
 import json
 import copy
 import sys
-import EHDO.solar_modeling as solar_modeling
+import districtgenerator.EHDO.solar_modeling as solar_modeling
 
 
 def load_params(data):

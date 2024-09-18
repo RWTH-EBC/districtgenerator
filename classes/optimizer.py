@@ -2,7 +2,7 @@ import json, sys, os
 import gurobipy as gp
 from collections import defaultdict
 from contextlib import contextmanager
-import functions.opti_central as opti_central
+import districtgenerator.functions.opti_central as opti_central
 
 
 @contextmanager
