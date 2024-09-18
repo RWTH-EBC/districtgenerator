@@ -4,13 +4,14 @@ import os
 import random as rd
 import json
 import math
-
 import numpy as np
 import pylightxl as xl
-import richardsonpy.classes.occupancy as occ
+import richardsonpy.classes.occupancy as occ_residential
 import richardsonpy.functions.change_resolution as cr
 import districtgenerator.functions.OpenDHW as OpenDHW
-import districtgenerator.functions.dhw_stochastical as dhw_profil
+import districtgenerator.functions.dhw_stochastical as dhw_profil  # wurde nicht genutzt
+import districtgenerator.functions.change_resolution as chres
+import districtgenerator.functions.SIA as SIA
 
 
 class Profiles:
@@ -22,6 +23,8 @@ class Profiles:
     ----------
     number_occupants : integer
         Number of occupants who live in the house or flat.
+    number_occupants_building : integer
+        Number of occupants who live in the building.
     initial_day : integer
         Day of the week with which the generation starts.
         1-7 for monday-sunday.
@@ -35,14 +38,14 @@ class Profiles:
     activity_profile : array-like
         Numpy-array with active occupants 10-minutes-wise.
     occ_profile : array-like
-        Stochastic occupancy profiles for a district.
+        Stochastic occupancy profile.
     app_load : array-like
         Electric load profile of appliances in W.
     light_load : array-like
         Electric load profile of lighting in W.
     """
 
-    def __init__(self, number_occupants, initial_day, nb_days, time_resolution):
+    def __init__(self, number_occupants,number_occupants_building, initial_day, nb_days, time_resolution, building):
         """
         Constructor of Profiles class.
 
@@ -51,28 +54,31 @@ class Profiles:
         None.
         """
 
-        temperatur_out = []
-        temperatur_in = []
-        for day in range(365):
-            temperatur_out.append(50 + (5 * np.cos(math.pi * (2 / 365 * (day) - 2 * 355 / 365))))
-            temperatur_in.append(15 + (5 * np.cos(math.pi * (2 / 365 * (day) - 2 * 172 / 365))))
-
-        temperature_difference_day = [T_out - T_in for T_out, T_in in zip(temperatur_out, temperatur_in)]
-
         self.number_occupants = number_occupants
+        self.number_occupants_building = number_occupants_building
         self.initial_day = initial_day
         self.nb_days = nb_days
         self.time_resolution = time_resolution
 
+        # Initialize SIA class and read data
+        self.SIA2024 = SIA.read_SIA_data()
+        self.building = building
+        if self.building not in {"SFH", "TH", "MFH", "AB"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
+            self.building_zones = self.SIA2024[self.building]
+
         self.activity_profile = []
         self.occ_profile = []
+        self.occ_profile_building = []
+        self.building_profiles = {}
+        self.temperature_difference = []
         self.light_load = []
         self.app_load = []
-        self.temperature_difference = [T for T in temperature_difference_day for _ in range(24)]
-        self.generate_activity_profile()
-        self.loadProbabilitiesDhw()
 
-    def generate_activity_profile(self):
+
+        self.generate_activity_profile_residential()
+        self.loadProbabilitiesDhw()  # wurde nicht genutzt
+
+    def generate_activity_profile_residential(self):
         """
         Generate a stochastic activity profile
         (on base of ridchardsonpy).
@@ -91,11 +97,11 @@ class Profiles:
         -------
         None.
         """
+        if self.building in {"SFH", "TH", "MFH", "AB"}:
+            activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
+            self.activity_profile = activity.occupancy
 
-        activity = occ.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
-        self.activity_profile = activity.occupancy
-
-    def generate_occupancy_profiles(self):
+    def generate_occupancy_profiles_residential(self):
         """
         Generate stochastic occupancy profiles for a district for calculating internal gains.
         Change time resolution of 10 min profiles to required resolution.
@@ -112,12 +118,12 @@ class Profiles:
         self.occ_profile : array-like
             Number of present occupants.
         """
-        #RH: Wieso kombinieren wir SIA Profile und die Richardson Methode?
+        #RH: Warum kombinieren wir SIA-Profile und die Richardson-Profile?
         tr_min = int(self.time_resolution/60)
         sia_profile_daily_min = np.concatenate((np.ones(60*8),
                                                 np.zeros(60*13),
                                                 np.ones(60*3)),
-                                                axis=None)           # warum nehmen wir an, dass es zeros and ones nur gibt? In der Quelle ist es ja nicht nur so "W:\EBC_Public\Literatur\Normen\SIA_2024_RaumnutzungsdatenEnergieGebaeudetechnik_2015.pdf"
+                                                axis=None)           # Warum gehen wir davon aus, dass es nur Nullen und Einsen gibt? In der Quelle ist das nicht so
 
         # generate array for minutely profile
         activity_profile_min = np.zeros(len(self.activity_profile) * 10)
@@ -138,7 +144,86 @@ class Profiles:
 
         return self.occ_profile
 
-    def loadProbabilitiesDhw(self):
+    def generate_profiles_non_residential(self):
+        """
+         Generate stochastic peaople profiles, devices profiles and month profiles
+         for every zone of the non-residential building
+
+         """
+
+        zone_profiles = {}
+        total_hours = 365 * 24
+
+        for number, data in self.SIA2024.items():
+            zone_name = data.get('Zone_name_GER')
+            if not zone_name:
+                continue
+
+            sia_week_profile_people_zone = []
+            sia_week_profile_devices_zone = []
+
+            for i in range(7):
+                is_weekend = (i + self.initial_day) % 7 in (0, 6)
+
+                sia_day_profile_people_zone = [0] * 24 if is_weekend else data['profile_people']
+                sia_day_profile_devices_zone = [min(data['profile_devices'])] * 24 if is_weekend else data['profile_devices']
+                sia_week_profile_people_zone.extend(sia_day_profile_people_zone)
+                sia_week_profile_devices_zone.extend(sia_day_profile_devices_zone)
+
+                repetitions = total_hours // len(sia_week_profile_people_zone)
+                remaining_hours = total_hours % len(sia_week_profile_people_zone)
+
+                # Repeat the weekly pattern to cover the entire year
+                sia_profile_people_zone = sia_week_profile_people_zone * repetitions + sia_week_profile_people_zone[:remaining_hours]
+                sia_profile_devices_zone = sia_week_profile_devices_zone * repetitions + sia_week_profile_devices_zone[:remaining_hours]
+
+                # Apply random variation to the people and devices profiles
+                profile_people_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_people_zone]
+                profile_devices_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_devices_zone]
+
+                # Change resolution
+                profile_people_zone = chres.changeResolution(profile_people_zone, 3600, self.time_resolution, "mean")
+                profile_devices_zone = chres.changeResolution(profile_devices_zone, 3600, self.time_resolution, "mean")
+
+                # Apply random variation to the monthly profile
+                profile_month_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in data['profile_month']]
+
+                zone_profiles[zone_name] = {'profile_people_zone': profile_people_zone,
+                                            'profile_devices_zone': profile_devices_zone,
+                                            'profile_month_zone': profile_month_zone}
+
+                self.building_profiles[self.building] = zone_profiles
+        if self.building == "OB":
+            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in
+                                self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])   # Occupancy profile in an office room of the many existing in the building
+            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
+                                         self.building_profiles['OB']['Einzel-, Gruppenbüro'][
+                                             'profile_people_zone']])
+
+        elif self.building == "School":
+            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in
+                                self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])   # Occupancy profile in a classroom of the many existing in the building
+            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
+                                         self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])
+
+        self.occ_profile_building = occ_profile_building_main_part
+        max_value = max(occ_profile_building_main_part)
+        timesteps_per_Day = int(86400 / self.time_resolution)
+        # Assume that from 10:00 to 16:00, the occupancy in  the building is equal to the maximum number of occupants
+        # in occ_profile_building_main_part, since occ_profile_building_main_part only considers people in main rooms.
+        # If the occupants are not in the main room,they may be in the toilet or kitchen, i.e. they are still in the building.
+
+        for day in range(365):
+            start_index = int(day * timesteps_per_Day + 10 * timesteps_per_Day / 24)  # 10 AM
+            end_index = int(day * timesteps_per_Day + 16 * timesteps_per_Day / 24)  # 4 PM
+            for i in range(start_index, end_index):
+                if self.occ_profile_building[i] != 0:
+                    self.occ_profile_building[i] = max_value
+
+
+        return self.occ_profile, self.occ_profile_building, self.building_profiles
+
+    def loadProbabilitiesDhw(self):   # wurde nicht genutzt
         """
         Load probabilities of dhw usage.
 
@@ -194,6 +279,8 @@ class Profiles:
             Maximum number of occupants in this building.
         mean_drawoff_vol_per_day : array-like
             Total mean daily draw-off volume per person per day in liter.
+        temp_dT : array-like
+        The temperature difference (ΔT) between the cold water and the water at the tapping point (mixed water).
 
         Returns
         -------
@@ -201,14 +288,37 @@ class Profiles:
             Numpy-array with heat demand of dhw consumption in W.
         """
 
+        temperatur_mixed_water = []
+        temperatur_cold_water = []
+        for day in range(365):
+            temperatur_mixed_water.append(45 + (3 * np.cos(math.pi * (2 / 365 * (day) - 2 * 355 / 365))))
+            #This formula introduces a seasonal fluctuation to take account of the fluctuations in the desired water temperature throughout the year.
+            #The amplitude is ±3°C, reflecting higher hot water temperature requirements during colder months (winter) and lower during warmer months (summer).
 
-        dhw_profile = OpenDHW.generate_dhw_profile(s_step=60, categories=1, occupancy=self.number_occupants, mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"])
+            temperatur_cold_water.append(10 + (5 * np.cos(math.pi * (2 / 365 * (day) - 2 * 172 / 365))))
+            #This formula introduces a seasonal fluctuation to take account of the fluctuations in the cold water temperature throughout the year.
+            #The amplitude is ±5°C, reflecting lower cold water temperatures during colder months (winter) and higher during warmer months (summer).
+
+        temperature_difference_day = [T_out - T_in for T_out, T_in in zip(temperatur_mixed_water, temperatur_cold_water)]
+
+        temperature_difference = [T for T in temperature_difference_day for _ in range(24)]
+        self.temperature_difference = chres.changeResolution(temperature_difference, 3600, self.time_resolution, "mean")
+
+        dhw_profile = OpenDHW.generate_dhw_profile(
+            s_step=60,
+            categories=1,
+            occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
+            building_type=self.building,
+            weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
+            mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"]
+        )
+
         dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
         dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=self.temperature_difference)
 
         return dhw_heat["Heat_W"].values
 
-    def generate_el_profile(self, irradiance, el_wrapper, annual_demand, do_normalization=True):
+    def generate_el_profile_residential(self, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """
         Generate electric load profile for one household
 
@@ -326,7 +436,111 @@ class Profiles:
 
         return loadcurve
 
-    def generate_gain_profile(self):
+    def generate_el_profile_non_residential(self, irradiance, el_wrapper,annual_demand_app):
+        """
+        Generate electric load profile for one household
+
+        Parameters
+        -------
+        irradiance : array-like
+            If none is given default weather data (TRY 2015 Potsdam) is used.
+        el_wrapper : object
+            This objects holds information about the lighting configuration.
+
+        Returns
+        -------
+        light_p_curve : array-like
+            Electric load profile for lighting in W.
+        """
+        # Make simulation over x days
+        demand = []
+
+        #  Check if irradiance timestep is identical with param. timestep
+        timesteps_irr = int(self.nb_days * 3600 * 24 / len(irradiance))
+
+        if self.time_resolution != timesteps_irr:  # pragma: no cover
+            msg = 'Time discretization of irradiance is different from timestep ' \
+                  + str(self.time_resolution) \
+                  + 'seconds . You need to change the resolution, first!'
+            raise AssertionError(msg)
+
+        _timestep_rich = 60  # timesteps in seconds
+
+        # number of timesteps per day for given time resolution
+        timesteps_per_Day = int(86400 / self.time_resolution)
+
+        # Array holding index of timesteps (60 second timesteps)
+        # Irradiance is needed for every minute of the day
+        required_timestamp = np.arange(1440)
+
+        # Array holding each timestep in seconds
+        # the timesteps of the irradiance array in minutes
+        given_timestamp = self.time_resolution / _timestep_rich * np.arange(timesteps_per_Day)
+
+        #  Loop over all days
+        for i in range(self.nb_days):
+
+            #  Define, if days is weekday or weekend
+            if (i + self.initial_day) % 7 in (0, 6):
+                weekend = True
+            else:
+                weekend = False
+
+            #  Extract array with radiation for each timestep of day
+            irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
+
+            #  Interpolate radiation values for required timestep of 60 seconds
+            irrad_day_minutewise = np.interp(required_timestamp, given_timestamp, irrad_day)
+
+            # Extract current occupancy profile for current day
+            # We assume occupancy for a single main room, as each main room operates independently.
+            # Considering the entire building's occupancy could result in unrealistic big numbers of occupants,
+            # which wouldn't accurately represent the effective occupancy in the independent main room.
+            # The number of occupants in a specific main room is important because they share control of the same lighting,
+            # unlike occupants in other main rooms who do not influence the lighting in this part of the buildings
+            # where the assumed main room lies.
+            occ_profile = self.occ_profile[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
+
+            max_value = max(occ_profile)
+
+            occ_profile_building_part = occ_profile
+
+            # Assume that from 10:00 to 16:00, the occupancy in the assumed part of the building is equal to the maximum number of occupants
+            # in occ_profile, since occ_profile only considers people in main rooms. If people are not in the main room,
+            # they may be in the toilet or kitchen, i.e. they are still in this part of the building.
+            occ_profile_building_part[int(10*timesteps_per_Day/24) : int(16*timesteps_per_Day/24)] = [max_value] * int(6*timesteps_per_Day/24)
+
+            # Extract current occupancy profile for current day
+            # (10-minutes-timestep assumed)
+            current_occupancy = np.round(np.interp(np.arange(144), given_timestamp/10, occ_profile_building_part)).astype(int)
+
+            day_of_the_year = 0 # only necessary for electric heating
+            # Perform lighting usage simulation for one day
+            light_p_curve = el_wrapper.power_sim_lighting(irradiation=irrad_day_minutewise, occupancy=current_occupancy)
+
+            # Append results
+            self.light_load.append(light_p_curve)
+
+        # Perform appliance usage simulation for one year
+        app_p_curve = el_wrapper.power_sim_app(annual_demand_app=annual_demand_app,building_profiles=self.building_profiles, time_resolution=self.time_resolution)
+        self.app_load.append(app_p_curve)
+
+        # Convert to nd-arrays
+        self.light_load = np.array(self.light_load)
+        self.app_load = np.array(self.app_load)
+
+        # Reshape arrays (nd-array structure to 1d structure)
+        self.light_load = np.reshape(self.light_load, self.light_load.size)
+        self.app_load = np.reshape(self.app_load, self.app_load.size)
+
+        # Change time resolution to timestep defined by user
+        self.light_load = cr.change_resolution(self.light_load, _timestep_rich, self.time_resolution)
+
+        loadcurve = self.light_load + self.app_load
+
+        return loadcurve
+
+    def generate_gain_profile_residential(self):
         """
         Generate profile of internal gains
 
@@ -365,6 +579,46 @@ class Profiles:
         gains = self.occ_profile * personGain + self.light_load * lightGain + self.app_load * appGain
 
         return gains
+
+    def generate_gain_profile_non_residential(self):
+        """
+        Generate profile of internal gains
+
+        Parameters
+        -------
+        personGain : float
+            Heat dissipation of one person
+            Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik
+        lightGain : float
+            share of waste heat (LED)
+            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+            62 (2014), January, 32–41.
+        appGain :
+            share of waste heat (assumed)
+            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+            62 (2014), January, 32–41.
+        occ_profile : float
+             stochastic occupancy profiles for a district.
+        app_load : array-like
+            Electric load profile of appliances in W.
+        light_load : array-like
+            Electric load profile of lighting in W.
+
+        Returns
+        -------
+        gains : array-like
+            Internal gain of each flat.
+        """
+        personGain = 70.0  # [Watt]
+        lightGain = 0.65
+        appGain = 0.33
+
+        gains_persons = self.occ_profile_building * personGain
+        gains_others = self.light_load * lightGain + self.app_load * appGain
+
+        return gains_persons, gains_others
 
     def generate_EV_profile(self, occ):
         """

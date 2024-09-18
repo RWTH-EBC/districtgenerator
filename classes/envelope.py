@@ -34,7 +34,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, file_path):
+    def __init__(self, prj, building_params, construction_type, window_layout, file_path):
         """
         Constructor of Envelope class.
 
@@ -59,6 +59,7 @@ class Envelope:
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_type = construction_type
+        self.window_layout = window_layout
         self.retrofit = building_params["retrofit"]
         self.usage_short = building_params["building"]
         self.file_path = file_path
@@ -244,134 +245,237 @@ class Envelope:
         comp = "wall"
         # WALLS: Materials and U-value
         for name, elem in element_bind.items():
-            if "OuterWall" in name:
-                if elem["building_age_group"][0] <= self.construction_year <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == self.construction_type \
-                        + "_1_" + self.usage_short:
+            if self.construction_type in {"heavy", "light"}:   # so it's not a residential building
+
+                if "OuterWall" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == self.construction_type:
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
+            else:
+                if "OuterWall" in name and elem["building_age_group"][0] <= self.construction_year <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == self.construction_type + "_1_" + self.usage_short:
+
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                           lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                             material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                material_prop[2])
-                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                            material_prop[3] * 1000)
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                        material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
         comp = "roof"
         # ROOF: Materials and U-value
         for name, elem in element_bind.items():
-            if "Rooftop" in name:
-                if elem["building_age_group"][0] <= self.construction_year <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == self.construction_type \
-                        + "_1_" + self.usage_short:
+            if self.construction_type in {"heavy", "light"}:  # so it's not a residential building
+
+                if "Rooftop" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == self.construction_type:
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
+                                                               lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
+                                                                 material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                    material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                                material_prop[3] * 1000)
+            else:
+                if "Rooftop" in name and elem["building_age_group"][0] <= self.construction_year <= \
+                        elem["building_age_group"][1] and elem[
+                    "construction_type"] == self.construction_type + "_1_" + self.usage_short:
+
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                           lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                             material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                material_prop[2])
-                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                            material_prop[3] * 1000)
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                        material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
+
 
         comp = "floor"
         # FLOOR: Materials and U-value
         for name, elem in element_bind.items():
-            if "GroundFloor" in name:
-                if elem["building_age_group"][0] <= self.construction_year <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == self.construction_type \
-                        + "_1_" + self.usage_short:
+            if self.construction_type in {"heavy", "light"}:  # so it's not a residential building
+
+                if "GroundFloor" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == self.construction_type:
+
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
+                                                               lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
+                                                                 material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                    material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                                material_prop[3] * 1000)
+            else:
+                if "GroundFloor" in name and elem["building_age_group"][0] <= self.construction_year <= \
+                        elem["building_age_group"][1] and elem[
+                    "construction_type"] == self.construction_type + "_1_" + self.usage_short:
+
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                           lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                             material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                material_prop[2])
-                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                            material_prop[3] * 1000)
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                        material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
         comp = "intWall"
         # INTERNAL WALL: Materials and U-value
         for name, elem in element_bind.items():
-            if "InnerWall" in name:
-                dummy = min(2015,
-                            self.construction_year)  # data available until 2015
-                if elem["building_age_group"][0] <= dummy <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == "tabula_standard":
-                    for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                           lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                             material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                material_prop[2])
-                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                            material_prop[3] * 1000)
+
+            if self.construction_type in {"heavy", "light"}:  # so it's not a residential building
+                if "InnerWall" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == self.construction_type:
+
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
+                                                               lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
+                                                                 material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                    material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                                material_prop[3] * 1000)
+            else:
+                if "InnerWall" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == "tabula_standard":
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
         comp = "ceiling"
         # CEILING: Materials and U-value
         for name, elem in element_bind.items():
-            if "Ceiling" in name:
-                dummy = min(2015,
-                            self.construction_year)  # data available until 2015
-                if elem["building_age_group"][0] <= dummy <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == "tabula_standard":
-                    for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                           lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                             material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                material_prop[2])
-                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                            material_prop[3] * 1000)
+            if self.construction_type in {"heavy", "light"}:  # so it's not a residential building
+                if "Ceiling" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                            elem["building_age_group"][1] and elem["construction_type"] == self.construction_type:
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
+                                                               lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
+                                                                 material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                    material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                                material_prop[3] * 1000)
+            else:
+                if "Ceiling" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == "tabula_standard":
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
         comp = "intFloor"
         # INTERNAL FLOOR: Materials and U-value
         for name, elem in element_bind.items():
-            if "Floor" in name:
-                dummy = min(2015,
-                            self.construction_year)  # data available until 2015
-                if elem["building_age_group"][0] <= dummy <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == "tabula_standard":
-                    for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                           lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                             material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                material_prop[2])
-                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                            material_prop[3] * 1000)
+            if self.construction_type in {"heavy", "light"}:  # so it's not a residential building
+                if "Floor" in name and "GroundFloor" not in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                            elem["building_age_group"][1] and elem["construction_type"] == self.construction_type:
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
+                                                               lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
+                                                                 material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                    material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                                material_prop[3] * 1000)
+            else:
+                if "Floor" in name and "GroundFloor" not in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                        elem["building_age_group"][1] and elem["construction_type"] == "tabula_standard":
+
+                        for lay in elem["layer"].items():
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
         comp = "window"
         # INTERNAL FLOOR: Materials and U-value
         for name, elem in element_bind.items():
-            if "Window" in name:
-                if elem["building_age_group"][0] <= self.construction_year <= \
-                        elem["building_age_group"][1] and \
-                        elem["construction_type"] == self.construction_type \
-                        + "_1_" + self.usage_short:
+            if self.construction_type in {"heavy", "light"}:  # so it's not a residential building
+
+
+                if "Window" in name:
+                    dummy = min(2015,
+                                self.construction_year)  # data available until 2015
+                    if elem["building_age_group"][0] <= dummy <= \
+                            elem["building_age_group"][1] and elem["construction_type"] == self.window_layout:
+
+                        self.g_gl["window"] = elem["g_value"]
+                        for lay in elem["layer"].items():
+                            self.d["window"] = np.append(self.d["window"],
+                                                         lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["window"] = np.append(self.rho["window"],
+                                                           material_prop[1])
+                            self.Lambda["window"] = np.append(self.Lambda["window"],
+                                                              material_prop[2])
+                            self.cp["window"] = np.append(self.cp["window"],
+                                                          material_prop[3] * 1000)
+            else:
+                if "Window" in name and elem["building_age_group"][0] <= self.construction_year <= \
+                        elem["building_age_group"][1] and elem[
+                    "construction_type"] == self.construction_type + "_1_" + self.usage_short:
+
                     self.g_gl["window"] = elem["g_value"]
                     for lay in elem["layer"].items():
                         self.d["window"] = np.append(self.d["window"],

@@ -31,13 +31,13 @@
   },
   {
     "name": "buildings_short",
-    "value": ["SFH", "MFH", "TH", "AB"],
+    "value": ["SFH", "MFH", "TH", "AB","OB","School"],
     "unit": "-",
     "description": "Abbreviations of the selectable building types."
   },
   {
     "name": "buildings_long",
-    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block"],
+    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school"],
     "unit":  "-",
     "description": "Names of the four selectable building types."
   },
@@ -45,30 +45,30 @@
     "name": "retrofit_short",
     "value": [0, 1, 2],
     "unit": "-",
-    "description": "Abbreviations of the retrofit levels."
+    "description": "Abbreviations of the retrofit levels of the reseidential buildings."
   },
   {
     "name": "retrofit_long",
     "value": ["tabula_standard", "tabula_retrofit", "tabula_adv_retrofit"],
     "unit":  "-",
-    "description": "Names of the retrofit levels."
+    "description": "Names of the retrofit levels of the reseidential buildings."
   },
   {
     "name": "dhwload",
-    "value": [4662.1, 4662.1, 4662.1, 3999.8],
+    "value": [4662.1, 4662.1, 4662.1, 3999.8, 1000, 1000],
     "unit":  "Watt",
-    "description": "Maximal power for domestic hot water for each of the four building types (SFH, MFH, TH and AB)"
+    "description": "Maximal power for domestic hot water for each building type (SFH, MFH, TH, AB, OB, School)."
   },
   {
     "name": "mean_drawoff_vol_per_day",
-    "value": [40, 40, 40, 40],
+    "value": [40, 40, 40, 40, 9.8, 9.8],
     "unit":  "Liter",
-    "description": "Mean drawoff DHW volume per day for each of the four building types (SFH, MFH, TH and AB)"
+    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, School). Source: 12831-3/A100 Table NA.4"
   },
   {
     "name": "ratio_area",
-    "value": [0.6656, 0.6785, 0.7112, 0.6662],
+    "value": [0.6656, 0.6785, 0.7112, 0.6662, 0.6662, 0.6662],
     "unit":  "-",
-    "description": "Ratio of net floor area area to total gross floor for each of the four building types (SFH, MFH, TH and AB)"
+    "description": "Ratio of net floor area to total gross floor area for each of the five building types (SFH, MFH, TH and AB)"
   }
 ]

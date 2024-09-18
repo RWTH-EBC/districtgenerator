@@ -19,10 +19,10 @@ from classes.system import CES
 from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
-import functions.clustering_medoid as cm
-import functions.wind_turbines as wind_turbines
-import EHDO.load_params as load_params_EHDO
-import EHDO.optim_model as optim_model_EHDO
+import districtgenerator.functions.clustering_medoid as cm
+import districtgenerator.functions.wind_turbines as wind_turbines
+import districtgenerator.EHDO.load_params as load_params_EHDO
+import districtgenerator.EHDO.optim_model as optim_model_EHDO
 
 
 class Datahandler:
@@ -69,6 +69,7 @@ class Datahandler:
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
         self.KPIs = None
+        self.building_type = None
 
     def select_plz_data(self, plz):
         """
@@ -216,6 +217,9 @@ class Datahandler:
         duration = datetime.timedelta(minutes=1)
         num_sfh = 0
         num_mfh = 0
+        num_OB = 0
+        num_schools = 0
+
         self.scenario_name = scenario_name
         self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
                                     + "/"
@@ -237,9 +241,11 @@ class Datahandler:
             # Count number of builidings to predict the approximate calculation time
             if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH': num_sfh +=1
             elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
+            elif building["buildingFeatures"]["building"] == 'OB': num_OB +=1
+            elif building["buildingFeatures"]["building"] == 'School': num_schools +=1
 
         # Calculate calculation time for the whole district generation
-        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
+        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh) #ergänzen
         print("This calculation will take about " + str(duration) + " .")
 
     def generateBuildings(self):
@@ -268,27 +274,69 @@ class Datahandler:
 
 
             # convert short names into designation needed for TEASER
-            building_type = \
+            self.building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
-            retrofit_level = \
-                bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
             # add buildings to TEASER project
-            prj.add_residential(method='tabula_de',
-                                usage=building_type,
-                                name="ResidentialBuildingTabula",
-                                year_of_construction=building["buildingFeatures"]["year"],
-                                number_of_floors=3,
-                                height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
-                                construction_type=retrofit_level)
+            if self.building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
+                retrofit_level = \
+                    bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
-            # %% create envelope object
-            # containing all physical data of the envelope
-            building["envelope"] = Envelope(prj=prj,
-                                            building_params=building["buildingFeatures"],
-                                            construction_type=retrofit_level,
-                                            file_path=self.filePath)
+                prj.add_residential(method='tabula_de',
+                                    usage=self.building_type,
+                                    name="ResidentialBuildingTabula",
+                                    year_of_construction=building["buildingFeatures"]["year"],
+                                    number_of_floors=3,
+                                    height_of_floors=3.125,
+                                    net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                    construction_type=retrofit_level)
+
+                # %% create envelope object
+                # containing all physical data of the envelope
+                building["envelope"] = Envelope(prj=prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=retrofit_level,
+                                                window_layout=retrofit_level,
+                                                file_path=self.filePath)
+            elif self.building_type in {"office"}:
+                prj.add_non_residential(method='bmvbs',
+                                    usage=self.building_type,
+                                    name="Officebmvbs",
+                                    year_of_construction=building["buildingFeatures"]["year"],
+                                    number_of_floors=3,
+                                    height_of_floors=3,
+                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][
+                                        bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                    construction_type="heavy")
+
+                # %% create envelope object
+                # containing all physical data of the envelope
+                building["envelope"] = Envelope(prj=prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type="heavy",
+                                                window_layout="Kunststofffenster, Isolierverglasung",
+                                                file_path=self.filePath)
+            ##########################
+            # ab hier checken:
+            ############################
+            else:
+                prj.add_non_residential(method='bmvbs',
+                                    usage="office",
+                                    name="Officebmvbs",
+                                    year_of_construction=building["buildingFeatures"]["year"],
+                                    number_of_floors=3,
+                                    height_of_floors=3,
+                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][
+                                        bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                    construction_type="heavy")
+
+                # %% create envelope object
+                # containing all physical data of the envelope
+                building["envelope"] = Envelope(prj=prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type="heavy",
+                                                window_layout="Kunststofffenster, Isolierverglasung",
+                                                file_path=self.filePath)
 
             # %% create user object
             # containing number occupants, electricity demand,...
@@ -297,6 +345,22 @@ class Datahandler:
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+
+            # %% calculate design heat loads
+            # at norm outside temperature
+            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            # at bivalent temperature
+            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            # at heating limit temperature
+            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            # for drinking hot water
+            if self.building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+                building["user"].nb_flats
+            else:
+                #check if correct
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+                building["user"].nb_main_rooms
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
@@ -324,7 +388,10 @@ class Datahandler:
             # %% create unique building name
             # needed for loading and storing data with unique name
             # name is composed of building type, number of flats, serial number of building of this properties
-            name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
+            if building["buildingFeatures"]["building"] in {'SFH','MFH','TH','AB'}:
+                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
+            else:
+                name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_main_rooms)
             if name not in set:
                 set.append(name)
                 self.counter[name] = count()
@@ -349,10 +416,12 @@ class Datahandler:
                 print("Load demands of building " + building["unique_name"])
 
             # check if EV exist
-            building["clusteringData"] = {
-                "potentialEV": copy.deepcopy(building["user"].car)
-            }
-            building["user"].car *= building["buildingFeatures"]["EV"]
+            if building["buildingFeatures"]["building"] in {'SFH','MFH','TH','AB'}:
+
+                building["clusteringData"] = {
+                    "potentialEV": copy.deepcopy(building["user"].car)
+                }
+                building["user"].car *= building["buildingFeatures"]["EV"]
 
             building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
 
@@ -456,9 +525,13 @@ class Datahandler:
             # at heating limit temperature
             building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
-            building["dhwload"] = \
-                bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+            if self.building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
                 building["user"].nb_flats
+            else:
+                #check if correct
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+                building["user"].nb_main_rooms
 
             # %% create building energy system object
             # get capacities of all possible devices
@@ -542,7 +615,7 @@ class Datahandler:
         """
 
         self.designDecentralDevices(saveGenerationProfiles)
-        self.designCentralDevices(saveGenerationProfiles)
+#        self.designCentralDevices(saveGenerationProfiles)
 
     def clusterProfiles(self, centralEnergySupply):
         """
