@@ -10,8 +10,6 @@ import numpy as np
 import functions.schedule_reader as schedule_reader
 
 
-
-
 def get_lightning_load(building_type):
     """
     Get the lighning load from data\consumption_data\internal_loads.csv
@@ -32,8 +30,6 @@ def get_lightning_load(building_type):
 
 
     try:
-        print(f"This is the path: {load_data_path}"
-              )
         load_data = pd.read_csv(load_data_path, sep=';', decimal=',')
         lighntning_control = load_data[load_data["cea_code"] == data_type]["El_Wm2"].iloc[0]
 
@@ -102,7 +98,6 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     """
     # This code calculates the lighting demand for a building based on various factors:
 
-    # 1. Summing illuminance:
     # If illuminance is a list of Series (representing different facades), it's combined.
     # If it's a numpy array, it's summed and converted to a pandas Series.
     if isinstance(illuminance, list):
@@ -111,28 +106,23 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
         total_illuminance = np.sum(illuminance, axis=0)
         illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
 
-    # 2. Gathering lighting parameters:
     lighting_load = get_lightning_load(building_type)  # Lighting power density (W/m2)
     lighting_control = schedule_reader.get_lightning_control(building_type)  # Illuminance threshold (lux)
     lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
 
-    # 3. Calculating actual illuminance (lux):
     # 0.45 is a light utilization factor according to Jayathissa 2020 and DIBS
     # Jayathissa, D. (2020): https://github.com/architecture-building-systems/RC_BuildingSimulator
     lux = (illuminance * 0.45 * lighting_maintenance_factor) / area
 
-    # 4. Determining when artificial lighting is needed:
     # Lighting is needed when lux is below the threshold and the space is occupied
     mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)
 
-    # 5. Calculating lighting demand:
-    # Initialize with zeros
+   
     lighting_demand = pd.Series(0, index=occupancy_schedule.index)
     # Calculate demand only when lighting is needed (mask is True)
     lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]
     lighting_demand[~mask] = 0
 
-    breakpoint()  # Debugging breakpoint
     return lighting_demand  # Return the calculated lighting demand (in watts)
 
 

@@ -74,4 +74,3 @@ def example1_4_generate_first_district():
 if __name__ == '__main__':
     data = example1_4_generate_first_district()
 
-
