@@ -318,7 +318,7 @@ class Users():
                                                                  annual_demand=self.annual_el_demand[j])
             self.gains = self.gains + temp_obj.generate_gain_profile()
 
-    def calcHeatingProfile(self,site,envelope,time_resolution) :
+    def calcHeatingProfile(self,site, envelope, time_resolution) :
 
         '''
         Calclulate heat demand for each building
@@ -340,10 +340,13 @@ class Users():
 
         dt = time_resolution/(60*60)
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope,site["T_e"],dt)
+        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_min, site["T_e"], dt)
         # heating  load for the current time step in Watt
         self.heat = np.zeros(len(Q_HC))
         self.heat = np.maximum(0, Q_HC)
+
+        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
+        # Cooling load for the current time step in Watt
         self.cool = np.zeros(len(Q_HC))
         self.cool = np.minimum(0, Q_HC)
     
