@@ -100,40 +100,40 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     :return: Lighting Energy Required for the timestep
     :rtype: pd.Series
     """
-   # To-Do:
-   # Find error 
+    # This code calculates the lighting demand for a building based on various factors:
 
-    # Calculate summed illuminance if a list of Series is provided
-    # This is necessary, as the illuminance is calculted for each facade and then 
-    # the sum of all facades is provided when considering lightning 
+    # 1. Summing illuminance:
+    # If illuminance is a list of Series (representing different facades), it's combined.
+    # If it's a numpy array, it's summed and converted to a pandas Series.
     if isinstance(illuminance, list):
         illuminance = pd.concat(illuminance, axis=1).sum(axis=1)
     if isinstance(illuminance, np.ndarray):
-         total_illuminance = np.sum(illuminance, axis=0)
-         # Convert the resulting array to a pandas Series
-         illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
+        total_illuminance = np.sum(illuminance, axis=0)
+        illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
 
-    # Calculate the lighting demand
-    lighting_load = get_lightning_load(building_type)  # W/m2
-    #lighting_control = get_lightning_control(building_type)  # Lux threshold
-    lighting_control = schedule_reader.get_lightning_control(building_type)
+    # 2. Gathering lighting parameters:
+    lighting_load = get_lightning_load(building_type)  # Lighting power density (W/m2)
+    lighting_control = schedule_reader.get_lightning_control(building_type)  # Illuminance threshold (lux)
     lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
-    lux = (illuminance * 0.45 * lighting_maintenance_factor) / area  # Calculate lux at each timestep
-    print(f"Lux: {lux}",
-          f"Lighting control: {lighting_control}",
-          f"Lighting load: {lighting_load}",
-          f"Lighting maintenance factor: {lighting_maintenance_factor}",
-          f"Area: {area}",
-          f"Illuminance: {illuminance}",
-          f"Occupancy schedule: {occupancy_schedule}",
-          f"Building type: {building_type}")
-    
-    mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)  # Determine when artificial lighting is needed
+
+    # 3. Calculating actual illuminance (lux):
+    # 0.45 is a light utilization factor according to Jayathissa 2020 and DIBS
+    # Jayathissa, D. (2020): https://github.com/architecture-building-systems/RC_BuildingSimulator
+    lux = (illuminance * 0.45 * lighting_maintenance_factor) / area
+
+    # 4. Determining when artificial lighting is needed:
+    # Lighting is needed when lux is below the threshold and the space is occupied
+    mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)
+
+    # 5. Calculating lighting demand:
+    # Initialize with zeros
     lighting_demand = pd.Series(0, index=occupancy_schedule.index)
-    lighting_demand = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]  # Calculate energy demand
+    # Calculate demand only when lighting is needed (mask is True)
+    lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]
+    lighting_demand[~mask] = 0
 
-    return lighting_demand
-
+    breakpoint()  # Debugging breakpoint
+    return lighting_demand  # Return the calculated lighting demand (in watts)
 
 
 # Wartungsfaktor der Fensterflächen (lighting_maintenance_factor) 
