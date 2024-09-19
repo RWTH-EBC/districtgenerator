@@ -1,6 +1,9 @@
 import os
 import pandas as pd
 
+current_file_path = os.path.abspath(__file__)
+base_path = os.path.dirname(os.path.dirname(current_file_path))
+
 def getBuildingType(term, kind):
     """
     Retrieve the value from a specified column based on a match in the 'districtgenerator' column.
@@ -12,8 +15,7 @@ def getBuildingType(term, kind):
     Returns:
     str: The value from the specified column if a match is found; otherwise, None.
     """
-    srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    building_types_file  = os.path.join(srcPath, 'data', 'building_types.csv')
+    building_types_file  = os.path.join(base_path, 'data', 'building_types.csv')
     df = pd.read_csv(building_types_file, sep=';')
     # Check if the kind column exists
     if kind not in df.columns:
@@ -45,9 +47,8 @@ def getSchedule(building_type):
     if scheduleName is None:
         print(f"No schedule for building type {building_type}")
         return None, None
-
-    dataDirPath = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(dataDirPath, 'data', 'occupancy_schedules', f'{scheduleName}.csv')
+    
+    data_path = os.path.join(base_path, 'data', 'occupancy_schedules', f'{scheduleName}.csv')
 
     try:
         data_schedule = pd.read_csv(data_path, sep=',')
@@ -129,8 +130,7 @@ def get_tek(building_type):
         print(f"No schedule for building type {building_type}")
         return None, None
 
-    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(data_dir_path, 'data', 'TEKs', 'TEK_districtgenerator.csv')
+    data_path = os.path.join(base_path, 'data', 'TEKs', 'TEK_districtgenerator.csv')
 
     try:
         data_schedule = pd.read_csv(data_path, sep=',',)
@@ -173,8 +173,7 @@ def get_multi_zone_average(building_type):
         print(f"No schedule for building type {building_type}")
         return None, None, None
 
-    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    data_path = os.path.join(data_dir_path, 'data', 'multi_zone_average', 
+    data_path = os.path.join(base_path, 'data', 'multi_zone_average', 
                              'Non-domestic-multi-zone-average-usage-profiles-for-Germany.csv')
     
     try:
@@ -205,9 +204,8 @@ def get_lightning_control(building_type):
     if data_type is None:
         print(f"No schedule for building type {building_type}")
         return None, None
-   
-    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    maintenance_data_path = os.path.join(data_dir_path, 'data', 'norm_profiles', '18599_10_4_data.csv')
+
+    maintenance_data_path = os.path.join(base_path, 'data', 'norm_profiles', '18599_10_4_data.csv')
 
 
     try:

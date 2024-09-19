@@ -32,8 +32,6 @@ def get_lightning_load(building_type):
 
 
     try:
-        print(f"This is the path: {load_data_path}"
-              )
         load_data = pd.read_csv(load_data_path, sep=';', decimal=',')
         lighntning_control = load_data[load_data["cea_code"] == data_type]["El_Wm2"].iloc[0]
 
@@ -44,7 +42,6 @@ def get_lightning_load(building_type):
     except IndexError:
         print(f"No data about lighntning load available for {building_type}")
         return None
-
 
 
 
