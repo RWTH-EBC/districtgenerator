@@ -584,57 +584,7 @@ class NonResidentialProfiles():
 
         # Array holding each timestep in seconds
         ### the timesteps of the irradiance array in minutes
-        given_timestamp = self.time_resolution / _timestep_rich * np.arange(timesteps_per_Day)
-
-        """
-        
-        #  Loop over all days
-        for i in range(self.nb_days):
-
-            #  Define, if days is weekday or weekend
-            if (i + self.initial_day) % 7 in (0, 6):
-                weekend = True
-            else:
-                weekend = False
-
-            #  Extract array with radiation for each timestep of day
-            irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
-
-            #  Interpolate radiation values for required timestep of 60 seconds
-            irrad_day_minutewise = np.interp(required_timestamp,
-                                            given_timestamp, irrad_day)
-
-            # Extract current occupancy profile for current day
-            # (10-minutes-timestep assumed)
-            current_occupancy = self.activity_profile[144 * i: 144 * (i + 1)]
-
-            day_of_the_year = 0 
-            # only necessary for electric heating
-            # Perform lighting and appliance usage simulation for one day
-            # Figure out, how to get el_p, light_p and app_p 
-            # In richardsonnpy the following return is stated: 
-            # Returns
-            # -------
-            # tup_res : tuple (of arrays)
-            #     Results tuple (power_el_total, power_el_light,
-            #     power_el_app)
-            #     power_el_total : array
-            #         Array holding total el. power values in Watt
-            #     power_el_light : array
-            #         Array holding el. power values for light usage in Watt
-            #     power_el_app : array
-            #         Array holding el. power values for appliance usage in Watt
-            (el_p_curve, light_p_curve, app_p_curve) = el_wrapper.power_sim(irradiation=irrad_day_minutewise,
-                                                                            weekend=weekend,
-                                                                            day=i+day_of_the_year,)
-            # Substitution of caluclations 
-            # Lighniging 
-            # If occupancy -> occupancy electricity                                                                 occupancy=current_occupancy)
-            # Append results
-            demand.append(el_p_curve)
-            self.light_load.append(light_p_curve)
-            self.app_load.append(app_p_curve)
-        """ 
+        given_timestamp = self.time_resolution / _timestep_rich * np.arange(timesteps_per_Day) 
         # To-Do: Get data to be turned into profiles
         # Occupancy based + Lightning + common electricity
         # 
