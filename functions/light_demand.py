@@ -99,7 +99,6 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]
     lighting_demand[~mask] = 0
 
-    breakpoint()  # Debugging breakpoint
     return lighting_demand  # Return the calculated lighting demand (in watts)
 
 
