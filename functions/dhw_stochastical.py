@@ -16,6 +16,36 @@ import pylightxl as xl
 
 def load_profiles(filename):
     """
+    Load domestic hot water profiles from an Excel file.
+
+    Parameters
+    ----------
+    filename : str
+        Path to the Excel file containing the profiles.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the loaded profiles with the following structure:
+        {
+            'we': {
+                1: np.array(...),  # Weekend profile for 1 person
+                2: np.array(...),  # Weekend profile for 2 people
+                ...
+            },
+            'wd': {
+                1: np.array(...),  # Weekday profile for 1 person
+                2: np.array(...),  # Weekday profile for 2 people
+                ...
+            },
+            'we_mw': np.array(...),  # Weekend mean profile
+            'wd_mw': np.array(...)   # Weekday mean profile
+        }
+
+    Notes
+    -----
+    The Excel file should have sheets named 'we_mw', 'wd_mw', 'we1', 'we2', ..., 'wd1', 'wd2', ...
+    Each sheet should contain 1440 values (one for each minute of the day).
     """
     # Initialization
     profiles = {"we": {}, "wd": {}}

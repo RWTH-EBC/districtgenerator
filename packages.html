@@ -1,0 +1,35 @@
+<html>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+      <div class="mermaid">
+    
+        classDiagram
+          class districtgenerator {
+          }
+          class datahandler {
+          }
+          class envelope {
+          }
+          class plots {
+          }
+          class profils {
+          }
+          class solar {
+          }
+          class users {
+          }
+          districtgenerator --> datahandler
+          districtgenerator --> envelope
+          districtgenerator --> plots
+          districtgenerator --> profils
+          districtgenerator --> solar
+          districtgenerator --> users
+          datahandler --> envelope
+          datahandler --> plots
+          datahandler --> solar
+          datahandler --> users
+          users --> profils
+  
+       </div>
+  </body>
+</html>

@@ -6,7 +6,7 @@ Example five will show you the impact of the weather.
 
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator import *
 
 # PREPARATION: Change the weather data base
 

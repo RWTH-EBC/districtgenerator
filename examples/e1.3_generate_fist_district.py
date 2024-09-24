@@ -5,7 +5,7 @@ In this step, we fill our buildings with more informations.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator import *
 
 
 def example1_3_generate_first_district() :

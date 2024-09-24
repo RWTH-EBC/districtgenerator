@@ -5,7 +5,7 @@ This is the fourth example. Here we change the site of the district.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator import *
 
 # PREPARATION
 

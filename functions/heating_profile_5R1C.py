@@ -264,7 +264,7 @@ def calc(zoneParameters, zoneInputs, T_m_init, TCoolingSet, THeatingSet,
     return (Q_H, Q_C, T_op, T_m, T_i, T_s)
 
 
-def calculate(zoneParameters, T_e, dt):
+def calculate(zoneParameters, T_set, T_e, dt):
     """
     
     Parameters
@@ -278,7 +278,7 @@ def calculate(zoneParameters, T_e, dt):
     """
 
     T_m_init = 20 #[°C]
-    T_set = zoneParameters.T_set_min
+    #T_set = zoneParameters.T_set_min
 
     
     # Note: If not stated differently, all equations, pages and sections
