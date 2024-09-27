@@ -41,4 +41,10 @@
     "unit": "-",
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   }
+  {
+    "name": "PLZ",
+    "value": 52074,
+    "unit": "-",
+    "description": "German post code (5 numbers) to define the location of the district."
+  }
 ]

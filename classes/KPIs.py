@@ -356,6 +356,64 @@ class KPIs:
         #    self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
         #                                                  / sum_ClusterWeights)
 
+    def calcareas(self, data):
+        """
+        Returns
+        -------
+        None.
+        """
+        total_net_leased_area = 0
+        total_number_flats = 0
+        total_number_occ = 0
+
+        for building in data.district:
+            total_net_leased_area += building["buildingFeatures"]["area"]
+            total_number_flats += building["user"].nb_flats
+            total_number_occ += building["user"].nb_occ
+
+        self.totalarea = total_net_leased_area
+        self.totalnumberflats = total_number_flats
+        self.totalnumberocc = total_number_occ
+
+    def calctotalenergies(self, data):
+        """
+        Returns
+        -------
+        None.
+        """
+        total_heatload = 0
+        total_el_demand = 0
+        total_heat_demand = 0
+        total_dhw_demand = 0
+        total_cooling_demand = 0
+        total_el_profile = data.district["0"]["user"].elec * 0
+        total_heat_profile = data.district["0"]["user"].elec * 0
+        total_dhw_profile = data.district["0"]["user"].elec * 0
+        total_cooling_profile = data.district["0"]["user"].elec * 0
+
+
+        for building in data.district:
+            total_heatload += building["heatload"]
+            total_el_demand += building["user"].annual_el_demand
+            total_heat_demand += building["user"].annual_heat_demand
+            total_dhw_demand += building["user"].annual_dhw_demand
+            total_cooling_demand += building["user"].annual_cooling_demand
+            total_el_profile += building["user"].elec
+            total_heat_profile += building["user"].heat
+            total_dhw_profile += building["user"].dhw
+            total_cooling_profile += building["user"].cooling
+
+
+        self.totalheatload = total_heatload
+        self.total_el_demand = total_el_demand
+        self.total_heat_demand = total_heat_demand
+        self.total_dhw_demand = total_dhw_demand
+        self.total_cooling_demand = total_cooling_demand
+        self.total_el_peak = max(total_el_profile)
+        self.total_heat_peak = max(total_heat_profile)
+        self.total_dhw_peak = max(total_dhw_profile)
+        self.total_cooling_peak = max(total_cooling_profile)
+
     def calculateAllKPIs(self, data):
         """
         Calculate all KPIs.
@@ -375,8 +433,11 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
+        self.calcareas(data)
+        self.calctotalenergy(data)
+        self.calctotalenergies(data)
 
-    def create_kpi_pdf(self,result_path):
+    def create_kpi_pdf(self, data, result_path):
         """
         Generate a PDF file with a list of KPIs.
 
@@ -386,7 +447,135 @@ class KPIs:
         - kpis: A list of strings, where each string is a KPI to be written in the document.
         """
 
-    def create_certificate(kennwerte, opt_ergebnisse, struktur, gebaeudeliste):
+        # preprocessing buildinglist
+        template_dict = {"Anzahl": 0,
+               "Gesamtfläche": 0,
+               "vor 1968": 0,
+               "1968-1978": 0,
+               "1979-1983": 0,
+               "1984-1994": 0,
+               "1995-2001": 0,
+               "2002-2009": 0,
+               "2010-2015": 0,
+               "ab 2016": 0,
+               }
+        SFH = dict(template_dict)
+        TH = dict(template_dict)
+        MFH = dict(template_dict)
+        AB = dict(template_dict)
+
+        for building in data.district:
+            if building["buildingFeatures"]["building"] == 'SFH':
+                SFH["Anzahl"] += 1
+                SFH["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    SFH["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    SFH["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    SFH["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    SFH["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    SFH["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    SFH["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    SFH["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    SFH["ab 2016"] += building["buildingFeatures"]["area"]
+            elif building["buildingFeatures"]["building"] == 'TH':
+                TH["Anzahl"] += 1
+                TH["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    TH["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    TH["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    TH["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    TH["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    TH["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    TH["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    TH["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    TH["ab 2016"] += building["buildingFeatures"]["area"]
+            elif building["buildingFeatures"]["building"] == 'MFH':
+                MFH["Anzahl"] += 1
+                MFH["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    MFH["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    MFH["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    MFH["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    MFH["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    MFH["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    MFH["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    MFH["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    MFH["ab 2016"] += building["buildingFeatures"]["area"]
+            elif building["buildingFeatures"]["building"] == 'AB':
+                AB["Anzahl"] += 1
+                AB["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    AB["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    AB["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    AB["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    AB["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    AB["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    AB["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    AB["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    AB["ab 2016"] += building["buildingFeatures"]["area"]
+
+        self.create_certificate(
+            kennwerte={
+                # TODO: We don't have any primary factors for gas and electricity mix. Should be added?
+                "Primärenergiebedarf": "120 kWh/m\u00B2a",
+                # TODO: Discuss total final energy calculation and if a specific value would be better
+                "Endenergiebedarf": str(self.Gas_year + self.W_dem_GCP_year) + " kWh", #/m\u00B2a",
+                "Norm-Heizlast insgesamt": str(self.totalheatload) + " kW",
+                "Solltemperatur": str(data.design_building_data["T_set_min"]) + " \u00B0C / " + str(data.design_building_data["T_set_min"]) + " \u00B0C",
+                "Bedarfe": ( self.total_el_demand,  self.total_heat_demand,  self.total_dhw_demand),
+                "Max. Leistungen": (self.total_el_peak, self.total_heat_peak, self.total_dhw_peak)
+            },
+            opt_ergebnisse= {
+                "CO2-äqui. Emissionen" : str(self.co2emissions) + " t/a",
+                "Energiekosten" : str(self.operationCosts) + " \u20AC/kWh",
+                "Spitzenlast (el.) gesamt" : str(self.peakDemand) + " kW",
+                "Max. Einspeiseleistung gesamt" : str(self.peakInjection) + " kW",
+                "Supply-Cover-Faktor" : str(self.scf_year),
+                "Demand-Cover-Faktor" : str(self.dcf_year)
+            },
+            struktur= {
+                "EFH": EFH,
+                "MFH": MFH,
+                "Reihenhaus": TH,
+                "Block": AB,
+                "Wohnungen gesamt": self.totalnumberflats,
+                "Bewohner gesamt": self.totalnumberocc,
+                "Nettowohnfläche gesamt": str(self.totalarea) + " m\u00B2",
+                "Standort (PLZ)": str(data.site["PLZ"]),
+                "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
+                "Quartiersname": str(data.scenario_name)
+            }
+        )
+
+    def create_certificate(self, kennwerte, opt_ergebnisse, struktur, gebaeudeliste):
         """
         Creates an energy certificate in PDF format for a neighborhood created via the EBC Quartiersgenerator.
 

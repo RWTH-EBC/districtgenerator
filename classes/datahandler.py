@@ -60,6 +60,7 @@ class Datahandler:
         """
 
         self.site = {}
+        self.design_building_data = {}
         self.time = {}
         self.district = []
         self.scenario_name = None
@@ -124,7 +125,10 @@ class Datahandler:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
-
+        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.design_building_data[subData["name"]] = subData["value"]
 
         # %% load weather data for site
         # extract irradiation and ambient temperature
