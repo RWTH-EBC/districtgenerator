@@ -1,0 +1,5 @@
+[run]
+omit =
+    # omit everything in example packages
+    *districtgenerator/examples/*
+source = districtgenerator
