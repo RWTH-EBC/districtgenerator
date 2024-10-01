@@ -9,6 +9,7 @@ stages:
 
 variables:
   COVERAGE_TYPE: "NotDymola"
+  EXCLUDE_PYTHON: 37
   PAGES_BRANCH: master
   PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.9"
   PYTHON_PACKAGE_NAME: "districtgenerator"

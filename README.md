@@ -1,5 +1,11 @@
 ![E.ON EBC RWTH Aachen University](./img/EBC_Logo.png)
 
+[![pylint](https://rwth-ebc.github.io/districtgenerator/master/pylint/pylint.svg )](https://rwth-ebc.github.io/districtgenerator/master/pylint/pylint.html)
+[![documentation](https://rwth-ebc.github.io/districtgenerator/master/docs/doc.svg)](https://rwth-ebc.github.io/districtgenerator/master/docs/index.html)
+[![coverage](https://rwth-ebc.github.io/districtgenerator/master/coverage/badge.svg)](https://rwth-ebc.github.io/districtgenerator/master/coverage)
+[![build](https://rwth-ebc.github.io/districtgenerator/master/build/build.svg)](https://rwth-ebc.github.io/districtgenerator/master/build/build.svg)
+
+
 # districtgenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
