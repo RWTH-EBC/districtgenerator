@@ -1,0 +1,3 @@
+Please note when setting up a scenario:
+
+1) Minimum construction year has to be 1860.

@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-We reached the final step, to generate our first district: Generate demand profiles for our buildings.
+This is the fifth example to generate the demand profiles of the buildings.
+
+If you run the examples with Python console, you can see the output file.
+To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
-
+from districtgenerator.classes import *
 
 def example1_4_generate_first_district():
 

@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>districtgenerator.classes.solar &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">districtgenerator.classes.solar</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for districtgenerator.classes.solar</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<div class="viewcode-block" id="Sun"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.solar.Sun">[docs]</a><span class="k">class</span> <span class="nc">Sun</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Class for solar irradiance calulations &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filePath</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">=</span> <span class="n">filePath</span>
+
+<div class="viewcode-block" id="Sun.getSolarGains"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.solar.Sun.getSolarGains">[docs]</a>    <span class="k">def</span> <span class="nf">getSolarGains</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">initialTime</span><span class="p">,</span> <span class="n">timeDiscretization</span><span class="p">,</span> <span class="n">timeSteps</span><span class="p">,</span> <span class="n">timeZone</span><span class="p">,</span>
+                      <span class="n">location</span><span class="p">,</span> <span class="n">altitude</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">beam</span><span class="p">,</span> <span class="n">diffuse</span><span class="p">,</span> <span class="n">albedo</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        initialTime : integer</span>
+<span class="sd">            Time passed since January 1st, 00:00:00 in seconds</span>
+<span class="sd">        timeDiscretization : integer</span>
+<span class="sd">            Time between two consecutive time steps in seconds</span>
+<span class="sd">        timesteps : integer</span>
+<span class="sd">            Number of investigated / requested time steps</span>
+<span class="sd">        timeZone : integer, optional</span>
+<span class="sd">            Shift between the location&#39;s time and GMT in hours. CET would be 1.</span>
+<span class="sd">        location : tuple</span>
+<span class="sd">            (latitude, longitude) of the simulated system&#39;s position.</span>
+<span class="sd">        altitude : float</span>
+<span class="sd">            The locations altitude in meters</span>
+<span class="sd">        beta : list</span>
+<span class="sd">            Array of all slopes of building walls and roof.</span>
+<span class="sd">            A slope is the angle (in degree) between the plane of the surface in</span>
+<span class="sd">            question and the horizontal. 0 &lt;= beta &lt;= 180. If beta &gt; 90, the</span>
+<span class="sd">            surface faces downwards.</span>
+<span class="sd">        gamma : list</span>
+<span class="sd">            Array of surface azimuth angles. The deviation of the projection on a horizontal</span>
+<span class="sd">            plane of the normal to the surface from the local meridian, with zero</span>
+<span class="sd">            due south, east negative, and west positive.</span>
+<span class="sd">            -180 &lt;= gamma &lt;= 180</span>
+<span class="sd">        beamRadiation : array_like</span>
+<span class="sd">            The solar radiation received from the sun without having been</span>
+<span class="sd">            scattered by the atmosphere (also often named direct radiation)</span>
+<span class="sd">        diffuse : array_like</span>
+<span class="sd">            The solar radiation received from the sun after its direction has been</span>
+<span class="sd">            changed by scattering by the atmosphere.</span>
+<span class="sd">        albedo : float</span>
+<span class="sd">            Ground reflectance. 0 &lt;= albedo &lt;= 1</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        results: array_like</span>
+<span class="sd">            Solar radiation profiles for diffent all surface azimut angles in gamma.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="c1"># get geometry results for entire year</span>
+        <span class="n">geometry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getGeometry</span><span class="p">(</span><span class="n">initialTime</span><span class="p">,</span> <span class="n">timeDiscretization</span><span class="p">,</span>
+                               <span class="n">timeSteps</span><span class="p">,</span> <span class="n">timeZone</span><span class="p">,</span> <span class="n">location</span><span class="p">,</span> <span class="n">altitude</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">omega</span><span class="p">,</span><span class="n">delta</span><span class="p">,</span><span class="n">thetaZ</span><span class="p">,</span><span class="n">airmass</span><span class="p">,</span><span class="n">Gon</span><span class="p">)</span> <span class="o">=</span> <span class="n">geometry</span>
+
+        <span class="c1"># iterate over all surfaces (given in beta/gamma)</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">gamma</span><span class="p">))</span> <span class="p">:</span>
+            <span class="c1"># compute incidence angle on each surface</span>
+            <span class="n">theta</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getIncidenceAngle</span><span class="p">(</span><span class="n">beta</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">gamma</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">location</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">omega</span><span class="p">,</span><span class="n">delta</span><span class="p">)</span>
+            <span class="n">theta</span> <span class="o">=</span> <span class="n">theta</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># cosTheta is not required</span>
+
+            <span class="c1"># compute radiation on tilted surface for each surface</span>
+            <span class="n">radiation</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getTotalRadiationTiltedSurface</span><span class="p">(</span><span class="n">theta</span><span class="p">,</span><span class="n">thetaZ</span><span class="p">,</span><span class="n">beam</span><span class="p">,</span>
+                                                       <span class="n">diffuse</span><span class="p">,</span><span class="n">airmass</span><span class="p">,</span><span class="n">Gon</span><span class="p">,</span>
+                                                       <span class="n">beta</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">albedo</span><span class="p">)</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">radiation</span><span class="p">)</span>
+        <span class="c1"># return radiation on each surface</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">results</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Sun.getGeometry"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.solar.Sun.getGeometry">[docs]</a>    <span class="k">def</span> <span class="nf">getGeometry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">initialTime</span><span class="p">,</span><span class="n">timeDiscretization</span><span class="p">,</span><span class="n">timesteps</span><span class="p">,</span><span class="n">timeZone</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="n">location</span><span class="o">=</span><span class="p">(</span><span class="mf">50.76</span><span class="p">,</span><span class="mf">6.07</span><span class="p">),</span><span class="n">altitude</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This function computes hour angle, declination, zenith angle of the sun</span>
+<span class="sd">        and solar azimuth angle for a given location and time.</span>
+
+<span class="sd">        The implemented equations can be found in:</span>
+<span class="sd">        Duffie, Beckman - Solar Engineering of Thermal Processes, 2013 (4th ed.)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        initialTime : integer</span>
+<span class="sd">            Time passed since January 1st, 00:00:00 in seconds</span>
+<span class="sd">        timeDiscretization : integer</span>
+<span class="sd">            Time between two consecutive time steps in seconds</span>
+<span class="sd">        timesteps : integer</span>
+<span class="sd">            Number of investigated / requested time steps</span>
+<span class="sd">        timeZone : integer, optional</span>
+<span class="sd">            Shift between the location&#39;s time and GMT in hours. CET would be 1.</span>
+<span class="sd">        location : tuple, optional</span>
+<span class="sd">            (latitude, longitude) of the simulated system&#39;s position. Standard</span>
+<span class="sd">            values (50.76, 6.07) represent Aachen, Germany.</span>
+<span class="sd">        altitude : float, optional</span>
+<span class="sd">            The locations altitude in meters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        omega : array_like</span>
+<span class="sd">            Hour angle. The angular displacement of the sun east or west of the</span>
+<span class="sd">            local meridian due to rotation of the earth on its axis at 15 degrees</span>
+<span class="sd">            per hour; morning negative, afternoon positive</span>
+<span class="sd">        delta : array_like</span>
+<span class="sd">            Declination. The angular position of the sun at solar noon (i.e., when</span>
+<span class="sd">            the sun is on the local meridian) with respect to the plane of the</span>
+<span class="sd">            equator, north positive; −23.45 &lt;= delta &lt;= 23.45</span>
+<span class="sd">        thetaZ : array_like</span>
+<span class="sd">            Zenith angle. The angle between the vertical and the line to the sun,</span>
+<span class="sd">            that is, the angle of incidence of beam radiation on a horizontal</span>
+<span class="sd">            surface; 0 &lt;= thetaZ &lt;= 90</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Define pi</span>
+        <span class="n">pi</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span>
+
+        <span class="c1"># Notice:</span>
+        <span class="c1"># All inputs and outputs are given/expected in degrees. For the</span>
+        <span class="c1"># computation, radians are required. Angles are converted from degrees to</span>
+        <span class="c1"># radians via np.radians(angle). The resulting radian value is noted with</span>
+        <span class="c1"># an R-suffix. Converting radian values to degrees is done via</span>
+        <span class="c1"># np.rad2deg(angleR).</span>
+        <span class="c1"># This conversion can also be done by multiplying/dividing with 180°/pi</span>
+
+        <span class="c1"># Split location into latitude (phi) and longitude (lambda).</span>
+        <span class="p">(</span><span class="n">latitude</span><span class="p">,</span><span class="n">longitude</span><span class="p">)</span> <span class="o">=</span> <span class="n">location</span>
+
+        <span class="c1"># Create time array</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">timesteps</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span><span class="n">num</span><span class="o">=</span><span class="n">timesteps</span><span class="p">))</span> <span class="o">*</span> <span class="n">timeDiscretization</span>
+                <span class="o">+</span> <span class="n">initialTime</span><span class="p">)</span>
+
+        <span class="c1"># Determine the day&#39;s number and standard time (neglect daylight saving)</span>
+        <span class="n">numberDay</span> <span class="o">=</span> <span class="n">time</span> <span class="o">/</span> <span class="p">(</span><span class="mi">3600</span> <span class="o">*</span> <span class="mi">24</span><span class="p">)</span>
+        <span class="n">standardTime</span> <span class="o">=</span> <span class="n">time</span> <span class="o">/</span> <span class="mi">3600</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">numberDay</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+
+        <span class="c1"># Equation 1.4.2, page 9</span>
+        <span class="n">B</span> <span class="o">=</span> <span class="mi">360</span> <span class="o">/</span> <span class="mf">365.26</span> <span class="o">*</span> <span class="n">numberDay</span>
+        <span class="n">BR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
+        <span class="c1"># Compute abbreviations for E and extraterrestrial irradiation (Gon)</span>
+        <span class="n">cosB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">BR</span><span class="p">)</span>
+        <span class="n">sinB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">BR</span><span class="p">)</span>
+        <span class="n">cos2B</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">BR</span><span class="p">)</span>
+        <span class="n">sin2B</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">BR</span><span class="p">)</span>
+
+        <span class="c1"># Convert local time into solar time</span>
+        <span class="c1"># Equation 1.5.3, page 11</span>
+        <span class="n">E</span> <span class="o">=</span> <span class="mf">229.2</span> <span class="o">/</span> <span class="mi">60</span> <span class="o">*</span> <span class="p">(</span><span class="mf">0.000075</span> <span class="o">+</span>
+                          <span class="mf">0.001868</span> <span class="o">*</span> <span class="n">cosB</span> <span class="o">-</span>
+                          <span class="mf">0.032077</span> <span class="o">*</span> <span class="n">sinB</span> <span class="o">-</span>
+                          <span class="mf">0.014615</span> <span class="o">*</span> <span class="n">cos2B</span> <span class="o">-</span>
+                          <span class="mf">0.040890</span> <span class="o">*</span> <span class="n">sin2B</span><span class="p">)</span>
+
+        <span class="c1"># Compute standard meridian</span>
+        <span class="c1"># Footnote 5 of chapter 1. Can be found on page 11.</span>
+        <span class="n">lambdaStandard</span> <span class="o">=</span> <span class="n">timeZone</span> <span class="o">*</span> <span class="mi">15</span>
+
+        <span class="c1"># Compute solar time</span>
+        <span class="c1"># Equation 1.5.2, page 11 (conversion to hours instead of minutes)</span>
+        <span class="n">solarTime</span> <span class="o">=</span> <span class="p">(</span><span class="n">standardTime</span> <span class="o">+</span> <span class="mi">4</span> <span class="o">*</span> <span class="p">(</span><span class="n">longitude</span> <span class="o">-</span> <span class="n">lambdaStandard</span><span class="p">)</span> <span class="o">/</span> <span class="mi">60</span> <span class="o">+</span> <span class="n">E</span><span class="p">)</span> <span class="o">-</span> <span class="mf">0.5</span>
+
+        <span class="c1"># Hour angle</span>
+        <span class="c1"># The angular displacement of the sun east or west of the local meridian</span>
+        <span class="c1"># due to rotation of the earth on its axis at 15 degrees per hour; morning</span>
+        <span class="c1"># negative, afternoon positive</span>
+        <span class="c1"># Confirm page 13</span>
+        <span class="n">omega</span> <span class="o">=</span> <span class="mi">360</span> <span class="o">/</span> <span class="mi">24</span> <span class="o">*</span> <span class="p">(</span><span class="n">solarTime</span> <span class="o">-</span> <span class="mi">12</span><span class="p">)</span>
+        <span class="c1"># Ensure: -180 &lt;= omega &lt;= 180</span>
+        <span class="n">omega</span><span class="p">[</span><span class="n">omega</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">180</span><span class="p">]</span> <span class="o">=</span> <span class="n">omega</span><span class="p">[</span><span class="n">omega</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">180</span><span class="p">]</span> <span class="o">+</span> <span class="mi">360</span>
+        <span class="n">omega</span><span class="p">[</span><span class="n">omega</span> <span class="o">&gt;</span> <span class="mi">180</span><span class="p">]</span> <span class="o">=</span> <span class="n">omega</span><span class="p">[</span><span class="n">omega</span> <span class="o">&gt;</span> <span class="mi">180</span><span class="p">]</span> <span class="o">-</span> <span class="mi">360</span>
+        <span class="n">omegaR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">omega</span><span class="p">)</span>
+
+        <span class="c1"># Declination</span>
+        <span class="c1"># The angular position of the sun at solar noon (i.e., when the sun is on</span>
+        <span class="c1"># the local meridian) with respect to the plane of the equator, north</span>
+        <span class="c1"># positive; −23.45 &lt;= delta &lt;= 23.45</span>
+        <span class="c1"># Equation 1.6.1a, page 13</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="mf">23.45</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">((</span><span class="mi">284</span> <span class="o">+</span> <span class="n">numberDay</span><span class="p">)</span> <span class="o">/</span> <span class="mi">365</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">pi</span><span class="p">)</span>
+        <span class="n">deltaR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+
+        <span class="c1"># Zenith angle</span>
+        <span class="c1"># The angle between the vertical and the line to the sun, that is, the</span>
+        <span class="c1"># angle of incidence of beam radiation on a horizontal surface;</span>
+        <span class="c1"># 0 &lt;= thetaZ &lt;= 90. If thetaZ &gt; 90, the sun is below the horizon.</span>
+        <span class="c1"># Equation 1.6.5 on page 15</span>
+
+        <span class="c1"># Introduce abbreviations to improve readability</span>
+        <span class="n">latitudeR</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">latitude</span><span class="p">)</span>
+        <span class="n">cosPhi</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">latitudeR</span><span class="p">)</span>
+        <span class="n">sinPhi</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">latitudeR</span><span class="p">)</span>
+        <span class="n">cosDelta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">deltaR</span><span class="p">)</span>
+        <span class="n">sinDelta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">deltaR</span><span class="p">)</span>
+        <span class="n">cosOmega</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">omegaR</span><span class="p">)</span>
+        <span class="n">cosThetaZ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">cosPhi</span> <span class="o">*</span> <span class="n">cosDelta</span> <span class="o">*</span> <span class="n">cosOmega</span> <span class="o">+</span> <span class="n">sinDelta</span> <span class="o">*</span> <span class="n">sinPhi</span><span class="p">)</span>
+        <span class="n">thetaZR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">cosThetaZ</span><span class="p">)</span>
+        <span class="n">thetaZ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rad2deg</span><span class="p">(</span><span class="n">thetaZR</span><span class="p">)</span>
+
+        <span class="c1"># Compute airmass</span>
+        <span class="c1"># Footnote 3 on page 10</span>
+        <span class="n">airmass</span> <span class="o">=</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.0001184</span> <span class="o">*</span> <span class="n">altitude</span><span class="p">)</span> <span class="o">/</span>
+                   <span class="p">(</span><span class="n">cosThetaZ</span> <span class="o">+</span> <span class="mf">0.5057</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="mf">96.08</span> <span class="o">-</span> <span class="n">thetaZ</span><span class="p">,</span><span class="o">-</span><span class="mf">1.634</span><span class="p">)))</span>
+
+        <span class="c1"># Compute extraterrestrial irradiance (Gon)</span>
+        <span class="c1"># Extraterrestrial radiation incident on the plane normal to the radiation</span>
+        <span class="c1"># on the nth day of the year.</span>
+        <span class="c1"># Solar constant. Page 6</span>
+        <span class="n">Gsc</span> <span class="o">=</span> <span class="mi">1367</span>  <span class="c1"># W/m2</span>
+        <span class="c1"># Equation 1.4.1b</span>
+        <span class="n">Gon</span> <span class="o">=</span> <span class="n">Gsc</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.000110</span> <span class="o">+</span>
+                     <span class="mf">0.034221</span> <span class="o">*</span> <span class="n">cosB</span> <span class="o">+</span>
+                     <span class="mf">0.001280</span> <span class="o">*</span> <span class="n">sinB</span> <span class="o">+</span>
+                     <span class="mf">0.000719</span> <span class="o">*</span> <span class="n">cos2B</span> <span class="o">+</span>
+                     <span class="mf">0.000077</span> <span class="o">*</span> <span class="n">sin2B</span><span class="p">)</span>
+
+        <span class="c1"># Return results</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">omega</span><span class="p">,</span><span class="n">delta</span><span class="p">,</span><span class="n">thetaZ</span><span class="p">,</span><span class="n">airmass</span><span class="p">,</span><span class="n">Gon</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Sun.getIncidenceAngle"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.solar.Sun.getIncidenceAngle">[docs]</a>    <span class="k">def</span> <span class="nf">getIncidenceAngle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span><span class="n">gamma</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">omega</span><span class="p">,</span><span class="n">delta</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the incidence angle on a tilted surface.</span>
+
+<span class="sd">        All inputs/outputs are supposed to be in degrees!</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        beta : float</span>
+<span class="sd">            Slope, the angle (in degree) between the plane of the surface in</span>
+<span class="sd">            question and the horizontal. 0 &lt;= beta &lt;= 180. If beta &gt; 90, the</span>
+<span class="sd">            surface faces downwards.</span>
+<span class="sd">        gamma : float</span>
+<span class="sd">            Surface azimuth angle. The deviation of the projection on a horizontal</span>
+<span class="sd">            plane of the normal to the surface from the local meridian, with zero</span>
+<span class="sd">            due south, east negative, and west positive.</span>
+<span class="sd">            -180 &lt;= gamma &lt;= 180</span>
+<span class="sd">        phi : float</span>
+<span class="sd">            Latitude. North is positive, south negative. -90 &lt;= phi &lt;= 90</span>
+<span class="sd">        omega : array_like</span>
+<span class="sd">            Hour angle. The angular displacement of the sun east or west of the</span>
+<span class="sd">            local meridian due to rotation of the earth on its axis at 15 degrees</span>
+<span class="sd">            per hour; morning negative, afternoon positive</span>
+<span class="sd">        delta : array_like</span>
+<span class="sd">            Declination. The angular position of the sun at solar noon (i.e., when</span>
+<span class="sd">            the sun is on the local meridian) with respect to the plane of the</span>
+<span class="sd">            equator, north positive; −23.45 &lt;= delta &lt;= 23.45</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Compute incidence angle of beam radiation</span>
+        <span class="c1"># Transform to radian</span>
+        <span class="n">betaR</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span>
+        <span class="n">phiR</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+        <span class="n">gammaR</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">gamma</span><span class="p">)</span>
+        <span class="n">deltaR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">delta</span><span class="p">)</span>
+        <span class="n">omegaR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">omega</span><span class="p">)</span>
+
+        <span class="c1"># Introduce required abbreviations</span>
+        <span class="n">sinBeta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">betaR</span><span class="p">)</span>
+        <span class="n">cosBeta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">betaR</span><span class="p">)</span>
+        <span class="n">sinDelta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">deltaR</span><span class="p">)</span>
+        <span class="n">cosDelta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">deltaR</span><span class="p">)</span>
+        <span class="n">sinPhi</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phiR</span><span class="p">)</span>
+        <span class="n">cosPhi</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phiR</span><span class="p">)</span>
+        <span class="n">sinGamma</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">gammaR</span><span class="p">)</span>
+        <span class="n">cosGamma</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">gammaR</span><span class="p">)</span>
+        <span class="n">sinOmega</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">omegaR</span><span class="p">)</span>
+        <span class="n">cosOmega</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">omegaR</span><span class="p">)</span>
+
+        <span class="c1"># Equation 1.6.2, page 14</span>
+        <span class="n">cosTheta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">sinDelta</span> <span class="o">*</span> <span class="n">sinPhi</span> <span class="o">*</span> <span class="n">cosBeta</span> <span class="o">-</span>
+                              <span class="n">sinDelta</span> <span class="o">*</span> <span class="n">cosPhi</span> <span class="o">*</span> <span class="n">sinBeta</span> <span class="o">*</span> <span class="n">cosGamma</span> <span class="o">+</span>
+                              <span class="n">cosDelta</span> <span class="o">*</span> <span class="n">cosPhi</span> <span class="o">*</span> <span class="n">cosBeta</span> <span class="o">*</span> <span class="n">cosOmega</span> <span class="o">+</span>
+                              <span class="n">cosDelta</span> <span class="o">*</span> <span class="n">sinPhi</span> <span class="o">*</span> <span class="n">sinBeta</span> <span class="o">*</span> <span class="n">cosGamma</span> <span class="o">*</span> <span class="n">cosOmega</span> <span class="o">+</span>
+                              <span class="n">cosDelta</span> <span class="o">*</span> <span class="n">sinBeta</span> <span class="o">*</span> <span class="n">sinGamma</span> <span class="o">*</span> <span class="n">sinOmega</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">thetaR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">cosTheta</span><span class="p">)</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rad2deg</span><span class="p">(</span><span class="n">thetaR</span><span class="p">)</span>
+
+        <span class="c1"># Return incidence angle</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">cosTheta</span><span class="p">,</span><span class="n">theta</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Sun.getTotalRadiationTiltedSurface"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.solar.Sun.getTotalRadiationTiltedSurface">[docs]</a>    <span class="k">def</span> <span class="nf">getTotalRadiationTiltedSurface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span><span class="n">thetaZ</span><span class="p">,</span>
+                                       <span class="n">beamRadiation</span><span class="p">,</span><span class="n">diffuseRadiation</span><span class="p">,</span>
+                                       <span class="n">airmass</span><span class="p">,</span><span class="n">extraterrestrialIrradiance</span><span class="p">,</span>
+                                       <span class="n">beta</span><span class="p">,</span><span class="n">albedo</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the total radiation on a tilted surface.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        theta : array_like</span>
+<span class="sd">            Incidence angle.</span>
+<span class="sd">        thetaZ : array_like</span>
+<span class="sd">            Zenith angle. The angle between the vertical and the line to the sun,</span>
+<span class="sd">            that is, the angle of incidence of beam radiation on a horizontal</span>
+<span class="sd">            surface; 0 &lt;= thetaZ &lt;= 90</span>
+<span class="sd">        beamRadiation : array_like</span>
+<span class="sd">            The solar radiation received from the sun without having been</span>
+<span class="sd">            scattered by the atmosphere (also often named direct radiation)</span>
+<span class="sd">        diffuseRadiation : array_like</span>
+<span class="sd">            The solar radiation received from the sun after its direction has been</span>
+<span class="sd">            changed by scattering by the atmosphere.</span>
+<span class="sd">        airmass : array_like</span>
+<span class="sd">            The ratio of the mass of atmosphere through which beam radiation</span>
+<span class="sd">            passes to the mass it would pass through if the sun were at the zenith.</span>
+<span class="sd">            Thus at sea level ``m=1`` when the sun is at the zenith and ``m=2``</span>
+<span class="sd">            for a zenith angle ``thetaZ=60`` degrees.</span>
+<span class="sd">        extraterrestrialIrradiance : array_like</span>
+<span class="sd">            Extraterrestrial radiation incident on the plane normal to the</span>
+<span class="sd">            radiation on the nth day of the year.</span>
+<span class="sd">        beta : float</span>
+<span class="sd">            Slope, the angle (in degree) between the plane of the surface in</span>
+<span class="sd">            question and the horizontal. 0 &lt;= beta &lt;= 180. If beta &gt; 90, the</span>
+<span class="sd">            surface faces downwards.</span>
+<span class="sd">        albedo : float</span>
+<span class="sd">            Ground reflectance. 0 &lt;= albedo &lt;= 1</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Model coefficients</span>
+        <span class="c1"># Table 6, in Perez et al - 1990 - Modeling daylight availability and</span>
+        <span class="c1"># irradiance components from direct and global irradiance.</span>
+        <span class="c1"># Solar Energy, Vol. 44, No. 5, pp. 271-289</span>
+        <span class="c1"># Values with increased accuracy can be found in the EnergyPlus</span>
+        <span class="c1"># engineering reference (Table 22, Fij Factors as a Function of Sky</span>
+        <span class="c1"># Clearness Range, page 147)</span>
+
+        <span class="n">fCoefficients</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[[</span><span class="o">-</span><span class="mf">0.0083117</span><span class="p">,</span><span class="mf">0.5877285</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0620636</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0596012</span><span class="p">,</span><span class="mf">0.0721249</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0220216</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.1299457</span><span class="p">,</span><span class="mf">0.6825954</span><span class="p">,</span><span class="o">-</span><span class="mf">0.1513752</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0189325</span><span class="p">,</span><span class="mf">0.065965</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0288748</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.3296958</span><span class="p">,</span><span class="mf">0.4868735</span><span class="p">,</span><span class="o">-</span><span class="mf">0.2210958</span><span class="p">,</span><span class="mf">0.055414</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0639588</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0260542</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.5682053</span><span class="p">,</span><span class="mf">0.1874525</span><span class="p">,</span><span class="o">-</span><span class="mf">0.295129</span><span class="p">,</span><span class="mf">0.1088631</span><span class="p">,</span><span class="o">-</span><span class="mf">0.1519229</span><span class="p">,</span><span class="o">-</span><span class="mf">0.0139754</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.873028</span><span class="p">,</span><span class="o">-</span><span class="mf">0.3920403</span><span class="p">,</span><span class="o">-</span><span class="mf">0.3616149</span><span class="p">,</span><span class="mf">0.2255647</span><span class="p">,</span><span class="o">-</span><span class="mf">0.4620442</span><span class="p">,</span><span class="mf">0.0012448</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">1.1326077</span><span class="p">,</span><span class="o">-</span><span class="mf">1.2367284</span><span class="p">,</span><span class="o">-</span><span class="mf">0.4118494</span><span class="p">,</span><span class="mf">0.2877813</span><span class="p">,</span><span class="o">-</span><span class="mf">0.8230357</span><span class="p">,</span><span class="mf">0.0558651</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">1.0601591</span><span class="p">,</span><span class="o">-</span><span class="mf">1.5999137</span><span class="p">,</span><span class="o">-</span><span class="mf">0.3589221</span><span class="p">,</span><span class="mf">0.2642124</span><span class="p">,</span><span class="o">-</span><span class="mf">1.127234</span><span class="p">,</span><span class="mf">0.1310694</span><span class="p">],</span>
+             <span class="p">[</span><span class="mf">0.677747</span><span class="p">,</span><span class="o">-</span><span class="mf">0.3272588</span><span class="p">,</span><span class="o">-</span><span class="mf">0.2504286</span><span class="p">,</span><span class="mf">0.1561313</span><span class="p">,</span><span class="o">-</span><span class="mf">1.3765031</span><span class="p">,</span><span class="mf">0.2506212</span><span class="p">]</span>
+             <span class="p">])</span>
+
+        <span class="c1"># Compute a and b (page 281, below equation 9)</span>
+        <span class="n">thetaR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+        <span class="n">thetaZR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">thetaZ</span><span class="p">)</span>
+        <span class="n">cosThetaZ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">thetaZR</span><span class="p">)</span>
+        <span class="n">cosTheta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">thetaR</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">cosTheta</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">0.087</span><span class="p">,</span><span class="n">cosThetaZ</span><span class="p">)</span>
+
+        <span class="c1"># Compute epsilon (the sky&#39;s clearness)</span>
+        <span class="c1"># Introduce variables and compute third power of thetaZR</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="mf">1.041</span>
+        <span class="n">thetaZRTo3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">thetaZR</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+
+        <span class="c1"># Compute normal incidence direct irradiance</span>
+        <span class="n">I</span> <span class="o">=</span> <span class="n">beamRadiation</span> <span class="o">/</span> <span class="n">b</span>
+        <span class="c1"># Prevent division by zero</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>  <span class="c1"># All inputs should have this length!</span>
+        <span class="n">temp</span><span class="p">[</span><span class="n">diffuseRadiation</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">*</span> <span class="n">I</span><span class="p">[</span><span class="n">diffuseRadiation</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">/</span>
+                                      <span class="n">diffuseRadiation</span><span class="p">[</span><span class="n">diffuseRadiation</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="c1"># equation 1 on p. 273 in Perez et al - 1990</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">temp</span> <span class="o">+</span> <span class="n">kappa</span> <span class="o">*</span> <span class="n">thetaZRTo3</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">kappa</span> <span class="o">*</span> <span class="n">thetaZRTo3</span><span class="p">)</span>
+
+        <span class="c1"># Determine clear sky category</span>
+        <span class="c1"># table 1 on page 273 in Perez et al - 1990</span>
+        <span class="c1"># Note: As this value is used to get data from fCoefficients, the</span>
+        <span class="c1"># implemented categories range from 0 to 7 instead from 1 to 8</span>
+        <span class="n">epsilonCategory</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">epsilon</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">epsilonCategory</span><span class="p">[(</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">1.065</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">epsilon</span> <span class="o">&lt;</span> <span class="mf">1.23</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">epsilonCategory</span><span class="p">[(</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">1.230</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">epsilon</span> <span class="o">&lt;</span> <span class="mf">1.50</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">epsilonCategory</span><span class="p">[(</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">1.500</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">epsilon</span> <span class="o">&lt;</span> <span class="mf">1.95</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">3</span>
+        <span class="n">epsilonCategory</span><span class="p">[(</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">1.950</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">epsilon</span> <span class="o">&lt;</span> <span class="mf">2.80</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">4</span>
+        <span class="n">epsilonCategory</span><span class="p">[(</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">2.800</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">epsilon</span> <span class="o">&lt;</span> <span class="mf">4.50</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="n">epsilonCategory</span><span class="p">[(</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">4.500</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">epsilon</span> <span class="o">&lt;</span> <span class="mf">6.20</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">6</span>
+        <span class="n">epsilonCategory</span><span class="p">[</span><span class="n">epsilon</span> <span class="o">&gt;=</span> <span class="mf">6.200</span><span class="p">]</span> <span class="o">=</span> <span class="mi">7</span>
+
+        <span class="c1"># Compute Delta (the sky&#39;s brightness)</span>
+        <span class="c1"># equation 2 on page 273 in Perez et al - 1990</span>
+        <span class="n">Delta</span> <span class="o">=</span> <span class="n">diffuseRadiation</span> <span class="o">*</span> <span class="n">airmass</span> <span class="o">/</span> <span class="n">extraterrestrialIrradiance</span>
+
+        <span class="c1"># Compute F1 (circumsolar brightening coefficient) and F2 (horizon</span>
+        <span class="c1"># brightening coefficient)</span>
+        <span class="c1"># Below table 6 on page 282 in Perez et al - 1990</span>
+        <span class="c1"># According to Duffie and Beckman (4th edition, page 94, equation 2.16.12),</span>
+        <span class="c1"># F1 is supposed to be greater or equal to 0</span>
+        <span class="n">F1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">fCoefficients</span><span class="p">[</span><span class="n">epsilonCategory</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span>
+                        <span class="n">fCoefficients</span><span class="p">[</span><span class="n">epsilonCategory</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">Delta</span> <span class="o">+</span>
+                        <span class="n">fCoefficients</span><span class="p">[</span><span class="n">epsilonCategory</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">thetaZR</span><span class="p">,</span>
+                        <span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">F2</span> <span class="o">=</span> <span class="p">(</span><span class="n">fCoefficients</span><span class="p">[</span><span class="n">epsilonCategory</span><span class="p">,</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span>
+              <span class="n">fCoefficients</span><span class="p">[</span><span class="n">epsilonCategory</span><span class="p">,</span><span class="mi">4</span><span class="p">]</span> <span class="o">*</span> <span class="n">Delta</span> <span class="o">+</span>
+              <span class="n">fCoefficients</span><span class="p">[</span><span class="n">epsilonCategory</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span> <span class="o">*</span> <span class="n">thetaZR</span><span class="p">)</span>
+
+        <span class="c1"># Compute diffuse radiation on tilted surface</span>
+        <span class="c1"># Equation 9 on page 281 in Perez et al - 1990</span>
+        <span class="n">betaR</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span>
+        <span class="n">cosBeta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">betaR</span><span class="p">)</span>
+        <span class="n">sinBeta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">betaR</span><span class="p">)</span>
+        <span class="n">diffuseRadTiltSurface</span> <span class="o">=</span> <span class="n">diffuseRadiation</span> <span class="o">*</span> <span class="p">((</span><span class="mi">1</span> <span class="o">-</span> <span class="n">F1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">cosBeta</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">+</span>
+                                                    <span class="n">F1</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">b</span> <span class="o">+</span> <span class="n">F2</span> <span class="o">*</span> <span class="n">sinBeta</span><span class="p">)</span>
+
+        <span class="c1"># Compute the influence of beam radiation and reflected radiation</span>
+        <span class="c1"># Equation 2.15.1 in Duffie and Beckman (4th edition, page 89)</span>
+        <span class="c1"># Compute direct radiation on tilted surface</span>
+        <span class="c1"># Equation 1.8.1 in Duffie and Beckman (4th edition, page 24)</span>
+        <span class="c1"># We divide by b instead of cosThetaZ to prevent division by 0</span>
+        <span class="c1"># Direct radiation on a tilted surface is always positive, therefore use</span>
+        <span class="c1"># ``a`` instead of cosTheta</span>
+        <span class="n">directRadTiltSurface</span> <span class="o">=</span> <span class="n">beamRadiation</span> <span class="o">*</span> <span class="n">a</span> <span class="o">/</span> <span class="n">b</span>
+
+        <span class="c1"># Compute reflected total radiation</span>
+        <span class="c1"># Equation 2.15.1 in Duffie and Beckman (4th edition, page 89)</span>
+        <span class="c1"># Notice: We changed the proposed nomenclature. rhoG is written as albedo.</span>
+        <span class="c1"># Total solar radiation is computed as sum of beam and diffuse radiation.</span>
+        <span class="c1"># See page 10 in Duffie and Beckman (4th edition)</span>
+        <span class="n">totalSolarRad</span> <span class="o">=</span> <span class="n">beamRadiation</span> <span class="o">+</span> <span class="n">diffuseRadiation</span>
+        <span class="n">reflectedRadTiltSurface</span> <span class="o">=</span> <span class="n">totalSolarRad</span> <span class="o">*</span> <span class="n">albedo</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">cosBeta</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+
+        <span class="n">totalRadTiltSurface</span> <span class="o">=</span> <span class="p">(</span><span class="n">diffuseRadTiltSurface</span> <span class="o">+</span>
+                               <span class="n">directRadTiltSurface</span> <span class="o">+</span>
+                               <span class="n">reflectedRadTiltSurface</span><span class="p">)</span>
+
+        <span class="c1"># Return total radiation on a tilted surface</span>
+        <span class="k">return</span> <span class="n">totalRadTiltSurface</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

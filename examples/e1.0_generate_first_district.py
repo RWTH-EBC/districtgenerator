@@ -1,25 +1,24 @@
 # -*- coding: utf-8 -*-
 
 """
-This is the first example of the district generator. We will see how easy a new district can be created.
-Let's start with initializing our district.
+This is the first example to initialize a district.
 
-If you run the examples with Python console, you can see the output file. To do this right-hand click your
-example.py file (e1.0_generate_first_district.py). Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
+If you run the examples with Python console, you can see the output file.
+To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
-
+from districtgenerator.classes import *
 
 def example1_0_generate_first_district():
 
     # To create a district we initialize the Datahandler.
+    # No input is required for this step.
+    data = Datahandler()
+
     # This creates empty files for information about the environment, the buildings and the district.
 
-
-    # Initialize District
-    data = Datahandler()
 
     print("\nOur District now looks like this: \n")
     print("District:" + str(data.district))

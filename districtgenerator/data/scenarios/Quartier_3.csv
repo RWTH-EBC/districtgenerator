@@ -1,0 +1,3 @@
+id;building;year;retrofit;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
+0;SFH;1889;0;150;BOI;0;0;0;0;20;1;S;0.4;0.04;0;on_demand
+1;SFH;1889;0;150;BOI;0;0;0;0;20;1;M;0.4;0.04;0;on_demand

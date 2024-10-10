@@ -1,0 +1,20 @@
+[
+    {
+        "name": "timeResolution",
+        "value": 900,
+        "unit": "sec",
+        "description" : "Required time resolution. Feel free to change this value. Tip: 3600 refers to an hourly resolution. 900 to a 15min resolution."
+    },
+    {
+        "name": "dataResolution",
+        "value": 3600,
+        "unit": "sec",
+        "description" : "Time resolution of input data. (If you don't change weather data, here is no need to change)."
+    },
+    {
+        "name": "dataLength",
+        "value": 31536000,
+        "unit": "sec",
+        "description" : "Length of input data. (If you don't change weather data, here is no need to change)."
+    }
+]

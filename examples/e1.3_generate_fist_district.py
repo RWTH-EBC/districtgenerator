@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
-In this step, we fill our buildings with more informations.
+This is the fourth example to add more information the the building models.
+
+If you run the examples with Python console, you can see the output file.
+To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
-
+from districtgenerator.classes import *
 
 def example1_3_generate_first_district() :
     # Initialize District
@@ -18,27 +21,19 @@ def example1_3_generate_first_district() :
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")
 
-    # Next we generate more information about the buildings.
+    # Next we generate more information and add them to the building models.
     # To do this we use the TEASER tool. This tool returns more detailed information about an archetype building
     # according to the web database "Tabula". This includes window- and wall sizes, materials and more.
     # Based on this and in combination with the weather data from the environment we calculate e.g. the heat flow
-    # through walls and internal gains. With this information we can e.g. calculate information about the buildings
-    # design heat load. The design heat load is calculated with DIN EN 12831.
-    # The number of occupants is between 1 and 5.
-
-    # Generate a more detailed Building
+    # through walls and internal gains.
     data.generateBuildings()
 
-    # We can access the specified data. Here are some examples:
-    print("\nThe number of occupants in building 0 is " + str(data.district[0]['user'].nb_occ[0]) + ".")
-    print("The roof area of building 0 is " + str(round(data.district[0]['envelope'].A['opaque']['roof']))
-          + " m\N{SUPERSCRIPT TWO}")
-    print(str(round(data.district[0]['envelope'].A['window']['sum']))
-          + " m\N{SUPERSCRIPT TWO} of building 0 is covered with windows.")
-    print("The design heat load of building 0 is " + str(round(data.district[0]['heatload'])) + "W.")
+    ### ===========================================  Output  =========================================== ###
+    # For every building the envelope class is added (e.g. see data.district.0.envelope). Within this class
+    # all information about components of the building and their materials are given.
+    # Furthermore the user class is added to every building which contains at this point information about
+    # the total annual electrical demand, the number of flats and occupants within the building.
 
-    print("\nTo finish our example with the last step of adding demand profiles, "
-          "go to example e1.4_generate_fist_district")
 
     return data
 
