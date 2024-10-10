@@ -21,7 +21,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Classes and internal functions of the DistrictGenerator" href="modules.html" />
+    <link rel="next" title="Classes and internal functions" href="modules.html" />
     <link rel="prev" title="Welcome to the documentation of the DistrictGenerator!" href="index.html" /> 
 </head>
 
@@ -47,9 +47,9 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">DistrictGenerator</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#general-motivation">General Motivation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting started</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#install-the-districtgenerator">Install the DistrictGenerator</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#how-to-get-started">How to get started?</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#minimum-required-input-data">Minimum required input data</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#what-you-get">What you get</a></li>
 </ul>
@@ -64,8 +64,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#acknowledgements">Acknowledgements</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="modules.html">Classes and internal functions of the DistrictGenerator</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="EXAMPLES.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="about/index.html">About DistrictGenerator</a></li>
 </ul>
 
@@ -97,14 +97,31 @@
 <section id="districtgenerator">
 <h1>DistrictGenerator<a class="headerlink" href="#districtgenerator" title="Permalink to this heading"></a></h1>
 <p><a class="reference external" href="http://doge.mit-license.org"><img alt="License" src="http://img.shields.io/:license-mit-blue.svg" /></a></p>
-<p>The districtgenerator is a Python tool for generating building-specific thermal, electrical and occupancy profiles for
-residential districts.
-By integrating several open-source data bases and tools like <a class="reference external" href="https://github.com/RWTH-EBC/TEASER">TEASER</a> and
-<a class="reference external" href="https://github.com/RWTH-EBC/richardsonpy">richardsonpy</a>,
-the districtgenerator is designed to provide easy access to profile generation.</p>
+<p>Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
+housing associations, engineering firms, architectural professionals, as well as academic and research institutions.
+This tool furnishes crucial insights into energy demands, pivotal for the effective design and operation of
+neighborhoods energy systems. Consequently, users can discern actionable measures to harmonize energy supply.
+The DistrictGenerator offers a pioneering approach by mapping entire urban
+building stocks in neighborhood models for automated load profile calculations and dimensioning of distributed
+energy resources. By integrating several open-source data bases and tools like <a class="reference external" href="https://github.com/RWTH-EBC/TEASER">TEASER</a>
+and <a class="reference external" href="https://github.com/RWTH-EBC/richardsonpy">richardsonpy</a>.</p>
 <p>The districtgenerator is being developed at <a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/~dmzz/E-ON-ERC-EBC/?lidx=1">RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor
 Climate</a>.</p>
+<section id="general-motivation">
+<h2>General Motivation<a class="headerlink" href="#general-motivation" title="Permalink to this heading"></a></h2>
+<p>In the early stages of neighborhood planning, crucial data such as demand profiles of electricity, heating,
+domestic hot water, and occupancy profiles are often not available. The absence of this data hampers
+accurate evaluations of energy systems in districts. The DistrictGenerator seeks to advance the applicability
+of sustainable, cross-sectoral energy systems in neighborhoods, with a specific emphasis on exploiting synergy
+potentials among buildings of diverse usage structures through integrated concepts. We summarize the key contributions
+of the DistrictGenerator as follows:</p>
+<ul class="simple">
+<li><p>An open-source tool with minimal input requirements. Leveraging pre-set elements and default values of temporally resolved demand profiles, as well as decentralized heat generator sizing conforming to DIN standards.</p></li>
+<li><p>The tool enables the bottom-up representation of entire urban structures through neighborhood models, affording a sufficiently detailed analysis foundation.</p></li>
+<li><p>Facilitation of central operational optimization and presentation of analytical results and key performance indicators. This supports the examination of various neighborhood types and supply scenarios concerning technology selection and penetrations. We thereby create a platform for early-stage comparison of neighborhood concepts with the flexibility of selecting different variants, given the tool’s rapid recalculations.</p></li>
+</ul>
+</section>
 <section id="getting-started">
 <h2>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading"></a></h2>
 <section id="install-the-districtgenerator">
@@ -117,36 +134,33 @@ Climate</a>.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="n">districtgenerator</span>
 </pre></div>
 </div>
-</section>
-<section id="how-to-get-started">
-<h3>How to get started?<a class="headerlink" href="#how-to-get-started" title="Permalink to this heading"></a></h3>
-<p>Once you have installed the generator, you can check the <a class="reference internal" href="examples.html"><span class="doc std std-doc">examples</span></a> to learn how to use the different components.</p>
+<p>Once you have installed the generator, you can check the <a class="reference download internal" download="" href="_downloads/333ce692e0cf26e26df2ba752f88b5d8/example.csv"><span class="xref download myst">examples</span></a>
+to learn how to use the different components.</p>
 </section>
 <section id="minimum-required-input-data">
 <h3>Minimum required input data<a class="headerlink" href="#minimum-required-input-data" title="Permalink to this heading"></a></h3>
 <p>To generate your district, you need to know some information about its buildings.
 The minimal input data set was defined following the <a class="reference external" href="https://webtool.building-typology.eu/#bm">TABULA archetype approach</a>:</p>
 <ul class="simple">
-<li><p><em>id</em>: building ID (just numerate the buildings)</p></li>
-<li><p><em>building</em>: residential building type (single family house, terraced house, multi family house or apartment block)</p></li>
-<li><p><em>year</em>: construction year (the calendar year in which the building was constructed)</p></li>
-<li><p><em>retrofit</em>: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)</p></li>
-<li><p><em>area</em>: reference floor area (given in square meters)</p></li>
+<li><p>id: building ID (just numerate the buildings)</p></li>
+<li><p>building: residential building type (single family house, terraced house, multi family house or apartment block)</p></li>
+<li><p>year: construction year (the calendar year in which the building was constructed)</p></li>
+<li><p>retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)</p></li>
+<li><p>area: reference floor area (given in square meters)</p></li>
 </ul>
-<p>Please find a template <a class="reference internal" href="#./data/scenarios/example.csv"><span class="xref myst">here</span></a>.</p>
+<p>The example.csv file can be used as <a class="reference download internal" download="" href="_downloads/333ce692e0cf26e26df2ba752f88b5d8/example.csv"><span class="xref download myst">template</span></a>.</p>
 </section>
 <section id="what-you-get">
 <h3>What you get<a class="headerlink" href="#what-you-get" title="Permalink to this heading"></a></h3>
-<p>After executing district generation you can find building-specific profiles in
+<p>After executing district generation you can find building-specific and time-dependent profiles in
 the .csv format in folder results/demands. The results contain:</p>
 <ul class="simple">
-<li><p><em>heat</em>: space heating demand</p></li>
-<li><p><em>dhw</em>: domestic hot water demand</p></li>
-<li><p><em>elec</em>: electricity demand for lighting and electric household devices</p></li>
-<li><p><em>occ</em>: number of persons present</p></li>
-<li><p><em>gains</em>: internal gains from persons, lighting and electric household devices</p></li>
+<li><p>heat: space heating demand</p></li>
+<li><p>dhw: domestic hot water demand</p></li>
+<li><p>elec: electricity demand for lighting and electric household devices</p></li>
+<li><p>occ: number of persons present</p></li>
+<li><p>gains: internal gains from persons, lighting and electric household devices</p></li>
 </ul>
-<p>All values are given in Watt and for the <a class="reference internal" href="#./data/time_data.json"><span class="xref myst">time resolution</span></a> you require.</p>
 </section>
 </section>
 <section id="structure-of-the-districtgenerator">
@@ -155,17 +169,14 @@ the .csv format in folder results/demands. The results contain:</p>
 </section>
 <section id="running-examples-for-functional-testing">
 <h2>Running examples for functional testing<a class="headerlink" href="#running-examples-for-functional-testing" title="Permalink to this heading"></a></h2>
-<p>Once you have installed the Districtgenerator, you can check the <a class="reference internal" href="examples.html"><span class="doc std std-doc">examples</span></a>
+<p>Once you have installed the Districtgenerator, you can check the <a class="reference download internal" download="" href="_downloads/333ce692e0cf26e26df2ba752f88b5d8/example.csv"><span class="xref download myst">examples</span></a>
 to learn how to use the different components.</p>
 <p>Currently, we provide basic examples for the usage of DistrictGenerator.
-Diese Test umfassen alle Funktionen des datahandler.
-Innerhalb der <a class="reference internal" href="examples.html"><span class="doc std std-doc">examples</span></a> beschreiben wir seperat und im Detail den Input,
-die weiteren verwendeten internen Funktionen und externen Tools sowie den Output.</p>
-<p>We suggest to start in the right order to understand the workflow
-um ein Quartier zu modellieren und die Bedarfsprofile zu erhalten.
-Afterwards, you can start modelling context data and interacting with the context
-broker and use its functionalities before you learn how to connect
-IoT Devices and store historic data.</p>
+These examples include all the functions of the datahandler to model a district and
+generate the demand profiles.
+Innerhalb der <a class="reference download internal" download="" href="_downloads/333ce692e0cf26e26df2ba752f88b5d8/example.csv"><span class="xref download myst">examples</span></a> beschreiben wir seperat und im Detail den Input,
+die weiteren verwendeten internen Funktionen und externen Tools sowie den Output.
+We suggest to start in the right order to understand the workflow.</p>
 </section>
 <section id="how-to-contribute">
 <h2>How to contribute<a class="headerlink" href="#how-to-contribute" title="Permalink to this heading"></a></h2>
@@ -198,8 +209,7 @@ a reviewer before merging. Once review is finished, you can merge.</p>
 <h2>License<a class="headerlink" href="#license" title="Permalink to this heading"></a></h2>
 <p>The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the
-<a class="reference internal" href="#LICENSE.md"><span class="xref myst">MIT License</span></a>.</p>
+under the <a class="reference internal" href="about/LICENSE.html"><span class="std std-doc">MIT License</span></a>.</p>
 </section>
 <section id="acknowledgements">
 <h2>Acknowledgements<a class="headerlink" href="#acknowledgements" title="Permalink to this heading"></a></h2>
@@ -215,7 +225,7 @@ and with financial support by BMWK (German Federal Ministry for Economic Affairs
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="Welcome to the documentation of the DistrictGenerator!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="modules.html" class="btn btn-neutral float-right" title="Classes and internal functions of the DistrictGenerator" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="modules.html" class="btn btn-neutral float-right" title="Classes and internal functions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

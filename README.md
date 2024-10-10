@@ -1,26 +1,41 @@
 ![E.ON EBC RWTH Aachen University](./img/EBC_Logo.png)
 
-# districtgenerator
+# DistrictGenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
 
-The districtgenerator is a Python tool for generating building-specific thermal, electrical and occupancy profiles for 
-residential districts. 
-By integrating several open-source data bases and tools like [TEASER](https://github.com/RWTH-EBC/TEASER) and 
-[richardsonpy](https://github.com/RWTH-EBC/richardsonpy), 
-the districtgenerator is designed to provide easy access to profile generation. 
+Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
+housing associations, engineering firms, architectural professionals, as well as academic and research institutions. 
+This tool furnishes crucial insights into energy demands, pivotal for the effective design and operation of 
+neighborhoods energy systems. Consequently, users can discern actionable measures to harmonize energy supply.
+The DistrictGenerator offers a pioneering approach by mapping entire urban 
+building stocks in neighborhood models for automated load profile calculations and dimensioning of distributed 
+energy resources. By integrating several open-source data bases and tools like [TEASER](https://github.com/RWTH-EBC/TEASER) 
+and [richardsonpy](https://github.com/RWTH-EBC/richardsonpy).
 
 The districtgenerator is being developed at [RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor
 Climate](https://www.ebc.eonerc.rwth-aachen.de/cms/~dmzz/E-ON-ERC-EBC/?lidx=1).
 
-## Version
+## General Motivation
 
-The districtgenerator is an ongoing research project. The current version is v0.1.0.
+In the early stages of neighborhood planning, crucial data such as demand profiles of electricity, heating, 
+domestic hot water, and occupancy profiles are often not available. The absence of this data hampers 
+accurate evaluations of energy systems in districts. The DistrictGenerator seeks to advance the applicability 
+of sustainable, cross-sectoral energy systems in neighborhoods, with a specific emphasis on exploiting synergy 
+potentials among buildings of diverse usage structures through integrated concepts. We summarize the key contributions 
+of the DistrictGenerator as follows:
+
+- An open-source tool with minimal input requirements. Leveraging pre-set elements and default values of temporally resolved demand profiles, as well as decentralized heat generator sizing conforming to DIN standards.
+
+- The tool enables the bottom-up representation of entire urban structures through neighborhood models, affording a sufficiently detailed analysis foundation.
+
+- Facilitation of central operational optimization and presentation of analytical results and key performance indicators. This supports the examination of various neighborhood types and supply scenarios concerning technology selection and penetrations. We thereby create a platform for early-stage comparison of neighborhood concepts with the flexibility of selecting different variants, given the tool's rapid recalculations.
+
 
 ## Getting started
 
-### Install the districtgenerator
+### Install the DistrictGenerator
 
 To install, first clone this repository with
 ```
@@ -57,9 +72,11 @@ the .csv format in folder results/demands. The results contain:
 * _occ_: number of persons present
 * _gains_: internal gains from persons, lighting and electric household devices
 
-All values are given in Watt and for the [time resolution](./data/time_data.json) you require.
+## Structure of the DistrictGenerator
 
-## Running examples of functional testing of the DistrictGenerator
+![Library Structure](./img/Struktur_Quartiersgenerator.png)
+
+## Running examples for functional testing
 
 Once you have installed the Districtgenerator, you can check the [examples](/examples)
 to learn how to use the different components. 
@@ -101,7 +118,7 @@ We presented or applied the library in the following publications:
 
 ## License
 
-The districtgenerator is released by RWTH Aachen University, E.ON Energy
+The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
 under the
 [MIT License](LICENSE.md).

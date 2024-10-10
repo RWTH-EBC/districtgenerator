@@ -25,26 +25,21 @@ def example1_4_generate_first_district():
     # Generate a more detailed Building
     data.generateBuildings()
 
-    # As last step we generate individual demand profiles for our buildings.
-    # The computation can take a few minutes, because energy profiles for a hole year are computed.
-    # As input we tell the program, if we want to calculate/save new demand profiles.
-    # If True, the datahandler generates user profiles for one year and saves them in the directory
-    # "results/demands/". We calculate profiles for the presents of occupants (occ), for electricity demand of
-    # appliances and lighting (elec), for heat demand of space heating (heat) and domestic hot water (dhw), internal
-    # heat gains (gains) and the electricity demand of electric vehicles (car).
-    # Alternatively we can use profiles, that we calculated before. To do so, we put "calcUserProfiles=False".
-    # This helps to speed up calculation and to compare different districts.
-    # But for now we want to get new profiles.
-
-    # Generate demand profiles
+    # Now we generate building specific demand profiles. The computation can take a few minutes,
+    # because energy profiles for a hole year are computed. As input we tell the program,
+    # if we want to calculate and save the demand profiles: If "calcUserProfiles=True", the datahandler
+    # generates the profiles and saves them in the directory "results/demands/".
+    # Alternatively we can load existing profiles. To do so, we put "calcUserProfiles=False".
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
-    # We now have a complete district. Instead of using all the steps separately, like we have done in this example,
-    # we can also generate a complete district with the following commands:
-    # data= Datahandler()
-    # data.generateDistrictComplete(scenario_name="example", calcUserProfiles=True, saveUserProfiles=True)
+    ### ===========================================  Output  =========================================== ###
+    # The (demand) profiles for electricity demand of appliances and lighting (elec),
+    # for heat demand of space heating (heat),domestic hot water (dhw), internal heat gains (gains)
+    # and the time series for the presents of occupants (occ) are now calculated
+    # We can access them under data.district.id.user.
 
-    # We can access demand profiles through data.district[(insert building id)].user[(insert profile type)].
+
+
     # Here are some examples:
 
     print("\nThe heating power of building 0 in timestep 0 is "+ str(round(data.district[0]['user'].heat[0])) + "W.")
@@ -63,13 +58,10 @@ def example1_4_generate_first_district():
         data.district[1]['user'].heat[t] for t in range(len(data.district[1]['user'].heat))) * len_timestep
     max_heating_power_0 = max(data.district[0]['user'].heat)
     print("The annual heating demand of building 0 is " + str(round(total_heating_demand_0)/1000) + "kWh.")
-    print("The annual heating demand of building 1 is " + str(round(total_heating_demand_1)/1000) + "kWh.\n")
     print("The maximum heating power of building 0 is " + str(round(max_heating_power_0)) + "W.")
 
-    max_electricity_power = max(data.district[0]['user'].elec)
-    print("The maximum electricity power of building 0 is " + str(round(max_electricity_power)) + "W.\n")
+    print("The maximum electricity power of building 0 is " + str(round(max(data.district[0]['user'].elec))) + "W.\n")
 
-    print("Congratulations! You generated your first complete district!")
 
     return data
 
