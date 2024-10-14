@@ -434,7 +434,6 @@ class KPIs:
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
         self.calcareas(data)
-        self.calctotalenergy(data)
         self.calctotalenergies(data)
 
     def create_kpi_pdf(self, data, result_path):
@@ -562,7 +561,7 @@ class KPIs:
                 "Demand-Cover-Faktor" : str(self.dcf_year)
             },
             struktur= {
-                "EFH": EFH,
+                "EFH": SFH,
                 "MFH": MFH,
                 "Reihenhaus": TH,
                 "Block": AB,
@@ -572,10 +571,11 @@ class KPIs:
                 "Standort (PLZ)": str(data.site["PLZ"]),
                 "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
                 "Quartiersname": str(data.scenario_name)
-            }
+            },
+            gebaeudeliste= data.district
         )
 
-    def create_certificate(self, kennwerte, opt_ergebnisse, struktur, gebaeudeliste):
+    def create_certificate(self, kennwerte, opt_ergebnisse, struktur, gebaeudeliste, result_path):
         """
         Creates an energy certificate in PDF format for a neighborhood created via the EBC Quartiersgenerator.
 
@@ -645,8 +645,14 @@ class KPIs:
             certificate: a PDF file diplaying the relevant information
 
         """
+        if result_path is None:
+            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            filename = os.path.join(src_path, "results", "Quartiersenergieausweis.pdf")
+        else:
+            filename = os.path.join(result_path, "Quartiersenergieausweis.pdf")
+
         # initialize certificate
-        certificate = canvas.Canvas("certificate.pdf", pagesize=reportlab.lib.pagesizes.A4)
+        certificate = canvas.Canvas(filename, pagesize=reportlab.lib.pagesizes.A4)
         width, height = reportlab.lib.pagesizes.A4
 
         # draw line for header and add title
