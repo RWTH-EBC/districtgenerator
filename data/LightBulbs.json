@@ -1,14 +1,6 @@
 [
     {
         "type": "LED",
-        "model": "Standard LED",
-        "luminous_flux": 800,
-        "luminous_flux_unit": "lm",
-        "power": 10,
-        "power_unit": "W"
-    },
-    {
-        "type": "LED",
         "model": "High Efficiency LED",
         "luminous_flux": 1500,
         "luminous_flux_unit": "lm",
@@ -61,6 +53,30 @@
         "luminous_flux": 1200,
         "luminous_flux_unit": "lm",
         "power": 75,
+        "power_unit": "W"
+    },
+    {
+        "type": "Induction",
+        "model": "Induction Lamp",
+        "luminous_flux": 5000,
+        "luminous_flux_unit": "lm",
+        "power": 40,
+        "power_unit": "W"
+    },
+    {
+        "type": "Incandescent",
+        "model": "Incandescent Bulb",
+        "luminous_flux": 1700,
+        "luminous_flux_unit": "lm",
+        "power": 100,
+        "power_unit": "W"
+    },
+    {
+        "type": "HID",
+        "model": "Metal Halide",
+        "luminous_flux": 15000,
+        "luminous_flux_unit": "lm",
+        "power": 100,
         "power_unit": "W"
     }
 ]

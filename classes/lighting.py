@@ -20,13 +20,17 @@ class LightingModelConfiguration():
 
     def __init__(self,
                  external_irradiance_threshold=[60, 10],
-                 calibration_scalar=0.00815368639667705,
+                 calibration_scalar=0.00915368639667705,
                  effective_occupancy=[0,
                                       1,
                                       1.52814569536424,
                                       1.69370860927152,
                                       1.98344370860927,
-                                      2.09437086092715],
+                                      2.09437086092715,
+                                      2.22464198472047,
+                                      2.32898657989554,
+                                      2.41937397956308,
+                                      2.49910131639889],
                  lighting_event_lower_value=[1, 2, 3, 5, 9, 17, 28, 50, 92],
                  lighting_event_upper_value=[1, 2, 4, 8, 16, 27, 49, 91, 259]):
         """
@@ -156,8 +160,8 @@ def run_lighting_simulation(vOccupancyArray, vBulbArray, vIrradianceArray,
                     random.random() < 0.05))
 
             # Get the effective occupancy for this number of active occupants to allow for sharing
-            if iActiveOccupants > 5:
-                iActiveOccupants = 5
+            if iActiveOccupants > 9:
+                iActiveOccupants = 9
 
             fEffectiveOccupancy = light_mod_config.eff_occupancy[
                 iActiveOccupants]
