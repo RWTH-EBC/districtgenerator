@@ -31,15 +31,15 @@
   },
   {
     "name": "buildings_short",
-    "value": ["SFH", "MFH", "TH", "AB","OB","School"],
+    "value": ["SFH", "MFH", "TH", "AB","OB","School","Grocery_store"],
     "unit": "-",
     "description": "Abbreviations of the selectable building types."
   },
   {
     "name": "buildings_long",
-    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school"],
+    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store"],
     "unit":  "-",
-    "description": "Names of the four selectable building types."
+    "description": "Names of the selectable building types."
   },
   {
     "name": "retrofit_short",
@@ -55,19 +55,19 @@
   },
   {
     "name": "dhwload",
-    "value": [4662.1, 4662.1, 4662.1, 3999.8, 1000, 1000],
+    "value": [4662.1, 4662.1, 4662.1, 3999.8, 1000, 1000, 1000],
     "unit":  "Watt",
-    "description": "Maximal power for domestic hot water for each building type (SFH, MFH, TH, AB, OB, School)."
+    "description": "Maximal power for domestic hot water for each building type (SFH, MFH, TH, AB, OB, School, Store)."
   },
   {
     "name": "mean_drawoff_vol_per_day",
-    "value": [40, 40, 40, 40, 9.8, 9.8],
+    "value": [40, 40, 40, 40, 6, 1.5],
     "unit":  "Liter",
-    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, School). Source: 12831-3/A100 Table NA.4"
+    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, School, Store). Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 for non-residential buidlings"
   },
   {
     "name": "ratio_area",
-    "value": [0.6656, 0.6785, 0.7112, 0.6662, 0.6662, 0.6662],
+    "value": [0.6656, 0.6785, 0.7112, 0.6662, 0.6662, 0.6662, 0.6662],
     "unit":  "-",
     "description": "Ratio of net floor area to total gross floor area for each of the five building types (SFH, MFH, TH and AB)"
   }

@@ -144,7 +144,7 @@ class Profiles:
 
         return self.occ_profile
 
-    def generate_profiles_non_residential(self):
+    def generate_profiles_non_residential(self,holidays):
         """
          Generate stochastic peaople profiles, devices profiles and month profiles
          for every zone of the non-residential building
@@ -163,48 +163,78 @@ class Profiles:
             sia_week_profile_devices_zone = []
 
             for i in range(7):
-                is_weekend = (i + self.initial_day) % 7 in (0, 6)
+                is_not_working_day = (i + self.initial_day) % 7 in (0, 6)
 
-                sia_day_profile_people_zone = [0] * 24 if is_weekend else data['profile_people']
-                sia_day_profile_devices_zone = [min(data['profile_devices'])] * 24 if is_weekend else data['profile_devices']
+                sia_day_profile_people_zone = [0] * 24 if is_not_working_day else data['profile_people']
+                sia_day_profile_devices_zone = [min(data['profile_devices'])] * 24 if is_not_working_day else data['profile_devices']
                 sia_week_profile_people_zone.extend(sia_day_profile_people_zone)
                 sia_week_profile_devices_zone.extend(sia_day_profile_devices_zone)
 
-                repetitions = total_hours // len(sia_week_profile_people_zone)
-                remaining_hours = total_hours % len(sia_week_profile_people_zone)
+            repetitions = total_hours // len(sia_week_profile_people_zone)
+            remaining_hours = total_hours % len(sia_week_profile_people_zone)
 
-                # Repeat the weekly pattern to cover the entire year
-                sia_profile_people_zone = sia_week_profile_people_zone * repetitions + sia_week_profile_people_zone[:remaining_hours]
-                sia_profile_devices_zone = sia_week_profile_devices_zone * repetitions + sia_week_profile_devices_zone[:remaining_hours]
+            # Repeat the weekly pattern to cover the entire year
+            sia_profile_people_zone = sia_week_profile_people_zone * repetitions + sia_week_profile_people_zone[:remaining_hours]
+            sia_profile_devices_zone = sia_week_profile_devices_zone * repetitions + sia_week_profile_devices_zone[:remaining_hours]
 
-                # Apply random variation to the people and devices profiles
-                profile_people_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_people_zone]
-                profile_devices_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_devices_zone]
+            # Consider holidays
+            for day in range(self.nb_days):
+                if (day + self.initial_day) in holidays:
+                    sia_profile_people_zone[24 * day: 24 * (day + 1)] = [0] * 24
+                    sia_profile_devices_zone[24 * day: 24 * (day + 1)] = [min(data['profile_devices'])] * 24
 
-                # Change resolution
-                profile_people_zone = chres.changeResolution(profile_people_zone, 3600, self.time_resolution, "mean")
-                profile_devices_zone = chres.changeResolution(profile_devices_zone, 3600, self.time_resolution, "mean")
+            # Apply random variation to the people and devices profiles
+            profile_people_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_people_zone]
+            profile_devices_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_devices_zone]
 
-                # Apply random variation to the monthly profile
-                profile_month_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in data['profile_month']]
+            # Apply random variation to the monthly profile
+            profile_month_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in data['profile_month']]
 
-                zone_profiles[zone_name] = {'profile_people_zone': profile_people_zone,
-                                            'profile_devices_zone': profile_devices_zone,
-                                            'profile_month_zone': profile_month_zone}
+            # Adjust the people profile to 0 for the months there is no occupation of the corresponding building
+            days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+            profile_people_zone_real = []
+            hour_index = 0
+            for month in range(12):
+                factor = profile_month_zone[month]
+                hours_in_month = days_in_month[month] * 24
+                if factor == 0:
+                    for hour in range(hours_in_month):
+                        # Multiply the original occupant profile by the factor and store in the new profile
+                        profile_people_zone_real.append(profile_people_zone[hour_index] * factor)
+                        hour_index += 1  # Move to the next hour
+                else:
+                    for hour in range(hours_in_month):
+                        profile_people_zone_real.append(profile_people_zone[hour_index])
+                        hour_index += 1  # Move to the next hour
 
-                self.building_profiles[self.building] = zone_profiles
+            # Change resolution
+            profile_people_zone_real = chres.changeResolution(profile_people_zone_real, 3600, self.time_resolution, "mean")
+            profile_devices_zone = chres.changeResolution(profile_devices_zone, 3600, self.time_resolution, "mean")
+
+
+
+            zone_profiles[zone_name] = {'profile_people_zone': profile_people_zone_real,
+                                        'profile_devices_zone': profile_devices_zone,
+                                        'profile_month_zone': profile_month_zone}
+
+            self.building_profiles[self.building] = zone_profiles
         if self.building == "OB":
-            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in
-                                self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])   # Occupancy profile in an office room of the many existing in the building
+            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                          # self.number_occupants is the mean number of occupants in a main room
+                                self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])   # self.occ_profile is the occupancy profile in an office room of the many existing in the building
             occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['OB']['Einzel-, Gruppenbüro'][
-                                             'profile_people_zone']])
+                                         self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])
 
         elif self.building == "School":
-            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in
-                                self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])   # Occupancy profile in a classroom of the many existing in the building
+            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                     # self.number_occupants is the mean number of occupants in a main room
+                                self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])   # self.occ_profile is the occupancy profile in a classroom of the many existing in the building
             occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
                                          self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])
+
+        elif self.building == "Grocery_store":
+            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                                    # self.number_occupants is the mean number of occupants in a main room
+                                self.building_profiles['Grocery_store']["Lebensmittelverkauf"]['profile_people_zone']])
+            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
+                                         self.building_profiles['Grocery_store']["Lebensmittelverkauf"]['profile_people_zone']])
 
         self.occ_profile_building = occ_profile_building_main_part
         max_value = max(occ_profile_building_main_part)
@@ -213,13 +243,12 @@ class Profiles:
         # in occ_profile_building_main_part, since occ_profile_building_main_part only considers people in main rooms.
         # If the occupants are not in the main room,they may be in the toilet or kitchen, i.e. they are still in the building.
 
-        for day in range(365):
+        for day in range(self.nb_days):
             start_index = int(day * timesteps_per_Day + 10 * timesteps_per_Day / 24)  # 10 AM
             end_index = int(day * timesteps_per_Day + 16 * timesteps_per_Day / 24)  # 4 PM
             for i in range(start_index, end_index):
                 if self.occ_profile_building[i] != 0:
                     self.occ_profile_building[i] = max_value
-
 
         return self.occ_profile, self.occ_profile_building, self.building_profiles
 
@@ -262,7 +291,7 @@ class Profiles:
         # Load profiles
         self.prob_profiles_dhw = profiles
 
-    def generate_dhw_profile(self, building):
+    def generate_dhw_profile(self, building, holidays):
         """
         Generate a stochastic dhw profile
         (on base of DHWclac).
@@ -310,6 +339,7 @@ class Profiles:
             occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
             building_type=self.building,
             weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
+            holidays = holidays,
             mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"]
         )
 
@@ -318,7 +348,7 @@ class Profiles:
 
         return dhw_heat["Heat_W"].values
 
-    def generate_el_profile_residential(self, irradiance, el_wrapper, annual_demand, do_normalization=True):
+    def generate_el_profile_residential(self, holidays, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """
         Generate electric load profile for one household
 
@@ -367,11 +397,11 @@ class Profiles:
         #  Loop over all days
         for i in range(self.nb_days):
 
-            #  Define, if days is weekday or weekend
-            if (i + self.initial_day) % 7 in (0, 6):
-                weekend = True
+            # Define if the day is a working day or not
+            if (i + self.initial_day) % 7 in (0, 6) or (i + self.initial_day) in holidays:
+                not_working_day = True
             else:
-                weekend = False
+                not_working_day = False
 
             #  Extract array with radiation for each timestep of day
             irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
@@ -386,7 +416,7 @@ class Profiles:
             day_of_the_year = 0 # only necessary for electric heating
             # Perform lighting and appliance usage simulation for one day
             (el_p_curve, light_p_curve, app_p_curve) = el_wrapper.power_sim(irradiation=irrad_day_minutewise,
-                                                                            weekend=weekend,
+                                                                            weekend=not_working_day,
                                                                             day=i+day_of_the_year,
                                                                             occupancy=current_occupancy)
             # Append results
@@ -452,8 +482,6 @@ class Profiles:
         light_p_curve : array-like
             Electric load profile for lighting in W.
         """
-        # Make simulation over x days
-        demand = []
 
         #  Check if irradiance timestep is identical with param. timestep
         timesteps_irr = int(self.nb_days * 3600 * 24 / len(irradiance))
@@ -479,12 +507,6 @@ class Profiles:
 
         #  Loop over all days
         for i in range(self.nb_days):
-
-            #  Define, if days is weekday or weekend
-            if (i + self.initial_day) % 7 in (0, 6):
-                weekend = True
-            else:
-                weekend = False
 
             #  Extract array with radiation for each timestep of day
             irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]

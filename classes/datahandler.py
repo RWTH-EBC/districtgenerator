@@ -69,7 +69,6 @@ class Datahandler:
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
         self.KPIs = None
-        self.building_type = None
 
     def select_plz_data(self, plz):
         """
@@ -168,6 +167,10 @@ class Datahandler:
             for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
+        if self.site["TRYYear"] == "TRY2015":
+            self.time["holidays"] = self.time["holidays2015"]
+        elif self.site["TRYYear"] == "TRY2045":
+            self.time["holidays"] = self.time["holidays2045"]
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -219,6 +222,8 @@ class Datahandler:
         num_mfh = 0
         num_OB = 0
         num_schools = 0
+        num_grocery_store = 0
+
 
         self.scenario_name = scenario_name
         self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
@@ -243,6 +248,8 @@ class Datahandler:
             elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
             elif building["buildingFeatures"]["building"] == 'OB': num_OB +=1
             elif building["buildingFeatures"]["building"] == 'School': num_schools +=1
+            elif building["buildingFeatures"]["building"] == 'Grocery_store': num_grocery_store +=1
+
 
         # Calculate calculation time for the whole district generation
         duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh) #ergänzen
@@ -274,21 +281,21 @@ class Datahandler:
 
 
             # convert short names into designation needed for TEASER
-            self.building_type = \
+            building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
             # add buildings to TEASER project
-            if self.building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
+            if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = \
                     bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
                 prj.add_residential(method='tabula_de',
-                                    usage=self.building_type,
+                                    usage=building_type,
                                     name="ResidentialBuildingTabula",
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=3,
                                     height_of_floors=3.125,
-                                    net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                    net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_long"].index(building_type)],
                                     construction_type=retrofit_level)
 
                 # %% create envelope object
@@ -298,15 +305,14 @@ class Datahandler:
                                                 construction_type=retrofit_level,
                                                 window_layout=retrofit_level,
                                                 file_path=self.filePath)
-            elif self.building_type in {"office"}:
+            elif building_type in {"office"}:
                 prj.add_non_residential(method='bmvbs',
-                                    usage=self.building_type,
+                                    usage=building_type,
                                     name="Officebmvbs",
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=3,
                                     height_of_floors=3,
-                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][
-                                        bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][bldgs["buildings_long"].index(building_type)],
                                     construction_type="heavy")
 
                 # %% create envelope object
@@ -326,8 +332,7 @@ class Datahandler:
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=3,
                                     height_of_floors=3,
-                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][
-                                        bldgs["buildings_short"].index(building["buildingFeatures"]["building"])],
+                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][bldgs["buildings_long"].index(building_type)],
                                     construction_type="heavy")
 
                 # %% create envelope object
@@ -338,29 +343,16 @@ class Datahandler:
                                                 window_layout="Kunststofffenster, Isolierverglasung",
                                                 file_path=self.filePath)
 
+
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"])
 
-            index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+            index = bldgs["buildings_long"].index(building_type)
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-            # %% calculate design heat loads
-            # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-            # at heating limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            if self.building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
-                building["user"].nb_flats
-            else:
-                #check if correct
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
-                building["user"].nb_main_rooms
+
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
@@ -401,6 +393,7 @@ class Datahandler:
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
+                                              holidays = self.time["holidays"],
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
                                               building=building,
@@ -525,12 +518,12 @@ class Datahandler:
             # at heating limit temperature
             building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
-            if self.building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
                 building["user"].nb_flats
             else:
                 #check if correct
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
                 building["user"].nb_main_rooms
 
             # %% create building energy system object
@@ -559,8 +552,9 @@ class Datahandler:
             building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
 
             # clustering data
-            building["clusteringData"]["potentialPV"] = potentialPV
-            building["clusteringData"]["potentialSTC"] = potentialSTC
+            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
+                building["clusteringData"]["potentialPV"] = potentialPV
+                building["clusteringData"]["potentialSTC"] = potentialSTC
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
