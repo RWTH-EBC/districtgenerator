@@ -107,7 +107,7 @@ def import_from_dhwcalc(s_step, daylight_saving, categories,
     return timeseries_df
 
 
-def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy, building_type,  weekend_weekday_factor, initial_day=0):
+def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy, holidays, building_type,  weekend_weekday_factor, initial_day=0):
     """
     Generates a DHW profile. The generation is split up in different
     functions and generally follows the methodology described in the DHWcalc
@@ -143,6 +143,7 @@ def generate_dhw_profile(s_step, categories, mean_drawoff_vol_per_day, occupancy
     timeseries_df = generate_yearly_probability_profile(
         s_step=s_step,
         weekend_weekday_factor=weekend_weekday_factor,
+        holidays = holidays,
         initial_day=0,
         building_type=building_type
     )
@@ -184,7 +185,7 @@ def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day, bu
             cats_data_60 = {'mean_flow_rate_per_drawoff_LperH': [60, 360, 840, 480],
                             'drawoff_duration_min': [1, 1, 10, 5],
                             'portion': [0.14, 0.36, 0.1, 0.4],
-                            'stddev_flow_rate_per_drawoff_LperH': [120, 120, 12,24],    #woher diese Werte? es ist in der paper und tool mit 120 immer gegeben
+                            'stddev_flow_rate_per_drawoff_LperH': [120, 120, 12,24],
                             'min_flow_rate_per_drawoff_LperH': [1, 1, 1, 1]
                             }
 
@@ -208,10 +209,10 @@ def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day, bu
 
 
     else:
-        cats_data = {'mean_flow_rate_per_drawoff_LperH': [60, 360],
+        cats_data = {'mean_flow_rate_per_drawoff_LperH': [100, 360],
                      'drawoff_duration_min': [1, 1],
                      'portion': [0.28, 0.72],
-                     'stddev_flow_rate_per_drawoff_LperH': [120, 120],
+                     'stddev_flow_rate_per_drawoff_LperH': [200, 240],
                      'min_flow_rate_per_drawoff_LperH': [1, 1]
                      }
 
@@ -243,8 +244,7 @@ def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day, bu
         cats_df['mean_flow_rate_per_drawoff_LperH'] \
         / 60 * cats_df['drawoff_duration_min']
 
-    cats_df['mean_vol_per_day'] = mean_drawoff_vol_per_day * cats_df[
-        'portion']
+    cats_df['mean_vol_per_day'] = mean_drawoff_vol_per_day * cats_df['portion']
 
     cats_df['mean_vol_per_year'] = cats_df['mean_vol_per_day'] * 365
 
@@ -262,9 +262,9 @@ def get_data_drawoff_categories(s_step, categories, mean_drawoff_vol_per_day, bu
             = max(cats_df['mean_flow_rate_per_drawoff_LperH'].max(), 1200)
 
     else:
-        # add max flow rate: Max(500, highest category mean flow rate)
+        # add max flow rate: Max(1600, highest category mean flow rate)
         cats_df['max_flow_rate_per_drawoff_LperH'] \
-            = max(cats_df['mean_flow_rate_per_drawoff_LperH'].max(), 500)
+            = max(cats_df['mean_flow_rate_per_drawoff_LperH'].max(), 1600)
 
     return cats_df
 
@@ -272,13 +272,13 @@ def generate_daily_probability_step_function(mode, s_step,building_type, save_fi
                                              test_concentrated_ps=False):
     """
     Generates probabilities for a day with 6 periods. Corresponds to the mode
-    "step function for weekdays and weekends" in DHWcalc and uses the same
+    "step function for working days and off days" in DHWcalc and uses the same
     standard values. Each Day starts at 0:00. Steps in hours. Sum of steps
     has to be 24. Sum of probabilities has to be 1.
 
     :param test_concentrated_ps:    bool:   different probabilities,
                                             very concentrated in the morning
-    :param mode:                    string: weekday or weekend day
+    :param mode:                    string: working day or off day
     :param s_step:                  int:    seconds within a timestep
     :param save_fig:                Bool:   plot the probability distribution
     :return: p_day                  list:   distribution for one day.
@@ -291,46 +291,46 @@ def generate_daily_probability_step_function(mode, s_step,building_type, save_fi
     if building_type in {"SFH", "TH", "MFH", "AB"}:
 
         if s_step <= 1800:
-            if mode == 'weekday':
+            if mode == 'work-day':
                 steps_and_ps = [(6.5, 0.01), (1, 0.5), (4.5, 0.06), (1, 0.16),
                                 (5, 0.06), (4, 0.2), (2, 0.01)]
 
-            elif mode == 'weekend':
+            elif mode == 'off-day':
                 steps_and_ps = [(7, 0.02), (2, 0.475), (6, 0.071), (2, 0.237),
                                 (3, 0.036), (3, 0.143), (1, 0.018)]
 
             else:
-                raise Exception('Unknown Mode. Please Choose "Weekday" or '
-                                '"Weekend".')
+                raise Exception('Unknown Mode. Please Choose "work-day" or '
+                                '"off-day".')
         else:
             # no more half-hourly steps
-            if mode == 'weekday':
+            if mode == 'work-day':
                 steps_and_ps = [(7, 0.01), (1, 0.5), (4, 0.06), (1, 0.16),
                                 (5, 0.06), (4, 0.2), (2, 0.01)]
 
-            elif mode == 'weekend':
+            elif mode == 'off-day':
                 steps_and_ps = [(7, 0.02), (2, 0.475), (6, 0.071), (2, 0.237),
                                 (3, 0.036), (3, 0.143), (1, 0.018)]
 
             else:
-                raise Exception('Unknown Mode. Please Choose "Weekday" or '
-                                '"Weekend".')
+                raise Exception('Unknown Mode. Please Choose "work-day" or '
+                                '"off-day".')
 
         if test_concentrated_ps:
             # just as a test, if p is very concentrated, only 2 hours in the morning
             steps_and_ps = [(7, 0), (2, 1), (15, 0)]
 
     else:
-        if mode == 'weekday':
-            steps_and_ps = [(8, 0), (1, 0.2/8.4), (1, 0.6/8.4), (6, 6/8.4),
-                            (1, 0.8/8.4), (1, 0.6/8.4), (1, 0.2/8.4),(5,0)]
+        if mode == 'work-day':
+            steps_and_ps = [(7, 0),(1, 0.04/8.4), (1, 0.19/8.4), (1, 0.59/8.4), (6, 5.93/8.4),                  # This profile is based on the people profile in SIA2024 with some adjustments
+                            (1, 0.79/8.4), (1, 0.59/8.4), (1, 0.19/8.4),(1, 0.04/8.4),(1, 0.04/8.4),(3,0)]
 
-        elif mode == 'weekend':
+        elif mode == 'off-day':
             steps_and_ps = [(24, 0)]
 
         else:
-            raise Exception('Unknown Mode. Please Choose "Weekday" or '
-                            '"Weekend".')
+            raise Exception('Unknown Mode. Please Choose "work-day" or '
+                            '"off-day".')
 
     steps = [tup[0] for tup in steps_and_ps]
     ps = [tup[1] for tup in steps_and_ps]
@@ -361,14 +361,14 @@ def generate_daily_probability_step_function(mode, s_step,building_type, save_fi
     return p_day
 
 
-def generate_yearly_probability_profile(s_step, weekend_weekday_factor,building_type,
+def generate_yearly_probability_profile(s_step, weekend_weekday_factor,building_type, holidays,
                                         initial_day=0):
     """
     generate a summed yearly probability profile. The whole function is
     deterministic. The same inputs always produce the same outputs.
 
-    1)  Probabilities for weekdays and weekend-days are loaded (p_we, p_wd).
-    2)  Probability of weekend-days is increased relative to weekdays (shift).
+    1)  Probabilities for working days and off days are loaded (p_we, p_wd).
+    2)  Probability of off days is increased relative to working days (shift).
     3)  Based on an initial day, the yearly probability distribution (p_final)
         is generated. The seasonal influence is modelled by a sine-function.
     4)  p_final is normalized and integrated. The sum over the year is thus
@@ -382,30 +382,32 @@ def generate_yearly_probability_profile(s_step, weekend_weekday_factor,building_
 
     # load daily probabilities (deterministic)
     p_we = generate_daily_probability_step_function(
-        mode='weekend',
+        mode='off-day',
         s_step=s_step,
         building_type=building_type
     )
 
     p_wd = generate_daily_probability_step_function(
-        mode='weekday',
+        mode='work-day',
         s_step=s_step,
         building_type=building_type
     )
 
     # shift towards weekend (deterministic)
     p_wd_weighted, p_we_weighted, av_p_week_weighted = shift_weekend_weekday(
-        p_weekday=p_wd,
-        p_weekend=p_we,
+        p_work_day=p_wd,
+        p_off_day=p_we,
         factor=weekend_weekday_factor
     )
 
     # yearly curve (deterministic)
     p_final = generate_yearly_probabilities(
         initial_day=initial_day,
-        p_weekend=p_we_weighted,
-        p_weekday=p_wd_weighted,
-        s_step=s_step
+        p_off_day=p_we_weighted,
+        p_work_day=p_wd_weighted,
+        s_step=s_step,
+        holidays=holidays,
+        building_type=building_type
     )
 
     # sum and normalize to range between 0 and 1.
@@ -422,15 +424,15 @@ def generate_yearly_probability_profile(s_step, weekend_weekday_factor,building_
     return timeseries_df
 
 
-def shift_weekend_weekday(p_weekday, p_weekend, factor):
+def shift_weekend_weekday(p_work_day, p_off_day, factor):
     """
     Shifts the probabilities between the weekday list and the weekend list by a
     defined factor. If the factor is bigger than 1, the probability on the
     weekend is increased. If its smaller than 1, the probability on the
     weekend is decreased.
 
-    :param p_weekday:   list:   probabilities for 1 day of the week [0...1]
-    :param p_weekend:   list:   probabilities for 1 day of the weekend [0...1]
+    :param p_work_day:   list:   probabilities for 1 work day of the week [0...1]
+    :param p_off_day:   list:   probabilities for 1 off day of the week [0...1]
     :param factor:      float:  factor to shift the probabilities between
                                 weekdays and weekend-days
     :return:
@@ -441,8 +443,8 @@ def shift_weekend_weekday(p_weekday, p_weekend, factor):
 
     assert p_wd_factor * 5 / 7 + p_we_factor * 2 / 7 == 1
 
-    p_wd_weighted = [p * p_we_factor for p in p_weekday]
-    p_we_weighted = [p * p_we_factor for p in p_weekend]
+    p_wd_weighted = [p * p_we_factor for p in p_work_day]
+    p_we_weighted = [p * p_we_factor for p in p_off_day]
 
     av_p_wd_weighted = statistics.mean(p_wd_weighted)
     av_p_we_weighted = statistics.mean(p_we_weighted)
@@ -452,17 +454,17 @@ def shift_weekend_weekday(p_weekday, p_weekend, factor):
     return p_wd_weighted, p_we_weighted, av_p_week_weighted
 
 
-def generate_yearly_probabilities(initial_day, p_weekend, p_weekday,
-                                  s_step, plot_p_yearly=False):
+def generate_yearly_probabilities(initial_day, p_off_day, p_work_day,
+                                  s_step, holidays,building_type, plot_p_yearly=False):
     """
-    Takes the probabilities of a weekday and a weekendday and generates a
+    Takes the probabilities of a working days and a off days and generates a
     list of yearly probabilities by adding a seasonal probability factor.
     The seasonal factor is a sine-function, like in DHWcalc.
 
     :param initial_day:     int:    0: Mon, 1: Tue, 2: Wed, 3: Thur, 4: Fri,
                                     5 : Sat, 6 : Sun
-    :param p_weekend:       list:   probabilities of a weekend day
-    :param p_weekday:       list:   probabilities of a weekday
+    :param p_off_day:       list:   probabilities of an off day
+    :param p_work_day:       list:   probabilities of a working day
     :param s_step:          int:    seconds within a timestep
     :param plot_p_yearly:   bool:   plot the yearly probabilities
 
@@ -474,11 +476,11 @@ def generate_yearly_probabilities(initial_day, p_weekend, p_weekday,
 
     for day in range(365):
 
-        # Is the current day on a weekend?
-        if (day + initial_day) % 7 >= 5:
-            p_day = p_weekend
+        # Define if the day is a working day or not
+        if (day + initial_day) % 7 in (0, 6) or (day + initial_day) in holidays or (building_type == "School" and 151 <= (day + initial_day) <= 180):
+            p_day = p_off_day
         else:
-            p_day = p_weekday
+            p_day = p_work_day
 
         # Compute seasonal factor
         arg = math.pi * (2 / 365 * day - 1 / 4)
@@ -595,6 +597,9 @@ def generate_and_distribute_drawoffs(timeseries_df, cats_series):
         # if the looping of p_norm_integral results in surpassing the
         # probability of the chosen drawoff, that drawoff might be placed at
         # that timestep!
+        # This while loop allows for the possibility that two draw-offs from the same
+        # category can be added together at the same timestep if two consecutive elements
+        # (or even more) of p_drawoffs are lower than p_current_sum at this timestep.
         while p_drawoffs[drawoff_count] < p_current_sum:
 
             # if the drawoff event occupies more than one timestep,
