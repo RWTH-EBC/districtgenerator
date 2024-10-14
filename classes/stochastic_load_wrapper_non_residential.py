@@ -16,12 +16,6 @@ class ElectricityProfile(object):
     ElectricityProfile class
     """
 
-    type_weekday = ["wd", "we"]  # weekday, weekend
-
-    # Load statistics for appliances (transition probability matrix)
-    activity_statistics = {}
-    activity_statistics_loaded = False
-
     def __init__(self, lightbulbs):
         """
         This class loads all input data
