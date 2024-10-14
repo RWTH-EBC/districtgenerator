@@ -129,10 +129,10 @@ class Users:
         elif self.building == "TH":
             self.nb_flats = 1
         elif self.building == "MFH":
-            if area <= 6 * 100:
-                self.nb_flats = 6
-            elif area > 6 * 100:
-                self.nb_flats = 8
+            if area <= 4 * 100:
+                self.nb_flats = 4
+            elif area > 4 * 100:
+                self.nb_flats = rd.randint((area//100)-1, (area//100)+1)
         elif self.building == "AB":
             self.nb_flats = 8
 
@@ -170,6 +170,22 @@ class Users:
                 self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room,
                                                                            mean_area_per_main_room * 0.1))  # A random number of classrooms following a Gaussian distribution with a mean of mean_area_per_main_room (70 m²) and a standard deviation of 10%. The number of offices is calculated in order to later determine the number of occupants of the building depending on it
 
+            if self.building == "Grocery_store":
+                proportion_selling_space = 0
+                nb_rooms = 0
+                mean_area_per_main_room = 400
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        nb_rooms += area * proportion / data['area_room']
+                self.nb_rooms = round(nb_rooms)
+
+                for zone_name in {"Lebensmittelverkauf"}:
+                    proportion_selling_space += self.building_zones[zone_name]
+                self.total_main_area = area * proportion_selling_space
+                self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room,
+                                                                           mean_area_per_main_room * 0.1))
     def generate_number_occupants(self,area):
         """
         Generate number of occupants for different of building types.
@@ -243,13 +259,19 @@ class Users:
             if self.building == "OB":
                 # loop over all office rooms of current office building
                 for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/12,area/self.nb_main_rooms/12 * 0.15)))  # 12 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
             if self.building == "School":
                 # loop over all School main rooms of current School building
                 for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/3,area/self.nb_main_rooms/3 * 0.15)))  # 3 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
+            if self.building == "Grocery_store":
+                for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/8,area/self.nb_main_rooms/8 * 0.15)))
     def generate_annual_el_consumption_residential(self):
         """
         Generate annual electricity consumption
@@ -401,7 +423,7 @@ class Users:
 
         elif self.building in {"OB"}:
             for j in range(self.nb_rooms):
-                room_illuminance =rd.randint(300, 1000)
+                room_illuminance =rd.randint(300, 750)
 
                 room_area = area/self.nb_rooms
                 lm_needed = room_illuminance * room_area
@@ -417,7 +439,7 @@ class Users:
 
         elif self.building in {"School"}:
             for j in range(self.nb_rooms):
-                room_illuminance =rd.randint(300, 1000)
+                room_illuminance =rd.randint(300, 750)
 
                 room_area = area/self.nb_rooms
                 lm_needed = room_illuminance * room_area
@@ -431,7 +453,21 @@ class Users:
                     total_lm += lamp["luminous_flux"]
                     self.bulbs_power.append(lamp["power"])
 
+        elif self.building in {"Grocery_store"}:
+            for j in range(self.nb_rooms):
+                room_illuminance =rd.randint(300, 750)
 
+                room_area = area/self.nb_rooms
+                lm_needed = room_illuminance * room_area
+                total_lm = 0
+                selected_lamps = []
+
+                # Install random bulbs as long as the required luminous flux has not yet been reached
+                while total_lm < lm_needed:
+                    lamp = rd.choice(jsonData)
+                    selected_lamps.append(lamp)
+                    total_lm += lamp["luminous_flux"]
+                    self.bulbs_power.append(lamp["power"])
 
     def create_el_wrapper(self):
         """
@@ -485,7 +521,7 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights))
 
-    def calcProfiles(self, site, time_resolution, time_horizon, building, path, initial_day=1):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -528,12 +564,13 @@ class Users:
                 unique_name = building['unique_name']
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution, building=self.building)
-                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
+                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays = holidays)
                 # Occupancy profile in a flat
                 self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
-                self.elec = self.elec + temp_obj.generate_el_profile_residential(irradiance=irradiation,
-                                                                     el_wrapper=self.el_wrapper[j],
-                                                                     annual_demand=self.annual_el_demand[j])
+                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays = holidays,
+                                                                                 irradiance=irradiation,
+                                                                                 el_wrapper=self.el_wrapper[j],
+                                                                                 annual_demand=self.annual_el_demand[j])
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
             # currently only one car per building possible
             self.car = self.car + temp_obj.generate_EV_profile(self.occ)
@@ -547,13 +584,14 @@ class Users:
         else:
             temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
             # Occupancy profile in the building
-            _,self.occ,_ = temp_obj.generate_profiles_non_residential()
+            _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
             self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
 
             gains_persons, gains_others = temp_obj.generate_gain_profile_non_residential()
             self.gains = gains_persons + gains_others
 
-            self.dhw = temp_obj.generate_dhw_profile(building=building)
+            self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+            self.car = temp_obj.generate_EV_profile(self.occ)
 
 #            gains_persons = np.zeros(int(time_horizon / time_resolution))
 #            for j in range(self.nb_main_rooms):
@@ -622,7 +660,7 @@ class Users:
         np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',', header="Drinking hot water in W", comments="")
         np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',', header="Occupancy of persons", comments="")
         np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',', header="Internal gains in W", comments="")
-#        np.savetxt(path + '/car_' + unique_name + '.csv', self.car, fmt='%1.2f', delimiter=',', header="Electricity demand of EV in W", comments="")
+        np.savetxt(path + '/car_' + unique_name + '.csv', self.car, fmt='%1.2f', delimiter=',', header="Electricity demand of EV in W", comments="")
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]

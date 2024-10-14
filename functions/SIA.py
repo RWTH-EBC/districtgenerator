@@ -21,7 +21,7 @@ def read_SIA_data():
                                      'd_22', 'd_23', 'd_24',
                                      'm_1', 'm_2', 'm_3', 'm_4', 'm_5', 'm_6', 'm_7', 'm_8', 'm_9', 'm_10', 'm_11',
                                      'm_12'])
-    df4 = pd.DataFrame(data, columns=['Living: MFH', 'Living: SFH', 'OB', 'School', 'Sale'])
+    df4 = pd.DataFrame(data, columns=['Living: MFH', 'Living: SFH', 'OB', 'School', 'Grocery_store'])
 
     SIA2024 = {}
     for row in range(0, 45):
