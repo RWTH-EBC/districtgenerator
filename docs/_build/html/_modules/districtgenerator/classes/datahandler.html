@@ -41,8 +41,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"></div>
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -80,7 +86,6 @@
 <span class="kn">from</span> <span class="nn">.envelope</span> <span class="kn">import</span> <span class="n">Envelope</span>
 <span class="kn">from</span> <span class="nn">.solar</span> <span class="kn">import</span> <span class="n">Sun</span>
 <span class="kn">from</span> <span class="nn">.users</span> <span class="kn">import</span> <span class="n">Users</span>
-<span class="kn">from</span> <span class="nn">.plots</span> <span class="kn">import</span> <span class="n">DemandPlots</span>
 
 <div class="viewcode-block" id="Datahandler"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler">[docs]</a><span class="k">class</span> <span class="nc">Datahandler</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -187,7 +192,7 @@
         <span class="c1"># Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta</span>
         <span class="k">global</span> <span class="n">sun</span>
         <span class="n">sun</span> <span class="o">=</span> <span class="n">Sun</span><span class="p">(</span><span class="n">filePath</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">SunRad</span> <span class="o">=</span> <span class="n">sun</span><span class="o">.</span><span class="n">getSolarGains</span><span class="p">(</span><span class="n">initialTime</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunRad&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sun</span><span class="o">.</span><span class="n">getSolarGains</span><span class="p">(</span><span class="n">initialTime</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                                         <span class="n">timeDiscretization</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">],</span>
                                         <span class="n">timeSteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeSteps&quot;</span><span class="p">],</span>
                                         <span class="n">timeZone</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;timeZone&quot;</span><span class="p">],</span>
@@ -340,7 +345,7 @@
                 <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">loadProfiles</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span><span class="p">)</span>
                 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Load demands of building &quot;</span> <span class="o">+</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">])</span>
 
-            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcNormativeProperties</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SunRad</span><span class="p">,</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">gains</span><span class="p">)</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcNormativeProperties</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunRad&quot;</span><span class="p">],</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">gains</span><span class="p">)</span>
 
             <span class="c1"># calculate heating profiles</span>
             <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcHeatingProfile</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">,</span>
@@ -406,57 +411,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">=</span> <span class="n">scenario_name</span>
 
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.p&quot;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="Datahandler.plot"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.plot">[docs]</a>    <span class="k">def</span> <span class="nf">plot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="n">initialTime</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">timeHorizon</span><span class="o">=</span><span class="mi">31536000</span><span class="p">,</span> <span class="n">savePlots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeStamp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Create plots of the energy consumption and generation.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        mode : string, optional</span>
-<span class="sd">            Choose a single plot or show all of them as default. The default is &#39;default&#39;.</span>
-<span class="sd">            Possible modes are [&#39;elec&#39;, &#39;dhw&#39;, &#39;gains&#39;, &#39;heating&#39;, &#39;electricityDemand&#39;, &#39;heatDemand&#39;]</span>
-<span class="sd">        initialTime : integer, optional</span>
-<span class="sd">            Start of the plot in seconds from the beginning of the year. The default is 0.</span>
-<span class="sd">        timeHorizon : integer, optional</span>
-<span class="sd">            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).</span>
-<span class="sd">        savePlots : boolean, optional</span>
-<span class="sd">            Decision if plots are saved under results/plots/. The default is True.</span>
-<span class="sd">        timeStamp : boolean, optional</span>
-<span class="sd">            Decision if saved plots get a unique name by adding a time stamp. The default is False.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-<span class="sd">        None.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="c1"># initialize plots and prepare data for plotting</span>
-        <span class="n">demandPlots</span> <span class="o">=</span> <span class="n">DemandPlots</span><span class="p">()</span>
-        <span class="n">demandPlots</span><span class="o">.</span><span class="n">preparePlots</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-
-        <span class="c1"># check which resolution for plots is used</span>
-        <span class="k">if</span> <span class="n">initialTime</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">timeHorizon</span> <span class="o">==</span> <span class="mi">31536000</span><span class="p">:</span>
-            <span class="n">plotResolution</span> <span class="o">=</span> <span class="s1">&#39;monthly&#39;</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">plotResolution</span> <span class="o">=</span> <span class="s1">&#39;stepwise&#39;</span>
-
-        <span class="c1"># the selection of possible plots</span>
-        <span class="n">plotTypes</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="s1">&#39;dhw&#39;</span><span class="p">,</span> <span class="s1">&#39;gains&#39;</span><span class="p">,</span> <span class="s1">&#39;heating&#39;</span><span class="p">,</span> <span class="s1">&#39;electricityDemand&#39;</span><span class="p">,</span> <span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span>
-
-        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;default&#39;</span><span class="p">:</span>
-            <span class="c1"># create all default plots</span>
-            <span class="n">demandPlots</span><span class="o">.</span><span class="n">defaultPlots</span><span class="p">(</span><span class="n">plotResolution</span><span class="p">,</span> <span class="n">initialTime</span><span class="o">=</span><span class="n">initialTime</span><span class="p">,</span> <span class="n">timeHorizon</span><span class="o">=</span><span class="n">timeHorizon</span><span class="p">,</span>
-                                     <span class="n">savePlots</span><span class="o">=</span><span class="n">savePlots</span><span class="p">,</span> <span class="n">timeStamp</span><span class="o">=</span><span class="n">timeStamp</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="n">show</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">plotTypes</span><span class="p">:</span>
-            <span class="c1"># create a plot</span>
-            <span class="n">demandPlots</span><span class="o">.</span><span class="n">onePlot</span><span class="p">(</span><span class="n">plotType</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="n">plotResolution</span><span class="o">=</span><span class="n">plotResolution</span><span class="p">,</span> <span class="n">initialTime</span><span class="o">=</span><span class="n">initialTime</span><span class="p">,</span>
-                                <span class="n">timeHorizon</span><span class="o">=</span><span class="n">timeHorizon</span><span class="p">,</span> <span class="n">savePlots</span><span class="o">=</span><span class="n">savePlots</span><span class="p">,</span> <span class="n">timeStamp</span><span class="o">=</span><span class="n">timeStamp</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="n">show</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="c1"># print massage that input is not valid</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1"> Selected plot mode is not valid. So no plot could de generated. </span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span></div></div>
 </pre></div>
 
            </div>

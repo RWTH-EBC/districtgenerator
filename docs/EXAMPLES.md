@@ -1,24 +1,16 @@
 # Examples
 
-This directory contains examples to support you how to use FiLiP to 
-build smart solutions based on FIWARE.  
-In order to execute the examples you need a working FIWARE instance. For more details
-look into the [required prerequisites](https://github.com/RWTH-EBC/FiLiP?tab=readme-ov-file#prerequisites) of the
-library.  
-Each example is executable with ...
-
-Within the given examples we give a detailed description of the required input, its format 
-and how the output looks like.
-Warum keine unittests, sondern nur functional testing
-
-The workflow to ...
+This directory contains examples to support you how to use the 
+DistrictGenerator. Each example is executable separately.
+Within the given examples we give a detailed description of the 
+required input, its format and how the output looks like. The 
+order of the examples represents the workflow of the DistrictGenerator.
 
 #### How to initialize the datahandler
 
-- [Initialize Datahandler](https://github.com/RWTH-EBC/districtgenerator/blob/master/examples/e1.0_generate_first_district.py) 
+Within this example we explain how the user initializes the datahandler.
 
-Within this example we explain how the user initializes the datahandler
-and the actions that are executed to ...
+- [Initialize Datahandler](https://github.com/RWTH-EBC/districtgenerator/blob/master/examples/e1.0_generate_first_district.py) 
 
 #### Generate environment for the district
     
@@ -44,7 +36,7 @@ and their materials to the building models.
 
 #### Generation and plotting of demand profiles
 
-- [Semantics](./ngsi_v2/e11_ngsi_v2_semantics)
+- [Demand Profiles](./ngsi_v2/e11_ngsi_v2_semantics)
 
 
 #### Customisation of specific assumptions for individual districts

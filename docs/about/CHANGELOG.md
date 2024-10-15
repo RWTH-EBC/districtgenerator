@@ -1,10 +1,11 @@
 # Version History
 
-## v0.1.0
-- Completely reworked the structure of the library
+## v0.1.1
+- Reworked the structure of the library
 - Added documentation  
-- Use Pydantic for model validation and parsing
-- Added unittests
+- Added test file for functional testing
+
+## v0.1.0
 - Configuration via environment variables, json or local
 - Moved to github.com/RWTH-EBC
 - Bugfix

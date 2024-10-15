@@ -11,9 +11,9 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 
-def example1_0_generate_first_district():
+def example1_initialize_datahandler():
 
-    # To create a district we initialize the Datahandler.
+    # To create a district we initialize the datahandler.
     # No input is required for this step.
     data = Datahandler()
 
@@ -31,6 +31,6 @@ def example1_0_generate_first_district():
 
 
 if __name__ == '__main__':
-    data = example1_0_generate_first_district()
+    data = example1_initialize_datahandler()
 
 

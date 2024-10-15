@@ -17,14 +17,6 @@ districtgenerator.classes.envelope
    :undoc-members:
    :show-inheritance:
 
-districtgenerator.classes.plots
---------------------------------------
-
-.. automodule:: districtgenerator.classes.plots
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 districtgenerator.classes.profils
 ----------------------------------------
 

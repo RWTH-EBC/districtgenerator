@@ -10,7 +10,6 @@ from teaser.project import Project
 from .envelope import Envelope
 from .solar import Sun
 from .users import Users
-from .plots import DemandPlots
 
 class Datahandler():
     """
@@ -117,7 +116,7 @@ class Datahandler():
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
         sun = Sun(filePath=self.filePath)
-        self.SunRad = sun.getSolarGains(initialTime=0,
+        self.site["SunRad"] = sun.getSolarGains(initialTime=0,
                                         timeDiscretization=self.time["timeResolution"],
                                         timeSteps=self.time["timeSteps"],
                                         timeZone=self.site["timeZone"],
@@ -270,7 +269,7 @@ class Datahandler():
                 building["user"].loadProfiles(building["unique_name"], self.resultPath)
                 print("Load demands of building " + building["unique_name"])
 
-            building["envelope"].calcNormativeProperties(self.SunRad,building["user"].gains)
+            building["envelope"].calcNormativeProperties(self.site["SunRad"],building["user"].gains)
 
             # calculate heating profiles
             building["user"].calcHeatingProfile(site=self.site,
@@ -337,53 +336,3 @@ class Datahandler():
 
         with open(self.resultPath + "/" + self.scenario_name + ".p", 'rb') as fp:
             self.district = pickle.load(fp)
-
-
-    def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
-        """
-        Create plots of the energy consumption and generation.
-
-        Parameters
-        ----------
-        mode : string, optional
-            Choose a single plot or show all of them as default. The default is 'default'.
-            Possible modes are ['elec', 'dhw', 'gains', 'heating', 'electricityDemand', 'heatDemand']
-        initialTime : integer, optional
-            Start of the plot in seconds from the beginning of the year. The default is 0.
-        timeHorizon : integer, optional
-            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).
-        savePlots : boolean, optional
-            Decision if plots are saved under results/plots/. The default is True.
-        timeStamp : boolean, optional
-            Decision if saved plots get a unique name by adding a time stamp. The default is False.
-
-        Returns
-        -------
-        None.
-
-        """
-
-        # initialize plots and prepare data for plotting
-        demandPlots = DemandPlots()
-        demandPlots.preparePlots(self)
-
-        # check which resolution for plots is used
-        if initialTime == 0 and timeHorizon == 31536000:
-            plotResolution = 'monthly'
-        else:
-            plotResolution = 'stepwise'
-
-        # the selection of possible plots
-        plotTypes = ['elec', 'dhw', 'gains', 'heating', 'electricityDemand', 'heatDemand']
-
-        if mode == 'default':
-            # create all default plots
-            demandPlots.defaultPlots(plotResolution, initialTime=initialTime, timeHorizon=timeHorizon,
-                                     savePlots=savePlots, timeStamp=timeStamp, show=show)
-        elif mode in plotTypes:
-            # create a plot
-            demandPlots.onePlot(plotType=mode, plotResolution=plotResolution, initialTime=initialTime,
-                                timeHorizon=timeHorizon, savePlots=savePlots, timeStamp=timeStamp, show=show)
-        else:
-            # print massage that input is not valid
-            print('\n Selected plot mode is not valid. So no plot could de generated. \n')

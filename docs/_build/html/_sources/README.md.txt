@@ -46,7 +46,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the generator, you can check the [examples](../districtgenerator/data/scenarios/example.csv) 
+Once you have installed the DistrictGenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv) 
 to learn how to use the different components.
 
 ### Minimum required input data
@@ -79,14 +79,14 @@ the .csv format in folder results/demands. The results contain:
 
 ## Running examples for functional testing
 
-Once you have installed the Districtgenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv)
+Once you have installed the DistrictGenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv)
 to learn how to use the different components. 
 
 Currently, we provide basic examples for the usage of DistrictGenerator.
 These examples include all the functions of the datahandler to model a district and 
 generate the demand profiles.
-Innerhalb der [examples](../districtgenerator/data/scenarios/example.csv) beschreiben wir seperat und im Detail den Input,
-die weiteren verwendeten internen Funktionen und externen Tools sowie den Output.
+Within the [examples](../districtgenerator/data/scenarios/example.csv), we describe in more detail the input, 
+the other internal functions and external tools used and the output.
 We suggest to start in the right order to understand the workflow.
 
 ## How to contribute

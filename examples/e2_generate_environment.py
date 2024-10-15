@@ -12,7 +12,7 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 
-def example1_1_generate_first_district():
+def example2_generate_environment():
 
     # Initialize District (description in the first example)
     data = Datahandler()
@@ -37,6 +37,6 @@ def example1_1_generate_first_district():
 
 
 if __name__ == '__main__':
-    data = example1_1_generate_first_district()
+    data = example2_generate_environment()
 
 
