@@ -129,7 +129,7 @@ We presented or applied the library in the following publications:
   Conference on Efficiency, Cost, Optimization, Simulation and Environmental Impact of 
   Energy Systems.
   
-- C. Wüller, J. Schölzel, R. Streblow, D. Müller.Optimizing Local Energy Trading in Residential Neighborhoods:A Price Signal Approach 
+- C. Wüller, J. Schölzel, R. Streblow, D. Müller. Optimizing Local Energy Trading in Residential Neighborhoods:A Price Signal Approach 
   in Local Energy Markets. 37th International Conference on Efficiency, Cost, Optimization, 
   Simulation and Environmental Impact of Energy Systems.
 

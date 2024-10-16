@@ -3,7 +3,6 @@
 # DistrictGenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
-[![Documentation](https://rwth-ebc.github.io/FiLiP/master/docs/doc.svg)](https://rwth-ebc.github.io/FiLiP/master/docs/index.html)
 
 Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
 housing associations, engineering firms, architectural professionals, as well as academic and research institutions. 
