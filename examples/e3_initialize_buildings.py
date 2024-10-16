@@ -4,7 +4,7 @@
 This is the third example to initialize the buildings and to add them to the district.
 
 If you run the examples with Python console, you can see the output file.
-To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+To do this right-hand click the example.py file (e3_initialize_buildings.py).
 Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
@@ -32,7 +32,7 @@ def example3_initialize_buildings():
     data.initializeBuildings(scenario_name="example")
 
     ### =====================================  Output  ===================================== ###
-    # The district consists of a list of two buildings with id 0 and 1 (see data.district).
+    # The district consists of a list of two buildings with id 0 and 1 (see "data.district").
     # To every building the building features from example.csv are added.
 
     return data

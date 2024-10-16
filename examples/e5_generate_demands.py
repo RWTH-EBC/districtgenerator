@@ -4,7 +4,7 @@
 This is the fifth example to generate the demand profiles of the buildings.
 
 If you run the examples with Python console, you can see the output file.
-To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+To do this right-hand click the example.py file (e5_generate_demands.py).
 Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
@@ -47,7 +47,6 @@ def example5_generate_demands():
     # We plot the district space heat demand in kWh
     exemplary_plot(data)
 
-
     return data
 
 def exemplary_plot(data):
@@ -71,8 +70,6 @@ def exemplary_plot(data):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.show()
-
-
 
 if __name__ == '__main__':
     data = example5_generate_demands()

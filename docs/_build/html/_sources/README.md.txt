@@ -113,6 +113,21 @@ a reviewer before merging. Once review is finished, you can merge.
 
 We presented or applied the library in the following publications:
 
+- J. Schölzel, S. Henn, R. Streblow, D. Müller. Evaluation of Energy Sharing on a 
+  Local Energy Market Through Comparison of Energy Management Techniques. 36th International 
+  Conference on Efficiency, Cost, Optimization, Simulation and Environmental Impact of Energy Systems.
+  https://doi.org/10.52202/069564-0307
+
+- J. Schölzel, T. Beckhölter, S. Henn, C.Wüller, R. Streblow, D. Müller.
+  Districtgenerator: A Novel Open-Source Webtool to Generate Building-Specific Load 
+  Profiles and Evaluate Energy Systems of Residential Districts. 37th International 
+  Conference on Efficiency, Cost, Optimization, Simulation and Environmental Impact of 
+  Energy Systems.
+  
+- C. Wüller, J. Schölzel, R. Streblow, D. Müller.Optimizing Local Energy Trading in Residential Neighborhoods:A Price Signal Approach 
+  in Local Energy Markets. 37th International Conference on Efficiency, Cost, Optimization, 
+  Simulation and Environmental Impact of Energy Systems.
+
 ## License
 
 The DistrictGenerator is released by RWTH Aachen University, E.ON Energy

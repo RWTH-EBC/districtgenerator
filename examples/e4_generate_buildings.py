@@ -4,14 +4,14 @@
 This is the fourth example to add more information the the building models.
 
 If you run the examples with Python console, you can see the output file.
-To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+To do this right-hand click the example.py file (e4_generate_buildings.py).
 Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 
-def example4_generate_buildings() :
+def example4_generate_buildings():
     # Initialize District
     data = Datahandler()
 

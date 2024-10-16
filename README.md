@@ -46,31 +46,32 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-### How to get started?
-
-Once you have installed the generator, you can check the [examples](./examples) to learn how to use the different components.
+Once you have installed the DistrictGenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv) 
+to learn how to use the different components.
 
 ### Minimum required input data
 
 To generate your district, you need to know some information about its buildings. 
 The minimal input data set was defined following the [TABULA archetype approach](https://webtool.building-typology.eu/#bm):
-* _id_: building ID (just numerate the buildings)
-* _building_: residential building type (single family house, terraced house, multi family house or apartment block)
-* _year_: construction year (the calendar year in which the building was constructed)
-* _retrofit_: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
-* _area_: reference floor area (given in square meters)
 
-Please find a template [here](./data/scenarios/example.csv).
+- id: building ID (just numerate the buildings)
+- building: residential building type (single family house, terraced house, multi family house or apartment block)
+- year: construction year (the calendar year in which the building was constructed)
+- retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
+- area: reference floor area (given in square meters)
+
+The example.csv file can be used as [template](../districtgenerator/data/scenarios/example.csv).
 
 ### What you get
 
-After executing district generation you can find building-specific profiles in 
+After executing district generation you can find building-specific and time-dependent profiles in 
 the .csv format in folder results/demands. The results contain: 
-* _heat_: space heating demand
-* _dhw_: domestic hot water demand
-* _elec_: electricity demand for lighting and electric household devices
-* _occ_: number of persons present
-* _gains_: internal gains from persons, lighting and electric household devices
+
+- heat: space heating demand
+- dhw: domestic hot water demand
+- elec: electricity demand for lighting and electric household devices
+- occ: number of persons present
+- gains: internal gains from persons, lighting and electric household devices
 
 ## Structure of the DistrictGenerator
 
@@ -78,19 +79,15 @@ the .csv format in folder results/demands. The results contain:
 
 ## Running examples for functional testing
 
-Once you have installed the Districtgenerator, you can check the [examples](/examples)
+Once you have installed the DistrictGenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv)
 to learn how to use the different components. 
 
 Currently, we provide basic examples for the usage of DistrictGenerator.
-Diese Test umfassen alle Funktionen des datahandler.
-Innerhalb der [examples](/examples) beschreiben wir seperat und im Detail den Input,
-die weiteren verwendeten internen Funktionen und externen Tools sowie den Output.
-
-We suggest to start in the right order to understand the workflow 
-um ein Quartier zu modellieren und die Bedarfsprofile zu erhalten.
-Afterwards, you can start modelling context data and interacting with the context 
-broker and use its functionalities before you learn how to connect 
-IoT Devices and store historic data.
+These examples include all the functions of the datahandler to model a district and 
+generate the demand profiles.
+Within the [examples](../districtgenerator/data/scenarios/example.csv), we describe in more detail the input, 
+the other internal functions and external tools used and the output.
+We suggest to start in the right order to understand the workflow.
 
 ## How to contribute
 
@@ -120,8 +117,7 @@ We presented or applied the library in the following publications:
 
 The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the
-[MIT License](LICENSE.md).
+under the [MIT License](about/LICENSE.md).
 
 ## Acknowledgements
 

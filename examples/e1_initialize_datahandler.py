@@ -4,7 +4,7 @@
 This is the first example to initialize a district.
 
 If you run the examples with Python console, you can see the output file.
-To do this right-hand click the example.py file (e1.0_generate_first_district.py).
+To do this right-hand click the example.py file (e1_initialize_datahandler.py).
 Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
@@ -17,15 +17,9 @@ def example1_initialize_datahandler():
     # No input is required for this step.
     data = Datahandler()
 
-    # This creates empty files for information about the environment, the buildings and the district.
-
-
-    print("\nOur District now looks like this: \n")
-    print("District:" + str(data.district))
-    print("Site:" + str(data.site))
-    print("There is no data yet.\n"
-          "Lets try the next example e1.1_generate_first_district "
-          "to add information about the environment of our district.")
+    ### =====================================  Output  ===================================== ###
+    # This creates the datahandler object and empty files for information about the environment,
+    # the buildings and the district.
 
     return data
 
