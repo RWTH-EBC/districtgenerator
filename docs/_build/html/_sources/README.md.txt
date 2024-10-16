@@ -3,6 +3,7 @@
 # DistrictGenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
+[![Documentation](https://rwth-ebc.github.io/FiLiP/master/docs/doc.svg)](https://rwth-ebc.github.io/FiLiP/master/docs/index.html)
 
 Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
 housing associations, engineering firms, architectural professionals, as well as academic and research institutions. 
@@ -13,7 +14,7 @@ building stocks in neighborhood models for automated load profile calculations a
 energy resources. By integrating several open-source data bases and tools like [TEASER](https://github.com/RWTH-EBC/TEASER) 
 and [richardsonpy](https://github.com/RWTH-EBC/richardsonpy).
 
-The districtgenerator is being developed at [RWTH Aachen University, E.ON Energy
+The DistrictGenerator is being developed at [RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor
 Climate](https://www.ebc.eonerc.rwth-aachen.de/cms/~dmzz/E-ON-ERC-EBC/?lidx=1).
 
@@ -26,11 +27,16 @@ of sustainable, cross-sectoral energy systems in neighborhoods, with a specific 
 potentials among buildings of diverse usage structures through integrated concepts. We summarize the key contributions 
 of the DistrictGenerator as follows:
 
-- An open-source tool with minimal input requirements. Leveraging pre-set elements and default values of temporally resolved demand profiles, as well as decentralized heat generator sizing conforming to DIN standards.
+- An open-source tool with minimal input requirements. Leveraging pre-set elements and default values of temporally 
+  resolved demand profiles, as well as decentralized heat generator sizing conforming to DIN standards.
 
-- The tool enables the bottom-up representation of entire urban structures through neighborhood models, affording a sufficiently detailed analysis foundation.
+- The tool enables the bottom-up representation of entire urban structures through neighborhood models, affording a 
+  sufficiently detailed analysis foundation.
 
-- Facilitation of central operational optimization and presentation of analytical results and key performance indicators. This supports the examination of various neighborhood types and supply scenarios concerning technology selection and penetrations. We thereby create a platform for early-stage comparison of neighborhood concepts with the flexibility of selecting different variants, given the tool's rapid recalculations.
+- Facilitation of central operational optimization and presentation of analytical results and key performance 
+  indicators. This supports the examination of various neighborhood types and supply scenarios concerning technology 
+  selection and penetrations. We thereby create a platform for early-stage comparison of neighborhood concepts 
+  with the flexibility of selecting different variants, given the tool's rapid recalculations.
 
 
 ## Getting started
@@ -46,7 +52,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the DistrictGenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv) 
+Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
 to learn how to use the different components.
 
 ### Minimum required input data
@@ -79,15 +85,14 @@ the .csv format in folder results/demands. The results contain:
 
 ## Running examples for functional testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](../districtgenerator/data/scenarios/example.csv)
+Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
 to learn how to use the different components. 
 
-Currently, we provide basic examples for the usage of DistrictGenerator.
-These examples include all the functions of the datahandler to model a district and 
-generate the demand profiles.
-Within the [examples](../districtgenerator/data/scenarios/example.csv), we describe in more detail the input, 
-the other internal functions and external tools used and the output.
-We suggest to start in the right order to understand the workflow.
+To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/15-joss-documentation/tests)  in the tests folder. 
+This functional testing checks the entire chain of the tool, from data input and 
+initialization to the output of the calculated profiles. It does not correspond to a 
+test of the functional units of the entire process. This  functional testing is based 
+on the examples automatically executed one after another.
 
 ## How to contribute
 

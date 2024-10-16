@@ -52,7 +52,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the DistrictGenerator, you can check the [examples](../examples) 
+Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
 to learn how to use the different components.
 
 ### Minimum required input data
@@ -85,10 +85,10 @@ the .csv format in folder results/demands. The results contain:
 
 ## Running examples for functional testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](../examples) 
+Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
 to learn how to use the different components. 
 
-To test the tool's executability, run [test_examples.py](../tests/test_examples.py)  in the tests folder. 
+To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/15-joss-documentation/tests)  in the tests folder. 
 This functional testing checks the entire chain of the tool, from data input and 
 initialization to the output of the calculated profiles. It does not correspond to a 
 test of the functional units of the entire process. This  functional testing is based 
@@ -129,7 +129,7 @@ We presented or applied the library in the following publications:
   Conference on Efficiency, Cost, Optimization, Simulation and Environmental Impact of 
   Energy Systems.
   
-- C. Wüller, J. Schölzel, R. Streblow, D. Müller.Optimizing Local Energy Trading in Residential Neighborhoods:A Price Signal Approach 
+- C. Wüller, J. Schölzel, R. Streblow, D. Müller. Optimizing Local Energy Trading in Residential Neighborhoods:A Price Signal Approach 
   in Local Energy Markets. 37th International Conference on Efficiency, Cost, Optimization, 
   Simulation and Environmental Impact of Energy Systems.
 
