@@ -1,3 +1,0 @@
-id;building;year;retrofit;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV
-0;SFH;1989;0;149;BOI;0;0;0;0;35;1;S;0.4;0.04;0
-1;SFH;1989;0;157;BOI;0;0;0;0;35;1;M;0.4;0.04;0
