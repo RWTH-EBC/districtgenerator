@@ -6,4 +6,3 @@ from .solar import Sun
 from .users import Users
 from .profils import Profiles
 # import of participants as houses and the aggregator
-from .participants import *
