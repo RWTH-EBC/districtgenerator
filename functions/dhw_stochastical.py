@@ -72,7 +72,6 @@ def load_profiles(filename):
     # Return results
     return profiles
 
-
 def compute_daily_demand(probability_profiles, average_profile, occupancy,
                          current_day, temperature_difference=35):
     """
