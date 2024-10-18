@@ -32,8 +32,6 @@ def get_lightning_load(building_type):
 
 
     try:
-        print(f"This is the path: {load_data_path}"
-              )
         load_data = pd.read_csv(load_data_path, sep=';', decimal=',')
         lighntning_control = load_data[load_data["cea_code"] == data_type]["El_Wm2"].iloc[0]
 
@@ -121,15 +119,6 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     lighting_control = schedule_reader.get_lightning_control(building_type)
     lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
     lux = (illuminance * 0.45 * lighting_maintenance_factor) / area  # Calculate lux at each timestep
-    print(f"Lux: {lux}",
-          f"Lighting control: {lighting_control}",
-          f"Lighting load: {lighting_load}",
-          f"Lighting maintenance factor: {lighting_maintenance_factor}",
-          f"Area: {area}",
-          f"Illuminance: {illuminance}",
-          f"Occupancy schedule: {occupancy_schedule}",
-          f"Building type: {building_type}")
-    
     mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)  # Determine when artificial lighting is needed
     lighting_demand = pd.Series(0, index=occupancy_schedule.index)
     lighting_demand = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]  # Calculate energy demand
