@@ -410,7 +410,7 @@ class NonResidentialUsers():
         
         # To-Do: check that the correct data is used from SIA
         # These are default values for residential buildings
-        # To-Do: Checck Units 
+        # To-Do: Check Units 
         # Use Dibs documentaiton https://iwugermany.github.io/dibs/
 
         personGain = 70.0  # [Watt]
@@ -423,13 +423,15 @@ class NonResidentialUsers():
         # data\multi_zone_average\info.txt
         q_I_p, q_I_fac, multi_zone_name = schedules.get_multi_zone_average(self.usage)
         if q_I_p is not None:
-            # What is this factor? 
-            personGain = q_I_p
+            # Unit is Wh/m2d 
+            # Convert to W/m2
+            personGain = q_I_p / 24
         else:
             print(f"No data about person gains available for building type: {self.usage}")
         if q_I_fac is not None:
-            # What is this factor? 
-            appGain = q_I_fac
+            # Unit is Wh/m2d 
+            # Convert to W/m2
+            appGain = q_I_fac / 24
         else:
             print(f"No data about appliance gains available for building type: {self.usage}")
         
@@ -437,22 +439,13 @@ class NonResidentialUsers():
         # Light schedule is in  light gain in W/m2
         # Check unit for light demand
         # Appliance schedule in W/m2, appliance gain in W/m2
-        # Check die Umrechnung 
-        print(type(self.appliance_schedule))
-        print(type(self.appliance_schedule)) 
-        print(type(appGain))    
-        print(type(self.occ), "this is the occupancy")
-        self.gains = self.occ *  personGain + self.lightning_demand * 0.65 / 1000 + self.appliance_demand * 0.33
+        self.gains = self.occ *  personGain + self.lightning_demand * lightGain + self.appliance_demand * appGain
         if self.gains.sum() < 0:
-            print("Internal gains are negative.")
-            print("Occupancy gains:", (self.occupancy_schedule["OCCUPANCY"] * personGain).sum())
-            print("Lighting gains:", (self.lighntning_schedule["LIGHTING"] * lightGain).sum())
-            print("Appliance gains:", (self.elec * appGain).sum())
-            print("Total gains:", self.gains.sum())
-        
+            print("Internal gains are negative. This migth be due to cooling devices.")
 
 
-    def calcHeatingProfile(self, site: Dict[str, Any], envelope: Any, time_resolution: int) -> None:
+    def calcHeatingProfile(self, site: Dict[str, Any], 
+                           envelope: Any, time_resolution: int) -> None:
 
         '''
         Calclulate heat demand for each building
@@ -480,8 +473,6 @@ class NonResidentialUsers():
 
         (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
         # Cooling load for the current time step in Watt
-        self.cool = np.zeros(len(Q_HC))
-        self.cool = np.minimum(0, Q_HC)
         self.cool = np.zeros(len(Q_HC))
         self.cool = np.minimum(0, Q_HC)
 
