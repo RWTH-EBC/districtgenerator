@@ -1,3 +1,4 @@
+---
 title: 'Districtgenerator: Generating building-specific load profiles for residential districts.'
 tags:
   - Python
@@ -23,6 +24,7 @@ affiliations:
    index: 1
 date: 01 June 2023
 bibliography: paper.bib
+---
 
 # Summary
 
