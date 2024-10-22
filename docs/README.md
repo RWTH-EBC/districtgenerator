@@ -87,7 +87,7 @@ the .csv format in folder results/demands. The results contain:
 Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
 to learn how to use the different components. 
 
-To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/15-joss-documentation/tests)  in the tests folder. 
+To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests)  in the tests folder. 
 This functional testing checks the entire chain of the tool, from data input and 
 initialization to the output of the calculated profiles. It does not correspond to a 
 test of the functional units of the entire process. This  functional testing is based 

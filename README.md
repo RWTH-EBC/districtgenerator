@@ -3,7 +3,6 @@
 # DistrictGenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
-[![Documentation](https://rwth-ebc.github.io/FiLiP/master/docs/doc.svg)](https://rwth-ebc.github.io/FiLiP/master/docs/index.html)
 
 Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
 housing associations, engineering firms, architectural professionals, as well as academic and research institutions. 
@@ -52,7 +51,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](https://github.com/RWTH-EBC/districtgenerator/blob/JOSS_submission/docs/EXAMPLES.md) 
 to learn how to use the different components.
 
 ### Minimum required input data
@@ -66,7 +65,7 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 - area: reference floor area (given in square meters)
 
-The example.csv file can be used as [template](../districtgenerator/data/scenarios/example.csv).
+The example.csv file can be used as [template](https://github.com/RWTH-EBC/districtgenerator/blob/JOSS_submission/districtgenerator/data/scenarios/example.csv).
 
 ### What you get
 
@@ -81,14 +80,14 @@ the .csv format in folder results/demands. The results contain:
 
 ## Structure of the DistrictGenerator
 
-![Library Structure](./img/Struktur_Quartiersgenerator.png)
+![Library Structure](https://github.com/RWTH-EBC/districtgenerator/blob/JOSS_submission/docs/img/Struktur_Quartiersgenerator.png)
 
 ## Running examples for functional testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](https://github.com/RWTH-EBC/districtgenerator/blob/JOSS_submission/docs/EXAMPLES.md) 
 to learn how to use the different components. 
 
-To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/15-joss-documentation/tests)  in the tests folder. 
+To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests) in the tests folder. 
 This functional testing checks the entire chain of the tool, from data input and 
 initialization to the output of the calculated profiles. It does not correspond to a 
 test of the functional units of the entire process. This  functional testing is based 
@@ -137,7 +136,7 @@ We presented or applied the library in the following publications:
 
 The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the [MIT License](about/LICENSE.md).
+under the [MIT License](https://github.com/RWTH-EBC/districtgenerator/blob/JOSS_submission/LICENSE.md).
 
 ## Acknowledgements
 
