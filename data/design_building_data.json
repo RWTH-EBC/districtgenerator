@@ -1,5 +1,4 @@
-[
-  {
+[{
     "name": "T_set_min",
     "value":  20.0,
     "unit": "degree Celsius",
