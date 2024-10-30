@@ -7,6 +7,12 @@ import numpy as np
 from teaser.project import Project
 from districtgenerator.non_residential import NonResidential
 
+RESIDENTIAL_BUILDING_TYPES = ["SFH", "TH", "MFH", "AB"]
+NON_RESIDENTIAL_BUILDING_TYPES = ["IWU Hotels, Boarding, Restaurants or Catering", "IWU Office, Administrative or Government Buildings",
+                                  "IWU Trade Buildings", "IWU Technical and Utility (supply and disposal)", "IWU School, Day Nursery and other Care", "IWU Transport",
+                                  "IWU Health and Care", "IWU Sports Facilities", "IWU Culture and Leisure", "IWU Research and University Teaching", "IWU Technical and Utility (supply and disposal)",
+                                  "IWU Generalized (1) Services building", "IWU Generalized (2) Production buildings", "IWU Production, Workshop, Warehouse or Operations"]
+
 
 class Envelope():
     """
@@ -95,16 +101,25 @@ class Envelope():
 
         design_data = {}
         # To-Do: Update this on the type
-        with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
+        if self.usage_short in RESIDENTIAL_BUILDING_TYPES:
+            with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
+                jsonData = json.load(json_file)
             for subData in jsonData:
                 design_data[subData["name"]] = subData["value"]
 
-        self.T_set_min = design_data["T_set_min"]
-        self.T_set_max = design_data["T_set_max"]
-        self.ventilationRate = design_data["ventilation_rate"]
-        self.T_bivalent = design_data["T_bivalent"]
-        self.T_heatlimit = design_data["T_heatlimit"]
+            self.T_set_min = design_data["T_set_min"]
+            self.T_set_max = design_data["T_set_max"]
+            self.ventilationRate = design_data["ventilation_rate"]
+            self.T_bivalent = design_data["T_bivalent"]
+            self.T_heatlimit = design_data["T_heatlimit"]
+        elif self.usage_short in NON_RESIDENTIAL_BUILDING_TYPES:
+            with open(os.path.join(self.file_path, 'non_residential_design_building_data.json')) as json_file:
+                jsonData = json.load(json_file)
+            self.T_set_min = jsonData[self.usage_short]["T_set_min"]
+            self.T_set_max = jsonData[self.usage_short]["T_set_max"]
+            self.ventilationRate = jsonData[self.usage_short]["ventilation_rate"]
+            self.T_bivalent = jsonData[self.usage_short]["T_bivalent"]
+            self.T_heatlimit = jsonData[self.usage_short]["T_heatlimit"]
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """

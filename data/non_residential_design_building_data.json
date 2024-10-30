@@ -1,0 +1,92 @@
+{
+"IWU Hotels, Boarding, Restaurants or Catering": {
+    "T_set_min": 20.8,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Office, Administrative or Government Buildings": {
+    "T_set_min": 20.8,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Trade Buildings": {
+    "T_set_min": 20.8,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Technical and Utility (supply and disposal)": {
+    "T_set_min": 21.0,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU School, Day Nursery and other Care": {
+    "T_set_min": 21.0,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Transport": {
+    "T_set_min": 21.0,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Health and Care": {
+    "T_set_min": 21.5,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Sports Facilities": {
+    "T_set_min": 20.0,
+    "T_set_max": 26.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Culture and Leisure": {
+    "T_set_min": 21.0,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Research and University Teaching": {
+    "T_set_min": 21.1,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Generalized (1) Services building": {
+    "T_set_min": 21.0,
+    "T_set_max": 24.0,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Generalized (2) Production buildings": {
+    "T_set_min": 15.1,
+    "T_set_max": 25.4,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+},
+"IWU Production, Workshop, Warehouse or Operations": {
+    "T_set_min": 15.1,
+    "T_set_max": 25.4,
+    "T_bivalent": -2.0,
+    "T_heatlimit": 15.0,
+    "ventilation_rate": 0.5
+}}
