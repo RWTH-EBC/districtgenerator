@@ -749,13 +749,13 @@ class Envelope():
             # in Non-Residential only one is given 
             # To-Do: Implement Construction Type in Non-Residential Class
             if prj.construction_type == "Tabula":
-                self.C_m = 2.5 * 162000 * prj.net_leased_area
+                self.C_m = 162000 * prj.net_leased_area
             elif prj.construction_type == "Light":
-                self.C_m = 2.5 * 110000 * prj.net_leased_area
+                self.C_m = 110000 * prj.net_leased_area
             elif prj.construction_type == "Medium":
-                self.C_m = 2.5 * 165000 * prj.net_leased_area
+                self.C_m = 165000 * prj.net_leased_area
             elif prj.construction_type == "Heavy":
-                self.C_m = 2.5 * 300000 * prj.net_leased_area
+                self.C_m = 300000 * prj.net_leased_area
             else:
                 raise ValueError(f"{prj.construction_type} currently not implemented for calculateHeatCapacity for Non Residential Buildings")
             
@@ -840,6 +840,7 @@ class Envelope():
         # shadow coefficient for sunblinds
         # (DIN EN ISO 13790, section 11.4.3, page 71)
         # Assumption : no sunblinds (modelled manually, see below)
+        # To-Do: Implement different shading coefficients for different facades
         self.F_sh_gl = 1
 
         # ratio of window-frame
