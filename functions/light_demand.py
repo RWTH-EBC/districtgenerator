@@ -117,8 +117,7 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     # Lighting is needed when lux is below the threshold and the space is occupied
     mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)
 
-   
-    lighting_demand = pd.Series(0, index=occupancy_schedule.index)
+    lighting_demand = pd.Series(0.0, index=occupancy_schedule.index)
     # Calculate demand only when lighting is needed (mask is True)
     lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]
     lighting_demand[~mask] = 0
