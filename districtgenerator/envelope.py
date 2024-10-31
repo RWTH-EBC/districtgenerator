@@ -525,12 +525,12 @@ class Envelope():
             # In TEASER multiple heat capacity are calculated, which are then summarized to one
             # in Non-Residential only one is given 
             # To-Do: Check CM Calculcation and adding type
-            self.kappa["opaque"]["wall"] = 162000 * 2.5
-            self.kappa["opaque"]["roof"]  = 162000 * 2.5
-            self.kappa["opaque"]["floor"]  = 162000 * 2.5
-            self.kappa["opaque"]["intWall"] = 162000 * 2.5
-            self.kappa["opaque"]["ceiling"]  = 162000 * 2.5
-            self.kappa["opaque"]["intFloor"] = 162000 * 2.5
+            self.kappa["opaque"]["wall"] = 162000 
+            self.kappa["opaque"]["roof"]  = 162000 
+            self.kappa["opaque"]["floor"]  = 162000 
+            self.kappa["opaque"]["intWall"] = 162000 
+            self.kappa["opaque"]["ceiling"]  = 162000 
+            self.kappa["opaque"]["intFloor"] = 162000 
 
 
         else:
