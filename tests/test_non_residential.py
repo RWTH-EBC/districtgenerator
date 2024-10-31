@@ -28,12 +28,13 @@ class TestNonResidential(unittest.TestCase):
             ],
             'year': [rd.randint(1900, 2024) for _ in range(11)],
             'retrofit': [0] * 11,
-            'area': [rd.randint(100, 10000) for _ in range(11)]
+            'area': [rd.randint(0, 100) for _ in range(11)]
         }
 
         df = pd.DataFrame(self.test_data, columns=self.test_data.keys())
         folder_path = os.getcwd()
         self.scenario_path = os.path.join(folder_path, 'data', 'scenarios', 'test_scenario.csv')
+        self.results_path = os.path.join(folder_path, 'test_scenario')
         df.to_csv(self.scenario_path, index=False, sep=';')
         print(df.head())
 
@@ -48,7 +49,7 @@ class TestNonResidential(unittest.TestCase):
 
         # Use the created scenario for testing
         data.initializeBuildings('test_scenario')
-        data.setResultPath()
+        data.setResultPath('test_scenario')
         data.generateBuildings()
 
         data.generateDemands()
@@ -56,8 +57,9 @@ class TestNonResidential(unittest.TestCase):
         # Add assertions to check if the results exist and are not zero
         self.assertTrue(os.path.exists(self.scenario_path), f"Scenario file not found: {self.scenario_path}")
         self.assertGreater(os.path.getsize(self.scenario_path), 0, f"Scenario file is empty: {self.scenario_path}")
+        scenario_data = pd.read_csv(self.scenario_path, sep=';')
         folder_path = os.getcwd()
-        results_path = os.path.join(folder_path, 'results', 'demands', 'test_scenario')
+        results_path = os.path.join(folder_path, 'test_scenario')
         for file in os.listdir(results_path):
             if file.endswith('.csv'):
                 file_path = os.path.join(results_path, file)
@@ -73,7 +75,24 @@ class TestNonResidential(unittest.TestCase):
                 # Gains can be negative due to cooling
                 self.assertTrue(df["gains"].notna().any(), f"Gains column has no values in file: {file_path}")
 
-                               
+        results_path = os.path.join(folder_path, 'test_scenario')
+        for index, row in scenario_data.iterrows():
+            building = row['building']
+            print(building)
+            
+            building_id = str(index)
+            building_file = None
+            for file in os.listdir(self.results_path):
+                if file.startswith(f"{building_id}_{building}") and file.endswith(".csv"):
+                    building_file = os.path.join(self.results_path, file)
+                    df = pd.read_csv(building_file, sep=',')
+                    energy_demand = df['heat'].sum() / 1000
+                    area = row['area']
+                    energy_demand_per_square_meter = energy_demand / area
+                    print(f"Energy demand per square meter for building {building}: {energy_demand_per_square_meter}")
+                    self.assertGreaterEqual(energy_demand_per_square_meter, 0, f"Energy demand per square meter is negative for building {building}: {energy_demand_per_square_meter}")
+            self.assertIsNotNone(building_file, f"No results file found for building {building_id}")
+
     def tearDown(self):
         # Delete all files created in the test
         if os.path.exists(self.scenario_path):
@@ -81,7 +100,7 @@ class TestNonResidential(unittest.TestCase):
         
         # Delete any other files that might have been created during the test
         folder_path = os.getcwd()  # Use current working directory instead of parent
-        results_path = os.path.join(folder_path, 'results', 'demands', 'test_scenario')
+        results_path = os.path.join(folder_path, 'test_scenario')
         
         # Check if the directory exists before trying to delete files
         if os.path.exists(results_path):
@@ -100,7 +119,6 @@ class TestNonResidential(unittest.TestCase):
             os.rmdir(results_path)
         except OSError:
             print(f"Unable to remove directory {results_path}. It may not be empty or you may not have permission.")
-
 
 
 if __name__ == '__main__':
