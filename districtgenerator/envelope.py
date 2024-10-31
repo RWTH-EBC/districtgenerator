@@ -508,7 +508,7 @@ class Envelope():
             self.U["opaque"]["wall"] = prj.parameters["u_aw"]
             self.U["opaque"]["roof"] = prj.parameters["u_d_opak"]
             self.U["opaque"]["floor"] = prj.parameters["u_ug"]
-            self.U["opaque"]["window"] =prj.parameters["u_fen"]
+            #self.U["opaque"]["window"] =prj.parameters["u_fen"]
             self.U["window"]  = prj.parameters["u_fen"]
             self.g_gl["window"] = prj.parameters["g_gl_fen"]
 
