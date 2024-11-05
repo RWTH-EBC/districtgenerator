@@ -756,26 +756,28 @@ class KPIs:
         pc.width = 90
         pc.height = 90
         pc.data = kennwerte["Bedarfe"]
-        pc.labels = ['Strom: ' + str(pc.data[0]), 'Wärme: ' + str(pc.data[1]), 'TWW: ' + str(pc.data[2])]
+        pc.labels = ['Strom: ' + str(pc.data[0]), 'Wärme: ' + str(pc.data[1]), 'TWW: ' + str(pc.data[2]),'Kälte: '+str(pc.data[3])]
 
         pc.slices.strokeWidth = 1
         pc.slices.labelRadius = 1.5
+        pc.slices[3].labelRadius = 1.2
         pc.slices.fontName = "Helvetica"
         pc.slices.strokeColor = colors.white
 
         pc.slices[0].fillColor = colors.Color(0 / 256, 85 / 256, 31 / 256)
         pc.slices[1].fillColor = colors.Color(134 / 256, 169 / 256, 26 / 256)
         pc.slices[2].fillColor = colors.Color(122 / 256, 186 / 256, 214 / 256)
+        pc.slices[3].fillColor = colors.Color(54 / 256, 132 / 256, 39 / 256)
 
         d.add(pc)
 
-        d.drawOn(certificate, (width / 2) + 80, height - top1 - 120)
+        d.drawOn(certificate,(width/2)+80,height-top1-130)
 
         certificate.setFont("Helvetica-Bold", 14)
         certificate.drawString(340, height - top1 - 20, "Energiebedarfe (kWh)")
 
         max_leistungen = kennwerte["Max. Leistungen"]
-        leist_labels = ("Strom: ", "Wärme: ", "TWW: ")
+        leist_labels = ("Strom: ", "Wärme: ", "TWW: ","Kälte: ")
 
         ML_top = 265
 
@@ -787,10 +789,10 @@ class KPIs:
         certificate.setFont("Helvetica", 12)
 
         for i in range(len(max_leistungen)):
-            certificate.drawString(340, height - ML_top - 25 - (20 * i), leist_labels[i])
-            certificate.line(390, height - ML_top - 21 - (20 * i), 390 + (5 * max_leistungen[i]),
-                             height - ML_top - 21 - (20 * i))
-            certificate.drawString(400 + (5 * max_leistungen[i]), height - ML_top - 25 - (20 * i),
+            certificate.drawString(340, height - ML_top - 20 - (16 * i), leist_labels[i])
+            certificate.line(390, height - ML_top - 16 - (16 * i), 390 + (5 * max_leistungen[i]),
+                             height - ML_top - 16 - (16 * i))
+            certificate.drawString(400 + (5 * max_leistungen[i]), height - ML_top - 20 - (16 * i),
                                    str(max_leistungen[i]) + " kW")
 
         # create table in section 2
