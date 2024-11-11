@@ -243,10 +243,10 @@ class NonResidentialUsers():
                 # To-Do: Check if data is series
                 # Units: electricity_values[equipment] in kWh/m2*a , self.area in m2
                 annual_el_demand_temp = electricity_values[equipment] * self.area
-                # assumption: standard deviation 20% of mean value 
-                self.annual_appliance_demand = rd.gauss(annual_el_demand_temp,
-                                                        annual_el_demand_temp * 0.10)
-                self.appliance_demand = self.annual_appliance_demand * self.appliance_schedule["APPLIANCES"]
+                # assumption: standard deviation 20% of mean value
+                average_hourly_demand = annual_el_demand_temp / 8760
+                # assumption: standard deviation 20% of mean value
+                self.appliance_demand = average_hourly_demand * rd.gauss(self.appliance_schedule["APPLIANCES"], self.appliance_schedule["APPLIANCES"] * 0.10)
             except KeyError:
                 print(f"No data about annual electrical consumption available for building type: {self.usage}")
             # To Do 
