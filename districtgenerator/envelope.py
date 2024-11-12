@@ -497,7 +497,7 @@ class Envelope():
             self.U["opaque"]["wall"] = prj.parameters["u_aw"]
             self.U["opaque"]["roof"] = prj.parameters["u_d_opak"]
             self.U["opaque"]["floor"] = prj.parameters["u_ug"]
-            self.U["opaque"]["window"] =prj.parameters["u_fen"]
+            #self.U["opaque"]["window"] =prj.parameters["u_fen"]
             self.U["window"]  = prj.parameters["u_fen"]
             self.g_gl["window"] = prj.parameters["g_gl_fen"]
 
@@ -525,12 +525,12 @@ class Envelope():
             # In TEASER multiple heat capacity are calculated, which are then summarized to one
             # in Non-Residential only one is given 
             # To-Do: Check CM Calculcation and adding type
-            self.kappa["opaque"]["wall"] = 162000 * 2.5
-            self.kappa["opaque"]["roof"]  = 162000 * 2.5
-            self.kappa["opaque"]["floor"]  = 162000 * 2.5
-            self.kappa["opaque"]["intWall"] = 162000 * 2.5
-            self.kappa["opaque"]["ceiling"]  = 162000 * 2.5
-            self.kappa["opaque"]["intFloor"] = 162000 * 2.5
+            self.kappa["opaque"]["wall"] = 162000 
+            self.kappa["opaque"]["roof"]  = 162000 
+            self.kappa["opaque"]["floor"]  = 162000 
+            self.kappa["opaque"]["intWall"] = 162000 
+            self.kappa["opaque"]["ceiling"]  = 162000 
+            self.kappa["opaque"]["intFloor"] = 162000 
 
 
         else:
@@ -749,13 +749,13 @@ class Envelope():
             # in Non-Residential only one is given 
             # To-Do: Implement Construction Type in Non-Residential Class
             if prj.construction_type == "Tabula":
-                self.C_m = 2.5 * 162000 * prj.net_leased_area
+                self.C_m = 162000 * prj.net_leased_area
             elif prj.construction_type == "Light":
-                self.C_m = 2.5 * 110000 * prj.net_leased_area
+                self.C_m = 110000 * prj.net_leased_area
             elif prj.construction_type == "Medium":
-                self.C_m = 2.5 * 165000 * prj.net_leased_area
+                self.C_m = 165000 * prj.net_leased_area
             elif prj.construction_type == "Heavy":
-                self.C_m = 2.5 * 300000 * prj.net_leased_area
+                self.C_m = 300000 * prj.net_leased_area
             else:
                 raise ValueError(f"{prj.construction_type} currently not implemented for calculateHeatCapacity for Non Residential Buildings")
             
@@ -840,6 +840,7 @@ class Envelope():
         # shadow coefficient for sunblinds
         # (DIN EN ISO 13790, section 11.4.3, page 71)
         # Assumption : no sunblinds (modelled manually, see below)
+        # To-Do: Implement different shading coefficients for different facades
         self.F_sh_gl = 1
 
         # ratio of window-frame

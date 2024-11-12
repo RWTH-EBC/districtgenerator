@@ -84,6 +84,9 @@ The IWU Non Non-Residential Typology has been mapped accordingly to this table:
 | Gewerbliche und industrielle Hallen – mittel     | IWU Generalized (2) Production buildings         | 15     | 12     | 10   |
 
 
+The occupancy schedule is based on SIA. However, to have minimum electical demand, the minimum elecitrial appliance is set to 0.08 or 8%. In this case, a building always is consuming some electricity, e.g. for IFT or electrical devices that are always on. 
+This is also consideres as the base load of the building. 
+
 ## Sources
 
 [1] R. Henger et al., “Büroimmobilien Energetischer Zustand und Anreize zur Steigerung der Energieeffizienz,” 05/17. [Online]. Available: https://www.iwkoeln.de/fileadmin/publikationen/2017/342693/Studie_IW_Koeln_dena_Bueroimmobilien_Energieeffizienz.pdf

@@ -25,9 +25,9 @@
         "Hoch": 17.79
     },
     "IWU Sports Facilities": {
-        "Gering": 0,
-        "Mittel": 0.06,
-        "Hoch": 0.22
+        "Gering": 0.06,
+        "Mittel": 0.22,
+        "Hoch": 2.0
     },
     "IWU Hotels, Boarding, Restaurants or Catering": {
         "Gering": 2.39,

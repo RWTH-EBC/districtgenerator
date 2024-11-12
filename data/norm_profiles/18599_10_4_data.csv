@@ -32,6 +32,7 @@ Bibliothek - Lesesaal;28;21;24;20;26;8;500;0,88;1,5;1;1,194
 Bibliothek - Freihandbereich;29;21;24;20;26;2;200;1;1,5;1,7;1,194
 Bibliothek - Magazin und Depot;30;21;24;20;26;3;100;1;1,5;2;1,194
 Turnhalle (ohne Zuschauerbereich);31;21;24;20;26;3;300;1;2;1;1,194
+Turnhalle;31;21;24;20;26;3;300;1;2;1;1,194
 Parkhaus (Büro- und Privatnutzung);32;21;24;20;26;8;75;1;2;1;1,194
 Parkhaus (öffentliche Nutzung);33;21;24;20;26;16;75;1;4;1;1,194
 Saunabereich;34;24;24;15;;15;200;1;1;1;1,194
