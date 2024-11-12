@@ -267,8 +267,6 @@ class NonResidentialUsers():
 
             except KeyError:
                 print(f"No data about annual electrical consumption available for building type: {self.usage}")
-            # To Do 
-            # Check if randomifaction of electriciy set up works 
             except TypeError:
                 print("Data was 0 for building type: {self.usage}")
         else:
@@ -276,7 +274,9 @@ class NonResidentialUsers():
 
     def generate_annual_el_consumption_lightning(self) -> None:
         """
-        Creates 
+        Creates the annual lightning demand.
+        Calculates the illuminance on the windows and then calculates the lightning demand.
+
         """
         # Mapping cardinal directions to azimuth angles
         windows = self.envelope.A["window"] # ["window"]
@@ -301,8 +301,8 @@ class NonResidentialUsers():
 
         # To-Do: 
         # Calculate Energy Demand throuhg lighning
-        self.lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance, 
-                                                                           occupancy_schedule=self.occupancy_schedule, area=self.area)
+        self.lightning_demand = light_demand.calculate_light_demand(building_type=self.usage, illuminance=illuminance,
+                                                                   occupancy_schedule=self.occupancy_schedule, area=self.area)
         
         self.annual_lightning_demand = self.lightning_demand.sum() / 1000
         
@@ -314,22 +314,9 @@ class NonResidentialUsers():
         Original data by: BBSR 
         https://www.bbsr.bund.de/BBSR/DE/forschung/programme/zb/Auftragsforschung/5EnergieKlimaBauen/2019/vergleichswerte-nwg/01-start.html?pos=2
 
-        For "Verkehrsgebäude" the TEK is set to zero, as there is not data vailable. 
-        Parameters
-        ----------
-        time_resolution : integer
-            resolution of time steps of output array in seconds.
-        activity_profile : array
-            Numpy-arry with acctive occupants 10-minutes-wise.
-        prob_profiles_dhw: array
-            probabilities of dhw usage
-        initial_day : integer
-            Day of the week with which the generation starts
-            1-7 for monday-sunday.
-
         Returns
         -------
-        dhw_heat : array
+        dhw : array
             Numpy-array with heat demand of dhw consumption in W.
 
         """
@@ -345,8 +332,7 @@ class NonResidentialUsers():
         if TEK_dhw is not None:
             occupancy_full_usage_hours = self.occupancy_schedule["OCCUPANCY"].sum()  # in h/a
             TEK_dhw_per_Occupancy_Full_Usage_Hour = TEK_dhw / occupancy_full_usage_hours  # in kWh/m2*a / h/a = kW/m2
-        
-            self.dhw = self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area 
+            self.dhw = self.occupancy_schedule["OCCUPANCY"] * TEK_dhw_per_Occupancy_Full_Usage_Hour * 1000 * self.area
         else:
             print(f"No data about annual dhw consumption available for building type: {self.usage}. DHW demand is set to zero.")
             self.dhw = np.zeros(len(self.occupancy_schedule))
@@ -391,7 +377,13 @@ class NonResidentialUsers():
         self.calculate_gain_profile()
     
     def generate_el_demand(self, normalization: bool = True) -> None:
-        # To-Do: Implement process dmenad
+        """
+        Generate electricity demand.
+
+        Returns: numpy array
+            Electricity demand in W.
+        """
+        # To-Do: Implement process demand
         self.elec = self.lightning_demand + self.appliance_demand
 
         
@@ -412,18 +404,17 @@ class NonResidentialUsers():
         appGain :
             share of waste heat (assumed)
             q_I_p in Multi_zone_averag typology 
-        occ_profile : float
+        self.occ : float
              stochastic occupancy profiles for a district
-        app_load : Array-like
+        self.appliance_demand : Array-like
             Electric load profile of appliances in W.
-        light_load : Array-like
+        self.lightning_demand : Array-like
             Electric load profile of lighting in W.
 
         Returns
         -------
         gains : array
-            Internal gain of each flat
-
+            Internal gain of each building.
         """
         
         # To-Do: check that the correct data is used from SIA
@@ -457,7 +448,12 @@ class NonResidentialUsers():
         # Light schedule is in  light gain in W/m2
         # Check unit for light demand
         # Appliance schedule in W/m2, appliance gain in W/m2
-        self.gains = self.occ *  personGain + self.lightning_demand * lightGain + self.appliance_demand * appGain
+
+        self.gains =  (
+            self.occ *  personGain 
+            + self.lightning_demand * lightGain 
+            + self.appliance_demand * appGain
+        )
         if self.gains.sum() < 0:
             print("Internal gains are negative. This migth be due to cooling devices.")
 
