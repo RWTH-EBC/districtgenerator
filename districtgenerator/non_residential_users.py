@@ -253,10 +253,18 @@ class NonResidentialUsers():
                 # Units: electricity_values[equipment] in kWh/m2*a , self.area in m2
                 # Hier Fehler da 
                 annual_el_demand_temp = electricity_values[equipment] * self.area
-                appliance_full_usage_hours = self.appliance_schedule["APPLIANCES"].sum() 
+                appliance_full_usage_hours = self.appliance_schedule["APPLIANCES"].sum()
                 average_hourly_demand = annual_el_demand_temp / appliance_full_usage_hours
                 # assumption: standard deviation 20% of mean value
-                self.appliance_demand = average_hourly_demand * rd.gauss(self.appliance_schedule["APPLIANCES"], self.appliance_schedule["APPLIANCES"] * 0.10) * 1000
+                # Correct standard deviation to 20% as per the comment
+                std_dev = self.appliance_schedule["APPLIANCES"] * 0.20
+                random_multiplier = np.random.normal(
+                    loc=self.appliance_schedule["APPLIANCES"],
+                    scale=std_dev
+                )
+                random_multiplier = np.clip(random_multiplier, a_min=0, a_max=None)
+                self.appliance_demand = average_hourly_demand * random_multiplier * 1000
+
             except KeyError:
                 print(f"No data about annual electrical consumption available for building type: {self.usage}")
             # To Do 
