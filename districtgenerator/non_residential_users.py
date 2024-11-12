@@ -144,7 +144,8 @@ class NonResidentialUsers():
 
         # self.generate_number_flats(area)
         self.generate_number_occupants()
-        self.generate_annual_el_consumption_equipment()
+        # Match equipment to occupancy level
+        self.generate_annual_el_consumption_equipment(equipment=self.occupancy)
         self.generate_annual_el_consumption_lightning()
         self.generate_el_demand()
         # To-Do: Validate Sum of electricity
