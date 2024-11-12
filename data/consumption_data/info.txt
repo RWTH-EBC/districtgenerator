@@ -18,6 +18,8 @@ The following exception are given:
 
 - There is no differentation between:  „32 Parkhaus (Büro- und Privatnutzung)“ an  „33 Parkhaus (öffentliche Nutzung)"
 - If a Fittnessraum ahs both equipment ("Geräteausstatung") and a hall ("Tresen / Emfpangs"), the latter needs to be added.
+        - Gym has roughly 2.0 kWh/m2a in CEA. 
+        - Changed Low usage to 0.06 kWh/m2a, medium to 0.22 and high to 2 kWh/m2a.
 - 16 WC	und Sanitärräum in NWG, 19 Verkehrsflächen, and 20 Lager, Technik, Archiv, have a differentation between general and areas with user devices. 
 
 
@@ -30,6 +32,7 @@ The data is mapped accordingly to the IWU categories:
 | Klassenzimmer (Schule), Gruppenraum              | IWU School, Day Nursery and other Care           | 0.29              | 3.0                  | 6.5                |
 | Ausstellungsräume und Museum                     | IWU Culture and Leisure                          | 0                 | 1.97                 | 17.79              |
 | Turnhalle                                        | IWU Sports Facilities                            | 0                 | 0.06                 | 0.22               |
+| Turnhalle (updated)                              | IWU Sports Facilities                            | 0.06              | 0.22                 | 2.0               |
 | Hotelzimmer                                      | IWU Hotels, Boarding, Restaurants or Catering    | 2.39              | 4.01                 | 7.66               |
 | Gewerbliche und industrielle Hallen – mittel     | IWU Production, Workshop, Warehouse or Operations| -                 | -                    | -                  |
 | Einzelhandel/Kaufhaus                            | IWU Trade Buildings                              | 0.12              | 3.30                 | 30.49              |
@@ -82,6 +85,9 @@ Building types that have a '-' present, are modeled in CEA but not in districtge
 | IWU Generalized (1) Services building                | OFFICE     |
 | IWU Generalized (2) Production buildings             | INDUSTRIAL |
 
+
+# Stuff to consider
+- IWU Research and University Teaching has a factor 10 higher electricity demand in CEA.
 
 ## Sources
 
