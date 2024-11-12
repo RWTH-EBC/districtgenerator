@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Written by Felix Rehmann, 2024
+rehmann@tu-berlin.de
 """
 
 import os, math
