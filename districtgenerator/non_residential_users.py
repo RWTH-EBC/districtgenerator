@@ -207,7 +207,13 @@ class NonResidentialUsers():
     
     def generate_occupancy(self) -> None:
         """Generate occupancy profile based on schedule and number of occupants."""
-        self.occ = self.occupancy_schedule["OCCUPANCY"] * self.nb_occ
+        std_dev = self.occupancy_schedule["OCCUPANCY"] * 0.20
+        random_multiplier = np.random.normal(   
+            loc=self.occupancy_schedule["OCCUPANCY"],
+            scale=std_dev
+        )
+        random_multiplier = np.clip(random_multiplier, a_min=0, a_max=None)
+        self.occ = random_multiplier * self.nb_occ
         
     def generate_annual_el_consumption_equipment(self, equipment: str = "Mittel") -> None:
         '''
