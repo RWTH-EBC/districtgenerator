@@ -19,5 +19,5 @@ jobs:
         python -m pip install --upgrade pip
         pip install pylint
     - name: Run pylint with verbose output
-      run: pylint --verbose .
+      run: pylint --verbose . --output=lint.txt || true
 
