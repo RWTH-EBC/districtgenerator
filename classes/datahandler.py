@@ -437,15 +437,15 @@ class Datahandler:
             'district_dhw': district_dhw,
         })
 
-        if saveUserProfiles:
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
-                       fmt='%1.2f', delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv', district_heat, fmt='%1.2f',
-                       delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv', district_dhw, fmt='%1.2f',
-                       delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv', district_elec, fmt='%1.2f',
-                       delimiter=',')
+        # if saveUserProfiles:
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
+        #                fmt='%1.2f', delimiter=',')
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv', district_heat, fmt='%1.2f',
+        #                delimiter=',')
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv', district_dhw, fmt='%1.2f',
+        #                delimiter=',')
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv', district_elec, fmt='%1.2f',
+        #                delimiter=',')
 
         print("Finished generating demands!")
 

@@ -3,6 +3,8 @@
 import os, math
 import random as rd
 import numpy as np
+import pandas as pd
+import openpyxl
 from classes.profils import Profiles
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
@@ -401,11 +403,21 @@ class Users:
         None.
         """
 
-        np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',', header="Electricity demand in W", comments="")
-        np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',', header="Drinking hot water in W", comments="")
-        np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',', header="Occupancy of persons", comments="")
-        np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',', header="Internal gains in W", comments="")
-        np.savetxt(path + '/car_' + unique_name + '.csv', self.car, fmt='%1.2f', delimiter=',', header="Electricity demand of EV in W", comments="")
+        data_dict = {
+            'elec': (self.elec, "Electricity demand in W"),
+            'dhw': (self.dhw, "Drinking hot water in W"),
+            'occ': (self.occ, "Occupancy of persons"),
+            'gains': (self.gains, "Internal gains in W"),
+            'car': (self.car, "Electricity demand of EV in W")
+        }
+        # excel_file = os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
+        excel_file = os.path.join(path, unique_name + '.xlsx')
+
+        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+            for sheet_name, (data, header) in data_dict.items():
+                df = pd.DataFrame(data)
+                df.to_excel(writer, sheet_name=sheet_name, index=False, header=False)
+
 
         '''
         fields = [name + "_" + str(id), str(sum(self.nb_occ))]
@@ -430,8 +442,12 @@ class Users:
         None.
         """
 
-        np.savetxt(path + '/cooling_' + unique_name + '.csv', self.cooling, fmt='%1.2f', delimiter=',', header="Cooling demand in W", comments="")
-        np.savetxt(path + '/heating_' + unique_name + '.csv', self.heat, fmt='%1.2f', delimiter=',', header="Heat demand in W", comments="")
+        excel_file = os.path.join(path, unique_name + '.xlsx')
+        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            cooling_df = pd.DataFrame(self.cooling)
+            heating_df = pd.DataFrame(self.heat)
+            cooling_df.to_excel(writer, sheet_name='cooling', index=False, header=False)
+            heating_df.to_excel(writer, sheet_name='heating', index=False, header=False)
 
     def loadProfiles(self, unique_name, path):
         """
@@ -449,12 +465,22 @@ class Users:
         None.
         """
 
-        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',', skiprows=1)
-        self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',', skiprows=1)
-        self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',', skiprows=1)
-        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',', skiprows=1)
-        self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',', skiprows=1)
+        excel_file = os.path.join(path, unique_name + '.xlsx')
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        def load_sheet_to_numpy(workbook, sheet_name):
+            sheet = workbook[sheet_name]
+            data = []
+            for row in sheet.iter_rows(values_only=True):
+                data.append(row[0])
+            return np.array(data)
 
+        self.elec = load_sheet_to_numpy(workbook, 'elec')
+        self.dhw = load_sheet_to_numpy(workbook, 'dhw')
+        self.occ = load_sheet_to_numpy(workbook, 'occ')
+        self.gains = load_sheet_to_numpy(workbook, 'gains')
+        self.car = load_sheet_to_numpy(workbook, 'car')
+
+        workbook.close()
 
 if __name__ == '__main__':
 
