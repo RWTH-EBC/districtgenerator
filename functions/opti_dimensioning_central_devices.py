@@ -587,6 +587,7 @@ def run_optim(devs, param, dem, result_dict):
         for k in all_devs:
             result_dict[k] = {}
 
+        result_dict["devs"] = devs
         result_dict["tac"] = int(obj["tac"].X)      # EUR/a
         result_dict["co2"] = int(obj["co2"].X/1000) # t/a
 #

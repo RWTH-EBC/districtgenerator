@@ -465,9 +465,7 @@ class Datahandler:
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
-
-
-            # calculate theoretical PV generation
+            # calculate theoretical PV and STC generation
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
@@ -524,6 +522,13 @@ class Datahandler:
 
         # dimensioning of central devices
         self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
+
+        # calculate theoretical PV, STC and Wind generation
+        self.centralDevices["generation"] = {}
+        self.centralDevices["generation"]["PV"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[0]
+        self.centralDevices["generation"]["STC"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[1]
+        self.centralDevices["generation"]["Wind"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[2]
+
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
@@ -596,32 +601,31 @@ class Datahandler:
             adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
 
         if centralEnergySupply == True:
-            # central renewable generation
-            if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
+            if self.centralDevices["capacities"]["power_kW"]["WT"] > 0:
                 existence_centralWT = 1
-                adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
+                adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lenghtArray]
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
                 existence_centralWT = 0
                 adjProfiles["generationCentralWT"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
+                    self.centralDevices["generation"]["Wind"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["power_kW"]["PV"] > 0:
                 existence_centralPV = 1
-                adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
+                adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
                 existence_centralPV = 0
                 adjProfiles["generationCentralPV"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["STC"]["area"] > 0:
+                    self.centralDevices["generation"]["PV"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["heat_kW"]["STC"] > 0:
                 existence_centralSTC = 1
                 adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
+                    self.centralDevices["generation"]["STC"][0:lenghtArray]
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
                 existence_centralSTC = 0
                 adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
+                    self.centralDevices["generation"]["STC"][0:lenghtArray] * sys.float_info.epsilon
         # wind speed and ambient temperature
         #adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
@@ -686,9 +690,9 @@ class Datahandler:
             self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
         if centralEnergySupply == True:
             # save clustered data for real central renewable generation
-            self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
-            self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
-            self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
+            self.centralDevices["generation"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
+            self.centralDevices["generation"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
+            self.centralDevices["generation"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
         # save clustered wind speed and ambient temperature
         #self.site["wind_speed_cluster"] = newProfiles[-2]
         self.site["T_e_cluster"] = newProfiles[-1]
