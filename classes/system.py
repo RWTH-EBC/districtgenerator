@@ -127,8 +127,8 @@ class BES:
                              * physics["c_p_water"] \
                              * dev["TES"]["T_diff_max"] \
                              / 3600
-                if buildingFeatures["heater"] == "heat_grid":
-                    BES["TES"] = 0
+                #if buildingFeatures["heater"] == "heat_grid":
+                #    BES["TES"] = 0
 
                     # battery (BAT)
             if k == "BAT":

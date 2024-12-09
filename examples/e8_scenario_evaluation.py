@@ -23,7 +23,7 @@ def example8_scenario_evaluation():
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
 
 
-    centralEnergySupply = True
+    centralEnergySupply = False
     # Sizing of the selected devices
     # data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=True)
     #input_Quartiersausweis = dataframe
@@ -33,6 +33,7 @@ def example8_scenario_evaluation():
 
     else:
         data.designDecentralDevices(saveGenerationProfiles=True)
+        data.centralDevices = {}
         # data.designDecentralDevices(saveGenerationProfiles=True, input_webtool)
 
 
@@ -45,6 +46,7 @@ def example8_scenario_evaluation():
 
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
+    webtool = {}
     data.calulateKPIs()
 
     # TODO: erzeuge Energieausweis
