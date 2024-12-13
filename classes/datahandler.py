@@ -526,8 +526,7 @@ class Datahandler:
         for building in self.district:
 
             building["buildingFeatures"]["heater"] = input_webtool[building["buildingFeatures"]["id"]]["heater"]  # str
-            building["buildingFeatures"]["f_TES"] = input_webtool[building["buildingFeatures"]["id"]][
-                "tes_input"]  # liter
+            building["buildingFeatures"]["f_TES"] = input_webtool[building["buildingFeatures"]["id"]]["tes_input"]  # liter
 
             building["buildingFeatures"]["PV_area"] = input_webtool[building["buildingFeatures"]["id"]][
                 "pv_input"]  # m2

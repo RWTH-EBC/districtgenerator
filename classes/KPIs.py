@@ -7,6 +7,7 @@ import json
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
+import math
 
 
 class KPIs:
@@ -43,6 +44,7 @@ class KPIs:
         self.Gas_year = None
         self.dcf_year = None
         self.scf_year = None
+        self.annual_investment_total = None
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -72,7 +74,7 @@ class KPIs:
         self.calculateEnergyExchangeWithinDistrict(data)
         self.calculateAutonomy()
         self.calculateCoverFactors(data)
-
+        self.calc_annual_cost_total(data.scenario)
 
     def prepareData(self, data):
         """
@@ -97,7 +99,7 @@ class KPIs:
         # Load data of decentral devices (to calculate battery losses)
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         decentralDev = {}
-        with open(os.path.join(srcPath, 'data', 'param_dec_devices.json')) as json_file:
+        with open(os.path.join(srcPath, 'data', 'decentral_device_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 decentralDev[subData["abbreviation"]] = {}
@@ -122,6 +124,7 @@ class KPIs:
                 self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
 
         ### for central energy unit
+
 
     def calculateResidualLoad(self, data):
         """
@@ -265,6 +268,110 @@ class KPIs:
             self.scf_year += self.supplyCoverFactor[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                                                           / sum_ClusterWeights)
 
+    def calc_annual_cost_total(self, scenario):
+
+
+        #TODO für jede Anlage
+        optiData = {}
+        optiData["HP"] = {}
+        optiData["HP"]["cap"] = 20 # kW
+        optiData["HP"]["life_time"] = 15
+        optiData["HP"]["inv_var"] = 900 # €/kW
+        optiData["HP"]["cost_om"] = 0.05
+
+        optiData["param"] = {}
+        optiData["param"]["observation_time"] = 20
+        optiData["param"]["interest_rate"] = 0.05
+
+        # Count occurrences of "BOI", "HP", and "CHP" in the 'heater' column
+        heater_counts = scenario['heater'].value_counts()
+
+        # Sum the values in the 'PV', 'STC', 'EV', and 'BAT' columns
+        heater_counts["PV"] = scenario['PV'].sum()
+        heater_counts["STC"] = scenario['STC'].sum()
+        heater_counts["EV"] = scenario['EV'].sum()
+        heater_counts["BAT"] = scenario['BAT'].sum()
+
+        calc_annual_investment = {}
+        for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT"]:
+            calc_annual_investment[dev] = {}
+            try:
+                if heater_counts[dev] > 0:
+                    calc_annual_investment[dev] = self.calc_annual_cost_device(optiData["HP"], optiData["param"])
+                else: calc_annual_investment[dev] = 0
+            except:
+                calc_annual_investment[dev] = 0
+                heater_counts[dev] = 0
+
+        self.annual_investment_total = calc_annual_investment["BOI"] * heater_counts["BOI"] \
+                                  + calc_annual_investment["HP"] * heater_counts["HP"] \
+                                  + calc_annual_investment["CHP"] * heater_counts["CHP"] \
+                                  + calc_annual_investment["PV"] * heater_counts["PV"] \
+                                  + calc_annual_investment["STC"] * heater_counts["STC"] \
+                                  + calc_annual_investment["EV"] * heater_counts["EV"] \
+                                  + calc_annual_investment["BAT"] * heater_counts["BAT"]
+    def calc_annual_cost_device(self, dev, param):
+        """
+        Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
+
+        Parameters
+        ----------
+        dev : dictionary
+            technology parameter
+        param : dictionary
+            economic parameters
+
+        Returns
+        -------
+        annualized fix and variable investment
+        """
+
+        # Projektlaufzeit (observation_time)
+        # Zinssatz (für Kapitalkosten) (interest_rate)
+        # Anschaffungskosten inkl. Installation, etc. [€/kW]
+        # Lebensdauer [Jahre]
+        # Betriebs- und Wartungskosten [% of Invest]
+        # Defaultwerte aus Technikkatalog KKW (Moritz, Nico)
+
+        observation_time = param["observation_time"]
+        interest_rate = param["interest_rate"]
+        q = 1 + param["interest_rate"]
+
+        # Calculate capital recovery factor
+        CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
+
+        # Get device life time
+        life_time = dev["life_time"]
+
+        # Number of required replacements
+        n = int(math.floor(observation_time / life_time))
+
+        # Investment for replacements
+        invest_replacements = sum((q ** (-i * life_time)) for i in range(1, n + 1))
+
+        # Residual value of final replacement
+        res_value = ((n + 1) * life_time - observation_time) / life_time * (q ** (-observation_time))
+
+        # Calculate annualized investments
+        if life_time > observation_time:
+            ann_factor = (1 - res_value) * CRF
+        else:
+            ann_factor = (1 + invest_replacements - res_value) * CRF
+
+        # Save capital recovery factor
+        # param["CRF"] = CRF
+
+        # Total investment costs
+        inv = dev["inv_var"] * dev["cap"]
+        # Annual investment costs
+        c_inv= inv * ann_factor
+        # Operation and maintenance costs
+        c_om = dev["cost_om"] * inv
+        # Total annual cost
+        c_total = c_inv + c_om
+
+        return c_total
+
 
     def calculateOperationCosts(self, data):
         """
@@ -371,6 +478,7 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
+        self.calc_annual_cost_total(data.scenario)
 
     def create_kpi_pdf(self,result_path):
         """
