@@ -23,12 +23,12 @@ def example8_scenario_evaluation():
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
 
 
-    centralEnergySupply = False
+    centralEnergySupply = True
     # Sizing of the selected devices
     # data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=True)
     #input_Quartiersausweis = dataframe
     if centralEnergySupply == True:
-        data.designDecentralDevices(saveGenerationProfiles=True)
+        # data.designDecentralDevices(saveGenerationProfiles=True)
         data.designCentralDevices()
 
     else:

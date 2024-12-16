@@ -100,6 +100,14 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
                 "TES", "CTES", "BAT", "GS",
                 ]
 
+    try:
+        print(buildingData[0]["capacities"])
+    except KeyError:
+        for n in range(nb):
+            buildingData[n]["capacities"] = {}
+            for dev in ["HP", "EH", "CHP", "FC", "BOI", "STC", "BAT", "TES", "EV"]:
+                buildingData[n]["capacities"][dev] = 0
+
     # %% TECHNICAL PARAMETERS
     soc_nom = {}
     soc_nom["TES"] = {}
@@ -615,9 +623,9 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
                                 name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
-                            + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t] + heat_dom["heat_grid"][n][t],
+                            + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
-            model.addConstr(dch_dom[device][n][t] == Q_DHW[n][t] + Q_heating[n][t],
+            model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t],
                             name="Heat_discharging_" + str(n) + "_" + str(t))
 
             device = "BAT"
