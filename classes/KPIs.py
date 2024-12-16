@@ -414,9 +414,12 @@ class KPIs:
         co2_pv = 0
         for c in range(len(self.inputData["clusters"])):
             for id in range(len(self.inputData["district"])):
-                co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
+                try:
+                    co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
                                  * data.time["timeResolution"] / 3600 / 1000) * CO2_factor_pv \
                           * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                except KeyError:
+                    co2_pv += 0
 
 
         # CO2 emissions for one year
