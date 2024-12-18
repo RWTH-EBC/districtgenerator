@@ -69,11 +69,17 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
     for n in range(nb):
         Q_DHW[n] = buildingData[n]["user"].dhw_cluster[cluster]
         Q_heating[n] = buildingData[n]["user"].heat_cluster[cluster]
-        PV_gen[n] = buildingData[n]["generationPV_cluster"][cluster]
-        STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
-        EV_dem[n] = buildingData[n]["user"].car_cluster[cluster]
         elec_dem[n] = buildingData[n]["user"].elec_cluster[cluster]
         occ[n] = buildingData[n]["user"].occ[:len(elec_dem[n])]
+        try:
+            PV_gen[n] = buildingData[n]["generationPV_cluster"][cluster]
+            STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
+            EV_dem[n] = buildingData[n]["user"].car_cluster[cluster]
+        except:
+            PV_gen[n] = [0] * len(elec_dem[n])
+            STC_heat[n] = [0] * len(elec_dem[n])
+            EV_dem[n] = [0] * len(elec_dem[n])
+
 
     # %% Sets of energy conversion systems
     # heat generation devices (heat pump (HP), electric heating (EH),
@@ -95,6 +101,15 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
                 ]
 
     # %% TECHNICAL PARAMETERS
+
+    try:
+        print(buildingData[0]["capacities"])
+    except KeyError:
+        for n in range(nb):
+            buildingData[n]["capacities"] = {}
+            for dev in ["HP", "EH", "CHP", "FC", "BOI", "STC", "BAT", "TES", "EV"]:
+                buildingData[n]["capacities"][dev] = 0
+
     soc_nom = {}
     soc_nom["TES"] = {}
     soc_nom["BAT"] = {}

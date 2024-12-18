@@ -268,20 +268,23 @@ class KPIs:
             self.scf_year += self.supplyCoverFactor[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                                                           / sum_ClusterWeights)
 
-    def calc_annual_cost_total(self, scenario):
+    def calc_annual_cost_total(self, scenario, opti_data={}):
 
+        if opti_data == {}:
+            optiData = {}
+            optiData["HP"] = {}
+            optiData["HP"]["cap"] = 20  # kW
+            optiData["HP"]["life_time"] = 15
+            optiData["HP"]["inv_var"] = 900  # €/kW
+            optiData["HP"]["cost_om"] = 0.05
+
+            optiData["param"] = {}
+            optiData["param"]["observation_time"] = 20
+            optiData["param"]["interest_rate"] = 0.05
+        else:
+            optiData = opti_data["optiData"]
 
         #TODO für jede Anlage
-        optiData = {}
-        optiData["HP"] = {}
-        optiData["HP"]["cap"] = 20 # kW
-        optiData["HP"]["life_time"] = 15
-        optiData["HP"]["inv_var"] = 900 # €/kW
-        optiData["HP"]["cost_om"] = 0.05
-
-        optiData["param"] = {}
-        optiData["param"]["observation_time"] = 20
-        optiData["param"]["interest_rate"] = 0.05
 
         # Count occurrences of "BOI", "HP", and "CHP" in the 'heater' column
         heater_counts = scenario['heater'].value_counts()
@@ -422,9 +425,12 @@ class KPIs:
         co2_pv = 0
         for c in range(len(self.inputData["clusters"])):
             for id in range(len(self.inputData["district"])):
-                co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
+                try:
+                    co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
                                  * data.time["timeResolution"] / 3600 / 1000) * CO2_factor_pv \
                           * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                except KeyError:
+                    co2_pv += 0
 
 
         # CO2 emissions for one year
@@ -459,7 +465,7 @@ class KPIs:
         #    self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
         #                                                  / sum_ClusterWeights)
 
-    def calculateAllKPIs(self, data):
+    def calculateAllKPIs(self, data, opti_data):
         """
         Calculate all KPIs.
 
@@ -478,7 +484,7 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
-        self.calc_annual_cost_total(data.scenario)
+        self.calc_annual_cost_total(data.scenario, opti_data)
 
     def create_kpi_pdf(self,result_path):
         """

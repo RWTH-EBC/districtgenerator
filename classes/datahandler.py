@@ -545,8 +545,7 @@ class Datahandler:
             building["buildingFeatures"]["gamma"] = input_webtool[building["buildingFeatures"]["id"]]["gamma"]
             building["buildingFeatures"]["beta"] = input_webtool[building["buildingFeatures"]["id"]]["beta"]
 
-            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]][
-                "ev_input"]  # 0, small, medium or large
+            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"]  # 0, small, medium or large
             building["buildingFeatures"]["ev_charging"] = input_webtool[building["buildingFeatures"]["id"]][
                 "ev_charging"]
 
@@ -701,69 +700,63 @@ class Datahandler:
         # loop over buildings
         for id in self.scenario["id"]:
             adjProfiles[id] = {}
-            # TODO: Ist es sinnvoll stochastische Zeitreihen zu clustern?
             adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
             adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:lenghtArray]
-            # adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
-            # adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
             adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
             adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
-            if self.district[id]["buildingFeatures"]["EV"] != 0:
-                adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
-            else:
-                # no EV exists; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["car"] = \
-                    self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.district[id]["buildingFeatures"]["PV"] != 0:
-                adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
-            else:
-                # no PV module installed; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["generationPV"] = \
-                    self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.district[id]["buildingFeatures"]["STC"] != 0:
-                adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
-            else:
-                # no STC installed; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["generationSTC"] = \
-                    self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
-
+        if centralEnergySupply == False:
+            for id in self.scenario["id"]:
+                if self.district[id]["buildingFeatures"]["EV"] != 0:
+                    adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
+                else:
+                    # no EV exists; but array with just zeros leads to problem while clustering
+                    adjProfiles[id]["car"] = \
+                        self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
+                if self.district[id]["buildingFeatures"]["PV"] != 0:
+                    adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
+                else:
+                    # no PV module installed; but array with just zeros leads to problem while clustering
+                    adjProfiles[id]["generationPV"] = \
+                        self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon
+                if self.district[id]["buildingFeatures"]["STC"] != 0:
+                    adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
+                else:
+                    # no STC installed; but array with just zeros leads to problem while clustering
+                    adjProfiles[id]["generationSTC"] = \
+                        self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
         # solar radiation on surfaces with different orientation
         adjProfiles["Sun"] = {}
         for drct in range(len(self.SunRad)):
             adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
 
         if centralEnergySupply == True:
-
-            # central renewable generation
-            if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
+            if self.centralDevices["capacities"]["power_kW"]["WT"] > 0:
                 existence_centralWT = 1
-                adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][
-                                                     0:lenghtArray]
+                adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lenghtArray]
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
                 existence_centralWT = 0
                 adjProfiles["generationCentralWT"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
+                    self.centralDevices["generation"]["Wind"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["power_kW"]["PV"] > 0:
                 existence_centralPV = 1
-                adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][
-                                                     0:lenghtArray]
+                adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
                 existence_centralPV = 0
                 adjProfiles["generationCentralPV"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["STC"]["area"] > 0:
+                    self.centralDevices["generation"]["PV"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["heat_kW"]["STC"] > 0:
                 existence_centralSTC = 1
                 adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
+                    self.centralDevices["generation"]["STC"][0:lenghtArray]
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
                 existence_centralSTC = 0
                 adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
+                    self.centralDevices["generation"]["STC"][0:lenghtArray] * sys.float_info.epsilon
         # wind speed and ambient temperature
-        # adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
+        #adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
@@ -772,13 +765,14 @@ class Datahandler:
         for id in self.scenario["id"]:
             inputsClustering.append(adjProfiles[id]["elec"])
             inputsClustering.append(adjProfiles[id]["dhw"])
-            # inputsClustering.append(adjProfiles[id]["gains"])
-            # inputsClustering.append(adjProfiles[id]["occ"])
-            inputsClustering.append(adjProfiles[id]["car"])
-            inputsClustering.append(adjProfiles[id]["generationPV"])
-            inputsClustering.append(adjProfiles[id]["generationSTC"])
             inputsClustering.append(adjProfiles[id]["heat"])
             inputsClustering.append(adjProfiles[id]["cooling"])
+        if centralEnergySupply == False:
+            for id in self.scenario["id"]:
+                inputsClustering.append(adjProfiles[id]["car"])
+                inputsClustering.append(adjProfiles[id]["generationPV"])
+                inputsClustering.append(adjProfiles[id]["generationSTC"])
+
         # solar radiation on surfaces with different orientation
         for drct in range(len(self.SunRad)):
             inputsClustering.append(adjProfiles["Sun"][drct])
@@ -789,7 +783,7 @@ class Datahandler:
             inputsClustering.append(adjProfiles["generationCentralPV"])
             inputsClustering.append(adjProfiles["generationCentralSTC"])
         # wind speed and ambient temperature
-        # inputsClustering.append(adjProfiles["wind_speed"])
+        #inputsClustering.append(adjProfiles["wind_speed"])
         inputsClustering.append(adjProfiles["T_e"])
 
         # weights for clustering algorithm indicating the focus onto this profile
@@ -809,37 +803,29 @@ class Datahandler:
             index_house = int(7)  # number of profiles per building
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
-            # self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
-            # self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
-            # assign real EV, PV and STC generation for clustered data to buildings
-            # (array with zeroes if EV, PV or STC does not exist)
-            if self.district[id]["buildingFeatures"]["EV"] == 0:
-                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2] * 0
-            else:
-                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2]
-            if self.district[id]["buildingFeatures"]["PV"] == 0:
-                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3] * 0
-            else:
-                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3]
-            if self.district[id]["buildingFeatures"]["STC"] == 0:
-                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] * 0
-            else:
-                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4]
-            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 5]
-            self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 6]
+            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
+            self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 3]
+        if centralEnergySupply == False:
+            for id in self.scenario["id"]:
+                # assign real EV, PV and STC generation for clustered data to buildings
+                # (array with zeroes if EV, PV or STC does not exist)
+                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
+                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
+                                                        * self.district[id]["buildingFeatures"]["PV"]
+                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
+                                                         * self.district[id]["buildingFeatures"]["STC"]
+
         # safe clustered solar radiation on surfaces with different orientation
-
-        if centralEnergySupply == True:
-            # save clustered data for real central renewable generation
-            self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
-            self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
-            self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
-
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
             self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
+        if centralEnergySupply == True:
+            # save clustered data for real central renewable generation
+            self.centralDevices["generation"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
+            self.centralDevices["generation"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
+            self.centralDevices["generation"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
         # save clustered wind speed and ambient temperature
-        # self.site["wind_speed_cluster"] = newProfiles[-2]
+        #self.site["wind_speed_cluster"] = newProfiles[-2]
         self.site["T_e_cluster"] = newProfiles[-1]
 
         # clusters
@@ -1013,7 +999,7 @@ class Datahandler:
             # save results as attribute
             self.resultsOptimization.append(results_temp)
 
-    def calulateKPIs(self, result_path=None):
+    def calulateKPIs(self, result_path=None,webtool={}):
         """
         Calculate key performance indicators (KPIs).
 
@@ -1025,7 +1011,7 @@ class Datahandler:
         # initialize KPI class
         self.KPIs = KPIs(self)
         # calculate KPIs
-        self.KPIs.calculateAllKPIs(self)
+        self.KPIs.calculateAllKPIs(self, webtool)
         # Generate a PDF file with a list of KPIs.
         self.KPIs.create_kpi_pdf(result_path)
 
