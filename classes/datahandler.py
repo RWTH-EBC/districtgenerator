@@ -19,6 +19,7 @@ from classes.system import CES
 from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
+from classes.non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
 import districtgenerator.functions.wind_turbines as wind_turbines
 import districtgenerator.EHDO.load_params as load_params_EHDO
@@ -281,13 +282,11 @@ class Datahandler:
 
 
             # convert short names into designation needed for TEASER
-            building_type = \
-                bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+            building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
             # add buildings to TEASER project
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
-                retrofit_level = \
-                    bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+                retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
                 prj.add_residential(method='tabula_de',
                                     usage=building_type,
@@ -295,7 +294,7 @@ class Datahandler:
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=3,
                                     height_of_floors=3.125,
-                                    net_leased_area=building["buildingFeatures"]["area"]*bldgs["ratio_area"][bldgs["buildings_long"].index(building_type)],
+                                    net_leased_area=building["buildingFeatures"]["area"],
                                     construction_type=retrofit_level)
 
                 # %% create envelope object
@@ -303,57 +302,49 @@ class Datahandler:
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_type=retrofit_level,
-                                                window_layout=retrofit_level,
                                                 file_path=self.filePath)
-            elif building_type in {"office"}:
-                prj.add_non_residential(method='bmvbs',
-                                    usage=building_type,
-                                    name="Officebmvbs",
-                                    year_of_construction=building["buildingFeatures"]["year"],
-                                    number_of_floors=3,
-                                    height_of_floors=3,
-                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][bldgs["buildings_long"].index(building_type)],
-                                    construction_type="heavy")
 
-                # %% create envelope object
-                # containing all physical data of the envelope
-                building["envelope"] = Envelope(prj=prj,
-                                                building_params=building["buildingFeatures"],
-                                                construction_type="heavy",
-                                                window_layout="Kunststofffenster, Isolierverglasung",
-                                                file_path=self.filePath)
-            ##########################
-            # ab hier checken:
-            ############################
             else:
-                prj.add_non_residential(method='bmvbs',
-                                    usage="office",
-                                    name="Officebmvbs",
-                                    year_of_construction=building["buildingFeatures"]["year"],
-                                    number_of_floors=3,
-                                    height_of_floors=3,
-                                    net_leased_area=building["buildingFeatures"]["area"] * bldgs["ratio_area"][bldgs["buildings_long"].index(building_type)],
-                                    construction_type="heavy")
+                retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
+                construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
+
+                nrb_prj = NonResidential(
+                        usage=building["buildingFeatures"]["building"],
+                        name="IWUNonResidentialBuilding",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        number_of_floors=3,
+                        height_of_floors=3.125,
+                        net_leased_area=building["buildingFeatures"]["area"],
+                        construction_type=construction_type,
+                        retrofit_level=retrofit_level)
 
                 # %% create envelope object
                 # containing all physical data of the envelope
-                building["envelope"] = Envelope(prj=prj,
-                                                building_params=building["buildingFeatures"],
-                                                construction_type="heavy",
-                                                window_layout="Kunststofffenster, Isolierverglasung",
-                                                file_path=self.filePath)
 
+                building["envelope"] = Envelope(prj=nrb_prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=construction_type,
+                                                file_path=self.filePath)
 
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"])
 
+            # %% calculate design heat loads
+            # at norm outside temperature
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            # at bivalent temperature
+            building["envelope"].bivalent= building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            # at heatimg limit temperature
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            # for drinking hot water
+#            building["dhwload"] = bldgs["dhwload"][
+#                                      bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
+#                                  building["user"].nb_flats
+
             index = bldgs["buildings_long"].index(building_type)
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
-
-
-
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -418,10 +409,15 @@ class Datahandler:
 
             building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
 
+            night_setback = building["buildingFeatures"]["night_setback"]
+
             # calculate heating profiles
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
-                                                time_resolution=self.time["timeResolution"])
+                                                night_setback=night_setback,
+                                                holidays=self.time["holidays"],
+                                                time_resolution=self.time["timeResolution"]
+                                                )
 
             if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
