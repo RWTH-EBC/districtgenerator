@@ -1,0 +1,42 @@
+[
+    {
+        "type": "LED",
+        "model": "High Efficiency LED",
+        "luminous_flux": 1500,
+        "luminous_flux_unit": "lm",
+        "power": 15,
+        "power_unit": "W"
+    },
+    {
+        "type": "LED",
+        "model": "LED Tube T8",
+        "luminous_flux": 2000,
+        "luminous_flux_unit": "lm",
+        "power": 18,
+        "power_unit": "W"
+    },
+    {
+        "type": "LED",
+        "model": "round LED Panel Light",
+        "luminous_flux": 720,
+        "luminous_flux_unit": "lm",
+        "power": 9,
+        "power_unit": "W"
+    },
+    {
+        "type": "CFL",
+        "model": "Compact Fluorescent Lamp",
+        "luminous_flux": 1600,
+        "luminous_flux_unit": "lm",
+        "power": 23,
+        "power_unit": "W"
+    },
+    {
+        "type": "Incandescent",
+        "model": "Incandescent Bulb",
+        "luminous_flux": 1700,
+        "luminous_flux_unit": "lm",
+        "power": 100,
+        "power_unit": "W"
+    }
+]
