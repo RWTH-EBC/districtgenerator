@@ -85,10 +85,12 @@ def match_points():
 
 def delete_TRY_files():
     # DataFrame aus Excel-Datei lesen
-    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord_matched.xlsx', usecols=[3], names=['filename'], skiprows=1)
+    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord_matched.xlsx', usecols=[3], names=['filename'], skiprows=0)
+    df_list1['filename'] = df_list1['filename'].str.slice(8, 22)
+    df_list1['filename'] = "TRY2015_" + df_list1['filename'] + "_Wint.dat"
 
     # Pfad zum Ordner mit den Dateien
-    folder_path = "D:\Script\districtgenerator\data\TRY_2015_Jahr\Test"
+    folder_path = "D:\Script\districtgenerator\data\weather\TRY_2015_winterkalt.tar\winterkalt"
 
     # Dateinamen aus dem DataFrame in eine Liste konvertieren
     included_files = df_list1['filename'].tolist()

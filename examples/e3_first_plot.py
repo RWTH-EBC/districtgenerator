@@ -21,7 +21,6 @@ def example_fist_plots():
     data = Datahandler()
     data.generateDistrictComplete(scenario_name='example', calcUserProfiles=False, saveUserProfiles=False)
 
-
     # Now we can easily create some plots for the hole district.
     # default values are: (mode='default', initialTime=0, timeHorizon=31536000,
     # savePlots=True, timeStamp=False, show=False)
@@ -41,9 +40,8 @@ def example_fist_plots():
     # As mode we choose "elec" and "heating" to get the electricity and the heating demand profile of the district.
 
     # Generate weekly Plots (first week of the year = winter)
-
-    #data.plot(mode="elec", timeStamp=True, show=True, timeHorizon=604800)
-    #data.plot(mode="heating", timeStamp=True, show=True, timeHorizon=604800)
+    data.plot(mode="elec", timeStamp=True, show=True, timeHorizon=604800)
+    data.plot(mode="heating", timeStamp=True, show=True, timeHorizon=604800)
 
     # You can also change the value of "initialTime" to 86400 seconds (one day) or 604800 seconds (one week).
     # When you run the example again, you get result starting with the second day of the year
@@ -52,9 +50,8 @@ def example_fist_plots():
     # We will change "initialTime" to 15724800. (26 weeks or half a year)
 
     # Generate weekly Plots (mid week of the year = summer)
-
-    #data.plot(mode="elec", timeStamp=True, show=True, initialTime= 15724800, timeHorizon=604800)
-    #data.plot(mode="heating", timeStamp=True, show=True, initialTime= 15724800, timeHorizon=604800)
+    data.plot(mode="elec", timeStamp=True, show=True, initialTime= 15724800, timeHorizon=604800)
+    data.plot(mode="heating", timeStamp=True, show=True, initialTime= 15724800, timeHorizon=604800)
 
     # We can see, that the electricity demand varies for a day, but not so much over the year, the heating demand
     # shows main differences in summer or winter.

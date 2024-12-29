@@ -23,7 +23,7 @@ def example1_1_generate_first_district():
     # The weather data is taken from a Test Reference Year Database from the DWD.
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz = 52064)
 
     print("\nOur district now looks like this:")
     print("District:" + str(data.district))

@@ -5,6 +5,8 @@ from contextlib import contextmanager
 import districtgenerator.functions.opti_central as opti_central
 
 
+
+
 @contextmanager
 def suppress_stdout():
     """
@@ -107,7 +109,7 @@ class Optimizer:
         None.
         """
 
-        results = opti_central.run_opti_central(self.model, self.data.district, self.data.site, self.cluster,
-                                                self.srcPath, optiData)
+        results = opti_central.run_opti_central(self.model, self.data.district, self.data.centralDevices, self.data.site,
+                                                self.cluster, self.srcPath, optiData)
 
         return results

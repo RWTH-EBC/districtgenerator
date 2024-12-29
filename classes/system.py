@@ -4,7 +4,8 @@ import json
 import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
-
+from districtgenerator.classes.solar import Sun
+import districtgenerator.functions.wind_turbines as wind_turbines
 
 class BES:
     """
@@ -77,8 +78,8 @@ class BES:
 
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature
-        self.design_load = building["heatload"] + building["dhwload"]
-        limit_load = building["heatlimit"]
+        self.design_load = building["envelope"].heatload + building["dhwload"]
+        limit_load = building["envelope"].heatlimit
 
         self.bivalent_load = self.design_load + (limit_load - self.design_load) / (T_heatlimit - T_design) \
                              * (T_bivalent - T_design)
@@ -125,8 +126,8 @@ class BES:
                              * physics["c_p_water"] \
                              * dev["TES"]["T_diff_max"] \
                              / 3600
-                if buildingFeatures["heater"] == "heat_grid":
-                    BES["TES"] = 0
+                #if buildingFeatures["heater"] == "heat_grid":
+                #    BES["TES"] = 0
 
                     # battery (BAT)
             if k == "BAT":
@@ -202,5 +203,39 @@ class CES:
         # Run optimization
         capacities_centralDevices = opti_dimensioning_central_devices.run_optim(devs, param, dem, result_dict)
 
-
         return capacities_centralDevices
+
+    def generation(self, filePath, time, site):
+
+        global sun
+        sun = Sun(filePath=filePath)
+        # calculate theoretical PV generation
+        potentialPV, defaultSTC = \
+            sun.calcPVAndSTCProfile(time=time,
+                                    site=site,
+                                    area_roof=10,
+                                    # todo: auf internetseite ergänzen
+                                    # In Germany, this is a roof pitch between 30 and 35 degrees
+                                    beta=[35],
+                                    # surface azimuth angles (Orientation to the south: 0°)
+                                    gamma=[0],
+                                    usageFactorPV=1,
+                                    usageFactorSTC=0)
+
+        # calculate theoretical STC generation
+        defaultPV, pontentialSTC = \
+            sun.calcPVAndSTCProfile(time=time,
+                                    site=site,
+                                    area_roof=10,
+                                    # todo: auf internetseite ergänzen
+                                    # In Germany, this is a roof pitch between 30 and 35 degrees
+                                    beta=[35],
+                                    # surface azimuth angles (Orientation to the south: 0°)
+                                    gamma=[0],
+                                    usageFactorPV=0,
+                                    usageFactorSTC=1)
+
+        potentialWIND = wind_turbines.WT_generation(site["wind_speed"])
+
+
+        return (potentialPV, pontentialSTC, potentialWIND)

@@ -6,15 +6,20 @@ We reached the final step, to generate our first district: Generate demand profi
 
 # Import classes of the districtgenerator to be able to use the district generator.
 from classes import *
+import time
+
 
 
 def example1_4_generate_first_district():
+
+    # Record the start time
+    start_time = time.time()
 
     # Initialize District
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz=35444)
 
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")
@@ -68,7 +73,18 @@ def example1_4_generate_first_district():
 
     print("Congratulations! You generated your first complete district!")
 
+    # Record the end time
+    end_time = time.time()
+    # Calculate the elapsed time
+    elapsed_time = end_time - start_time
+    # Convert the time to minutes and seconds
+    minutes = int(elapsed_time // 60)
+    seconds = elapsed_time % 60
+    # Print the elapsed time
+    print(f"Time taken to run the script: {minutes} minutes and {seconds:.0f} seconds")
+
     return data
+
 
 
 if __name__ == '__main__':

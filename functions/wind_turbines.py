@@ -28,9 +28,9 @@ def windSpeed_h(windSpeed_ref, h_ref, h, exponent):
     windSpeed_h : float
         speed of the wind at height h in [m/s].
     """
-    
+
     windSpeed_h = windSpeed_ref * (h / h_ref) ** exponent
-    
+
     return windSpeed_h
 
 
@@ -88,9 +88,11 @@ def get_turbine_power(wind_speed, power_curve):
         # Linear interpolation between the two next data points
         for k in range(len(power_curve)):
             if power_curve.iloc[k, 0] > wind_speed:
-               power = (power_curve.iloc[k, 1] - power_curve.iloc[k - 1, 1]) / (power_curve.iloc[k, 0]-power_curve.iloc[k - 1, 0]) * (wind_speed-power_curve.iloc[k - 1, 0]) + power_curve.iloc[k - 1, 1]
-               break
-    
+                power = (power_curve.iloc[k, 1] - power_curve.iloc[k - 1, 1]) / (
+                            power_curve.iloc[k, 0] - power_curve.iloc[k - 1, 0]) * (
+                                    wind_speed - power_curve.iloc[k - 1, 0]) + power_curve.iloc[k - 1, 1]
+                break
+
     return power
 
 
@@ -108,7 +110,7 @@ def powerCurve(wind_turbine_model):
     power_curve : pandas DataFrame
         DataFrame with entries for each supporting point of the power curve.
         For each supporting point a tuple exists:
-        first tuple entry : wind speed [m/s] 
+        first tuple entry : wind speed [m/s]
         second tuple entry : power of wind turbine [kW]
     """
 
@@ -153,11 +155,11 @@ def powerCurve(wind_turbine_model):
     except:
         # terminate calculation and write error message
         sys.exit("ERROR: No data for selected wind turbine model found!")
-    
+
     return power_curve
 
 
-def WT_generation(array_windSpeed, powerCurve):
+def WT_generation(array_windSpeed):
     """
     Calculate wind power generation for all given values of wind speed.
 
@@ -176,14 +178,13 @@ def WT_generation(array_windSpeed, powerCurve):
     array_WT_power : array
         Generated power of wind turbine [W].
     """
-
     # initialize list for results
     array_WT_power = []
 
     for t in range(len(array_windSpeed)):
         # calculate generated wind power for each time step
         windSpeed_t = array_windSpeed[t]
-        array_WT_power.append(get_turbine_power(windSpeed_t, powerCurve))  # [kW]
+        array_WT_power.append(get_turbine_power(windSpeed_t, powerCurve("Enercon_E40")))  # [kW]
 
     # transform to array and change unit to Watt
     array_WT_power = np.array(array_WT_power) * 1000  # [W]

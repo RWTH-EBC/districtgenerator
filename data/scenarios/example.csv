@@ -1,9 +1,7 @@
-id;building;year;retrofit;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV
-0;OB;2000;1;400;heat_grid;1;1;0;1;35;1;M;0.4;0.04;0
-1;School;2010;1;1000;heat_grid;1;1;0;1;35;1;M;0.4;0.04;0
-2;SFH;2022;1;165;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0
-3;MFH;2022;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0
-
+id;building;year;retrofit;construction_type;night_setback;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
+0;SFH;2015;1;;1;150;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+1;OB;2015;1;2;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+2;OB;2015;1;2;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
 
 
 

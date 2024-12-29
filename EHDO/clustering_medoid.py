@@ -138,30 +138,36 @@ def cluster(inputs, number_clusters=12, norm=2, time_limit=300, mip_gap=0.0,
 
     typicalDays = np.array(typicalDays)
     nc = np.array(nc, dtype="int")
-    nc_cumsum = np.cumsum(nc) * len_day
+
+
+############### nicht benötigt
+#    nc_cumsum = np.cumsum(nc) * len_day
+
 
     # Construct (yearly) load curves
     # ub = upper bound, lb = lower bound
-    clustered = np.zeros_like(inputs)
-    for i in range(len(nc)):
-        if i == 0:
-            lb = 0
-        else:
-            lb = nc_cumsum[i-1]
-        ub = nc_cumsum[i]
-        
-        for j in range(len(inputsTransformed)):
-            clustered[j, lb:ub] = np.tile(typicalDays[i][j], nc[i])
+#    clustered = np.zeros_like(inputs)
+#    for i in range(len(nc)):
+#        if i == 0:
+#            lb = 0
+#        else:
+#            lb = nc_cumsu2m[i-1]
+#        ub = nc_cumsum[i]
+#
+#        for j in range(len(inputsTransformed)):
+#            clustered[j, lb:ub] = np.tile(typicalDays[i][j], nc[i])
+############### nicht benötigt
+
 
     # Scaling to preserve original demands
+    # TODO: Wir skalieren hier den gesamten Bedarf, jedoch ist das nicht korrekt, da wir die Typtage (clusters) einzeln skalieren sollen. Das heißt, wir sollten 4x8 Skalierungsfaktoren erhalten und nicht nur 8, wobei 4 die Anzahl der Clusters ist (siehe Paper von Fernando Domínguez-Muñoz et al.)
     sums_inputs = [np.sum(inputs[j,:]) for j in range(inputs.shape[0])]
-    scaled = np.array([nc[day] * typicalDays[day,:,:] 
+    hourly_sums_clustered = np.array([nc[day] * typicalDays[day,:,:]
                        for day in range(number_clusters)])
-    sums_scaled = [np.sum(scaled[:,j,:]) if not np.sum(scaled[:,j,:]) == 0 else 1 
+    sums_clustered = [np.sum(hourly_sums_clustered[:,j,:]) if not np.sum(hourly_sums_clustered[:,j,:]) == 0 else 1
                    for j in range(inputs.shape[0])]
-    scaling_factors = [sums_inputs[j] / sums_scaled[j] 
+    scaling_factors = [sums_inputs[j] / sums_clustered[j]
                        for j in range(inputs.shape[0])]
     scaled_typ_days = [scaling_factors[j] * typicalDays[:,j,:]
                        for j in range(inputs.shape[0])]
-    
     return (scaled_typ_days, nc, z)

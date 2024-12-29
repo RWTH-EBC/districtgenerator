@@ -56,13 +56,13 @@ class DemandPlots:
         self.y['heating'] = np.zeros(self.l)
 
         # electricity demand of electric vehicles [kW]
-        #self.y['car'] = np.zeros(self.l)
+        self.y['car'] = np.zeros(self.l)
         # electricity generation of photovoltaic systems [kW]
-        #self.y['pv'] = np.zeros(self.l)
+        self.y['pv'] = np.zeros(self.l)
         # heat generation of solar thermal collectors [kW]
-        #self.y['stc'] = np.zeros(self.l)
+        self.y['stc'] = np.zeros(self.l)
         # electricity generation of wind turbines [kW]
-        #self.y['wt'] = np.zeros(self.l)
+        self.y['wt'] = np.zeros(self.l)
 
         # loop over buildings to sum upp energy consumptions and generations for the hole district
         for b in range(len(data.district)):
@@ -70,19 +70,19 @@ class DemandPlots:
             self.y['dhw'] += data.district[b]['user'].dhw / 1000
             self.y['cooling'] += data.district[b]['user'].cooling / 1000
             self.y['heating'] += data.district[b]['user'].heat / 1000
-            #self.y['car'] += data.district[b]['user'].car / 1000
-            #self.y['pv'] += data.district[b]['user']['generationPV'] / 1000
-            #self.y['stc'] += data.district[b]['user']['generationSTC'] / 1000
+#            self.y['car'] += data.district[b]['user'].car / 1000
+#            self.y['pv'] += data.district[b]['user']['generationPV'] / 1000
+#            self.y['stc'] += data.district[b]['user']['generationSTC'] / 1000
 
         # add renewable generation of central devices
-        #self.y['pv'] += data.centralDevices['renewableGeneration']['centralPV'] / 1000
-        #self.y['stc'] += data.centralDevices['renewableGeneration']['centralSTC'] / 1000
-        #self.y['wt'] = data.centralDevices['renewableGeneration']['centralWT'] / 1000
+#        self.y['pv'] += data.centralDevices['renewableGeneration']['centralPV'] / 1000
+#        self.y['stc'] += data.centralDevices['renewableGeneration']['centralSTC'] / 1000
+#        self.y['wt'] = data.centralDevices['renewableGeneration']['centralWT'] / 1000
 
         # compute electricity demand by domestic appliances, lighting and electric vehicles [W]
-        #self.y['electricityDemand'] = self.y['elec'] + self.y['car']
+        self.y['electricityDemand'] = self.y['elec'] + self.y['car']
         # compute heat demand by space heating and domestic hot water [W]
-        #self.y['heatDemand'] = self.y['heating'] + self.y['dhw']
+        self.y['heatDemand'] = self.y['heating'] + self.y['dhw']
 
         # factor to convert power [kW] for one timestep to energy [kWh] for one timestep
         self.factor = data.time['timeResolution'] / 3600
@@ -97,12 +97,12 @@ class DemandPlots:
         self.labels['dhw'] = 'DHW demand [kW]'
         self.labels['cooling'] = 'Space cooling demand [kW]'
         self.labels['heating'] = 'Space heating demand [kW]'
-        #self.labels['car'] = 'Electricity demand EV [kW]'
-        #self.labels['pv'] = 'Power generation PV [kW]'
-        #self.labels['stc'] = 'Heat generation STC [kW]'
-        #self.labels['electricityDemand'] = 'Electricity demand [kW]'
-        #self.labels['heatDemand'] = 'Heat demand [kW]'
-        #self.labels['wt'] = 'Power generation WT [kW]'
+        self.labels['car'] = 'Electricity demand EV [kW]'
+        self.labels['pv'] = 'Power generation PV [kW]'
+        self.labels['stc'] = 'Heat generation STC [kW]'
+        self.labels['electricityDemand'] = 'Electricity demand [kW]'
+        self.labels['heatDemand'] = 'Heat demand [kW]'
+        self.labels['wt'] = 'Power generation WT [kW]'
 
         # plot titles
         self.titles = {}
@@ -110,15 +110,15 @@ class DemandPlots:
         self.titles['dhw'] = 'Domestic hot water (DHW) demand of district'
         self.titles['cooling'] = 'Space cooling demand of district'
         self.titles['heating'] = 'Space heating demand of district'
-        #self.titles['car'] = 'Electricity demand of electric vehicles (EV)'
-        #self.titles['pv'] = 'Power generation of photovoltaic (PV) systems'
-        #self.titles['stc'] = 'Heat generation of solar thermal collectors (STC)'
-        #self.titles['electricityDemand'] = 'Electricity demand of district'
-        #self.titles['heatDemand'] = 'Heat demand of district'
-        #self.titles['wt'] = 'Power generation of wind turbines (WT)'
+        self.titles['car'] = 'Electricity demand of electric vehicles (EV)'
+        self.titles['pv'] = 'Power generation of photovoltaic (PV) systems'
+        self.titles['stc'] = 'Heat generation of solar thermal collectors (STC)'
+        self.titles['electricityDemand'] = 'Electricity demand of district'
+        self.titles['heatDemand'] = 'Heat demand of district'
+        self.titles['wt'] = 'Power generation of wind turbines (WT)'
 
         # definition of default stepwise plots
-        self.plots = ['elec', 'dhw', 'cooling', 'heating']  # 'pv', 'stc', 'heatDemand', 'wt']
+        self.plots = ['elec', 'dhw', 'cooling', 'heating', 'pv', 'stc', 'heatDemand', 'wt']
 
 
         # %% monthly plots (bar plots)
@@ -140,12 +140,12 @@ class DemandPlots:
         self.y['dhwMonthly'] = []
         self.y['coolingMonthly'] = []
         self.y['heatingMonthly'] = []
-        #self.y['carMonthly'] = []
-        #self.y['pvMonthly'] = []
-        #self.y['stcMonthly'] = []
-        #self.y['electricityDemandMonthly'] = []
-        #self.y['heatDemandMonthly'] = []
-        #self.y['wtMonthly'] = []
+        self.y['carMonthly'] = []
+        self.y['pvMonthly'] = []
+        self.y['stcMonthly'] = []
+        self.y['electricityDemandMonthly'] = []
+        self.y['heatDemandMonthly'] = []
+        self.y['wtMonthly'] = []
         for m in range(len(cumutaltedDays)):
             if m == 0:
                 # first month starts with time step zero
@@ -159,12 +159,12 @@ class DemandPlots:
             self.y['dhwMonthly'].append(np.sum(self.y['dhw'][start:end] * self.factor))
             self.y['coolingMonthly'].append(np.sum(self.y['cooling'][start:end] * self.factor))
             self.y['heatingMonthly'].append(np.sum(self.y['heating'][start:end] * self.factor))
-            #self.y['carMonthly'].append(np.sum(self.y['car'][start:end] * self.factor))
-            #self.y['pvMonthly'].append(np.sum(self.y['pv'][start:end] * self.factor))
-            #self.y['stcMonthly'].append(np.sum(self.y['stc'][start:end] * self.factor))
-            #self.y['electricityDemandMonthly'].append(np.sum(self.y['electricityDemand'][start:end] * self.factor))
-            #self.y['heatDemandMonthly'].append(np.sum(self.y['heatDemand'][start:end] * self.factor))
-            #self.y['wtMonthly'].append(np.sum(self.y['wt'][start:end] * self.factor))
+            self.y['carMonthly'].append(np.sum(self.y['car'][start:end] * self.factor))
+            self.y['pvMonthly'].append(np.sum(self.y['pv'][start:end] * self.factor))
+            self.y['stcMonthly'].append(np.sum(self.y['stc'][start:end] * self.factor))
+            self.y['electricityDemandMonthly'].append(np.sum(self.y['electricityDemand'][start:end] * self.factor))
+            self.y['heatDemandMonthly'].append(np.sum(self.y['heatDemand'][start:end] * self.factor))
+            self.y['wtMonthly'].append(np.sum(self.y['wt'][start:end] * self.factor))
 
         # months as categories for x-axis
         self.months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
@@ -175,28 +175,28 @@ class DemandPlots:
         self.labels['dhwMonthly'] = 'DHW demand [kWh]'
         self.labels['coolingMonthly'] = 'Space cooling demand  [kWh]'
         self.labels['heatingMonthly'] = 'Space heating demand [kWh]'
-        #self.labels['carMonthly'] = 'Electricity demand of EV [kWh]'
-        #self.labels['pvMonthly'] = 'Power generation of PV systems [kWh]'
-        #self.labels['stcMonthly'] = 'Heat generation of STC [kWh]'
-        #self.labels['electricityDemandMonthly'] = 'Electricity demand [kWh]'
-        #self.labels['heatDemandMonthly'] = 'Heat demand [kWh]'
-        #self.labels['wtMonthly'] = 'Power generation of WT [kWh]'
+        self.labels['carMonthly'] = 'Electricity demand of EV [kWh]'
+        self.labels['pvMonthly'] = 'Power generation of PV systems [kWh]'
+        self.labels['stcMonthly'] = 'Heat generation of STC [kWh]'
+        self.labels['electricityDemandMonthly'] = 'Electricity demand [kWh]'
+        self.labels['heatDemandMonthly'] = 'Heat demand [kWh]'
+        self.labels['wtMonthly'] = 'Power generation of WT [kWh]'
 
         # plot titles
         self.titles['elecMonthly'] = 'Monthly electricity demand for domestic appliances and lighting'
         self.titles['dhwMonthly'] = 'Monthly domestic hot water (DHW) demand of district'
         self.titles['coolingMonthly'] = 'Monthly space cooling demand of district'
         self.titles['heatingMonthly'] = 'Monthly space heating demand of district'
-        #self.titles['carMonthly'] = 'Monthly electricity demand of electric vehicles (EV)'
-        #self.titles['pvMonthly'] = 'Monthly power generation of photovoltaic (PV) systems'
-        #self.titles['stcMonthly'] = 'Monthly heat generation of solar thermal collectors (STC)'
-        #self.titles['electricityDemandMonthly'] = 'Monthly electricity demand of district'
-        #self.titles['heatDemandMonthly'] = 'Monthly heat demand of district'
-        #self.titles['wtMonthly'] = 'Monthly power generation of wind turbines (WT)'
+        self.titles['carMonthly'] = 'Monthly electricity demand of electric vehicles (EV)'
+        self.titles['pvMonthly'] = 'Monthly power generation of photovoltaic (PV) systems'
+        self.titles['stcMonthly'] = 'Monthly heat generation of solar thermal collectors (STC)'
+        self.titles['electricityDemandMonthly'] = 'Monthly electricity demand of district'
+        self.titles['heatDemandMonthly'] = 'Monthly heat demand of district'
+        self.titles['wtMonthly'] = 'Monthly power generation of wind turbines (WT)'
 
         # definition of default monthly plots
         self.plotsMonthly = \
-            ['elec', 'dhw', 'cooling', 'heating']  #, 'car',  'pv', 'stc', 'electricityDemand', 'heatDemand', 'wt']
+            ['elec', 'dhw', 'cooling', 'heating', 'car',  'pv', 'stc', 'electricityDemand', 'heatDemand', 'wt']
 
         # define colors for plot types
         blue = '#00549F'

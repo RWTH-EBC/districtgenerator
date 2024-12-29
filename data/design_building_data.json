@@ -5,11 +5,23 @@
     "unit": "degree Celsius",
     "description": "Required minimum indoor temperature (for heating load calculation)"
   },
+    {
+    "name": "T_set_min_night",
+    "value":  18.0,
+    "unit": "degree Celsius",
+    "description": "Required minimum indoor temperature at night (for heating load calculation)"
+  },
   {
     "name": "T_set_max",
     "value": 26.0,
     "unit": "degree Celsius",
     "description": "Required maximum indoor temperature (for cooling load calculation)"
+  },
+  {
+    "name": "T_set_max_night",
+    "value": 28.0,
+    "unit": "degree Celsius",
+    "description": "Required maximum indoor temperature at night (for cooling load calculation)"
   },
   {
     "name": "T_bivalent",
@@ -45,30 +57,48 @@
     "name": "retrofit_short",
     "value": [0, 1, 2],
     "unit": "-",
-    "description": "Abbreviations of the retrofit levels of the reseidential buildings."
+    "description": "Abbreviations of the retrofit levels of the residential buildings"
   },
   {
     "name": "retrofit_long",
     "value": ["tabula_standard", "tabula_retrofit", "tabula_adv_retrofit"],
     "unit":  "-",
-    "description": "Names of the retrofit levels of the reseidential buildings."
+    "description": "Names of the retrofit levels of the residential buildings."
+  },
+  {
+    "name": "retrofit_short_non_residential",
+    "value": [0, 1, 2],
+    "unit": "-",
+    "description": "Abbreviations of the retrofit levels of the non residential buildings."
+  },
+  {
+    "name": "retrofit_long_non_residential",
+    "value": ["not retrofitted", "partially retrofitted", "completely retrofitted"],
+    "unit":  "-",
+    "description": "Names of the retrofit levels of the non residential buildings."
+  },
+  {
+    "name": "construction_type_short",
+    "value": [0, 1, 2],
+    "unit": "-",
+    "description": "Abbreviations of the construction types of the non residential buildings."
+  },
+  {
+    "name": "construction_type_long",
+    "value": ["Light", "Medium", "Heavy"],
+    "unit":  "-",
+    "description": "Names of the construction types of the non residential buildings."
   },
   {
     "name": "dhwload",
-    "value": [4662.1, 4662.1, 4662.1, 3999.8, 1000, 1000, 1000],
+    "value": [4662.1, 4662.1, 4662.1, 3999.8, 2000, 3000, 7000],
     "unit":  "Watt",
-    "description": "Maximal power for domestic hot water for each building type (SFH, MFH, TH, AB, OB, School, Store)."
+    "description": "Maximal power for domestic hot water for each flat in the building types SFH, MFH, TH, and AB, and for each main room in the building types OB, School, and Store."
   },
   {
     "name": "mean_drawoff_vol_per_day",
-    "value": [40, 40, 40, 40, 6, 1.5],
+    "value": [40, 40, 40, 40, 6, 1.5, 1.5],
     "unit":  "Liter",
-    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, School, Store). Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 for non-residential buidlings"
-  },
-  {
-    "name": "ratio_area",
-    "value": [0.6656, 0.6785, 0.7112, 0.6662, 0.6662, 0.6662, 0.6662],
-    "unit":  "-",
-    "description": "Ratio of net floor area to total gross floor area for each of the five building types (SFH, MFH, TH and AB)"
+    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, School, Store). Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 for non-residential buidlings (with some adjustments to approach the real values"
   }
 ]

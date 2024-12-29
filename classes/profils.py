@@ -163,7 +163,10 @@ class Profiles:
             sia_week_profile_devices_zone = []
 
             for i in range(7):
-                is_not_working_day = (i + self.initial_day) % 7 in (0, 6)
+                if self.building == "Grocery_store":
+                    is_not_working_day = (i + self.initial_day) % 7 in [6]
+                else:
+                    is_not_working_day = (i + self.initial_day) % 7 in [0, 6]
 
                 sia_day_profile_people_zone = [0] * 24 if is_not_working_day else data['profile_people']
                 sia_day_profile_devices_zone = [min(data['profile_devices'])] * 24 if is_not_working_day else data['profile_devices']
@@ -188,7 +191,7 @@ class Profiles:
             profile_devices_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_devices_zone]
 
             # Apply random variation to the monthly profile
-            profile_month_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in data['profile_month']]
+            profile_month_zone = [min(max(np.random.normal(value, value * 0.07), 0), 1) for value in data['profile_month']]
 
             # Adjust the people profile to 0 for the months there is no occupation of the corresponding building
             days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]

@@ -66,6 +66,7 @@ class Datahandler:
         self.scenario_name = None
         self.scenario = None
         self.counter = {}
+        self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
@@ -137,11 +138,11 @@ class Datahandler:
 
         # select the correct file depending on the TRY weather station location
         weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
-            + "/"
-            + self.site["TRYYear"] + "_"
-            + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
-            + ".dat",
-            skiprows=first_row - 1)
+                                                + "/"
+                                                + self.site["TRYYear"] + "_"
+                                                + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+                                                + ".dat",
+                                                skiprows=first_row - 1)
 
         """
         # Use this function to load old TRY-weather data
@@ -158,8 +159,7 @@ class Datahandler:
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
         # get weather data of interest
-        [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
-            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
+        [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
 
         # %% load time information and requirements
         # needed for data conversion into the right time format
@@ -168,6 +168,8 @@ class Datahandler:
             for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
+
+        # load the holidays
         if self.site["TRYYear"] == "TRY2015":
             self.time["holidays"] = self.time["holidays2015"]
         elif self.site["TRYYear"] == "TRY2045":
@@ -250,11 +252,32 @@ class Datahandler:
             elif building["buildingFeatures"]["building"] == 'OB': num_OB +=1
             elif building["buildingFeatures"]["building"] == 'School': num_schools +=1
             elif building["buildingFeatures"]["building"] == 'Grocery_store': num_grocery_store +=1
-
+        self.generate_building_dict()
 
         # Calculate calculation time for the whole district generation
         duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh) #ergänzen
         print("This calculation will take about " + str(duration) + " .")
+
+    def generate_building_dict(self):
+        """
+        Processes the scenario file and checks wheter or wheter not the building is in 'SFH', 'TH', 'MFH', 'AB'.
+        Creates a temp storage, to handle TEASER prj with ids starting from ß.
+
+        Args:
+            csv_file (str): Path to the CSV file containing building data with 'id' and 'building' columns.
+
+        Returns:
+            None: Modifies the internal building_dict attribute of the class.
+        """
+
+        # Filter the data for specified building types
+        filtered_data = self.scenario[self.scenario['building'].isin(['SFH', 'TH', 'MFH', 'AB'])]
+
+        # Generate the dictionary
+        temp_id = 0
+        for index, row in filtered_data.iterrows():
+            self.building_dict[row['id']] = temp_id
+            temp_id += 1
 
     def generateBuildings(self):
         """
@@ -280,7 +303,6 @@ class Datahandler:
 
         for building in self.district:
 
-
             # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
@@ -299,10 +321,12 @@ class Datahandler:
 
                 # %% create envelope object
                 # containing all physical data of the envelope
+                teaser_id = self.building_dict[building["buildingFeatures"]["id"]]
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_type=retrofit_level,
-                                                file_path=self.filePath)
+                                                file_path=self.filePath,
+                                                teaser_id=teaser_id)
 
             else:
                 retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
@@ -310,7 +334,7 @@ class Datahandler:
 
                 nrb_prj = NonResidential(
                         usage=building["buildingFeatures"]["building"],
-                        name="IWUNonResidentialBuilding",
+                        name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
                         number_of_floors=3,
                         height_of_floors=3.125,
@@ -339,9 +363,13 @@ class Datahandler:
             # at heatimg limit temperature
             building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
-#            building["dhwload"] = bldgs["dhwload"][
-#                                      bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
-#                                  building["user"].nb_flats
+            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["user"].nb_flats
+            else:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["user"].nb_main_rooms
+
 
             index = bldgs["buildings_long"].index(building_type)
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
@@ -508,17 +536,16 @@ class Datahandler:
 
             # %% calculate design heat loads
             # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
             # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
             # at heating limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
             if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
                 building["user"].nb_flats
             else:
-                #check if correct
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
                 building["user"].nb_main_rooms
 
@@ -588,6 +615,12 @@ class Datahandler:
         # dimensioning of central devices
         self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
 
+        # calculate theoretical PV, STC and Wind generation
+        self.centralDevices["generation"] = {}
+        self.centralDevices["generation"]["PV"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[0]
+        self.centralDevices["generation"]["STC"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[1]
+        self.centralDevices["generation"]["Wind"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[2]
+
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
         Design decentral and central devices.
@@ -605,7 +638,7 @@ class Datahandler:
         """
 
         self.designDecentralDevices(saveGenerationProfiles)
-#        self.designCentralDevices(saveGenerationProfiles)
+        self.designCentralDevices(saveGenerationProfiles)
 
     def clusterProfiles(self, centralEnergySupply):
         """
@@ -631,60 +664,59 @@ class Datahandler:
             adjProfiles[id] = {}
             adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
             adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:lenghtArray]
-            #adjProfiles[id]["gains"] = self.district[id]["user"].gains[0:lenghtArray]
-            #adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
             adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
             adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
-            if self.district[id]["buildingFeatures"]["EV"] != 0:
-                adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
-            else:
-                # no EV exists; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["car"] = \
-                    self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.district[id]["buildingFeatures"]["PV"] != 0:
-                adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
-            else:
-                # no PV module installed; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["generationPV"] = \
-                    self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.district[id]["buildingFeatures"]["STC"] != 0:
-                adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
-            else:
-                # no STC installed; but array with just zeros leads to problem while clustering
-                adjProfiles[id]["generationSTC"] = \
-                    self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
+        if centralEnergySupply == False:
+            for id in self.scenario["id"]:
+                if self.district[id]["buildingFeatures"]["EV"] != 0:
+                    adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
+                else:
+                    # no EV exists; but array with just zeros leads to problem while clustering
+                    adjProfiles[id]["car"] = \
+                        self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
+                if self.district[id]["buildingFeatures"]["PV"] != 0:
+                    adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
+                else:
+                    # no PV module installed; but array with just zeros leads to problem while clustering
+                    adjProfiles[id]["generationPV"] = \
+                        self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon
+                if self.district[id]["buildingFeatures"]["STC"] != 0:
+                    adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
+                else:
+                    # no STC installed; but array with just zeros leads to problem while clustering
+                    adjProfiles[id]["generationSTC"] = \
+                        self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
         # solar radiation on surfaces with different orientation
         adjProfiles["Sun"] = {}
         for drct in range(len(self.SunRad)):
             adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
 
         if centralEnergySupply == True:
-            # central renewable generation
-            if self.centralDevices["capacities"]["WT"]["nb_WT"] > 0:
+            if self.centralDevices["capacities"]["power_kW"]["WT"] > 0:
                 existence_centralWT = 1
-                adjProfiles["generationCentralWT"] = self.centralDevices["renewableGeneration"]["centralWT"][0:lenghtArray]
+                adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lenghtArray]
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
                 existence_centralWT = 0
                 adjProfiles["generationCentralWT"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralWT"][0:lenghtArray] * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["PV"]["nb_modules"] > 0:
+                    self.centralDevices["generation"]["Wind"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["power_kW"]["PV"] > 0:
                 existence_centralPV = 1
-                adjProfiles["generationCentralPV"] = self.centralDevices["renewableGeneration"]["centralPV"][0:lenghtArray]
+                adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
                 existence_centralPV = 0
                 adjProfiles["generationCentralPV"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralPV"][0:lenghtArray] * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["STC"]["area"] > 0:
+                    self.centralDevices["generation"]["PV"][0:lenghtArray] * sys.float_info.epsilon
+            if self.centralDevices["capacities"]["heat_kW"]["STC"] > 0:
                 existence_centralSTC = 1
                 adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["renewableGeneration"]["centralSTC"][0:lenghtArray]
+                    self.centralDevices["generation"]["STC"][0:lenghtArray]
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
                 existence_centralSTC = 0
                 adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["clusteringData"]["potentialCentralSTC"][0:lenghtArray] * sys.float_info.epsilon
+                    self.centralDevices["generation"]["STC"][0:lenghtArray] * sys.float_info.epsilon
         # wind speed and ambient temperature
         #adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
@@ -695,13 +727,14 @@ class Datahandler:
         for id in self.scenario["id"]:
             inputsClustering.append(adjProfiles[id]["elec"])
             inputsClustering.append(adjProfiles[id]["dhw"])
-            #inputsClustering.append(adjProfiles[id]["gains"])
-            #inputsClustering.append(adjProfiles[id]["occ"])
-            inputsClustering.append(adjProfiles[id]["car"])
-            inputsClustering.append(adjProfiles[id]["generationPV"])
-            inputsClustering.append(adjProfiles[id]["generationSTC"])
             inputsClustering.append(adjProfiles[id]["heat"])
             inputsClustering.append(adjProfiles[id]["cooling"])
+        if centralEnergySupply == False:
+            for id in self.scenario["id"]:
+                inputsClustering.append(adjProfiles[id]["car"])
+                inputsClustering.append(adjProfiles[id]["generationPV"])
+                inputsClustering.append(adjProfiles[id]["generationSTC"])
+
         # solar radiation on surfaces with different orientation
         for drct in range(len(self.SunRad)):
             inputsClustering.append(adjProfiles["Sun"][drct])
@@ -732,26 +765,27 @@ class Datahandler:
             index_house = int(7)  # number of profiles per building
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
-            #self.district[id]["user"].gains_cluster = newProfiles[index_house * id + 2]
-            #self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 3]
-            # assign real EV, PV and STC generation for clustered data to buildings
-            # (array with zeroes if EV, PV or STC does not exist)
-            self.district[id]["user"].car_cluster = newProfiles[index_house * id + 2] * self.scenario.loc[id]["EV"]
-            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 3] \
+            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
+            self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 3]
+        if centralEnergySupply == False:
+            for id in self.scenario["id"]:
+                # assign real EV, PV and STC generation for clustered data to buildings
+                # (array with zeroes if EV, PV or STC does not exist)
+                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
+                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
                                                         * self.district[id]["buildingFeatures"]["PV"]
-            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 4] \
+                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
                                                          * self.district[id]["buildingFeatures"]["STC"]
-            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 5]
-            self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 6]
+
         # safe clustered solar radiation on surfaces with different orientation
         self.SunRad_cluster = {}
         for drct in range(len(self.SunRad)):
             self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
         if centralEnergySupply == True:
             # save clustered data for real central renewable generation
-            self.centralDevices["renewableGeneration"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
-            self.centralDevices["renewableGeneration"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
-            self.centralDevices["renewableGeneration"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
+            self.centralDevices["generation"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
+            self.centralDevices["generation"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
+            self.centralDevices["generation"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
         # save clustered wind speed and ambient temperature
         #self.site["wind_speed_cluster"] = newProfiles[-2]
         self.site["T_e_cluster"] = newProfiles[-1]

@@ -68,7 +68,7 @@ class Sun:
         results: array_like
             Total solar radiation profiles for multiple surfaces with different beta and gamma.
         """
-        
+
         # get geometry results for entire year
         geometry = self.getGeometry(initialTime, timeDiscretization, timeSteps, timeZone, location, altitude)
         (omega, delta, thetaZ, airmass, Gon) = geometry
@@ -303,7 +303,7 @@ class Sun:
                               sinDelta * cosPhi * sinBeta * cosGamma +
                               cosDelta * cosPhi * cosBeta * cosOmega +
                               cosDelta * sinPhi * sinBeta * cosGamma * cosOmega +
-                              cosDelta * sinBeta * sinGamma * sinOmega,0)
+                              cosDelta * sinBeta * sinGamma * sinOmega, 0)
         thetaR = np.arccos(cosTheta)
         theta = np.rad2deg(thetaR)
 
@@ -523,12 +523,12 @@ class Sun:
             # by Dubey, Swapnil; Sarvaiya, Jatin Narotam; Seshadri, Bharath - 2013
             eta_PV[t] = devices["PV"]["eta_el_ref"] * \
                         (
-                            1 - devices["PV"]["gamma"] * \
-                            (
-                                temperatureProfile[t] - devices["PV"]["t_cell_ref"]
-                                + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
-                                * (SunRad[0][t] / devices["PV"]["G_noct"])
-                            )
+                                1 - devices["PV"]["gamma"] * \
+                                (
+                                        temperatureProfile[t] - devices["PV"]["t_cell_ref"]
+                                        + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
+                                        * (SunRad[0][t] / devices["PV"]["G_noct"])
+                                )
                         )
 
         # calculate PV power

@@ -13,7 +13,7 @@
   },
   {
     "name": "altitude",
-    "value": 0,
+    "value": 700,
     "unit": "m",
     "description": "Above sea level"
   },

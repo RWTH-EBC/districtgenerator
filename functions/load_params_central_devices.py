@@ -646,7 +646,7 @@ def load_params(data):
     devs, param = calc_annual_investment(devs, param)
 
     # Calculate reference scenario
-    result_dict = calc_reference(devs, dem, param, dem_uncl, result_dict)
+    # result_dict = calc_reference(devs, dem, param, dem_uncl, result_dict)
 
     # print("=== PARAMETER ===")
     # print(param)

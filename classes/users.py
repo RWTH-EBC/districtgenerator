@@ -184,8 +184,8 @@ class Users:
                 for zone_name in {"Lebensmittelverkauf"}:
                     proportion_selling_space += self.building_zones[zone_name]
                 self.total_main_area = area * proportion_selling_space
-                self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room,
-                                                                           mean_area_per_main_room * 0.1))
+                self.nb_main_rooms = max(round(self.total_main_area / rd.gauss(mean_area_per_main_room,
+                                                                           mean_area_per_main_room * 0.1)),1)
     def generate_number_occupants(self,area):
         """
         Generate number of occupants for different of building types.
@@ -406,9 +406,10 @@ class Users:
         -------
         None.
         """
+        file_name = "LightBulbs_residential.json" if self.building in {"SFH", "TH", "MFH","AB"} else "LightBulbs_nonresidential.json"
 
-        with open(os.path.join(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data'),
-                               'LightBulbs.json')) as json_file:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data',
+                               file_name)) as json_file:
             jsonData = json.load(json_file)
             luminous_flux = []  # The luminous flux of the different available bulbs in lumen
             power = []  # The corresponding power of the different available bulbs in watt
@@ -455,7 +456,7 @@ class Users:
 
         elif self.building in {"Grocery_store"}:
             for j in range(self.nb_rooms):
-                room_illuminance =rd.randint(300, 750)
+                room_illuminance =rd.randint(500, 750)
 
                 room_area = area/self.nb_rooms
                 lm_needed = room_illuminance * room_area
@@ -603,7 +604,7 @@ class Users:
 #            gains_others = temp_gains_others
 #            self.gains = gains_persons + gains_others
 
-    def calcHeatingProfile(self, site, envelope, time_resolution):
+    def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
         """
         Calculate heat demand for each building.
 
@@ -626,19 +627,15 @@ class Users:
 
         dt = time_resolution/(60*60)
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_min, site["T_e"], dt)
-        #(Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], dt)
-        # heating  load for the current time step in Watt
-        self.heat = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.heat[t] = max(0, Q_HC[t])
-        self.annual_heat_demand = np.sum(self.heat)
-
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
-        self.cooling = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.cooling[t] = min(0, Q_HC[t]) * (-1)
-        self.annual_cooling_demand = np.sum(self.cooling)
+        if night_setback==1:
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt, self.building)
+        elif night_setback==0:
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+        # heating and cooling loads for the current time step in Watt
+        self.heat = Q_H
+        self.cooling = Q_C
+        self.annual_heat_demand = np.sum(Q_H)
+        self.annual_cooling_demand = np.sum(Q_C)
 
     def saveProfiles(self, unique_name, path):
         """

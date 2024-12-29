@@ -9,14 +9,14 @@ import districtgenerator.functions.k_medoids as k_medoids
 def _distances(values, norm=2):
     """
     Compute distance matrix for all data sets (rows of values).
-    
+
     Parameters
     ----------
     values : 2-dimensional array
         Rows represent days and columns values.
     norm : integer, optional
         Compute the distance according to this norm. 2 is the standard Euclidean-norm. The default is 2.
-    
+
     Return
     ------
     d : 2-dimensional array
@@ -43,7 +43,7 @@ def _distances(values, norm=2):
 def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_gap=0.0, weights=None):
     """
     Cluster a set of inputs into clusters by solving a k-medoid problem.
-    
+
     Parameters
     ----------
     inputs : 2-dimensional array
@@ -61,7 +61,7 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
         Optimality tolerance (0: proven global optimum). The default is 0.0.
     weights : 1-dimensional array, optional
         Weight for each input. If not provided, all inputs are treated equally.
-    
+
     Returns
     -------
     scaled_typ_days : list

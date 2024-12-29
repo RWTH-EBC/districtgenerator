@@ -212,7 +212,7 @@
     },
     {
       "name": "coeff_ch",
-      "value": 1000.0,
+      "value": 10000.0,
       "unit": "Watt per Watthour",
       "description": "Charging and discharging coefficient."
     },
