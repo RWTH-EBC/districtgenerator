@@ -22,17 +22,27 @@ For the retrofitting of buildings, there are three options based on the extent o
 The surface estimation factors have been calculated. The Data for the calculation is taken from: [German non-residential building typology](https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-Deutschland)
 As there is no data on placement of windows, they are equally distributed.
 
-ow1  = aw_fl [m2] / nrf_2 [m2]
-win1 = fen_fl [m²] / nrf_2 [m2]
-rwt1 = D_fl_wueoA_opak [m2] / nrf_2 [m2]
-gf1 = UG_fl_wueuA / nrf_2 [m2]
+ow1  = aw_fl [m2] / nrf [m2]
+win1 = fen_fl [m²] / nrf [m2]
+rwt1 = D_fl_wueoA_opak [m2] / nrf [m2]
+gf1 = UG_fl_wueuA / nrf [m2]
+
+| German Description                                                                 | Key        | Unit    | Explanation in English                                             |
+|------------------------------------------------------------------------------------|------------|---------|---------------------------------------------------------------------|
+| Verhältnis der Außenwandfläche zur Netto-Raumfläche                                | ow1        | [m²/m²] | Ratio of the exterior wall area to the net floor area               |
+| Verhältnis der Fensterfläche zur Netto-Raumfläche                                  | win1       | [m²/m²] | Ratio of the window area to the net floor area                      |
+| Verhältnis der wärmeübertragenden Fläche des opaken oberen Gebäudeabschlusses zur Netto-Raumfläche | rwt1       | [m²/m²] | Ratio of the heat-transmitting area of the opaque upper building closure to the net floor area |
+| Verhältnis der wärmeübertragenden Fläche des unteren Gebäudeabschlusses zur Netto-Raumfläche | gf1        | [m²/m²] | Ratio of the heat-transmitting area of the lower building closure to the net floor area |
 
 
-g_value for windows is obtained from Tabula and the following classes: 
+g_value for windows is obtained from Tabula and the following classes:
 
-TABULA Window Model                                  | g-Value |
-|------------------------------------------------------|---------|
-| Window_Kunststofffenster, Isolierverglasung | 0.78    |
-| Window_Kunststofffenster, Isolierverglasung | 0.78    |
-| Window_Kunststofffenster, Isolierverglasung | 0.67    |
-| Window_Waermeschutzverglasung, dreifach | 0.5  |
+| German Description (TABULA Window Model)          | Explanation in English                                                        |
+|---------------------------------------------------|-------------------------------------------------------------------------------|
+| Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.78.                      |
+| Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.78.                      |
+| Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.67.                      |
+| Fenster mit Wärmeschutzverglasung (dreifach)      | Window with triple heat-protection glazing; g-value of 0.50.                  |
+
+
+
