@@ -11,18 +11,16 @@ For the retrofitting of buildings, there are three options based on the extent o
     Partially retrofitted: Includes renovations to the basement ceiling, windows, and roof only.
     Fully retrofitted: Includes renovations to all parts of the building, such as the basement ceiling, windows, roof, and walls.
 
-As there is no data on placement of windows, they are equally distributed.
 
 | German Description                                                                 | Key        | Unit    | Explanation in English                                             |
 |------------------------------------------------------------------------------------|------------|---------|---------------------------------------------------------------------|
-| U-Wert Außenwand                                                                   | u_aw       | [W/m²K] | Average area-weighted U-value of the exterior wall                  |
-| U-Wert Fenster                                                                     | u_fen      | [W/m²K] | Average area-weighted U-value of the windows                        |
-| U-Wert Dach                                                                        | u_d_opak   | [W/m²K] | Average area-weighted U-value of the opaque parts of the roof       |
-| U-Wert der unteren Gebäudeabschlusses                                              | u_ug       | [W/m²K] | Average area-weighted U-value of the lower building closure         |
-| Prozentuale Verteilung der Festerflächen                                           |  "wwr_north", "wwr_south", "wwr_east",  "wwr_west"   | - | Average ratio of windows per wall in north, south, east and west  |
-
+| U-Wert Außenwand                                                                   | u_aw       | [W/m²K] | U-value of the exterior wall                  |
+| U-Wert Fenster                                                                     | u_fen      | [W/m²K] | U-value of the windows                        |
+| U-Wert Dach                                                                        | u_d_opak   | [W/m²K] | U-value of the opaque parts of the roof       |
+| U-Wert der unteren Gebäudeabschlusses                                              | u_ug       | [W/m²K] | U-value of the lower building closure         |
 
 The surface estimation factors have been calculated. The Data for the calculation is taken from: [German non-residential building typology](https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-Deutschland)
+As there is no data on placement of windows, they are equally distributed.
 
 ow1  = aw_fl [m2] / nrf_2 [m2]
 win1 = fen_fl [m²] / nrf_2 [m2]
