@@ -194,7 +194,11 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
 
     """
     """
-    T_m_init = 20 #[°C]
+    if building_type in {"SFH", "TH", "MFH", "AB"}:
+        T_m_init = 19  # [°C]
+    else:
+        T_m_init = 12  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
+
     T_set = zoneParameters.T_set_min # THeatingSet
     T_set_night = zoneParameters.T_set_min_night  # THeatingSet
     T_set_ub = zoneParameters.T_set_max                    # TCoolingSet
@@ -312,7 +316,11 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
 
     """
     """
-    T_m_init = 20  # [°C]
+    if building_type in {"SFH", "TH", "MFH", "AB"}:
+        T_m_init = 19  # [°C]
+    else:
+        T_m_init = 12  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
+
     T_set = zoneParameters.T_set_min  # THeatingSet
     T_set_ub = zoneParameters.T_set_max  # TCoolingSet
 
