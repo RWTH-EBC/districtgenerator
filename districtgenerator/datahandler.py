@@ -458,7 +458,88 @@ class Datahandler():
             else:
                 raise AttributeError(f"The building type {building['buildingFeatures']['building']} is currently not supported. ")
 
+    def export_building_data(self, csv_file_path:str) -> None:
+        """
+        Exports relevant envelope  and setting data for each building in self.district to a CSV file.
 
+        # Data to export:
+        # Building ID
+        # Building Type
+        # Year of Construction
+        # Net Leased Area
+        # U-Value Windows
+        # U-Value Walls
+        # Infiltration Rate
+        # Window Area for each direction
+        # Wall Area for each direction
+        # Roof Area
+
+        Args:
+            csv_file_path (str): The full path where the CSV file should be saved.
+
+        Returns:
+            None
+        """
+        # Goal is to have a csv file, that exports all relevant data for each building in the district
+        # If the same file is imported again, the data should be imported correctly and the simulation
+        # should be able to run
+        data_to_export = []
+
+        for i, building in enumerate(self.district):
+            # Example: building info
+            building_id = building["buildingFeatures"]["id"]
+            building_type = building["buildingFeatures"]["building"]
+            year_of_construction = building["buildingFeatures"]["year"]
+            net_leased_area = building["buildingFeatures"]["area"]
+            retrofit_level = building["buildingFeatures"]["retrofit"]
+            
+            envelope_obj = building["envelope"]
+            my_envelope_dict = vars(self.district[i]["envelope"])
+
+            building_dict = {
+                "Building_ID": building_id,
+                "Building_Type": building_type,
+                "Year_Of_Construction": year_of_construction,
+                "retrofit_level": retrofit_level,
+                "Net_Leased_Area": net_leased_area,
+                "Infiltration_Rate": my_envelope_dict["ventilationRate"],
+                "T_set_min": my_envelope_dict["T_set_min"],
+                "T_set_max": my_envelope_dict["T_set_max"],
+                "T_bivalent": my_envelope_dict["T_bivalent"],
+                "T_heatlimit": my_envelope_dict["T_heatlimit"],
+                "U_Value_Windows": my_envelope_dict["U"].get("window", None),
+                "U_Value_Walls": my_envelope_dict["U"].get("opaque", {}).get("wall", None),
+                "U_Value_Roof": my_envelope_dict["U"].get("opaque", {}).get("roof", None),
+                "U_Value_Floor": my_envelope_dict["U"].get("opaque", {}).get("floor", None),
+                "Window_Area_South": my_envelope_dict.get("A", {}).get("window", {}).get("south", None),
+                "Window_Area_North": my_envelope_dict.get("A", {}).get("window", {}).get("north", None),
+                "Window_Area_West": my_envelope_dict.get("A", {}).get("window", {}).get("west", None),
+                "Window_Area_East": my_envelope_dict.get("A", {}).get("window", {}).get("east", None),
+                "Window_Area_Roof": my_envelope_dict.get("A", {}).get("window", {}).get("roof", None),
+                "Wall_Area_South": my_envelope_dict.get("A", {}).get("opaque", {}).get("south", None),
+                "Wall_Area_North": my_envelope_dict.get("A", {}).get("opaque", {}).get("north", None),
+                "Wall_Area_West": my_envelope_dict.get("A", {}).get("opaque", {}).get("west", None),
+                "Wall_Area_East": my_envelope_dict.get("A", {}).get("opaque", {}).get("east", None),
+                "Wall_Area_Roof": my_envelope_dict.get("A", {}).get("opaque", {}).get("roof", None),
+                "Wall_Area_Floor": my_envelope_dict.get("A", {}).get("opaque", {}).get("floor", None),
+                "internal_wall_area": my_envelope_dict.get("A", {}).get("opaque", {}).get("intWall", None),
+
+            }
+            
+
+            data_to_export.append(building_dict)
+
+        df = pd.DataFrame(data_to_export)
+
+        df.to_csv(csv_file_path, index=False)
+        print(f"Successfully exported envelope data to {csv_file_path}")
+
+
+    def import_building_data(self):
+        """
+        Import building data from a csv file
+        """
+        pass
 
     def generateDemands(self, calcUserProfiles:bool=True, saveUserProfiles:bool=True, savePath:str =None):
         """
