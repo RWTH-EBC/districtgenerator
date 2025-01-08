@@ -93,9 +93,7 @@ class Datahandler:
             sheet = workbook.active
 
             for row in sheet.iter_rows(values_only=True):
-                if plz == row[0]:
-                    latitude = row[4]
-                    longitude = row[5]
+                if plz == str(row[0]):
                     weatherdatafile = row[3]
                     weatherdatafile_location = weatherdatafile[8:-9]
                     break
@@ -191,13 +189,13 @@ class Datahandler:
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
 
-        # Load other site-dependent values
+        # Load other site-dependent values based on DIN/TS 12831-1:2020-04
         srcPath = os.path.dirname(os.path.abspath(__file__))
         filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
-        data = pd.read_csv(filePath, delimiter='\t')
+        site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
         # Filter data for the specific zip code
-        filtered_data = data[data['Zip'] == plz]
+        filtered_data = site_data[site_data['Zip'] == plz]
 
         # extract the needed values
         self.site["altitude"] = filtered_data.iloc[0]['Altitude']
@@ -603,7 +601,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self):
+    def designCentralDevices(self, saveGenerationProfiles):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -633,6 +631,18 @@ class Datahandler:
         self.centralDevices["generation"]["PV"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[0]
         self.centralDevices["generation"]["STC"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[1]
         self.centralDevices["generation"]["Wind"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[2]
+
+        # optionally save generation profiles
+        if saveGenerationProfiles == True:
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralPV.csv'),
+                       self.centralDevices["generation"]["PV"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralSTC.csv'),
+                       self.centralDevices["generation"]["STC"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralWind.csv'),
+                       self.centralDevices["generation"]["Wind"],
+                       delimiter=',')
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
