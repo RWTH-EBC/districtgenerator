@@ -128,14 +128,13 @@ class Datahandler:
                 self.site[subData["name"]] = subData["value"]
 
 
-        # %% load weather data for site
-        # extract irradiation and ambient temperature
+        # %% load first day of the year
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-
+        # load weather data
         # select the correct file depending on the TRY weather station location
         weatherData = np.loadtxt(os.path.join(self.filePath, 'weather', "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
                                                 + "/"
@@ -191,6 +190,20 @@ class Datahandler:
                                             temp_wind)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
+
+        # Load other site-dependent values
+        srcPath = os.path.dirname(os.path.abspath(__file__))
+        filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
+        data = pd.read_csv(filePath, delimiter='\t')
+
+        # Filter data for the specific zip code
+        filtered_data = data[data['Zip'] == plz]
+
+        # extract the needed values
+        self.site["altitude"] = filtered_data.iloc[0]['Altitude']
+        self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
+        self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
+        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun

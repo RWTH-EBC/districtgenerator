@@ -69,12 +69,7 @@ class BES:
                 design_data[subData["name"]] = subData["value"]
         T_bivalent = design_data["T_bivalent"]
         T_heatlimit = design_data["T_heatlimit"]
-
-        with open(os.path.join(self.file_path, 'design_weather_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["Klimazone"] == site["climateZone"]:
-                    T_design = subData["Theta_e"]  # [°C] outside design temperature
+        T_design = site["T_ne"]  # [°C] outside design temperature
 
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature

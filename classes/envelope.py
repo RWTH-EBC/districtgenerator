@@ -534,20 +534,11 @@ class Envelope:
             Heat load.
         """
 
-        with open(os.path.join(self.file_path, 'design_weather_data.json')) \
-                as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["Klimazone"] == site["climateZone"]:
-                    # outside design temperature in °C
-                    T_ne = subData["Theta_e"]
-                    # outside average temperature in °C
-                    T_me = subData["Theta_e_m"]
 
         U_TB = 0.05  # [W/m²K] Thermal bridge surcharge
         f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
         # Reduction factor
-        f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
+        f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
         G_w = 1.0  # influence of groundwater neglected
 
         if method == "design": # 10% higher design load to be on the safe side
@@ -555,7 +546,7 @@ class Envelope:
                             self.A["window"]["sum"] * (self.U["window"] + U_TB) +
                             self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
                             self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w +
-                            self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - T_ne)
+                            self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - site["T_ne"])
 
         if method == "bivalent":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
