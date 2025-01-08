@@ -18,7 +18,7 @@ def example8_scenario_evaluation():
     #data.generateDistrictComplete(scenario_name='Quartier_3', calcUserProfiles=False, saveUserProfiles=False,
     #                              fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
     data.initializeBuildings(scenario_name='example')
-    data.generateEnvironment(plz=50672)
+    data.generateEnvironment(plz="52064")
     data.generateBuildings()
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
 
@@ -29,7 +29,7 @@ def example8_scenario_evaluation():
     #input_Quartiersausweis = dataframe
     if centralEnergySupply == True:
         # data.designDecentralDevices(saveGenerationProfiles=True)
-        data.designCentralDevices()
+        data.designCentralDevices(saveGenerationProfiles=True)
 
     else:
         data.designDecentralDevices(saveGenerationProfiles=True)
