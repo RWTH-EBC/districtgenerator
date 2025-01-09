@@ -16,25 +16,24 @@ NON_RESIDENTIAL_BUILDING_TYPES = ["IWU Hotels, Boarding, Restaurants or Catering
 
 class Envelope():
     """
-    Abstract class for envelop component management handling
+    Abstract class for envelop component management handling.
 
     Parameters
     ----------
     prj : Project()
-        Project() instance of TEASER, contains functions to generate
-        archetype buildings
+        Project() instance of TEASER, contains functions to generate archetype buildings.
     building_params : dict
-        building parameters like construction year, retrofit
+        Building parameters like construction year, retrofit.
     construction_type : string
-        building type
+        Building type.
     file_path : str
-        file path
+        File path.
 
     
     Attributes
     ----------
     id : int
-        ID of the building form the scenario-json-file.
+        ID of the building form the scenario-csv-file.
     construction_year : int
         Construction year of the building.
     retrofit : int
@@ -42,12 +41,19 @@ class Envelope():
         0: standard; 1: retrofit; 2: advanced retrofit (according to the web-database TABULA).
     usage_short : string
         building types. Possible are:
-        SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
+        Residential: 
+            SFH: single family house; TH: terraced house; MFH: multifamily house; AB: apartment block
+        Non-Residential: 
+
     """
 
     def __init__(self, prj, building_params, construction_type, file_path, teaser_id=None):
         """
-        Constructor of Envelope Class
+        Constructor of Envelope class.
+
+        Returns
+        -------
+        None.
         """
 
         self.U = {}
@@ -91,7 +97,8 @@ class Envelope():
         """
         # To-Do, implement advanced settings here 
         physics = {}
-        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
+        with open(os.path.join(self.file_path,
+                               'physics_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 physics[subData["name"]] = subData["value"]
@@ -100,10 +107,9 @@ class Envelope():
         self.rho_air = physics["rho_air"]  # [kg/m3]
 
         design_data = {}
-        # To-Do: Update this on the type
-        if self.usage_short in RESIDENTIAL_BUILDING_TYPES:
-            with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
-                jsonData = json.load(json_file)
+        with open(os.path.join(self.file_path,
+                                'design_building_data.json')) as json_file:
+            jsonData = json.load(json_file)
             for subData in jsonData:
                 design_data[subData["name"]] = subData["value"]
 
@@ -123,27 +129,31 @@ class Envelope():
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
-        Computation of (specific) heat capacity of each wall-type-surface
-        ISO 13786 A.2.4
-        Result is in J/m2K
+        Computation of (specific) heat capacity of each wall-type-surface.
+        DIN EN ISO 13786:2008-04: Appendix A.2.4: Method of effective thickness
+        (latest: DIN EN ISO 13786:2018-04; here it is appendix C.2.4).
+        Result is in [J/m²K].
 
         Parameters
         ----------
-        d :
-
-        d_iso :
-
-        density :
-
-        cp :
+        d : array-like
+            Thicknesses of the single layers of the wall [m].
+        d_iso : float
+            Thickness of materials between the considered surface and the first thermal insulation layer [m].
+        density : array-like
+            Densities of the single layers of the wall [kg/m³].
+        cp : array-like
+            Specific heat capacities of the single layers of the wall [J/(kg⋅K)].
 
         Returns
-        ----------
+        -------
         kappa : float
-            (specific) heat capacity of each wall-type-surface
-
+            Area-related heat capacity of each wall-type-surface [J/m²K].
         """
+
+        # determine effective thickness
         d_t = min(0.5 * np.sum(d), d_iso, 0.1)
+
         sum_d_i = d[0]
         i = 0
         kappa = 0
@@ -196,9 +206,8 @@ class Envelope():
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
     def loadComponentProperties(self, prj):
-
         """
-        Load component-specific material parameters
+        Load component-specific material parameters.
 
         Parameters
         ----------
@@ -207,6 +216,9 @@ class Envelope():
             Can either be Non-Residential or Residential. 
             Type is checked and respective tool is chosen. 
 
+        Returns
+        -------
+        None.
         """
 
         
@@ -226,8 +238,7 @@ class Envelope():
             self.g_gl
         ]
         self.opaque_ext = ["wall", "roof", "floor"]
-        self.opaque = {"wall", "roof", "floor", "intWall", "ceiling",
-                       "intFloor"}
+        self.opaque = {"wall", "roof", "floor", "intWall", "ceiling", "intFloor"}
 
         for x in self.attributes:
             x["window"] = []
@@ -253,7 +264,7 @@ class Envelope():
         self.epsilon["window"] = 0.9
 
         # ASHRAE 140 : 2011, Table 5.3,
-        # page 18 (Absorptionskoeffizient opake Fläche)
+        # page 18 (absorption coefficient opaque area)
         for x in self.opaque_ext:
             self.alpha_Sc["opaque"][x] = 0.6
         
@@ -538,15 +549,17 @@ class Envelope():
 
 
     def loadAreas(self, prj):
-
         """
-        Load component-specific area data
+        Load component-specific area data.
 
         Parameters
         ----------
         prj : class
-            contains functions to generate archetype buildings
+            Contains functions to generate archetype buildings.
 
+        Returns
+        -------
+        None.
         """
 
         if isinstance(prj, Project):
@@ -567,6 +580,12 @@ class Envelope():
                 self.A["opaque"]["west"] = 0.0
                 self.A["opaque"]["east"] = 0.0
 
+        # Area of internal floor equals usable area
+        self.A["opaque"]["intFloor"] = self.A["f"]
+        # Area of the highest floor equals area of base plate
+        self.A["opaque"]["ceiling"] = self.A["opaque"]["floor"]
+        # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)
+        self.A["opaque"]["intWall"] = 1.5 * self.A["opaque"]["wall"]
             try:
                 self.A["opaque"]["roof"] = prj.buildings[self.teaser_id].outer_area[-1]
             except KeyError:
@@ -657,22 +676,23 @@ class Envelope():
              raise TypeError("The provided project is not a TEASER project or a Non-Residential Building Class object.")
 
 
-    def calcHeatLoad(self, site, method="design"):
 
+
+    def calcHeatLoad(self, site, method="design"):
         """
+        Calculate heat load.
 
         Parameters
         ----------
         site : dict
-            information about location and climate conditions
-        method : string
-            method to calculate heat load
+            Information about location and climate conditions.
+        method : string, optional
+            Method to calculate heat load. The default is "design".
+
         Returns
         -------
-
         Q_nHC : float
-            heat load
-
+            Heat load.
         """
 
         with open(os.path.join(self.file_path, 'design_weather_data.json')) \
@@ -688,11 +708,12 @@ class Envelope():
                     # outside average temperature in °C
                     T_me = subData["Theta_e_m"]
 
-        U_TB = 0.05  # [W/m²K] Wärmebrückenzuschlag
-        f_g1 = 1.45  # Korrekturfaktor jährliche Schwankung der Außentemperatur
+        U_TB = 0.05  # [W/m²K] Thermal bridge surcharge
+        f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
         # Reduction factor
         f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
-        G_w = 1.0  # influence of ground water neglected
+        G_w = 1.0  # influence of groundwater neglected
+
         if method == "design":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                      self.A["window"]["sum"] * self.U["window"] +
@@ -764,15 +785,19 @@ class Envelope():
 
 
     def calcNormativeProperties(self, SunRad, internal_gains):
-
         """
+        Calculate normative properties according to DIN EN ISO 13790.
 
         Parameters
         ----------
-        SunRad : array
-            solar radiation
+        SunRad : array-like
+            Solar radiation.
         internal_gains :
-            internal gains of the building
+            Internal gains of the building.
+
+        Returns
+        -------
+        None.
         """
 
         if SunRad is None:
@@ -837,7 +862,7 @@ class Envelope():
         self.A_tot = self.lambda_at * self.A["f"]
         self.H_tr_is = self.h_is * self.A_tot
 
-        # shadow coefficient for sunblinds
+        # shadow coefficient for sun blinds
         # (DIN EN ISO 13790, section 11.4.3, page 71)
         # Assumption : no sunblinds (modelled manually, see below)
         # To-Do: Implement different shading coefficients for different facades
@@ -851,12 +876,9 @@ class Envelope():
         # [kW/(m²*K)] DIN EN ISO 13790, section 11.4.6, page 73
         h_r_factor = 5.0  # W / (m²K)
         self.h_r = {
-            ("opaque", "wall"): h_r_factor * np.array(self.epsilon[
-                                                          "opaque"]["wall"]),
-            ("opaque", "roof"): h_r_factor * np.array(self.epsilon[
-                                                          "opaque"]["roof"]),
-            ("opaque", "floor"): h_r_factor * np.array(self.epsilon[
-                                                           "opaque"]["floor"]),
+            ("opaque", "wall"): h_r_factor * np.array(self.epsilon["opaque"]["wall"]),
+            ("opaque", "roof"): h_r_factor * np.array(self.epsilon["opaque"]["roof"]),
+            ("opaque", "floor"): h_r_factor * np.array(self.epsilon["opaque"]["floor"]),
             "window": h_r_factor * np.array(self.epsilon["window"])}
 
         # A_m (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)
@@ -891,7 +913,7 @@ class Envelope():
         # (DIN EN ISO 13790, section 11.4.6,  page 73)
         self.Delta_theta_er = 11  # [K]
 
-        # dictionary for irradiation to imitate sunblinds manually [kW/m²]
+        # dictionary for irradiation to imitate sun blinds manually [kW/m²]
         self.I_sol = {}
         directions = ("south", "west", "north", "east", "roof")
         for drct in range(len(directions)):
@@ -905,8 +927,7 @@ class Envelope():
         for t in range(len(SunRad[0])):
             for drct3 in range(len(directions)):  # for all directions
                 if SunRad[drct3, t] > limit_shut_blinds:
-                    self.I_sol["window", directions[drct3]][t] = 0.15 * SunRad[
-                        drct3, t].copy()
+                    self.I_sol["window", directions[drct3]][t] = 0.15 * SunRad[drct3, t].copy()
 
         # reference variables to reduce code length
         A_j_k = {}
@@ -974,10 +995,8 @@ class Envelope():
             # heat flow phi_st [kW]
             # (DIN EN ISO 13790, section C2, page 110, eq. C.3)
             self.phi_st[t] = (0.5 * phi_int[t] + phi_sol[t] - self.phi_m[t] -
-                              self.H_tr_w / 9.1 / self.A_tot * 0.5 * phi_int[
-                                  t] -
-                              1.0 / 9.1 / self.A_tot * self.A["window"][
-                                  "sum"] *
+                              self.H_tr_w / 9.1 / self.A_tot * 0.5 * phi_int[t] -
+                              1.0 / 9.1 / self.A_tot * self.A["window"]["sum"] *
                               (sum(self.U["window"] * A_j_k[t, drct3] for drct3
                                    in direction3)
                                + sum(self.U["window"] * A_j_k[t, drct4] for
@@ -990,9 +1009,9 @@ class Envelope():
             # Simplification: H_tr_em = H_tr_op
             # (DIN EN ISO 13790, section 8.3, page 43)
             self.H_tr_em[t] = sum(self.A["opaque"][drct2]
-                                  * self.U["opaque"][drct2] * self.b_tr[drct2][
-                                      t]
+                                  * self.U["opaque"][drct2] * self.b_tr[drct2][t]
                                   for drct2 in direction2)
+            
     
     def validate_id(self, prj):
         """

@@ -2,25 +2,30 @@
 """
 """
 import os
-import numpy as np
 import random as rd
+import json
+import numpy as np
+import pylightxl as xl
+
 import richardsonpy.classes.occupancy as occ
 import richardsonpy.functions.change_resolution as cr
+
+import functions.OpenDHW as OpenDHW
 import functions.dhw_stochastical as dhw_profil
 import functions.schedule_reader as schedule_reader 
-import pylightxl as xl
+
 
 class Profiles():
     """
-    Profile class
-    calculating user related profiles of a building or flat
+    Profile class.
+    Calculating user related profiles of a building or flat.
 
     Parameters
     ----------
     number_occupants : integer
         Number of occupants who live in the house or flat.
     initial_day : integer
-        Day of the week with which the generation starts
+        Day of the week with which the generation starts.
         1-7 for monday-sunday.
     nb_days : integer
         Number of days for which a stochastic profile is generated.
@@ -29,24 +34,27 @@ class Profiles():
 
     Attributes
     ----------
-    activity_profile : array
-        Numpy-arry with acctive occupants 10-minutes-wise.
-    occ_profile : array
-         stochastic occupancy profiles for a district
-    app_load : Array-like
+    activity_profile : array-like
+        Numpy-array with active occupants 10-minutes-wise.
+    occ_profile : array-like
+        Stochastic occupancy profiles for a district.
+    app_load : array-like
         Electric load profile of appliances in W.
-    light_load : Array-like
+    light_load : array-like
         Electric load profile of lighting in W.
     """
 
-    def __init__(self, number_occupants, initital_day, nb_days, time_resolution):
-
+    def __init__(self, number_occupants, initial_day, nb_days, time_resolution):
         """
-        Constructor of Profiles Class
+        Constructor of Profiles class.
+
+        Returns
+        -------
+        None.
         """
 
         self.number_occupants = number_occupants
-        self.initial_day = initital_day
+        self.initial_day = initial_day
         self.nb_days = nb_days
         self.time_resolution = time_resolution
 
@@ -61,7 +69,7 @@ class Profiles():
     def generate_activity_profile(self):
         """
         Generate a stochastic activity profile
-        (on base of ridchardsonpy)
+        (on base of ridchardsonpy).
 
         Parameters
         ----------
@@ -73,24 +81,30 @@ class Profiles():
         nb_days : integer
             Number of days for which a stochastic profile is generated.
 
+        Returns
+        -------
+        None.
         """
 
         activity = occ.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
         self.activity_profile = activity.occupancy
 
-
     def generate_occupancy_profiles(self):
         """
         Generate stochastic occupancy profiles for a district for calculating internal gains.
-        Change time resolution of 10 min profiles to required resolution
+        Change time resolution of 10 min profiles to required resolution.
 
         Parameters
         ----------
         time_resolution : integer
-            resolution of time steps of output array in seconds.
-        activity_profile : array
-            Numpy-arry with acctive occupants 10-minutes-wise.
+            Resolution of time steps of output array in seconds.
+        activity_profile : array-like
+            Numpy-arry with active occupants 10-minutes-wise.
 
+        Returns
+        -------
+        self.occ_profile : array-like
+            Number of present occupants.
         """
         # To-Do: calculate the 
         # To-Do: Check wheter 10 min is really necessary 
@@ -100,30 +114,32 @@ class Profiles():
                                                 np.ones(60*3)),
                                                 axis=None)
 
-
-        # generate array for minutly profile
-        activity_profile_min = np.zeros(len(self.activity_profile)*10)
+        # generate array for minutely profile
+        activity_profile_min = np.zeros(len(self.activity_profile) * 10)
         # generate array for time adjusted profile
-        self.occ_profile = np.zeros(int(len(self.activity_profile)*10/tr_min))
+        self.occ_profile = np.zeros(int(len(self.activity_profile) * 10 / tr_min))
 
-        # append minutly sia profiles until nb_days is reached
+        # append minutely sia profiles until nb_days is reached
         sia_profile = []
         while len(sia_profile) < len(activity_profile_min):
-            sia_profile = np.concatenate((sia_profile,sia_profile_daily_min),axis=None)
+            sia_profile = np.concatenate((sia_profile, sia_profile_daily_min), axis=None)
         sia_profile = sia_profile * max(self.activity_profile)
 
         # calculate minutely profile
         for t in range(len(activity_profile_min)):
-            activity_profile_min[t] = max(self.activity_profile[int(t/10)],sia_profile[t])
+            activity_profile_min[t] = max(self.activity_profile[int(t/10)], sia_profile[t])
         for t in range(len(self.occ_profile)):
-            self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t*tr_min):(t*tr_min+tr_min)]))
+            self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t * tr_min):(t * tr_min + tr_min)]))
 
         return self.occ_profile
 
-
     def loadProbabilitiesDhw(self):
         """
-        Load probabilities of dhw usage
+        Load probabilities of dhw usage.
+
+        Returns
+        -------
+        None.
         """
 
         #  Define src path
@@ -157,62 +173,56 @@ class Profiles():
         # Load profiles
         self.prob_profiles_dhw = profiles
 
-
-    def generate_dhw_profile(self):
+    def generate_dhw_profile(self, building):
         """
         Generate a stochastic dhw profile
-        (on base of pycity_base)
+        (on base of DHWclac).
+        https://www.uni-kassel.de/maschinenbau/institute/thermische-energietechnik/fachgebiete/solar-und-anlagentechnik/downloads
+        https://github.com/RWTH-EBC/OpenDHW
 
         Parameters
         ----------
-        time_resolution : integer
-            resolution of time steps of output array in seconds.
-        activity_profile : array
-            Numpy-arry with acctive occupants 10-minutes-wise.
-        prob_profiles_dhw: array
-            probabilities of dhw usage
-        initial_day : integer
-            Day of the week with which the generation starts
-            1-7 for monday-sunday.
+        s_step : integer
+            Resolution of time steps of output array in seconds.
+        Categories: 1 or 4
+            Either one or four categories with different mean volume rates, tapping times and frequencies can be defined.
+        occupancy: integer
+            Maximum number of occupants in this building.
+        mean_drawoff_vol_per_day : array-like
+            Total mean daily draw-off volume per person per day in liter.
 
         Returns
         -------
-        dhw_heat : array
+        dhw_heat : array-like
             Numpy-array with heat demand of dhw consumption in W.
-
         """
 
-        # Run simulation
-        # run the simulation for just x days
-        # therefor occupancy has to have the length of x days
-        (dhw_water, dhw_heat) = dhw_profil.full_year_computation(self.activity_profile,
-                                                         self.prob_profiles_dhw,
-                                                         self.time_resolution,
-                                                         self.initial_day)
 
-        return dhw_heat
+        dhw_profile = OpenDHW.generate_dhw_profile(s_step=60, categories=1, occupancy=self.number_occupants, mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"])
+        dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
+        dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=35)
 
+        return dhw_heat["Heat_W"].values
 
-    def generate_el_profile(self, irradiance, el_wrapper,
-                            annual_demand, do_normalization = True):
+    def generate_el_profile(self, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """
         Generate electric load profile for one household
 
         Parameters
         -------
-        irradiance : array
-            if none is given default weather data (TRY 2015 Potsdam) is used
+        irradiance : array-like
+            If none is given default weather data (TRY 2015 Potsdam) is used.
         el_wrapper : object
-            This objects holdes information about the lighting and appliance configuration.
+            This objects holds information about the lighting and appliance configuration.
         annual_demand : integer
-            Annual elictricity demand in kWh.
-        do_normalization : boolean
-            Normalize el. load profile to annual_demand
+            Annual electricity demand in kWh.
+        do_normalization : boolean, optional
+            Normalize el. load profile to annual_demand. The default is True.
+
         Returns
         -------
-        loadcurve : Array-like
+        loadcurve : array-like
             Total electric load profile in W.
-
         """
 
         # Make simulation over x days
@@ -222,8 +232,7 @@ class Profiles():
         timesteps_irr = int(self.nb_days * 3600 * 24 / len(irradiance))
 
         if self.time_resolution != timesteps_irr:  # pragma: no cover
-            msg = 'Time discretization of irradiance is different from ' \
-                  'timestep ' \
+            msg = 'Time discretization of irradiance is different from timestep ' \
                   + str(self.time_resolution) \
                   + 'seconds . You need to change the resolution, first!'
             raise AssertionError(msg)
@@ -234,11 +243,11 @@ class Profiles():
         timesteps_per_Day = int(86400 / self.time_resolution)
 
         # Array holding index of timesteps (60 second timesteps)
-        ### Irradiance is needed for every minute of the day
+        # Irradiance is needed for every minute of the day
         required_timestamp = np.arange(1440)
 
         # Array holding each timestep in seconds
-        ### the timesteps of the irradiance array in minutes
+        # the timesteps of the irradiance array in minutes
         given_timestamp = self.time_resolution / _timestep_rich * np.arange(timesteps_per_Day)
 
         #  Loop over all days
@@ -254,8 +263,7 @@ class Profiles():
             irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
 
             #  Interpolate radiation values for required timestep of 60 seconds
-            irrad_day_minutewise = np.interp(required_timestamp,
-                                            given_timestamp, irrad_day)
+            irrad_day_minutewise = np.interp(required_timestamp, given_timestamp, irrad_day)
 
             # Extract current occupancy profile for current day
             # (10-minutes-timestep assumed)
@@ -284,10 +292,8 @@ class Profiles():
 
         # Change time resolution to timestep defined by user
         loadcurve = cr.change_resolution(res, _timestep_rich, self.time_resolution)
-        self.light_load = cr.change_resolution(self.light_load, _timestep_rich,
-                                          self.time_resolution)
-        self.app_load = cr.change_resolution(self.app_load, _timestep_rich,
-                                        self.time_resolution)
+        self.light_load = cr.change_resolution(self.light_load, _timestep_rich, self.time_resolution)
+        self.app_load = cr.change_resolution(self.app_load, _timestep_rich, self.time_resolution)
 
         #  Normalize el. load profile to annual_demand
         if do_normalization:
@@ -303,7 +309,8 @@ class Profiles():
             curr_app_dem = sum(energy_app) / (3600 * 1000)
 
             # these factor can be used for normalization or just to compare with annual demand
-            # for comparison with annual demand-> if factor > 1: current demand for one year would be beneath annual demand
+            # for comparison with annual demand:
+            # -> if factor > 1: current demand for one year would be beneath annual demand
             factor_compare_annual_demand = annual_demand * (self.nb_days / 365) / curr_el_dem
             factor_compare_annual_lighting = 0.1 * annual_demand * (self.nb_days / 365) / curr_lighting_dem
             factor_compare_annual_app = 0.9 * annual_demand * (self.nb_days / 365) / curr_app_dem
@@ -329,24 +336,23 @@ class Profiles():
             share of waste heat (LED)
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
             Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
-            62 (2014), Januar, 32–41.
+            62 (2014), January, 32–41.
         appGain :
             share of waste heat (assumed)
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
             Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
-            62 (2014), Januar, 32–41.
+            62 (2014), January, 32–41.
         occ_profile : float
-             stochastic occupancy profiles for a district
-        app_load : Array-like
+             stochastic occupancy profiles for a district.
+        app_load : array-like
             Electric load profile of appliances in W.
-        light_load : Array-like
+        light_load : array-like
             Electric load profile of lighting in W.
 
         Returns
         -------
-        gains : array
-            Internal gain of each flat
-
+        gains : array-like
+            Internal gain of each flat.
         """
         # To - Do adjust to personal heat gains depending on builiding type 
         personGain = 70.0  # [Watt]
@@ -357,6 +363,44 @@ class Profiles():
 
         return gains
 
+    def generate_EV_profile(self, occ):
+        """
+        Generate profile for an electric vehicle (EV)
+
+        Returns
+        -------
+        car_demand_total : list
+            Electricity demand of the EV in [Wh].
+        """
+
+        # determine how long one day is (in number of steps)
+        array = int(len(occ) / self.nb_days)
+        # initialize empty list for all days
+        car_demand_total = []
+        # loop over all days
+        for day in range(self.nb_days):
+            # slice occupancy profile for current day
+            occ_day = occ[day * array:(day + 1) * array]
+            # initialize electricity demand of EV for current day
+            car_demand_day = np.zeros(len(occ_day))
+            # identify time steps where nobody is home
+            nobody_home = np.where(occ_day == 0.0)
+            try:
+                # assumption: car returns shortly after the last time step when nobody is home
+                car_almost_arrives = nobody_home[0][-1]
+            except:
+                # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
+                car_almost_arrives = array - int(array / 4)
+            # calculate electricity demand of current day [Wh]
+            demand = max(0, rd.gauss(5000, 0.5 * 5000))
+            # demand for the energy system at home just relevant with return of EV
+            # assumption: just last return of the day is relevant, because EV is not connected at home between
+            # first leave and last return of the day
+            car_demand_day[car_almost_arrives] = demand
+            # add current day to demand for all days
+            car_demand_total[day * array:(day + 1) * array] = car_demand_day
+
+        return car_demand_total
 
 class NonResidentialProfiles():
     """

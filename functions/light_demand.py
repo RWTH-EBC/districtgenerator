@@ -45,6 +45,37 @@ def get_lightning_load(building_type):
 
 
 
+def get_lightning_control(building_type):
+    """
+    Get Lichtausnutzungsgrad der Verglasung (lighting_control), 
+    Lux threshold at which the light turns on
+    Map 'E_m' from data_18599_10_4 to building_data
+
+    """ 
+
+    # data_type = _assignment.get(building_type)
+    data_type = schedule_reader.getBuildingType(kind='18599', term=building_type)
+    if data_type is None:
+        print(f"No schedule for building type {building_type}")
+        return None, None
+   
+    data_dir_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    maintenance_data_path = os.path.join(data_dir_path, 'data', 'norm_profiles', '18599_10_4_data.csv')
+
+
+    try:
+        maintenance_data_schedule = pd.read_csv(maintenance_data_path, sep=';')
+        lighntning_control = maintenance_data_schedule[maintenance_data_schedule["typ_18599"] == data_type]["E_m"].iloc[0]
+
+        return  lighntning_control
+    except FileNotFoundError:
+        print(f"File not found: {maintenance_data_path}")
+        return None
+    except IndexError:
+        print(f"No data for light demand available for {building_type}")
+        return None
+
+
 def calculate_light_demand(building_type, occupancy_schedule, illuminance, area):
     """
     Calculates the lighting demand for a building based on illuminance, occupancy, and area.
@@ -69,7 +100,6 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
     """
     # This code calculates the lighting demand for a building based on various factors:
 
-    # 1. Summing illuminance:
     # If illuminance is a list of Series (representing different facades), it's combined.
     # If it's a numpy array, it's summed and converted to a pandas Series.
     if isinstance(illuminance, list):
@@ -78,22 +108,17 @@ def calculate_light_demand(building_type, occupancy_schedule, illuminance, area)
         total_illuminance = np.sum(illuminance, axis=0)
         illuminance = pd.Series(total_illuminance, index=occupancy_schedule.index)
 
-    # 2. Gathering lighting parameters:
     lighting_load = get_lightning_load(building_type)  # Lighting power density (W/m2)
     lighting_control = schedule_reader.get_lightning_control(building_type)  # Illuminance threshold (lux)
     lighting_maintenance_factor = get_lighting_maintenance_factor(building_type)  # Maintenance factor
 
-    # 3. Calculating actual illuminance (lux):
     # 0.45 is a light utilization factor according to Jayathissa 2020 and DIBS
     # Jayathissa, D. (2020): https://github.com/architecture-building-systems/RC_BuildingSimulator
     lux = (illuminance * 0.45 * lighting_maintenance_factor) / area
 
-    # 4. Determining when artificial lighting is needed:
     # Lighting is needed when lux is below the threshold and the space is occupied
     mask = (lux < lighting_control) & (occupancy_schedule["OCCUPANCY"] > 0)
 
-    # 5. Calculating lighting demand:
-    # Initialize with zeros
     lighting_demand = pd.Series(0.0, index=occupancy_schedule.index)
     # Calculate demand only when lighting is needed (mask is True)
     lighting_demand[mask] = lighting_load * area * occupancy_schedule["OCCUPANCY"][mask]

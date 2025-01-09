@@ -16,7 +16,7 @@ def example_seed_2():
     # Do you know the method "seed" from the module random?
     # The method "seed" can customize the start number of the random number generator.
     # It is used, to get the same random number multiple times.
-    # For our district generator, we can use this funktion, to generate the same profiles multiple times.
+    # For our district generator, we can use this function, to generate the same profiles multiple times.
 
 
     # For reference, we first generate a district with a seed(2). Then we generate a district twice with a seed (1)

@@ -37,8 +37,8 @@
   },
   {
     "name": "TRYType",
-    "value": "kalt",
+    "value": "Wint",
     "unit": "-",
-    "description": "Test referece conditions of DWD. Possible entries are normal, kalt, warm."
+    "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   }
 ]
