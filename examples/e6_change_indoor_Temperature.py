@@ -28,7 +28,7 @@ def example_change_indoor_temperature():
 
     # Or we check the design heat load of our first building.
     print("\nThe design heat load of building 0  now is "
-          + str(round(data.district[0]["heatload"])) + "W.")
+          + str(round(data.district[0]["envelope"].heatload)) + "W.")
 
     return data
 

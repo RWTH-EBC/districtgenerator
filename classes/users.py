@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-
+import json
+import statistics
 import os, math
 import random as rd
 import numpy as np
@@ -78,7 +79,7 @@ class Users:
         self.generate_number_flats(area)
         self.generate_number_occupants(area)
         self.generate_annual_el_consumption()
-        self.generate_lighting_index()
+        self.generate_lighting_index(area)
         self.create_el_wrapper()
 
     def generate_number_flats(self, area):
@@ -190,45 +191,70 @@ class Users:
 
         Parameters
         ----------
-        standard_consumption : standard annual consumption in kWh (assumption).
+        consumption_range : range of the annual consumption of electricity in kWh, not including electricity used for heating, dhw and cooling
 
         Returns
         -------
         None.
         """
-
-        # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
+        if self.building in {"SFH","TH","MFH","AB"}:
+        # source: https://www.stromspiegel.de/fileadmin/ssi/stromspiegel/Downloads/StromspiegelFlyer_2023_Web.pdf
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
-        standard_consumption = {"SFH": {1: 2400,
-                                        2: 3000,
-                                        3: 3600,
-                                        4: 4000,
-                                        5: 5000},
-                                "MFH": {1: 1400,
-                                        2: 2000,
-                                        3: 2600,
-                                        4: 2900,
-                                        5: 3000}}
+        # Depending on the number of occupants in the household, there is a range of annual electricity demand with the corresponding probabilities
+            consumption_range = {"SFH" : {1 : [1100,1400,1800,2200,2600,3400,4500,4800],
+                                             2 : [1700,2000,2500,2800,3100,3500,4300,4600],
+                                             3 : [2200,2500,3000,3500,3900,4400,5200,5500],
+                                             4 : [2500,2800,3500,3900,4300,5000,6000,6300],
+                                             5 : [2900,3200,4000,4500,5200,6000,7600,7900]},
+                                    "MFH" : {1 : [600,800,1000,1300,1500,1700,2100,2300],
+                                             2 : [1200,1400,1700,2000,2300,2500,3000,3200],
+                                             3 : [1500,1700,2100,2500,2900,3300,3800,4000],
+                                             4 : [1600,1800,2300,2600,3000,3600,4400,4600],
+                                             5 : [1300,1500,2100,2700,3400,4100,5500,5700]}}
 
-        self.annual_el_demand = np.zeros(self.nb_flats)
-        # assumption: standard deviation 10% of mean value
-        for j in range(self.nb_flats):
-            if self.building == "SFH":
-                annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
-            if self.building == "TH":
-                annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
-            if self.building == "MFH":
-                annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
-            if self.building == "AB":
-                annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
+            probabilities = [0.143, 0.143, 0.143, 0.142, 0.143, 0.143, 0.143]
 
-    def generate_lighting_index(self):
+            self.annual_el_demand = np.zeros(self.nb_flats)
+            for j in range(self.nb_flats):
+                if self.building == "SFH":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["SFH"][self.nb_occ[j]][i - 1], consumption_range["SFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+                if self.building == "TH":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["SFH"][self.nb_occ[j]][i - 1],consumption_range["SFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+                if self.building == "MFH":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["MFH"][self.nb_occ[j]][i - 1], consumption_range["MFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+                if self.building == "AB":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["MFH"][self.nb_occ[j]][i - 1], consumption_range["MFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+    def generate_lighting_index(self, area):
         """
-        Choose a random lighting index between 0 and 99.
+        Choose a random lighting index between 0 and 99 for the residential buildings.
         This index defines the lighting configuration of the household.
         There are 100 predefined lighting configurations.
 
@@ -265,32 +291,32 @@ class Users:
         -------
         None.
         """
+        if self.building in {"SFH","TH","MFH","AB"}:
+            src_path = os.path.dirname(richardsonpy.__file__)
+            path_app = os.path.join(src_path, 'inputs', 'Appliances.csv')
+            path_light = os.path.join(src_path, 'inputs', 'LightBulbs.csv')
 
-        src_path = os.path.dirname(richardsonpy.__file__)
-        path_app = os.path.join(src_path, 'inputs', 'Appliances.csv')
-        path_light = os.path.join(src_path, 'inputs', 'LightBulbs.csv')
+            for j in range(self.nb_flats):
 
-        for j in range(self.nb_flats):
+                # annual demand of the electric appliances (annual demand minus lighting)
+                # source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel
+                # share of the electricity demand for lighting of the total electricity demand without heating, dhw and cooling for 2022: 7.9 / 81.8 = 9.6%
+                appliancesDemand = 0.904 * self.annual_el_demand[j]
 
-            # annual demand of the electric appliances (annual demand minus lighting)
-            # source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel
-            # values from diagram for 2018 without heating, dhw and cooling: 8,1 / 81,1 = 10,0%
-            appliancesDemand = 0.9 * self.annual_el_demand[j]
+                # Create and save appliances object
+                appliances = \
+                    app_model.Appliances(path_app,
+                                         annual_consumption=appliancesDemand,
+                                         randomize_appliances=True,
+                                         max_iter=15,
+                                         prev_heat_dev=True)
 
-            # Create and save appliances object
-            appliances = \
-                app_model.Appliances(path_app,
-                                     annual_consumption=appliancesDemand,
-                                     randomize_appliances=True,
-                                     max_iter=15,
-                                     prev_heat_dev=True)
+                # Create and save light configuration object
+                lights = light_model.load_lighting_profile(filename=path_light,
+                                                           index=self.lighting_index[j])
 
-            # Create and save light configuration object
-            lights = light_model.load_lighting_profile(filename=path_light,
-                                                       index=self.lighting_index[j])
-
-            #  Create wrapper object
-            self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
+                #  Create wrapper object
+                self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
     def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
         """
