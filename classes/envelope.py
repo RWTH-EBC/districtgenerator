@@ -96,7 +96,9 @@ class Envelope:
                 design_data[subData["name"]] = subData["value"]
 
         self.T_set_min = design_data["T_set_min"]
+        self.T_set_min_night = design_data["T_set_min_night"]
         self.T_set_max = design_data["T_set_max"]
+        self.T_set_max_night = design_data["T_set_max_night"]
         self.ventilationRate = design_data["ventilation_rate"]
         self.T_bivalent = design_data["T_bivalent"]
         self.T_heatlimit = design_data["T_heatlimit"]
@@ -492,15 +494,6 @@ class Envelope:
             Heat load.
         """
 
-        with open(os.path.join(self.file_path, 'design_weather_data.json')) \
-                as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["Klimazone"] == site["climateZone"]:
-                    # outside design temperature in °C
-                    T_ne = subData["Theta_e"]
-                    # outside average temperature in °C
-                    T_me = subData["Theta_e_m"]
 
         U_TB = 0.05  # [W/m²K] Thermal bridge surcharge
         f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
@@ -532,6 +525,9 @@ class Envelope:
                        * (self.T_set_min - self.T_heatlimit)
 
         return Q_nHC
+    def calculateHeatCapacity(self):
+        self.C_m = sum((self.kappa["opaque"][x]
+                            * self.A["opaque"][x]) for x in self.opaque)
 
     def calcNormativeProperties(self, SunRad, internal_gains):
         """
@@ -551,26 +547,7 @@ class Envelope:
 
         if SunRad is None:
             SunRad = []
-        self.C_m = sum((self.kappa["opaque"][x]
-                        * self.A["opaque"][x]) for x in self.opaque)
-        temp = self.C_m / self.A["f"]
-
-        # 5 possible building classes DIN EN ISO 13790
-        x = np.zeros(5)
-        # upper and lower bounds for classes
-        low = [0.0, 95000.0, 137500.0, 212500.0, 315000.0]
-        up = [95000.0, 137500.0, 212500.0, 315000.0, 10000000.0]
-
-        for i in range(len(low)):
-            if low[i] <= temp <= up[i]:
-                x[i] = 1
-            else:
-                x[i] = 0
-
-        # Constants for calculation of A_m, dependent of building class
-        # (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)
-        f_class_values = [2.5, 2.5, 2.5, 3.0, 3.5]
-        self.f_class = {"Am": sum(x * f_class_values)}
+        C_m = self.calculateHeatCapacity()
 
         # specific heat transfer coefficient
         # (DIN EN ISO 13790, section 7.2.2.2, page 35)
@@ -630,13 +607,10 @@ class Envelope:
             ("opaque", "floor"): h_r_factor * np.array(self.epsilon["opaque"]["floor"]),
             "window": h_r_factor * np.array(self.epsilon["window"])}
 
-        # A_m (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)
-        self.A_m = self.f_class["Am"] * self.A["f"]
-
         # H_tr_w (DIN EN ISO 13790, section 8.3.1, page 44, eq. 18)
         self.H_tr_w = self.A["window"]["sum"] * self.U["window"]
 
-        self.H_tr_ms = self.f_class["Am"] * self.A["f"] * self.h_ms
+        self.H_tr_ms = sum(self.A["opaque"][x] for x in self.opaque) * self.h_ms
 
         # matching coefficient for thermal transmittance coefficient
         # if temperature is unequal to T_e, otherwise = 1
@@ -727,32 +701,16 @@ class Envelope:
                           sum(A_j_k[t, drct4] for drct4 in direction4) +
                           sum(B_i_k[t, drct] for drct in direction)
                           )
+            # Am is the effective area responsible for the heat capacity
+            self.A_m = sum(self.A["opaque"][x] for x in self.opaque)
 
-            # heat flow phi_m [kW]
+            # heat flow into the thermalmass phi_m [kW]
             # (DIN EN ISO 13790, section C2, page 110, eq. C.2)
-            self.phi_m[t] = (self.A_m / self.A_tot * 0.5 * phi_int[t] +
-                             1.0 / self.A_tot * self.A["f"] *
-                             (sum(
-                                 self.f_class["Am"] * A_j_k[t, drct3] for drct3
-                                 in direction3)
-                              + sum(self.f_class["Am"] * A_j_k[t, drct4] for
-                                    drct4 in direction4)
-                              + sum(self.f_class["Am"] * B_i_k[t, drct] for
-                                    drct in direction)
-                              ))
+            self.phi_m[t] = self.A_m / self.A_tot * (0.5 * phi_int[t] + phi_sol[t])
 
-            # heat flow phi_st [kW]
+            # heat flow onto the thermal mass’s surface phi_st [kW]
             # (DIN EN ISO 13790, section C2, page 110, eq. C.3)
-            self.phi_st[t] = (0.5 * phi_int[t] + phi_sol[t] - self.phi_m[t] -
-                              self.H_tr_w / 9.1 / self.A_tot * 0.5 * phi_int[t] -
-                              1.0 / 9.1 / self.A_tot * self.A["window"]["sum"] *
-                              (sum(self.U["window"] * A_j_k[t, drct3] for drct3
-                                   in direction3)
-                               + sum(self.U["window"] * A_j_k[t, drct4] for
-                                     drct4 in direction4)
-                               + sum(self.U["window"] * B_i_k[t, drct] for drct
-                                     in direction)
-                               ))
+            self.phi_st[t] = (1 - self.A_m / self.A_tot - self.H_tr_w / 9.1 / self.A_tot) * (0.5 * phi_int[t] + phi_sol[t])
 
             # thermal transmittance coefficient H_tr_em [W/K]
             # Simplification: H_tr_em = H_tr_op

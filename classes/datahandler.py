@@ -92,8 +92,6 @@ class Datahandler:
 
             for row in sheet.iter_rows(values_only=True):
                 if plz == str(row[0]):
-                    latitude = row[4]
-                    longitude = row[5]
                     weatherdatafile = row[3]
                     weatherdatafile_location = weatherdatafile[8:-9]
                     break
@@ -126,14 +124,13 @@ class Datahandler:
                 self.site[subData["name"]] = subData["value"]
 
 
-        # %% load weather data for site
-        # extract irradiation and ambient temperature
+        # %% load first day of the year
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-
+        # load weather data
         # select the correct file depending on the TRY weather station location
         weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
             + "\\"
@@ -203,7 +200,7 @@ class Datahandler:
         self.site["altitude"] = filtered_data.iloc[0]['Altitude']
         self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
         self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
-        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat
+        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
@@ -558,6 +555,17 @@ class Datahandler:
         self.centralDevices["generation"]["STC"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[1]
         self.centralDevices["generation"]["Wind"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[2]
 
+        # optionally save generation profiles
+        if saveGenerationProfiles == True:
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralPV.csv'),
+                       self.centralDevices["generation"]["PV"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralSTC.csv'),
+                       self.centralDevices["generation"]["STC"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralWind.csv'),
+                       self.centralDevices["generation"]["Wind"],
+                       delimiter=',')
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """

@@ -31,7 +31,7 @@ def example_change_TRYyear():
 
     # Or we compare the design heat load of our first building. Anything different?
     print("\nThe design heat load of building 0 in a warm Test Reference Year 2045 is "
-          + str(round(data.district[0]["heatload"])) + "W.")
+          + str(round(data.district[0]["envelope"].heatload)) + "W.")
 
     return data
 

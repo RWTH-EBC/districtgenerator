@@ -178,12 +178,22 @@ class Profiles:
         """
         Generate a stochastic dhw profile
         (on base of DHWclac).
+        https://www.uni-kassel.de/maschinenbau/institute/thermische-energietechnik/fachgebiete/solar-und-anlagentechnik/downloads
+        https://github.com/RWTH-EBC/OpenDHW
 
+        Parameters
+        ----------
+        s_step : integer
+            Resolution of time steps of output array in seconds.
+        Categories: 1 or 4
+            Either one or four categories with different mean volume rates, tapping times and frequencies can be defined.
+        occupancy: integer
             Maximum number of occupants in this building.
         mean_drawoff_vol_per_day : array-like
             Total mean daily draw-off volume per person per day in liter.
         temp_dT : array-like
         The temperature difference (ΔT) between the cold water and the water at the tapping point (mixed water).
+
         Returns
         -------
         dhw_heat : array-like
@@ -274,11 +284,11 @@ class Profiles:
         #  Loop over all days
         for i in range(self.nb_days):
 
-            #  Define, if days is weekday or weekend
-            if (i + self.initial_day) % 7 in (0, 6):
-                weekend = True
+            # Define if the day is a working day or not
+            if (i + self.initial_day) % 7 in (0, 6) or (i + self.initial_day) in holidays:
+                not_working_day = True
             else:
-                weekend = False
+                not_working_day = False
 
             #  Extract array with radiation for each timestep of day
             irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
@@ -293,7 +303,7 @@ class Profiles:
             day_of_the_year = 0 # only necessary for electric heating
             # Perform lighting and appliance usage simulation for one day
             (el_p_curve, light_p_curve, app_p_curve) = el_wrapper.power_sim(irradiation=irrad_day_minutewise,
-                                                                            weekend=weekend,
+                                                                            weekend=not_working_day,
                                                                             day=i+day_of_the_year,
                                                                             occupancy=current_occupancy)
             # Append results
