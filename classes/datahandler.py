@@ -369,6 +369,7 @@ class Datahandler:
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
+                                              holidays=self.time["holidays"],
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
                                               building=building,

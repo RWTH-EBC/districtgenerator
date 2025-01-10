@@ -292,7 +292,7 @@ class Users:
             #  Create wrapper object
             self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
-    def calcProfiles(self, site, time_resolution, time_horizon, building, path, initial_day=1):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -318,35 +318,39 @@ class Users:
 
         time_day = 24 * 60 * 60
         nb_days = int(time_horizon/time_day)
-        #if building["unique_name"]
+        if self.building in {"SFH", "TH", "MFH", "AB"}:
 
-        self.occ = np.zeros(int(time_horizon / time_resolution))
-        self.dhw = np.zeros(int(time_horizon / time_resolution))
-        self.elec = np.zeros(int(time_horizon / time_resolution))
-        self.gains = np.zeros(int(time_horizon / time_resolution))
-        self.car = np.zeros(int(time_horizon / time_resolution))
-        if building['buildingFeatures']['building'] == "AB":
-            unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-        elif building['buildingFeatures']['building'] == "TH":
-            unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-        else:
-            unique_name = building['unique_name']
-        for j in range(self.nb_flats):
-            temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
-            self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
-            self.occ = self.occ + temp_obj.generate_occupancy_profiles()
-            self.elec = self.elec + temp_obj.generate_el_profile(irradiance=irradiation,
-                                                                 el_wrapper=self.el_wrapper[j],
-                                                                 annual_demand=self.annual_el_demand[j])
-            self.gains = self.gains + temp_obj.generate_gain_profile()
-        # currently only one car per building possible
-        self.car = self.car + temp_obj.generate_EV_profile(self.occ)
+            self.occ = np.zeros(int(time_horizon / time_resolution))
+            self.dhw = np.zeros(int(time_horizon / time_resolution))
+            self.elec = np.zeros(int(time_horizon / time_resolution))
+            self.gains = np.zeros(int(time_horizon / time_resolution))
+            self.car = np.zeros(int(time_horizon / time_resolution))
+            if building['buildingFeatures']['building'] == "AB":
+                unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+            elif building['buildingFeatures']['building'] == "TH":
+                unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+            else:
+                unique_name = building['unique_name']
+            for j in range(self.nb_flats):
+                temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
+                                    initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
+                                    building=self.building)
+                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                # Occupancy profile in a flat
+                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
+                                                                                 irradiance=irradiation,
+                                                                                 el_wrapper=self.el_wrapper[j],
+                                                                                 annual_demand=self.annual_el_demand[j])
+                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
+            # currently only one car per building possible
+            self.car = self.car + temp_obj.generate_EV_profile(self.occ)
 
         # ------ Webtool: import of existing time series to save computing time ------ #
-        #self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
-        #self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
-        #self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
-        #self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
+        # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
+        # self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
+        # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
+        # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
 
     def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
         """
