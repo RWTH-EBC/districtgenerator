@@ -213,7 +213,7 @@ class Users:
                         break
                     j += 1
 
-        if self.building == "TH":
+        elif self.building == "TH":
             # choose random number of occupants (1-5) for terraced houses  (assumption)
             probabilities = (0.236817, 0.400092, 0.157261, 0.154371, 0.051457) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a terraced house, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
             # loop over all flats of current terraced house
@@ -227,7 +227,7 @@ class Users:
                         break
                     j += 1
 
-        if self.building == "MFH":
+        elif self.building == "MFH":
             # choose random number of occupants (1-5) for each flat in the multi family house  (assumption)
             probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
             # loop over all flats of current multi family house
@@ -241,7 +241,7 @@ class Users:
                         break
                     j += 1
 
-        if self.building == "AB":
+        elif self.building == "AB":
             # choose random number of occupants (1-5) for each flat in the apartment block  (assumption)
             probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
             # loop over all flats of current apartment block
@@ -255,20 +255,19 @@ class Users:
                         break
                     j += 1
 
-        else:
-            if self.building == "OB":
+        elif self.building == "OB":
                 # loop over all office rooms of current office building
                 for k in range(self.nb_main_rooms):
                     # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/12,area/self.nb_main_rooms/12 * 0.15)))  # 12 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
-            if self.building == "School":
+        elif self.building == "School":
                 # loop over all School main rooms of current School building
                 for k in range(self.nb_main_rooms):
                     # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/3,area/self.nb_main_rooms/3 * 0.15)))  # 3 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
-            if self.building == "Grocery_store":
+        elif self.building == "Grocery_store":
                 for k in range(self.nb_main_rooms):
                     # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/8,area/self.nb_main_rooms/8 * 0.15)))
