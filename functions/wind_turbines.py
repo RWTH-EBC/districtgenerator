@@ -146,7 +146,7 @@ def powerCurve(wind_turbine_model):
 
     try:
         # open power curve of wind turbine
-        data_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "districtgenerator", "data")
+        data_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
         power_curve_path = os.path.join(data_folder, "wind_turbine_models", "WT_" + wind_turbine_model + ".csv")
         power_curve = pd.read_csv(power_curve_path, header=0, delimiter=";")  # wind_speed [m/s], power [kW]
 
@@ -157,7 +157,7 @@ def powerCurve(wind_turbine_model):
     return power_curve
 
 
-def WT_generation(array_windSpeed, powerCurve):
+def WT_generation(array_windSpeed):
     """
     Calculate wind power generation for all given values of wind speed.
 
@@ -176,14 +176,13 @@ def WT_generation(array_windSpeed, powerCurve):
     array_WT_power : array
         Generated power of wind turbine [W].
     """
-
     # initialize list for results
     array_WT_power = []
 
     for t in range(len(array_windSpeed)):
         # calculate generated wind power for each time step
         windSpeed_t = array_windSpeed[t]
-        array_WT_power.append(get_turbine_power(windSpeed_t, powerCurve))  # [kW]
+        array_WT_power.append(get_turbine_power(windSpeed_t, powerCurve("Enercon_E40")))  # [kW]
 
     # transform to array and change unit to Watt
     array_WT_power = np.array(array_WT_power) * 1000  # [W]

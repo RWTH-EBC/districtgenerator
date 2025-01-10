@@ -247,10 +247,12 @@ class Datahandler:
                 list = list_all[id]
                 building = {}
                 building["buildingFeatures"] = pd.Series(
-                    [list[0], list[1], list[2], list[3], list[4], "BOI", 0, 0, 0, 0, 20, 0, "S", 0.4, 0.04, 0],
+                    [list[0], list[1], list[2], list[3], list[4], "BOI", 0, 0, 0, 0, 20, 0, "S", 0.4, 0.04, 0, "on_demand"],
                     index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
                            'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
-                           'gamma_PV', ])
+                           'gamma_PV',
+                           "ev_charging",
+                           ])
 
                 self.district.append(building)
                 # building_series_list.append(building["buildingFeatures"])
@@ -648,7 +650,6 @@ class Datahandler:
         -------
         None.
         """
-
         # initialization
         self.centralDevices = {}
 
@@ -656,8 +657,16 @@ class Datahandler:
         self.centralDevices["ces_obj"] = CES()
 
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self, webtool)
-        return
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self,webtool)
+
+        generation = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)
+
+        # calculate theoretical PV, STC and Wind generation
+        self.centralDevices["generation"] = {}
+        self.centralDevices["generation"]["PV"] = generation[0]
+        self.centralDevices["generation"]["STC"] = generation[1]
+        self.centralDevices["generation"]["Wind"] =  generation[2]
+
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
