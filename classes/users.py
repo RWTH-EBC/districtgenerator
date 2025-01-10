@@ -105,10 +105,10 @@ class Users:
         elif self.building == "TH":
             self.nb_flats = 1
         elif self.building == "MFH":
-            if area <= 6 * 100:
-                self.nb_flats = 6
-            elif area > 6 * 100:
-                self.nb_flats = 8
+            if area <= 4 * 100:
+                self.nb_flats = 4
+            elif area > 4 * 100:
+                self.nb_flats = rd.randint((area // 100) - 1, (area // 100) + 1)
         elif self.building == "AB":
             self.nb_flats = 8
 
