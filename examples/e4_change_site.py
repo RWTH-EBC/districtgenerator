@@ -31,13 +31,13 @@ def example_change_site():
     data.generateDistrictComplete(scenario_name='example', calcUserProfiles=True, saveUserProfiles=False)
 
     # Now we create again plots of the user profile with a unique file name.
-    data.plot(mode="heatDemand", timeStamp=True, show=True)
+    data.plot(mode="heating", timeStamp=True, show=True)
 
     # We also can compare the design heat load of our buildings. As they are based on the design outside temperature,
     # they vary with the location.
 
     print("\nThe design heat load of building 0 at location " + str(data.site["location"])
-          + " is " + str(round(data.district[0]["heatload"])) + "W.")
+          + " is " + str(round(data.district[0]["envelope"].heatload)) + "W.")
 
     # After the first computation, you can set the site back to Aachen (location: [51.0,6.55], climateZone: 0,
     # altitude: 0) and run the example again. Afterwards you can compare the plots and see the differences based on the
