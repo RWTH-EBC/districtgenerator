@@ -17,7 +17,7 @@ def example1_4_generate_first_district():
     data.generateEnvironment(plz="0")
 
     # Initialize Buildings to the District
-    data.initializeBuildings(scenario_name="Quartier_3")
+    data.initializeBuildings(scenario_name="example")
 
     # Generate a more detailed Building
     data.generateBuildings()
