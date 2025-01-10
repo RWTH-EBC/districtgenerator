@@ -1,9 +1,20 @@
 id;building;year;retrofit;construction_type;night_setback;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
-0;SFH;2015;1;;1;150;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
-1;OB;2015;1;2;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
-2;OB;2015;1;2;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
-
-
+0;OB;1980;0;1;1;2000;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+1;OB;1980;0;1;1;2000;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+2;School;1980;0;1;1;3000;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+3;School;1980;0;1;1;3000;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+4;Grocery_store;1980;0;1;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+5;Grocery_store;1980;0;1;1;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+6;SFH;1980;0;;0;140;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+7;SFH;1980;0;;0;140;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+8;SFH;1980;0;;0;140;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+9;SFH;1980;0;;0;140;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+10;SFH;1980;0;;0;140;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+11;SFH;1980;0;;0;140;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+12;MFH;1980;0;;0;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+13;MFH;1980;0;;0;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+14;MFH;1980;0;;0;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
+15;MFH;1980;0;;0;500;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
 
 
 
