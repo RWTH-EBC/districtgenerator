@@ -91,7 +91,7 @@ class Datahandler:
             sheet = workbook.active
 
             for row in sheet.iter_rows(values_only=True):
-                if plz == row[0]:
+                if plz == str(row[0]):
                     latitude = row[4]
                     longitude = row[5]
                     weatherdatafile = row[3]
@@ -168,6 +168,12 @@ class Datahandler:
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
+        # load the holidays
+        if self.site["TRYYear"] == "TRY2015":
+            self.time["holidays"] = self.time["holidays2015"]
+        elif self.site["TRYYear"] == "TRY2045":
+            self.time["holidays"] = self.time["holidays2045"]
+
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
         self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
@@ -184,6 +190,20 @@ class Datahandler:
                                             temp_wind)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
+
+        # Load other site-dependent values based on DIN/TS 12831-1:2020-04
+        srcPath = os.path.dirname(os.path.abspath(__file__))
+        filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
+        site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
+
+        # Filter data for the specific zip code
+        filtered_data = site_data[site_data['Zip'] == plz]
+
+        # extract the needed values
+        self.site["altitude"] = filtered_data.iloc[0]['Altitude']
+        self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
+        self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
+        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
@@ -295,6 +315,21 @@ class Datahandler:
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"])
 
+            # %% calculate design heat loads
+            # at norm outside temperature
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            # at bivalent temperature
+            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            # at heating limit temperature
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            # for drinking hot water
+            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["user"].nb_flats
+            else:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["user"].nb_main_rooms
+
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
@@ -356,10 +391,15 @@ class Datahandler:
 
             building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
 
+            night_setback = building["buildingFeatures"]["night_setback"]
+
             # calculate heating profiles
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
-                                                time_resolution=self.time["timeResolution"])
+                                                night_setback=night_setback,
+                                                holidays=self.time["holidays"],
+                                                time_resolution=self.time["timeResolution"]
+                                                )
 
             if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
@@ -448,18 +488,6 @@ class Datahandler:
                 for subData in jsonData:
                     bldgs[subData["name"]] = subData["value"]
 
-            # %% calculate design heat loads
-            # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-            # at heating limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            building["dhwload"] = \
-                bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
-                building["user"].nb_flats
-
             # %% create building energy system object
             # get capacities of all possible devices
             bes_obj = BES(file_path=self.filePath)
@@ -498,7 +526,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self):
+    def designCentralDevices(self, saveGenerationProfiles):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
