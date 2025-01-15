@@ -1,44 +1,46 @@
 # -*- coding: utf-8 -*-
-"""
-"""
 
 import json
 import os
-import pandas as pd
 import numpy as np
 
 
-class Envelope():
+class Envelope:
     """
-    Abstract class for envelop component management handling
+    Abstract class for envelop component management handling.
 
     Parameters
     ----------
     prj : Project()
-        Project() instance of TEASER, contains functions to generate
-        archetype buildings
+        Project() instance of TEASER, contains functions to generate archetype buildings.
     building_params : dict
-        building parameters like construction year, retrofit
+        Building parameters like construction year, retrofit.
     construction_type : string
-        building type
+        Building type.
     file_path : str
-        file path
+        File path.
 
     Attributes
     ----------
-    id :
-
+    id : int
+        ID of the building form the scenario-json-file.
     construction_year : int
-        construction year of the building
-    retrofit : string
-        retrofit of the building
-    usage_short :
-
+        Construction year of the building.
+    retrofit : int
+        Abbreviations of the retrofit level of the building.
+        0: standard; 1: retrofit; 2: advanced retrofit (according to the web-database TABULA).
+    usage_short : string
+        building types. Possible are:
+        SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
     def __init__(self, prj, building_params, construction_type, file_path):
         """
-        Constructor of Envelope Class
+        Constructor of Envelope class.
+
+        Returns
+        -------
+        None.
         """
 
         self.U = {}
@@ -66,18 +68,20 @@ class Envelope():
 
     def loadParams(self):
         """
-        load physical and use-specific parameters
+        load physical and use-specific parameters.
 
         Parameters
         ----------
         physics : json file
-            physical and use-specific parameters
+            Physical and use-specific parameters.
 
+        Returns
+        -------
+        None.
         """
 
         physics = {}
-        with open(os.path.join(self.file_path,
-                               'physics_data.json')) as json_file:
+        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 physics[subData["name"]] = subData["value"]
@@ -86,38 +90,46 @@ class Envelope():
         self.rho_air = physics["rho_air"]  # [kg/m3]
 
         design_data = {}
-        with open(os.path.join(self.file_path,
-                               'design_building_data.json')) as json_file:
+        with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 design_data[subData["name"]] = subData["value"]
 
         self.T_set_min = design_data["T_set_min"]
+        self.T_set_min_night = design_data["T_set_min_night"]
+        self.T_set_max = design_data["T_set_max"]
+        self.T_set_max_night = design_data["T_set_max_night"]
         self.ventilationRate = design_data["ventilation_rate"]
+        self.T_bivalent = design_data["T_bivalent"]
+        self.T_heatlimit = design_data["T_heatlimit"]
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
-        Computation of (specific) heat capacity of each wall-type-surface
-        ISO 13786 A.2.4
-        Result is in J/m2K
+        Computation of (specific) heat capacity of each wall-type-surface.
+        DIN EN ISO 13786:2008-04: Appendix A.2.4: Method of effective thickness
+        (latest: DIN EN ISO 13786:2018-04; here it is appendix C.2.4).
+        Result is in [J/m²K].
 
         Parameters
         ----------
-        d :
-
-        d_iso :
-
-        density :
-
-        cp :
+        d : array-like
+            Thicknesses of the single layers of the wall [m].
+        d_iso : float
+            Thickness of materials between the considered surface and the first thermal insulation layer [m].
+        density : array-like
+            Densities of the single layers of the wall [kg/m³].
+        cp : array-like
+            Specific heat capacities of the single layers of the wall [J/(kg⋅K)].
 
         Returns
-        ----------
+        -------
         kappa : float
-            (specific) heat capacity of each wall-type-surface
-
+            Area-related heat capacity of each wall-type-surface [J/m²K].
         """
+
+        # determine effective thickness
         d_t = min(0.5 * np.sum(d), d_iso, 0.1)
+
         sum_d_i = d[0]
         i = 0
         kappa = 0
@@ -138,23 +150,23 @@ class Envelope():
 
         Parameters
         ----------
-        mat_id :
-
-        data_class :
+        mat_id : string
+            Material id.
+        data_class : ordered dictionary
+            Dictionary with material data ordered by material id.
 
         Returns
-        ----------
-
+        -------
         name : string
-            material type
+            Material type.
         density : float
-            density of the material
-        thermal_conduc :
-            thermal conductivity
-        heat_capac :
-            heat capacity
-        solar_absorp :
-            solar adsorption
+            Density of the material.
+        thermal_conduc : float
+            Thermal conductivity.
+        heat_capac : float
+            Heat capacity.
+        solar_absorp : float
+            Solar adsorption.
         """
 
         binding = data_class
@@ -170,15 +182,17 @@ class Envelope():
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
     def loadComponentProperties(self, prj):
-
         """
-        Load component-specific material parameters
+        Load component-specific material parameters.
 
         Parameters
         ----------
         prj : class
-            contains functions to generate archetype buildings
+            Contains functions to generate archetype buildings.
 
+        Returns
+        -------
+        None.
         """
 
         material_bind = prj.data.material_bind
@@ -199,8 +213,7 @@ class Envelope():
             self.g_gl
         ]
         self.opaque_ext = ["wall", "roof", "floor"]
-        self.opaque = {"wall", "roof", "floor", "intWall", "ceiling",
-                       "intFloor"}
+        self.opaque = {"wall", "roof", "floor", "intWall", "ceiling", "intFloor"}
 
         for x in self.attributes:
             x["window"] = []
@@ -226,7 +239,7 @@ class Envelope():
         self.epsilon["window"] = 0.9
 
         # ASHRAE 140 : 2011, Table 5.3,
-        # page 18 (Absorptionskoeffizient opake Fläche)
+        # page 18 (absorption coefficient opaque area)
         for x in self.opaque_ext:
             self.alpha_Sc["opaque"][x] = 0.6
 
@@ -239,25 +252,16 @@ class Envelope():
                         elem["construction_type"] == self.construction_type \
                         + "_1_" + self.usage_short:
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d[
-                                                               "opaque"][comp],
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                            lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho[
-                                                                 "opaque"][
-                                                                 comp],
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
                                                              material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda[
-                                                                    "opaque"][
-                                                                    comp],
-                                                                material_prop[
-                                                                    2])
-                        self.cp["opaque"][comp] = np.append(self.cp[
-                                                                "opaque"][
-                                                                comp],
-                                                            material_prop[
-                                                                3] * 1000)
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                            material_prop[3] * 1000)
 
         comp = "roof"
         # ROOF: Materials and U-value
@@ -268,25 +272,16 @@ class Envelope():
                         elem["construction_type"] == self.construction_type \
                         + "_1_" + self.usage_short:
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d[
-                                                               "opaque"][comp],
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                            lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho[
-                                                                 "opaque"][
-                                                                 comp],
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
                                                              material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda[
-                                                                    "opaque"][
-                                                                    comp],
-                                                                material_prop[
-                                                                    2])
-                        self.cp["opaque"][comp] = np.append(self.cp[
-                                                                "opaque"][
-                                                                comp],
-                                                            material_prop[
-                                                                3] * 1000)
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                            material_prop[3] * 1000)
 
         comp = "floor"
         # FLOOR: Materials and U-value
@@ -297,25 +292,16 @@ class Envelope():
                         elem["construction_type"] == self.construction_type \
                         + "_1_" + self.usage_short:
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d[
-                                                               "opaque"][comp],
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                            lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho[
-                                                                 "opaque"][
-                                                                 comp],
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
                                                              material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda[
-                                                                    "opaque"][
-                                                                    comp],
-                                                                material_prop[
-                                                                    2])
-                        self.cp["opaque"][comp] = np.append(self.cp[
-                                                                "opaque"][
-                                                                comp],
-                                                            material_prop[
-                                                                3] * 1000)
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                            material_prop[3] * 1000)
 
         comp = "intWall"
         # INTERNAL WALL: Materials and U-value
@@ -327,25 +313,16 @@ class Envelope():
                         elem["building_age_group"][1] and \
                         elem["construction_type"] == "tabula_standard":
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d[
-                                                               "opaque"][comp],
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                            lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho[
-                                                                 "opaque"][
-                                                                 comp],
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
                                                              material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda[
-                                                                    "opaque"][
-                                                                    comp],
-                                                                material_prop[
-                                                                    2])
-                        self.cp["opaque"][comp] = np.append(self.cp[
-                                                                "opaque"][
-                                                                comp],
-                                                            material_prop[
-                                                                3] * 1000)
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                            material_prop[3] * 1000)
 
         comp = "ceiling"
         # CEILING: Materials and U-value
@@ -357,25 +334,16 @@ class Envelope():
                         elem["building_age_group"][1] and \
                         elem["construction_type"] == "tabula_standard":
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d[
-                                                               "opaque"][comp],
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                            lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho[
-                                                                 "opaque"][
-                                                                 comp],
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
                                                              material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda[
-                                                                    "opaque"][
-                                                                    comp],
-                                                                material_prop[
-                                                                    2])
-                        self.cp["opaque"][comp] = np.append(self.cp[
-                                                                "opaque"][
-                                                                comp],
-                                                            material_prop[
-                                                                3] * 1000)
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                            material_prop[3] * 1000)
 
         comp = "intFloor"
         # INTERNAL FLOOR: Materials and U-value
@@ -387,25 +355,16 @@ class Envelope():
                         elem["building_age_group"][1] and \
                         elem["construction_type"] == "tabula_standard":
                     for lay in elem["layer"].items():
-                        self.d["opaque"][comp] = np.append(self.d[
-                                                               "opaque"][comp],
+                        self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                            lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["opaque"][comp] = np.append(self.rho[
-                                                                 "opaque"][
-                                                                 comp],
+                        self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
                                                              material_prop[1])
-                        self.Lambda["opaque"][comp] = np.append(self.Lambda[
-                                                                    "opaque"][
-                                                                    comp],
-                                                                material_prop[
-                                                                    2])
-                        self.cp["opaque"][comp] = np.append(self.cp[
-                                                                "opaque"][
-                                                                comp],
-                                                            material_prop[
-                                                                3] * 1000)
+                        self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
+                                                                material_prop[2])
+                        self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
+                                                            material_prop[3] * 1000)
 
         comp = "window"
         # INTERNAL FLOOR: Materials and U-value
@@ -417,19 +376,15 @@ class Envelope():
                         + "_1_" + self.usage_short:
                     self.g_gl["window"] = elem["g_value"]
                     for lay in elem["layer"].items():
-                        self.d["window"] = np.append(self.d[
-                                                         "window"],
+                        self.d["window"] = np.append(self.d["window"],
                                                      lay[1]["thickness"])
                         material_prop = self.loadMaterialID(
                             lay[1]["material"]["material_id"], material_bind)
-                        self.rho["window"] = np.append(self.rho[
-                                                           "window"],
+                        self.rho["window"] = np.append(self.rho["window"],
                                                        material_prop[1])
-                        self.Lambda["window"] = np.append(self.Lambda[
-                                                              "window"],
+                        self.Lambda["window"] = np.append(self.Lambda["window"],
                                                           material_prop[2])
-                        self.cp["window"] = np.append(self.cp[
-                                                          "window"],
+                        self.cp["window"] = np.append(self.cp["window"],
                                                       material_prop[3] * 1000)
 
         for x in self.opaque:
@@ -461,15 +416,17 @@ class Envelope():
                                             + self.R_se["window"])))
 
     def loadAreas(self, prj):
-
         """
-        Load component-specific area data
+        Load component-specific area data.
 
         Parameters
         ----------
         prj : class
-            contains functions to generate archetype buildings
+            Contains functions to generate archetype buildings.
 
+        Returns
+        -------
+        None.
         """
 
         self.V = prj.buildings[self.id].volume
@@ -497,11 +454,11 @@ class Envelope():
         self.A["opaque"]["floor"] = prj.buildings[self.id].outer_area[-2]
         self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
-        # Fläche hausinterner Fußboden entspricht Nutzfläche
+        # Area of internal floor equals usable area
         self.A["opaque"]["intFloor"] = self.A["f"]
-        # Fläche oberste Geschossdecke entspricht Fläche Bodenplatte
+        # Area of the highest floor equals area of base plate
         self.A["opaque"]["ceiling"] = self.A["opaque"]["floor"]
-        # Annahme 6 durchgehende Wände pro Geschoss (3*N-S, 3*O_W)
+        # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)
         self.A["opaque"]["intWall"] = 1.5 * self.A["opaque"]["wall"]
 
         self.A["window"] = {}
@@ -521,84 +478,76 @@ class Envelope():
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
 
     def calcHeatLoad(self, site, method="design"):
-
         """
+        Calculate design (nominal) heat load at norm outside temperature
 
         Parameters
         ----------
         site : dict
-            information about location and climate conditions
-        method : string
-            method to calculate heat load
+            Information about location and climate conditions.
+        method : string, optional
+            Method to calculate heat load. The default is "design".
+
         Returns
         -------
-
         Q_nHC : float
-            heat load
-
+            Heat load.
         """
 
-        with open(os.path.join(self.file_path, 'design_weather_data.json')) \
-                as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["Klimazone"] == site["climateZone"]:
-                    # outside design temperature in °C
-                    T_ne = subData["Theta_e"]
-                    # outside average temperature in °C
-                    T_me = subData["Theta_e_m"]
 
-        U_TB = 0.05  # [W/m²K] Wärmebrückenzuschlag
-        f_g1 = 1.45  # Korrekturfaktor jährliche Schwankung der Außentemperatur
+        U_TB = 0.05  # [W/m²K] Thermal bridge surcharge
+        f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
         # Reduction factor
-        f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
-        G_w = 1.0  # influence of ground water neglected
+        f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
+        G_w = 1.0  # influence of groundwater neglected
 
-        Q_nHC = (self.A["opaque"]["wall"] * (
-                self.U["opaque"]["wall"] + U_TB)
-                 + self.A["window"]["sum"] * self.U["window"]
-                 + self.A["opaque"]["roof"] * self.U["opaque"]["roof"]
-                 + self.A["opaque"]["floor"] * self.U["opaque"]["floor"]
-                 * f_g1 * f_g2 * G_w
-                 + self.ventilationRate * self.c_p_air * self.rho_air
-                 * self.V / 3600) * (self.T_set_min - T_ne)
+        if method == "design":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                            self.A["window"]["sum"] * (self.U["window"] + U_TB) +
+                            self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
+                            self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w +
+                            self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - site["T_ne"])
+
+        if method == "bivalent":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * (self.U["window"] + U_TB) +
+                     self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
+                       * (self.T_set_min - self.T_bivalent)
+
+        if method == "heatlimit":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * (self.U["window"] + U_TB) +
+                     self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
+                       * (self.T_set_min - self.T_heatlimit)
 
         return Q_nHC
+    def calculateHeatCapacity(self):
+        self.C_m = sum((self.kappa["opaque"][x]
+                            * self.A["opaque"][x]) for x in self.opaque)
 
     def calcNormativeProperties(self, SunRad, internal_gains):
-
         """
+        Calculate normative properties according to DIN EN ISO 13790.
 
         Parameters
         ----------
-        SunRad : array
-            solar radiation
+        SunRad : array-like
+            Solar radiation.
         internal_gains :
-            internal gains of the building
+            Internal gains of the building.
+
+        Returns
+        -------
+        None.
         """
 
         if SunRad is None:
             SunRad = []
-        self.C_m = sum((self.kappa["opaque"][x]
-                        * self.A["opaque"][x]) for x in self.opaque)
-        temp = self.C_m / self.A["f"]
-
-        # 5 possible building classes DIN EN ISO 13790
-        x = np.zeros(5)
-        # upper and lower bounds for classes
-        low = [0.0, 95000.0, 137500.0, 212500.0, 315000.0]
-        up = [95000.0, 137500.0, 212500.0, 315000.0, 10000000.0]
-
-        for i in range(len(low)):
-            if low[i] <= temp <= up[i]:
-                x[i] = 1
-            else:
-                x[i] = 0
-
-        # Constants for calculation of A_m, dependent of building class
-        # (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)
-        f_class_values = [2.5, 2.5, 2.5, 3.0, 3.5]
-        self.f_class = {"Am": sum(x * f_class_values)}
+        C_m = self.calculateHeatCapacity()
 
         # specific heat transfer coefficient
         # (DIN EN ISO 13790, section 7.2.2.2, page 35)
@@ -640,9 +589,9 @@ class Envelope():
         self.A_tot = self.lambda_at * self.A["f"]
         self.H_tr_is = self.h_is * self.A_tot
 
-        # shadow coefficient for sunblinds
+        # shadow coefficient for sun blinds
         # (DIN EN ISO 13790, section 11.4.3, page 71)
-        # Assumption : no sunblinds (modelled manually, see below)
+        # Assumption : no sun blinds (modelled manually, see below)
         self.F_sh_gl = 1
 
         # ratio of window-frame
@@ -653,21 +602,15 @@ class Envelope():
         # [kW/(m²*K)] DIN EN ISO 13790, section 11.4.6, page 73
         h_r_factor = 5.0  # W / (m²K)
         self.h_r = {
-            ("opaque", "wall"): h_r_factor * np.array(self.epsilon[
-                                                          "opaque"]["wall"]),
-            ("opaque", "roof"): h_r_factor * np.array(self.epsilon[
-                                                          "opaque"]["roof"]),
-            ("opaque", "floor"): h_r_factor * np.array(self.epsilon[
-                                                           "opaque"]["floor"]),
+            ("opaque", "wall"): h_r_factor * np.array(self.epsilon["opaque"]["wall"]),
+            ("opaque", "roof"): h_r_factor * np.array(self.epsilon["opaque"]["roof"]),
+            ("opaque", "floor"): h_r_factor * np.array(self.epsilon["opaque"]["floor"]),
             "window": h_r_factor * np.array(self.epsilon["window"])}
-
-        # A_m (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)
-        self.A_m = self.f_class["Am"] * self.A["f"]
 
         # H_tr_w (DIN EN ISO 13790, section 8.3.1, page 44, eq. 18)
         self.H_tr_w = self.A["window"]["sum"] * self.U["window"]
 
-        self.H_tr_ms = self.f_class["Am"] * self.A["f"] * self.h_ms
+        self.H_tr_ms = sum(self.A["opaque"][x] for x in self.opaque) * self.h_ms
 
         # matching coefficient for thermal transmittance coefficient
         # if temperature is unequal to T_e, otherwise = 1
@@ -693,7 +636,7 @@ class Envelope():
         # (DIN EN ISO 13790, section 11.4.6,  page 73)
         self.Delta_theta_er = 11  # [K]
 
-        # dictionary for irradiation to imitate sunblinds manually [kW/m²]
+        # dictionary for irradiation to imitate sun blinds manually [kW/m²]
         self.I_sol = {}
         directions = ("south", "west", "north", "east", "roof")
         for drct in range(len(directions)):
@@ -707,8 +650,7 @@ class Envelope():
         for t in range(len(SunRad[0])):
             for drct3 in range(len(directions)):  # for all directions
                 if SunRad[drct3, t] > limit_shut_blinds:
-                    self.I_sol["window", directions[drct3]][t] = 0.15 * SunRad[
-                        drct3, t].copy()
+                    self.I_sol["window", directions[drct3]][t] = 0.15 * SunRad[drct3, t].copy()
 
         # reference variables to reduce code length
         A_j_k = {}
@@ -759,39 +701,20 @@ class Envelope():
                           sum(A_j_k[t, drct4] for drct4 in direction4) +
                           sum(B_i_k[t, drct] for drct in direction)
                           )
+            # Am is the effective area responsible for the heat capacity
+            self.A_m = sum(self.A["opaque"][x] for x in self.opaque)
 
-            # heat flow phi_m [kW]
+            # heat flow into the thermalmass phi_m [kW]
             # (DIN EN ISO 13790, section C2, page 110, eq. C.2)
-            self.phi_m[t] = (self.A_m / self.A_tot * 0.5 * phi_int[t] +
-                             1.0 / self.A_tot * self.A["f"] *
-                             (sum(
-                                 self.f_class["Am"] * A_j_k[t, drct3] for drct3
-                                 in direction3)
-                              + sum(self.f_class["Am"] * A_j_k[t, drct4] for
-                                    drct4 in direction4)
-                              + sum(self.f_class["Am"] * B_i_k[t, drct] for
-                                    drct in direction)
-                              ))
+            self.phi_m[t] = self.A_m / self.A_tot * (0.5 * phi_int[t] + phi_sol[t])
 
-            # heat flow phi_st [kW]
+            # heat flow onto the thermal mass’s surface phi_st [kW]
             # (DIN EN ISO 13790, section C2, page 110, eq. C.3)
-            self.phi_st[t] = (0.5 * phi_int[t] + phi_sol[t] - self.phi_m[t] -
-                              self.H_tr_w / 9.1 / self.A_tot * 0.5 * phi_int[
-                                  t] -
-                              1.0 / 9.1 / self.A_tot * self.A["window"][
-                                  "sum"] *
-                              (sum(self.U["window"] * A_j_k[t, drct3] for drct3
-                                   in direction3)
-                               + sum(self.U["window"] * A_j_k[t, drct4] for
-                                     drct4 in direction4)
-                               + sum(self.U["window"] * B_i_k[t, drct] for drct
-                                     in direction)
-                               ))
+            self.phi_st[t] = (1 - self.A_m / self.A_tot - self.H_tr_w / 9.1 / self.A_tot) * (0.5 * phi_int[t] + phi_sol[t])
 
             # thermal transmittance coefficient H_tr_em [W/K]
             # Simplification: H_tr_em = H_tr_op
             # (DIN EN ISO 13790, section 8.3, page 43)
             self.H_tr_em[t] = sum(self.A["opaque"][drct2]
-                                  * self.U["opaque"][drct2] * self.b_tr[drct2][
-                                      t]
+                                  * self.U["opaque"][drct2] * self.b_tr[drct2][t]
                                   for drct2 in direction2)
