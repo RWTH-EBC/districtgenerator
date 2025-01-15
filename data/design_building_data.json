@@ -13,7 +13,7 @@
   },
   {
     "name": "T_set_max",
-    "value": 26.0,
+    "value": 23.0,
     "unit": "degree Celsius",
     "description": "Required maximum indoor temperature (for cooling load calculation)"
   },

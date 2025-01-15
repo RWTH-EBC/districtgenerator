@@ -20,10 +20,6 @@ from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
 import functions.clustering_medoid as cm
-import functions.wind_turbines as wind_turbines
-import EHDO.load_params as load_params_EHDO
-import EHDO.optim_model as optim_model_EHDO
-
 
 class Datahandler:
     """
@@ -406,7 +402,7 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz="0",
+    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz="52064",
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
                                  designDevs=False, clustering=False, optimization=False):
         """
@@ -443,7 +439,7 @@ class Datahandler:
         """
 
         self.initializeBuildings(scenario_name)
-        self.generateEnvironment(plz)
+        self.generateEnvironment(plz=plz)
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
@@ -702,9 +698,8 @@ class Datahandler:
         # Perform clustering
         (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
                                                              number_clusters=self.time["clusterNumber"],
-                                                             len_day=int(initialArrayLenght),
+                                                             len_cluster=int(initialArrayLenght),
                                                              weights=weights)
-
         # safe clustering solution in district data
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:

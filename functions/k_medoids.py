@@ -90,6 +90,7 @@ def k_medoids(distances, number_clusters, timelimit=100, mipgap=0.0001):
     # Set solver parameters
     model.Params.TimeLimit = timelimit
     model.Params.MIPGap = mipgap
+    model.Params.OutputFlag = False  # no console printing
 
     # Solve the model
     model.optimize()

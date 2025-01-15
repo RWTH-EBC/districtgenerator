@@ -335,7 +335,7 @@ def run_optim(devs, param, dem, result_dict):
             model.addConstr(gas["from_grid"][d][t] + gas["SAB"][d][t] == gas["CHP"][d][t] + gas["BOI"][d][t] + gas["GHP"][d][t] + ch["GS"][d][t] + gas["to_grid"][d][t])
 
             # Hydrogen balance
-            model.addConstr(hydrogen["ELYZ"][d][t] + hydrogen["import"][d][t] == dem["hydrogen"][d][t] + hydrogen["FC"][d][t] + hydrogen["SAB"][d][t] + ch["H2S"][d][t])
+            model.addConstr(hydrogen["ELYZ"][d][t] + hydrogen["import"][d][t] == hydrogen["FC"][d][t] + hydrogen["SAB"][d][t] + ch["H2S"][d][t])
 
             # Biomass balance
             model.addConstr(biom["import"][d][t] == biom["BCHP"][d][t] + biom["BBOI"][d][t])

@@ -6,3 +6,4 @@ teaser==0.7.7
 richardsonpy
 pylightxl
 gurobipy~=9.5.1
+xlsxwriter~=3.2.0

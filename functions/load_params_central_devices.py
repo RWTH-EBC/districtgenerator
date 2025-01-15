@@ -16,15 +16,11 @@ Contact:        Marco Wirtz
 
 import numpy as np
 import math
-import EHDO.clustering_medoid as clustering
+import functions.clustering_medoid as clustering
 import time
 import os
-import csv
 import json
-import copy
 import sys
-import EHDO.solar_modeling as solar_modeling
-
 
 def load_params(data):
 
@@ -95,40 +91,39 @@ def load_params(data):
     dem_uncl["heat"] = heat_total
     dem_uncl["cool"] = cooling
     dem_uncl["power"] = electricity_total
-    dem_uncl["hydrogen"] = np.zeros(len(heat_total))
-
-    for k in ["heat", "cool", "power", "hydrogen"]:
+    for k in ["heat", "cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
+    param["peak_hydrogen"] = 0
 
 
     ################################################################
-    # DESIGN DAY CLUSTERING
-
-    param["n_clusters"] = data.time["clusterNumber"]  # Number of design days
+    # DESIGN CLUSTERING
+    param["n_clusters"] = 12 #data.time["clusterNumber"]  # Number of time cluster
 
     # Collect the time series to be clustered
-    time_series = [dem_uncl["heat"], dem_uncl["cool"], dem_uncl["power"], dem_uncl["hydrogen"], param_uncl["T_air"], param_uncl["GHI"], param_uncl["DHI"], param_uncl["wind_speed"]]
+    time_series = [dem_uncl["heat"], dem_uncl["cool"], dem_uncl["power"], param_uncl["T_air"], param_uncl["GHI"], param_uncl["DHI"], param_uncl["wind_speed"]]
     # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
-    inputs_clustering = np.array(time_series)
+    inputs = np.array(time_series)
     # Execute k-medoids algorithm
     print("Cluster design days...")
     start = time.time()
-    (clustered_series, nc, z) = clustering.cluster(inputs_clustering,
+    (clustered_series, nc, y, z, inputsTransformed) = clustering.cluster(inputs,
                                      param["n_clusters"],
+                                     len_cluster=24,#int(inputs.shape[1] / 365),
                                      norm = 2,
                                      mip_gap = 0.02,
                                      )
+
     print("Design day clustering finished. (" + str(time.time()-start) + ")\n")
 
     dem = {}
     dem["heat"] = clustered_series[0]
     dem["cool"] = clustered_series[1]
     dem["power"] = clustered_series[2]
-    dem["hydrogen"] = clustered_series[3]
-    param["T_air"] = clustered_series[4]
-    param["GHI"] = clustered_series[5]
-    param["DHI"] = clustered_series[6]
-    param["wind_speed"] = clustered_series[7]
+    param["T_air"] = clustered_series[3]
+    param["GHI"] = clustered_series[4]
+    param["DHI"] = clustered_series[5]
+    param["wind_speed"] = clustered_series[6]
 
     # Save number of design days and design-day matrix
     param["day_weights"] = nc
@@ -1046,7 +1041,7 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
     monthly_dem = {}
     year_peak = {}
     year_sum = {}
-    for m in ["heat", "cool", "power", "hydrogen"]:
+    for m in ["heat", "cool", "power"]:
         monthly_dem[m] = {}
         year_peak[m] = int(np.max(dem_uncl[m]))
         year_sum[m] = int(np.sum(dem_uncl[m]) / 1000)

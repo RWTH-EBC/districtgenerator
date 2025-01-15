@@ -40,7 +40,7 @@ def _distances(values, norm=2):
     return d
 
 
-def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_gap=0.0, weights=None):
+def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None):
     """
     Cluster a set of inputs into clusters by solving a k-medoid problem.
     
@@ -76,12 +76,8 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
         One entry for each row of the original 'input'.
         Entries are arrays with rows for each time step and columns for each day.
     """
-    # Determine time steps per day
-    # len_day = int(inputs.shape[1] / 365)
-    # len_day = int(inputs.shape[1] / 52)
 
-    num_periods = int(inputs.shape[1] / len_day)
-
+    num_periods = int(inputs.shape[1] / len_cluster)
     # Set weights if not already given
     try:
         if weights == None:
@@ -108,8 +104,8 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
         temp = ((vals - np.min(vals)) / (np.max(vals) - np.min(vals))
                 * math.sqrt(weights[i]))
         inputsScaled.append(temp)
-        inputsScaledTransformed.append(temp.reshape((len_day, num_periods), order="F"))
-        inputsTransformed.append(vals.reshape((len_day, num_periods), order="F"))
+        inputsScaledTransformed.append(temp.reshape((len_cluster, num_periods), order="F"))
+        inputsTransformed.append(vals.reshape((len_cluster, num_periods), order="F"))
         # inputsScaledTransformed.append(temp.reshape((len_day, 52), order="F"))
         # inputsTransformed.append(vals.reshape((len_day, 52), order="F"))
 
@@ -124,7 +120,7 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
 
     # Section 2.3 and retain typical days
     nc = np.zeros_like(y)
-    typicalDays = []
+    typicalClusters = []
 
     # nc contains how many days are there in each cluster
     nc = []
@@ -132,11 +128,11 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
         temp = np.sum(z[i, :])
         if temp > 0:
             nc.append(temp)
-            typicalDays.append([ins[:, i] for ins in inputsTransformed])
+            typicalClusters.append([ins[:, i] for ins in inputsTransformed])
 
-    typicalDays = np.array(typicalDays)
+    typicalClusters = np.array(typicalClusters)
     nc = np.array(nc, dtype="int")
-    nc_cumsum = np.cumsum(nc) * len_day
+    nc_cumsum = np.cumsum(nc) * len_cluster
 
     # Construct (yearly) load curves
     # ub = upper bound, lb = lower bound
@@ -149,16 +145,16 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
         ub = nc_cumsum[i]
 
         for j in range(len(inputsTransformed)):
-            clustered[j, lb:ub] = np.tile(typicalDays[i][j], nc[i])
+            clustered[j, lb:ub] = np.tile(typicalClusters[i][j], nc[i])
 
     # Scaling to preserve original demands
     sums_inputs = [np.sum(inputs[j, :]) for j in range(inputs.shape[0])]
-    scaled = np.array([nc[day] * typicalDays[day, :, :]
+    scaled = np.array([nc[day] * typicalClusters[day, :, :]
                        for day in range(number_clusters)])
     sums_scaled = [np.sum(scaled[:, j, :]) for j in range(inputs.shape[0])]
     scaling_factors = [sums_inputs[j] / sums_scaled[j]
                        for j in range(inputs.shape[0])]
-    scaled_typ_days = [scaling_factors[j] * typicalDays[:, j, :]
+    scaled_typ_clusters = [scaling_factors[j] * typicalClusters[:, j, :]
                        for j in range(inputs.shape[0])]
 
-    return scaled_typ_days, nc, y, z, inputsTransformed
+    return scaled_typ_clusters, nc, y, z, inputsTransformed

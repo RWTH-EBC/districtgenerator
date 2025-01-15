@@ -25,17 +25,13 @@ def example8_scenario_evaluation():
 
     centralEnergySupply = True
     # Sizing of the selected devices
-    # data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=True)
-    #input_Quartiersausweis = dataframe
     if centralEnergySupply == True:
         # data.designDecentralDevices(saveGenerationProfiles=True)
         data.designCentralDevices(saveGenerationProfiles=True)
-
     else:
         data.designDecentralDevices(saveGenerationProfiles=True)
         data.centralDevices = {}
         # data.designDecentralDevices(saveGenerationProfiles=True, input_webtool)
-
 
     # Within a clustered time series, data points are aggregated across different time periods
     # based on the k-medoids method
@@ -43,7 +39,6 @@ def example8_scenario_evaluation():
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters(centralEnergySupply)
-
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
     webtool = {}
