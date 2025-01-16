@@ -66,6 +66,38 @@ class Datahandler:
         self.resultPath = os.path.join(self.srcPath, 'results')
         self.KPIs = None
 
+        self.load_all_data()
+
+    def load_all_data(self):
+        """
+        General data import from JSON files and transformation into dictionaries.
+
+        Returns
+        -------
+        None.
+        """
+
+        # %% load information about of the site under consideration (used in generateEnvironment)
+        # important for weather conditions
+        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.site[subData["name"]] = subData["value"]
+
+        # %% load time information and requirements (used in generateEnvironment)
+        # needed for data conversion into the right time format
+        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.time[subData["name"]] = subData["value"]
+
+        # %% load scenario file with building information
+        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+                                    + "/"
+                                    + self.scenario_name + ".csv",
+                                    header=0, delimiter=";")
+
+
     def select_plz_data(self, plz):
         """
         Select the closest TRY weather station for the location of the postal code.
@@ -112,14 +144,6 @@ class Datahandler:
         None.
         """
 
-        # %% load information about of the site under consideration
-        # important for weather conditions
-        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.site[subData["name"]] = subData["value"]
-
-
         # %% load first day of the year
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
@@ -153,12 +177,7 @@ class Datahandler:
         [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
             [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
 
-        # %% load time information and requirements
-        # needed for data conversion into the right time format
-        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.time[subData["name"]] = subData["value"]
+        # set time steps
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # load the holidays
@@ -230,10 +249,6 @@ class Datahandler:
         num_sfh = 0
         num_mfh = 0
         self.scenario_name = scenario_name
-        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                    + "/"
-                                    + self.scenario_name + ".csv",
-                                    header=0, delimiter=";")
 
         # initialize buildings for scenario
         # loop over all buildings
