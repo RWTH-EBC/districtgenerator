@@ -9,6 +9,7 @@ from pyproj import Proj, transform, CRS, transformer
 import pandas as pd
 
 
+
 def extract_coordinates(filename):
     parts = filename.split('_')
     easting = int(parts[1][:7])
@@ -86,6 +87,30 @@ def match_points():
         if i == 2: break
 
 
-# read_folder('D:\Script\districtgenerator\data\TRY_2015_mittel.tar\mittel', 'TRY2015_38615002933500_Jahr.dat')
+def delete_TRY_files():
+    # DataFrame aus Excel-Datei lesen
+    df_list1 = pd.read_excel('D:\Script\districtgenerator\data\plz_geocoord_matched.xlsx', usecols=[3], names=['filename'], skiprows=0)
+    df_list1['filename'] = df_list1['filename'].str.slice(8, 22)
+    df_list1['filename'] = "TRY2015_" + df_list1['filename'] + "_Wint.dat"
 
-match_points()
+    # Pfad zum Ordner mit den Dateien
+    folder_path = "D:\Script\districtgenerator\data\weather\TRY_2015_winterkalt.tar\winterkalt"
+
+    # Dateinamen aus dem DataFrame in eine Liste konvertieren
+    included_files = df_list1['filename'].tolist()
+
+    # Durchsuchen des Ordners und Löschen nicht enthaltener Dateien
+    for filename in os.listdir(folder_path):
+        if filename not in included_files:
+            file_path = os.path.join(folder_path, filename)
+            os.remove(file_path)
+            print(f"{filename} wurde gelöscht.")
+
+
+
+
+#read_folder('D:\Script\districtgenerator\data\TRY_2015_mittel.tar\mittel', 'TRY2015_38615002933500_Jahr.dat')
+
+#match_points()
+
+delete_TRY_files()

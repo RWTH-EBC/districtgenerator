@@ -18,24 +18,20 @@ def example8_scenario_evaluation():
     #data.generateDistrictComplete(scenario_name='Quartier_3', calcUserProfiles=False, saveUserProfiles=False,
     #                              fileName_centralSystems="BF_Strategie_central_devices", saveGenProfiles=False)
     data.initializeBuildings(scenario_name='example')
-    data.generateEnvironment(plz=50672)
+    data.generateEnvironment(plz="52064")
     data.generateBuildings()
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
 
 
-    centralEnergySupply = False
+    centralEnergySupply = True
     # Sizing of the selected devices
-    # data.designDevicesComplete(fileName_centralSystems="BF_Strategie_central_devices", saveGenerationProfiles=True)
-    #input_Quartiersausweis = dataframe
     if centralEnergySupply == True:
-        data.designDecentralDevices(saveGenerationProfiles=True)
-        data.designCentralDevices()
-
+        # data.designDecentralDevices(saveGenerationProfiles=True)
+        data.designCentralDevices(saveGenerationProfiles=True)
     else:
         data.designDecentralDevices(saveGenerationProfiles=True)
         data.centralDevices = {}
         # data.designDecentralDevices(saveGenerationProfiles=True, input_webtool)
-
 
     # Within a clustered time series, data points are aggregated across different time periods
     # based on the k-medoids method
@@ -43,7 +39,6 @@ def example8_scenario_evaluation():
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters(centralEnergySupply)
-
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
     webtool = {}

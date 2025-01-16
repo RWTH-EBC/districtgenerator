@@ -5,11 +5,23 @@
     "unit": "degree Celsius",
     "description": "Required minimum indoor temperature (for heating load calculation)"
   },
+    {
+    "name": "T_set_min_night",
+    "value":  18.0,
+    "unit": "degree Celsius",
+    "description": "Required minimum indoor temperature at night (for heating load calculation)"
+  },
   {
     "name": "T_set_max",
-    "value": 26.0,
+    "value": 23.0,
     "unit": "degree Celsius",
     "description": "Required maximum indoor temperature (for cooling load calculation)"
+  },
+  {
+    "name": "T_set_max_night",
+    "value": 28.0,
+    "unit": "degree Celsius",
+    "description": "Required maximum indoor temperature at night (for cooling load calculation)"
   },
   {
     "name": "T_bivalent",
@@ -63,12 +75,6 @@
     "name": "mean_drawoff_vol_per_day",
     "value": [40, 40, 40, 40],
     "unit":  "Liter",
-    "description": "Mean drawoff DHW volume per day for each of the four building types (SFH, MFH, TH and AB)"
-  },
-  {
-    "name": "ratio_area",
-    "value": [0.6656, 0.6785, 0.7112, 0.6662],
-    "unit":  "Liter",
-    "description": "Ratio of total gross floor area to net floor area for each of the four building types (SFH, MFH, TH and AB)"
+    "description": "Mean drawoff DHW volume per day for each of the four building types (SFH, MFH, TH and AB). Source: 12831-3/A100 Table NA.4"
   }
 ]

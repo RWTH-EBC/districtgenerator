@@ -47,7 +47,7 @@ def example_generate_custom_district():
     # Generate district with energy profiles
     # We now use the function generateDistrictComplete() to generate a complete district all at once.
     data = Datahandler()
-    data.generateDistrictComplete(scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz='01129')
+    data.generateDistrictComplete(scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz='52064')
 
     # Let's look into our custom district:
 
@@ -70,6 +70,8 @@ def example_generate_custom_district():
     print("The maximum heating power of building 0 is " + str(round(max_heating_power_0)) + "W.")
     max_electricity_power = max(data.district[0]['user'].elec)
     print("The maximum electricity power of building 0 is " + str(round(max_electricity_power)) + "W.\n")
+
+    data.designDevicesComplete("central_devices_test", saveGenerationProfiles=True)
 
     return data
 

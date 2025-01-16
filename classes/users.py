@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-
+import json
+import statistics
 import os, math
 import random as rd
 import numpy as np
@@ -76,9 +77,9 @@ class Users:
         self.cooling = None
 
         self.generate_number_flats(area)
-        self.generate_number_occupants()
+        self.generate_number_occupants(area)
         self.generate_annual_el_consumption()
-        self.generate_lighting_index()
+        self.generate_lighting_index(area)
         self.create_el_wrapper()
 
     def generate_number_flats(self, area):
@@ -105,17 +106,17 @@ class Users:
         elif self.building == "TH":
             self.nb_flats = 1
         elif self.building == "MFH":
-            if area <= 6 * 100:
-                self.nb_flats = 6
-            elif area > 6 * 100:
-                self.nb_flats = 8
+            if area <= 4 * 100:
+                self.nb_flats = 4
+            elif area > 4 * 100:
+                self.nb_flats = rd.randint((area // 100) - 1, (area // 100) + 1)
         elif self.building == "AB":
             self.nb_flats = 8
 
 
-    def generate_number_occupants(self):
+    def generate_number_occupants(self,area):
         """
-        Generate number of occupants for different of building types.
+        Generate number of occupants for different building types.
 
         Parameters
         ----------
@@ -127,60 +128,61 @@ class Users:
         """
 
         if self.building == "SFH":
-            # choose random number of occupants (2-5) for single family houses (assumption)
-
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
+            # choose random number of occupants (1-5) for single family houses  (assumption)
+            probabilities = (0.245114, 0.402323, 0.154148, 0.148869, 0.049623) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a single-family house, assuming a maximum of 5 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # loop over all flats of current single family house
+            for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
-                j = 1  # staring with one (additional) occupant
-                # the random number decides how many occupants are chosen (2-5)
-                while j <= 4:
-                    if random_nb < j / 4:
-                        self.nb_occ.append(1 + j)  # minimum is 2 occupants
+                j = 1  # staring with one occupant
+                # the random number decides how many occupants are chosen (1-5)
+                while j <= 5 :
+                    if random_nb < sum(probabilities[:j]) :
+                        self.nb_occ.append(j)  # minimum is 1 occupant
                         break
                     j += 1
 
-        if self.building == "TH":
-            # choose random number of occupants (2-5) for terraced houses (assumption)
-
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
+        elif self.building == "TH":
+            # choose random number of occupants (1-5) for terraced houses  (assumption)
+            probabilities = (0.236817, 0.400092, 0.157261, 0.154371, 0.051457) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a terraced house, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # loop over all flats of current terraced house
+            for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
-                j = 1  # staring with one (additional) occupant
-                # the random number decides how many occupants are chosen (2-5)
-                while j <= 4:
-                    if random_nb < j / 4:
-                        self.nb_occ.append(1 + j)  # minimum is 2 occupants
+                j = 1  # staring with one occupant
+                # the random number decides how many occupants are chosen (1-5)
+                while j <= 5 :
+                    if random_nb < sum(probabilities[:j]) :
+                        self.nb_occ.append(j)  # minimum is 1 occupant
                         break
                     j += 1
 
-        if self.building == "MFH":
-            # choose random number of occupants (1-4) for each flat in the multifamily house (assumption)
-
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
+        elif self.building == "MFH":
+            # choose random number of occupants (1-5) for each flat in the multi family house  (assumption)
+            probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # loop over all flats of current multi family house
+            for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
-                k = 1
-                # the random number decides how many occupants are chosen (1-4)
-                while k <= 4:
-                    if random_nb < k / 4:
-                        self.nb_occ.append(k)
+                j = 1  # staring with one occupant
+                # the random number decides how many occupants are chosen (1-5)
+                while j <= 5 :
+                    if random_nb < sum(probabilities[:j]) :
+                        self.nb_occ.append(j)  # minimum is 1 occupant
                         break
-                    k += 1
+                    j += 1
 
-        if self.building == "AB":
-            # choose random number of occupants (1-4) for each flat in the apartment block  (assumption)
-
-            # loop over all flats of current building
-            for j in range(self.nb_flats):
+        elif self.building == "AB":
+            # choose random number of occupants (1-5) for each flat in the apartment block  (assumption)
+            probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # loop over all flats of current apartment block
+            for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
-                k = 1
-                # the random number decides how many occupants are chosen (1-4)
-                while k <= 4:
-                    if random_nb < k / 4:
-                        self.nb_occ.append(k)
+                j = 1  # staring with one occupant
+                # the random number decides how many occupants are chosen (1-5)
+                while j <= 5 :
+                    if random_nb < sum(probabilities[:j]) :
+                        self.nb_occ.append(j)  # minimum is 1 occupant
                         break
-                    k += 1
+                    j += 1
+
 
     def generate_annual_el_consumption(self):
         """
@@ -189,45 +191,70 @@ class Users:
 
         Parameters
         ----------
-        standard_consumption : standard annual consumption in kWh (assumption).
+        consumption_range : range of the annual consumption of electricity in kWh, not including electricity used for heating, dhw and cooling
 
         Returns
         -------
         None.
         """
-
-        # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
+        if self.building in {"SFH","TH","MFH","AB"}:
+        # source: https://www.stromspiegel.de/fileadmin/ssi/stromspiegel/Downloads/StromspiegelFlyer_2023_Web.pdf
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
-        standard_consumption = {"SFH": {1: 2400,
-                                        2: 3000,
-                                        3: 3600,
-                                        4: 4000,
-                                        5: 5000},
-                                "MFH": {1: 1400,
-                                        2: 2000,
-                                        3: 2600,
-                                        4: 2900,
-                                        5: 3000}}
+        # Depending on the number of occupants in the household, there is a range of annual electricity demand with the corresponding probabilities
+            consumption_range = {"SFH" : {1 : [1100,1400,1800,2200,2600,3400,4500,4800],
+                                             2 : [1700,2000,2500,2800,3100,3500,4300,4600],
+                                             3 : [2200,2500,3000,3500,3900,4400,5200,5500],
+                                             4 : [2500,2800,3500,3900,4300,5000,6000,6300],
+                                             5 : [2900,3200,4000,4500,5200,6000,7600,7900]},
+                                    "MFH" : {1 : [600,800,1000,1300,1500,1700,2100,2300],
+                                             2 : [1200,1400,1700,2000,2300,2500,3000,3200],
+                                             3 : [1500,1700,2100,2500,2900,3300,3800,4000],
+                                             4 : [1600,1800,2300,2600,3000,3600,4400,4600],
+                                             5 : [1300,1500,2100,2700,3400,4100,5500,5700]}}
 
-        self.annual_el_demand = np.zeros(self.nb_flats)
-        # assumption: standard deviation 10% of mean value
-        for j in range(self.nb_flats):
-            if self.building == "SFH":
-                annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
-            if self.building == "TH":
-                annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
-            if self.building == "MFH":
-                annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
-            if self.building == "AB":
-                annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp, annual_el_demand_temp * 0.10)
+            probabilities = [0.143, 0.143, 0.143, 0.142, 0.143, 0.143, 0.143]
 
-    def generate_lighting_index(self):
+            self.annual_el_demand = np.zeros(self.nb_flats)
+            for j in range(self.nb_flats):
+                if self.building == "SFH":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["SFH"][self.nb_occ[j]][i - 1], consumption_range["SFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+                if self.building == "TH":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["SFH"][self.nb_occ[j]][i - 1],consumption_range["SFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+                if self.building == "MFH":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["MFH"][self.nb_occ[j]][i - 1], consumption_range["MFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+                if self.building == "AB":
+                    random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                    i = 1
+                    while i <= 7:
+                        if random_nb < sum(probabilities[:i]):
+                            self.annual_el_demand[j] = rd.randint(consumption_range["MFH"][self.nb_occ[j]][i - 1], consumption_range["MFH"][self.nb_occ[j]][i])
+                            # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                            break
+                        i += 1
+    def generate_lighting_index(self, area):
         """
-        Choose a random lighting index between 0 and 99.
+        Choose a random lighting index between 0 and 99 for the residential buildings.
         This index defines the lighting configuration of the household.
         There are 100 predefined lighting configurations.
 
@@ -264,34 +291,34 @@ class Users:
         -------
         None.
         """
+        if self.building in {"SFH","TH","MFH","AB"}:
+            src_path = os.path.dirname(richardsonpy.__file__)
+            path_app = os.path.join(src_path, 'inputs', 'Appliances.csv')
+            path_light = os.path.join(src_path, 'inputs', 'LightBulbs.csv')
 
-        src_path = os.path.dirname(richardsonpy.__file__)
-        path_app = os.path.join(src_path, 'inputs', 'Appliances.csv')
-        path_light = os.path.join(src_path, 'inputs', 'LightBulbs.csv')
+            for j in range(self.nb_flats):
 
-        for j in range(self.nb_flats):
+                # annual demand of the electric appliances (annual demand minus lighting)
+                # source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel
+                # share of the electricity demand for lighting of the total electricity demand without heating, dhw and cooling for 2022: 7.9 / 81.8 = 9.6%
+                appliancesDemand = 0.904 * self.annual_el_demand[j]
 
-            # annual demand of the electric appliances (annual demand minus lighting)
-            # source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel
-            # values from diagram for 2018 without heating, dhw and cooling: 8,1 / 81,1 = 10,0%
-            appliancesDemand = 0.9 * self.annual_el_demand[j]
+                # Create and save appliances object
+                appliances = \
+                    app_model.Appliances(path_app,
+                                         annual_consumption=appliancesDemand,
+                                         randomize_appliances=True,
+                                         max_iter=15,
+                                         prev_heat_dev=True)
 
-            # Create and save appliances object
-            appliances = \
-                app_model.Appliances(path_app,
-                                     annual_consumption=appliancesDemand,
-                                     randomize_appliances=True,
-                                     max_iter=15,
-                                     prev_heat_dev=True)
+                # Create and save light configuration object
+                lights = light_model.load_lighting_profile(filename=path_light,
+                                                           index=self.lighting_index[j])
 
-            # Create and save light configuration object
-            lights = light_model.load_lighting_profile(filename=path_light,
-                                                       index=self.lighting_index[j])
+                #  Create wrapper object
+                self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
-            #  Create wrapper object
-            self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
-
-    def calcProfiles(self, site, time_resolution, time_horizon, building, path, initial_day=1):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -317,31 +344,64 @@ class Users:
 
         time_day = 24 * 60 * 60
         nb_days = int(time_horizon/time_day)
-        #if building["unique_name"]
+        if self.building in {"SFH", "TH", "MFH", "AB"}:
 
-        self.occ = np.zeros(int(time_horizon / time_resolution))
-        self.dhw = np.zeros(int(time_horizon / time_resolution))
-        self.elec = np.zeros(int(time_horizon / time_resolution))
-        self.gains = np.zeros(int(time_horizon / time_resolution))
-        self.car = np.zeros(int(time_horizon / time_resolution))
-        if building['buildingFeatures']['building'] == "AB":
-            unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-        elif building['buildingFeatures']['building'] == "TH":
-            unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-        else:
-            unique_name = building['unique_name']
-        # elec, gains and occ already calculated to safe calculation time
-        self.elec = np.loadtxt(path + '/elec_' + unique_name + '.txt', delimiter=',')
-        self.gains = np.loadtxt(path + '/gains_' + unique_name + '.txt', delimiter=',')
-        self.occ = np.loadtxt(path + '/occ_' + unique_name + '.txt', delimiter=',')
-        for j in range(self.nb_flats):
-            temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
-            self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
-        # currently only one car per building possible
-        self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']["EV"])
+            self.occ = np.zeros(int(time_horizon / time_resolution))
+            self.dhw = np.zeros(int(time_horizon / time_resolution))
+            self.elec = np.zeros(int(time_horizon / time_resolution))
+            self.gains = np.zeros(int(time_horizon / time_resolution))
+            self.car = np.zeros(int(time_horizon / time_resolution))
+            if building['buildingFeatures']['building'] == "AB":
+                unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+            elif building['buildingFeatures']['building'] == "TH":
+                unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+            else:
+                unique_name = building['unique_name']
+            for j in range(self.nb_flats):
+                temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
+                                    initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
+                                    building=self.building)
+                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                # Occupancy profile in a flat
+                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
+                                                                                 irradiance=irradiation,
+                                                                                 el_wrapper=self.el_wrapper[j],
+                                                                                 annual_demand=self.annual_el_demand[j])
+                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
+            # currently only one car per building possible
+            self.car = self.car + temp_obj.generate_EV_profile(self.occ)
 
+        # WEBTOOL BRANCH BEFORE MERGE
+        # self.occ = np.zeros(int(time_horizon / time_resolution))
+        # self.dhw = np.zeros(int(time_horizon / time_resolution))
+        # self.elec = np.zeros(int(time_horizon / time_resolution))
+        # self.gains = np.zeros(int(time_horizon / time_resolution))
+        # self.car = np.zeros(int(time_horizon / time_resolution))
+        # if building['buildingFeatures']['building'] == "AB":
+        #     unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+        # elif building['buildingFeatures']['building'] == "TH":
+        #     unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+        # else:
+        #     unique_name = building['unique_name']
+        # # elec, gains and occ already calculated to safe calculation time
+        # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.txt', delimiter=',')
+        # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.txt', delimiter=',')
+        # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.txt', delimiter=',')
+        # for j in range(self.nb_flats):
+        #     temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
+        #     self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
+        # # currently only one car per building possible
+        # self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']["EV"])
+        #
 
-    def calcHeatingProfile(self, site, envelope, time_resolution):
+        # ------ Webtool: import of existing time series to save computing time ------ #
+        # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
+        # self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
+        # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
+        # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
+
+    def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
         """
         Calculate heat demand for each building.
 
@@ -362,21 +422,18 @@ class Users:
         None.
         """
 
-        dt = time_resolution/(60*60)
+        dt = time_resolution / (60 * 60)
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_min, site["T_e"], dt)
-        #(Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], dt)
-        # heating  load for the current time step in Watt
-        self.heat = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.heat[t] = max(0, Q_HC[t])
-        self.annual_heat_demand = np.sum(self.heat)
-
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
-        self.cooling = np.zeros(len(Q_HC))
-        for t in range(len(Q_HC)):
-            self.cooling[t] = min(0, Q_HC[t]) * (-1)
-        self.annual_cooling_demand = np.sum(self.cooling)
+        if night_setback == 1:
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt,
+                                                                         self.building)
+        elif night_setback == 0:
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+        # heating and cooling loads for the current time step in Watt
+        self.heat = Q_H
+        self.cooling = Q_C
+        self.annual_heat_demand = np.sum(Q_H)
+        self.annual_cooling_demand = np.sum(Q_C)
 
     def getProfiles(self):
 

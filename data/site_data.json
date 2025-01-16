@@ -1,23 +1,5 @@
 [
   {
-    "name": "location",
-    "value": [51.0,6.55],
-    "unit": "degree",
-    "description": "Latitude, Longitude"
-  },
-  {
-    "name": "climateZone",
-    "value": 0,
-    "unit": "-",
-    "description": "Number of climate zone. 0 refers to Aachen. 1-15 refer to climate zones according to DWD."
-  },
-  {
-    "name": "altitude",
-    "value": 0,
-    "unit": "m",
-    "description": "Above sea level"
-  },
-  {
     "name": "timeZone",
     "value": 1,
     "unit": "h",
@@ -37,7 +19,7 @@
   },
   {
     "name": "TRYType",
-    "value": "Jahr",
+    "value": "Wint",
     "unit": "-",
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   }

@@ -103,8 +103,6 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
                 "TES", "CTES", "BAT", "GS",
                 ]
 
-    # %% TECHNICAL PARAMETERS
-
     try:
         print(buildingData[0]["capacities"])
     except KeyError:
@@ -113,6 +111,7 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             for dev in ["HP", "EH", "CHP", "FC", "BOI", "STC", "BAT", "TES", "EV"]:
                 buildingData[n]["capacities"][dev] = 0
 
+    # %% TECHNICAL PARAMETERS
     soc_nom = {}
     soc_nom["TES"] = {}
     soc_nom["BAT"] = {}

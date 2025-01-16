@@ -21,10 +21,6 @@ from classes.plots import DemandPlots
 from classes.optimizer import Optimizer
 from classes.KPIs import KPIs
 import functions.clustering_medoid as cm
-import functions.wind_turbines as wind_turbines
-import EHDO.load_params as load_params_EHDO
-import EHDO.optim_model as optim_model_EHDO
-
 
 class Datahandler:
     """
@@ -66,8 +62,6 @@ class Datahandler:
         self.scenario_name = None
         self.scenario = None
         self.counter = {}
-        self.outputV1 = {}
-        self.outputV2 = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
@@ -95,8 +89,6 @@ class Datahandler:
 
             for row in sheet.iter_rows(values_only=True):
                 if plz == str(row[0]):
-                    latitude = row[4]
-                    longitude = row[5]
                     weatherdatafile = row[3]
                     weatherdatafile_location = weatherdatafile[8:-9]
                     break
@@ -108,7 +100,7 @@ class Datahandler:
         except Exception as e:
             # If postal code cannot be found: Message and select weathter data file from Aachen
             print("Postal code cannot be found, location changed to Aachen")
-            weatherdatafile_location = 37335002675500
+            weatherdatafile_location = 507755060854
 
         return weatherdatafile_location
 
@@ -136,15 +128,17 @@ class Datahandler:
         if weather_conditions is not None:
             self.site["TRYType"] = weather_conditions
 
+        # %% load first day of the year
+
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-        weatherData = np.loadtxt(
-            os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"],
-                         self.site["TRYType"])
-            + "/"
+        # load weather data
+        # select the correct file depending on the TRY weather station location
+        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
+            + "\\"
             + self.site["TRYYear"] + "_"
             + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
             + ".dat",
@@ -176,6 +170,12 @@ class Datahandler:
                 self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
+        # load the holidays
+        if self.site["TRYYear"] == "TRY2015":
+            self.time["holidays"] = self.time["holidays2015"]
+        elif self.site["TRYYear"] == "TRY2045":
+            self.time["holidays"] = self.time["holidays2045"]
+
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
         self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
@@ -193,8 +193,21 @@ class Datahandler:
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
 
+        # Load other site-dependent values based on DIN/TS 12831-1:2020-04
+        srcPath = os.path.dirname(os.path.abspath(__file__))
+        filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
+        site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
+
+        # Filter data for the specific zip code
+        filtered_data = site_data[site_data['Zip'] == plz]
+
+        # extract the needed values
+        self.site["altitude"] = filtered_data.iloc[0]['Altitude']
+        self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
+        self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
+        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
+
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
-        global sun
         sun = Sun(filePath=self.filePath)
         self.SunRad = sun.getSolarGains(initialTime=0,
                                         timeDiscretization=self.time["timeResolution"],
@@ -343,6 +356,21 @@ class Datahandler:
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"])
 
+            # %% calculate design heat loads
+            # at norm outside temperature
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            # at bivalent temperature
+            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            # at heating limit temperature
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            # for drinking hot water
+            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["user"].nb_flats
+            else:
+                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["user"].nb_main_rooms
+
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
@@ -388,6 +416,7 @@ class Datahandler:
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
+                                              holidays=self.time["holidays"],
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
                                               building=building,
@@ -414,10 +443,15 @@ class Datahandler:
 
             building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
 
+            night_setback = building["buildingFeatures"]["night_setback"]
+
             # calculate heating profiles
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
-                                                time_resolution=self.time["timeResolution"])
+                                                night_setback=night_setback,
+                                                holidays=self.time["holidays"],
+                                                time_resolution=self.time["timeResolution"]
+                                                )
 
             if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], os.path.join(path, "files", 'demands'))
@@ -450,9 +484,6 @@ class Datahandler:
         #                delimiter=',')
 
         print("Finished generating demands!")
-
-    def outputWebtoolV1(self):
-        return self.outputV1
 
     def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
                                  saveUserProfiles=True, plz='52064',
@@ -559,27 +590,17 @@ class Datahandler:
                 for subData in jsonData:
                     bldgs[subData["name"]] = subData["value"]
 
-            # %% calculate design heat loads
-            # at norm outside temperature
-            building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-            # at heating limit temperature
-            building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            # building["dhwload"] = 10000
-            building["dhwload"] = \
-                bldgs["dhwload"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])] * \
-                building["user"].nb_flats
-
             # %% create building energy system object
             # get capacities of all possible devices
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
+
             # calculate theoretical PV generation
 
             sun = Sun(filePath=self.filePath)
+
+
 
             if building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] == 0:
                 building["buildingFeatures"]["PV_area"] = 1
@@ -634,7 +655,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self, webtool):
+    def designCentralDevices(self, webtool, saveGenerationProfiles=True):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -666,6 +687,17 @@ class Datahandler:
         self.centralDevices["generation"]["PV"] = generation[0]
         self.centralDevices["generation"]["STC"] = generation[1]
         self.centralDevices["generation"]["Wind"] =  generation[2]
+
+        if saveGenerationProfiles == True:
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralPV.csv'),
+                       self.centralDevices["generation"]["PV"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralSTC.csv'),
+                       self.centralDevices["generation"]["STC"],
+                       delimiter=',')
+            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralWind.csv'),
+                       self.centralDevices["generation"]["Wind"],
+                       delimiter=',')
 
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
@@ -803,9 +835,8 @@ class Datahandler:
         # Perform clustering
         (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
                                                              number_clusters=self.time["clusterNumber"],
-                                                             len_day=int(initialArrayLenght),
+                                                             len_cluster=int(initialArrayLenght),
                                                              weights=weights)
-
         # safe clustering solution in district data
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
@@ -997,6 +1028,7 @@ class Datahandler:
         -------
         None.
         """
+        optiData = {}
 
         # initialize result list for all clusters
         self.resultsOptimization = []
@@ -1023,29 +1055,3 @@ class Datahandler:
         self.KPIs.calculateAllKPIs(self, webtool)
         # Generate a PDF file with a list of KPIs.
         self.KPIs.create_kpi_pdf(result_path)
-
-    def optimizationWithEHDO(self):
-        """
-        Optimization with EHDO.
-
-        Returns
-        -------
-        None.
-        """
-
-        demands_district = {}
-        demands_district["heat"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv',
-                                              delimiter=',')
-        demands_district["cooling"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv',
-                                                 delimiter=',')
-        demands_district["dhw"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv',
-                                             delimiter=',')
-        demands_district["elec"] = np.loadtxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv',
-                                              delimiter=',')
-
-        # Load parameters
-        # TODO: Input ob devs feasible = True/False, min/max cap, ....
-        param, devs, dem, result_dict = load_params_EHDO.load_params(self, demands_district)
-
-        # Run optimization
-        self.resultsEHDO = optim_model_EHDO.run_optim(devs, param, dem, result_dict)
