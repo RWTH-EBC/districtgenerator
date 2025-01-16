@@ -101,7 +101,7 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
                 ]
 
     try:
-        print(buildingData[0]["capacities"])
+        a = buildingData[0]["capacities"]
     except KeyError:
         for n in range(nb):
             buildingData[n]["capacities"] = {}
@@ -242,11 +242,6 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
     for device in eh_devs:
         eh_cap[device] = model.addVar(vtype="C", name="eh_nominal_capacity_" + str(device))
 
-    # Area used for PV and solar thermal collector installation
-    eh_area = {}
-    for device in ["PV", "STC"]:
-        eh_area[device] = model.addVar(vtype = "C", name="eh_roof_area_" + str(device))
-
     # Gas flow to/from devices
     eh_gas = {}
     for device in ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]:
@@ -299,14 +294,19 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             eh_waste[device][t] = model.addVar(vtype="C", name="waste_" + device + "_t" + str(t))
 
     # Storage variables
-    eh_ch = {}  # Energy flow to charge storage device
+    eh_ch = {}# Energy flow to charge storage device
+    eh_dch = {}# Energy flow to discharge storage device
     eh_soc = {} # State of charge
+    eh_soc_init = {} # Initial state of charge
     for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
         eh_ch[device] = {}
         eh_soc[device] = {}
+        eh_dch[device] = {}
+        # Initial state of charge
+        eh_soc_init[device] = eh_cap[device] * 0.5  # Wh
         for t in time_steps:
-            # For charge variable: ch is positive if storage is charged, and negative if storage is discharged
             eh_ch[device][t] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="eh_ch_" + device + "_t" + str(t))
+            eh_dch[device][t] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="eh_dch_" + device + "_t" + str(t))
             eh_soc[device][t] = model.addVar(vtype="C", name="soc_" + device + "_t" + str(t))
 
 
@@ -369,13 +369,19 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             if energyHubData == {}:
                 model.addConstr(eh_heat[device][t] == 0)
             else:
-                model.addConstr(eh_heat[device][t] <= energyHubData["capacities"]["heat_kW"][device] * 1000) # W
-        for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
+                model.addConstr(eh_heat[device][t] <= energyHubData["capacities"]["heat_kW"][device] * 10000) # W
+        model.addConstr(eh_heat["STC"][t] <= energyHubData["generation"]["STC_cluster"][cluster][t],
+                        name="STC_generation_energyHub_" + str(t))
+        for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
             # todo: webtool
             if energyHubData == {}:
                 model.addConstr(eh_power[device][t] == 0)
             else:
                 model.addConstr(eh_power[device][t] <= energyHubData["capacities"]["power_kW"][device] * 1000) # W
+        model.addConstr(eh_power["PV"][t] <= energyHubData["generation"]["PV_cluster"][cluster][t],
+                        name="PV_generation_energyHub_" + str(t))
+        model.addConstr(eh_power["WT"][t] == energyHubData["generation"]["Wind_cluster"][cluster][t],
+                        name="WT_generation_energyHub_" + str(t))
         for device in ["CC", "AC"]:
             model.addConstr(eh_cool[device][t] <= eh_cap[device])
         #for device in ["SAB"]:
@@ -388,7 +394,7 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             if energyHubData == {}:
                 model.addConstr(eh_soc[device][t] == 0)
             else:
-                model.addConstr(eh_soc[device][t] <= eh_cap[device])
+                model.addConstr(eh_soc[device][t] <= eh_cap[device] * 1000) # Wh
 
     #%% INPUT / OUTPUT CONSTRAINTS
     if optiData["webtool"] == True:
@@ -430,7 +436,7 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
     else:
         for t in time_steps:
             # Electric heat pump
-            # todo:
+            # todo: variable COP
             model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * technical_param_eh["HP"]["COP"])
             # Electric boiler
             model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * technical_param_eh["EB"]["eta_th"])
@@ -574,7 +580,8 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             model.addConstr(soc_dom[device][n][t] == soc_prev
                             + ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"]* dt
                             - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"] * dt
-                            - EV_dem[n][t])
+                            - EV_dem[n][t],
+                            name="EV_storage_balance_" + str(n) + "_" + str(t))
 
             if t == last_time_step:
                 model.addConstr(soc_dom[device][n][t] == soc_init[device][n])
@@ -625,7 +632,7 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
                             + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
-            model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t],
+            model.addConstr( heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t], #dch_dom[device][n][t] +
                             name="Heat_discharging_" + str(n) + "_" + str(t))
 
             device = "BAT"
@@ -679,20 +686,24 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
         # Heating balance
         model.addConstr(eh_heat["STC"][t] + eh_heat["HP"][t] + eh_heat["EB"][t] + eh_heat["CHP"][t]
                         + eh_heat["BOI"][t] + eh_heat["GHP"][t] + eh_heat["BCHP"][t] + eh_heat["BBOI"][t]
-                        + eh_heat["WCHP"][t] + eh_heat["WBOI"][t] + eh_heat["FC"][t]
-                        == eh_heat["grid"][t] + eh_heat["AC"][t] + eh_ch["TES"][t])
+                        + eh_heat["WCHP"][t] + eh_heat["WBOI"][t] + eh_heat["FC"][t] +eh_dch["TES"][t]
+                        == eh_heat["grid"][t] + eh_heat["AC"][t] + eh_ch["TES"][t],
+                        name="Heating_balance_EnergyHub_" + str(t))
         # todo: heat losses heat grid
-        model.addConstr(eh_heat["grid"][t] == sum(heat_dom["heat_grid"][n][t] for n in range(nb)))
+        model.addConstr(eh_heat["grid"][t] >= sum(heat_dom["heat_grid"][n][t] for n in range(nb)),
+                        name="Heat_Supply_EnergyHub_" + str(t))
         # Electricity balance
         model.addConstr(eh_power["PV"][t] + eh_power["WT"][t] + eh_power["WAT"][t] + eh_power["CHP"][t]
-                            + eh_power["BCHP"][t] + eh_power["WCHP"][t] + eh_power["FC"][t] + eh_power["from_grid"][t]
-                            == eh_power["HP"][t] + eh_power["EB"][t] + eh_power["CC"][t]
-                            + eh_power["ELYZ"][t] + eh_ch["BAT"][t] + eh_power["to_grid"][t])
+                        + eh_power["BCHP"][t] + eh_power["WCHP"][t] + eh_power["FC"][t] + eh_power["from_grid"][t]
+                        == eh_power["HP"][t] + eh_power["EB"][t] + eh_power["CC"][t]
+                        + eh_power["ELYZ"][t] + eh_ch["BAT"][t] + eh_power["to_grid"][t],
+                        name="Electricity_balance_EnergyHub_" + str(t))
         # # Cooling balance
         # model.addConstr(eh_cool["AC"][t] + eh_cool["CC"][t] == dem["cool"][t] + eh_ch["CTES"][t])
         # Gas balance
         model.addConstr(eh_gas["from_grid"][t] + eh_gas["SAB"][t] == eh_gas["CHP"][t] + eh_gas["BOI"][t]
-                            + eh_gas["GHP"][t] + eh_ch["GS"][t] + eh_gas["to_grid"][t])
+                        + eh_gas["GHP"][t] + eh_ch["GS"][t] + eh_gas["to_grid"][t],
+                        name="Gas_balance_EnergyHub_" + str(t))
         # Hydrogen balance
         model.addConstr(eh_hydrogen["ELYZ"][t] + eh_hydrogen["import"][t]
                         == eh_hydrogen["FC"][t] + eh_hydrogen["SAB"][t] + eh_ch["H2S"][t])
@@ -700,6 +711,17 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
         model.addConstr(eh_biom["import"][t] == eh_biom["BCHP"][t] + eh_biom["BBOI"][t])
         # Waste balance
         model.addConstr(eh_waste["import"][t] == eh_waste["WCHP"][t] + eh_waste["WBOI"][t])
+
+        for device in ["TES", "CTES", "BAT"]:
+            if t == 0:
+                eh_soc_prev = eh_soc_init[device]
+            else:
+                eh_soc_prev = eh_soc[device][t - 1]
+            model.addConstr(eh_soc[device][t] == eh_soc_prev * (1-technical_param_eh[device]["sto_loss"])
+                            + eh_ch[device][t] - eh_dch[device][t],
+                            name="Storage_balance_energyHub" + str(device) + "_" + str(t))
+            if t == last_time_step:
+                model.addConstr(eh_soc[device][t] == eh_soc_init[device])
 
     # Electricity balance neighborhood (Power balance in Watt)
     for t in time_steps:
@@ -870,6 +892,5 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
     results["daily_peak"] = {}
     for d in days:
         results["daily_peak"][d] = daily_peak[d].X
-
 
     return results

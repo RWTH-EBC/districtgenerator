@@ -373,7 +373,7 @@ def generate_yearly_probability_profile(s_step, weekend_weekday_factor,building_
 
     # make timeseries dataframe and append the final list
     date_range = pd.date_range(start='2019-01-01', end='2020-01-01',
-                               freq=str(s_step) + 'S')
+                               freq=str(s_step) + 's')
     date_range = date_range[:-1]
 
     timeseries_df = pd.DataFrame(index=date_range,
@@ -1522,7 +1522,7 @@ def resample_water_series(timeseries_df, s_step_output):
         timeseries_df_const_flows = timeseries_df[cols_const_flows]
 
         # resample them according to their physical properties
-        rule = str(s_step_output) + 'S'
+        rule = str(s_step_output) + 's'
         timeseries_df_sum_re = timeseries_df_sum.resample(rule=rule).sum()
         timeseries_df_flows_re = timeseries_df_flows.resample(rule=rule).mean()
 
@@ -1547,7 +1547,7 @@ def resample_water_series(timeseries_df, s_step_output):
             axis=1)
 
         # add 'resampled' tag to method column
-        timeseries_df_re['method'] = timeseries_df['method'][0] + ' (resampled)'
+        timeseries_df_re['method'] = timeseries_df['method'].iloc[0] + ' (resampled)'
 
     else:
         timeseries_df_re = timeseries_df

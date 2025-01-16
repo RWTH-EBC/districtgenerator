@@ -2,10 +2,11 @@
 
 import json
 import os
-import functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
-import functions.load_params_central_devices as load_params_central_devices
-from classes.solar import Sun
-import functions.wind_turbines as wind_turbines
+import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
+import districtgenerator.functions.load_params_central_devices as load_params_central_devices
+from .solar import Sun
+import districtgenerator.functions.wind_turbines as wind_turbines
+import numpy as np
 
 
 class BES:
@@ -202,16 +203,18 @@ class CES:
 
         return capacities_centralDevices
 
-    def generation(self, filePath, time, site):
+    def generation(self, data):
 
+        filePath = data.filePath
+        time = data.time
+        site = data.site
         global sun
         sun = Sun(filePath=filePath)
         # calculate theoretical PV generation
         potentialPV, defaultSTC = \
             sun.calcPVAndSTCProfile(time=time,
                                     site=site,
-                                    area_roof=10,
-                                    # todo: auf internetseite ergänzen
+                                    area_roof=data.centralDevices["capacities"]["area"]["PV"],
                                     # In Germany, this is a roof pitch between 30 and 35 degrees
                                     beta=[35],
                                     # surface azimuth angles (Orientation to the south: 0°)
@@ -223,8 +226,7 @@ class CES:
         defaultPV, pontentialSTC = \
             sun.calcPVAndSTCProfile(time=time,
                                     site=site,
-                                    area_roof=10,
-                                    # todo: auf internetseite ergänzen
+                                    area_roof=data.centralDevices["capacities"]["area"]["STC"],
                                     # In Germany, this is a roof pitch between 30 and 35 degrees
                                     beta=[35],
                                     # surface azimuth angles (Orientation to the south: 0°)
@@ -233,6 +235,7 @@ class CES:
                                     usageFactorSTC=1)
 
         potentialWIND = wind_turbines.WT_generation(site["wind_speed"])
+        potentialWIND = (potentialWIND / np.max(potentialWIND)) * (data.centralDevices["capacities"]["power_kW"]["WT"] * 1000)
 
 
         return (potentialPV, pontentialSTC, potentialWIND)

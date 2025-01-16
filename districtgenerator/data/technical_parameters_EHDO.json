@@ -420,6 +420,12 @@
       "description": "Maximum capacity."
     },
     {
+      "name": "sto_loss",
+      "value": 0.05,
+      "unit": "-",
+      "description": "Storage loss."
+    },
+    {
       "name": "inv_var",
       "value": 500,
       "unit": "€/kWh",

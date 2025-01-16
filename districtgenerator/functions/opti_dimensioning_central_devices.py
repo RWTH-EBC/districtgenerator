@@ -703,7 +703,11 @@ def run_optim(devs, param, dem, result_dict):
                     result_dict["heat_kW"][device].append(heat[device][d][t].X)
             result_dict["heat_kW"][device] = int(max(result_dict["heat_kW"][device]))
 
-        # soc devices
+        result_dict["area"] = {}
+        for device in ["PV", "STC"]:
+            result_dict["area"][device] = int(area[device].X)
+
+            # soc devices
         result_dict["soc"] = {}
         result_dict["ch"] = {}
         for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
@@ -754,10 +758,6 @@ def run_optim(devs, param, dem, result_dict):
 #        result_dict["PV_or_STC_inst"] = (result_dict["PV"]["inst"] or result_dict["STC"]["inst"])
 #        result_dict["right_gen_tech_inst"] =(result_dict["WT"]["inst"] or result_dict["WAT"]["inst"] or result_dict["ELYZ"]["inst"] or result_dict["FC"]["inst"] or result_dict["SAB"]["inst"])
 #        result_dict["storage_inst"] = (result_dict["TES"]["inst"] or result_dict["CTES"]["inst"] or result_dict["GS"]["inst"] or result_dict["BAT"]["inst"] or result_dict["H2S"]["inst"])
-#
-#        # Area of PV and STC
-        result_dict["PV"]["area"] = int(area["PV"].X)
-        result_dict["STC"]["area"] = int(area["STC"].X)
 #
 #        # Calculate charge cycles of storages
 #        for k in ["TES", "CTES", "BAT", "H2S", "GS"]:

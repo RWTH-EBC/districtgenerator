@@ -6,7 +6,7 @@ import random as rd
 import numpy as np
 import pandas as pd
 import openpyxl
-from classes.profils import Profiles
+from .profils import Profiles
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model

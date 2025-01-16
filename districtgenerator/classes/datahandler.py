@@ -11,15 +11,15 @@ import openpyxl
 import pandas as pd
 from itertools import count
 from teaser.project import Project
-from classes.envelope import Envelope
-from classes.solar import Sun
-from classes.users import Users
-from classes.system import BES
-from classes.system import CES
-from classes.plots import DemandPlots
-from classes.optimizer import Optimizer
-from classes.KPIs import KPIs
-import functions.clustering_medoid as cm
+from .envelope import Envelope
+from .solar import Sun
+from .users import Users
+from .system import BES
+from .system import CES
+from .plots import DemandPlots
+from .optimizer import Optimizer
+from .KPIs import KPIs
+import districtgenerator.functions.clustering_medoid as cm
 
 class Datahandler:
     """
@@ -383,7 +383,7 @@ class Datahandler:
             }
             building["user"].car *= building["buildingFeatures"]["EV"]
 
-            building["envelope"].calcNormativeProperties(self.SunRad, building["user"].gains)
+            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
 
             night_setback = building["buildingFeatures"]["night_setback"]
 
@@ -403,8 +403,7 @@ class Datahandler:
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz="52064",
-                                 fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-                                 designDevs=False, clustering=False, optimization=False):
+                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
@@ -443,7 +442,7 @@ class Datahandler:
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
-            self.designDevicesComplete(fileName_centralSystems, saveGenProfiles)
+            self.designDevicesComplete(saveGenProfiles)
         if clustering:
             if designDevs:
                 self.clusterProfiles()
@@ -511,11 +510,11 @@ class Datahandler:
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
-                np.savetxt(os.path.join(self.resultPath, 'renewableGeneration')
+                np.savetxt(os.path.join(self.resultPath, 'generation')
                            + '/decentralPV_' + building["unique_name"] + '.csv',
                            building["generationPV"],
                            delimiter=',')
-                np.savetxt(os.path.join(self.resultPath, 'renewableGeneration')
+                np.savetxt(os.path.join(self.resultPath, 'generation')
                            + '/decentralSTC_' + building["unique_name"] + '.csv',
                            building["generationSTC"],
                            delimiter=',')
@@ -547,23 +546,23 @@ class Datahandler:
 
         # calculate theoretical PV, STC and Wind generation
         self.centralDevices["generation"] = {}
-        self.centralDevices["generation"]["PV"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[0]
-        self.centralDevices["generation"]["STC"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[1]
-        self.centralDevices["generation"]["Wind"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[2]
+        (self.centralDevices["generation"]["PV"], self.centralDevices["generation"]["STC"],
+         self.centralDevices["generation"]["Wind"]) = self.centralDevices["ces_obj"].generation(self)
+
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralPV.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
                        self.centralDevices["generation"]["PV"],
                        delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralSTC.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
                        self.centralDevices["generation"]["STC"],
                        delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralWind.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
                        self.centralDevices["generation"]["Wind"],
                        delimiter=',')
 
-    def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
+    def designDevicesComplete(self, saveGenerationProfiles=True):
         """
         Design decentral and central devices.
 
@@ -628,10 +627,6 @@ class Datahandler:
                     # no STC installed; but array with just zeros leads to problem while clustering
                     adjProfiles[id]["generationSTC"] = \
                         self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
-        # solar radiation on surfaces with different orientation
-        adjProfiles["Sun"] = {}
-        for drct in range(len(self.SunRad)):
-            adjProfiles["Sun"][drct] = self.SunRad[drct][0:lenghtArray]
 
         if centralEnergySupply == True:
             if self.centralDevices["capacities"]["power_kW"]["WT"] > 0:
@@ -640,27 +635,23 @@ class Datahandler:
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
                 existence_centralWT = 0
-                adjProfiles["generationCentralWT"] = \
-                    self.centralDevices["generation"]["Wind"][0:lenghtArray] * sys.float_info.epsilon
+                adjProfiles["generationCentralWT"] = np.ones(lenghtArray) * sys.float_info.epsilon
             if self.centralDevices["capacities"]["power_kW"]["PV"] > 0:
                 existence_centralPV = 1
                 adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
                 existence_centralPV = 0
-                adjProfiles["generationCentralPV"] = \
-                    self.centralDevices["generation"]["PV"][0:lenghtArray] * sys.float_info.epsilon
+                adjProfiles["generationCentralPV"] = np.ones(lenghtArray) * sys.float_info.epsilon
             if self.centralDevices["capacities"]["heat_kW"]["STC"] > 0:
                 existence_centralSTC = 1
-                adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["generation"]["STC"][0:lenghtArray]
+                adjProfiles["generationCentralSTC"] = self.centralDevices["generation"]["STC"][0:lenghtArray]
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
                 existence_centralSTC = 0
-                adjProfiles["generationCentralSTC"] = \
-                    self.centralDevices["generation"]["STC"][0:lenghtArray] * sys.float_info.epsilon
+                adjProfiles["generationCentralSTC"] = np.ones(lenghtArray) * sys.float_info.epsilon
+
         # wind speed and ambient temperature
-        #adjProfiles["wind_speed"] = self.site["wind_speed"][0:lenghtArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
@@ -671,36 +662,31 @@ class Datahandler:
             inputsClustering.append(adjProfiles[id]["dhw"])
             inputsClustering.append(adjProfiles[id]["heat"])
             inputsClustering.append(adjProfiles[id]["cooling"])
-        if centralEnergySupply == False:
-            for id in self.scenario["id"]:
+            if centralEnergySupply == False:
                 inputsClustering.append(adjProfiles[id]["car"])
                 inputsClustering.append(adjProfiles[id]["generationPV"])
                 inputsClustering.append(adjProfiles[id]["generationSTC"])
-
-        # solar radiation on surfaces with different orientation
-        for drct in range(len(self.SunRad)):
-            inputsClustering.append(adjProfiles["Sun"][drct])
-
+        # ambient temperature
+        inputsClustering.append(adjProfiles["T_e"])
         if centralEnergySupply == True:
             # central renewable generation
             inputsClustering.append(adjProfiles["generationCentralWT"])
             inputsClustering.append(adjProfiles["generationCentralPV"])
             inputsClustering.append(adjProfiles["generationCentralSTC"])
-        # wind speed and ambient temperature
-        #inputsClustering.append(adjProfiles["wind_speed"])
-        inputsClustering.append(adjProfiles["T_e"])
+
+
 
         # weights for clustering algorithm indicating the focus onto this profile
         weights = np.ones(len(inputsClustering))
         # higher weight for outdoor temperature (should at least have the same weight as number of buildings)
-        weights[-1] = len(self.scenario["id"]) + len(self.SunRad)
+        weights[-1] = len(self.scenario["id"])
 
         # Perform clustering
         (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
                                                              number_clusters=self.time["clusterNumber"],
                                                              len_cluster=int(initialArrayLenght),
                                                              weights=weights)
-        # safe clustering solution in district data
+
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
             index_house = int(7)  # number of profiles per building
@@ -708,28 +694,22 @@ class Datahandler:
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
             self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 3]
-        if centralEnergySupply == False:
-            for id in self.scenario["id"]:
-                # assign real EV, PV and STC generation for clustered data to buildings
-                # (array with zeroes if EV, PV or STC does not exist)
+            if centralEnergySupply == False:
                 self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
                 self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
                                                         * self.district[id]["buildingFeatures"]["PV"]
                 self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
                                                          * self.district[id]["buildingFeatures"]["STC"]
 
-        # safe clustered solar radiation on surfaces with different orientation
-        self.SunRad_cluster = {}
-        for drct in range(len(self.SunRad)):
-            self.SunRad_cluster[drct] = newProfiles[-1 - len(self.SunRad) + drct]
-        if centralEnergySupply == True:
-            # save clustered data for real central renewable generation
-            self.centralDevices["generation"]["centralWT_cluster"] = newProfiles[-5] * existence_centralWT
-            self.centralDevices["generation"]["centralPV_cluster"] = newProfiles[-4] * existence_centralPV
-            self.centralDevices["generation"]["centralSTC_cluster"] = newProfiles[-3] * existence_centralSTC
-        # save clustered wind speed and ambient temperature
-        #self.site["wind_speed_cluster"] = newProfiles[-2]
-        self.site["T_e_cluster"] = newProfiles[-1]
+        if centralEnergySupply == False:
+            self.site["T_e_cluster"] = newProfiles[-1]
+        else:
+            self.site["T_e_cluster"] = newProfiles[-4]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[-3]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[-2]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[-1]
+
+
 
         # clusters
         self.clusters = []

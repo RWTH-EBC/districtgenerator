@@ -16,7 +16,7 @@ Contact:        Marco Wirtz
 
 import numpy as np
 import math
-import functions.clustering_medoid as clustering
+import districtgenerator.functions.clustering_medoid as clustering
 import time
 import os
 import json
