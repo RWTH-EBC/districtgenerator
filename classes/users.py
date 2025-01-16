@@ -372,6 +372,29 @@ class Users:
             # currently only one car per building possible
             self.car = self.car + temp_obj.generate_EV_profile(self.occ)
 
+        # WEBTOOL BRANCH BEFORE MERGE
+        # self.occ = np.zeros(int(time_horizon / time_resolution))
+        # self.dhw = np.zeros(int(time_horizon / time_resolution))
+        # self.elec = np.zeros(int(time_horizon / time_resolution))
+        # self.gains = np.zeros(int(time_horizon / time_resolution))
+        # self.car = np.zeros(int(time_horizon / time_resolution))
+        # if building['buildingFeatures']['building'] == "AB":
+        #     unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+        # elif building['buildingFeatures']['building'] == "TH":
+        #     unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
+        # else:
+        #     unique_name = building['unique_name']
+        # # elec, gains and occ already calculated to safe calculation time
+        # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.txt', delimiter=',')
+        # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.txt', delimiter=',')
+        # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.txt', delimiter=',')
+        # for j in range(self.nb_flats):
+        #     temp_obj = Profiles(self.nb_occ[j], initial_day, nb_days, time_resolution)
+        #     self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building)
+        # # currently only one car per building possible
+        # self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']["EV"])
+        #
+
         # ------ Webtool: import of existing time series to save computing time ------ #
         # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
         # self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
@@ -412,6 +435,15 @@ class Users:
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
 
+    def getProfiles(self):
+
+        heat = self.heat
+        cooling = self.cooling
+        elec = self.elec
+        dhw = self.dhw
+
+        return heat, cooling, elec, dhw
+
     def saveProfiles(self, unique_name, path):
         """
         Save profiles to csv.
@@ -435,7 +467,7 @@ class Users:
             'gains': (self.gains, "Internal gains in W"),
             'car': (self.car, "Electricity demand of EV in W")
         }
-
+        # excel_file = os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
         excel_file = os.path.join(path, unique_name + '.xlsx')
 
         with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:

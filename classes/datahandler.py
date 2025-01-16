@@ -9,6 +9,7 @@ import datetime
 import numpy as np
 import openpyxl
 import pandas as pd
+import matplotlib.pyplot as plt
 from itertools import count
 from teaser.project import Project
 from classes.envelope import Envelope
@@ -103,7 +104,7 @@ class Datahandler:
 
         return weatherdatafile_location
 
-    def generateEnvironment(self, plz):
+    def generateEnvironment(self, plz, TRY: int = None, weather_conditions: str = None):
         """
         Load physical district environment - site and weather.
 
@@ -119,8 +120,16 @@ class Datahandler:
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
 
+        # %% load weather data for site
+        # extract irradiation and ambient temperature
+        if TRY is not None:
+            self.site["TRYYear"] = "TRY" + str(TRY)
+
+        if weather_conditions is not None:
+            self.site["TRYType"] = weather_conditions
 
         # %% load first day of the year
+
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
         elif self.site["TRYYear"] == "TRY2045":
@@ -199,7 +208,6 @@ class Datahandler:
         self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
-        global sun
         sun = Sun(filePath=self.filePath)
         self.SunRad = sun.getSolarGains(initialTime=0,
                                         timeDiscretization=self.time["timeResolution"],
@@ -213,7 +221,8 @@ class Datahandler:
                                         diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
 
-    def initializeBuildings(self, scenario_name='example'):
+    # def initializeBuildings(self, scenario_name='example'):
+    def initializeBuildings(self, list_all: list = None, scenario_name='example', path=None):
         """
         Fill district with buildings from scenario file.
 
@@ -230,29 +239,70 @@ class Datahandler:
         num_sfh = 0
         num_mfh = 0
         self.scenario_name = scenario_name
-        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                    + "/"
-                                    + self.scenario_name + ".csv",
-                                    header=0, delimiter=";")
-
-        # initialize buildings for scenario
-        # loop over all buildings
-        for id in self.scenario["id"]:
-            # create empty dict for observed building
-            building = {}
-
-            # store features of the observed building
-            building["buildingFeatures"] = self.scenario.loc[id]
-
-            # append building to district
-            self.district.append(building)
-
-            # Count number of builidings to predict the approximate calculation time
-            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH': num_sfh +=1
-            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
+        if list_all is not None and len(list_all) != 0:
+            self.scenario = pd.DataFrame(list_all, columns=['id', 'type', 'year', 'condition', 'area'])
+        else:
+            if path is None:
+                self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+                                            + "/"
+                                            + self.scenario_name + ".csv",
+                                            header=0, delimiter=";")
+            else:
+                self.scenario = pd.read_csv(os.path.join(path)
+                                            + "/"
+                                            + self.scenario_name + ".csv",
+                                            header=0, delimiter=";")
 
         # Calculate calculation time for the whole district generation
-        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
+        if list_all:
+            building_df_list = []
+            for id, entry in enumerate(list_all):
+                list = list_all[id]
+                building = {}
+                building["buildingFeatures"] = pd.Series(
+                    [list[0], list[1], list[2], list[3], list[4], "BOI", 0, 0, 0, 0, 20, 0, "S", 0.4, 0.04, 0, "on_demand"],
+                    index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+                           'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+                           'gamma_PV',
+                           "ev_charging",
+                           ])
+
+                self.district.append(building)
+                # building_series_list.append(building["buildingFeatures"])
+                df = pd.DataFrame(data=building["buildingFeatures"]).transpose()
+                df.set_index("id")
+                # df.drop(df.columns[0], axis=1)
+                building_df_list.append(df)
+
+                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"][
+                    "building"] == 'TH':
+                    num_sfh += 1
+                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"][
+                    "building"] == 'AB':
+                    num_mfh += 1
+            file_path = os.path.join(path, 'files') + "/" + self.scenario_name + ".csv"
+            pd.concat(building_df_list).to_csv(file_path, index=False, sep=";")
+
+        else:
+            for id in self.scenario["id"]:
+                # create empty dict for observed building
+                building = {}
+
+                # store features of the observed building
+                building["buildingFeatures"] = self.scenario.loc[id]
+
+                # append building to district
+                self.district.append(building)
+
+                # Count number of builidings to predict the approximate calculation time
+                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"][
+                    "building"] == 'TH':
+                    num_sfh += 1
+                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"][
+                    "building"] == 'AB':
+                    num_mfh += 1
+
+        duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print("This calculation will take about " + str(duration) + " .")
 
     def generateBuildings(self):
@@ -278,8 +328,6 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-
-
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -326,8 +374,7 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, path=None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -346,9 +393,14 @@ class Datahandler:
         None.
         """
 
+        district_heat = np.zeros(self.time["timeSteps"])
+        district_cooling = np.zeros(self.time["timeSteps"])
+        district_elec = np.zeros(self.time["timeSteps"])
+        district_dhw = np.zeros(self.time["timeSteps"])
 
         set = []
         for building in self.district:
+
             # %% create unique building name
             # needed for loading and storing data with unique name
             # name is composed of building type, number of flats, serial number of building of this properties
@@ -357,7 +409,9 @@ class Datahandler:
                 set.append(name)
                 self.counter[name] = count()
             nb = next(self.counter[name])
+
             building["unique_name"] = name + "_" + str(nb)
+            self.outputV1[building["unique_name"]] = {}
 
             # calculate or load user profiles
             if calcUserProfiles:
@@ -366,15 +420,19 @@ class Datahandler:
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
                                               building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+                                              path=os.path.join(self.filePath, 'demands'))
 
                 if saveUserProfiles:
-                    building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                    if path is not None:
+                        building["user"].saveProfiles(building["unique_name"], os.path.join(path, 'files', 'demands'))
+                    # building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                if path is not None:
+                    building["user"].loadProfiles(building["unique_name"], os.path.join(path, 'demands'))
+                # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
             # check if EV exist
@@ -396,15 +454,42 @@ class Datahandler:
                                                 )
 
             if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(path, "files", 'demands'))
 
+            self.outputV1[building["unique_name"]]["heat"] = building["user"].getProfiles()[0]
+            self.outputV1[building["unique_name"]]["cooling"] = building["user"].getProfiles()[1]
+            self.outputV1[building["unique_name"]]["elec"] = building["user"].getProfiles()[2]
+            self.outputV1[building["unique_name"]]["dhw"] = building["user"].getProfiles()[3]
 
+            district_heat += building["user"].getProfiles()[0]
+            district_cooling += building["user"].getProfiles()[1]
+            district_elec += building["user"].getProfiles()[2]
+            district_dhw += building["user"].getProfiles()[3]
+
+        self.outputV1.update({
+            'district_heat': district_heat,
+            'district_cooling': district_cooling,
+            'district_elec': district_elec,
+            'district_dhw': district_dhw,
+        })
+
+        # if saveUserProfiles:
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/cooling_district.csv', district_cooling,
+        #                fmt='%1.2f', delimiter=',')
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/heating_district.csv', district_heat, fmt='%1.2f',
+        #                delimiter=',')
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/dhw_district.csv', district_dhw, fmt='%1.2f',
+        #                delimiter=',')
+        #     np.savetxt(os.path.join(self.resultPath, 'demands') + '/elec_district.csv', district_elec, fmt='%1.2f',
+        #                delimiter=',')
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz="52064",
+    def generateDistrictComplete(self, scenario_name='example', building_list: list = [], calcUserProfiles=True,
+                                 saveUserProfiles=True, plz='52064',
                                  fileName_centralSystems="central_devices_example", saveGenProfiles=True,
-                                 designDevs=False, clustering=False, optimization=False):
+                                 designDevs=False, clustering=False, optimization=False, path=None, TRY: int = None,
+                                 weather_conditions: str = None):
         """
         All in one solution for district and demand generation.
 
@@ -438,10 +523,10 @@ class Datahandler:
         None.
         """
 
-        self.initializeBuildings(scenario_name)
-        self.generateEnvironment(plz=plz)
+        self.initializeBuildings(building_list, scenario_name, path)
+        self.generateEnvironment(plz, TRY, weather_conditions)
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, path)
         if designDevs:
             self.designDevicesComplete(fileName_centralSystems, saveGenProfiles)
         if clustering:
@@ -455,8 +540,7 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-
-    def designDecentralDevices(self, saveGenerationProfiles=True):
+    def designDecentralDevices(self, input_webtool: dict = {}, saveGenerationProfiles=True):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
@@ -474,6 +558,30 @@ class Datahandler:
 
         for building in self.district:
 
+            building["buildingFeatures"]["heater"] = input_webtool[building["buildingFeatures"]["id"]]["heater"]  # str
+            building["buildingFeatures"]["f_TES"] = input_webtool[building["buildingFeatures"]["id"]]["tes_input"]  # liter
+
+            building["buildingFeatures"]["PV_area"] = input_webtool[building["buildingFeatures"]["id"]][
+                "pv_input"]  # m2
+            if building["buildingFeatures"]["PV_area"] > 0:
+                building["buildingFeatures"]["PV"] = 1
+            else:
+                building["buildingFeatures"]["PV"] = 0
+            building["buildingFeatures"]["BAT"] = input_webtool[building["buildingFeatures"]["id"]]["bat_input"]  # Wh
+
+            building["buildingFeatures"]["STC_area"] = input_webtool[building["buildingFeatures"]["id"]][
+                "stc_input"]  # m2
+            if building["buildingFeatures"]["STC_area"] > 0:
+                building["buildingFeatures"]["STC"] = 1
+            else:
+                building["buildingFeatures"]["STC"] = 0
+            building["buildingFeatures"]["gamma"] = input_webtool[building["buildingFeatures"]["id"]]["gamma"]
+            building["buildingFeatures"]["beta"] = input_webtool[building["buildingFeatures"]["id"]]["beta"]
+
+            building["buildingFeatures"]["EV"] = input_webtool[building["buildingFeatures"]["id"]]["ev_input"]  # 0, small, medium or large
+            building["buildingFeatures"]["ev_charging"] = input_webtool[building["buildingFeatures"]["id"]][
+                "ev_charging"]
+
             # %% load general building information
             # contains definitions and parameters that affect all buildings
             bldgs = {}
@@ -487,17 +595,44 @@ class Datahandler:
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
-            # calculate theoretical PV and STC generation
+
+            # calculate theoretical PV generation
+
+            sun = Sun(filePath=self.filePath)
+
+
+
+            if building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"] == 0:
+                building["buildingFeatures"]["PV_area"] = 1
+                building["buildingFeatures"]["STC_area"] = 1
+                f_PV = 0.1
+                f_STC = 0.1
+            elif building["buildingFeatures"]["PV_area"] == 0:
+                building["buildingFeatures"]["PV_area"] = 1
+                f_PV = 0.01
+                f_STC = 0.99
+            elif building["buildingFeatures"]["STC_area"] == 0:
+                building["buildingFeatures"]["STC_area"] = 1
+                f_STC = 0.01
+                f_PV = 0.99
+            else:
+                f_PV = building["buildingFeatures"]["PV_area"] / (
+                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
+                f_STC = building["buildingFeatures"]["PV_area"] / (
+                        building["buildingFeatures"]["PV_area"] + building["buildingFeatures"]["STC_area"])
+
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"],
-                                        # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[35],
-                                        # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                        usageFactorPV=building["buildingFeatures"]["f_PV"],
-                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        # area_roof=building["envelope"].A["opaque"]["roof"],
+                                        area_roof=building["buildingFeatures"]["PV_area"] +
+                                                  building["buildingFeatures"]["STC_area"],
+                                        beta=[building["buildingFeatures"]["beta"]],
+                                        gamma=[building["buildingFeatures"]["gamma"]],
+                                        # usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                        # usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        usageFactorPV=f_PV,
+                                        usageFactorSTC=f_STC)
 
             # assign real PV generation to building
             building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
@@ -520,7 +655,7 @@ class Datahandler:
                            building["generationSTC"],
                            delimiter=',')
 
-    def designCentralDevices(self, saveGenerationProfiles):
+    def designCentralDevices(self, webtool, saveGenerationProfiles=True):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -543,15 +678,16 @@ class Datahandler:
         self.centralDevices["ces_obj"] = CES()
 
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self,webtool)
+
+        generation = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)
 
         # calculate theoretical PV, STC and Wind generation
         self.centralDevices["generation"] = {}
-        self.centralDevices["generation"]["PV"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[0]
-        self.centralDevices["generation"]["STC"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[1]
-        self.centralDevices["generation"]["Wind"] = self.centralDevices["ces_obj"].generation(self.filePath, self.time, self.site)[2]
+        self.centralDevices["generation"]["PV"] = generation[0]
+        self.centralDevices["generation"]["STC"] = generation[1]
+        self.centralDevices["generation"]["Wind"] =  generation[2]
 
-        # optionally save generation profiles
         if saveGenerationProfiles == True:
             np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralPV.csv'),
                        self.centralDevices["generation"]["PV"],
@@ -562,6 +698,7 @@ class Datahandler:
             np.savetxt(os.path.join(self.resultPath, 'renewableGeneration', 'centralWind.csv'),
                        self.centralDevices["generation"]["Wind"],
                        delimiter=',')
+
 
     def designDevicesComplete(self, fileName_centralSystems="central_devices_example", saveGenerationProfiles=True):
         """
@@ -580,7 +717,7 @@ class Datahandler:
         """
 
         self.designDecentralDevices(saveGenerationProfiles)
-        self.designCentralDevices(saveGenerationProfiles)
+        # self.designCentralDevices(saveGenerationProfiles)
 
     def clusterProfiles(self, centralEnergySupply):
         """
@@ -767,7 +904,7 @@ class Datahandler:
         with open(self.resultPath + "/" + self.scenario_name + ".p", 'wb') as fp:
             pickle.dump(self.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def loadDistrict(self, scenario_name='example'):
+    def loadDistrict(self, list_all: list = [], scenario_name='example'):
         """
         Load district dict from pickle file.
 
@@ -783,62 +920,107 @@ class Datahandler:
 
         self.scenario_name = scenario_name
 
-        with open(self.resultPath + "/" + self.scenario_name + ".p", 'rb') as fp:
-            self.district = pickle.load(fp)
+        # initialize buildings for scenario
+        # loop over all buildings
+        for id, entry in enumerate(list_all):
+            list = list_all[id]
+            building = {}
+            building["buildingFeatures"] = pd.Series(
+                [list[0], list[1], list[2], list[3], list[4], 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1],
+                index=['id', 'building', 'year', 'retrofit', 'area', 'heater', 'PV',
+                       'STC', 'EV', 'BAT', 'f_TES', 'f_BAT', 'f_EV', 'f_PV', 'f_STC',
+                       'gamma_PV', ])
 
-    def plot(self, mode='default', initialTime=0, timeHorizon=31536000, savePlots=True, timeStamp=False, show=False):
-        """
-        Create plots of the energy consumption and generation.
+    def plot(self, result_path):
 
-        Parameters
-        ----------
-        mode : string, optional
-            Choose a single plot or show all of them as default. The default is 'default'.
-            Possible modes are:
-            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand'].
-        initialTime : integer, optional
-            Start of the plot in seconds from the beginning of the year. The default is 0.
-        timeHorizon : integer, optional
-            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).
-        savePlots : boolean, optional
-            Decision if plots are saved under results/plots/. The default is True.
-        timeStamp : boolean, optional
-            Decision if saved plots get a unique name by adding a time stamp. The default is False.
-        show : boolean, optional
-            Decision if saved plots are presented directly to the user. The default is False.
+        # factor to convert power [kW] for one timestep to energy [kWh] for one timestep
+        factor = self.time['timeResolution'] / 3600
 
-        Returns
-        -------
-        None.
-        """
+        # loop over buildings to sum upp energy consumptions and generations for the hole district
+        demands = {
+            'elec': np.zeros(len(self.district[0]['user'].elec)),
+            'dhw': np.zeros(len(self.district[0]['user'].dhw)),
+            'cooling': np.zeros(len(self.district[0]['user'].cooling)),
+            'heating': np.zeros(len(self.district[0]['user'].heat))
+        }
+        for b in range(len(self.district)):
+            demands['elec'] += self.district[b]['user'].elec / 1000
+            demands['dhw'] += self.district[b]['user'].dhw / 1000
+            demands['cooling'] += self.district[b]['user'].cooling / 1000
+            demands['heating'] += self.district[b]['user'].heat / 1000
 
-        # initialize plots and prepare data for plotting
-        demandPlots = DemandPlots()
-        demandPlots.preparePlots(self)
+        peakDemands = [np.max(demands['heating']), np.max(demands['cooling']), np.max(demands['dhw']),
+                       np.max(demands['elec'])]
+        energyDemands = [np.sum(demands['heating']) * factor, np.sum(demands['cooling']) * factor,
+                         np.sum(demands['dhw']) * factor,
+                         np.sum(demands['elec']) * factor]
 
-        # check which resolution for plots is used
-        if initialTime == 0 and timeHorizon == 31536000:
-            plotResolution = 'monthly'
-        else:
-            plotResolution = 'stepwise'
+        # days per month and cumulated days of months
+        daysInMonhs = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
+        cumutaltedDays = np.zeros(12)
+        for i in range(len(cumutaltedDays)):
+            if i == 0:
+                cumutaltedDays[i] = daysInMonhs[i]
+            else:
+                cumutaltedDays[i] = cumutaltedDays[i - 1] + daysInMonhs[i]
 
-        # the selection of possible plots
-        plotTypes = \
-            ['elec', 'dhw', 'gains', 'occ', 'car', 'heating', 'pv', 'stc', 'electricityDemand', 'heatDemand', 'wt']
+        # array with last time step of each month
+        monthlyDataSteps = cumutaltedDays * 24 * 3600 / self.time['timeResolution']
 
-        if mode == 'default':
-            # create all default plots
-            demandPlots.defaultPlots(plotResolution, initialTime=initialTime, timeHorizon=timeHorizon,
-                                     savePlots=savePlots, timeStamp=timeStamp, show=show)
-        elif mode in plotTypes:
-            # create a plot
-            demandPlots.onePlot(plotType=mode, plotResolution=plotResolution, initialTime=initialTime,
-                                timeHorizon=timeHorizon, savePlots=savePlots, timeStamp=timeStamp, show=show)
-        else:
-            # print massage that input is not valid
-            print('\n Selected plot mode is not valid. So no plot could de generated. \n')
+        # create monthly data for bar plots
+        demands['heating_monthly'] = []
+        demands['cooling_monthly'] = []
+        demands['dhw_monthly'] = []
+        demands['elec_monthly'] = []
 
-    def optimizationClusters(self, centralEnergySupply):
+        for m in range(len(cumutaltedDays)):
+            if m == 0:
+                # first month starts with time step zero
+                start = 0
+            else:
+                # all the other months starts one time step after the last time step of the previous month
+                start = int(monthlyDataSteps[m - 1]) + 1
+            end = int(monthlyDataSteps[m]) + 1
+            # convert power [W] to energy per month [kWh] by multiplication with factor
+            demands['heating_monthly'].append(np.sum(demands['heating'][start:end] * factor))
+            demands['cooling_monthly'].append(np.sum(demands['cooling'][start:end] * factor))
+            demands['dhw_monthly'].append(np.sum(demands['dhw'][start:end] * factor))
+            demands['elec_monthly'].append(np.sum(demands['elec'][start:end] * factor))
+
+        # plots
+        # Monatsabkürzungen definieren
+        monats_abk = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+        # Farben für die Diagramme definieren
+        farben = ['red', 'blue', 'purple', 'green']
+        title = ['Heizwärmebedarf', 'Kühlbedarf', 'Trinkwarmwasserbedarf', 'Haushaltsstrombedarf']
+
+        # Grafiken mit den Anpassungen erstellen
+        fig, axs = plt.subplots(4, 1, figsize=(10, 20))
+        daten = [demands['heating_monthly'], demands['cooling_monthly'], demands['dhw_monthly'],
+                 demands['elec_monthly']]
+        for i, ax in enumerate(axs):
+            ax.bar(monats_abk, daten[i], color=farben[i])  # Balkendiagramm mit spezifischer Farbe
+            ax.set_title(title[i])  # Titel setzen
+            ax.set_xlabel('Monat')  # X-Achsenbeschriftung
+            ax.set_ylabel('Energie in kWh')  # Y-Achsenbeschriftung
+
+        plt.tight_layout()
+
+        try:
+
+            if result_path is None:
+                srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                filename = os.path.join(srcPath, "plots", "plot.png")
+            else:
+                filename = os.path.join(result_path, "plot.png")
+
+            plt.savefig(filename)
+        except:
+            print("error file plotting")
+
+        return peakDemands, energyDemands
+
+    def optimizationClusters(self, centralEnergySupply, webtool={}):
         """
         Optimize the operation costs for each cluster.
 
@@ -852,15 +1034,13 @@ class Datahandler:
         self.resultsOptimization = []
 
         for cluster in range(self.time["clusterNumber"]):
-
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster, centralEnergySupply)
-            results_temp = self.optimizer.run_cen_opti(optiData)
-
+            results_temp = self.optimizer.run_cen_opti(webtool)
             # save results as attribute
             self.resultsOptimization.append(results_temp)
 
-    def calulateKPIs(self):
+    def calulateKPIs(self, result_path=None,webtool={}):
         """
         Calculate key performance indicators (KPIs).
 
@@ -872,4 +1052,6 @@ class Datahandler:
         # initialize KPI class
         self.KPIs = KPIs(self)
         # calculate KPIs
-        self.KPIs.calculateAllKPIs(self)
+        self.KPIs.calculateAllKPIs(self, webtool)
+        # Generate a PDF file with a list of KPIs.
+        self.KPIs.create_kpi_pdf(result_path)

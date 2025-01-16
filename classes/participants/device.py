@@ -52,7 +52,7 @@ class Device:
         """
         path = os.path.split(self.srcPath)[0]
 
-        gurobiSettings = json.load(open(path + "\\data\\" + "gurobi_settings.json"))
+        gurobiSettings = json.load(open(path + "/data/" + "gurobi_settings.json"))
         
         return gurobiSettings
 
@@ -75,8 +75,9 @@ class Device:
             device = type(self).__name__.lower()
         data = {}
         path = os.path.split(self.srcPath)[0]
-        with open(path + "\\data\\" + device + "_data.json") as json_file:
-            jsonData = json.load(json_file, encoding='utf-8')
+        with open(path + "/data/" + device + "_data.json") as json_file:
+            # jsonData = json.load(json_file, encoding='utf-8')
+            jsonData = json.load(json_file)
             for subData in jsonData:
                 if subData["value"] == "file":
                     data[subData["name"]] = self.handleFileImport(subData["fileImport"])
@@ -99,7 +100,7 @@ class Device:
         path = os.path.split(self.srcPath)[0]
 
         decentralDevs = {}
-        with open(path + "\\data\\" + "param_dec_devices.json") as json_file:
+        with open(path + "/data/" + "decentral_device_data.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 decentralDevs[subData["abbreviation"]] = {}
@@ -107,7 +108,7 @@ class Device:
                     decentralDevs[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         centralDevs = {}
-        with open(path + "\\data\\" + "central_device_data.json") as json_file:
+        with open(path + "/data/" + "central_device_data.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 centralDevs[subData["abbreviation"]] = {}
@@ -115,7 +116,7 @@ class Device:
                     centralDevs[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         heatGrid = {}
-        with open(path + "\\data\\" + "heat_grid.json") as json_file:
+        with open(path + "/data/" + "heat_grid.json") as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 heatGrid[subData["name"]] = subData["value"]
