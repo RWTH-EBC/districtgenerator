@@ -494,7 +494,8 @@ class Datahandler():
             retrofit_level = building["buildingFeatures"]["retrofit"]
             
             envelope_obj = building["envelope"]
-            my_envelope_dict = vars(self.district[i]["envelope"])
+            envelope_dict = vars(self.district[i]["envelope"])
+            user_dict = vars(self.district[i]["user"])
 
             building_dict = {
                 "Building_ID": building_id,
@@ -502,27 +503,29 @@ class Datahandler():
                 "Year_Of_Construction": year_of_construction,
                 "retrofit_level": retrofit_level,
                 "Net_Leased_Area": net_leased_area,
-                "Infiltration_Rate": my_envelope_dict["ventilationRate"],
-                "T_set_min": my_envelope_dict["T_set_min"],
-                "T_set_max": my_envelope_dict["T_set_max"],
-                "T_bivalent": my_envelope_dict["T_bivalent"],
-                "T_heatlimit": my_envelope_dict["T_heatlimit"],
-                "U_Value_Windows": my_envelope_dict["U"].get("window", None),
-                "U_Value_Walls": my_envelope_dict["U"].get("opaque", {}).get("wall", None),
-                "U_Value_Roof": my_envelope_dict["U"].get("opaque", {}).get("roof", None),
-                "U_Value_Floor": my_envelope_dict["U"].get("opaque", {}).get("floor", None),
-                "Window_Area_South": my_envelope_dict.get("A", {}).get("window", {}).get("south", None),
-                "Window_Area_North": my_envelope_dict.get("A", {}).get("window", {}).get("north", None),
-                "Window_Area_West": my_envelope_dict.get("A", {}).get("window", {}).get("west", None),
-                "Window_Area_East": my_envelope_dict.get("A", {}).get("window", {}).get("east", None),
-                "Window_Area_Roof": my_envelope_dict.get("A", {}).get("window", {}).get("roof", None),
-                "Wall_Area_South": my_envelope_dict.get("A", {}).get("opaque", {}).get("south", None),
-                "Wall_Area_North": my_envelope_dict.get("A", {}).get("opaque", {}).get("north", None),
-                "Wall_Area_West": my_envelope_dict.get("A", {}).get("opaque", {}).get("west", None),
-                "Wall_Area_East": my_envelope_dict.get("A", {}).get("opaque", {}).get("east", None),
-                "Wall_Area_Roof": my_envelope_dict.get("A", {}).get("opaque", {}).get("roof", None),
-                "Wall_Area_Floor": my_envelope_dict.get("A", {}).get("opaque", {}).get("floor", None),
-                "internal_wall_area": my_envelope_dict.get("A", {}).get("opaque", {}).get("intWall", None),
+                "number_of_flats": user_dict.get("nb_flats", None),
+                "number_of_occupants": int(user_dict["nb_occ"]),
+                "Infiltration_Rate": envelope_dict["ventilationRate"],
+                "T_set_min": envelope_dict["T_set_min"],
+                "T_set_max": envelope_dict["T_set_max"],
+                "T_bivalent": envelope_dict["T_bivalent"],
+                "T_heatlimit": envelope_dict["T_heatlimit"],
+                "U_Value_Windows": envelope_dict["U"].get("window", None),
+                "U_Value_Walls": envelope_dict["U"].get("opaque", {}).get("wall", None),
+                "U_Value_Roof": envelope_dict["U"].get("opaque", {}).get("roof", None),
+                "U_Value_Floor": envelope_dict["U"].get("opaque", {}).get("floor", None),
+                "Window_Area_South": envelope_dict.get("A", {}).get("window", {}).get("south", None),
+                "Window_Area_North": envelope_dict.get("A", {}).get("window", {}).get("north", None),
+                "Window_Area_West": envelope_dict.get("A", {}).get("window", {}).get("west", None),
+                "Window_Area_East": envelope_dict.get("A", {}).get("window", {}).get("east", None),
+                "Window_Area_Roof": envelope_dict.get("A", {}).get("window", {}).get("roof", None),
+                "Wall_Area_South": envelope_dict.get("A", {}).get("opaque", {}).get("south", None),
+                "Wall_Area_North": envelope_dict.get("A", {}).get("opaque", {}).get("north", None),
+                "Wall_Area_West": envelope_dict.get("A", {}).get("opaque", {}).get("west", None),
+                "Wall_Area_East": envelope_dict.get("A", {}).get("opaque", {}).get("east", None),
+                "Wall_Area_Roof": envelope_dict.get("A", {}).get("opaque", {}).get("roof", None),
+                "Wall_Area_Floor": envelope_dict.get("A", {}).get("opaque", {}).get("floor", None),
+                "internal_wall_area": envelope_dict.get("A", {}).get("opaque", {}).get("intWall", None),
 
             }
             
@@ -541,7 +544,8 @@ class Datahandler():
         """
         pass
 
-    def generateDemands(self, calcUserProfiles:bool=True, saveUserProfiles:bool=True, savePath:str =None):
+    def generateDemands(self, calcUserProfiles:bool=True,
+                        saveUserProfiles:bool=True, savePath:str =None):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand
 
@@ -628,7 +632,8 @@ class Datahandler():
         print("Finished generating demands!")
 
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True):
+    def generateDistrictComplete(self, scenario_name='example',
+                                 calcUserProfiles=True, saveUserProfiles=True):
         """
         All in one solution for district and demand generation
 
