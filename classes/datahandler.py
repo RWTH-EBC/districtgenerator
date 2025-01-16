@@ -46,7 +46,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self):
+    def __init__(self, district = {}):
         """
         Constructor of Datahandler class.
 
@@ -60,6 +60,11 @@ class Datahandler:
         self.district = []
         self.scenario_name = None
         self.scenario = None
+        self.desing_building_data = {}
+        self.physics = {}
+        self.decentral_device_data = {}
+        self.params_ehdo = {}
+        self.ecoData = {}
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
@@ -97,6 +102,43 @@ class Datahandler:
                                     + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
 
+        # %% load general building information
+        # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
+        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.desing_building_data[subData["name"]] = subData["value"]
+
+        # load building physics data (used in envelope and system BES/CES)
+        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.physics[subData["name"]] = subData["value"]
+
+        # Load list of possible devices (used in system BES)
+        with open(os.path.join(self.file_path, 'decentral_device_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.decentral_device_data[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        # import model parameters from json-file (used in system CES)
+        with open(os.path.join(self.file_path, 'model_parameters_EHDO.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                if subData["name"] != "ref":
+                    self.params_ehdo[subData["name"]] = subData["value"]
+                else:
+                    self.params_ehdo[subData["name"]] = {}
+                    for subSubData in subData["value"]:
+                        self.params_ehdo[subData["name"]][subSubData["name"]] = subSubData["value"]
+
+        # load economic and ecologic data (of the district generator) (used in system CES)
+        with open(os.path.join(self.file_path, 'eco_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.ecoData[subData["name"]] = subData["value"]
 
     def select_plz_data(self, plz):
         """
@@ -279,14 +321,6 @@ class Datahandler:
         None.
         """
 
-        # %% load general building information
-        # contains definitions and parameters that affect all buildings
-        bldgs = {}
-        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                bldgs[subData["name"]] = subData["value"]
-
         # %% create TEASER project
         # create one project for the whole district
         prj = Project(load_data=True)
@@ -297,9 +331,9 @@ class Datahandler:
 
             # convert short names into designation needed for TEASER
             building_type = \
-                bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+                self.desing_building_data["buildings_long"][self.desing_building_data["buildings_short"].index(building["buildingFeatures"]["building"])]
             retrofit_level = \
-                bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+                self.desing_building_data["retrofit_long"][self.desing_building_data["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
             # add buildings to TEASER project
             prj.add_residential(method='tabula_de',
@@ -316,6 +350,8 @@ class Datahandler:
             building["envelope"] = Envelope(prj=prj,
                                             building_params=building["buildingFeatures"],
                                             construction_type=retrofit_level,
+                                            physics=self.physics,
+                                            design_building_data=self.desing_building_data,
                                             file_path=self.filePath)
 
             # %% create user object
@@ -332,14 +368,14 @@ class Datahandler:
             building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
             if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["dhwload"] = self.desing_building_data["dhwload"][self.desing_building_data["buildings_short"].index(building["user"].building)] * \
                 building["user"].nb_flats
             else:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
+                building["dhwload"] = self.desing_building_data["dhwload"][self.desing_building_data["buildings_short"].index(building["user"].building)] * \
                 building["user"].nb_main_rooms
 
-            index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
-            building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
+            index = self.desing_building_data["buildings_short"].index(building["buildingFeatures"]["building"])
+            building["buildingFeatures"]["mean_drawoff_dhw"] = self.desing_building_data["mean_drawoff_vol_per_day"][index]
 
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
@@ -489,17 +525,12 @@ class Datahandler:
 
         for building in self.district:
 
-            # %% load general building information
-            # contains definitions and parameters that affect all buildings
-            bldgs = {}
-            with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-                jsonData = json.load(json_file)
-                for subData in jsonData:
-                    bldgs[subData["name"]] = subData["value"]
-
             # %% create building energy system object
             # get capacities of all possible devices
-            bes_obj = BES(file_path=self.filePath)
+            bes_obj = BES(physics=self.physics,
+                          decentral_device_data= self.decentral_device_data,
+                          design_building_data=self.design_building_data,
+                          file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
             # calculate theoretical PV and STC generation

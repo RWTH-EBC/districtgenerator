@@ -18,7 +18,7 @@ class BES:
         File path to the data directory of the districtgenerator.
     """
 
-    def __init__(self, file_path):
+    def __init__(self, physics, decentral_device_data, design_building_data, file_path):
         """
         Constructor of building energy system (BES) class.
 
@@ -27,6 +27,11 @@ class BES:
         None.
         """
 
+        self.design_load = None
+        self.bivalent_load = None
+        self.physics = physics
+        self.decentral_device_data = decentral_device_data
+        self.design_building_data = design_building_data
         self.file_path = file_path
 
     def designECS(self, building, site):
@@ -57,19 +62,8 @@ class BES:
 
         buildingFeatures = building["buildingFeatures"]
 
-        physics = {}
-        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                physics[subData["name"]] = subData["value"]
-
-        design_data = {}
-        with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                design_data[subData["name"]] = subData["value"]
-        T_bivalent = design_data["T_bivalent"]
-        T_heatlimit = design_data["T_heatlimit"]
+        T_bivalent = self.design_building_data["T_bivalent"]
+        T_heatlimit = self.design_building_data["T_heatlimit"]
 
         T_design = site["T_ne"]  # [°C] outside design temperature
 
@@ -81,15 +75,6 @@ class BES:
         self.bivalent_load = self.design_load + (limit_load - self.design_load) / (T_heatlimit - T_design) \
                              * (T_bivalent - T_design)
 
-        # Load list of possible devices
-        dev = {}
-        with open(os.path.join(self.file_path, 'decentral_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                dev[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    dev[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
         BES = {}
 
         # check if heating by grid
@@ -98,7 +83,7 @@ class BES:
         else:
             BES["heat_grid"] = 0
 
-        for k in dev.keys():
+        for k in self.decentral_device_data.keys():
             BES[k] = {}
 
             # capacity of boiler (BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
@@ -119,9 +104,9 @@ class BES:
                 # design refers to DHL
                 BES["TES"] = buildingFeatures["f_TES"] \
                              * self.design_load / 1000 \
-                             * physics["rho_water"] \
-                             * physics["c_p_water"] \
-                             * dev["TES"]["T_diff_max"] \
+                             * self.physics["rho_water"] \
+                             * self.physics["c_p_water"] \
+                             * self.decentral_device_data["TES"]["T_diff_max"] \
                              / 3600
                 #if buildingFeatures["heater"] == "heat_grid":
                 #    BES["TES"] = 0
@@ -131,7 +116,7 @@ class BES:
                 # Factor [Wh / W_PV], [Wh = Wh/W * W/m2 * m2]
                 # design refers to buildable roof area (0.4 * area)
                 BES["BAT"] = buildingFeatures["f_BAT"] \
-                             * dev["PV"]["P_nominal"] \
+                             * self.decentral_device_data["PV"]["P_nominal"] \
                              * building["envelope"].A["opaque"]["roof"] \
                              * buildingFeatures["f_PV"] \
                              * buildingFeatures["BAT"]
@@ -152,9 +137,9 @@ class BES:
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
                               * buildingFeatures["f_PV"] \
                               * buildingFeatures["PV"]
-                BES["PV"]["nb_modules"] = int(areaPV_temp / dev["PV"]["area_real"])  # [-]
-                BES["PV"]["area"] = BES["PV"]["nb_modules"] * dev["PV"]["area_real"]  # [m²]
-                BES["PV"]["P_ref"] = BES["PV"]["area"] * dev["PV"]["P_nominal"]  # [W]
+                BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
+                BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
+                BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]
 
             # solar thermal energy (STC)
             if k == "STC":
