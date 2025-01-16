@@ -94,16 +94,16 @@ def cluster(inputs, number_clusters=12, norm=2, time_limit=300, mip_gap=0.0,
         weights = np.ones(inputs.shape[0])
     elif not sum(weights) == 1: # Rescale weights
         weights = np.array(weights) / sum(weights)
-    
+
     # Manipulate inputs
     # Initialize arrays
     inputsTransformed = []
     inputsScaled = []
     inputsScaledTransformed = []
-    
+
     # Fill and reshape
     # Scaling to values between 0 and 1, thus all inputs shall have the same
-    # weight and will be clustered equally in terms of quality 
+    # weight and will be clustered equally in terms of quality
     for i in range(inputs.shape[0]):
         vals = inputs[i,:]
         if np.max(vals) == np.min(vals):
@@ -123,9 +123,8 @@ def cluster(inputs, number_clusters=12, norm=2, time_limit=300, mip_gap=0.0,
 
     # Execute optimization model
     (y, z, obj) = k_medoids.k_medoids(d, number_clusters, time_limit, mip_gap)
-    
+
     # Section 2.3 and retain typical days
-    nc = np.zeros_like(y)
     typicalDays = []
 
     # nc contains how many days are there in each cluster
@@ -139,35 +138,23 @@ def cluster(inputs, number_clusters=12, norm=2, time_limit=300, mip_gap=0.0,
     typicalDays = np.array(typicalDays)
     nc = np.array(nc, dtype="int")
 
-
-############### nicht benötigt
-#    nc_cumsum = np.cumsum(nc) * len_day
-
-
-    # Construct (yearly) load curves
-    # ub = upper bound, lb = lower bound
-#    clustered = np.zeros_like(inputs)
-#    for i in range(len(nc)):
-#        if i == 0:
-#            lb = 0
-#        else:
-#            lb = nc_cumsu2m[i-1]
-#        ub = nc_cumsum[i]
-#
-#        for j in range(len(inputsTransformed)):
-#            clustered[j, lb:ub] = np.tile(typicalDays[i][j], nc[i])
-############### nicht benötigt
-
-
     # Scaling to preserve original demands
-    # TODO: Wir skalieren hier den gesamten Bedarf, jedoch ist das nicht korrekt, da wir die Typtage (clusters) einzeln skalieren sollen. Das heißt, wir sollten 4x8 Skalierungsfaktoren erhalten und nicht nur 8, wobei 4 die Anzahl der Clusters ist (siehe Paper von Fernando Domínguez-Muñoz et al.)
-    sums_inputs = [np.sum(inputs[j,:]) for j in range(inputs.shape[0])]
-    hourly_sums_clustered = np.array([nc[day] * typicalDays[day,:,:]
-                       for day in range(number_clusters)])
-    sums_clustered = [np.sum(hourly_sums_clustered[:,j,:]) if not np.sum(hourly_sums_clustered[:,j,:]) == 0 else 1
-                   for j in range(inputs.shape[0])]
-    scaling_factors = [sums_inputs[j] / sums_clustered[j]
-                       for j in range(inputs.shape[0])]
-    scaled_typ_days = [scaling_factors[j] * typicalDays[:,j,:]
-                       for j in range(inputs.shape[0])]
-    return (scaled_typ_days, nc, z)
+    scaling_factors = np.zeros((inputs.shape[0], number_clusters))
+
+    # Compute scaling factors for each input and cluster
+    clustered_days = [day for day, value in enumerate(y) if value == 1]
+    for j in range(inputs.shape[0]):  # Loop over different inputs
+        for c in range(number_clusters):  # Loop over clusters
+            total_clustered = sum(inputsTransformed[j][:, clustered_days[c]]) * nc[c]
+            total_input = sum([sum(inputsTransformed[j][:,a]) for a in range(365)]*z[clustered_days[c], :])
+            scaling_factors[j, c] = total_input / total_clustered if total_clustered > 0 else 1
+
+    # Apply scaling factors to typical days
+    scaled_typ_days = []
+    for j in range(inputs.shape[0]):  # Loop over input types
+        cluster_data = np.zeros_like(typicalDays[:, j, :])
+        for c in range(number_clusters):  # Loop over clusters
+            cluster_data[c, :] = scaling_factors[j, c] * typicalDays[c, j, :]  # Apply scaling factor
+        scaled_typ_days.append(cluster_data)  # Append the cluster data to the list
+
+    return scaled_typ_days, nc, z

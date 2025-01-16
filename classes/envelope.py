@@ -102,6 +102,7 @@ class Envelope:
 
         self.T_set_min = design_data["T_set_min"]
         self.T_set_min_night = design_data["T_set_min_night"]
+        self.T_set_min_free_day = design_data["T_set_min_free_day"]
         self.T_set_max = design_data["T_set_max"]
         self.T_set_max_night = design_data["T_set_max_night"]
         self.ventilationRate = design_data["ventilation_rate"]
@@ -541,8 +542,8 @@ class Envelope:
         f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
         G_w = 1.0  # influence of groundwater neglected
 
-        if method == "design": # 10% higher design load to be on the safe side
-            Q_nHC = 1.1 * (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+        if method == "design":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
                             self.A["window"]["sum"] * (self.U["window"] + U_TB) +
                             self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
                             self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w +
@@ -571,7 +572,7 @@ class Envelope:
                             * self.A["opaque"][x]) for x in self.opaque)
         elif isinstance(prj, NonResidential):
             # Assumption of thermal heat capacity
-            # According to EN ISO 13790:2008-09, S. 81
+            # According to DIN EN ISO 13790:2008-09, S. 81
             # -----------------------------------------------------------------------------------------
             # |   Building Mass   |           Cm [in J/K]                      |
             # -----------------------------------------------------------------------------------------

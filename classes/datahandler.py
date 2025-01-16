@@ -545,27 +545,10 @@ class Datahandler:
                 for subData in jsonData:
                     bldgs[subData["name"]] = subData["value"]
 
-            # %% calculate design heat loads
-            # at norm outside temperature
-            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
-            # at bivalent temperature
-            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-            # at heating limit temperature
-            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
-            # for drinking hot water
-            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_flats
-            else:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_main_rooms
-
             # %% create building energy system object
             # get capacities of all possible devices
             bes_obj = BES(file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
-
-
 
             # calculate theoretical PV generation
             potentialPV, potentialSTC = \

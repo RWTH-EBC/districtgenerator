@@ -72,7 +72,7 @@ class BES:
         T_design = site["T_ne"]  # [°C] outside design temperature
 
         # %% conduct linear interpolation
-        # for optimal design at bivalent temperature
+        # for design at bivalent temperature
         self.design_load = building["envelope"].heatload + building["dhwload"]
         limit_load = building["envelope"].heatlimit
 
@@ -113,20 +113,23 @@ class BES:
 
             # thermal energy storage (TES) always exists
             if k == "TES":
-                # Factor [l/kW], [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
+                # f_TES in l per kW design load
+                # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
                 # design refers to DHL
-                BES["TES"] = buildingFeatures["f_TES"] \
+                if buildingFeatures["heater"] == "heat_grid":
+                    BES["TES"] = 0
+                else:
+                    BES["TES"] = buildingFeatures["f_TES"] \
                              * self.design_load / 1000 \
                              * physics["rho_water"] \
                              * physics["c_p_water"] \
                              * dev["TES"]["T_diff_max"] \
                              / 3600
-                #if buildingFeatures["heater"] == "heat_grid":
-                #    BES["TES"] = 0
 
-                    # battery (BAT)
+            # battery (BAT)
             if k == "BAT":
-                # Factor [Wh / W_PV], [Wh = Wh/W * W/m2 * m2]
+                # f_BAT in l per kW design load
+                # [Wh = Wh/W_PV * W/m2 * m2]
                 # design refers to buildable roof area (0.4 * area)
                 BES["BAT"] = buildingFeatures["f_BAT"] \
                              * dev["PV"]["P_nominal"] \
@@ -136,7 +139,8 @@ class BES:
 
             # electric vehicle (EV)
             if k == "EV":
-                # [Wh]
+                # Define the battery capacity of the EV in Wh
+                # based on the size category (Small, Medium, Large)
                 BES["EV"] = float(buildingFeatures["EV"]
                                   * (40000 * (buildingFeatures["f_EV"] == "S")
                                      + 60000 * (buildingFeatures["f_EV"] == "M")
@@ -147,6 +151,7 @@ class BES:
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
+                # f_PV is the fraction of the roof area that is suitable and available for PV installation
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
                               * buildingFeatures["f_PV"] \
                               * buildingFeatures["PV"]
@@ -157,6 +162,7 @@ class BES:
             # solar thermal energy (STC)
             if k == "STC":
                 BES["STC"] = {}
+                # f_STC is the fraction of the roof area that is suitable and available for STC installation
                 BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
                                      * buildingFeatures["f_STC"] \
                                      * buildingFeatures["STC"]

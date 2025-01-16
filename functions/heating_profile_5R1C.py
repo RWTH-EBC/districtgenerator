@@ -197,13 +197,13 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
     if building_type in {"SFH", "TH", "MFH", "AB"}:
         T_m_init = 19  # [°C]
     else:
-        T_m_init = 12  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
+        T_m_init = 16  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building after the long holiday
 
     T_set = zoneParameters.T_set_min # THeatingSet
     T_set_night = zoneParameters.T_set_min_night  # THeatingSet
     T_set_ub = zoneParameters.T_set_max                    # TCoolingSet
     T_set_ub_night = zoneParameters.T_set_max_night  # THeatingSet
-
+    T_set_free_day = zoneParameters.T_set_min_free_day #THeatingSet during non-working days in a non-residential building
     numberTimesteps = len(T_e)
 
 # Initialize results
@@ -273,9 +273,11 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
 
         else:
             if (t_op < current_T_set and
-                    day not in range(135, 259) and
-                    (day % 7 not in (0, 6) and
-                     day not in holidays)):
+                    day not in range(135, 259)):
+                if (day % 7 not in (0, 6) and day not in holidays):
+                    current_T_set = current_T_set
+                else:
+                    current_T_set = T_set_free_day
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
@@ -319,10 +321,11 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
     if building_type in {"SFH", "TH", "MFH", "AB"}:
         T_m_init = 19  # [°C]
     else:
-        T_m_init = 12  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
+        T_m_init = 16  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
 
     T_set = zoneParameters.T_set_min  # THeatingSet
     T_set_ub = zoneParameters.T_set_max  # TCoolingSet
+    T_set_free_day = zoneParameters.T_set_min_free_day #THeatingSet during non-working days in a non-residential building
 
     numberTimesteps = len(T_e)
 
@@ -355,18 +358,20 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
 
         if building_type in {"SFH", "TH", "MFH", "AB"}:
             if t_op < T_set and day not in range(135, 259):
+                current_T_set = T_set
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
-                                                             T_set,
+                                                             current_T_set,
                                                              t_m_previous,
                                                              dt,
                                                              timestep=t)
             elif t_op > T_set_ub:
+                current_T_set = T_set_ub
                 # Compute cooling demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
-                                                             T_set_ub,
+                                                             current_T_set,
                                                              t_m_previous,
                                                              dt,
                                                              timestep=t)
@@ -376,23 +381,26 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
 
         else:
             if (t_op < T_set and
-                    day not in range(135, 259) and
-                    (day % 7 not in (0, 6) and
-                     day not in holidays)):
+                    day not in range(135, 259)):
+                if (day % 7 not in (0, 6) and day not in holidays):
+                    current_T_set = T_set
+                else:
+                    current_T_set = T_set_free_day
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
-                                                             T_set,
+                                                             current_T_set,
                                                              t_m_previous,
                                                              dt,
                                                              timestep=t)
             elif (t_op > T_set_ub and
                   (day % 7 not in (0, 6) and
                    day not in holidays)):
+                current_T_set = T_set_ub
                 # Compute cooling demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
-                                                             T_set_ub,
+                                                             current_T_set,
                                                              t_m_previous,
                                                              dt,
                                                              timestep=t)

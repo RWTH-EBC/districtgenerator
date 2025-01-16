@@ -13,7 +13,7 @@ def example1_3_generate_first_district() :
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment(52064)
+    data.generateEnvironment("52064")
 
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")

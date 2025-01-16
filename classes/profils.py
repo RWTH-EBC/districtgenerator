@@ -665,6 +665,13 @@ class Profiles:
             occ_day = occ[day * array:(day + 1) * array]
             # initialize electricity demand of EV for current day
             car_demand_day = np.zeros(len(occ_day))
+
+            # Check if there is no occupancy for the entire day
+            if np.all(occ_day == 0.0):
+                # If the entire day's occupancy profile is zero, set demand to 0 for the day
+                car_demand_total[day * array:(day + 1) * array] = car_demand_day
+                continue  # Skip to the next day
+
             # identify time steps where nobody is home
             nobody_home = np.where(occ_day == 0.0)
             try:

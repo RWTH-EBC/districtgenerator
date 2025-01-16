@@ -11,6 +11,12 @@
     "unit": "degree Celsius",
     "description": "Required minimum indoor temperature at night (for heating load calculation)"
   },
+    {
+    "name": "T_set_min_free_day",
+    "value": 16.0,
+    "unit": "degree Celsius",
+    "description": "Minimum required indoor temperature on a non-working day in a non-residential building (for heating load calculations)"
+  },
   {
     "name": "T_set_max",
     "value": 26.0,
