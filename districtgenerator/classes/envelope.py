@@ -34,7 +34,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, file_path):
+    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path):
         """
         Constructor of Envelope class.
 
@@ -59,6 +59,8 @@ class Envelope:
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_type = construction_type
+        self.physics = physics
+        self.design_building_data = design_building_data
         self.retrofit = building_params["retrofit"]
         self.usage_short = building_params["building"]
         self.file_path = file_path
@@ -80,28 +82,15 @@ class Envelope:
         None.
         """
 
-        physics = {}
-        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                physics[subData["name"]] = subData["value"]
-
-        self.c_p_air = physics["c_p_air"]  # [J/kgK]
-        self.rho_air = physics["rho_air"]  # [kg/m3]
-
-        design_data = {}
-        with open(os.path.join(self.file_path, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                design_data[subData["name"]] = subData["value"]
-
-        self.T_set_min = design_data["T_set_min"]
-        self.T_set_min_night = design_data["T_set_min_night"]
-        self.T_set_max = design_data["T_set_max"]
-        self.T_set_max_night = design_data["T_set_max_night"]
-        self.ventilationRate = design_data["ventilation_rate"]
-        self.T_bivalent = design_data["T_bivalent"]
-        self.T_heatlimit = design_data["T_heatlimit"]
+        self.c_p_air = self.physics["c_p_air"]  # [J/kgK]
+        self.rho_air = self.physics["rho_air"]  # [kg/m3]
+        self.T_set_min = self.design_building_data["T_set_min"]
+        self.T_set_min_night = self.design_building_data["T_set_min_night"]
+        self.T_set_max = self.design_building_data["T_set_max"]
+        self.T_set_max_night = self.design_building_data["T_set_max_night"]
+        self.ventilationRate = self.design_building_data["ventilation_rate"]
+        self.T_bivalent = self.design_building_data["T_bivalent"]
+        self.T_heatlimit = self.design_building_data["T_heatlimit"]
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """

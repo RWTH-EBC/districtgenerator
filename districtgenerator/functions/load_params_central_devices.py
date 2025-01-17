@@ -21,6 +21,7 @@ import time
 import os
 import json
 import sys
+import copy
 
 def load_params(data):
 
@@ -29,17 +30,8 @@ def load_params(data):
 
     result_dict = {}
 
-    # import model parameters from json-file
-    param = {}
-    with open(os.path.join(os.path.dirname(srcPath), 'data', 'model_parameters_EHDO.json')) as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            if subData["name"] != "ref":
-                param[subData["name"]] = subData["value"]
-            else:
-                param[subData["name"]] = {}
-                for subSubData in subData["value"]:
-                    param[subData["name"]][subSubData["name"]] = subSubData["value"]
+    # import model parameters
+    param = copy.deepcopy(data.params_ehdo)
 
     param_uncl = {}  # unclustered time series for weather data
 
@@ -47,13 +39,7 @@ def load_params(data):
 
     ################################################################
     # GENERAL PARAMETERS
-
-    physics = {}
-    with open(os.path.join(os.path.dirname(srcPath), 'data', 'physics_data.json')) as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            physics[subData["name"]] = subData["value"]
-
+    physics = data.physics
     param["c_w"] = physics["c_p_water"]  # kJ/(kgK)
     param["rho_w"] = physics["rho_water"]  # kg/m3
 
@@ -544,11 +530,7 @@ def load_params(data):
     # LOAD MODEL PARAMETERS
 
     # load economic and ecologic data (of the district generator)
-    ecoData = {}
-    with open(os.path.join(os.path.dirname(srcPath), 'data', 'eco_data.json')) as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            ecoData[subData["name"]] = subData["value"]
+    ecoData = data.ecoData
 
     ### Energy costs ###
     # Electricity costs

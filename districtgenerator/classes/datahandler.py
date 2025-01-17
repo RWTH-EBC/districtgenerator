@@ -46,7 +46,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self):
+    def __init__(self, district = {}):
         """
         Constructor of Datahandler class.
 
@@ -58,13 +58,88 @@ class Datahandler:
         self.site = {}
         self.time = {}
         self.district = []
-        self.scenario_name = None
+        self.scenario_name = "example"
         self.scenario = None
+        self.design_building_data = {}
+        self.physics = {}
+        self.decentral_device_data = {}
+        self.params_ehdo = {}
+        self.ecoData = {}
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
         self.resultPath = os.path.join(self.srcPath, 'results')
         self.KPIs = None
+
+        self.load_all_data()
+
+    def load_all_data(self):
+        """
+        General data import from JSON files and transformation into dictionaries.
+
+        Returns
+        -------
+        None.
+        """
+
+        # %% load information about of the site under consideration (used in generateEnvironment)
+        # important for weather conditions
+        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.site[subData["name"]] = subData["value"]
+
+                # %% load time information and requirements (used in generateEnvironment)
+        # needed for data conversion into the right time format
+        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.time[subData["name"]] = subData["value"]
+
+        # %% load scenario file with building information
+        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
+                                    + "/"
+                                    + self.scenario_name + ".csv",
+                                    header=0, delimiter=";")
+
+        # %% load general building information
+        # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
+        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.design_building_data[subData["name"]] = subData["value"]
+
+                # load building physics data (used in envelope and system BES/CES)
+        with open(os.path.join(self.filePath, 'physics_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.physics[subData["name"]] = subData["value"]
+
+                # Load list of possible devices (used in system BES)
+        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.decentral_device_data[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+                    # import model parameters from json-file (used in system CES)
+        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                if subData["name"] != "ref":
+                    self.params_ehdo[subData["name"]] = subData["value"]
+                else:
+                    self.params_ehdo[subData["name"]] = {}
+                    for subSubData in subData["value"]:
+                        self.params_ehdo[subData["name"]][subSubData["name"]] = subSubData["value"]
+
+                        # load economic and ecologic data (of the district generator) (used in system CES)
+        with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.ecoData[subData["name"]] = subData["value"]
+
 
     def select_plz_data(self, plz):
         """
@@ -301,6 +376,8 @@ class Datahandler:
             building["envelope"] = Envelope(prj=prj,
                                             building_params=building["buildingFeatures"],
                                             construction_type=retrofit_level,
+                                            physics=self.physics,
+                                            design_building_data=self.design_building_data,
                                             file_path=self.filePath)
 
             # %% create user object
@@ -483,7 +560,10 @@ class Datahandler:
 
             # %% create building energy system object
             # get capacities of all possible devices
-            bes_obj = BES(file_path=self.filePath)
+            bes_obj = BES(physics=self.physics,
+                          decentral_device_data= self.decentral_device_data,
+                          design_building_data=self.design_building_data,
+                          file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
             # calculate theoretical PV and STC generation
