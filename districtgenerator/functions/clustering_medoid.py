@@ -101,13 +101,14 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     # weight and will be clustered equally in terms of quality 
     for i in range(inputs.shape[0]):
         vals = inputs[i, :]
-        temp = ((vals - np.min(vals)) / (np.max(vals) - np.min(vals))
-                * math.sqrt(weights[i]))
+        if np.max(vals) == np.min(vals):
+            temp = np.zeros_like(vals)
+        else:
+            temp = ((vals - np.min(vals)) / (np.max(vals) - np.min(vals))
+                    * math.sqrt(weights[i]))
         inputsScaled.append(temp)
         inputsScaledTransformed.append(temp.reshape((len_cluster, num_periods), order="F"))
         inputsTransformed.append(vals.reshape((len_cluster, num_periods), order="F"))
-        # inputsScaledTransformed.append(temp.reshape((len_day, 52), order="F"))
-        # inputsTransformed.append(vals.reshape((len_day, 52), order="F"))
 
     # Put the scaled and reshaped inputs together
     L = np.concatenate(tuple(inputsScaledTransformed))
@@ -151,7 +152,8 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     sums_inputs = [np.sum(inputs[j, :]) for j in range(inputs.shape[0])]
     scaled = np.array([nc[day] * typicalClusters[day, :, :]
                        for day in range(number_clusters)])
-    sums_scaled = [np.sum(scaled[:, j, :]) for j in range(inputs.shape[0])]
+    sums_scaled = [np.sum(scaled[:, j, :]) if not np.sum(scaled[:, j, :]) == 0 else 1
+                   for j in range(inputs.shape[0])]
     scaling_factors = [sums_inputs[j] / sums_scaled[j]
                        for j in range(inputs.shape[0])]
     scaled_typ_clusters = [scaling_factors[j] * typicalClusters[:, j, :]

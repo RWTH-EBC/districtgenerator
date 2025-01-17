@@ -590,7 +590,7 @@ class Datahandler:
         None.
         """
 
-        # calculate length of array
+        # calculate cluster time horizon
         initialArrayLenght = (self.time["clusterLength"] / self.time["timeResolution"])
         lenghtArray = initialArrayLenght
         while lenghtArray <= len(self.site["T_e"]):
@@ -613,8 +613,8 @@ class Datahandler:
                     adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
                 else:
                     # no EV exists; but array with just zeros leads to problem while clustering
-                    adjProfiles[id]["car"] = \
-                        self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
+                    adjProfiles[id]["car"] = np.zeros(lenghtArray)#\
+                        #self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
                 if self.district[id]["buildingFeatures"]["PV"] != 0:
                     adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
                 else:
@@ -689,7 +689,10 @@ class Datahandler:
 
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
-            index_house = int(7)  # number of profiles per building
+            if centralEnergySupply == False:
+                index_house = int(7)    # number of profiles per building
+            else:
+                index_house = int(4)
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
@@ -701,13 +704,14 @@ class Datahandler:
                 self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
                                                          * self.district[id]["buildingFeatures"]["STC"]
 
-        if centralEnergySupply == False:
-            self.site["T_e_cluster"] = newProfiles[-1]
-        else:
+        if centralEnergySupply == True:
             self.site["T_e_cluster"] = newProfiles[-4]
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[-3]
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[-2]
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[-1]
+        else:
+            self.site["T_e_cluster"] = newProfiles[-1]
+
 
 
 

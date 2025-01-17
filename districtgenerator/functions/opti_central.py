@@ -364,33 +364,31 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
 
     # Add capacity constraints ENERGY HUB
     for t in time_steps:
-        for device in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
-            # todo: webtool
-            if energyHubData == {}:
+        if energyHubData == {}:
+            for device in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
                 model.addConstr(eh_heat[device][t] == 0)
-            else:
+        else:
+            for device in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
                 model.addConstr(eh_heat[device][t] <= energyHubData["capacities"]["heat_kW"][device] * 10000) # W
-        model.addConstr(eh_heat["STC"][t] <= energyHubData["generation"]["STC_cluster"][cluster][t],
+            model.addConstr(eh_heat["STC"][t] <= energyHubData["generation"]["STC_cluster"][cluster][t],
                         name="STC_generation_energyHub_" + str(t))
-        for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
-            # todo: webtool
-            if energyHubData == {}:
+
+        if energyHubData == {}:
+            for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
                 model.addConstr(eh_power[device][t] == 0)
-            else:
+        else:
+            for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
                 model.addConstr(eh_power[device][t] <= energyHubData["capacities"]["power_kW"][device] * 1000) # W
-        model.addConstr(eh_power["PV"][t] <= energyHubData["generation"]["PV_cluster"][cluster][t],
+            model.addConstr(eh_power["PV"][t] <= energyHubData["generation"]["PV_cluster"][cluster][t],
                         name="PV_generation_energyHub_" + str(t))
-        model.addConstr(eh_power["WT"][t] == energyHubData["generation"]["Wind_cluster"][cluster][t],
+            model.addConstr(eh_power["WT"][t] == energyHubData["generation"]["Wind_cluster"][cluster][t],
                         name="WT_generation_energyHub_" + str(t))
         for device in ["CC", "AC"]:
             model.addConstr(eh_cool[device][t] <= eh_cap[device])
-        #for device in ["SAB"]:
-        #    model.addConstr(eh_gas[device][t] <= eh_cap[device])
 
     # state of charge < storage capacity
     for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
         for t in time_steps:
-            # todo: webtool
             if energyHubData == {}:
                 model.addConstr(eh_soc[device][t] == 0)
             else:
@@ -632,7 +630,7 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
                             + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
-            model.addConstr( heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t], #dch_dom[device][n][t] +
+            model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t],
                             name="Heat_discharging_" + str(n) + "_" + str(t))
 
             device = "BAT"

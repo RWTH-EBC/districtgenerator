@@ -199,7 +199,7 @@ class CES:
         param, devs, dem, result_dict = load_params_central_devices.load_params(data)
 
         # Run optimization
-        capacities_centralDevices = opti_dimensioning_central_devices.run_optim(devs, param, dem, result_dict)
+        capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)
 
         return capacities_centralDevices
 

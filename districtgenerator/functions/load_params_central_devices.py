@@ -83,11 +83,8 @@ def load_params(data):
             dhw += data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances += data.district[b]["user"].elec / 1000 # kW
 
-
-
     heat_total = heating + dhw
     electricity_total = electricityAppliances
-
     dem_uncl["heat"] = heat_total
     dem_uncl["cool"] = cooling
     dem_uncl["power"] = electricity_total
@@ -95,26 +92,35 @@ def load_params(data):
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
 
-
     ################################################################
     # DESIGN CLUSTERING
-    param["n_clusters"] = 12 #data.time["clusterNumber"]  # Number of time cluster
+
+    # calculate cluster time horizon
+    clusterHorizon = int((data.time["clusterLength"] / data.time["timeResolution"]))
+    adjustedHorizon = clusterHorizon
+    while adjustedHorizon <= len(data.site["T_e"]):
+        adjustedHorizon += clusterHorizon
+    adjustedHorizon -= clusterHorizon
+    adjustedHorizon = int(adjustedHorizon)
 
     # Collect the time series to be clustered
-    time_series = [dem_uncl["heat"], dem_uncl["cool"], dem_uncl["power"], param_uncl["T_air"], param_uncl["GHI"], param_uncl["DHI"], param_uncl["wind_speed"]]
+    time_series = [dem_uncl["heat"][0:adjustedHorizon], dem_uncl["cool"][0:adjustedHorizon], dem_uncl["power"][0:adjustedHorizon],
+                   param_uncl["T_air"][0:adjustedHorizon], param_uncl["GHI"][0:adjustedHorizon], param_uncl["DHI"][0:adjustedHorizon],
+                   param_uncl["wind_speed"][0:adjustedHorizon]]
+
     # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
     inputs = np.array(time_series)
     # Execute k-medoids algorithm
     print("Cluster design days...")
     start = time.time()
     (clustered_series, nc, y, z, inputsTransformed) = clustering.cluster(inputs,
-                                     param["n_clusters"],
-                                     len_cluster=24,#int(inputs.shape[1] / 365),
+                                     data.time["clusterNumber"],
+                                     len_cluster=int(clusterHorizon),
                                      norm = 2,
                                      mip_gap = 0.02,
                                      )
 
-    print("Design day clustering finished. (" + str(time.time()-start) + ")\n")
+    print("Design clustering finished. (" + str(time.time()-start) + ")\n")
 
     dem = {}
     dem["heat"] = clustered_series[0]
@@ -131,14 +137,14 @@ def load_params(data):
 
     # Get sigma-function: for each day of the year, find the corresponding design day
     # Get list of days which are used as design days
-    typedays = np.zeros(param["n_clusters"], dtype = np.int32)
+    typedays = np.zeros(data.time["clusterNumber"], dtype = np.int32)
     n = 0
-    for d in range(365):
+    for d in range(52):
         if any(z[d]):
             typedays[n] = d
             n += 1
     # Assign each day of the year to its design day
-    sigma = np.zeros(365, dtype = np.int32)
+    sigma = np.zeros(52, dtype = np.int32)
     for day in range(len(sigma)):
         d = np.where(z[:,day] == 1 )[0][0]
         sigma[day] = np.where(typedays == d)[0][0]
@@ -228,7 +234,7 @@ def load_params(data):
         "hub_h": all_models["WindTurbine"]["hub_h"],
         "ref_h": all_models["WindTurbine"]["ref_h"],
     }
-    devs["WT"]["norm_power"] = calc_WT_power(devs, param)  # relative power between 0 and 1
+    devs["WT"]["norm_power"] = calc_WT_power(devs, param, data.time["clusterNumber"])  # relative power between 0 and 1
 
     # Hydropower
     devs["WAT"] = {
@@ -307,11 +313,11 @@ def load_params(data):
     }
     # COP assignment
 
-    COP = np.ones((param["n_clusters"], 24))
+    COP = np.ones((data.time["clusterNumber"], clusterHorizon))
     eta_carnot = all_models["HeatPump"]["ASHP_carnot_eff"] / 100
     supply_temp = all_models["HeatPump"]["ASHP_supply_temp"]
-    for d in range(param["n_clusters"]):
-        for t in range(24):
+    for d in range(data.time["clusterNumber"]):
+        for t in range(clusterHorizon):
             COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
     devs["HP"]["COP"] = COP
 
@@ -321,13 +327,13 @@ def load_params(data):
         #not all_models["HeatPump"]["CSV_feasible"]):
         #    flags["HeatPump_no_COP_option_selected"] = False
         if all_models["HeatPump"]["CCOP_feasible"]:
-            devs["HP"]["COP"] = np.ones((param["n_clusters"], 24)) * all_models["HeatPump"]["COP_const"]
+            devs["HP"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HeatPump"]["COP_const"]
         elif all_models["HeatPump"]["ASHP_feasible"]:
-            COP = np.ones((param["n_clusters"], 24))
+            COP = np.ones((data.time["clusterNumber"], clusterHorizon))
             eta_carnot = all_models["HeatPump"]["ASHP_carnot_eff"] / 100
             supply_temp = all_models["HeatPump"]["ASHP_supply_temp"]
-            for d in range(param["n_clusters"]):
-                for t in range(24):
+            for d in range(data.time["clusterNumber"]):
+                for t in range(clusterHorizon):
                     COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
             devs["HP"]["COP"] = COP
 
@@ -335,16 +341,16 @@ def load_params(data):
             #try:
                 COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(srcPath), 'data', 'coefficient_of_performance.txt'))
                 # Cluster COP time series
-                COP_clustered = np.zeros((param["n_clusters"], 24))
-                for d in range(param["n_clusters"]):
+                COP_clustered = np.zeros((data.time["clusterNumber"], clusterHorizon))
+                for d in range(data.time["clusterNumber"]):
                     for t in range(24):
-                        COP_clustered[d][t] = COP_unclustered[24 * typedays[d] + t]
+                        COP_clustered[d][t] = COP_unclustered[clusterHorizon * typedays[d] + t]
                 # Replace original time series with the clustered one
                 devs["HP"]["COP"] = COP_clustered
             #except:
             #    flags["HeatPump_invalid_file"] = False
     else:
-        devs["HP"]["COP"] = np.ones((param["n_clusters"], 24))
+        devs["HP"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon))
 
 
     # Electric boiler
@@ -1068,7 +1074,7 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
     return result_dict
 
 
-def calc_WT_power(devs, param):
+def calc_WT_power(devs, param, clusterNumber):
     """
     According to data sheet of wind turbine Enercon E40.
     """
@@ -1106,8 +1112,8 @@ def calc_WT_power(devs, param):
     wind_speed_corr = param["wind_speed"]*(devs["WT"]["hub_h"]/devs["WT"]["ref_h"]) ** devs["WT"]["h_coeff"]  # kW
 
     WT_power = np.zeros(np.shape(wind_speed_corr))
-    for d in range(param["n_clusters"]):
-        for t in range(24):
+    for d in range(clusterNumber):
+        for t in range(24*7):
             WT_power[d][t] = get_turbine_power(wind_speed_corr[d][t], power_curve)
 
     WT_power_norm = WT_power / 500  # power_curve with 500 kW as maximum output

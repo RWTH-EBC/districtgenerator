@@ -21,15 +21,17 @@ import os
 #from optim_app.help_functions import create_excel_file
 
 
-def run_optim(devs, param, dem, result_dict):
+def run_optim(data, devs, param, dem, result_dict):
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Load model parameters
     start_time = time.time()
 
-    days = range(param["n_clusters"])
-    time_steps = range(24)
-    year = range(365)
+    days = range(data.time["clusterNumber"])
+    # calculate cluster time horizon
+    clusterHorizon = int((data.time["clusterLength"] / data.time["timeResolution"]))
+    time_steps = range(clusterHorizon)
+    year = range(52)
 
     # Get sigma function which assigns every day of the year to a design day
     sigma = param["sigma"]
@@ -782,147 +784,6 @@ def run_optim(devs, param, dem, result_dict):
 #        result_dict["total_co2_biom"] = int(biom_import_total.X * param["co2_biom"]/1000) # t/a
 #        result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
 #        result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
-#
-#        # Calculate share of renewables
-        #result_dict["share_renew"] = round((result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"])/(result_dict["PV"]["gen_kWh"] + result_dict["WT"]["gen_kWh"] + result_dict["WAT"]["gen_kWh"] + result_dict["STC"]["gen_kWh"] + from_el_grid_total.X + from_gas_grid_total.X + biom_import_total.X + waste_import_total.X + hydrogen_import_total.X)*100, 1)  #
-#
-#        # Calculate relative savings compared to reference scenario
-        """
-        if not result_dict["ref"]["tac"] == 0:
-            if result_dict["tac"] <= result_dict["ref"]["tac"]:
-                result_dict["ref"]["tac_sav"] = round((1-(result_dict["tac"]/result_dict["ref"]["tac"])) * 100, 1)
-                result_dict["ref"]["tac_sav_pos"] = True
-            else:
-                result_dict["ref"]["tac_sav"] = round(((result_dict["tac"]/result_dict["ref"]["tac"])-1) * 100, 1)
-                result_dict["ref"]["tac_sav_pos"] = False
-        else:
-            result_dict["ref"]["tac_sav"] = 0
-#
-        if not result_dict["ref"]["co2"] == 0:
-            if result_dict["co2"] <= result_dict["ref"]["co2"]:
-                result_dict["ref"]["co2_sav"] = round((1-(result_dict["co2"]/result_dict["ref"]["co2"])) * 100, 1)
-                result_dict["ref"]["co2_sav_pos"] = True
-            else:
-                result_dict["ref"]["co2_sav"] = round(((result_dict["co2"]/result_dict["ref"]["co2"])-1) * 100, 1)
-                result_dict["ref"]["co2_sav_pos"] = False
-        else:
-            result_dict["ref"]["co2_sav"] = 0
-            
-        """
-#
-#
-#
-#        ### TECH DEFINITIONS ###
-#
-#        tech_list = ["power_PV", "power_PV_curtail",
-#                     "power_WT", "power_WT_curtail",
-#                     "power_WAT", "power_WAT_curtail",
-#                     "heat_STC", "heat_STC_curtail",
-#
-#                     "heat_HP", "power_HP",
-#                     "heat_EB", "power_EB",
-#                     "cool_CC", "power_CC",
-#                     "cool_AC", "heat_AC",
-#
-#                     "power_CHP", "heat_CHP", "gas_CHP",
-#                     "heat_BOI", "gas_BOI",
-#                     "heat_GHP", "gas_GHP",
-#
-#                     "power_BCHP", "heat_BCHP", "biom_BCHP",
-#                     "heat_BBOI", "biom_BBOI",
-#                     "power_WCHP", "heat_WCHP", "waste_WCHP",
-#                     "heat_WBOI", "waste_WBOI",
-#
-#                     "power_ELYZ", "hydrogen_ELYZ",
-#                     "power_FC", "heat_FC", "hydrogen_FC",
-#                     "hydrogen_SAB", "gas_SAB",
-#
-#                     "ch_TES", "ch_CTES", "ch_BAT", "ch_GS", "ch_H2S",
-#
-#                     "dem_heat", "dem_cool", "dem_power", "dem_hydrogen",
-#
-#                     "biom_import", "waste_import", "hydrogen_import", "power_to_grid", "power_from_grid", "gas_from_grid", "gas_to_grid",
-#                     ]
-#
-#        soc_list = ["soc_TES", "soc_CTES", "soc_BAT", "soc_GS", "soc_H2S"]
-#
-#
-#        ### REWRITE DESIGN DAYS IN FULL YEAR ###
-#
-#        # Arrange full time series with 8760 steps
-#        full = {}
-#        for item in tech_list:
-#            full[item] = np.zeros(8760)
-#        # Get list of days used as type days
-#        z = param["day_matrix"]
-#        typedays = []
-#        for d in range(365):
-#            if any(z[d]):
-#                typedays.append(d)
-#        # Arrange time series
-#        for d in range(365):
-#            match = np.where(z[:,d] == 1)[0][0]
-#            typeday = np.where(typedays == match)[0][0]
-#            for item in tech_list:
-#                m, tech = item.split("_", 1)
-#                if not m == "soc":
-#                    if m == "power":
-#                        m_arr = power
-#                    elif m == "heat":
-#                        m_arr = heat
-#                    elif m == "cool":
-#                        m_arr = cool
-#                    elif m == "hydrogen":
-#                        m_arr = hydrogen
-#                    elif m == "gas":
-#                        m_arr = gas
-#                    elif m == "biom":
-#                        m_arr = biom
-#                    elif m == "waste":
-#                        m_arr = waste
-#                    elif m == "ch":
-#                        m_arr = ch
-#                    elif m == "dem":
-#                        m_arr = dem
-#                    for t in range(24):
-#                        if m == "dem" or tech == "PV_curtail" or tech == "STC_curtail" or tech == "WT_curtail" or tech == "WAT_curtail":
-#                            full[item][24*d+t] = m_arr[tech][typeday][t]
-#                        else:
-#                            full[item][24*d+t] = m_arr[tech][typeday][t].X
-#                        # print("full["+item+"][" + str(24*d+t) + "] = m_arr["+tech+"]["+str(typeday)+"]["+str(t)+"].X)")
-#
-#        for item in soc_list:
-#            m, tech = item.split("_", 1)
-#            if m == "soc":
-#                full[item] = np.zeros(8760)
-#                for d in range(365):
-#                    for t in range(24):
-#                        full[item][24*d+t] = soc[tech][d][t].X
-#
-#        ### CALC MONTHLY VALS ###
-#        month_tuple = ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-#        days_sum = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
-#
-#        # Calc ambient heat and mean COP
-#        full["amb_heat_HP"] = full["heat_HP"] - full["power_HP"]
-#        result_dict["mean_COP_HP"] = round(np.sum(full["heat_HP"]) / np.sum(full["power_HP"]),2)
-#
-#        monthly_val = {}
-#        year_peak = {}
-#        year_sum = {}
-#        for m in ["power_PV", "power_WT", "power_WAT", "heat_STC", "heat_HP", "amb_heat_HP"]:
-#            monthly_val[m] = {}
-#            year_peak[m] = int(np.max(full[m]))
-#            year_sum[m] = int(np.sum(full[m]) / 1000)
-#            for month in range(12):
-#                monthly_val[m][month_tuple[month]] = sum(full[m][t] for t in range(days_sum[month]*24, days_sum[month+1]*24)) / 1000
-#
-#        result_dict["monthly_val"] = monthly_val
-#        result_dict["year_peak"].update(year_peak)
-#        result_dict["year_sum"].update(year_sum)
-#
-#
-#        ### WRITE EXCEL FILE ###
-#        create_excel_file.create_excel_file(full, dem, devs, "45484", time_steps, days)
+
 
         return result_dict
