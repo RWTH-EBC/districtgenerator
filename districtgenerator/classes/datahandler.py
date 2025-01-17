@@ -175,6 +175,14 @@ class Datahandler:
             # If postal code cannot be found: Message and select weathter data file from Aachen
             print("Postal code cannot be found, location changed to Aachen")
             weatherdatafile_location = 507755060854
+            """  
+                Add new weatherdatafile_location, if you want an individual location: 
+                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
+                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
+                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
+                Uncomment the following line  
+            """
+            # weatherdatafile_location = 507755060854
 
         return weatherdatafile_location
 

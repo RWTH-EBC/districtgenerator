@@ -97,18 +97,20 @@ class BES:
             if k == "EH":
                 BES["EH"] = (self.design_load - self.bivalent_load) * (buildingFeatures["heater"] == "HP")
 
-            # thermal energy storage (TES) always exists
+            # thermal energy storage (TES)
             if k == "TES":
-                # Factor [l/kW], [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
+                # f_TES in l per kW design load
+                # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
                 # design refers to DHL
-                BES["TES"] = buildingFeatures["f_TES"] \
-                             * self.design_load / 1000 \
-                             * self.physics["rho_water"] \
-                             * self.physics["c_p_water"] \
-                             * self.decentral_device_data["TES"]["T_diff_max"] \
-                             / 3600
-                #if buildingFeatures["heater"] == "heat_grid":
-                #    BES["TES"] = 0
+                if buildingFeatures["heater"] == "heat_grid":
+                    BES["TES"] = 0
+                else:
+                    BES["TES"] = buildingFeatures["f_TES"] \
+                                * self.design_load / 1000 \
+                                * self.physics["rho_water"] \
+                                * self.physics["c_p_water"] \
+                                * self.decentral_device_data["TES"]["T_diff_max"] \
+                                / 3600
 
                     # battery (BAT)
             if k == "BAT":
