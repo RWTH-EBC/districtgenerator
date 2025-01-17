@@ -98,55 +98,63 @@ class BES:
             if k == "EH":
                 BES["EH"] = (self.design_load - self.bivalent_load) * (buildingFeatures["heater"] == "HP")
 
-            # thermal energy storage (TES) always exists
+            # thermal energy storage (TES)
             if k == "TES":
-                # Factor [l/kW], [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
+                # f_TES in l per kW design load
+                # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
                 # design refers to DHL
-                BES["TES"] = buildingFeatures["f_TES"] \
-                             * self.design_load / 1000 \
-                             * self.physics["rho_water"] \
-                             * self.physics["c_p_water"] \
-                             * self.decentral_device_data["TES"]["T_diff_max"] \
-                             / 3600
-                #if buildingFeatures["heater"] == "heat_grid":
-                #    BES["TES"] = 0
+                if buildingFeatures["heater"] == "heat_grid":
+                    BES["TES"] = 0
+                else:
+                    BES["TES"] = buildingFeatures["f_TES"] \
+                                 * self.design_load / 1000 \
+                                 * self.physics["rho_water"] \
+                                 * self.physics["c_p_water"] \
+                                 * self.decentral_device_data["TES"]["T_diff_max"] \
+                                 / 3600
 
                     # battery (BAT)
             if k == "BAT":
                 # Factor [Wh / W_PV], [Wh = Wh/W * W/m2 * m2]
                 # design refers to buildable roof area (0.4 * area)
-                BES["BAT"] = buildingFeatures["f_BAT"] \
-                             * self.decentral_device_data["PV"]["P_nominal"] \
-                             * building["envelope"].A["opaque"]["roof"] \
-                             * buildingFeatures["f_PV"] \
-                             * buildingFeatures["BAT"]
+                # BES["BAT"] = buildingFeatures["f_BAT"] \
+                #              * self.decentral_device_data["PV"]["P_nominal"] \
+                #              * building["envelope"].A["opaque"]["roof"] \
+                #              * buildingFeatures["f_PV"] \
+                #              * buildingFeatures["BAT"]
+                BES["BAT"] = buildingFeatures["BAT"]
 
             # electric vehicle (EV)
             if k == "EV":
                 # [Wh]
-                BES["EV"] = float(buildingFeatures["EV"]
-                                  * (40000 * (buildingFeatures["f_EV"] == "S")
-                                     + 60000 * (buildingFeatures["f_EV"] == "M")
-                                     + 80000 * (buildingFeatures["f_EV"] == "L")
+                if buildingFeatures["EV"] == 0:
+                    BES["EV"] = float(0)
+                else:
+                    BES["EV"] = float(1
+                                  * (16000 * (buildingFeatures["EV"] == "small")
+                                     + 40000  * (buildingFeatures["EV"] == "medium")
+                                     + 95000 * (buildingFeatures["EV"] == "large")
                                      )
                                   )
 
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
-                areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * buildingFeatures["f_PV"] \
-                              * buildingFeatures["PV"]
+                # areaPV_temp = building["envelope"].A["opaque"]["roof"] \
+                #               * buildingFeatures["f_PV"] \
+                #               * buildingFeatures["PV"]
+                areaPV_temp = buildingFeatures["PV_area"]
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]
 
             # solar thermal energy (STC)
             if k == "STC":
-                BES["STC"] = {}
-                BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
-                                     * buildingFeatures["f_STC"] \
-                                     * buildingFeatures["STC"]
+                # BES["STC"] = {}
+                # BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
+                #                      * buildingFeatures["f_STC"] \
+                #                      * buildingFeatures["STC"]
+                BES["STC"]["area"] = buildingFeatures["STC_area"]
 
         return BES
 
@@ -166,7 +174,7 @@ class CES:
         """
 
 
-    def designCES(self, data):
+    def designCES(self, data , webtool):
         """
         Dimensioning of central devices with EHDO
 
@@ -180,7 +188,7 @@ class CES:
         """
 
         # Load parameters
-        param, devs, dem, result_dict = load_params_central_devices.load_params(data)
+        param, devs, dem, result_dict = load_params_central_devices.load_params(data, webtool)
 
         # Run optimization
         capacities_centralDevices = opti_dimensioning_central_devices.run_optim(devs, param, dem, result_dict)

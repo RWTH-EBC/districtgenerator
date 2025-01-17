@@ -107,7 +107,12 @@ class Optimizer:
         None.
         """
 
-        results = opti_central.run_opti_central(self.model, self.data.district, self.data.centralDevices, self.data.site,
+        try:
+            energyHubData = self.data.centralDevices
+        except:
+            energyHubData = {}
+
+        results = opti_central.run_opti_central(self.model, self.data.district, energyHubData, self.data.site,
                                                 self.cluster, self.srcPath, optiData)
 
         return results

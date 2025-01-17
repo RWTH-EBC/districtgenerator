@@ -16,7 +16,7 @@ def example1_3_generate_first_district() :
     data.generateEnvironment(plz="52074")
 
     # Initialize Buildings to the District
-    data.initializeBuildings(scenario_name="example")
+    data.initializeBuildings(scenario_name="Typquartier_1")
 
     # Next we generate more information about the buildings.
     # To do this we use the TEASER tool. This tool returns more detailed information about an archetype building

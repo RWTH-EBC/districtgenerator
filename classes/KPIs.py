@@ -4,7 +4,11 @@ import sys
 import numpy as np
 import os
 import json
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from datetime import datetime
 import math
+
 
 class KPIs:
 
@@ -23,6 +27,8 @@ class KPIs:
         """
 
         # initialize KPIs
+        self.peakDemands = None
+        self.energyDemands = None
         self.sum_res_load = None
         self.sum_res_inj = None
         self.residualLoad = None
@@ -262,18 +268,23 @@ class KPIs:
             self.scf_year += self.supplyCoverFactor[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                                                           / sum_ClusterWeights)
 
-    def calc_annual_cost_total(self, scenario):
+    def calc_annual_cost_total(self, scenario, opti_data={}):
 
-        optiData = {}
-        optiData["HP"] = {}
-        optiData["HP"]["cap"] = 20 # kW
-        optiData["HP"]["life_time"] = 15
-        optiData["HP"]["inv_var"] = 900 # €/kW
-        optiData["HP"]["cost_om"] = 0.05
+        if opti_data == {}:
+            optiData = {}
+            optiData["HP"] = {}
+            optiData["HP"]["cap"] = 20  # kW
+            optiData["HP"]["life_time"] = 15
+            optiData["HP"]["inv_var"] = 900  # €/kW
+            optiData["HP"]["cost_om"] = 0.05
 
-        optiData["param"] = {}
-        optiData["param"]["observation_time"] = 20
-        optiData["param"]["interest_rate"] = 0.05
+            optiData["param"] = {}
+            optiData["param"]["observation_time"] = 20
+            optiData["param"]["interest_rate"] = 0.05
+        else:
+            optiData = opti_data["optiData"]
+
+        #TODO für jede Anlage
 
         # Count occurrences of "BOI", "HP", and "CHP" in the 'heater' column
         heater_counts = scenario['heater'].value_counts()
@@ -454,7 +465,7 @@ class KPIs:
         #    self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
         #                                                  / sum_ClusterWeights)
 
-    def calculateAllKPIs(self, data):
+    def calculateAllKPIs(self, data, opti_data):
         """
         Calculate all KPIs.
 
@@ -473,4 +484,91 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
-        self.calc_annual_cost_total(data.scenario)
+        self.calc_annual_cost_total(data.scenario, opti_data)
+
+    def create_kpi_pdf(self,result_path):
+        """
+        Generate a PDF file with a list of KPIs.
+
+        Parameters:
+        - filename: The name of the PDF file to create.
+        - title: The title of the document.
+        - kpis: A list of strings, where each string is a KPI to be written in the document.
+        """
+
+        if result_path is None:
+            srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            filename = os.path.join(srcPath, "results", "Quartiersenergieausweis.pdf")
+        else:
+            filename = os.path.join(result_path, "Quartiersenergieausweis.pdf")
+        title = "Quartiersenergieausweis"
+
+        info_texts = [
+            "Die Energiekosten und die CO2-äquivalenten Emissionen werden mit dem Strombezug an der\nOrtsnetzstation, dem Gasverbrauch der Gebäude sowie den jeweiligen Kosten der beiden Energieträger,\nund den CO2-Faktoren berechnet.",
+            "Der Eigenverbrauch beschreibt den Anteil der in das Verteilnetz eingespeisten elektrischen Energiemenge,\ndie lokal verbraucht wurde. Dagegen beschreibt der Deckungsgrad den Anteil der aus dem Verteilnetz\nbezogenen elektrischen Energiemenge, die durch lokale Stromerzeugung gedeckt wurde."
+        ]
+        info_text_positions = [0, 3]
+
+        kpis = [
+            "Energiekosten: " + str(round(self.operationCosts, 0)) + " € pro Jahr",
+            "CO2-äquivalente Emissionen: " + str(round(np.sum(self.co2emissions,0))) + " kg pro Jahr",
+            "Elektrische Spitzenlast an der Ortnetzstation: " + str(round(self.peakDemand,0)) + " kW",
+            "Eigenverbrauch: " + str(round(self.scf_year*100,0)) + " %",
+            "Deckungsgrad: " + str(round(self.dcf_year*100,0)) + " %",
+            "Strombezug aus der übergeordneten Netzebene: " + str(round(self.W_dem_GCP_year,0))+ " kWh",
+            "Stromeinspeisung in die übergeordnete Netzebene: " + str(round(self.W_inj_GCP_year,0))+ " kWh",
+            # Add more KPIs as needed
+        ]
+
+        c = canvas.Canvas(filename, pagesize=letter)
+        c.setTitle(title)
+
+        def add_footer():
+            # Get current date and time
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Set footer text
+            footer_text = f"Erstellt am: {now}"
+            # Position footer text at the bottom
+            c.setFont("Helvetica", 8)
+            c.drawString(72, 30, footer_text)
+
+        # Set up the main title
+        c.setFont("Helvetica-Bold", 20)
+        y_position = 800  # Start position near top of the page
+        c.drawString(72, y_position, "Quartiersenergieausweis")
+        y_position -= 2 * 14  # Move down 2 lines
+
+        # Set the document title below the main title
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(72, y_position, title)
+        y_position -= 2 * 14  # Move down 2 lines to start information text
+
+        # Initialize variables for text positioning
+        c.setFont("Helvetica", 10)  # Font size for content
+        line_height = 14  # Adjust line height to fit content
+
+        # Write the information texts
+        additional_info_index = 0
+        for i, kpi in enumerate(kpis):
+            if additional_info_index < len(info_text_positions) and i == info_text_positions[additional_info_index]:
+                if additional_info_index == 1:  # Before the second info text
+                    y_position -= line_height  # Add an extra empty line
+                # Display the info text
+                for line in info_texts[additional_info_index].split("\n"):
+                    c.drawString(72, y_position, line.strip())
+                    y_position -= line_height
+                additional_info_index += 1
+                y_position -= 1 * line_height  # Add 2 lines of spacing after the info text
+
+            # Check if we need to create a new page
+            if y_position < 50:  # Consider a bottom margin
+                c.showPage()
+                c.setFont("Helvetica", 10)
+                y_position = 780  # Reset position for new page
+
+            c.drawString(72, y_position, kpi)
+            y_position -= line_height
+
+        add_footer()
+        c.save()
+

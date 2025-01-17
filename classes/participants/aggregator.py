@@ -55,7 +55,7 @@ class Aggregator(Device):
         """
 
         # variables of the houses
-        self.P_dem, self.P_inj, self.P_gas,  = {}, {}, {}
+        self.P_dem, self.P_inj, self.P_gas = {}, {}, {}
         for n in range(self.buildings):
             self.P_dem[n], self.P_inj[n], self.P_gas[n] = {}, {}, {}
             for t in self.timesteps:
@@ -132,6 +132,7 @@ class Aggregator(Device):
             vtype=gp.GRB.CONTINUOUS,
             name="Emission_total"
         )
+
 
     def setConstraints(self):
         """

@@ -20,7 +20,7 @@ def example1_2_generate_first_district():
     # This file distributes the basic information about the buildings including the type of building and its area.
 
     # Initialize buildings of the district
-    data.initializeBuildings(scenario_name="example")
+    data.initializeBuildings(scenario_name="Typquartier_1")
 
     print("\nThe district now looks like this:")
     print("District:" + str(data.district) + "\n")

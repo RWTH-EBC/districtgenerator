@@ -198,6 +198,13 @@ class House(Device):
              for dev in self.ecs_heat),
             name="Max_heating_" + str(self.id))
 
+        # Maximum heating power from grid
+        #if self.data["capacities"]["heat_grid"] == 0:
+        #    self.m.addConstrs(
+        #        (self.heat_fromGrid[t] == 0
+        #         for t in self.timesteps),
+        #        name="Max_grid_heating_" + str(self.id))
+
         # Energy balance heat pump
         self.m.addConstrs(
             (self.heat["HP", t] == self.heat_mode["HP35", t] + self.heat_mode["HP60", t]
@@ -244,7 +251,6 @@ class House(Device):
 
             # If there's only 35 degree within TES, EH has to lift up temperature for DHW
             # In oder to ensure flexible operation, just use daily sums. Alternative: time step wise
-            # todo: Speicher werden mit X l/kW auf T_max=60 ausgelegt. Vergleichbarkeit: X kWh/kW ?
             self.m.addConstr(
                 sum(self.heat["EH", t] for t in self.timesteps) >=
                 (1 - (40 - 25) / (60 - 25)) * sum(self.data["user"].dhw_cluster[self.cluster][t]

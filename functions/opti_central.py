@@ -12,6 +12,9 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
 
     if optiData == {}:
         optiData["webtool"] = False
+    else:
+        optiData["webtool"] = True
+
 
     now = time.time()
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -395,38 +398,38 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
         for t in time_steps:
             # todo: COP
             # Electric heat pump
-            model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * eh_devs["eh_HP"]["COP"][t])
+            model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * optiData["HeatPump"]["COP_const"])
             # Electric boiler
-            model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * eh_devs["eh_EB"]["eta_th"])
+            model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * optiData["ElectricBoiler"]["eta_th"])
             # Compression chiller
-            model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * eh_devs["eh_CC"]["COP"])
+            model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * optiData["CompressionChiller"]["COP"])
             # Absorption chiller
-            model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * devs["AC"]["eta_th"])
+            model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * optiData["AbsorptionChiller"]["eta_th"])
             # Gas CHP
-            model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * devs["CHP"]["eta_el"])
-            model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * devs["CHP"]["eta_th"])
+            model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * optiData["CHP"]["eta_el"])
+            model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * optiData["CHP"]["eta_th"])
             # Gas boiler
-            model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * devs["BOI"]["eta_th"])
+            model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * optiData["GasBoiler"]["eta_th"])
             # Gas heat pump
-            model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * devs["GHP"]["COP"])
+            model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * optiData["GasHeatPump"]["COP"])
             # Biomass CHP
-            model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * devs["BCHP"]["eta_el"])
-            model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * devs["BCHP"]["eta_th"])
+            model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * optiData["BiomassCHP"]["eta_el"])
+            model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * optiData["BiomassCHP"]["eta_th"])
             # Biomass boiler
-            model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * devs["BBOI"]["eta_th"])
+            model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * optiData["BiomassBoiler"]["eta_th"])
             # Waste CHP
-            model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * devs["WCHP"]["eta_el"])
-            model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * devs["WCHP"]["eta_th"])
+            model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * optiData["WasteCHP"]["eta_el"])
+            model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * optiData["WasteCHP"]["eta_th"])
             # Waste boiler
-            model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * devs["WBOI"]["eta_th"])
+            model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * optiData["WasteBoiler"]["eta_th"])
             # Electrolyzer
-            model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * devs["ELYZ"]["eta_el"])
+            model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * optiData["Electrolyzer"]["eta_el"])
             # Fuel cell
-            model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * devs["FC"]["eta_el"])
+            model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * optiData["FuelCell"]["eta_el"])
             # Heat must be used
-            model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * devs["FC"]["eta_th"])
+            model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * optiData["FuelCell"]["eta_th"])
             # Sabatier reactor
-            model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * devs["SAB"]["eta"])
+            model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * optiData["SabatierReactor"]["eta"])
     else:
         for t in time_steps:
             # Electric heat pump
