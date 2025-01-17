@@ -58,7 +58,7 @@ class Datahandler:
         self.site = {}
         self.time = {}
         self.district = []
-        self.scenario_name = None
+        self.scenario_name = 'example'
         self.scenario = None
         self.desing_building_data = {}
         self.physics = {}
@@ -110,13 +110,13 @@ class Datahandler:
                 self.desing_building_data[subData["name"]] = subData["value"]
 
         # load building physics data (used in envelope and system BES/CES)
-        with open(os.path.join(self.file_path, 'physics_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'physics_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.physics[subData["name"]] = subData["value"]
 
         # Load list of possible devices (used in system BES)
-        with open(os.path.join(self.file_path, 'decentral_device_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.decentral_device_data[subData["abbreviation"]] = {}
@@ -124,7 +124,7 @@ class Datahandler:
                     self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # import model parameters from json-file (used in system CES)
-        with open(os.path.join(self.file_path, 'model_parameters_EHDO.json')) as json_file:
+        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 if subData["name"] != "ref":
@@ -135,7 +135,7 @@ class Datahandler:
                         self.params_ehdo[subData["name"]][subSubData["name"]] = subSubData["value"]
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        with open(os.path.join(self.file_path, 'eco_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.ecoData[subData["name"]] = subData["value"]

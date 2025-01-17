@@ -13,7 +13,7 @@ def example1_3_generate_first_district() :
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz="52074")
 
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")
@@ -35,7 +35,7 @@ def example1_3_generate_first_district() :
           + " m\N{SUPERSCRIPT TWO}")
     print(str(round(data.district[0]['envelope'].A['window']['sum']))
           + " m\N{SUPERSCRIPT TWO} of building 0 is covered with windows.")
-    print("The design heat load of building 0 is " + str(round(data.district[0]['heatload'])) + "W.")
+    print("The design heat load of building 0 is " + str(round(data.district[0]['envelope'].heatload)) + "W.")
 
     print("\nTo finish our example with the last step of adding demand profiles, "
           "go to example e1.4_generate_fist_district")
