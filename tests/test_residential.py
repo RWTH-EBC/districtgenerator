@@ -3,36 +3,52 @@ import random as rd
 from random import sample
 import os
 import pandas as pd
-from districtgenerator import *
-from functions import path_checks
+from districtgenerator.classes import datahandler
+from districtgenerator.functions import path_checks
 # Should create simulations for residential buildings
 # Write a test that all functions run through without errors
 # Check if the results exist and are not zero
+
+PARENT_FOLDER_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 class TestResidential(unittest.TestCase):
     def setUp(self):
         # Create test scenario
         self.test_data = { 
             'id': [0, 1, 2, 3],
-            'building': ["SFH", "SFH", "TH", "TH"],
+            'building': ["SFH", "SFH", "TH", "MFH"],
             'year': [rd.randint(1900, 2024) for _ in range(4)],
-            'retrofit': [rd.randint(0 , 2 ) for _ in range(4)]
-            'area': [rd.randint(10, 100) for _ in range(4)]
+            'retrofit': [rd.randint(0 , 2 ) for _ in range(4)],
+            'area': [rd.randint(10, 100) for _ in range(4)],
+            'construction_type': ["", "", "", ""],
+            'night_setback': [rd.randint(0, 1) for _ in range(4)],
+            'heater': ["HP", "BOI", "HP", "BOI"],
+            'PV': [rd.randint(0, 1) for _ in range(4)],
+            'STC': [rd.randint(0, 1) for _ in range(4)],
+            'EV': [rd.randint(0, 1) for _ in range(4)],
+            'BAT': [rd.randint(0, 1) for _ in range(4)],
+            'f_TES': [rd.randint(0, 1) for _ in range(4)],
+            'f_BAT': [rd.randint(0, 1) for _ in range(4)],
+            'f_EV': ["M", "M", "M", "M"],
+            'f_PV': [rd.randint(0, 1) for _ in range(4)],
+            'f_STC': [rd.randint(0, 1) for _ in range(4)],
+            'gamma_PV': [rd.randint(0, 1) for _ in range(4)],
+            'ev_charging': ["on_demand", "on_demand", "on_demand", "on_demand"]
         }
         df = pd.DataFrame(self.test_data, columns=self.test_data.keys())
-        folder_path = os.getcwd()
-        self.scenario_path = os.path.join(folder_path, 'data', 'scenarios', 'test_scenario.csv')
+        self.scenario_path = os.path.join(PARENT_FOLDER_PATH, 'districtgenerator', 'data', 'scenarios', 'test_scenario.csv')
         df.to_csv(self.scenario_path, index=False, sep=';')
         print(df.head())
         # Define a consistent results path
         #C:\Users\felix\Programmieren\tecdm\src\districtgenerator\test_scenario
-        self.results_path = os.path.join(folder_path, 'test_scenario')
+        self.results_path = os.path.join(PARENT_FOLDER_PATH,  'test_scenario', 'demands')
         
 
-    def test_non_residential(self):
-        data = Datahandler()
-        data.setWeatherFile('data/weather/EPW/DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw')
-        data.generateEnvironment()
+    def test_residential(self):
+        data = datahandler.Datahandler()
+        data.setWeatherFile(os.path.join(PARENT_FOLDER_PATH, 'districtgenerator', 'data', 'weather', 'EPW', 'DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw'))
+        data.generateEnvironment(plz="52070")
         data.initializeBuildings('test_scenario')
         data.setResultPath('test_scenario')
         data.generateBuildings()
@@ -40,11 +56,9 @@ class TestResidential(unittest.TestCase):
         # Verify that results are generated
         self.assertTrue(os.path.exists(self.results_path), f"Results directory not found: {self.results_path}")
         self.assertTrue(any(fname.endswith('.csv') for fname in os.listdir(self.results_path)), "No CSV files found in results directory.")
-        folder_path = os.getcwd()
-        results_path = os.path.join(folder_path, 'test_scenario')
-        for file in os.listdir(results_path):
+        for file in os.listdir(self.results_path):
             if file.endswith('.csv'):
-                file_path = os.path.join(results_path, file)
+                file_path = os.path.join(self.results_path, file)
                 df = pd.read_csv(file_path, sep=',')
                 required_columns = ["elec", "dhw", "occ", "gains", "heat"]
                 for column in required_columns:
@@ -69,7 +83,7 @@ class TestResidential(unittest.TestCase):
                     energy_demand = df['heat'].sum() / 1000
                     area = row['area']
                     energy_demand_per_square_meter = energy_demand / area
-                    print(f"Energy demand per square meter for building {building}: {energy_demand_per_square_meter}")
+                    print(f"Energy demand per square meter for building {building}: {energy_demand_per_square_meter} with area {area}")
                     self.assertGreaterEqual(energy_demand_per_square_meter, 0, f"Energy demand per square meter is negative for building {building}: {energy_demand_per_square_meter}")
             self.assertIsNotNone(building_file, f"No results file found for building {building_id}")
 

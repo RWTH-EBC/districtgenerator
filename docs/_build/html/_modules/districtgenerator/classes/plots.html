@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>districtgenerator.classes.plots &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">districtgenerator.classes.plots</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for districtgenerator.classes.plots</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+
+<div class="viewcode-block" id="DemandPlots"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.plots.DemandPlots">[docs]</a><span class="k">class</span> <span class="nc">DemandPlots</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class to generate plots of energy consumption and generation&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load economical and ecological data to compute costs and CO2 emissions</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DemandPlots.preparePlots"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.plots.DemandPlots.preparePlots">[docs]</a>    <span class="k">def</span> <span class="nf">preparePlots</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Collect data to create plots.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data:</span>
+<span class="sd">            datahandler-object</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># %% read in energy consumption and generation data</span>
+
+        <span class="c1"># length of all energy consumption and generation profiles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">l</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">elec</span><span class="p">)</span>
+
+        <span class="c1"># initialize arrays for profiles of the hole district</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># electricity demand of domestic appliances and lighting [kW]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
+        <span class="c1"># heat demand by domestic hot water consumption [kW]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
+        <span class="c1"># internal heat gains [kW]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;gains&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
+        <span class="c1"># number of present occupants [-]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;occ&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
+        <span class="c1"># heat demand for space heating [kW]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
+
+        <span class="c1"># loop over buildings to sum upp energy consumptions and generations for the hole district</span>
+        <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">[</span><span class="n">b</span><span class="p">][</span><span class="s1">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">elec</span> <span class="o">/</span> <span class="mi">1000</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">[</span><span class="n">b</span><span class="p">][</span><span class="s1">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dhw</span> <span class="o">/</span> <span class="mi">1000</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;gains&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">[</span><span class="n">b</span><span class="p">][</span><span class="s1">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">gains</span> <span class="o">/</span> <span class="mi">1000</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;occ&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">[</span><span class="n">b</span><span class="p">][</span><span class="s1">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">occ</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">data</span><span class="o">.</span><span class="n">district</span><span class="p">[</span><span class="n">b</span><span class="p">][</span><span class="s1">&#39;user&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">heat</span> <span class="o">/</span> <span class="mi">1000</span>
+
+        <span class="c1"># compute electricity demand by domestic appliances, lighting and electric vehicles[W]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;electricityDemand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">]</span>
+        <span class="c1"># compute heat demand by space heating minus immediate internal gains and domestic hot water [W]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">l</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">])):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatDemand&#39;</span><span class="p">][</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">][</span><span class="n">t</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">][</span><span class="n">t</span><span class="p">]</span>
+
+        <span class="c1"># factor to convert power [kW] for one timestep to energy [kWh] for one timestep</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">factor</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s1">&#39;timeResolution&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="mi">3600</span>
+        <span class="c1"># time array for x-axis [h]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="mi">3600</span> \
+                                 <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">((</span><span class="mi">365</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">/</span> <span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">]))</span>
+
+        <span class="c1"># labels of y-axis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Time [h]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Electricity demand [kW]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;DHW demand [kW]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;gains&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Heat gains [kW]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;occ&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Present occupants [-]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Space heating demand [kW]&#39;</span>
+        <span class="c1">#self.labels[&#39;electricityDemand&#39;] = &#39;Electricity demand [kW]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Heat demand [kW]&#39;</span>
+
+        <span class="c1"># plot titles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Electricity demand for domestic appliances and lighting&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Domestic hot water (DHW) demand of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;gains&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Heat gains of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;occ&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Present occupants of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Space heating demand of district&#39;</span>
+        <span class="c1">#self.titles[&#39;electricityDemand&#39;] = &#39;Electricity demand of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Heat demand of district&#39;</span>
+
+        <span class="c1"># definition of default stepwise plots</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plots</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="s1">&#39;dhw&#39;</span><span class="p">,</span> <span class="s1">&#39;gains&#39;</span><span class="p">,</span> <span class="s1">&#39;occ&#39;</span><span class="p">,</span> <span class="s1">&#39;heating&#39;</span><span class="p">,</span> <span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span>
+
+
+        <span class="c1"># %% monthly plots (bar plots)</span>
+
+        <span class="c1"># days per month and cumulated days of months</span>
+        <span class="n">daysInMonhs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">31</span><span class="p">,</span> <span class="mi">28</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">31</span><span class="p">])</span>
+        <span class="n">cumutaltedDays</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cumutaltedDays</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">cumutaltedDays</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">daysInMonhs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cumutaltedDays</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">cumutaltedDays</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">daysInMonhs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="c1"># array with last time step of each month</span>
+        <span class="n">monthlyDataSteps</span> <span class="o">=</span> <span class="n">cumutaltedDays</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">3600</span> <span class="o">/</span> <span class="n">data</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s1">&#39;timeResolution&#39;</span><span class="p">]</span>
+
+        <span class="c1"># create monthly data for bar plots</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;elecMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;dhwMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;gainsMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># self.y[&#39;occMonthly&#39;] = []</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatingMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;electricityDemandMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatDemandMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">cumutaltedDays</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">m</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># first month starts with time step zero</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># all the other months starts one time step after the last time step of the previous month</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">monthlyDataSteps</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">monthlyDataSteps</span><span class="p">[</span><span class="n">m</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="c1"># convert power [W] to energy per month [kWh] by multiplication with factor</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;elecMonthly&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;dhwMonthly&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;gainsMonthly&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;gains&#39;</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">))</span>
+            <span class="c1"># self.y[&#39;occMonthly&#39;].append(np.sum(self.y[&#39;occ&#39;][start:end] * self.factor))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatingMonthly&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">))</span>
+            <span class="c1">#self.y[&#39;electricityDemandMonthly&#39;].append(np.sum(self.y[&#39;electricityDemand&#39;][start:end] * self.factor))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatDemandMonthly&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="s1">&#39;heatDemand&#39;</span><span class="p">][</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="p">))</span>
+
+        <span class="c1"># months as categories for x-axis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">months</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;January&#39;</span><span class="p">,</span> <span class="s1">&#39;February&#39;</span><span class="p">,</span> <span class="s1">&#39;March&#39;</span><span class="p">,</span> <span class="s1">&#39;April&#39;</span><span class="p">,</span> <span class="s1">&#39;May&#39;</span><span class="p">,</span> <span class="s1">&#39;June&#39;</span><span class="p">,</span> <span class="s1">&#39;July&#39;</span><span class="p">,</span> <span class="s1">&#39;August&#39;</span><span class="p">,</span> <span class="s1">&#39;September&#39;</span><span class="p">,</span> <span class="s1">&#39;October&#39;</span><span class="p">,</span>
+                       <span class="s1">&#39;November&#39;</span><span class="p">,</span> <span class="s1">&#39;December&#39;</span><span class="p">]</span>
+
+        <span class="c1"># labels of y-axis</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;elecMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Electricity demand [kWh]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;dhwMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;DHW demand [kWh]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;gainsMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Heat gains [kWh]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;heatingMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Space heating demand [kWh]&#39;</span>
+        <span class="c1">#self.labels[&#39;electricityDemandMonthly&#39;] = &#39;Electricity demand [kWh]&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;heatDemandMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Heat demand [kWh]&#39;</span>
+
+        <span class="c1"># plot titles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;elecMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Monthly electricity demand for domestic appliances and lighting&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;dhwMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Monthly domestic hot water (DHW) demand of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;gainsMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Monthly heat gains of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;heatingMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Monthly space heating demand of district&#39;</span>
+        <span class="c1">#self.titles[&#39;electricityDemandMonthly&#39;] = &#39;Monthly electricity demand of district&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="s1">&#39;heatDemandMonthly&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Monthly heat demand of district&#39;</span>
+
+        <span class="c1"># definition of default monthly plots</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plotsMonthly</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="s1">&#39;dhw&#39;</span><span class="p">,</span> <span class="s1">&#39;gains&#39;</span><span class="p">,</span> <span class="s1">&#39;heating&#39;</span><span class="p">,</span> <span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span>
+
+        <span class="c1"># define colors for plot types</span>
+        <span class="n">blue</span> <span class="o">=</span> <span class="s1">&#39;#00549F&#39;</span>
+        <span class="n">red</span> <span class="o">=</span> <span class="s1">&#39;#CC071E&#39;</span>
+        <span class="n">green</span> <span class="o">=</span> <span class="s1">&#39;#57AB27&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;standard&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">blue</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;elec&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">green</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;dhw&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;gains&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;occ&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">blue</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;heating&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;electricityDemand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">green</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;heatDemand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">red</span></div>
+
+<div class="viewcode-block" id="DemandPlots.defaultPlots"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.plots.DemandPlots.defaultPlots">[docs]</a>    <span class="k">def</span> <span class="nf">defaultPlots</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plotResolution</span><span class="o">=</span><span class="s1">&#39;monthly&#39;</span><span class="p">,</span> <span class="n">initialTime</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">timeHorizon</span><span class="o">=</span><span class="mi">31536000</span><span class="p">,</span> <span class="n">savePlots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeStamp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create of a selection of default plots</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        plotResolution : string, optional</span>
+<span class="sd">            Defines the plot resolution. The default is &#39;monthly&#39;.</span>
+<span class="sd">        initialTime : integer, optional</span>
+<span class="sd">            Start of the plot in seconds from the beginning of the year. The default is 0.</span>
+<span class="sd">        timeHorizon : integer, optional</span>
+<span class="sd">            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).</span>
+<span class="sd">        savePlots : boolean, optional</span>
+<span class="sd">            Decision if plots are saved under results/plots/. The default is True.</span>
+<span class="sd">        timeStamp : boolean, optional</span>
+<span class="sd">            Decision if saved plots get a unique name by adding a time stamp. The default is False.</span>
+<span class="sd">        show : boolean, optional</span>
+<span class="sd">            Option to show the plot directly. The default is False.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">plots</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">plotResolution</span> <span class="o">==</span> <span class="s1">&#39;stepwise&#39;</span><span class="p">:</span>
+            <span class="n">plots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">plots</span>
+        <span class="k">elif</span> <span class="n">plotResolution</span> <span class="o">==</span> <span class="s1">&#39;monthly&#39;</span><span class="p">:</span>
+            <span class="n">plots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">plotsMonthly</span>
+
+        <span class="k">for</span> <span class="n">plotType</span> <span class="ow">in</span> <span class="n">plots</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">onePlot</span><span class="p">(</span><span class="n">plotType</span><span class="p">,</span> <span class="n">plotResolution</span><span class="o">=</span><span class="n">plotResolution</span><span class="p">,</span> <span class="n">initialTime</span><span class="o">=</span><span class="n">initialTime</span><span class="p">,</span> <span class="n">timeHorizon</span><span class="o">=</span><span class="n">timeHorizon</span><span class="p">,</span>
+                         <span class="n">savePlots</span><span class="o">=</span><span class="n">savePlots</span><span class="p">,</span> <span class="n">timeStamp</span><span class="o">=</span><span class="n">timeStamp</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="n">show</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DemandPlots.onePlot"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.plots.DemandPlots.onePlot">[docs]</a>    <span class="k">def</span> <span class="nf">onePlot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plotType</span><span class="p">,</span> <span class="n">plotResolution</span><span class="o">=</span><span class="s1">&#39;monthly&#39;</span><span class="p">,</span> <span class="n">initialTime</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">timeHorizon</span><span class="o">=</span><span class="mi">31536000</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">color</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">savePlots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeStamp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Create a single plot</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        plotType : string</span>
+<span class="sd">            Type of the plot.</span>
+<span class="sd">            Options are [&#39;elec&#39;, &#39;dhw&#39;, &#39;gains&#39;, &#39;heating&#39;, &#39;heatDemand&#39;].</span>
+<span class="sd">        plotResolution : string, optional</span>
+<span class="sd">            Defines the plot resolution.</span>
+<span class="sd">            Options are [&#39;monthly&#39;, &#39;stepwise&#39;]. The default is &#39;monthly&#39;.</span>
+<span class="sd">        initialTime : integer, optional</span>
+<span class="sd">            Start of the plot in seconds from the beginning of the year. The default is 0.</span>
+<span class="sd">        timeHorizon : integer, optional</span>
+<span class="sd">            Length of the time horizon that is plotted in seconds. The default is 31536000 (what equals one year).</span>
+<span class="sd">        label : string, optional</span>
+<span class="sd">            Custom y-axis label. Otherwise, a default label is used.</span>
+<span class="sd">        title : string, optional</span>
+<span class="sd">            Custom plot title. Otherwise, a default title is used.</span>
+<span class="sd">        color : string, optional</span>
+<span class="sd">            Custom plot color. Otherwise, a default color is used.</span>
+<span class="sd">        savePlots : boolean, optional</span>
+<span class="sd">            Decision if plots are saved under results/plots/. The default is True.</span>
+<span class="sd">        timeStamp : boolean, optional</span>
+<span class="sd">            Decision if saved plots get a unique name by adding a time stamp. The default is False.</span>
+<span class="sd">        show : boolean, optional</span>
+<span class="sd">            Option to show the plot directly. The default is False.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># transform time data in seconds to data in hours</span>
+        <span class="n">initialTime_h</span> <span class="o">=</span> <span class="n">initialTime</span> <span class="o">/</span> <span class="mi">3600</span>
+        <span class="n">timeHorizon_h</span> <span class="o">=</span> <span class="n">timeHorizon</span> <span class="o">/</span> <span class="mi">3600</span>
+
+        <span class="c1"># check validity of input</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">initialTime</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">timeHorizon</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="s1">&#39;No negative values for initial time and time horizon allowed!&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">plotType</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">plots</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">plotType</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">plotsMonthly</span><span class="p">):</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="s1">&#39;Selected plot type is invalid!&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">plotResolution</span> <span class="o">!=</span> <span class="s1">&#39;stepwise&#39;</span> <span class="ow">and</span> <span class="n">plotResolution</span> <span class="o">!=</span> <span class="s1">&#39;monthly&#39;</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="s1">&#39;Selected plot resolution is invalid!&#39;</span><span class="p">)</span>
+        <span class="c1"># the initial time is shorter than one year</span>
+        <span class="n">initialTime_h</span> <span class="o">=</span> <span class="n">initialTime_h</span> <span class="o">%</span> <span class="mi">8760</span>
+        <span class="c1"># just one year of data is available</span>
+        <span class="n">timeResolution</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">initialTime_h</span> <span class="o">+</span> <span class="n">timeHorizon_h</span><span class="p">)</span> <span class="o">&gt;</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">timeResolution</span><span class="p">):</span>
+            <span class="n">timeHorizon_max</span> <span class="o">=</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">timeResolution</span><span class="p">)</span> <span class="o">-</span> <span class="n">initialTime_h</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3600</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="s1">&#39;Selected initial time and time horizon are not compatible!</span><span class="se">\n</span><span class="s1">&#39;</span>
+                     <span class="s1">&#39;For selected initial time the maximal time horizon is &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">timeHorizon_max</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">plotResolution</span> <span class="o">==</span> <span class="s1">&#39;stepwise&#39;</span><span class="p">:</span>
+
+            <span class="c1"># calculate index of first data step</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">==</span> <span class="n">initialTime_h</span><span class="p">:</span>
+                    <span class="n">start_index</span> <span class="o">=</span> <span class="n">t</span>
+                    <span class="k">break</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">initialTime_h</span><span class="p">:</span>
+                    <span class="n">start_index</span> <span class="o">=</span> <span class="n">t</span> <span class="o">-</span><span class="mi">1</span>
+                    <span class="k">break</span>
+            <span class="c1"># calculate index of last data step</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">+</span> <span class="n">timeResolution</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="n">initialTime_h</span> <span class="o">+</span> <span class="n">timeHorizon_h</span><span class="p">):</span>
+                    <span class="n">end_index</span> <span class="o">=</span> <span class="n">t</span>
+                    <span class="k">break</span>
+            <span class="k">if</span> <span class="n">end_index</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="s2">&quot;Error with initial time and time horizon.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># slice of x and y values</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">start_index</span><span class="p">:</span><span class="n">end_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="n">plotType</span><span class="p">][</span><span class="n">start_index</span><span class="p">:</span><span class="n">end_index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># determine if standard title, label and color are used</span>
+            <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">plotType</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">title</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">title</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="n">plotType</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">color</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">color</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="n">plotType</span><span class="p">]</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="n">color</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;standard&#39;</span><span class="p">]</span>
+
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">],</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>
+
+            <span class="c1"># optional saving of the plot</span>
+            <span class="k">if</span> <span class="n">savePlots</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">timeStamp</span><span class="p">:</span>
+                    <span class="n">_now</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+                    <span class="n">strDate</span> <span class="o">=</span> <span class="n">_now</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">strTime</span> <span class="o">=</span> <span class="n">_now</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H%M%S&quot;</span><span class="p">)</span>
+                    <span class="n">stamp</span> <span class="o">=</span> <span class="s1">&#39;_D&#39;</span> <span class="o">+</span> <span class="n">strDate</span> <span class="o">+</span> <span class="s1">&#39;T&#39;</span> <span class="o">+</span> <span class="n">strTime</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">stamp</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span><span class="o">+</span> <span class="s1">&#39;/results/plots/&#39;</span> <span class="o">+</span> <span class="n">plotType</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">plotResolution</span> <span class="o">+</span> <span class="n">stamp</span><span class="p">,</span>
+                            <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">show</span><span class="p">:</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">plotResolution</span> <span class="o">==</span> <span class="s1">&#39;monthly&#39;</span><span class="p">:</span>
+
+            <span class="c1"># determine if standard title, label and color are used</span>
+            <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="n">plotType</span> <span class="o">+</span> <span class="s1">&#39;Monthly&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">title</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">title</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">titles</span><span class="p">[</span><span class="n">plotType</span> <span class="o">+</span> <span class="s1">&#39;Monthly&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">color</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">color</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="n">plotType</span><span class="p">]</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="n">color</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">color</span><span class="p">[</span><span class="s1">&#39;standard&#39;</span><span class="p">]</span>
+
+            <span class="c1"># reading data</span>
+            <span class="n">categories</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">months</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="n">plotType</span> <span class="o">+</span> <span class="s1">&#39;Monthly&#39;</span><span class="p">]</span>
+
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">title</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">15</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+            <span class="c1"># plt.xlabel(&quot;Months&quot;)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">rotation</span><span class="o">=</span><span class="mi">45</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+
+            <span class="n">ax</span><span class="o">.</span><span class="n">bar</span><span class="p">(</span><span class="n">categories</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">edgecolor</span><span class="o">=</span><span class="s2">&quot;white&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>
+
+            <span class="n">fig</span><span class="o">.</span><span class="n">subplots_adjust</span><span class="p">(</span><span class="n">bottom</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+
+            <span class="c1"># optional saving of the plot</span>
+            <span class="k">if</span> <span class="n">savePlots</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">timeStamp</span><span class="p">:</span>
+                    <span class="n">_now</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+                    <span class="n">strDate</span> <span class="o">=</span> <span class="n">_now</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y%m</span><span class="si">%d</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">strTime</span> <span class="o">=</span> <span class="n">_now</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%H%M%S&quot;</span><span class="p">)</span>
+                    <span class="n">stamp</span> <span class="o">=</span> <span class="s1">&#39;_D&#39;</span> <span class="o">+</span> <span class="n">strDate</span> <span class="o">+</span> <span class="s1">&#39;T&#39;</span> <span class="o">+</span> <span class="n">strTime</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">stamp</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span><span class="o">+</span><span class="s1">&#39;/results/plots/&#39;</span> <span class="o">+</span> <span class="n">plotType</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">plotResolution</span> <span class="o">+</span> <span class="n">stamp</span><span class="p">,</span>
+                            <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">&quot;tight&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">show</span><span class="p">:</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">plotResolution</span> <span class="o">==</span> <span class="s1">&#39;weekly&#39;</span><span class="p">:</span>
+
+            <span class="k">pass</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

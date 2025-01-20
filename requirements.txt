@@ -2,6 +2,10 @@ numpy>=1.20.1
 pandas>=1.2.3
 matplotlib>=3.3.4
 scipy>=1.6.1
-teaser
+teaser==0.7.7
 richardsonpy
 pylightxl
+gurobipy>=9.5.1
+xlsxwriter~=3.2.0
+geopy~=2.4.1
+pyproj~=3.7.0

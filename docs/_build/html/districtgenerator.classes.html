@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Classes &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Internal functions" href="districtgenerator.functions.html" />
+    <link rel="prev" title="Classes and internal functions" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="README.html">DistrictGenerator</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">Classes and internal functions</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Classes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#districtgenerator-classes-datahandler">districtgenerator.classes.datahandler</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.classes.envelope">districtgenerator.classes.envelope</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.classes.envelope.Envelope"><code class="docutils literal notranslate"><span class="pre">Envelope</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.classes.profils">districtgenerator.classes.profils</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.classes.profils.Profiles"><code class="docutils literal notranslate"><span class="pre">Profiles</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.classes.solar">districtgenerator.classes.solar</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.classes.solar.Sun"><code class="docutils literal notranslate"><span class="pre">Sun</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.classes.users">districtgenerator.classes.users</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.classes.users.Users"><code class="docutils literal notranslate"><span class="pre">Users</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="districtgenerator.functions.html">Internal functions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/index.html">About DistrictGenerator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">Classes and internal functions</a></li>
+      <li class="breadcrumb-item active">Classes</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/districtgenerator.classes.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="classes">
+<h1>Classes<a class="headerlink" href="#classes" title="Permalink to this heading"></a></h1>
+<section id="districtgenerator-classes-datahandler">
+<h2>districtgenerator.classes.datahandler<a class="headerlink" href="#districtgenerator-classes-datahandler" title="Permalink to this heading"></a></h2>
+</section>
+<section id="module-districtgenerator.classes.envelope">
+<span id="districtgenerator-classes-envelope"></span><h2>districtgenerator.classes.envelope<a class="headerlink" href="#module-districtgenerator.classes.envelope" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">districtgenerator.classes.envelope.</span></span><span class="sig-name descname"><span class="pre">Envelope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">building_params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">construction_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Abstract class for envelop component management handling</p>
+<section id="parameters">
+<h3>Parameters<a class="headerlink" href="#parameters" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>prj<span class="classifier">Project()</span></dt><dd><p>Project() instance of TEASER, contains functions to generate
+archetype buildings</p>
+</dd>
+<dt>building_params<span class="classifier">dict</span></dt><dd><p>building parameters like construction year, retrofit</p>
+</dd>
+<dt>construction_type<span class="classifier">string</span></dt><dd><p>building type</p>
+</dd>
+<dt>file_path<span class="classifier">str</span></dt><dd><p>file path</p>
+</dd>
+</dl>
+</section>
+<section id="attributes">
+<h3>Attributes<a class="headerlink" href="#attributes" title="Permalink to this heading"></a></h3>
+<p>id :</p>
+<dl class="simple">
+<dt>construction_year<span class="classifier">int</span></dt><dd><p>construction year of the building</p>
+</dd>
+<dt>retrofit<span class="classifier">string</span></dt><dd><p>retrofit of the building</p>
+</dd>
+</dl>
+<p>usage_short :</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.calcHeatLoad">
+<span class="sig-name descname"><span class="pre">calcHeatLoad</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">site</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'design'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.calcHeatLoad"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.calcHeatLoad" title="Permalink to this definition"></a></dt>
+<dd><section id="id1">
+<h4>Parameters<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>site<span class="classifier">dict</span></dt><dd><p>information about location and climate conditions</p>
+</dd>
+<dt>method<span class="classifier">string</span></dt><dd><p>method to calculate heat load</p>
+</dd>
+</dl>
+</section>
+<section id="returns">
+<h4>Returns<a class="headerlink" href="#returns" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>Q_nHC<span class="classifier">float</span></dt><dd><p>heat load</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.calcNormativeProperties">
+<span class="sig-name descname"><span class="pre">calcNormativeProperties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">SunRad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">internal_gains</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.calcNormativeProperties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.calcNormativeProperties" title="Permalink to this definition"></a></dt>
+<dd><section id="id2">
+<h4>Parameters<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>SunRad<span class="classifier">array</span></dt><dd><p>solar radiation</p>
+</dd>
+<dt>internal_gains :</dt><dd><p>internal gains of the building</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.loadAreas">
+<span class="sig-name descname"><span class="pre">loadAreas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.loadAreas"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.loadAreas" title="Permalink to this definition"></a></dt>
+<dd><p>Load component-specific area data</p>
+<section id="id3">
+<h4>Parameters<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>prj<span class="classifier">class</span></dt><dd><p>contains functions to generate archetype buildings</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.loadComponentProperties">
+<span class="sig-name descname"><span class="pre">loadComponentProperties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prj</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.loadComponentProperties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.loadComponentProperties" title="Permalink to this definition"></a></dt>
+<dd><p>Load component-specific material parameters</p>
+<section id="id4">
+<h4>Parameters<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>prj<span class="classifier">class</span></dt><dd><p>contains functions to generate archetype buildings</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.loadMaterialID">
+<span class="sig-name descname"><span class="pre">loadMaterialID</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mat_id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_class</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.loadMaterialID"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.loadMaterialID" title="Permalink to this definition"></a></dt>
+<dd><p>Material loader by id.</p>
+<section id="id5">
+<h4>Parameters<a class="headerlink" href="#id5" title="Permalink to this heading"></a></h4>
+<p>mat_id :</p>
+<p>data_class :</p>
+</section>
+<section id="id6">
+<h4>Returns<a class="headerlink" href="#id6" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>name<span class="classifier">string</span></dt><dd><p>material type</p>
+</dd>
+<dt>density<span class="classifier">float</span></dt><dd><p>density of the material</p>
+</dd>
+<dt>thermal_conduc :</dt><dd><p>thermal conductivity</p>
+</dd>
+<dt>heat_capac :</dt><dd><p>heat capacity</p>
+</dd>
+<dt>solar_absorp :</dt><dd><p>solar adsorption</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.loadParams">
+<span class="sig-name descname"><span class="pre">loadParams</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.loadParams"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.loadParams" title="Permalink to this definition"></a></dt>
+<dd><p>load physical and use-specific parameters</p>
+<section id="id7">
+<h4>Parameters<a class="headerlink" href="#id7" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>physics<span class="classifier">json file</span></dt><dd><p>physical and use-specific parameters</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.envelope.Envelope.specificHeatCapacity">
+<span class="sig-name descname"><span class="pre">specificHeatCapacity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">d</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">d_iso</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">density</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cp</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/envelope.html#Envelope.specificHeatCapacity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.envelope.Envelope.specificHeatCapacity" title="Permalink to this definition"></a></dt>
+<dd><p>Computation of (specific) heat capacity of each wall-type-surface
+ISO 13786 A.2.4
+Result is in J/m2K</p>
+<section id="id8">
+<h4>Parameters<a class="headerlink" href="#id8" title="Permalink to this heading"></a></h4>
+<p>d :</p>
+<p>d_iso :</p>
+<p>density :</p>
+<p>cp :</p>
+</section>
+<section id="id9">
+<h4>Returns<a class="headerlink" href="#id9" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>kappa<span class="classifier">float</span></dt><dd><p>(specific) heat capacity of each wall-type-surface</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+</section>
+<section id="module-districtgenerator.classes.profils">
+<span id="districtgenerator-classes-profils"></span><h2>districtgenerator.classes.profils<a class="headerlink" href="#module-districtgenerator.classes.profils" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">districtgenerator.classes.profils.</span></span><span class="sig-name descname"><span class="pre">Profiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">number_occupants</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initital_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nb_days</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_resolution</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Profile class
+calculating user related profiles of a building or flat</p>
+<section id="id10">
+<h3>Parameters<a class="headerlink" href="#id10" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>number_occupants<span class="classifier">integer</span></dt><dd><p>Number of occupants who live in the house or flat.</p>
+</dd>
+<dt>initial_day<span class="classifier">integer</span></dt><dd><p>Day of the week with which the generation starts
+1-7 for monday-sunday.</p>
+</dd>
+<dt>nb_days<span class="classifier">integer</span></dt><dd><p>Number of days for which a stochastic profile is generated.</p>
+</dd>
+<dt>time_resolution<span class="classifier">integer</span></dt><dd><p>resolution of time steps of output array in seconds.</p>
+</dd>
+</dl>
+</section>
+<section id="id11">
+<h3>Attributes<a class="headerlink" href="#id11" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>activity_profile<span class="classifier">array</span></dt><dd><p>Numpy-arry with acctive occupants 10-minutes-wise.</p>
+</dd>
+<dt>occ_profile<span class="classifier">array</span></dt><dd><p>stochastic occupancy profiles for a district</p>
+</dd>
+<dt>app_load<span class="classifier">Array-like</span></dt><dd><p>Electric load profile of appliances in W.</p>
+</dd>
+<dt>light_load<span class="classifier">Array-like</span></dt><dd><p>Electric load profile of lighting in W.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles.generate_activity_profile">
+<span class="sig-name descname"><span class="pre">generate_activity_profile</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles.generate_activity_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles.generate_activity_profile" title="Permalink to this definition"></a></dt>
+<dd><p>Generate a stochastic activity profile
+(on base of ridchardsonpy)</p>
+<section id="id12">
+<h4>Parameters<a class="headerlink" href="#id12" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>number_occupants<span class="classifier">integer</span></dt><dd><p>Number of occupants who live in the house or flat.</p>
+</dd>
+<dt>initial_day<span class="classifier">integer</span></dt><dd><p>Day of the week with which the generation starts
+1-7 for monday-sunday.</p>
+</dd>
+<dt>nb_days<span class="classifier">integer</span></dt><dd><p>Number of days for which a stochastic profile is generated.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles.generate_dhw_profile">
+<span class="sig-name descname"><span class="pre">generate_dhw_profile</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles.generate_dhw_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles.generate_dhw_profile" title="Permalink to this definition"></a></dt>
+<dd><p>Generate a stochastic dhw profile
+(on base of pycity_base)</p>
+<section id="id13">
+<h4>Parameters<a class="headerlink" href="#id13" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>time_resolution<span class="classifier">integer</span></dt><dd><p>resolution of time steps of output array in seconds.</p>
+</dd>
+<dt>activity_profile<span class="classifier">array</span></dt><dd><p>Numpy-arry with acctive occupants 10-minutes-wise.</p>
+</dd>
+<dt>prob_profiles_dhw: array</dt><dd><p>probabilities of dhw usage</p>
+</dd>
+<dt>initial_day<span class="classifier">integer</span></dt><dd><p>Day of the week with which the generation starts
+1-7 for monday-sunday.</p>
+</dd>
+</dl>
+</section>
+<section id="id14">
+<h4>Returns<a class="headerlink" href="#id14" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>dhw_heat<span class="classifier">array</span></dt><dd><p>Numpy-array with heat demand of dhw consumption in W.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles.generate_el_profile">
+<span class="sig-name descname"><span class="pre">generate_el_profile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">irradiance</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">el_wrapper</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">annual_demand</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles.generate_el_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles.generate_el_profile" title="Permalink to this definition"></a></dt>
+<dd><p>Generate electric load profile for one household</p>
+<section id="id15">
+<h4>Parameters<a class="headerlink" href="#id15" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>irradiance<span class="classifier">array</span></dt><dd><p>if none is given default weather data (TRY 2015 Potsdam) is used</p>
+</dd>
+<dt>el_wrapper<span class="classifier">object</span></dt><dd><p>This objects holdes information about the lighting and appliance configuration.</p>
+</dd>
+<dt>annual_demand<span class="classifier">integer</span></dt><dd><p>Annual elictricity demand in kWh.</p>
+</dd>
+<dt>do_normalization<span class="classifier">boolean</span></dt><dd><p>Normalize el. load profile to annual_demand</p>
+</dd>
+</dl>
+</section>
+<section id="id16">
+<h4>Returns<a class="headerlink" href="#id16" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>loadcurve<span class="classifier">Array-like</span></dt><dd><p>Total electric load profile in W.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles.generate_gain_profile">
+<span class="sig-name descname"><span class="pre">generate_gain_profile</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles.generate_gain_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles.generate_gain_profile" title="Permalink to this definition"></a></dt>
+<dd><p>Generate profile of internal gains</p>
+<section id="id17">
+<h4>Parameters<a class="headerlink" href="#id17" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>personGain<span class="classifier">float</span></dt><dd><p>Heat dissipation of one person
+Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik</p>
+</dd>
+<dt>lightGain<span class="classifier">float</span></dt><dd><p>share of waste heat (LED)
+Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+62 (2014), Januar, 32–41.</p>
+</dd>
+<dt>appGain :</dt><dd><p>share of waste heat (assumed)
+Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+62 (2014), Januar, 32–41.</p>
+</dd>
+<dt>occ_profile<span class="classifier">float</span></dt><dd><p>stochastic occupancy profiles for a district</p>
+</dd>
+<dt>app_load<span class="classifier">Array-like</span></dt><dd><p>Electric load profile of appliances in W.</p>
+</dd>
+<dt>light_load<span class="classifier">Array-like</span></dt><dd><p>Electric load profile of lighting in W.</p>
+</dd>
+</dl>
+</section>
+<section id="id18">
+<h4>Returns<a class="headerlink" href="#id18" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>gains<span class="classifier">array</span></dt><dd><p>Internal gain of each flat</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles.generate_occupancy_profiles">
+<span class="sig-name descname"><span class="pre">generate_occupancy_profiles</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles.generate_occupancy_profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles.generate_occupancy_profiles" title="Permalink to this definition"></a></dt>
+<dd><p>Generate stochastic occupancy profiles for a district for calculating internal gains.
+Change time resolution of 10 min profiles to required resolution</p>
+<section id="id19">
+<h4>Parameters<a class="headerlink" href="#id19" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>time_resolution<span class="classifier">integer</span></dt><dd><p>resolution of time steps of output array in seconds.</p>
+</dd>
+<dt>activity_profile<span class="classifier">array</span></dt><dd><p>Numpy-arry with acctive occupants 10-minutes-wise.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.profils.Profiles.loadProbabilitiesDhw">
+<span class="sig-name descname"><span class="pre">loadProbabilitiesDhw</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/profils.html#Profiles.loadProbabilitiesDhw"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.profils.Profiles.loadProbabilitiesDhw" title="Permalink to this definition"></a></dt>
+<dd><p>Load probabilities of dhw usage</p>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+</section>
+<section id="module-districtgenerator.classes.solar">
+<span id="districtgenerator-classes-solar"></span><h2>districtgenerator.classes.solar<a class="headerlink" href="#module-districtgenerator.classes.solar" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="districtgenerator.classes.solar.Sun">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">districtgenerator.classes.solar.</span></span><span class="sig-name descname"><span class="pre">Sun</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filePath</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/solar.html#Sun"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.solar.Sun" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class for solar irradiance calulations</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.solar.Sun.getGeometry">
+<span class="sig-name descname"><span class="pre">getGeometry</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initialTime</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeDiscretization</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timesteps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeZone</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">(50.76,</span> <span class="pre">6.07)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altitude</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/solar.html#Sun.getGeometry"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.solar.Sun.getGeometry" title="Permalink to this definition"></a></dt>
+<dd><p>This function computes hour angle, declination, zenith angle of the sun
+and solar azimuth angle for a given location and time.</p>
+<p>The implemented equations can be found in:
+Duffie, Beckman - Solar Engineering of Thermal Processes, 2013 (4th ed.)</p>
+<section id="id20">
+<h3>Parameters<a class="headerlink" href="#id20" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>initialTime<span class="classifier">integer</span></dt><dd><p>Time passed since January 1st, 00:00:00 in seconds</p>
+</dd>
+<dt>timeDiscretization<span class="classifier">integer</span></dt><dd><p>Time between two consecutive time steps in seconds</p>
+</dd>
+<dt>timesteps<span class="classifier">integer</span></dt><dd><p>Number of investigated / requested time steps</p>
+</dd>
+<dt>timeZone<span class="classifier">integer, optional</span></dt><dd><p>Shift between the location’s time and GMT in hours. CET would be 1.</p>
+</dd>
+<dt>location<span class="classifier">tuple, optional</span></dt><dd><p>(latitude, longitude) of the simulated system’s position. Standard
+values (50.76, 6.07) represent Aachen, Germany.</p>
+</dd>
+<dt>altitude<span class="classifier">float, optional</span></dt><dd><p>The locations altitude in meters</p>
+</dd>
+</dl>
+</section>
+<section id="id21">
+<h3>Returns<a class="headerlink" href="#id21" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>omega<span class="classifier">array_like</span></dt><dd><p>Hour angle. The angular displacement of the sun east or west of the
+local meridian due to rotation of the earth on its axis at 15 degrees
+per hour; morning negative, afternoon positive</p>
+</dd>
+<dt>delta<span class="classifier">array_like</span></dt><dd><p>Declination. The angular position of the sun at solar noon (i.e., when
+the sun is on the local meridian) with respect to the plane of the
+equator, north positive; −23.45 &lt;= delta &lt;= 23.45</p>
+</dd>
+<dt>thetaZ<span class="classifier">array_like</span></dt><dd><p>Zenith angle. The angle between the vertical and the line to the sun,
+that is, the angle of incidence of beam radiation on a horizontal
+surface; 0 &lt;= thetaZ &lt;= 90</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.solar.Sun.getIncidenceAngle">
+<span class="sig-name descname"><span class="pre">getIncidenceAngle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">phi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">omega</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/solar.html#Sun.getIncidenceAngle"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.solar.Sun.getIncidenceAngle" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the incidence angle on a tilted surface.</p>
+<p>All inputs/outputs are supposed to be in degrees!</p>
+<section id="id22">
+<h3>Parameters<a class="headerlink" href="#id22" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>beta<span class="classifier">float</span></dt><dd><p>Slope, the angle (in degree) between the plane of the surface in
+question and the horizontal. 0 &lt;= beta &lt;= 180. If beta &gt; 90, the
+surface faces downwards.</p>
+</dd>
+<dt>gamma<span class="classifier">float</span></dt><dd><p>Surface azimuth angle. The deviation of the projection on a horizontal
+plane of the normal to the surface from the local meridian, with zero
+due south, east negative, and west positive.
+-180 &lt;= gamma &lt;= 180</p>
+</dd>
+<dt>phi<span class="classifier">float</span></dt><dd><p>Latitude. North is positive, south negative. -90 &lt;= phi &lt;= 90</p>
+</dd>
+<dt>omega<span class="classifier">array_like</span></dt><dd><p>Hour angle. The angular displacement of the sun east or west of the
+local meridian due to rotation of the earth on its axis at 15 degrees
+per hour; morning negative, afternoon positive</p>
+</dd>
+<dt>delta<span class="classifier">array_like</span></dt><dd><p>Declination. The angular position of the sun at solar noon (i.e., when
+the sun is on the local meridian) with respect to the plane of the
+equator, north positive; −23.45 &lt;= delta &lt;= 23.45</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.solar.Sun.getSolarGains">
+<span class="sig-name descname"><span class="pre">getSolarGains</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">initialTime</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeDiscretization</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeSteps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeZone</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">altitude</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gamma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beam</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diffuse</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">albedo</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/solar.html#Sun.getSolarGains"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.solar.Sun.getSolarGains" title="Permalink to this definition"></a></dt>
+<dd><section id="id23">
+<h3>Parameters<a class="headerlink" href="#id23" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>initialTime<span class="classifier">integer</span></dt><dd><p>Time passed since January 1st, 00:00:00 in seconds</p>
+</dd>
+<dt>timeDiscretization<span class="classifier">integer</span></dt><dd><p>Time between two consecutive time steps in seconds</p>
+</dd>
+<dt>timesteps<span class="classifier">integer</span></dt><dd><p>Number of investigated / requested time steps</p>
+</dd>
+<dt>timeZone<span class="classifier">integer, optional</span></dt><dd><p>Shift between the location’s time and GMT in hours. CET would be 1.</p>
+</dd>
+<dt>location<span class="classifier">tuple</span></dt><dd><p>(latitude, longitude) of the simulated system’s position.</p>
+</dd>
+<dt>altitude<span class="classifier">float</span></dt><dd><p>The locations altitude in meters</p>
+</dd>
+<dt>beta<span class="classifier">list</span></dt><dd><p>Array of all slopes of building walls and roof.
+A slope is the angle (in degree) between the plane of the surface in
+question and the horizontal. 0 &lt;= beta &lt;= 180. If beta &gt; 90, the
+surface faces downwards.</p>
+</dd>
+<dt>gamma<span class="classifier">list</span></dt><dd><p>Array of surface azimuth angles. The deviation of the projection on a horizontal
+plane of the normal to the surface from the local meridian, with zero
+due south, east negative, and west positive.
+-180 &lt;= gamma &lt;= 180</p>
+</dd>
+<dt>beamRadiation<span class="classifier">array_like</span></dt><dd><p>The solar radiation received from the sun without having been
+scattered by the atmosphere (also often named direct radiation)</p>
+</dd>
+<dt>diffuse<span class="classifier">array_like</span></dt><dd><p>The solar radiation received from the sun after its direction has been
+changed by scattering by the atmosphere.</p>
+</dd>
+<dt>albedo<span class="classifier">float</span></dt><dd><p>Ground reflectance. 0 &lt;= albedo &lt;= 1</p>
+</dd>
+</dl>
+</section>
+<section id="id24">
+<h3>Returns<a class="headerlink" href="#id24" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>results: array_like</dt><dd><p>Solar radiation profiles for diffent all surface azimut angles in gamma.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.solar.Sun.getTotalRadiationTiltedSurface">
+<span class="sig-name descname"><span class="pre">getTotalRadiationTiltedSurface</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">theta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thetaZ</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beamRadiation</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diffuseRadiation</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">airmass</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extraterrestrialIrradiance</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">albedo</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/solar.html#Sun.getTotalRadiationTiltedSurface"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.solar.Sun.getTotalRadiationTiltedSurface" title="Permalink to this definition"></a></dt>
+<dd><p>Compute the total radiation on a tilted surface.</p>
+<section id="id25">
+<h3>Parameters<a class="headerlink" href="#id25" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>theta<span class="classifier">array_like</span></dt><dd><p>Incidence angle.</p>
+</dd>
+<dt>thetaZ<span class="classifier">array_like</span></dt><dd><p>Zenith angle. The angle between the vertical and the line to the sun,
+that is, the angle of incidence of beam radiation on a horizontal
+surface; 0 &lt;= thetaZ &lt;= 90</p>
+</dd>
+<dt>beamRadiation<span class="classifier">array_like</span></dt><dd><p>The solar radiation received from the sun without having been
+scattered by the atmosphere (also often named direct radiation)</p>
+</dd>
+<dt>diffuseRadiation<span class="classifier">array_like</span></dt><dd><p>The solar radiation received from the sun after its direction has been
+changed by scattering by the atmosphere.</p>
+</dd>
+<dt>airmass<span class="classifier">array_like</span></dt><dd><p>The ratio of the mass of atmosphere through which beam radiation
+passes to the mass it would pass through if the sun were at the zenith.
+Thus at sea level <code class="docutils literal notranslate"><span class="pre">m=1</span></code> when the sun is at the zenith and <code class="docutils literal notranslate"><span class="pre">m=2</span></code>
+for a zenith angle <code class="docutils literal notranslate"><span class="pre">thetaZ=60</span></code> degrees.</p>
+</dd>
+<dt>extraterrestrialIrradiance<span class="classifier">array_like</span></dt><dd><p>Extraterrestrial radiation incident on the plane normal to the
+radiation on the nth day of the year.</p>
+</dd>
+<dt>beta<span class="classifier">float</span></dt><dd><p>Slope, the angle (in degree) between the plane of the surface in
+question and the horizontal. 0 &lt;= beta &lt;= 180. If beta &gt; 90, the
+surface faces downwards.</p>
+</dd>
+<dt>albedo<span class="classifier">float</span></dt><dd><p>Ground reflectance. 0 &lt;= albedo &lt;= 1</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-districtgenerator.classes.users">
+<span id="districtgenerator-classes-users"></span><h2>districtgenerator.classes.users<a class="headerlink" href="#module-districtgenerator.classes.users" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">districtgenerator.classes.users.</span></span><span class="sig-name descname"><span class="pre">Users</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">building</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Building Users class describing the number of occupants and their configs</p>
+<section id="id26">
+<h3>Parameters<a class="headerlink" href="#id26" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>building<span class="classifier">object</span></dt><dd><p>buildings objects of TEASER project</p>
+</dd>
+<dt>area<span class="classifier">integer</span></dt><dd><p>Floor area of different building types</p>
+</dd>
+</dl>
+</section>
+<section id="id27">
+<h3>Attributes<a class="headerlink" href="#id27" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>building<span class="classifier">string</span></dt><dd><p>building type according to TABULA database</p>
+</dd>
+<dt>nb_flats<span class="classifier">integer</span></dt><dd><p>number of flats in building</p>
+</dd>
+<dt>annual_el_demand<span class="classifier">array</span></dt><dd><p>annual elictricity consumption in dependency of the building type and the number of occupants</p>
+</dd>
+<dt>lighting_index<span class="classifier">integer</span></dt><dd><p>This index defines the lighting configuration of the houshold.</p>
+</dd>
+<dt>el_wrapper<span class="classifier">object</span></dt><dd><p>This objects holdes information about the lighting and appliance configuration.</p>
+</dd>
+<dt>nc_occ<span class="classifier">list</span></dt><dd><p>list with the number of occupants for each flat of the current building.</p>
+</dd>
+<dt>occ<span class="classifier">array</span></dt><dd><p>occupancy profile for each flat of the current building.</p>
+</dd>
+<dt>dhw :</dt><dd><p>drinking hot water profile for each building.</p>
+</dd>
+<dt>elec :</dt><dd><p>electrical demand for each building.</p>
+</dd>
+<dt>gains :</dt><dd><p>internal gains for each building.</p>
+</dd>
+<dt>heat :</dt><dd><p>heat demand for each building.</p>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.calcHeatingProfile">
+<span class="sig-name descname"><span class="pre">calcHeatingProfile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">site</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">envelope</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_resolution</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.calcHeatingProfile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.calcHeatingProfile" title="Permalink to this definition"></a></dt>
+<dd><p>Calclulate heat demand for each building</p>
+<section id="id28">
+<h4>Parameters<a class="headerlink" href="#id28" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>site: dict</dt><dd><p>site data, e.g. weather</p>
+</dd>
+<dt>envelope: object</dt><dd><p>containing all physical data of the envelope</p>
+</dd>
+<dt>time_resolution<span class="classifier">integer</span></dt><dd><p>resolution of time steps of output array in seconds.</p>
+</dd>
+<dt>Q_HC<span class="classifier">float</span></dt><dd><p>Heating (positive) or cooling (negative) load for the current time
+step in Watt.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.calcProfiles">
+<span class="sig-name descname"><span class="pre">calcProfiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">site</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_resolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_horizon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initital_day</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.calcProfiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.calcProfiles" title="Permalink to this definition"></a></dt>
+<dd><p>Calclulate profiles for every flat and summarize them for the whole building</p>
+<section id="id29">
+<h4>Parameters<a class="headerlink" href="#id29" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>site: dict</dt><dd><p>site data, e.g. weather</p>
+</dd>
+<dt>initial_day<span class="classifier">integer</span></dt><dd><p>Day of the week with which the generation starts
+1-7 for monday-sunday.</p>
+</dd>
+<dt>time_horizon<span class="classifier">integer</span></dt><dd><p>Time horizon for which a stochastic profile is generated.</p>
+</dd>
+<dt>time_resolution<span class="classifier">integer</span></dt><dd><p>resolution of time steps of output array in seconds.</p>
+</dd>
+<dt>irradiation: array</dt><dd><p>if none is given default weather data (TRY 2015 Potsdam) is used</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.create_el_wrapper">
+<span class="sig-name descname"><span class="pre">create_el_wrapper</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.create_el_wrapper"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.create_el_wrapper" title="Permalink to this definition"></a></dt>
+<dd><p>Creat a wrapper-object
+holding information about the lighting and appliance configuration.</p>
+<section id="id30">
+<h4>Parameters<a class="headerlink" href="#id30" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>annual_demand<span class="classifier">integer</span></dt><dd><p>Annual elictricity demand in kWh.</p>
+</dd>
+<dt>light_config<span class="classifier">integer</span></dt><dd><p>This index defines the lighting configuration of the houshold.
+There are 100 predifined ligthing configurations.</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.generate_annual_el_consumption">
+<span class="sig-name descname"><span class="pre">generate_annual_el_consumption</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.generate_annual_el_consumption"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.generate_annual_el_consumption" title="Permalink to this definition"></a></dt>
+<dd><p>Generate annual elictricity consumption
+in dependency of the building type and the number of occupants</p>
+<section id="id31">
+<h4>Parameters<a class="headerlink" href="#id31" title="Permalink to this heading"></a></h4>
+<p>standard_consumption : standard annual consumption in kWh (assumption)</p>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.generate_lighting_index">
+<span class="sig-name descname"><span class="pre">generate_lighting_index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.generate_lighting_index"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.generate_lighting_index" title="Permalink to this definition"></a></dt>
+<dd><p>Choose a random lighting index between 0 and 99.
+This index defines the lighting configuration of the houshold.
+There are 100 predifined ligthing configurations.</p>
+<p>Annahme: Alle Lichtkonfigurationen sind gleich wahrscheinlich.
+Es wird kein Unterschied zwischen  SHF und MFH gemacht.</p>
+<section id="id32">
+<h4>Parameters<a class="headerlink" href="#id32" title="Permalink to this heading"></a></h4>
+<p>random_nb : random number in [0,1)</p>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.generate_number_flats">
+<span class="sig-name descname"><span class="pre">generate_number_flats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">area</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.generate_number_flats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.generate_number_flats" title="Permalink to this definition"></a></dt>
+<dd><p>Generate number of flats for different of building types.</p>
+<section id="id33">
+<h4>Parameters<a class="headerlink" href="#id33" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>area<span class="classifier">integer</span></dt><dd><p>Floor area of different building types</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.generate_number_occupants">
+<span class="sig-name descname"><span class="pre">generate_number_occupants</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.generate_number_occupants"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.generate_number_occupants" title="Permalink to this definition"></a></dt>
+<dd><p>Generate number of occupants for different of building types.</p>
+<section id="id34">
+<h4>Parameters<a class="headerlink" href="#id34" title="Permalink to this heading"></a></h4>
+<p>random_nb : random number in [0,1)</p>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.loadProfiles">
+<span class="sig-name descname"><span class="pre">loadProfiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unique_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.loadProfiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.loadProfiles" title="Permalink to this definition"></a></dt>
+<dd><p>Load profiles from csv</p>
+<section id="id35">
+<h4>Parameters<a class="headerlink" href="#id35" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>unique_name<span class="classifier">string</span></dt><dd><p>unique building name</p>
+</dd>
+<dt>path<span class="classifier">string</span></dt><dd><p>results path</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.saveHeatingProfile">
+<span class="sig-name descname"><span class="pre">saveHeatingProfile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unique_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.saveHeatingProfile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.saveHeatingProfile" title="Permalink to this definition"></a></dt>
+<dd><p>Save heat demand to csv</p>
+<section id="id36">
+<h4>Parameters<a class="headerlink" href="#id36" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>unique_name<span class="classifier">string</span></dt><dd><p>unique building name</p>
+</dd>
+<dt>path<span class="classifier">string</span></dt><dd><p>results path</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="districtgenerator.classes.users.Users.saveProfiles">
+<span class="sig-name descname"><span class="pre">saveProfiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unique_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/classes/users.html#Users.saveProfiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.classes.users.Users.saveProfiles" title="Permalink to this definition"></a></dt>
+<dd><p>Save profiles to csv</p>
+<section id="id37">
+<h4>Parameters<a class="headerlink" href="#id37" title="Permalink to this heading"></a></h4>
+<dl class="simple">
+<dt>unique_name<span class="classifier">string</span></dt><dd><p>unique building name</p>
+</dd>
+<dt>path<span class="classifier">string</span></dt><dd><p>results path</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="modules.html" class="btn btn-neutral float-left" title="Classes and internal functions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="districtgenerator.functions.html" class="btn btn-neutral float-right" title="Internal functions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>districtgenerator.classes.envelope &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">districtgenerator.classes.envelope</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for districtgenerator.classes.envelope</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<div class="viewcode-block" id="Envelope"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope">[docs]</a><span class="k">class</span> <span class="nc">Envelope</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract class for envelop component management handling</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    prj : Project()</span>
+<span class="sd">        Project() instance of TEASER, contains functions to generate</span>
+<span class="sd">        archetype buildings</span>
+<span class="sd">    building_params : dict</span>
+<span class="sd">        building parameters like construction year, retrofit</span>
+<span class="sd">    construction_type : string</span>
+<span class="sd">        building type</span>
+<span class="sd">    file_path : str</span>
+<span class="sd">        file path</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    id :</span>
+
+<span class="sd">    construction_year : int</span>
+<span class="sd">        construction year of the building</span>
+<span class="sd">    retrofit : string</span>
+<span class="sd">        retrofit of the building</span>
+<span class="sd">    usage_short :</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">,</span> <span class="n">building_params</span><span class="p">,</span> <span class="n">construction_type</span><span class="p">,</span> <span class="n">file_path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructor of Envelope Class</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">U</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">d</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">d_iso</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">g_gl</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_si</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alpha_Sc</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">building_params</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span> <span class="o">=</span> <span class="n">building_params</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construction_type</span> <span class="o">=</span> <span class="n">construction_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">retrofit</span> <span class="o">=</span> <span class="n">building_params</span><span class="p">[</span><span class="s2">&quot;retrofit&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">usage_short</span> <span class="o">=</span> <span class="n">building_params</span><span class="p">[</span><span class="s2">&quot;building&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_path</span> <span class="o">=</span> <span class="n">file_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loadParams</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loadComponentProperties</span><span class="p">(</span><span class="n">prj</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loadAreas</span><span class="p">(</span><span class="n">prj</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Envelope.loadParams"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadParams">[docs]</a>    <span class="k">def</span> <span class="nf">loadParams</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        load physical and use-specific parameters</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        physics : json file</span>
+<span class="sd">            physical and use-specific parameters</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">physics</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="p">,</span>
+                               <span class="s1">&#39;physics_data.json&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+            <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">subData</span> <span class="ow">in</span> <span class="n">jsonData</span><span class="p">:</span>
+                <span class="n">physics</span><span class="p">[</span><span class="n">subData</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">c_p_air</span> <span class="o">=</span> <span class="n">physics</span><span class="p">[</span><span class="s2">&quot;c_p_air&quot;</span><span class="p">]</span>  <span class="c1"># [J/kgK]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rho_air</span> <span class="o">=</span> <span class="n">physics</span><span class="p">[</span><span class="s2">&quot;rho_air&quot;</span><span class="p">]</span>  <span class="c1"># [kg/m3]</span>
+
+        <span class="n">design_data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="p">,</span>
+                               <span class="s1">&#39;design_building_data.json&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+            <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">subData</span> <span class="ow">in</span> <span class="n">jsonData</span><span class="p">:</span>
+                <span class="n">design_data</span><span class="p">[</span><span class="n">subData</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">=</span> <span class="n">design_data</span><span class="p">[</span><span class="s2">&quot;T_set_min&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ventilationRate</span> <span class="o">=</span> <span class="n">design_data</span><span class="p">[</span><span class="s2">&quot;ventilation_rate&quot;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="Envelope.specificHeatCapacity"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.specificHeatCapacity">[docs]</a>    <span class="k">def</span> <span class="nf">specificHeatCapacity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">d_iso</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">cp</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computation of (specific) heat capacity of each wall-type-surface</span>
+<span class="sd">        ISO 13786 A.2.4</span>
+<span class="sd">        Result is in J/m2K</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        d :</span>
+
+<span class="sd">        d_iso :</span>
+
+<span class="sd">        density :</span>
+
+<span class="sd">        cp :</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">        kappa : float</span>
+<span class="sd">            (specific) heat capacity of each wall-type-surface</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">d_t</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">d</span><span class="p">),</span> <span class="n">d_iso</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+        <span class="n">sum_d_i</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">sum_d_i</span> <span class="o">&lt;=</span> <span class="n">d_t</span><span class="p">:</span>
+            <span class="n">kappa</span> <span class="o">+=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">density</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">cp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">sum_d_i</span> <span class="o">+=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sum_d_i</span> <span class="o">-=</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">d_part</span> <span class="o">=</span> <span class="n">d_t</span> <span class="o">-</span> <span class="n">sum_d_i</span>
+            <span class="n">kappa</span> <span class="o">+=</span> <span class="n">d_part</span> <span class="o">*</span> <span class="n">density</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">cp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">kappa</span></div>
+
+<div class="viewcode-block" id="Envelope.loadMaterialID"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadMaterialID">[docs]</a>    <span class="k">def</span> <span class="nf">loadMaterialID</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mat_id</span><span class="p">,</span> <span class="n">data_class</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Material loader by id.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mat_id :</span>
+
+<span class="sd">        data_class :</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        name : string</span>
+<span class="sd">            material type</span>
+<span class="sd">        density : float</span>
+<span class="sd">            density of the material</span>
+<span class="sd">        thermal_conduc :</span>
+<span class="sd">            thermal conductivity</span>
+<span class="sd">        heat_capac :</span>
+<span class="sd">            heat capacity</span>
+<span class="sd">        solar_absorp :</span>
+<span class="sd">            solar adsorption</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">binding</span> <span class="o">=</span> <span class="n">data_class</span>
+        <span class="k">for</span> <span class="nb">id</span><span class="p">,</span> <span class="n">mat</span> <span class="ow">in</span> <span class="n">binding</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+
+            <span class="k">if</span> <span class="nb">id</span> <span class="o">==</span> <span class="n">mat_id</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">mat</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span>
+                <span class="n">density</span> <span class="o">=</span> <span class="n">mat</span><span class="p">[</span><span class="s2">&quot;density&quot;</span><span class="p">]</span>
+                <span class="n">thermal_conduc</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">mat</span><span class="p">[</span><span class="s2">&quot;thermal_conduc&quot;</span><span class="p">])</span>
+                <span class="n">heat_capac</span> <span class="o">=</span> <span class="n">mat</span><span class="p">[</span><span class="s2">&quot;heat_capac&quot;</span><span class="p">]</span>
+                <span class="n">solar_absorp</span> <span class="o">=</span> <span class="n">mat</span><span class="p">[</span><span class="s2">&quot;solar_absorp&quot;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thermal_conduc</span><span class="p">,</span> <span class="n">heat_capac</span><span class="p">,</span> <span class="n">solar_absorp</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Envelope.loadComponentProperties"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadComponentProperties">[docs]</a>    <span class="k">def</span> <span class="nf">loadComponentProperties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load component-specific material parameters</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        prj : class</span>
+<span class="sd">            contains functions to generate archetype buildings</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">material_bind</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">material_bind</span>
+        <span class="n">element_bind</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">element_bind</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">attributes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d_iso</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">R_si</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha_Sc</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">g_gl</span>
+        <span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opaque_ext</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;wall&quot;</span><span class="p">,</span> <span class="s2">&quot;roof&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">opaque</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;wall&quot;</span><span class="p">,</span> <span class="s2">&quot;roof&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">,</span> <span class="s2">&quot;intWall&quot;</span><span class="p">,</span> <span class="s2">&quot;ceiling&quot;</span><span class="p">,</span>
+                       <span class="s2">&quot;intFloor&quot;</span><span class="p">}</span>
+
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">attributes</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">x</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Heat transfer resistances for opaque components</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.04</span>  <span class="c1"># m²K/W ISO 6946 Table 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.04</span>  <span class="c1"># m²K/W ISO 6946 Table 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.00</span>  <span class="c1"># m²K/W ISO 6946 Table 1</span>
+
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque_ext</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">R_si</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.13</span>  <span class="c1"># m²K/W ISO 6946 Table 1</span>
+
+        <span class="c1"># ASHRAE 140 : 2011, Table 5.6 p.19</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0476</span>  <span class="c1"># ASHRAE 140 : 2011, Table 5.6 p.19</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_si</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.13</span>  <span class="c1"># m²K/W DIN EN ISO 6946:2008-04, Table 1</span>
+
+        <span class="c1"># ASHRAE 140 : 2011, Table 5.3, page 18 (infrared emittance)</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque_ext</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.9</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.9</span>
+
+        <span class="c1"># ASHRAE 140 : 2011, Table 5.3,</span>
+        <span class="c1"># page 18 (Absorptionskoeffizient opake Fläche)</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque_ext</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha_Sc</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.6</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;wall&quot;</span>
+        <span class="c1"># WALLS: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;OuterWall&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_type</span> \
+                        <span class="o">+</span> <span class="s2">&quot;_1_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">usage_short</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                               <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">],</span>
+                                                           <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                                 <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                 <span class="n">comp</span><span class="p">],</span>
+                                                             <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                                    <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                    <span class="n">comp</span><span class="p">],</span>
+                                                                <span class="n">material_prop</span><span class="p">[</span>
+                                                                    <span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                                <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                <span class="n">comp</span><span class="p">],</span>
+                                                            <span class="n">material_prop</span><span class="p">[</span>
+                                                                <span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;roof&quot;</span>
+        <span class="c1"># ROOF: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;Rooftop&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_type</span> \
+                        <span class="o">+</span> <span class="s2">&quot;_1_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">usage_short</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                               <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">],</span>
+                                                           <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                                 <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                 <span class="n">comp</span><span class="p">],</span>
+                                                             <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                                    <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                    <span class="n">comp</span><span class="p">],</span>
+                                                                <span class="n">material_prop</span><span class="p">[</span>
+                                                                    <span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                                <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                <span class="n">comp</span><span class="p">],</span>
+                                                            <span class="n">material_prop</span><span class="p">[</span>
+                                                                <span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;floor&quot;</span>
+        <span class="c1"># FLOOR: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;GroundFloor&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_type</span> \
+                        <span class="o">+</span> <span class="s2">&quot;_1_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">usage_short</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                               <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">],</span>
+                                                           <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                                 <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                 <span class="n">comp</span><span class="p">],</span>
+                                                             <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                                    <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                    <span class="n">comp</span><span class="p">],</span>
+                                                                <span class="n">material_prop</span><span class="p">[</span>
+                                                                    <span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                                <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                <span class="n">comp</span><span class="p">],</span>
+                                                            <span class="n">material_prop</span><span class="p">[</span>
+                                                                <span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;intWall&quot;</span>
+        <span class="c1"># INTERNAL WALL: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;InnerWall&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="n">dummy</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span><span class="p">)</span>  <span class="c1"># data available until 2015</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">dummy</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;tabula_standard&quot;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                               <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">],</span>
+                                                           <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                                 <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                 <span class="n">comp</span><span class="p">],</span>
+                                                             <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                                    <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                    <span class="n">comp</span><span class="p">],</span>
+                                                                <span class="n">material_prop</span><span class="p">[</span>
+                                                                    <span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                                <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                <span class="n">comp</span><span class="p">],</span>
+                                                            <span class="n">material_prop</span><span class="p">[</span>
+                                                                <span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;ceiling&quot;</span>
+        <span class="c1"># CEILING: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;Ceiling&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="n">dummy</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span><span class="p">)</span>  <span class="c1"># data available until 2015</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">dummy</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;tabula_standard&quot;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                               <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">],</span>
+                                                           <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                                 <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                 <span class="n">comp</span><span class="p">],</span>
+                                                             <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                                    <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                    <span class="n">comp</span><span class="p">],</span>
+                                                                <span class="n">material_prop</span><span class="p">[</span>
+                                                                    <span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                                <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                <span class="n">comp</span><span class="p">],</span>
+                                                            <span class="n">material_prop</span><span class="p">[</span>
+                                                                <span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;intFloor&quot;</span>
+        <span class="c1"># INTERNAL FLOOR: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;Floor&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="n">dummy</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">2015</span><span class="p">,</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span><span class="p">)</span>  <span class="c1"># data available until 2015</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">dummy</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;tabula_standard&quot;</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                               <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">],</span>
+                                                           <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                                 <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                 <span class="n">comp</span><span class="p">],</span>
+                                                             <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                                    <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                    <span class="n">comp</span><span class="p">],</span>
+                                                                <span class="n">material_prop</span><span class="p">[</span>
+                                                                    <span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">comp</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                                <span class="s2">&quot;opaque&quot;</span><span class="p">][</span>
+                                                                <span class="n">comp</span><span class="p">],</span>
+                                                            <span class="n">material_prop</span><span class="p">[</span>
+                                                                <span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="n">comp</span> <span class="o">=</span> <span class="s2">&quot;window&quot;</span>
+        <span class="c1"># INTERNAL FLOOR: Materials and U-value</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">element_bind</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s2">&quot;Window&quot;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_year</span> <span class="o">&lt;=</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;building_age_group&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> \
+                        <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;construction_type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">construction_type</span> \
+                        <span class="o">+</span> <span class="s2">&quot;_1_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">usage_short</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">g_gl</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;g_value&quot;</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">lay</span> <span class="ow">in</span> <span class="n">elem</span><span class="p">[</span><span class="s2">&quot;layer&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span>
+                                                         <span class="s2">&quot;window&quot;</span><span class="p">],</span>
+                                                     <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;thickness&quot;</span><span class="p">])</span>
+                        <span class="n">material_prop</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loadMaterialID</span><span class="p">(</span>
+                            <span class="n">lay</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">&quot;material&quot;</span><span class="p">][</span><span class="s2">&quot;material_id&quot;</span><span class="p">],</span> <span class="n">material_bind</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span>
+                                                           <span class="s2">&quot;window&quot;</span><span class="p">],</span>
+                                                       <span class="n">material_prop</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span>
+                                                              <span class="s2">&quot;window&quot;</span><span class="p">],</span>
+                                                          <span class="n">material_prop</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span>
+                                                          <span class="s2">&quot;window&quot;</span><span class="p">],</span>
+                                                      <span class="n">material_prop</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">d_iso</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">])</span>
+        <span class="c1"># Compute U and kappa for each component</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque_ext</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">specificHeatCapacity</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">d_iso</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">R_si</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span>
+                                         <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span>
+                                               <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">])</span>
+                                         <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">])</span>
+
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;intWall&quot;</span><span class="p">,</span> <span class="s2">&quot;ceiling&quot;</span><span class="p">,</span> <span class="s2">&quot;intFloor&quot;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kappa</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">specificHeatCapacity</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">d_iso</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rho</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cp</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mf">2.8</span><span class="p">,</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">R_si</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span>
+                                            <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span>
+                                                  <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">])</span>
+                                            <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">])))</span></div>
+
+<div class="viewcode-block" id="Envelope.loadAreas"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadAreas">[docs]</a>    <span class="k">def</span> <span class="nf">loadAreas</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load component-specific area data</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        prj : class</span>
+<span class="sd">            contains functions to generate archetype buildings</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">volume</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># in m2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">net_leased_area</span>
+
+        <span class="n">drct</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;south&quot;</span><span class="p">,</span> <span class="s2">&quot;west&quot;</span><span class="p">,</span> <span class="s2">&quot;north&quot;</span><span class="p">,</span> <span class="s2">&quot;east&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;south&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="mf">0.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;north&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="mf">180.0</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;west&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="mf">90.0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;east&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="mf">270.0</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;west&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;east&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.2</span> <span class="o">*</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">outer_area</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">drct</span><span class="p">)</span>
+
+        <span class="c1"># Fläche hausinterner Fußboden entspricht Nutzfläche</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;intFloor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span>
+        <span class="c1"># Fläche oberste Geschossdecke entspricht Fläche Bodenplatte</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;ceiling&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span>
+        <span class="c1"># Annahme 6 durchgehende Wände pro Geschoss (3*N-S, 3*O_W)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;intWall&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.5</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;south&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">window_area</span><span class="p">[</span><span class="mf">0.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;north&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">window_area</span><span class="p">[</span><span class="mf">180.0</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;west&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">window_area</span><span class="p">[</span><span class="mf">90.0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;east&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prj</span><span class="o">.</span><span class="n">buildings</span><span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">]</span><span class="o">.</span><span class="n">window_area</span><span class="p">[</span><span class="mf">270.0</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;west&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;east&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;sum&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">drct</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Envelope.calcHeatLoad"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.calcHeatLoad">[docs]</a>    <span class="k">def</span> <span class="nf">calcHeatLoad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;design&quot;</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        site : dict</span>
+<span class="sd">            information about location and climate conditions</span>
+<span class="sd">        method : string</span>
+<span class="sd">            method to calculate heat load</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        Q_nHC : float</span>
+<span class="sd">            heat load</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_path</span><span class="p">,</span> <span class="s1">&#39;design_weather_data.json&#39;</span><span class="p">))</span> \
+                <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+            <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">subData</span> <span class="ow">in</span> <span class="n">jsonData</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;Klimazone&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">site</span><span class="p">[</span><span class="s2">&quot;climateZone&quot;</span><span class="p">]:</span>
+                    <span class="c1"># outside design temperature in °C</span>
+                    <span class="n">T_ne</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;Theta_e&quot;</span><span class="p">]</span>
+                    <span class="c1"># outside average temperature in °C</span>
+                    <span class="n">T_me</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;Theta_e_m&quot;</span><span class="p">]</span>
+
+        <span class="n">U_TB</span> <span class="o">=</span> <span class="mf">0.05</span>  <span class="c1"># [W/m²K] Wärmebrückenzuschlag</span>
+        <span class="n">f_g1</span> <span class="o">=</span> <span class="mf">1.45</span>  <span class="c1"># Korrekturfaktor jährliche Schwankung der Außentemperatur</span>
+        <span class="c1"># Reduction factor</span>
+        <span class="n">f_g2</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">-</span> <span class="n">T_me</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">-</span> <span class="n">T_ne</span><span class="p">)</span>
+        <span class="n">G_w</span> <span class="o">=</span> <span class="mf">1.0</span>  <span class="c1"># influence of ground water neglected</span>
+
+        <span class="n">Q_nHC</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">U_TB</span><span class="p">)</span>
+                 <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;sum&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span>
+                 <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]</span>
+                 <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span>
+                 <span class="o">*</span> <span class="n">f_g1</span> <span class="o">*</span> <span class="n">f_g2</span> <span class="o">*</span> <span class="n">G_w</span>
+                 <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">ventilationRate</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">c_p_air</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">rho_air</span>
+                 <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">/</span> <span class="mi">3600</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">-</span> <span class="n">T_ne</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Q_nHC</span></div>
+
+<div class="viewcode-block" id="Envelope.calcNormativeProperties"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.calcNormativeProperties">[docs]</a>    <span class="k">def</span> <span class="nf">calcNormativeProperties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SunRad</span><span class="p">,</span> <span class="n">internal_gains</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        SunRad : array</span>
+<span class="sd">            solar radiation</span>
+<span class="sd">        internal_gains :</span>
+<span class="sd">            internal gains of the building</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">SunRad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">SunRad</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">C_m</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">kappa</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">]</span>
+                        <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">opaque</span><span class="p">)</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">C_m</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span>
+
+        <span class="c1"># 5 possible building classes DIN EN ISO 13790</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+        <span class="c1"># upper and lower bounds for classes</span>
+        <span class="n">low</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">95000.0</span><span class="p">,</span> <span class="mf">137500.0</span><span class="p">,</span> <span class="mf">212500.0</span><span class="p">,</span> <span class="mf">315000.0</span><span class="p">]</span>
+        <span class="n">up</span> <span class="o">=</span> <span class="p">[</span><span class="mf">95000.0</span><span class="p">,</span> <span class="mf">137500.0</span><span class="p">,</span> <span class="mf">212500.0</span><span class="p">,</span> <span class="mf">315000.0</span><span class="p">,</span> <span class="mf">10000000.0</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">low</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">low</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">temp</span> <span class="o">&lt;=</span> <span class="n">up</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+                <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Constants for calculation of A_m, dependent of building class</span>
+        <span class="c1"># (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)</span>
+        <span class="n">f_class_values</span> <span class="o">=</span> <span class="p">[</span><span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">2.5</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">,</span> <span class="mf">3.5</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">f_class</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;Am&quot;</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">f_class_values</span><span class="p">)}</span>
+
+        <span class="c1"># specific heat transfer coefficient</span>
+        <span class="c1"># (DIN EN ISO 13790, section 7.2.2.2, page 35)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h_is</span> <span class="o">=</span> <span class="mf">3.45</span>  <span class="c1"># [W/(m²K)]</span>
+        <span class="c1"># non-dimensional relation between the area of all indoor surfaces and the</span>
+        <span class="c1"># effective floor area A[&quot;f&quot;]</span>
+        <span class="c1"># (DIN EN ISO 13790, section 7.2.2.2, page 36)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lambda_at</span> <span class="o">=</span> <span class="mf">4.5</span>
+        <span class="c1"># specific heat transfer coefficient</span>
+        <span class="c1"># (DIN EN ISO 13790, section 12.2.2, page 79)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h_ms</span> <span class="o">=</span> <span class="mf">9.1</span>  <span class="c1"># [W/(m²K)]</span>
+
+        <span class="c1"># Form factor for radiation between the element and the sky</span>
+        <span class="c1"># (DIN EN ISO 13790, section 11.4.6, page 73)</span>
+        <span class="c1"># No direct interaction between sun and floor, therefore the</span>
+        <span class="c1"># corresponding F_r entry is zero.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">F_r</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;south&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+                    <span class="s2">&quot;west&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+                    <span class="s2">&quot;north&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+                    <span class="s2">&quot;east&quot;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+                    <span class="s2">&quot;roof&quot;</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+                    <span class="s2">&quot;floor&quot;</span><span class="p">:</span> <span class="mf">0.0</span><span class="p">}</span>
+
+        <span class="c1"># %% Internal gains phi_int[W]</span>
+        <span class="c1"># simulated instead of using DIN EN ISO 13790, Table G.8, page 140</span>
+        <span class="n">phi_int</span> <span class="o">=</span> <span class="n">internal_gains</span>
+
+        <span class="c1"># heat flow phi_ia [W]</span>
+        <span class="c1"># (DIN EN ISO 13790, section C2, page 110, eq. C.1)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phi_ia</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">phi_int</span>
+
+        <span class="c1"># thermal transmittance coefficient H_ve [W/K]</span>
+        <span class="c1"># (DIN EN ISO 13790, section 9.3.1, equation 21, page 49)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">H_ve</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rho_air</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">c_p_air</span> \
+                    <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">ventilationRate</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">V</span> <span class="o">/</span> <span class="mi">3600</span>
+
+        <span class="c1"># thermal transmittance coefficient H_tr_is [W/K]</span>
+        <span class="c1"># (DIN EN ISO 13790, section 7.2.2.2, equation 9, page 35)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A_tot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lambda_at</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_is</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_is</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_tot</span>
+
+        <span class="c1"># shadow coefficient for sunblinds</span>
+        <span class="c1"># (DIN EN ISO 13790, section 11.4.3, page 71)</span>
+        <span class="c1"># Assumption : no sunblinds (modelled manually, see below)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">F_sh_gl</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># ratio of window-frame</span>
+        <span class="c1"># (DIN EN ISO 13790, section 11.4.5, page 73)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">F_F</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># thermal radiation transfer</span>
+        <span class="c1"># [kW/(m²*K)] DIN EN ISO 13790, section 11.4.6, page 73</span>
+        <span class="n">h_r_factor</span> <span class="o">=</span> <span class="mf">5.0</span>  <span class="c1"># W / (m²K)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h_r</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="p">(</span><span class="s2">&quot;opaque&quot;</span><span class="p">,</span> <span class="s2">&quot;wall&quot;</span><span class="p">):</span> <span class="n">h_r_factor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">[</span>
+                                                          <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]),</span>
+            <span class="p">(</span><span class="s2">&quot;opaque&quot;</span><span class="p">,</span> <span class="s2">&quot;roof&quot;</span><span class="p">):</span> <span class="n">h_r_factor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">[</span>
+                                                          <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;roof&quot;</span><span class="p">]),</span>
+            <span class="p">(</span><span class="s2">&quot;opaque&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">):</span> <span class="n">h_r_factor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">[</span>
+                                                           <span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;floor&quot;</span><span class="p">]),</span>
+            <span class="s2">&quot;window&quot;</span><span class="p">:</span> <span class="n">h_r_factor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">])}</span>
+
+        <span class="c1"># A_m (DIN EN ISO 13790, section 12.3.1.2, page 81, table 12)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">A_m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f_class</span><span class="p">[</span><span class="s2">&quot;Am&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span>
+
+        <span class="c1"># H_tr_w (DIN EN ISO 13790, section 8.3.1, page 44, eq. 18)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_w</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;sum&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_ms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f_class</span><span class="p">[</span><span class="s2">&quot;Am&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_ms</span>
+
+        <span class="c1"># matching coefficient for thermal transmittance coefficient</span>
+        <span class="c1"># if temperature is unequal to T_e, otherwise = 1</span>
+        <span class="c1"># Assumption: Constant annual heat flow through ground</span>
+        <span class="c1"># (ISO 13370 A.5 p 25 eq. A8)</span>
+        <span class="n">T_e_mon</span> <span class="o">=</span> <span class="mf">9.71</span>  <span class="c1"># monthly mean outside temperature</span>
+        <span class="n">T_i_appr</span> <span class="o">=</span> <span class="mf">22.917</span>  <span class="c1"># monthly approximated room temperature</span>
+
+        <span class="n">T_i_year</span> <span class="o">=</span> <span class="mf">22.917</span>  <span class="c1"># annual mean indoor temperature</span>
+        <span class="n">T_e_year</span> <span class="o">=</span> <span class="mf">9.71</span>  <span class="c1"># annual mean outside temperature</span>
+
+        <span class="c1"># ground p.44 ISO 13790</span>
+        <span class="c1"># Heating period from October until May (important for T_i_appr)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b_floor</span> <span class="o">=</span> <span class="p">(</span><span class="n">T_i_year</span> <span class="o">-</span> <span class="n">T_e_year</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">T_i_appr</span> <span class="o">-</span> <span class="n">T_e_mon</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">b_tr</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;wall&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">SunRad</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+                     <span class="s2">&quot;roof&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">SunRad</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+                     <span class="s2">&quot;floor&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">SunRad</span><span class="p">[</span><span class="mi">0</span><span class="p">]))}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">b_tr</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">][:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_floor</span>
+
+        <span class="c1"># Mean difference between outdoor temperature and</span>
+        <span class="c1"># the apparent sky-temperature</span>
+        <span class="c1"># (DIN EN ISO 13790, section 11.4.6,  page 73)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Delta_theta_er</span> <span class="o">=</span> <span class="mi">11</span>  <span class="c1"># [K]</span>
+
+        <span class="c1"># dictionary for irradiation to imitate sunblinds manually [kW/m²]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">directions</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;south&quot;</span><span class="p">,</span> <span class="s2">&quot;west&quot;</span><span class="p">,</span> <span class="s2">&quot;north&quot;</span><span class="p">,</span> <span class="s2">&quot;east&quot;</span><span class="p">,</span> <span class="s2">&quot;roof&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">drct</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">directions</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="n">directions</span><span class="p">[</span><span class="n">drct</span><span class="p">]]</span> <span class="o">=</span> <span class="n">SunRad</span><span class="p">[</span><span class="n">drct</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">,</span> <span class="n">directions</span><span class="p">[</span><span class="n">drct</span><span class="p">]]</span> <span class="o">=</span> <span class="n">SunRad</span><span class="p">[</span><span class="n">drct</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;roof&quot;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;roof&quot;</span><span class="p">])</span>
+
+        <span class="n">limit_shut_blinds</span> <span class="o">=</span> <span class="mi">100</span>  <span class="c1"># W/m²</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">SunRad</span><span class="p">[</span><span class="mi">0</span><span class="p">])):</span>
+            <span class="k">for</span> <span class="n">drct3</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">directions</span><span class="p">)):</span>  <span class="c1"># for all directions</span>
+                <span class="k">if</span> <span class="n">SunRad</span><span class="p">[</span><span class="n">drct3</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">limit_shut_blinds</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">,</span> <span class="n">directions</span><span class="p">[</span><span class="n">drct3</span><span class="p">]][</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.15</span> <span class="o">*</span> <span class="n">SunRad</span><span class="p">[</span>
+                        <span class="n">drct3</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># reference variables to reduce code length</span>
+        <span class="n">A_j_k</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">B_i_k</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">direction</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;south&quot;</span><span class="p">,</span> <span class="s2">&quot;west&quot;</span><span class="p">,</span> <span class="s2">&quot;north&quot;</span><span class="p">,</span> <span class="s2">&quot;east&quot;</span><span class="p">,</span> <span class="s2">&quot;roof&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">)</span>
+        <span class="n">direction2</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;wall&quot;</span><span class="p">,</span> <span class="s2">&quot;roof&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">)</span>
+        <span class="n">direction3</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;south&quot;</span><span class="p">,</span> <span class="s2">&quot;west&quot;</span><span class="p">,</span> <span class="s2">&quot;north&quot;</span><span class="p">,</span> <span class="s2">&quot;east&quot;</span><span class="p">)</span>
+        <span class="n">direction4</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;roof&quot;</span><span class="p">,</span> <span class="s2">&quot;floor&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">SunRad</span><span class="p">[</span><span class="mi">0</span><span class="p">])):</span>
+            <span class="c1"># auxiliary variable for walls</span>
+            <span class="k">for</span> <span class="n">drct3</span> <span class="ow">in</span> <span class="n">direction3</span><span class="p">:</span>
+                <span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct3</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span>
+                                   <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span>
+                                   <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct3</span><span class="p">]</span>
+                                   <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_Sc</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="s2">&quot;wall&quot;</span><span class="p">]</span>
+                                      <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="n">drct3</span><span class="p">][</span><span class="n">t</span><span class="p">]</span>
+                                      <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_r</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">,</span> <span class="s2">&quot;wall&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">F_r</span><span class="p">[</span>
+                                          <span class="n">drct3</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">Delta_theta_er</span><span class="p">))</span>
+
+            <span class="c1"># auxiliary variable for roof/ceiling</span>
+            <span class="k">for</span> <span class="n">drct4</span> <span class="ow">in</span> <span class="n">direction4</span><span class="p">:</span>
+                <span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct4</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct4</span><span class="p">]</span>
+                                   <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct4</span><span class="p">]</span>
+                                   <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct4</span><span class="p">]</span>
+                                   <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_Sc</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct4</span><span class="p">]</span>
+                                      <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="n">drct4</span><span class="p">][</span><span class="n">t</span><span class="p">]</span>
+                                      <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_r</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">,</span> <span class="n">drct4</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">F_r</span><span class="p">[</span>
+                                          <span class="n">drct4</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">Delta_theta_er</span><span class="p">))</span>
+
+            <span class="k">for</span> <span class="n">drct</span> <span class="ow">in</span> <span class="n">direction</span><span class="p">:</span>
+                <span class="n">B_i_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="n">drct</span><span class="p">]</span> \
+                                 <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">g_gl</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">F_F</span><span class="p">)</span>
+                                    <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">I_sol</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">,</span> <span class="n">drct</span><span class="p">][</span><span class="n">t</span><span class="p">]</span>
+                                    <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">F_sh_gl</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span>
+                                    <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">h_r</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span>
+                                    <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">Delta_theta_er</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">F_r</span><span class="p">[</span><span class="n">drct</span><span class="p">])</span>
+
+        <span class="n">phi_sol</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phi_m</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phi_st</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_em</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">SunRad</span><span class="p">[</span><span class="mi">0</span><span class="p">])):</span>
+            <span class="c1"># heat flow phi_sol [kW]</span>
+            <span class="c1"># (DIN EN ISO 13790, section 11.3.2, page 67, eq. 43)</span>
+            <span class="n">phi_sol</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct3</span><span class="p">]</span> <span class="k">for</span> <span class="n">drct3</span> <span class="ow">in</span> <span class="n">direction3</span><span class="p">)</span> <span class="o">+</span>
+                          <span class="nb">sum</span><span class="p">(</span><span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct4</span><span class="p">]</span> <span class="k">for</span> <span class="n">drct4</span> <span class="ow">in</span> <span class="n">direction4</span><span class="p">)</span> <span class="o">+</span>
+                          <span class="nb">sum</span><span class="p">(</span><span class="n">B_i_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct</span><span class="p">]</span> <span class="k">for</span> <span class="n">drct</span> <span class="ow">in</span> <span class="n">direction</span><span class="p">)</span>
+                          <span class="p">)</span>
+
+            <span class="c1"># heat flow phi_m [kW]</span>
+            <span class="c1"># (DIN EN ISO 13790, section C2, page 110, eq. C.2)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">phi_m</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A_m</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_tot</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">phi_int</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">+</span>
+                             <span class="mf">1.0</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_tot</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;f&quot;</span><span class="p">]</span> <span class="o">*</span>
+                             <span class="p">(</span><span class="nb">sum</span><span class="p">(</span>
+                                 <span class="bp">self</span><span class="o">.</span><span class="n">f_class</span><span class="p">[</span><span class="s2">&quot;Am&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct3</span><span class="p">]</span> <span class="k">for</span> <span class="n">drct3</span>
+                                 <span class="ow">in</span> <span class="n">direction3</span><span class="p">)</span>
+                              <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f_class</span><span class="p">[</span><span class="s2">&quot;Am&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct4</span><span class="p">]</span> <span class="k">for</span>
+                                    <span class="n">drct4</span> <span class="ow">in</span> <span class="n">direction4</span><span class="p">)</span>
+                              <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f_class</span><span class="p">[</span><span class="s2">&quot;Am&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">B_i_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct</span><span class="p">]</span> <span class="k">for</span>
+                                    <span class="n">drct</span> <span class="ow">in</span> <span class="n">direction</span><span class="p">)</span>
+                              <span class="p">))</span>
+
+            <span class="c1"># heat flow phi_st [kW]</span>
+            <span class="c1"># (DIN EN ISO 13790, section C2, page 110, eq. C.3)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">phi_st</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">phi_int</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">+</span> <span class="n">phi_sol</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">phi_m</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">-</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_w</span> <span class="o">/</span> <span class="mf">9.1</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_tot</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">phi_int</span><span class="p">[</span>
+                                  <span class="n">t</span><span class="p">]</span> <span class="o">-</span>
+                              <span class="mf">1.0</span> <span class="o">/</span> <span class="mf">9.1</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">A_tot</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span>
+                                  <span class="s2">&quot;sum&quot;</span><span class="p">]</span> <span class="o">*</span>
+                              <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct3</span><span class="p">]</span> <span class="k">for</span> <span class="n">drct3</span>
+                                   <span class="ow">in</span> <span class="n">direction3</span><span class="p">)</span>
+                               <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">A_j_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct4</span><span class="p">]</span> <span class="k">for</span>
+                                     <span class="n">drct4</span> <span class="ow">in</span> <span class="n">direction4</span><span class="p">)</span>
+                               <span class="o">+</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">B_i_k</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">drct</span><span class="p">]</span> <span class="k">for</span> <span class="n">drct</span>
+                                     <span class="ow">in</span> <span class="n">direction</span><span class="p">)</span>
+                               <span class="p">))</span>
+
+            <span class="c1"># thermal transmittance coefficient H_tr_em [W/K]</span>
+            <span class="c1"># Simplification: H_tr_em = H_tr_op</span>
+            <span class="c1"># (DIN EN ISO 13790, section 8.3, page 43)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_em</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct2</span><span class="p">]</span>
+                                  <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tr</span><span class="p">[</span><span class="n">drct2</span><span class="p">][</span>
+                                      <span class="n">t</span><span class="p">]</span>
+                                  <span class="k">for</span> <span class="n">drct2</span> <span class="ow">in</span> <span class="n">direction2</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

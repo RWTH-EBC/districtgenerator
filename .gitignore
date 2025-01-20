@@ -31,6 +31,7 @@ errorfile.txt
 *.pkl
 __pycache__/
 .idea/
+demands/
 
 Distribution / packaging
 .Python
