@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>districtgenerator.classes.datahandler &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">districtgenerator.classes.datahandler</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for districtgenerator.classes.datahandler</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">pickle</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">count</span>
+<span class="kn">from</span> <span class="nn">teaser.project</span> <span class="kn">import</span> <span class="n">Project</span>
+<span class="kn">from</span> <span class="nn">.envelope</span> <span class="kn">import</span> <span class="n">Envelope</span>
+<span class="kn">from</span> <span class="nn">.solar</span> <span class="kn">import</span> <span class="n">Sun</span>
+<span class="kn">from</span> <span class="nn">.users</span> <span class="kn">import</span> <span class="n">Users</span>
+
+<div class="viewcode-block" id="Datahandler"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler">[docs]</a><span class="k">class</span> <span class="nc">Datahandler</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract class for data handling</span>
+<span class="sd">    Collects data from input files, TEASER, User and Enevelope.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    site:</span>
+<span class="sd">        dict for site data, e.g. weather</span>
+<span class="sd">    time:</span>
+<span class="sd">        dict for time settings</span>
+<span class="sd">    district:</span>
+<span class="sd">        list of all buildings within district</span>
+<span class="sd">    scenario_name:</span>
+<span class="sd">        name of scenario file</span>
+<span class="sd">    scenario:</span>
+<span class="sd">        scenario data</span>
+<span class="sd">    counter:</span>
+<span class="sd">        dict for counting number of equal building types</span>
+<span class="sd">    srcPath:</span>
+<span class="sd">        source path</span>
+<span class="sd">    filePath:</span>
+<span class="sd">        file path</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">counter</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filePath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span><span class="p">,</span> <span class="s1">&#39;results&#39;</span><span class="p">,</span> <span class="s1">&#39;demands&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Datahandler.generateEnvironment"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateEnvironment">[docs]</a>    <span class="k">def</span> <span class="nf">generateEnvironment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load physical district environment - site and weather</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># %% load information about of the site under consideration</span>
+        <span class="c1"># important for weather conditions</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">,</span> <span class="s1">&#39;site_data.json&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+            <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">subData</span> <span class="ow">in</span> <span class="n">jsonData</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="n">subData</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+
+        <span class="c1"># %% load weather data for site</span>
+        <span class="c1"># extract irradiation and ambient temperature</span>
+        <span class="n">first_row</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;TRYYear&quot;</span><span class="p">]</span><span class="o">==</span><span class="s2">&quot;TRY2015&quot;</span><span class="p">:</span>
+            <span class="n">first_row</span> <span class="o">=</span> <span class="mi">35</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;TRYYear&quot;</span><span class="p">]</span><span class="o">==</span><span class="s2">&quot;TRY2045&quot;</span><span class="p">:</span>
+            <span class="n">first_row</span> <span class="o">=</span> <span class="mi">37</span>
+
+        <span class="n">weatherData</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">,</span> <span class="s1">&#39;weather&#39;</span><span class="p">)</span>
+                                 <span class="o">+</span> <span class="s2">&quot;/&quot;</span>
+                                 <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;TRYYear&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;_Zone&quot;</span>
+                                 <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;climateZone&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span>
+                                 <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;TRYType&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;.txt&quot;</span><span class="p">,</span>
+                                 <span class="n">skiprows</span><span class="o">=</span><span class="n">first_row</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+
+        <span class="c1"># weather data starts with 1st january at 1:00 am. Add data point for 0:00 am to be able to perform interpolation.</span>
+        <span class="n">weatherData_temp</span> <span class="o">=</span> <span class="n">weatherData</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span>
+        <span class="n">weatherData</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">weatherData_temp</span><span class="p">,</span> <span class="n">weatherData</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># get weather data of interest</span>
+        <span class="p">[</span><span class="n">temp_sunDirect</span><span class="p">,</span>  <span class="n">temp_sunDiff</span><span class="p">,</span> <span class="n">temp_temp</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">weatherData</span><span class="p">[:,</span> <span class="mi">12</span><span class="p">],</span> <span class="n">weatherData</span><span class="p">[:,</span> <span class="mi">13</span><span class="p">],</span> <span class="n">weatherData</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">]]</span>
+
+        <span class="c1"># %% load time information and requirements</span>
+        <span class="c1"># needed for data conversion into the right time format</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">,</span> <span class="s1">&#39;time_data.json&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+            <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">subData</span> <span class="ow">in</span> <span class="n">jsonData</span> <span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">subData</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeSteps&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">])</span>
+
+        <span class="c1"># interpolate input data to achieve required data resolution</span>
+        <span class="c1"># transformation from values for points in time to values for time intervals</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunDirect&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">]),</span>
+                                           <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataResolution&quot;</span><span class="p">]),</span>
+                                           <span class="n">temp_sunDirect</span><span class="p">)[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunDiffuse&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">]),</span>
+                                            <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataResolution&quot;</span><span class="p">]),</span>
+                                            <span class="n">temp_sunDiff</span><span class="p">)[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;T_e&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">]),</span>
+                                     <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataResolution&quot;</span><span class="p">]),</span>
+                                     <span class="n">temp_temp</span><span class="p">)[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunTotal&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunDirect&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunDiffuse&quot;</span><span class="p">]</span>
+
+        <span class="c1"># Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta</span>
+        <span class="k">global</span> <span class="n">sun</span>
+        <span class="n">sun</span> <span class="o">=</span> <span class="n">Sun</span><span class="p">(</span><span class="n">filePath</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunRad&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">sun</span><span class="o">.</span><span class="n">getSolarGains</span><span class="p">(</span><span class="n">initialTime</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                        <span class="n">timeDiscretization</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">],</span>
+                                        <span class="n">timeSteps</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeSteps&quot;</span><span class="p">],</span>
+                                        <span class="n">timeZone</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;timeZone&quot;</span><span class="p">],</span>
+                                        <span class="n">location</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">],</span>
+                                        <span class="n">altitude</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;altitude&quot;</span><span class="p">],</span>
+                                        <span class="n">beta</span><span class="o">=</span><span class="p">[</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                                        <span class="n">gamma</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">180</span><span class="p">,</span> <span class="mi">270</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                                        <span class="n">beam</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunDirect&quot;</span><span class="p">],</span>
+                                        <span class="n">diffuse</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunDiffuse&quot;</span><span class="p">],</span>
+                                        <span class="n">albedo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;albedo&quot;</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="Datahandler.initializeBuildings"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.initializeBuildings">[docs]</a>    <span class="k">def</span> <span class="nf">initializeBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Fill district with buildings from scenario file</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        scenario_name: string, optional</span>
+<span class="sd">            name of scenario file to be read</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">=</span> <span class="n">scenario_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">,</span> <span class="s1">&#39;scenarios&#39;</span><span class="p">)</span>
+                                    <span class="o">+</span> <span class="s2">&quot;/&quot;</span>
+                                    <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.csv&quot;</span><span class="p">,</span>
+                                    <span class="n">header</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># initialize buildings for scenario</span>
+        <span class="k">for</span> <span class="nb">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]:</span>
+            <span class="c1"># create empty dict for observed building</span>
+            <span class="n">building</span> <span class="o">=</span> <span class="p">{}</span>
+
+            <span class="c1"># store features of the observed building</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span>
+
+            <span class="c1"># append building to district</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">building</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Datahandler.generateBuildings"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateBuildings">[docs]</a>    <span class="k">def</span> <span class="nf">generateBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load building envelope and user data</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># %% load general building information</span>
+        <span class="c1"># contains definitions and parameters that affect all buildings</span>
+        <span class="n">bldgs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">,</span> <span class="s1">&#39;design_building_data.json&#39;</span><span class="p">))</span> <span class="k">as</span> <span class="n">json_file</span><span class="p">:</span>
+            <span class="n">jsonData</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">json_file</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">subData</span> <span class="ow">in</span> <span class="n">jsonData</span><span class="p">:</span>
+                <span class="n">bldgs</span><span class="p">[</span><span class="n">subData</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">subData</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+
+        <span class="c1"># %% create TEASER project</span>
+        <span class="c1"># create one project for the whole district</span>
+        <span class="n">prj</span> <span class="o">=</span> <span class="n">Project</span><span class="p">(</span><span class="n">load_data</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">prj</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span>
+
+        <span class="k">for</span> <span class="n">building</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="p">:</span>
+
+            <span class="c1"># convert short names into designation needes for TEASER</span>
+            <span class="n">building_type</span> <span class="o">=</span> <span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;buildings_long&quot;</span><span class="p">][</span><span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;buildings_short&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">])]</span>
+            <span class="n">retrofit_level</span> <span class="o">=</span> <span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;retrofit_long&quot;</span><span class="p">][</span><span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;retrofit_short&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;retrofit&quot;</span><span class="p">])]</span>
+
+            <span class="c1"># add buildings to TEASER project</span>
+            <span class="n">prj</span><span class="o">.</span><span class="n">add_residential</span><span class="p">(</span>
+                <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tabula_de&#39;</span><span class="p">,</span>
+                <span class="n">usage</span><span class="o">=</span><span class="n">building_type</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ResidentialBuildingTabula&quot;</span><span class="p">,</span>
+                <span class="n">year_of_construction</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;year&quot;</span><span class="p">],</span>
+                <span class="n">number_of_floors</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                <span class="n">height_of_floors</span><span class="o">=</span><span class="mf">3.125</span><span class="p">,</span>
+                <span class="n">net_leased_area</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">],</span>
+                <span class="n">construction_type</span><span class="o">=</span><span class="n">retrofit_level</span><span class="p">)</span>
+
+            <span class="c1"># %% create envelope object</span>
+            <span class="c1"># containing all physical data of the envelope</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Envelope</span><span class="p">(</span><span class="n">prj</span><span class="o">=</span><span class="n">prj</span><span class="p">,</span>
+                                            <span class="n">building_params</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">],</span>
+                                            <span class="n">construction_type</span><span class="o">=</span><span class="n">retrofit_level</span><span class="p">,</span>
+                                            <span class="n">file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">)</span>
+
+            <span class="c1"># %% create user object</span>
+            <span class="c1"># containing number occupants, electricity demand,...</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Users</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">],</span>
+                             <span class="n">area</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">])</span>
+
+            <span class="c1"># %% calculate design heat loads</span>
+            <span class="c1"># at norm outside temperature</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;heatload&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcHeatLoad</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;design&quot;</span><span class="p">)</span>
+            <span class="c1"># at bivalent temperature</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;bivalent&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcHeatLoad</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;bivalenz&quot;</span><span class="p">)</span>
+            <span class="c1"># at heatimg limit temperature</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;heatlimit&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcHeatLoad</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;heatlimit&quot;</span><span class="p">)</span>
+            <span class="c1"># for drinking hot water</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;dhwload&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;dhwload&quot;</span><span class="p">][</span><span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;buildings_short&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">])]</span> <span class="o">*</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">nb_flats</span></div>
+
+
+<div class="viewcode-block" id="Datahandler.generateDemands"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateDemands">[docs]</a>    <span class="k">def</span> <span class="nf">generateDemands</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">calcUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate occupancy profile, heat demand, domestic hot water demand and heating demand</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        calcUserProfiles: bool, optional</span>
+<span class="sd">            True: calculate new user profiles</span>
+<span class="sd">            False: load user profiles from file</span>
+<span class="sd">        saveUserProfiles: bool, optional</span>
+<span class="sd">            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">set</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">building</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="p">:</span>
+
+            <span class="c1"># %% create unique building name</span>
+            <span class="c1"># needed for loading and storing data with unique name</span>
+            <span class="c1"># name is composed of building type, number of flats, serial number of building of this properties</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">:</span>
+                <span class="nb">set</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">counter</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">count</span><span class="p">()</span>
+            <span class="n">nb</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">counter</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">nb</span><span class="p">)</span>
+
+            <span class="c1"># calculate or load user profiles</span>
+            <span class="k">if</span> <span class="n">calcUserProfiles</span><span class="p">:</span>
+                <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcProfiles</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">,</span>
+                                              <span class="n">time_horizon</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;dataLength&quot;</span><span class="p">],</span>
+                                              <span class="n">time_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">saveUserProfiles</span><span class="p">:</span>
+                    <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">saveProfiles</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span><span class="p">)</span>
+
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Calculate demands of building &quot;</span> <span class="o">+</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">])</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">loadProfiles</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Load demands of building &quot;</span> <span class="o">+</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">])</span>
+
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcNormativeProperties</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunRad&quot;</span><span class="p">],</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">gains</span><span class="p">)</span>
+
+            <span class="c1"># calculate heating profiles</span>
+            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">calcHeatingProfile</span><span class="p">(</span><span class="n">site</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">,</span>
+                                                <span class="n">envelope</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;envelope&quot;</span><span class="p">],</span>
+                                                <span class="n">time_resolution</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="s2">&quot;timeResolution&quot;</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="n">saveUserProfiles</span> <span class="p">:</span>
+                <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">saveHeatingProfile</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;unique_name&quot;</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finished generating demands!&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Datahandler.generateDistrictComplete"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateDistrictComplete">[docs]</a>    <span class="k">def</span> <span class="nf">generateDistrictComplete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">calcUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        All in one solution for district and demand generation</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        scenario_name:string, optional</span>
+<span class="sd">            name of scenario file to be read</span>
+<span class="sd">        calcUserProfiles: bool, optional</span>
+<span class="sd">            True: calculate new user profiles</span>
+<span class="sd">            False: load user profiles from file</span>
+<span class="sd">        saveUserProfiles: bool, optional</span>
+<span class="sd">            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">generateEnvironment</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initializeBuildings</span><span class="p">(</span><span class="n">scenario_name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generateBuildings</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">generateDemands</span><span class="p">(</span><span class="n">calcUserProfiles</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Datahandler.saveDistrict"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.saveDistrict">[docs]</a>    <span class="k">def</span> <span class="nf">saveDistrict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Save district dict as pickle file</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.p&quot;</span><span class="p">,</span><span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+            <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="p">,</span> <span class="n">fp</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Datahandler.loadDistrict"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.loadDistrict">[docs]</a>    <span class="k">def</span> <span class="nf">loadDistrict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load district dict from pickle file</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">=</span> <span class="n">scenario_name</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.p&quot;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

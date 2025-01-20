@@ -31,6 +31,9 @@ errorfile.txt
 *.pkl
 __pycache__/
 .idea/
+demands/
+data/weather/
+data/weather/TRY_2015_Jahr
 
 Distribution / packaging
 .Python

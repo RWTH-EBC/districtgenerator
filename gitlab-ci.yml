@@ -1,0 +1,19 @@
+stages:
+    - test
+    - doc
+    - code_quality
+    - build
+    - release
+    - deploy
+
+variables:
+    EXCLUDE_PYTHON: 37
+    PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.9"
+    PAGES_BRANCH: master
+    GIT_REPO: "RWTH-EBC/districtgenerator"
+    PYTHON_VERSION_NAME: "__version__"
+    PYTHON_PACKAGE_NAME: "districtgenerator"
+
+include:
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'pages/gh-pages.gitlab-ci.yml'
