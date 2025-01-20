@@ -516,26 +516,26 @@ class Envelope:
         
 
             self.A = {}  # in m2
-            self.A["f"] = prj.buildings[self.id].net_leased_area
+            self.A["f"] = prj.buildings[self.teaser_id].net_leased_area
 
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
-            self.A["opaque"]["south"] = prj.buildings[self.id].outer_area[0.0]
-            self.A["opaque"]["north"] = prj.buildings[self.id].outer_area[180.0]
+            self.A["opaque"]["south"] = prj.buildings[self.teaser_id].outer_area[0.0]
+            self.A["opaque"]["north"] = prj.buildings[self.teaser_id].outer_area[180.0]
             try:
-                self.A["opaque"]["west"] = prj.buildings[self.id].outer_area[90.0]
-                self.A["opaque"]["east"] = prj.buildings[self.id].outer_area[270.0]
+                self.A["opaque"]["west"] = prj.buildings[self.teaser_id].outer_area[90.0]
+                self.A["opaque"]["east"] = prj.buildings[self.teaser_id].outer_area[270.0]
             except KeyError:
                 self.A["opaque"]["west"] = 0.0
                 self.A["opaque"]["east"] = 0.0
 
             try:
-                self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]
+                self.A["opaque"]["roof"] = prj.buildings[self.teaser_id].outer_area[-1]
             except KeyError:
                 self.A["opaque"]["roof"] = 1.2 * prj.buildings[
-                    self.id].outer_area[-2]
+                    self.teaser_id].outer_area[-2]
 
-            self.A["opaque"]["floor"] = prj.buildings[self.id].outer_area[-2]
+            self.A["opaque"]["floor"] = prj.buildings[self.teaser_id].outer_area[-2]
             self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
             # Area of internal floor equals usable area
@@ -546,12 +546,12 @@ class Envelope:
             self.A["opaque"]["intWall"] = 1.5 * self.A["opaque"]["wall"]
 
             self.A["window"] = {}
-            self.A["window"]["south"] = prj.buildings[self.id].window_area[0.0]
-            self.A["window"]["north"] = prj.buildings[self.id].window_area[180.0]
+            self.A["window"]["south"] = prj.buildings[self.teaser_id].window_area[0.0]
+            self.A["window"]["north"] = prj.buildings[self.teaser_id].window_area[180.0]
             try:
-                self.A["window"]["west"] = prj.buildings[self.id].window_area[90.0]
+                self.A["window"]["west"] = prj.buildings[self.teaser_id].window_area[90.0]
                 self.A["window"]["east"] = prj.buildings[
-                    self.id].window_area[270.0]
+                    self.teaser_id].window_area[270.0]
             except KeyError:
                 self.A["window"]["west"] = 0.0
                 self.A["window"]["east"] = 0.0
