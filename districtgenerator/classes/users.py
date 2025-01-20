@@ -313,14 +313,15 @@ class Users:
                                          max_iter=15,
                                          prev_heat_dev=True)
 
-                # Create and save light configuration object
+                # Create and save light configuration object,
                 lights = light_model.load_lighting_profile(filename=path_light,
                                                            index=self.lighting_index[j])
 
                 #  Create wrapper object
                 self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
+
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, initial_day=1):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -382,7 +383,8 @@ class Users:
         # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
         # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
 
-    def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
+    def calcHeatingProfile(self, site, envelope, night_setback,
+                           holidays, time_resolution):
         """
         Calculate heat demand for each building.
 
@@ -463,34 +465,6 @@ class Users:
             writer.writerow(fields)
         '''
 
-    def saveHeatingProfile(self, unique_name, path):
-        """
-        Save heating demand to csv.
-
-        Parameters
-        ----------
-        unique_name : string
-            Unique building name.
-        path : string
-            Results path.
-
-        Returns
-        -------
-        None.
-        """
-
-        if not os.path.exists(path):
-            os.makedirs(path)
- 
-        data = pd.DataFrame({
-            'elec': self.elec,
-            'dhw': self.dhw,
-            'occ': self.occ,
-            'gains': self.gains,
-            'heat': self.heat,
-            'cool': self.cooling
-        })
-        data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
 
     def loadProfiles(self, unique_name, path):
         """

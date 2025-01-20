@@ -2,7 +2,7 @@
 
 import pandas as pd 
 
-def getEpWeather(file_path:str) -> pd.DataFrame:
+def getEpwWeather(file_path:str) -> pd.DataFrame:
     """
     Function gets EPW weather data from a file and returns it as a pandas dataframe. 
 
@@ -42,7 +42,7 @@ def getEpWeather(file_path:str) -> pd.DataFrame:
     
     # Select the required columns
     df = df[['Timestamp', 'Direct Normal Radiation', 'Diffuse Horizontal Radiation', 'Dry Bulb Temperature', 
-              "Direct Normal Illuminance",  "Diffuse Horizontal Illuminance",]]
+              "Direct Normal Illuminance",  "Diffuse Horizontal Illuminance", "Wind Speed"]]
     
     return df
 
@@ -106,7 +106,7 @@ def get_time_horizon(file_path: str) -> pd.Series:
       If the file type is not supported. Only EPW and TRY files are supported.
     """
     if file_path.lower().endswith('.epw'):
-        df = getEpWeather(file_path)
+        df = getEpwWeather(file_path)
     elif file_path.lower().endswith('.txt'):  # Assuming TRY files are .txt
         df = getTryWeather(file_path)
     else:

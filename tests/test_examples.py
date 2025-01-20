@@ -7,6 +7,9 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 import unittest
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class TestExamples(unittest.TestCase):
     """Unit Tests for the DistrictGenerator"""

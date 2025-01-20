@@ -3,11 +3,16 @@ import random as rd
 from random import sample
 import os
 import pandas as pd
-from districtgenerator import *
-from functions import path_checks
+from districtgenerator.classes import datahandler
+from districtgenerator.functions import path_checks
 # Shoud create simulations for non-residential buildings
 # Write a test, that all functions run through without errors
 # Check if the results exist and are not zero
+
+
+
+PARENT_FOLDER_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 class TestNonResidential(unittest.TestCase):
     def setUp(self):
         # Create test scenario
@@ -28,24 +33,35 @@ class TestNonResidential(unittest.TestCase):
             ],
             'year': [rd.randint(1900, 2024) for _ in range(11)],
             'retrofit': [0] * 11,
-            'area': [rd.randint(0, 100) for _ in range(11)]
+            'area': [rd.randint(0, 100) for _ in range(11)],
+            'construction_type': [""] * 11,
+            'night_setback': [rd.randint(0, 1) for _ in range(11)],
+            'heater': ["HP"] * 11,
+            'PV': [rd.randint(0, 1) for _ in range(11)],
+            'STC': [rd.randint(0, 1) for _ in range(11)],
+            'EV': [rd.randint(0, 1) for _ in range(11)],
+            'BAT': [rd.randint(0, 1) for _ in range(11)],
+            'f_TES': [rd.randint(0, 1) for _ in range(11)],
+            'f_BAT': [rd.randint(0, 1) for _ in range(11)],
+            'f_EV': ["M"] * 11,
+            'f_PV': [rd.randint(0, 1) for _ in range(11)],
+            'f_STC': [rd.randint(0, 1) for _ in range(11)],
+            'gamma_PV': [rd.randint(0, 1) for _ in range(11)],  
+            'ev_charging': ["on_demand"] * 11
         }
 
         df = pd.DataFrame(self.test_data, columns=self.test_data.keys())
-        folder_path = os.getcwd()
-        self.scenario_path = os.path.join(folder_path, 'data', 'scenarios', 'test_scenario.csv')
-        self.results_path = os.path.join(folder_path, 'test_scenario')
+        self.scenario_path = os.path.join(PARENT_FOLDER_PATH, 'districtgenerator', 'data', 'scenarios', 'test_scenario.csv')
+        df.to_csv(self.scenario_path, index=False, sep=';')
         df.to_csv(self.scenario_path, index=False, sep=';')
         print(df.head())
+        self.results_path = os.path.join(PARENT_FOLDER_PATH,  'test_scenario', 'demands')
 
     def test_non_residential(self):
         # Test all functions in the non_residential module
-        data = Datahandler()
-        data.setWeatherFile('data/weather/EPW/DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw')
-
-
-        # Generate Environment for the District
-        data.generateEnvironment()
+        data = datahandler.Datahandler()
+        data.setWeatherFile(os.path.join(PARENT_FOLDER_PATH, 'districtgenerator', 'data', 'weather', 'EPW', 'DEU_BE_Berlin-Schonefeld.AP.103850_TMYx.2004-2018.epw'))
+        data.generateEnvironment(plz="52070")
 
         # Use the created scenario for testing
         data.initializeBuildings('test_scenario')
@@ -58,11 +74,9 @@ class TestNonResidential(unittest.TestCase):
         self.assertTrue(os.path.exists(self.scenario_path), f"Scenario file not found: {self.scenario_path}")
         self.assertGreater(os.path.getsize(self.scenario_path), 0, f"Scenario file is empty: {self.scenario_path}")
         scenario_data = pd.read_csv(self.scenario_path, sep=';')
-        folder_path = os.getcwd()
-        results_path = os.path.join(folder_path, 'test_scenario')
-        for file in os.listdir(results_path):
+        for file in os.listdir(self.results_path):
             if file.endswith('.csv'):
-                file_path = os.path.join(results_path, file)
+                file_path = os.path.join(self.results_path, file)
                 df = pd.read_csv(file_path, sep=',')
                 # Check if the required columns are present
                 required_columns = ["elec", "dhw", "occ", "gains", "heat"]
@@ -75,7 +89,7 @@ class TestNonResidential(unittest.TestCase):
                 # Gains can be negative due to cooling
                 self.assertTrue(df["gains"].notna().any(), f"Gains column has no values in file: {file_path}")
 
-        results_path = os.path.join(folder_path, 'test_scenario')
+        scenario_data = pd.read_csv(self.scenario_path, sep=';')
         for index, row in scenario_data.iterrows():
             building = row['building']
             print(building)
@@ -94,31 +108,22 @@ class TestNonResidential(unittest.TestCase):
             self.assertIsNotNone(building_file, f"No results file found for building {building_id}")
 
     def tearDown(self):
-        # Delete all files created in the test
         if os.path.exists(self.scenario_path):
             os.remove(self.scenario_path)
-        
-        # Delete any other files that might have been created during the test
-        folder_path = os.getcwd()  # Use current working directory instead of parent
-        results_path = os.path.join(folder_path, 'test_scenario')
-        
-        # Check if the directory exists before trying to delete files
-        if os.path.exists(results_path):
-            for file in os.listdir(results_path):
-                file_path = os.path.join(results_path, file)
+        if os.path.exists(self.results_path):
+            for file in os.listdir(self.results_path):
+                file_path = os.path.join(self.results_path, file)
                 if os.path.isfile(file_path):
                     try:
                         os.remove(file_path)
                     except PermissionError:
                         print(f"Unable to delete {file_path}. File may be in use.")
+            try:
+                os.rmdir(self.results_path)
+            except OSError:
+                print(f"Unable to remove directory {self.results_path}. It may not be empty or you may not have permission.")
         else:
-            print(f"Results directory not found: {results_path}")
-        
-        # Remove the results directory if it's empty
-        try:
-            os.rmdir(results_path)
-        except OSError:
-            print(f"Unable to remove directory {results_path}. It may not be empty or you may not have permission.")
+            print(f"Results directory not found: {self.results_path}")
 
 
 if __name__ == '__main__':

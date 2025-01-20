@@ -26,6 +26,8 @@ from .non_residential_users import NonResidentialUsers
 
 from ..functions import weather_handling as weather_handling
 from ..functions import path_checks as path_checks 
+from ..functions import calculate_holidays as calculate_holidays
+
 
 RESIDENTIAL_BUILDING_TYPES = ["SFH", "TH", "MFH", "AB"]
 NON_RESIDENTIAL_BUILDING_TYPES = ["IWU Hotels, Boarding, Restaurants or Catering", "IWU Office, Administrative or Government Buildings",
@@ -547,21 +549,22 @@ class Datahandler:
                 # %% create user object
                 # containing number occupants, electricity demand,...
                 nb_of_days = self.timestamp.dt.date.nunique()
-                building["user"] = NonResidentialUsers(building_usage=building["buildingFeatures"]["building"],
-                                                       area=building["buildingFeatures"]["area"],
+                holidays = calculate_holidays.get_holidays(file_path=self.weatherFile)
+                building["user"] = NonResidentialUsers(building=building,
                                                        envelope= building["envelope"],
-                                                       file=self.filePath, site=self.site, time=self.time, nb_of_days=nb_of_days)
+                                                       file=self.filePath, site=self.site, time=self.time, nb_of_days=nb_of_days,
+                                                       night_setback=building["buildingFeatures"]["night_setback"],
+                                                       holidays=holidays)
             
                 
                 
 
                 # %% calculate design heat loads
-                # at norm outside temperature
-                building["heatload"] = building["envelope"].calcHeatLoad(site=self.site, method="design")
+                building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
                 # at bivalent temperature
-                building["bivalent"] = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
-                # at heatimg limit temperature
-                building["heatlimit"] = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+                building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+                # at heating limit temperature
+                building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
                 # for drinking hot water
                 # To-Do figure hot water demand out for Non Residential
                 # in DIBS the IWU Approach of Teilenergiekennwerte is chosen 
@@ -633,8 +636,7 @@ class Datahandler:
                                               holidays=self.time["holidays"],
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
-                                              building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+                                              building=building)
 
                 if saveUserProfiles:
                     building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
@@ -645,11 +647,14 @@ class Datahandler:
                 building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
-            # check if EV exist
-            building["clusteringData"] = {
-                "potentialEV": copy.deepcopy(building["user"].car)
-            }
-            building["user"].car *= building["buildingFeatures"]["EV"]
+            if building["buildingFeatures"]["building"] in RESIDENTIAL_BUILDING_TYPES:
+                # check if EV exist
+                # Currently the EV is only supported for residential buildings
+                building["clusteringData"] = {
+                    "potentialEV": copy.deepcopy(building["user"].car)
+                }
+                if building["buildingFeatures"]["EV"] > 0:
+                    building["user"].car *= building["buildingFeatures"]["EV"]
 
             building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
 
@@ -664,7 +669,7 @@ class Datahandler:
                                                 )
 
             if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
 
 
 

@@ -45,6 +45,10 @@ class NonResidentialUsers():
         A dictionary with time resolution and time steps for simulation.
     nb_of_days : int
         Number of days for which the simulation is to be run.
+    holidays : list
+        List of integers representing the day of year for each holiday.
+    night_setback : integer
+        Night setback is activated (1) or deactivated (0).
 
     Attributes
     ----------
@@ -101,20 +105,24 @@ class NonResidentialUsers():
         Loads profiles from previously saved CSV files.
 
     """
-    def __init__(self, building_usage: str, area: float, file: str, envelope: Any,
-                site: Dict[str, Any], time: Dict[str, Any], nb_of_days: int) -> None:
+    def __init__(self, building: Dict[str, Any],  area: Optional[float] = None, file: Optional[str] = None, envelope: Optional[Any] = None,
+                site: Optional[Dict[str, Any]] = None, time: Optional[Dict[str, Any]] = None, holidays: Optional[List[int]] = None,
+                nb_of_days: Optional[int] = None, night_setback: Optional[int] = None) -> None:
         """
         Constructor of Users Class
         """
-
-        self.usage = building_usage 
-        self.area = area
+        
+        self.building = building
+        self.usage = building["buildingFeatures"]["building"]
+        self.area = building["buildingFeatures"]["area"]
         self.file = file
-        self.envelope = envelope
+        self.envelope = building["envelope"]
         
         self.site = site 
         self.time = time
         self.nb_of_days = nb_of_days
+        self.holidays = holidays
+        self.night_setback = night_setback
         #self.nb_flats = None
         self.annual_appliance_demand = None
         self.annual_lightning_demand = None
@@ -126,7 +134,7 @@ class NonResidentialUsers():
         self.elec = None
         self.gains = None
         self.heat = None
-        self.cool = None
+        self.cooling = None
         self.occupancy_schedule = None
         self.appliance_schedule = None
         self.lighntning_schedule = None
@@ -339,8 +347,8 @@ class NonResidentialUsers():
 
 
 
-    def calcProfiles(self, site: Dict[str, Any], time_resolution: int, 
-                     time_horizon: int, initital_day: int = 1) -> None:
+    def calcProfiles(self, site: Dict[str, Any], holidays: Optional[List[int]], time_resolution: int, 
+                     time_horizon: int, initital_day: int = 1, building: Optional[Dict[str, Any]] = None) -> None:
         '''
         Calclulate profiles for every flat and summarize them for the whole building
 
@@ -348,6 +356,8 @@ class NonResidentialUsers():
         ----------
         site: dict
             site data, e.g. weather
+        holidays : list
+            List of holidays.
         initial_day : integer
             Day of the week with which the generation starts
             1-7 for monday-sunday.
@@ -357,7 +367,8 @@ class NonResidentialUsers():
             resolution of time steps of output array in seconds.
         irradiation: array
             if none is given default weather data (TRY 2015 Potsdam) is used
-
+        building : dict
+            Building data, currently not used but kept for consistency.
 
         '''
 
@@ -459,7 +470,8 @@ class NonResidentialUsers():
 
 
     def calcHeatingProfile(self, site: Dict[str, Any], 
-                           envelope: Any, time_resolution: int) -> None:
+                           envelope: Any, night_setback : int, holidays: list,
+                           time_resolution: int) -> None:
 
         '''
         Calclulate heat demand for each building
@@ -470,6 +482,10 @@ class NonResidentialUsers():
             site data, e.g. weather
         envelope: object
             containing all physical data of the envelope
+        night_setback : integer
+            Night setback is activated (1) or deactivated (0).
+        holidays: list
+            List of holidays.
         time_resolution : integer
             resolution of time steps of output array in seconds.
         Q_HC : float
@@ -480,15 +496,18 @@ class NonResidentialUsers():
         
         dt = time_resolution/(60*60)
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_min, site["T_e"], dt)
-        # heating  load for the current time step in Watt
-        self.heat = np.zeros(len(Q_HC))
-        self.heat = np.maximum(0, Q_HC)
+        if night_setback == 1:
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt,
+                                                                         self.usage)
+        elif night_setback == 0:
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.usage)
 
-        (Q_HC, T_i, T_s, T_m, T_op) = heating.calculate(envelope, envelope.T_set_max, site["T_e"], dt)
-        # Cooling load for the current time step in Watt
-        self.cool = np.zeros(len(Q_HC))
-        self.cool = np.minimum(0, Q_HC)
+      
+        self.heat = Q_H
+        self.cooling = Q_C
+
+        self.annual_heat_demand = np.sum(Q_H)
+        self.annual_cooling_demand = np.sum(Q_C)
 
             
     def saveProfiles(self,unique_name: str,path: str) -> None:
@@ -511,7 +530,7 @@ class NonResidentialUsers():
             'occ': self.occ,
             'gains': self.gains,
             'heat': self.heat,
-            'cool': self.cool  
+            'cool': self.cooling  
         })
         data.to_csv(os.path.join(path, f'{unique_name}.csv'), index=False)
 

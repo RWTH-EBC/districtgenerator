@@ -7,7 +7,7 @@
 import os
 import pandas as pd
 import numpy as np
-import functions.schedule_reader as schedule_reader
+from . import schedule_reader as schedule_reader
 
 
 

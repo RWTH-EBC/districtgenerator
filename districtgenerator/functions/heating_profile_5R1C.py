@@ -131,6 +131,7 @@ def _calculateHeat(zoneParameters, T_e, T_set, T_m_init, dt, timestep):
     H_ve = zoneParameters.H_ve  # in W/K
     C_m = zoneParameters.C_m  # in J/K
     H_tr_em = zoneParameters.H_tr_em[0]  # in W/K
+    
     Q_nHC = zoneParameters.heatload  # design (nominal) heat load
 
     Phi_ia = zoneParameters.phi_ia
@@ -250,6 +251,7 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
                                                  timestep=t)
 
         if building_type in {"SFH", "TH", "MFH", "AB"}:
+            # TODO: Finda a better solution for this no heating zone
             if t_op < current_T_set and day not in range(135, 259):
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
