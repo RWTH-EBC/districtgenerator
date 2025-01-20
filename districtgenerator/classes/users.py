@@ -5,7 +5,6 @@ import os, math
 import random as rd
 import numpy as np
 import pandas as pd
-import openpyxl
 from .profils import Profiles
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
@@ -480,12 +479,18 @@ class Users:
         None.
         """
 
-        excel_file = os.path.join(path, unique_name + '.xlsx')
-        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-            cooling_df = pd.DataFrame(self.cooling)
-            heating_df = pd.DataFrame(self.heat)
-            cooling_df.to_excel(writer, sheet_name='cooling', index=False, header=False)
-            heating_df.to_excel(writer, sheet_name='heating', index=False, header=False)
+        if not os.path.exists(path):
+            os.makedirs(path)
+ 
+        data = pd.DataFrame({
+            'elec': self.elec,
+            'dhw': self.dhw,
+            'occ': self.occ,
+            'gains': self.gains,
+            'heat': self.heat,
+            'cool': self.cooling
+        })
+        data.to_csv(path + f'/{unique_name}' + '.csv', index=False)
 
     def loadProfiles(self, unique_name, path):
         """

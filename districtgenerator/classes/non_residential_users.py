@@ -8,11 +8,11 @@ import os, math
 import json 
 import random as rd
 import numpy as np
-from districtgenerator.profils import Profiles, NonResidentialProfiles
-from districtgenerator.solar import SunIlluminance
-import functions.heating_profile_5R1C as heating
-import functions.schedule_reader as schedules
-import functions.light_demand as light_demand
+from .profils import Profiles, NonResidentialProfiles
+from .solar import SunIlluminance
+from ..functions import heating_profile_5R1C as heating
+from ..functions import schedule_reader as schedules
+from ..functions import light_demand as light_demand
 from typing import Dict, List, Any, Optional
 import pandas as pd
 

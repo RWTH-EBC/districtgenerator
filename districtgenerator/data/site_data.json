@@ -1,4 +1,3 @@
-<<<<<<< HEAD:data/site_data.json
 [
   {
     "name": "location",
@@ -41,10 +40,7 @@
     "value": "kalt",
     "unit": "-",
     "description": "Test referece conditions of DWD. Possible entries are normal, kalt, warm."
-  }
-]
-=======
-[
+  },
   {
     "name": "timeZone",
     "value": 1,
@@ -70,4 +66,3 @@
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   }
 ]
->>>>>>> RWTH-EBC/master:districtgenerator/data/site_data.json

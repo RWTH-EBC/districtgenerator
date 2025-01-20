@@ -17,7 +17,7 @@ def example3_initialize_buildings():
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz="52070")
 
     # We initialize the buildings of the district. As input the name of a scenario file is required.
     # In this example we use the existing example-file example.csv with two buildings.

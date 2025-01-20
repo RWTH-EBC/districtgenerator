@@ -19,7 +19,7 @@ def example5_generate_demands():
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment()
+    data.generateEnvironment(plz="52070")
 
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")

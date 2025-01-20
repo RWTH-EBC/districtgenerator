@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import numpy as np
 from teaser.project import Project
-from districtgenerator.non_residential import NonResidential
+from .non_residential import NonResidential
 
 
 RESIDENTIAL_BUILDING_TYPES = ["SFH", "TH", "MFH", "AB"]
@@ -123,9 +123,9 @@ class Envelope:
                 jsonData = json.load(json_file)
             # TODO - Adapt non Residential Design Building Data
             self.T_set_min = jsonData[self.usage_short]["T_set_min"]
-            self.T_set_min_night = design_data["T_set_min_night"]
+            self.T_set_min_night = jsonData[self.usage_short]["T_set_min_night"]
             self.T_set_max = jsonData[self.usage_short]["T_set_max"]
-            self.T_set_max_night = design_data["T_set_max_night"]
+            self.T_set_max_night = jsonData[self.usage_short]["T_set_max_night"]
             self.ventilationRate = jsonData[self.usage_short]["ventilation_rate"]
             self.T_bivalent = jsonData[self.usage_short]["T_bivalent"]
             self.T_heatlimit = jsonData[self.usage_short]["T_heatlimit"]
@@ -226,8 +226,7 @@ class Envelope:
         None.
         """
 
-        material_bind = prj.data.material_bind
-        element_bind = prj.data.element_bind
+
 
         self.attributes = [
             self.d,

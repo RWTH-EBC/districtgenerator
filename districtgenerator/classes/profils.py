@@ -485,10 +485,9 @@ class NonResidentialProfiles():
         self.generate_activity_profile()
         #self.loadProbabilitiesDhw()
 
-    # check for alternative
+
 
     def generate_activity_profile(self):
-        def generate_activity_profile(self):
         """
         Generate a stochastic activity profile
         (on base of ridchardsonpy)

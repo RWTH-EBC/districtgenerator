@@ -8,7 +8,6 @@ import copy
 import datetime
 from typing import Any
 import numpy as np
-import openpyxl
 import pandas as pd
 from itertools import count
 from teaser.project import Project
@@ -25,8 +24,8 @@ import districtgenerator.functions.clustering_medoid as cm
 from .non_residential import NonResidential
 from .non_residential_users import NonResidentialUsers
 
-import functions.weather_handling as weather_handling
-import functions.path_checks as path_checks 
+from ..functions import weather_handling as weather_handling
+from ..functions import path_checks as path_checks 
 
 RESIDENTIAL_BUILDING_TYPES = ["SFH", "TH", "MFH", "AB"]
 NON_RESIDENTIAL_BUILDING_TYPES = ["IWU Hotels, Boarding, Restaurants or Catering", "IWU Office, Administrative or Government Buildings",
@@ -201,12 +200,13 @@ class Datahandler:
         if self.weatherFile != None:
             if self.weatherFile.endswith(".epw"):
                 # load data from epw file 
-                weatherData = weather_handling.getEpWeather(self.weatherFile)
+                weatherData = weather_handling.getEpwWeather(self.weatherFile)
                 # Set Last hour to the year to first 
                 weatherData = pd.concat([weatherData.iloc[[-1]], weatherData]).reset_index(drop=True)
                 temp_sunDirect = weatherData["Direct Normal Radiation"].to_numpy()
                 temp_sunDiff = weatherData["Diffuse Horizontal Radiation"].to_numpy()
                 temp_temp = weatherData["Dry Bulb Temperature"].to_numpy()
+                temp_wind = weatherData["Wind Speed"].to_numpy()
                 direct_illuminance = weatherData["Direct Normal Illuminance"].to_numpy()
                 diffuse_illuminance = weatherData["Diffuse Horizontal Illuminance"].to_numpy()
             else:
@@ -223,51 +223,51 @@ class Datahandler:
                 temp_temp = weatherData["t"].to_numpy()
               
         else: 
-            # This works for the predefined weather files 
-            weather_file = os.path.join(self.filePath, 'weather', 'DWD',
-                                f"{self.site['TRYYear']}_Zone{self.site['climateZone']}_{self.site['TRYType']}.txt")
-            weatherData = np.loadtxt(weather_file,
-                                 skiprows=first_row - 1)
+            # %% load first day of the year
+            if self.site["TRYYear"] == "TRY2015":
+                first_row = 35
+            elif self.site["TRYYear"] == "TRY2045":
+                first_row = 37# This works for the predefined weather files 
+            #weather_file = os.path.join(self.filePath, 'weather', 'DWD',
+            #                    f"{self.site['TRYYear']}_Zone{self.site['climateZone']}_{self.site['TRYType']}.txt")
+            #weatherData = np.loadtxt(weather_file,
+            #                     skiprows=first_row - 1)
             # weather data starts with 1st january at 1:00 am. Add data point for 0:00 am to be able to perform interpolation.
+            #weatherData_temp = weatherData[-1:, :]
+            #weatherData = np.append(weatherData_temp, weatherData, axis=0)
+
+       
+
+            # load weather data
+            # select the correct file depending on the TRY weather station location
+            weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
+                + "\\"
+                + self.site["TRYYear"] + "_"
+                + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+                + ".dat",
+                skiprows=first_row - 1)
+
+            """
+            # Use this function to load old TRY-weather data
+            weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
+                                    + "/"
+                                    + self.site["TRYYear"] + "_Zone"
+                                    + str(self.site["climateZone"]) + "_"
+                                    + self.site["TRYType"] + ".txt",
+                                    skiprows=first_row - 1)"""
+
+            # weather data starts with 1st january at 1:00 am.
+            # Add data point for 0:00 am to be able to perform interpolation.
             weatherData_temp = weatherData[-1:, :]
             weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
-        # %% load first day of the year
-        if self.site["TRYYear"] == "TRY2015":
-            first_row = 35
-        elif self.site["TRYYear"] == "TRY2045":
-            first_row = 37
-
-        # load weather data
-        # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
-            + "\\"
-            + self.site["TRYYear"] + "_"
-            + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
-            + ".dat",
-            skiprows=first_row - 1)
-
-        """
-        # Use this function to load old TRY-weather data
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
-                                 + "/"
-                                 + self.site["TRYYear"] + "_Zone"
-                                 + str(self.site["climateZone"]) + "_"
-                                 + self.site["TRYType"] + ".txt",
-                                 skiprows=first_row - 1)"""
-
-        # weather data starts with 1st january at 1:00 am.
-        # Add data point for 0:00 am to be able to perform interpolation.
-        weatherData_temp = weatherData[-1:, :]
-        weatherData = np.append(weatherData_temp, weatherData, axis=0)
-
-        # get weather data of interest
-        # variables according to DWD sheet
-        # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
-        # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene) 
-        # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund
-        [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
-            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
+            # get weather data of interest
+            # variables according to DWD sheet
+            # temp_sunDirect = B  Direkte Sonnenbestrahlungsstaerke (horiz. Ebene)
+            # temp_sunDiff = D Diffuse Sonnenbetrahlungsstaerke (horiz. Ebene) 
+            # temp_temp = t Lufttemperatur in 2m Hoehe ueber Grund
+            [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
+                [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
 
         # %% load time information and requirements
         # needed for data conversion into the right time format
@@ -459,14 +459,14 @@ class Datahandler:
                 
                 # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
-                        number_of_floors = model_data['storeys_above_ground'].values[
+                    number_of_floors = model_data['storeys_above_ground'].values[
                             building['buildingFeatures'].id
                         ]
-                        height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
+                    height_of_floors = model_data['average_floor_height'].values[building['buildingFeatures'].id]
                     
-                    else:  
-                        number_of_floors = 3
-                        height_of_floors = 3.125
+                else:  
+                    number_of_floors = 3
+                    height_of_floors = 3.125
 
 
                     # adds residentials buildings to TEASER project
@@ -516,7 +516,7 @@ class Datahandler:
                 index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
                 building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
             
-            if building["buildingFeatures"]["building"] in  NON_RESIDENTIAL_BUILDING_TYPES:
+            elif building["buildingFeatures"]["building"] in NON_RESIDENTIAL_BUILDING_TYPES:
                  # If a an advanced model is presented, the number of floors and the height of the floors can be taken from the model file
                 if self.advancedModel is not None:
                     number_of_floors = model_data['storeys_above_ground'].values[
@@ -570,6 +570,7 @@ class Datahandler:
             elif building["buildingFeatures"]["building"] not in NON_RESIDENTIAL_BUILDING_TYPES and building["buildingFeatures"]["building"] not in RESIDENTIAL_BUILDING_TYPES:
                 print(f"The building type {building['buildingFeatures']['building']} is currently not supported. Please check the type of {building} and try again.")
             else:
+                breakpoint()
                 raise AttributeError(f"The building type {building['buildingFeatures']['building']} is currently not supported. ")
 
                 
