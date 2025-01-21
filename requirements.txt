@@ -9,3 +9,5 @@ gurobipy>=9.5.1
 xlsxwriter~=3.2.0
 geopy~=2.4.1
 pyproj~=3.7.0
+openpyxl==3.1.5
+seaborn==0.13.2

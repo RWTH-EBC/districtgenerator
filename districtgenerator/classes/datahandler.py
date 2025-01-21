@@ -46,7 +46,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, district = {}):
+    def __init__(self, scenario_name = "example", resultPath = None):
         """
         Constructor of Datahandler class.
 
@@ -58,7 +58,7 @@ class Datahandler:
         self.site = {}
         self.time = {}
         self.district = []
-        self.scenario_name = "example"
+        self.scenario_name = scenario_name
         self.scenario = None
         self.design_building_data = {}
         self.physics = {}
@@ -70,9 +70,12 @@ class Datahandler:
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
-        self.resultPath = os.path.join(self.srcPath, 'results')
-        self.KPIs = None
+        if resultPath is not None:
+            self.resultPath = resultPath
+        else:
+            self.resultPath = os.path.join(self.srcPath, 'results')
 
+        self.KPIs = None
         self.load_all_data()
 
     def load_all_data(self):
@@ -205,15 +208,6 @@ class Datahandler:
         -------
         None.
         """
-
-        # %% load information about of the site under consideration
-        # important for weather conditions
-        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.site[subData["name"]] = subData["value"]
-
-
         # %% load first day of the year
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
