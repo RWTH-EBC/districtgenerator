@@ -370,7 +370,7 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand[j])
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
             # currently only one car per building possible
-            self.car = self.car + temp_obj.generate_EV_profile(self.occ)
+            self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']['f_EV'])
 
         # ------ Webtool: import of existing time series to save computing time ------ #
         # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')

@@ -63,7 +63,9 @@ class Datahandler:
         self.design_building_data = {}
         self.physics = {}
         self.decentral_device_data = {}
-        self.params_ehdo = {}
+        self.params_ehdo_technical = {}
+        self.params_ehdo_model = {}
+        self.central_device_data = {}
         self.ecoData = {}
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,23 +125,32 @@ class Datahandler:
                 for subsubData in subData["specifications"]:
                     self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
-                    # import model parameters from json-file (used in system CES)
+        # import model parameters from json-file (used in system CES)
         with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 if subData["name"] != "ref":
-                    self.params_ehdo[subData["name"]] = subData["value"]
+                    self.params_ehdo_model[subData["name"]] = subData["value"]
                 else:
-                    self.params_ehdo[subData["name"]] = {}
+                    self.params_ehdo_model[subData["name"]] = {}
                     for subSubData in subData["value"]:
-                        self.params_ehdo[subData["name"]][subSubData["name"]] = subSubData["value"]
+                        self.params_ehdo_model[subData["name"]][subSubData["name"]] = subSubData["value"]
 
-                        # load economic and ecologic data (of the district generator) (used in system CES)
+        # load economic and ecologic data (of the district generator) (used in system CES)
         with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.ecoData[subData["name"]] = subData["value"]
 
+        with open(os.path.join(self.filePath, 'technical_parameters_EHDO.json')) as json_file:
+            jsonData = json.load(json_file)
+            for subData in jsonData:
+                self.params_ehdo_technical[subData["abbreviation"]] = {}
+                for subsubData in subData["specifications"]:
+                    self.params_ehdo_technical[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+
+        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
+            self.central_device_data = json.load(json_file)
 
     def select_plz_data(self, plz):
         """
@@ -558,14 +569,6 @@ class Datahandler:
 
         for building in self.district:
 
-            # %% load general building information
-            # contains definitions and parameters that affect all buildings
-            bldgs = {}
-            with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-                jsonData = json.load(json_file)
-                for subData in jsonData:
-                    bldgs[subData["name"]] = subData["value"]
-
             # %% create building energy system object
             # get capacities of all possible devices
             bes_obj = BES(physics=self.physics,
@@ -697,24 +700,9 @@ class Datahandler:
             adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
         if centralEnergySupply == False:
             for id in self.scenario["id"]:
-                if self.district[id]["buildingFeatures"]["EV"] != 0:
-                    adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
-                else:
-                    # no EV exists; but array with just zeros leads to problem while clustering
-                    adjProfiles[id]["car"] = np.zeros(lenghtArray)#\
-                        #self.district[id]["clusteringData"]["potentialEV"][0:lenghtArray] * sys.float_info.epsilon
-                if self.district[id]["buildingFeatures"]["PV"] != 0:
-                    adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
-                else:
-                    # no PV module installed; but array with just zeros leads to problem while clustering
-                    adjProfiles[id]["generationPV"] = \
-                        self.district[id]["clusteringData"]["potentialPV"][0:lenghtArray] * sys.float_info.epsilon
-                if self.district[id]["buildingFeatures"]["STC"] != 0:
-                    adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
-                else:
-                    # no STC installed; but array with just zeros leads to problem while clustering
-                    adjProfiles[id]["generationSTC"] = \
-                        self.district[id]["clusteringData"]["potentialSTC"][0:lenghtArray] * sys.float_info.epsilon
+                adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
+                adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
+                adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
 
         if centralEnergySupply == True:
             if self.centralDevices["capacities"]["power_kW"]["WT"] > 0:
@@ -800,9 +788,6 @@ class Datahandler:
         else:
             self.site["T_e_cluster"] = newProfiles[-1]
 
-
-
-
         # clusters
         self.clusters = []
         for i in range(len(y)):
@@ -823,9 +808,6 @@ class Datahandler:
         for c in self.clusters:
             self.clusterWeights[c] = len(self.clusterAssignments[c])
 
-        """self.clusteringCheck = {}
-        for c in self.clusters:
-            self.clusteringCheck[c] = sum(self.clusterAssignments[c])"""
 
     def saveDistrict(self):
         """

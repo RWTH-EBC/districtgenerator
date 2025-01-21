@@ -8,57 +8,30 @@ import os, json
 import gurobipy as gp
 import time
 
-def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath, optiData = {}):
+def run_opti_central(model, data, cluster, optiData={}):
 
     if optiData == {}:
         optiData["webtool"] = False
+
+    timeData = data.time
+    ecoData = data.ecoData
+    siteData = data.site
+    param_dec_devs = data.decentral_device_data
+    model_param_eh = data.params_ehdo_model
+    technical_param_eh = data.params_ehdo_technical
+    buildingData = data.district
+    energyHubData = data.centralDevices
 
     now = time.time()
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Setting up the model
     # number of buildings in neighborhood
     nb = len(buildingData)
-
-
-    ecoData = {}
-    timeData = {}
-    for data in ("eco", "time"):
-        with open(srcPath + "/data/" + data + "_data.json") as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if data == "eco":
-                    ecoData[subData["name"]] = subData["value"]
-                else:
-                    timeData[subData["name"]] = subData["value"]
     time_steps = range(int(timeData["clusterLength"] / timeData["timeResolution"]))
     dt = timeData["timeResolution"] / timeData["dataResolution"]
     last_time_step = len(time_steps) - 1
 
-    # load parameters of decentral energy conversion devices
-    param_dec_devs = {}
-    with open(srcPath + "/data/" + "decentral_device_data.json") as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            param_dec_devs[subData["abbreviation"]] = {}
-            for subsubData in subData["specifications"]:
-                param_dec_devs[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
-    # load parameters of central energy conversion devices
-    model_param_eh = {}
-    with open(srcPath + "/data/" + "model_parameters_EHDO.json") as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            model_param_eh[subData["name"]] = subData["value"]
-    technical_param_eh = {}
-    with open(srcPath + "/data/" + "technical_parameters_EHDO.json") as json_file:
-        jsonData = json.load(json_file)
-        for subData in jsonData:
-            technical_param_eh[subData["abbreviation"]] = {}
-            for subsubData in subData["specifications"]:
-                technical_param_eh[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
-
-    T_e = site["T_e_cluster"][cluster]  # ambient temperature [°C]
+    T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
     Q_DHW = {}      # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
     PV_gen = {}     # electricity generation of PV [W]
@@ -395,78 +368,41 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
                 model.addConstr(eh_soc[device][t] <= eh_cap[device] * 1000) # Wh
 
     #%% INPUT / OUTPUT CONSTRAINTS
-    if optiData["webtool"] == True:
-        for t in time_steps:
-            # todo: COP
-            # Electric heat pump
-            model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * eh_devs["eh_HP"]["COP"][t])
-            # Electric boiler
-            model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * eh_devs["eh_EB"]["eta_th"])
-            # Compression chiller
-            model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * eh_devs["eh_CC"]["COP"])
-            # Absorption chiller
-            model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * devs["AC"]["eta_th"])
-            # Gas CHP
-            model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * devs["CHP"]["eta_el"])
-            model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * devs["CHP"]["eta_th"])
-            # Gas boiler
-            model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * devs["BOI"]["eta_th"])
-            # Gas heat pump
-            model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * devs["GHP"]["COP"])
-            # Biomass CHP
-            model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * devs["BCHP"]["eta_el"])
-            model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * devs["BCHP"]["eta_th"])
-            # Biomass boiler
-            model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * devs["BBOI"]["eta_th"])
-            # Waste CHP
-            model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * devs["WCHP"]["eta_el"])
-            model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * devs["WCHP"]["eta_th"])
-            # Waste boiler
-            model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * devs["WBOI"]["eta_th"])
-            # Electrolyzer
-            model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * devs["ELYZ"]["eta_el"])
-            # Fuel cell
-            model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * devs["FC"]["eta_el"])
-            # Heat must be used
-            model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * devs["FC"]["eta_th"])
-            # Sabatier reactor
-            model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * devs["SAB"]["eta"])
-    else:
-        for t in time_steps:
-            # Electric heat pump
-            # todo: variable COP
-            model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * technical_param_eh["HP"]["COP"])
-            # Electric boiler
-            model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * technical_param_eh["EB"]["eta_th"])
-            # Compression chiller
-            model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * technical_param_eh["CC"]["COP"])
-            # Absorption chiller
-            model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * technical_param_eh["AC"]["eta_th"])
-            # Gas CHP
-            model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * technical_param_eh["CHP"]["eta_el"])
-            model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * technical_param_eh["CHP"]["eta_th"])
-            # Gas boiler
-            model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * technical_param_eh["BOI"]["eta_th"])
-            # Gas heat pump
-            model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * technical_param_eh["GHP"]["COP"])
-            # Biomass CHP
-            model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * technical_param_eh["BCHP"]["eta_el"])
-            model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * technical_param_eh["BCHP"]["eta_th"])
-            # Biomass boiler
-            model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * technical_param_eh["BBOI"]["eta_th"])
-            # Waste CHP
-            model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * technical_param_eh["WCHP"]["eta_el"])
-            model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * technical_param_eh["WCHP"]["eta_th"])
-            # Waste boiler
-            model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * technical_param_eh["WBOI"]["eta_th"])
-            # Electrolyzer
-            model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * technical_param_eh["ELYZ"]["eta_el"])
-            # Fuel cell
-            model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * technical_param_eh["FC"]["eta_el"])
-            # Heat must be used
-            model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * technical_param_eh["FC"]["eta_th"])
-            # Sabatier reactor
-            model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * technical_param_eh["SAB"]["eta"])
+    for t in time_steps:
+        # Electric heat pump
+        # todo: variable COP
+        model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * technical_param_eh["HP"]["COP"])
+        # Electric boiler
+        model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * technical_param_eh["EB"]["eta_th"])
+        # Compression chiller
+        model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * technical_param_eh["CC"]["COP"])
+        # Absorption chiller
+        model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * technical_param_eh["AC"]["eta_th"])
+        # Gas CHP
+        model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * technical_param_eh["CHP"]["eta_el"])
+        model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * technical_param_eh["CHP"]["eta_th"])
+        # Gas boiler
+        model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * technical_param_eh["BOI"]["eta_th"])
+        # Gas heat pump
+        model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * technical_param_eh["GHP"]["COP"])
+        # Biomass CHP
+        model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * technical_param_eh["BCHP"]["eta_el"])
+        model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * technical_param_eh["BCHP"]["eta_th"])
+        # Biomass boiler
+        model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * technical_param_eh["BBOI"]["eta_th"])
+        # Waste CHP
+        model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * technical_param_eh["WCHP"]["eta_el"])
+        model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * technical_param_eh["WCHP"]["eta_th"])
+        # Waste boiler
+        model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * technical_param_eh["WBOI"]["eta_th"])
+        # Electrolyzer
+        model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * technical_param_eh["ELYZ"]["eta_el"])
+        # Fuel cell
+        model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * technical_param_eh["FC"]["eta_el"])
+        # Heat must be used
+        model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * technical_param_eh["FC"]["eta_th"])
+        # Sabatier reactor
+        model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * technical_param_eh["SAB"]["eta"])
 
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -545,20 +481,22 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             model.addConstr(heat_dom["BOI"][n][t] == param_dec_devs["BOI"]["eta_th"] * gas_dom["BOI"][n][t],
                             name="boiler_energybalance_heating" + str(n) + "_" + str(t))
 
-#    for n in nodes:
-#        # balance for high temp heat generators
-#        model.addConstr(sum(heat_dom["EH"][n][t] + heat_dom["HP55"][n][t] + heat_dom["boiler"][n][t] + heat_dom["CHP"][n][t] for t in time_steps)
-#                            >= (55-35)/(55-15) * sum(nodes[n]["dhw"][:,idx][t] for t in time_steps), name="Dhw_high_temp_" + str(n) + "_" + str(t))
-
-
     # min and max storage level, charging and discharging
     for n in range(nb):
         for device in ecs_storage:
             for t in time_steps:
-                model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                name="max_ch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
-                model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
+                if device == "TES":
+                    model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
+                                    name="max_ch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
+                    model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
+                                    name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
+                else:
+                    model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"]
+                                    * binary[device][n][t],
+                                    name="max_ch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
+                    model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"]
+                                    * (1 - binary[device][n][t]),
+                                    name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
 
                 model.addConstr(soc_dom[device][n][t] <= param_dec_devs[device]["soc_max"] * buildingData[n]["capacities"][device],
                                 name="max_soc_bat_" + str(device) + "_" + str(n) + "_" + str(t))
@@ -584,20 +522,12 @@ def run_opti_central(model, buildingData, energyHubData, site, cluster, srcPath,
             if t == last_time_step:
                 model.addConstr(soc_dom[device][n][t] == soc_init[device][n])
 
-            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 1000000,
-                            name="Binary1_ev" + str(n) + "_" + str(t))
-            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 1000000,
-                            name="Binary2_ev" + str(n) + "_" + str(t))
-
             if buildingData[n]["buildingFeatures"]["ev_charging"] == "on_demand":
                 model.addConstr(ch_dom[device][n][t] >= EV_dem[n][t], name="res_power_ev")
                 model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
             else:
                 # Charging only possible when someone is at home
                 if occ[n][t] != 0:
-                    #if t == last_time_step:
-                    #    model.addConstr(ch_dom[device][n][t] <= nodes[n][device]["cap"])
-                    #else: model.addConstr(ch_dom[device][n][t] <= nodes[n]["ev_avail"][:,idx][t] * nodes[n][device]["max_ch_ev"])
                     if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
                         model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"])
                     else:

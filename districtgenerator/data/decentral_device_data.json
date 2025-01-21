@@ -9,6 +9,24 @@
       "value": 0.4 ,
       "unit": "-" ,
       "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
+    },
+        {
+      "name": "life_time",
+      "value": 18,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 1000,
+      "unit": "€/liter",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -35,6 +53,24 @@
       "value": 0.97 ,
       "unit": "-" ,
       "description": "Thermal efficiency."
+    },
+        {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 130,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -54,6 +90,24 @@
       "value": 0.30 ,
       "unit": "-" ,
       "description": "Electrical efficiency."
+    },
+        {
+      "name": "life_time",
+      "value": 15,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 3500,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -146,6 +200,24 @@
       "value": 220.0,
       "unit": "Watt per squaremeter",
       "description": "Reference power per squaremeter. Used for Battery sizing."
+    },
+        {
+      "name": "life_time",
+      "value": 25,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 340,
+      "unit": "€/m^2",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -177,6 +249,24 @@
       "value": 0.0000142,
       "unit": "Watt per squaremeter per Kelvin square",
       "description": "Second order efficiency. Quadratic thermal losses."
+    },
+        {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 400,
+      "unit": "€/m^2",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -227,6 +317,24 @@
       "value": 35,
       "unit": "degree Celsius",
       "description": "Maximum temperature difference. At a temperature difference of 35 degree the upper level temperature is 60 degree and the lower level temperature is 25 degree."
+    },
+    {
+      "name": "life_time",
+      "value": 15,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 20,
+      "unit": "€/liter",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -272,6 +380,24 @@
       "value": 0.5,
       "unit": "-",
       "description": "Initial state of charge."
+    },
+        {
+      "name": "life_time",
+      "value": 15,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 850,
+      "unit": "€/kWh",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
     }
   ]
   },
@@ -306,21 +432,52 @@
     },
         {
       "name": "coeff_ch",
-      "value": 0.6,
+      "value": 1.2,
       "unit": "Watt per Watthour",
       "description": "Charging and discharging coefficient."
-    },
-    {
-      "name": "ch_max",
-      "value": 11000.0,
-      "unit": "Watt",
-      "description": "Maximum charging power."
     },
     {
       "name": "init",
       "value": 0.5,
       "unit": "-",
       "description": "Initial state of charge."
+    },
+        {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 700,
+      "unit": "€/liter",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.05,
+      "unit": "percentage",
+      "description": ""
+    }
+  ]
+  },
+  {
+  "device": "Investment data",
+  "abbreviation": "inv_data",
+  "description": "Investment data of decentral devices",
+  "specifications": [
+    {
+      "name": "observation_time",
+      "value": 20,
+      "unit": "-",
+      "description": "observation time."
+    },
+    {
+      "name": "interest_rate",
+      "value": 0.05,
+      "unit": "-",
+      "description": "interest rate."
     }
   ]
   }

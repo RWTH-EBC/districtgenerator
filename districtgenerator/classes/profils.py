@@ -393,7 +393,7 @@ class Profiles:
 
         return gains
 
-    def generate_EV_profile(self, occ):
+    def generate_EV_profile(self, occ, size_ev_battery):
         """
         Generate profile for an electric vehicle (EV)
 
@@ -422,7 +422,7 @@ class Profiles:
                 # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
                 car_almost_arrives = array - int(array / 4)
             # calculate electricity demand of current day [Wh]
-            demand = max(0, rd.gauss(5000, 0.5 * 5000))
+            demand = min(size_ev_battery, max(0, rd.gauss(size_ev_battery, 0.5 * size_ev_battery)))
             # demand for the energy system at home just relevant with return of EV
             # assumption: just last return of the day is relevant, because EV is not connected at home between
             # first leave and last return of the day

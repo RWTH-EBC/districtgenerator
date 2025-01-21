@@ -25,17 +25,11 @@ import copy
 
 def load_params(data):
 
-    # TODO: Änderungen von Marius kontrollieren!
-    srcPath = os.path.dirname(os.path.abspath(__file__))
-
     result_dict = {}
-
     # import model parameters
-    param = copy.deepcopy(data.params_ehdo)
-
+    central_device_data = copy.deepcopy(data.central_device_data)
+    param = copy.deepcopy(data.params_ehdo_model)
     param_uncl = {}  # unclustered time series for weather data
-
-    path_input_data = "input_data"
 
     ################################################################
     # GENERAL PARAMETERS
@@ -148,11 +142,7 @@ def load_params(data):
     ################################################################
     # LOAD TECHNICAL PARAMETERS
 
-    with open(os.path.join(os.path.dirname(srcPath), 'data', 'central_device_data.json')) as json_file:
-        central_device_data = json.load(json_file)
-
     all_models = {}
-
     for key, value in central_device_data.items():
         all_models[key] = {
             "enabled": value.get("feasible", False),
@@ -325,7 +315,8 @@ def load_params(data):
 
         elif all_models["HeatPump"]["CSV_feasible"]:
             #try:
-                COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(srcPath), 'data', 'coefficient_of_performance.txt'))
+                COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data',
+                                                          'coefficient_of_performance.txt'))
                 # Cluster COP time series
                 COP_clustered = np.zeros((data.time["clusterNumber"], clusterHorizon))
                 for d in range(data.time["clusterNumber"]):

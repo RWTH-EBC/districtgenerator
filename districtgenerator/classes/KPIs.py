@@ -68,7 +68,7 @@ class KPIs:
         self.calculateEnergyExchangeWithinDistrict(data)
         self.calculateAutonomy()
         self.calculateCoverFactors(data)
-        self.calc_annual_cost_total(data.scenario)
+        self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
 
     def prepareData(self, data):
         """
@@ -262,21 +262,11 @@ class KPIs:
             self.scf_year += self.supplyCoverFactor[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                                                           / sum_ClusterWeights)
 
-    def calc_annual_cost_total(self, scenario):
-
-        optiData = {}
-        optiData["HP"] = {}
-        optiData["HP"]["cap"] = 20 # kW
-        optiData["HP"]["life_time"] = 15
-        optiData["HP"]["inv_var"] = 900 # €/kW
-        optiData["HP"]["cost_om"] = 0.05
-
-        optiData["param"] = {}
-        optiData["param"]["observation_time"] = 20
-        optiData["param"]["interest_rate"] = 0.05
+    def calc_annual_cost_total(self, scenario, decentral_device_data, district, physics):
 
         # Count occurrences of "BOI", "HP", and "CHP" in the 'heater' column
         heater_counts = scenario['heater'].value_counts()
+        heater_counts["TES"] = heater_counts.sum()
 
         # Sum the values in the 'PV', 'STC', 'EV', and 'BAT' columns
         heater_counts["PV"] = scenario['PV'].sum()
@@ -284,25 +274,42 @@ class KPIs:
         heater_counts["EV"] = scenario['EV'].sum()
         heater_counts["BAT"] = scenario['BAT'].sum()
 
-        calc_annual_investment = {}
-        for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT"]:
-            calc_annual_investment[dev] = {}
-            try:
-                if heater_counts[dev] > 0:
-                    calc_annual_investment[dev] = self.calc_annual_cost_device(optiData["HP"], optiData["param"])
-                else: calc_annual_investment[dev] = 0
-            except:
-                calc_annual_investment[dev] = 0
-                heater_counts[dev] = 0
+        capacities = {}
+        for n in range(len(district)):
+            capacities[n] = {}
+            capacities[n]["BOI"] = district[n]["capacities"]["BOI"] / 1000
+            capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
+            capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
+            capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
+            capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
+            capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
+            capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
+            capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
+                                    decentral_device_data["TES"]["T_diff_max"] * 3600)
 
-        self.annual_investment_total = calc_annual_investment["BOI"] * heater_counts["BOI"] \
-                                  + calc_annual_investment["HP"] * heater_counts["HP"] \
-                                  + calc_annual_investment["CHP"] * heater_counts["CHP"] \
-                                  + calc_annual_investment["PV"] * heater_counts["PV"] \
-                                  + calc_annual_investment["STC"] * heater_counts["STC"] \
-                                  + calc_annual_investment["EV"] * heater_counts["EV"] \
-                                  + calc_annual_investment["BAT"] * heater_counts["BAT"]
-    def calc_annual_cost_device(self, dev, param):
+        for n in range(len(district)):
+            calc_annual_investment = {}
+            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
+                calc_annual_investment[dev] = {}
+                try:
+                    if heater_counts[dev] > 0:
+                        calc_annual_investment[dev] = self.calc_annual_cost_device(decentral_device_data[dev],
+                                                                                decentral_device_data["inv_data"],
+                                                                                capacities[n][dev])
+                    else: calc_annual_investment[dev] = 0
+                except:
+                    calc_annual_investment[dev] = 0
+                    heater_counts[dev] = 0
+
+        self.annual_investment_total = (calc_annual_investment["BOI"] * heater_counts["BOI"]
+                                        + calc_annual_investment["HP"] * heater_counts["HP"]
+                                        + calc_annual_investment["CHP"] * heater_counts["CHP"]
+                                        + calc_annual_investment["PV"] * heater_counts["PV"]
+                                        + calc_annual_investment["STC"] * heater_counts["STC"]
+                                        + calc_annual_investment["EV"] * heater_counts["EV"]
+                                        + calc_annual_investment["BAT"] * heater_counts["BAT"]
+                                        + calc_annual_investment["BAT"] * heater_counts["BAT"])
+    def calc_annual_cost_device(self, dev, param, cap):
         """
         Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
 
@@ -354,7 +361,7 @@ class KPIs:
         # param["CRF"] = CRF
 
         # Total investment costs
-        inv = dev["inv_var"] * dev["cap"]
+        inv = dev["inv_var"] * cap
         # Annual investment costs
         c_inv= inv * ann_factor
         # Operation and maintenance costs
@@ -473,4 +480,4 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
-        self.calc_annual_cost_total(data.scenario)
+        self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
