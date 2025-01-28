@@ -1037,11 +1037,37 @@ class KPIs:
         certificate.drawString(85, height - 36 - 6, "Allgemeine Hinweise")
 
         # add information
-        terms = ["First Term", "Second Term", "Third Term"]
+        terms = ["Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierungsergebnisse"]
         details = [
-            "This text represents the details about the first term. It's a relatively long text, in order to test whether or not the text wrapping works as intended. With luck, the paragraph will continue into the next line while maintaining its format and will also determine the placement of the following term with its details.",
-            "This text provides details about the second term. It is shorter than the first text, but hopefully still long enough to wrap onto a second line.",
-            "This text provides details about the third term."
+            "Gebäude ID: Gebäudenummer zur Identifizierung \n"
+            "Gebäudetyp: SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, AB = Wohnblock \n"
+            "Baujahr: Baualtersklasse (vor 1969, )"
+            "Sanierung: 0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55"
+            "Wohnfläche: Nettoraumfläche in m²"
+            "Heizung: ausgewählter Wärmeerzeuger"
+            "PV: 0 = Photovoltaic nicht vorhanden, 1 = Photovoltaic vorhanden"
+            "STC: 0 = Solarthermie nicht vorhanden, 1 = Solarthermie vorhanden"
+            "EV:0 = Elektroauto nicht vorhanden, 1 = Elektroauto vorhanden"
+            "BAT:0 = Batteriespeicher nicht vorhanden, 1 = Betteriespeicher vorhanden"
+            "fTES: Größe des Pufferspeichers in Liter"
+            "fBAT: Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV"
+            "fEV: Größe des Batteriespeichers im Elektroauto in Wh"
+            "fPV: Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)"
+            "fSTC: Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)"
+            "gammaPV: Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°"
+            "EV Charging: Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)",
+            "Primärenergiebedarf: "
+            "Endenergiebedarf:"
+            "Norm-Heizlast insgesamt: Über alle Gebäude aufsummierte Norm-Heizlast nach DIN ..."
+            "Solltemperatur: Voreingestellte Solltemperatur für die Gebäude. Wird für die Berechnung der Wärmebedarfsprofile genutzt."
+            "Energiebedarfe (kWh): Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom und Trinkwarmwasser)"
+            "Maximale Leistungen: Maximale Leistungen in kW im Quartier auf Basis der aufsummierten Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)",
+            "CO2-äqui. Emissionen: Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten Betrieb (Gasbedarf und Strombedarf)"
+            "Energiekosten: Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der Betriebsoptimierung"
+            "Spitzenlast (el.) gesamt: Maximaler Strombezug des gesamten Quartiers aus übergeordnetem Stromnetz auf Basis der Betriebsoptimierung"
+            "Max. Einspeiseleistung gesamt: Maximale Stromeinspeisung des gesamten Quartiers in übergeordnetes Stromnetz auf Basis der Betriebsoptimierung"
+            "Supply-Cover-Faktor: Anteil des im Quartier erzeugten Stroms am gesamten elektrischen Energiebedarf (typischerweise Werte zwischen 0 und 1; >1 steht für ein 'Plus-Energie-Quartier', dass mehr Sotrm erzeugt, als es verbaucht)"
+            "Demand-Cover-Faktor: Anteil des Strombedarfs, der durch im Quartier erzeugten Strom gedeckt wird (Werte zwischen 0 und 1)"
             ]
 
         details_Style = ParagraphStyle('My Para style',
