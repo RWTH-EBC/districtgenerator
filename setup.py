@@ -10,7 +10,14 @@ setuptools.setup(name='districtgenerator',
                  author_email='joel.schoelzel@eonerc.rwth-aachen.de',
                  license='MIT License',
                  packages=setuptools.find_packages(),
-                 install_requires=['numpy', 'pandas', 'matplotlib', 'scipy',
-                                   'teaser', 'richardsonpy', 'pylightxl'],
+                 install_requires=[
+                     'numpy>=1.20.1',
+                     'pandas>=1.2.3',
+                     'matplotlib>=3.3.4',
+                     'scipy>=1.6.1',
+                     'teaser==0.7.7',
+                     'richardsonpy',
+                     'pylightxl'
+                 ],
                  classifiers=("Programming Language :: Python :: 3", ),
                  )
