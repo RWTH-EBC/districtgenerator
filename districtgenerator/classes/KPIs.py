@@ -5,6 +5,14 @@ import numpy as np
 import os
 import json
 import math
+import reportlab
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.graphics.shapes import *
+from reportlab.graphics.charts.piecharts import Pie
+from datetime import datetime
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.platypus import Paragraph
 
 class KPIs:
 
@@ -39,6 +47,9 @@ class KPIs:
         self.dcf_year = None
         self.scf_year = None
         self.annual_investment_total = None
+        self.totalarea = None
+        self.totalnumberflats = None
+        self.totalnumberocc = None
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -461,6 +472,25 @@ class KPIs:
         #    self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
         #                                                  / sum_ClusterWeights)
 
+    def calcareas(self, data):
+        """
+        Returns
+        -------
+        None.
+        """
+        total_net_leased_area = 0
+        total_number_flats = 0
+        total_number_occ = 0
+
+        for building in data.district:
+            total_net_leased_area += building["buildingFeatures"]["area"]
+            total_number_flats += building["user"].nb_flats
+            total_number_occ += building["user"].nb_occ
+
+        self.totalarea = total_net_leased_area
+        self.totalnumberflats = total_number_flats
+        self.totalnumberocc = total_number_occ
+
     def calculateAllKPIs(self, data):
         """
         Calculate all KPIs.
@@ -481,3 +511,647 @@ class KPIs:
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
+
+    def create_certificate(self, data, result_path):
+        """
+        Generate a certificate as PDF file with a list of KPIs and a list with building information.
+
+        Parameters:
+        - filename: The name of the PDF file to create.
+        - title: The title of the document.
+        - kpis: A list of strings, where each string is a KPI to be written in the document.
+        """
+
+        # preprocessing buildinglist
+        template_dict = {"Anzahl": 0,
+               "Gesamtfläche": 0,
+               "vor 1968": 0,
+               "1968-1978": 0,
+               "1979-1983": 0,
+               "1984-1994": 0,
+               "1995-2001": 0,
+               "2002-2009": 0,
+               "2010-2015": 0,
+               "ab 2016": 0,
+               }
+        SFH = dict(template_dict)
+        TH = dict(template_dict)
+        MFH = dict(template_dict)
+        AB = dict(template_dict)
+
+        for building in data.district:
+            if building["buildingFeatures"]["building"] == 'SFH':
+                SFH["Anzahl"] += 1
+                SFH["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    SFH["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    SFH["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    SFH["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    SFH["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    SFH["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    SFH["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    SFH["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    SFH["ab 2016"] += building["buildingFeatures"]["area"]
+            elif building["buildingFeatures"]["building"] == 'TH':
+                TH["Anzahl"] += 1
+                TH["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    TH["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    TH["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    TH["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    TH["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    TH["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    TH["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    TH["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    TH["ab 2016"] += building["buildingFeatures"]["area"]
+            elif building["buildingFeatures"]["building"] == 'MFH':
+                MFH["Anzahl"] += 1
+                MFH["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    MFH["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    MFH["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    MFH["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    MFH["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    MFH["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    MFH["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    MFH["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    MFH["ab 2016"] += building["buildingFeatures"]["area"]
+            elif building["buildingFeatures"]["building"] == 'AB':
+                AB["Anzahl"] += 1
+                AB["Gesamtfläche"] += building["buildingFeatures"]["area"]
+                if building["buildingFeatures"]["year"] < 1968:
+                    AB["vor 1968"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1968 and building["buildingFeatures"]["year"] <= 1978 :
+                    AB["1968-1978"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1979 and building["buildingFeatures"]["year"] <= 1983 :
+                    AB["1979-1983"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1984 and building["buildingFeatures"]["year"] <= 1994 :
+                    AB["1984-1994"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 1995 and building["buildingFeatures"]["year"] <= 2001 :
+                    AB["1995-2001"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2002 and building["buildingFeatures"]["year"] <= 2009:
+                    AB["2002-2009"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2010 and building["buildingFeatures"]["year"] <= 2015:
+                    AB["2010-2015"] += building["buildingFeatures"]["area"]
+                elif building["buildingFeatures"]["year"] >= 2016:
+                    AB["ab 2016"] += building["buildingFeatures"]["area"]
+
+        # create dicts to categorize KPIs and building information
+        # kennwerte: a dictionary with the following keys (in order, formatted as strings), and all values formatted as
+        #             strings with the corresponding units (unless otherwise specified):
+        #                 Primärenergiebedarf: primary energy demand of the district
+        #                 Endenergiebedarf: end energy demand of the district
+        #                 Norm-Heizlast insgesamt: the overall heat demand of the district
+        #                 Solltemperatur: set-point temperature of the buildings in the district
+        #                 Bedarfe: a TUPLE containing three values (float/int) for demands of electricity, heat, and water heating (in that order)
+        #                 Max. Leistungen: a TUPLE containing three values (float/int) for the maximum power of each energy type, in the order above
+        #
+        #             opt_ergebnisse: a dictionary with the following keys (in order, formatted as strings), and all values formatted
+        #             as strings with the corresponding units:
+        #                 CO2-äqui. Emissionen: CO2-equivalent emissions of the district
+        #                 Energiekosten: energy cost for the district
+        #                 Spitzenlast (el.) gesamt: peak load for the district
+        #                 Max. Einspeiseleistung gesamt: maximum feed-in power of the district
+        #                 Supply-Cover-Faktor: supply cover factor
+        #                 Demand-Cover-Faktor: demand cover factor
+        #
+        #             struktur: a dictionary with the following keys (in order, formatted as strings) and and all values formatted as
+        #             strings with the corresponding units (unless otherwise specified):
+        #                 EFH: a DICTIONARY containing the following keys and values pertaining to single-family homes in the district
+        #                 (keys formatted as strings, values formatted as strings including the relevant units):
+        #                     Anzahl: the number of buildings of this type in the district
+        #                     Gesamtfläche: the total floor space of these buildings (without unit!)
+        #                     vor 1968: the total floor space of the buildings of this type built before 1968, in m^2 (without unit in string!)
+        #                     1968-1979: the total floor space of the buildings of this type built between 1968 and 1979, in m^2 (without unit in string!)
+        #                     1979-1983: the total floor space of the buildings of this type built between 1979 and 1983, in m^2 (without unit in string!)
+        #                     1984-1994: the total floor space of the buildings of this type built between 1984 and 1994, in m^2 (without unit in string!)
+        #                     1995-2001: the total floor space of the buildings of this type built between 1995 and 2001, in m^2 (without unit in string!)
+        #                     2002-2009: the total floor space of the buildings of this type built between 2002 and 2009, in m^2 (without unit in string!)
+        #                     2010-2015: the total floor space of the buildings of this type built between 2010 and 2015, in m^2 (without unit in string!)
+        #                     ab 2016: the total floor space of the buildings of this type built since 2016, in m^2 (without unit in string!)
+        #                 MFH: a DICTIONARY formatted as specified above, with the values pertaining to multiple-family homes.
+        #                 Reihenhaus: a DICTIONARY formatted as specified above, with the values pertaining to townhouses.
+        #                 Block: a DICTIONARY formatted as specified above, with the values pertaining to block buildings.
+        #                 Wohnungen gesamt: number of households in the district
+        #                 Bewohner gesamt: number of residents in the district
+        #                 Nettowohnfläche gesamt: net living space in the district
+        #                 Standort (PLZ): the zip code of the district
+        #                 Testreferenzjahr: the reference year and reference weather conditions, formatted as "YYYY / warm"
+        #                 Quartiersname: the name of the district
+        #
+        #             gebaeudeliste: a two-dimensional list, with each index corresponding to a building ID and the list in each index containing the following values:
+        #                 building: SFH, MFH, Townhouse, or Block
+        #                 year: year of construction
+        #                 retrofit: 1 (yes) or 0 (no)
+        #                 area: floor space
+        #                 heater: type of heating
+        #                 PV:
+        #                 STC:
+        #                 EV:
+        #                 BAT:
+        #                 f_TES:
+        #                 f_BAT:
+        #                 f_EV:
+        #                 f_PV:
+        #                 f_STC:
+        #                 gamma_PV:
+        #                 ev_charging:
+        kennwerte={
+                # TODO: We don't have any primary factors for gas and electricity mix. Should be added?
+                "Primärenergiebedarf": "120 kWh/m\u00B2a",
+                # TODO: Discuss total final energy calculation and if a specific value would be better
+                "Endenergiebedarf": str(self.Gas_year + self.W_dem_GCP_year) + " kWh",  # /m\u00B2a",
+                "Norm-Heizlast insgesamt": str(self.totalheatload) + " kW",
+                "Solltemperatur": str(data.design_building_data["T_set_min"]) + " \u00B0C / " + str(
+                    data.design_building_data["T_set_min"]) + " \u00B0C",
+                "Bedarfe": (self.total_el_demand, self.total_heat_demand, self.total_dhw_demand),
+                "Max. Leistungen": (self.total_el_peak, self.total_heat_peak, self.total_dhw_peak)
+            }
+        opt_ergebnisse={
+                "CO2-äqui. Emissionen": str(self.co2emissions) + " t/a",
+                "Energiekosten": str(self.operationCosts) + " \u20AC/kWh",
+                "Spitzenlast (el.) gesamt": str(self.peakDemand) + " kW",
+                "Max. Einspeiseleistung gesamt": str(self.peakInjection) + " kW",
+                "Supply-Cover-Faktor": str(self.scf_year),
+                "Demand-Cover-Faktor": str(self.dcf_year)
+            }
+        struktur={
+                "EFH": SFH,
+                "MFH": MFH,
+                "Reihenhaus": TH,
+                "Block": AB,
+                "Wohnungen gesamt": self.totalnumberflats,
+                "Bewohner gesamt": self.totalnumberocc,
+                "Nettowohnfläche gesamt": str(self.totalarea) + " m\u00B2",
+                "Standort (PLZ)": str(data.site["PLZ"]),
+                "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
+                "Quartiersname": str(data.scenario_name)
+            }
+        gebaeudeliste=data.district
+
+        if result_path is None:
+            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            filename = os.path.join(src_path, "results", "Quartiersenergieausweis.pdf")
+        else:
+            filename = os.path.join(result_path, "Quartiersenergieausweis.pdf")
+
+        # initialize certificate
+        certificate = canvas.Canvas(filename, pagesize=reportlab.lib.pagesizes.A4)
+        width, height = reportlab.lib.pagesizes.A4
+
+        # draw line for header and add title
+        certificate.setStrokeColorRGB(54 / 256, 132 / 256, 39 / 256)
+        certificate.setLineWidth(4)
+        certificate.line(72, height - 60, width - 72, height - 60)
+        certificate.setFont("Helvetica-Bold", 20)
+        certificate.drawString(72, height - 50, "Quartiersenergieausweis")
+
+        # draw lines for first section and add section title
+        top1 = 90  # top of the section
+        bottom1 = 350  # bottom of the section
+
+        certificate.setStrokeColorRGB(54 / 256, 132 / 256, 39 / 256)
+        certificate.setLineWidth(2)
+        certificate.setLineCap(2)
+        certificate.line(72, height - top1, 78, height - top1)
+        certificate.line(277, height - top1, width - 72, height - top1)
+        certificate.line(72, height - top1, 72, height - bottom1)
+        certificate.line(72, height - bottom1, width - 72, height - bottom1)
+        certificate.line(width - 72, height - bottom1, width - 72, height - top1)
+        certificate.setFont("Helvetica-Bold", 16)
+        certificate.drawString(85, height - top1 - 6, "Energetische Kennwerte")
+
+        # do the same for the second section
+        top2 = 380
+        bottom2 = 700
+
+        certificate.line(72, height - top2, 78, height - top2)
+        certificate.line(223, height - top2, width - 72, height - top2)
+        certificate.line(72, height - top2, 72, height - bottom2)
+        certificate.line(72, height - bottom2, width - 72, height - bottom2)
+        certificate.line(width - 72, height - bottom2, width - 72, height - top2)
+        certificate.drawString(85, height - top2 - 6, "Quartiersstruktur")
+
+        # do the same for the final section
+        top3 = 730
+        bottom3 = 770
+
+        certificate.line(72, height - top3, width - 72, height - top3)
+        certificate.line(72, height - bottom3, width - 72, height - bottom3)
+        certificate.line(72, height - top3, 72, height - bottom3)
+        certificate.line(width - 72, height - top3, width - 72, height - bottom3)
+        certificate.setFont("Helvetica-Bold", 12)
+        certificate.drawString(85, height - ((top3 + bottom3) / 2) - 4, "Quartiersname: ")
+        certificate.setFont("Helvetica", 12)
+        certificate.drawString(177, height - ((top3 + bottom3) / 2) - 4, struktur["Quartiersname"])
+        today = datetime.now()
+        certificate.drawString(400, height - ((top3 + bottom3) / 2) - 4,
+                               "Erstellt am " + str(today.day) + "." + str(today.month) + "." + str(today.year))
+
+        # filling in the first section
+        # in the create_certificate function, the argument would be a dictionary of parameters and their values. this dictionary would be titled quartier_daten
+
+        certificate.setFont("Helvetica", 12)
+        content = tuple(kennwerte.keys())
+        values = tuple(kennwerte.values())
+        content = content[0:4]
+        values = values[0:4]
+
+        i = 0
+        for item in content:
+            certificate.drawString(85, height - top1 - 32 - (18 * i), item + ":")
+            i = i + 1
+
+        j = 0
+        for value in values:
+            certificate.drawString(240, height - top1 - 32 - (18 * j), str(value))
+            j = j + 1
+
+        bottom_kennwerte = top1 + 32 + 18 * j
+
+        # create a subsection for optimization results, fill in the values
+
+        certificate.setLineWidth(1)
+        certificate.setLineCap(2)
+        certificate.line(72, height - bottom_kennwerte, 325, height - bottom_kennwerte)
+        certificate.line(325, height - bottom_kennwerte, 325, height - bottom1)
+
+        certificate.setFont("Helvetica-Bold", 14)
+        certificate.drawString(85, height - bottom_kennwerte - 25, "Optimierungsergebnisse")
+
+        certificate.setFont("Helvetica", 12)
+        opt_keys = tuple(opt_ergebnisse.keys())
+        opt_values = tuple(opt_ergebnisse.values())
+
+        i = 0
+        for item in opt_keys:
+            certificate.drawString(85, height - bottom_kennwerte - 50 - (18 * i), item + ":")
+            i = i + 1
+
+        j = 0
+        for value in opt_values:
+            certificate.drawString(260, height - bottom_kennwerte - 50 - (18 * j), str(value))
+            j = j + 1
+
+        # create graphics for the energy demands and maximum powers by energy type
+        d = Drawing(300, 300)
+
+        pc = Pie()
+        pc.width = 90
+        pc.height = 90
+        pc.data = kennwerte["Bedarfe"]
+        pc.labels = ['Strom: ' + str(pc.data[0]), 'Wärme: ' + str(pc.data[1]), 'TWW: ' + str(pc.data[2]),'Kälte: '+str(pc.data[3])]
+
+        pc.slices.strokeWidth = 1
+        pc.slices.labelRadius = 1.5
+        pc.slices[3].labelRadius = 1.2
+        pc.slices.fontName = "Helvetica"
+        pc.slices.strokeColor = colors.white
+
+        pc.slices[0].fillColor = colors.Color(0 / 256, 85 / 256, 31 / 256)
+        pc.slices[1].fillColor = colors.Color(134 / 256, 169 / 256, 26 / 256)
+        pc.slices[2].fillColor = colors.Color(122 / 256, 186 / 256, 214 / 256)
+        pc.slices[3].fillColor = colors.Color(54 / 256, 132 / 256, 39 / 256)
+
+        d.add(pc)
+
+        d.drawOn(certificate,(width/2)+80,height-top1-130)
+
+        certificate.setFont("Helvetica-Bold", 14)
+        certificate.drawString(340, height - top1 - 20, "Energiebedarfe (kWh)")
+
+        max_leistungen = kennwerte["Max. Leistungen"]
+        leist_labels = ("Strom: ", "Wärme: ", "TWW: ","Kälte: ")
+
+        ML_top = 265
+
+        certificate.drawString(340, height - ML_top, "Maximale Leistungen")
+
+        certificate.setStrokeColorRGB(54 / 256, 132 / 256, 39 / 256)
+        certificate.setLineWidth(5)
+        certificate.setLineCap(2)
+        certificate.setFont("Helvetica", 12)
+
+        for i in range(len(max_leistungen)):
+            certificate.drawString(340, height - ML_top - 20 - (16 * i), leist_labels[i])
+            certificate.line(390, height - ML_top - 16 - (16 * i), 390 + (5 * max_leistungen[i]),
+                             height - ML_top - 16 - (16 * i))
+            certificate.drawString(400 + (5 * max_leistungen[i]), height - ML_top - 20 - (16 * i),
+                                   str(max_leistungen[i]) + " kW")
+
+        # create table in section 2
+        n_rows = 11
+        n_columns = 5
+        certificate.setStrokeColorRGB(0, 0, 0)
+        certificate.setLineWidth(1)
+        certificate.setLineCap(2)
+        table_top = height - top2 - 20
+        table_bottom = table_top - (18 * n_rows)
+        table_width = width - 180
+
+        for ii in range(n_rows + 1):
+            certificate.line(90, table_top - (18 * ii), width - 90, table_top - (18 * ii))
+
+        for jj in range(n_columns + 1):
+            certificate.line(90 + table_width * (jj / n_columns), table_top, 90 + table_width * (jj / n_columns),
+                             table_bottom)
+
+        # column titles
+        certificate.setFont("Helvetica-Bold", 11.5)
+        column_titles = ("Gebäudetyp", "EFH", "MFH", "Reihenhaus", "Block")
+        for i in range(5):
+            certificate.drawString(
+                90 + table_width * (i / n_columns) + (((table_width / 5) - len(column_titles[i]) * 6.8) / 2),
+                table_top - 14, column_titles[i])
+
+        # row titles
+        row_titles = tuple(struktur["EFH"].keys())
+
+        for i in range(len(row_titles)):
+            certificate.drawString(94 + (((table_width / 5) - len(row_titles[i]) * 6.8) / 2),
+                                   table_top - 14 - 18 - (18 * i), row_titles[i])
+
+        # fill in table values
+        certificate.setFont("Helvetica", 11.5)
+        EFH_values = tuple(struktur["EFH"].values())
+        MFH_values = tuple(struktur["MFH"].values())
+        RH_values = tuple(struktur["Reihenhaus"].values())
+        B_values = tuple(struktur["Block"].values())
+
+        certificate.drawString((table_width * 2 / 5) + (((table_width / 5) - (len(EFH_values[0]) - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, EFH_values[0])
+        certificate.drawString((table_width * 3 / 5) + (((table_width / 5) - (len(MFH_values[0]) - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, MFH_values[0])
+        certificate.drawString((table_width * 4 / 5) + (((table_width / 5) - (len(RH_values[0]) - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, RH_values[0])
+        certificate.drawString((table_width) + (((table_width / 5) - (len(B_values[0]) - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, B_values[0])
+
+        for i in range(1, len(EFH_values)):
+            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 12.3 - (len(EFH_values[i]) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), EFH_values[i])
+            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+                                   "m\u00B2")
+        for i in range(1, len(MFH_values)):
+            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 12.3 - (len(MFH_values[i]) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), MFH_values[i])
+            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+                                   "m\u00B2")
+        for i in range(1, len(RH_values)):
+            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 12.3 - (len(RH_values[i]) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), RH_values[i])
+            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+                                   "m\u00B2")
+        for i in range(1, len(B_values)):
+            certificate.drawString((table_width) + ((table_width / 5) / 2) + 12.3 - (len(B_values[i]) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), B_values[i])
+            certificate.drawString((table_width) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+                                   "m\u00B2")
+
+        # fill in the info under the table
+        certificate.setFont("Helvetica", 12)
+        struktur_keys = tuple(struktur.keys())
+        struktur_keys = struktur_keys[4:-1]
+        struktur_values = tuple(struktur.values())
+        struktur_values = struktur_values[4:-1]
+
+        i = 0
+        for item in struktur_keys:
+            certificate.drawString(185, table_bottom - 20 - (18 * i), item + ":")
+            i = i + 1
+
+        j = 0
+        for value in struktur_values:
+            certificate.drawString(350, table_bottom - 20 - (18 * j), str(value))
+            j = j + 1
+
+        # end first page, continue to next page
+        certificate.showPage()
+
+        # swap page orientation to landscape
+        certificate.setPageSize((height, width))
+        height, width = width, height
+
+        # create table
+        if len(gebaeudeliste) <= 26:
+            n_rows = len(gebaeudeliste) + 1
+        else:
+            n_rows = 27
+
+        n_columns = 17
+        certificate.setStrokeColorRGB(0, 0, 0)
+        certificate.setLineWidth(1)
+        certificate.setLineCap(2)
+        table_top = height - 54
+        table_bottom = table_top - (18 * n_rows)
+        table_width = width - 108
+        total_pages = (len(gebaeudeliste) // 26) + 1
+
+        if len(gebaeudeliste) % 26 == 0:
+            total_pages = total_pages - 1
+
+        if total_pages == 1:
+
+            for ii in range(n_rows + 1):
+                certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
+            for jj in range(n_columns + 1):
+                certificate.line(54 + table_width * (jj / n_columns), table_top, 54 + table_width * (jj / n_columns),
+                                 table_bottom)
+
+            # column titles
+            certificate.setFont("Helvetica-Bold", 6)
+            column_titles = (
+            "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Wohnfläche", "Heizung", "PV", "STC", "EV", "BAT",
+            "fTES", "fBAT", "fEV", "fPV", "fSTC", "gammaPV ", "EV Charging")
+            for i in range(len(column_titles)):
+                certificate.drawString(54 + table_width * (i / n_columns) + (
+                            ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
+                                       column_titles[i])
+
+            # add table values
+            certificate.setFont("Helvetica", 6)
+            for i in range(len(gebaeudeliste)):
+                certificate.drawString((table_width / 17) + (((table_width / 17) - (len(str(i))) * 3.2) / 2) + 10,
+                                       table_top - 11 - 18 - (18 * i), str(i))
+                for j in range(16):
+                    certificate.drawString((table_width * (j + 2) / 17) + (
+                                ((table_width / 17) - (len(str(gebaeudeliste[i][j]))) * 3.2) / 2) + 10,
+                                           table_top - 11 - 18 - (18 * i), str(gebaeudeliste[i][j]))
+
+                    # add border and title
+            certificate.setStrokeColorRGB(54 / 256, 132 / 256, 39 / 256)
+            certificate.setLineWidth(2)
+            certificate.setLineCap(2)
+            certificate.line(36, height - 36, 78, height - 36)
+            certificate.line(230, height - 36, width - 36, height - 36)
+            certificate.line(36, height - 36, 36, 36)
+            certificate.line(36, 36, width - 36, 36)
+            certificate.line(width - 36, 36, width - 36, height - 36)
+            certificate.setFont("Helvetica-Bold", 16)
+            certificate.drawString(85, height - 36 - 6, "Liste der Gebäude")
+
+        else:
+
+            for page in range(1, total_pages + 1, 1):
+
+                if page != total_pages or len(gebaeudeliste) % 26 == 0:
+                    for ii in range(n_rows + 1):
+                        certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
+                    for jj in range(n_columns + 1):
+                        certificate.line(54 + table_width * (jj / n_columns), table_top,
+                                         54 + table_width * (jj / n_columns), table_bottom)
+
+                    # add table values
+                    certificate.setFont("Helvetica", 6)
+                    for i in range(26):
+                        certificate.drawString((table_width / 17) + (
+                                    ((table_width / 17) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
+                                               table_top - 11 - 18 - (18 * i), str(i + (26 * (page - 1))))
+                        for j in range(16):
+                            certificate.drawString((table_width * (j + 2) / 17) + (((table_width / 17) - (
+                                len(str(gebaeudeliste[i + (26 * (page - 1))][j]))) * 3.2) / 2) + 10,
+                                                   table_top - 11 - 18 - (18 * i),
+                                                   str(gebaeudeliste[i + (26 * (page - 1))][j]))
+
+                elif page == total_pages:
+
+                    n_rows = len(gebaeudeliste) % 26 + 1
+                    table_bottom = table_top - (18 * n_rows)
+
+                    for ii in range(n_rows + 1):
+                        certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
+                    for jj in range(n_columns + 1):
+                        certificate.line(54 + table_width * (jj / n_columns), table_top,
+                                         54 + table_width * (jj / n_columns), table_bottom)
+
+                    # add table values
+                    certificate.setFont("Helvetica", 6)
+                    for i in range(n_rows - 1):
+                        certificate.drawString((table_width / 17) + (
+                                    ((table_width / 17) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
+                                               table_top - 11 - 18 - (18 * i), str(i + (26 * (page - 1))))
+                        for j in range(16):
+                            certificate.drawString((table_width * (j + 2) / 17) + (((table_width / 17) - (
+                                len(str(gebaeudeliste[i + (26 * (page - 1))][j]))) * 3.2) / 2) + 10,
+                                                   table_top - 11 - 18 - (18 * i),
+                                                   str(gebaeudeliste[i + (26 * (page - 1))][j]))
+
+                            # column titles
+                certificate.setFont("Helvetica-Bold", 6)
+                column_titles = (
+                "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Wohnfläche", "Heizung", "PV", "STC", "EV", "BAT",
+                "fTES", "fBAT", "fEV", "fPV", "fSTC", "gammaPV ", "EV Charging")
+                for i in range(len(column_titles)):
+                    certificate.drawString(54 + table_width * (i / n_columns) + (
+                                ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
+                                           column_titles[i])
+
+                # add border and title
+                certificate.setStrokeColorRGB(54 / 256, 132 / 256, 39 / 256)
+                certificate.setLineWidth(2)
+                certificate.setLineCap(2)
+                certificate.line(36, height - 36, 78, height - 36)
+                certificate.line(268, height - 36, width - 36, height - 36)
+                certificate.line(36, height - 36, 36, 36)
+                certificate.line(36, 36, width - 36, 36)
+                certificate.line(width - 36, 36, width - 36, height - 36)
+                certificate.setFont("Helvetica-Bold", 16)
+                certificate.drawString(85, height - 36 - 6,
+                                       "Liste der Gebäude (" + str(page) + "/" + str(total_pages) + ")")
+
+                certificate.showPage()
+
+        # end page, continue to next page
+        certificate.showPage()
+
+        # swap page orientation back to portrait
+        certificate.setPageSize((height, width))
+        height, width = width, height
+
+        # add border and title
+        certificate.setStrokeColorRGB(54 / 256, 132 / 256, 39 / 256)
+        certificate.setLineWidth(2)
+        certificate.setLineCap(2)
+        certificate.line(36, height - 36, 78, height - 36)
+        certificate.line(250, height - 36, width - 36, height - 36)
+        certificate.line(36, height - 36, 36, 36)
+        certificate.line(36, 36, width - 36, 36)
+        certificate.line(width - 36, 36, width - 36, height - 36)
+        certificate.setFont("Helvetica-Bold", 16)
+        certificate.drawString(85, height - 36 - 6, "Allgemeine Hinweise")
+
+        # add information
+        terms = ["Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierungsergebnisse"]
+        details = [
+            "Gebäude ID: Gebäudenummer zur Identifizierung \n"
+            "Gebäudetyp: SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, AB = Wohnblock \n"
+            "Baujahr: Baualtersklasse (vor 1969, )"
+            "Sanierung: 0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55"
+            "Wohnfläche: Nettoraumfläche in m²"
+            "Heizung: ausgewählter Wärmeerzeuger"
+            "PV: 0 = Photovoltaic nicht vorhanden, 1 = Photovoltaic vorhanden"
+            "STC: 0 = Solarthermie nicht vorhanden, 1 = Solarthermie vorhanden"
+            "EV:0 = Elektroauto nicht vorhanden, 1 = Elektroauto vorhanden"
+            "BAT:0 = Batteriespeicher nicht vorhanden, 1 = Betteriespeicher vorhanden"
+            "fTES: Größe des Pufferspeichers in Liter"
+            "fBAT: Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV"
+            "fEV: Größe des Batteriespeichers im Elektroauto in Wh"
+            "fPV: Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)"
+            "fSTC: Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)"
+            "gammaPV: Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°"
+            "EV Charging: Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)",
+            "Primärenergiebedarf: "
+            "Endenergiebedarf:"
+            "Norm-Heizlast insgesamt: Über alle Gebäude aufsummierte Norm-Heizlast nach DIN ..."
+            "Solltemperatur: Voreingestellte Solltemperatur für die Gebäude. Wird für die Berechnung der Wärmebedarfsprofile genutzt."
+            "Energiebedarfe (kWh): Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom und Trinkwarmwasser)"
+            "Maximale Leistungen: Maximale Leistungen in kW im Quartier auf Basis der aufsummierten Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)",
+            "CO2-äqui. Emissionen: Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten Betrieb (Gasbedarf und Strombedarf)"
+            "Energiekosten: Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der Betriebsoptimierung"
+            "Spitzenlast (el.) gesamt: Maximaler Strombezug des gesamten Quartiers aus übergeordnetem Stromnetz auf Basis der Betriebsoptimierung"
+            "Max. Einspeiseleistung gesamt: Maximale Stromeinspeisung des gesamten Quartiers in übergeordnetes Stromnetz auf Basis der Betriebsoptimierung"
+            "Supply-Cover-Faktor: Anteil des im Quartier erzeugten Stroms am gesamten elektrischen Energiebedarf (typischerweise Werte zwischen 0 und 1; >1 steht für ein 'Plus-Energie-Quartier', dass mehr Sotrm erzeugt, als es verbaucht)"
+            "Demand-Cover-Faktor: Anteil des Strombedarfs, der durch im Quartier erzeugten Strom gedeckt wird (Werte zwischen 0 und 1)"
+            ]
+
+        details_Style = ParagraphStyle('My Para style',
+                                       fontName='Helvetica',
+                                       fontSize=10,
+                                       alignment=0,
+                                       leftIndent=20,
+                                       firstLineIndent=-20
+                                       )
+
+        term_height = height - 72
+
+        for i in range(len(terms)):
+            p = Paragraph("<b>" + terms[i] + ":</b> " + details[i], details_Style)
+            p.wrap(width - 144, term_height)
+            num_lines = len(p.blPara.lines)
+            term_height = term_height - num_lines * 10
+            p.drawOn(certificate, 72, term_height)
+            term_height = term_height - 15
+
+        # save certificate
+        certificate.save()
