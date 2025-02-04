@@ -18,7 +18,7 @@ def example2_generate_environment():
     data = Datahandler()
 
     # Next we generate the environment of the district
-    data.generateEnvironment(plz="52062")
+    data.generateEnvironment()
 
     ### =====================================  Output  ===================================== ###
     # Based on the location of the district the environment includes outside temperatures and

@@ -41,7 +41,7 @@ def example6_individual_district():
     data = Datahandler()
 
     # Generate Environment for the District
-    data.generateEnvironment(plz="52062")
+    data.generateEnvironment()
 
     # Initialize Buildings to the District
     data.initializeBuildings(scenario_name="example")

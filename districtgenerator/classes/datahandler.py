@@ -159,11 +159,6 @@ class Datahandler:
         """
         Select the closest TRY weather station for the location of the postal code.
 
-        Parameters
-        ----------
-        plz: string
-            Postal code of the district generated.
-
         Returns
         -------
         weatherdatafile_location: int
@@ -199,7 +194,7 @@ class Datahandler:
             """
             # weatherdatafile_location = 507755060854
 
-    def generateEnvironment(self, plz):
+    def generateEnvironment(self):
         """
         Load physical district environment - site and weather.
 
@@ -213,8 +208,6 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
-
-        self.site["zip"] = plz
         self.select_plz_data()
         # load weather data
         # select the correct file depending on the TRY weather station location
@@ -494,7 +487,7 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True, plz="52064",
+    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
                                  saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
@@ -510,8 +503,6 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        plz: string
-            Postal code of the district
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenProfiles: bool, optional
@@ -530,7 +521,7 @@ class Datahandler:
         """
 
         self.initializeBuildings(scenario_name)
-        self.generateEnvironment(plz=plz)
+        self.generateEnvironment()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
