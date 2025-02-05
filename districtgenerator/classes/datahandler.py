@@ -215,7 +215,7 @@ class Datahandler:
         self.select_plz_data()
         # load weather data
         # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
+        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
             + "\\"
             + self.site["TRYYear"] + "_"
             + str(self.site["Location"]) + "_" + str(self.site["TRYType"])
