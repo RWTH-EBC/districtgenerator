@@ -15,7 +15,7 @@ def example8_scenario_evaluation():
     data = Datahandler(scenario_name = "example")
 
     data.initializeBuildings()
-    data.generateEnvironment(plz="52064")
+    data.generateEnvironment()
     data.generateBuildings()
     data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)
 

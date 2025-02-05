@@ -22,5 +22,11 @@
     "value": "Wint",
     "unit": "-",
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
+  },
+  {
+    "name": "zip",
+    "value": "52064",
+    "unit": "-",
+    "description": "Zip code of the location."
   }
 ]

@@ -155,14 +155,9 @@ class Datahandler:
         with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
             self.central_device_data = json.load(json_file)
 
-    def select_plz_data(self, plz):
+    def select_plz_data(self):
         """
         Select the closest TRY weather station for the location of the postal code.
-
-        Parameters
-        ----------
-        plz: string
-            Postal code of the district generated.
 
         Returns
         -------
@@ -176,9 +171,9 @@ class Datahandler:
             sheet = workbook.active
 
             for row in sheet.iter_rows(values_only=True):
-                if plz == str(row[0]):
+                if self.site["zip"] == str(row[0]):
                     weatherdatafile = row[3]
-                    weatherdatafile_location = weatherdatafile[8:-9]
+                    self.site["Location"] = weatherdatafile[8:-9]
                     break
             else:
                 # If postal code cannot be found: Message and select weather data file from Aachen
@@ -188,7 +183,8 @@ class Datahandler:
         except Exception as e:
             # If postal code cannot be found: Message and select weathter data file from Aachen
             print("Postal code cannot be found, location changed to Aachen")
-            weatherdatafile_location = 507755060854
+            self.site["zip"] = "52064"
+            self.site["Location"] = 507755060854
             """  
                 Add new weatherdatafile_location, if you want an individual location: 
                 Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
@@ -198,9 +194,7 @@ class Datahandler:
             """
             # weatherdatafile_location = 507755060854
 
-        return weatherdatafile_location
-
-    def generateEnvironment(self, plz):
+    def generateEnvironment(self):
         """
         Load physical district environment - site and weather.
 
@@ -214,12 +208,13 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
 
+        self.select_plz_data()
         # load weather data
         # select the correct file depending on the TRY weather station location
         weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"] + "er")
             + "\\"
             + self.site["TRYYear"] + "_"
-            + str(self.select_plz_data(plz)) + "_" + str(self.site["TRYType"])
+            + str(self.site["Location"]) + "_" + str(self.site["TRYType"])
             + ".dat",
             skiprows=first_row - 1)
 
@@ -272,7 +267,7 @@ class Datahandler:
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
         # Filter data for the specific zip code
-        filtered_data = site_data[site_data['Zip'] == plz]
+        filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
 
         # extract the needed values
         self.site["altitude"] = filtered_data.iloc[0]['Altitude']
@@ -476,7 +471,7 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, plz="52064",
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
                                  saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
@@ -491,8 +486,6 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        plz: string
-            Postal code of the district
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenProfiles: bool, optional
@@ -511,7 +504,7 @@ class Datahandler:
         """
 
         self.initializeBuildings()
-        self.generateEnvironment(plz=plz)
+        self.generateEnvironment()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
