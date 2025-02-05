@@ -841,7 +841,7 @@ class Datahandler:
         """
 
         # initialize plots and prepare data for plotting
-        demandPlots = DemandPlots()
+        demandPlots = DemandPlots(resultPath=self.resultPath)
         demandPlots.preparePlots(self)
 
         # check which resolution for plots is used
