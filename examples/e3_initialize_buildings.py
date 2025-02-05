@@ -14,22 +14,13 @@ from districtgenerator.classes import *
 def example3_initialize_buildings():
 
     # Initialize District
-    data = Datahandler()
+    data = Datahandler(scenario_name = "example")
 
     # Generate Environment for the District
     data.generateEnvironment(plz="52062")
 
-    # We initialize the buildings of the district. As input the name of a scenario file is required.
-    # In this example we use the existing example-file example.csv with two buildings.
-    # This file contains the basic information about the buildings: building type, construction year, retrofit level
-    # and floor area. This file is the only required input that the user must provide.
-    # The following four building types can be used: Single-family house (SFH), multi-family house (MFH),
-    # apartment block (AB) and terraced house (TH). Important to note that the abbreviations must be entered.
-    # The retrofit level can be 0 (original construction state), 1 (Retrofit according to EnEV 2016)
-    # or 2 (Retrofit according to KfW 55).
-    # The construction year can be chosen between 1860 and 2024.
-    # The floor area can be freely selected.
-    data.initializeBuildings(scenario_name="example")
+    # We initialize the buildings of the district.
+    data.initializeBuildings()
 
     ### =====================================  Output  ===================================== ###
     # The district consists of a list of two buildings with id 0 and 1 (see "data.district").
