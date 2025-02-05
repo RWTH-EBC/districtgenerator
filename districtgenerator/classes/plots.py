@@ -12,7 +12,7 @@ class DemandPlots:
     Class to generate plots of energy consumption and generation.
     """
 
-    def __init__(self):
+    def __init__(self, resultPath = None):
         """
         Constructor of DemandPlots class.
         Load economical and ecological data to compute costs and CO2 emissions.
