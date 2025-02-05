@@ -236,12 +236,6 @@ class Datahandler:
         [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
             [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
 
-        # %% load time information and requirements
-        # needed for data conversion into the right time format
-        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.time[subData["name"]] = subData["value"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # load the holidays
@@ -296,7 +290,7 @@ class Datahandler:
                                         diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
 
-    def initializeBuildings(self, scenario_name='example'):
+    def initializeBuildings(self):
         """
         Fill district with buildings from scenario file.
 
@@ -312,11 +306,6 @@ class Datahandler:
         duration = datetime.timedelta(minutes=1)
         num_sfh = 0
         num_mfh = 0
-        self.scenario_name = scenario_name
-        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                    + "/"
-                                    + self.scenario_name + ".csv",
-                                    header=0, delimiter=";")
 
         # initialize buildings for scenario
         # loop over all buildings
@@ -349,11 +338,7 @@ class Datahandler:
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings
-        bldgs = {}
-        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                bldgs[subData["name"]] = subData["value"]
+        bldgs = self.design_building_data
 
         # %% create TEASER project
         # create one project for the whole district
@@ -361,7 +346,6 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-
 
             # convert short names into designation needed for TEASER
             building_type = \
@@ -487,15 +471,14 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
                                  saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
         Parameters
         ----------
-        scenario_name: string, optional
-            Name of scenario file to be read. The default is 'example'.
+
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
@@ -520,7 +503,7 @@ class Datahandler:
         None.
         """
 
-        self.initializeBuildings(scenario_name)
+        self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
