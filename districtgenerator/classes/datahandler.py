@@ -46,7 +46,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None):
+    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
         """
         Constructor of Datahandler class.
 
@@ -70,6 +70,12 @@ class Datahandler:
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
+
+        if scenario_file_path is not None:
+            self.scenario_file_path = scenario_file_path
+        else:
+            self.scenario_file_path = os.path.join(self.filePath, 'scenarios')
+
         if resultPath is not None:
             self.resultPath = resultPath
         else:
@@ -102,9 +108,7 @@ class Datahandler:
                 self.time[subData["name"]] = subData["value"]
 
         # %% load scenario file with building information
-        self.scenario = pd.read_csv(os.path.join(self.filePath, 'scenarios')
-                                    + "/"
-                                    + self.scenario_name + ".csv",
+        self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
 
         # %% load general building information
