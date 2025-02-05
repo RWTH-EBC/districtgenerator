@@ -364,7 +364,9 @@ class Datahandler:
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                                     area=building["buildingFeatures"]["area"],
+                                     year_of_construction=building["buildingFeatures"]["year"],
+                                     retrofit=building["buildingFeatures"]["retrofit"])
 
             # %% calculate design heat loads
             # at norm outside temperature

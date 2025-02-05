@@ -105,8 +105,11 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
     # weight and will be clustered equally in terms of quality 
     for i in range(inputs.shape[0]):
         vals = inputs[i, :]
-        temp = ((vals - np.min(vals)) / (np.max(vals) - np.min(vals))
-                * math.sqrt(weights[i]))
+        if np.max(vals) == np.min(vals):
+            temp = np.zeros_like(vals)
+        else:
+            temp = ((vals - np.min(vals)) / (np.max(vals) - np.min(vals))
+                    * math.sqrt(weights[i]))
         inputsScaled.append(temp)
         inputsScaledTransformed.append(temp.reshape((len_day, num_periods), order="F"))
         inputsTransformed.append(vals.reshape((len_day, num_periods), order="F"))
@@ -155,7 +158,8 @@ def cluster(inputs, number_clusters=12, len_day=24, norm=2, time_limit=300, mip_
     sums_inputs = [np.sum(inputs[j, :]) for j in range(inputs.shape[0])]
     scaled = np.array([nc[day] * typicalDays[day, :, :]
                        for day in range(number_clusters)])
-    sums_scaled = [np.sum(scaled[:, j, :]) for j in range(inputs.shape[0])]
+    sums_scaled = [np.sum(scaled[:, j, :]) if not np.sum(scaled[:, j, :]) == 0 else 1
+                   for j in range(inputs.shape[0])]
     scaling_factors = [sums_inputs[j] / sums_scaled[j]
                        for j in range(inputs.shape[0])]
     scaled_typ_days = [scaling_factors[j] * typicalDays[:, j, :]

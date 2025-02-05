@@ -1,7 +1,7 @@
 [
     {
         "name": "timeResolution",
-        "value": 1200,
+        "value": 3600,
         "unit": "sec",
         "description" : "Required time resolution. Feel free to change this value. Tip: 3600 refers to an hourly resolution. 900 to a 15min resolution."
     },

@@ -242,13 +242,13 @@ class Profiles:
         self.occ_profile_building = occ_profile_building_main_part
         max_value = max(occ_profile_building_main_part)
         timesteps_per_Day = int(86400 / self.time_resolution)
-        # Assume that from 10:00 to 16:00, the occupancy in  the building is equal to the maximum number of occupants
+        # Assume that from 10:00 to 15:00, the occupancy in  the building is equal to the maximum number of occupants
         # in occ_profile_building_main_part, since occ_profile_building_main_part only considers people in main rooms.
         # If the occupants are not in the main room,they may be in the toilet or kitchen, i.e. they are still in the building.
 
         for day in range(self.nb_days):
             start_index = int(day * timesteps_per_Day + 10 * timesteps_per_Day / 24)  # 10 AM
-            end_index = int(day * timesteps_per_Day + 16 * timesteps_per_Day / 24)  # 4 PM
+            end_index = int(day * timesteps_per_Day + 15 * timesteps_per_Day / 24)  # 3 PM
             for i in range(start_index, end_index):
                 if self.occ_profile_building[i] != 0:
                     self.occ_profile_building[i] = max_value
@@ -530,10 +530,10 @@ class Profiles:
 
             occ_profile_building_part = occ_profile
 
-            # Assume that from 10:00 to 16:00, the occupancy in the assumed part of the building is equal to the maximum number of occupants
+            # Assume that from 10:00 to 15:00, the occupancy in the assumed part of the building is equal to the maximum number of occupants
             # in occ_profile, since occ_profile only considers people in main rooms. If people are not in the main room,
             # they may be in the toilet or kitchen, i.e. they are still in this part of the building.
-            occ_profile_building_part[int(10*timesteps_per_Day/24) : int(16*timesteps_per_Day/24)] = [max_value] * int(6*timesteps_per_Day/24)
+            occ_profile_building_part[int(10*timesteps_per_Day/24) : int(15*timesteps_per_Day/24)] = [max_value] * int(5*timesteps_per_Day/24)
 
             # Extract current occupancy profile for current day
             # (10-minutes-timestep assumed)

@@ -10,18 +10,18 @@
         "g_gl_fen": 0.87
       },
           "partially retrofitted": {
-            "u_aw": 1.4,
+            "u_aw": 0.6,
             "u_fen": 1.44,
-            "u_d_opak": 0.5,
-            "u_ug": 0.8,
-            "g_gl_fen": 0.78
+            "u_d_opak": 2.1,
+            "u_ug": 1.5,
+            "g_gl_fen": 0.67
         },
           "completely retrofitted": {
             "u_aw": 0.6,
             "u_fen": 1.44,
             "u_d_opak": 0.5,
             "u_ug": 0.8,
-            "g_gl_fen": 0.78
+            "g_gl_fen": 0.67
           }
       },
       "1979 - 2009": {
@@ -33,17 +33,17 @@
         "g_gl_fen": 0.78
       },
         "partially retrofitted": {
-        "u_aw": 1,
+        "u_aw": 0.28,
         "u_fen": 1.44,
-        "u_d_opak": 0.5,
-        "u_ug": 0.8,
-        "g_gl_fen": 0.78
+        "u_d_opak": 1,
+        "u_ug": 1,
+        "g_gl_fen": 0.67
         },
         "completely retrofitted": {
-        "u_aw": 0.6,
-        "u_fen": 0.86,
-        "u_d_opak": 0.5,
-        "u_ug": 0.8,
+        "u_aw": 0.28,
+        "u_fen": 1.44,
+        "u_d_opak": 0.2,
+        "u_ug": 0.35,
         "g_gl_fen": 0.67
           }
       },
@@ -56,11 +56,11 @@
       "g_gl_fen": 0.67
       },
       "partially retrofitted": {
-      "u_aw": 0.6,
-      "u_fen": 1.44,
-      "u_d_opak": 0.2,
-      "u_ug": 0.35,
-      "g_gl_fen": 0.67
+      "u_aw": 0.28,
+      "u_fen": 0.86,
+      "u_d_opak": 0.5,
+      "u_ug": 0.8,
+      "g_gl_fen": 0.50
       },
       "completely retrofitted": {
       "u_aw": 0.28,
@@ -83,18 +83,18 @@
         "g_gl_fen": 0.87
       },
           "partially retrofitted": {
-            "u_aw": 1.4,
+            "u_aw": 0.6,
             "u_fen": 1.44,
-            "u_d_opak": 0.5,
-            "u_ug": 0.8,
-            "g_gl_fen": 0.78
+            "u_d_opak": 2.1,
+            "u_ug": 1.5,
+            "g_gl_fen": 0.67
         },
           "completely retrofitted": {
             "u_aw": 0.6,
             "u_fen": 1.44,
             "u_d_opak": 0.5,
             "u_ug": 0.8,
-            "g_gl_fen": 0.78
+            "g_gl_fen": 0.67
           }
       },
       "1979 - 2009": {
@@ -106,17 +106,17 @@
         "g_gl_fen": 0.78
       },
         "partially retrofitted": {
-        "u_aw": 1,
+        "u_aw": 0.28,
         "u_fen": 1.44,
-        "u_d_opak": 0.5,
-        "u_ug": 0.8,
-        "g_gl_fen": 0.78
+        "u_d_opak": 1,
+        "u_ug": 1,
+        "g_gl_fen": 0.67
         },
         "completely retrofitted": {
-        "u_aw": 0.6,
-        "u_fen": 0.86,
-        "u_d_opak": 0.5,
-        "u_ug": 0.8,
+        "u_aw": 0.28,
+        "u_fen": 1.44,
+        "u_d_opak": 0.2,
+        "u_ug": 0.35,
         "g_gl_fen": 0.67
           }
       },
@@ -129,11 +129,11 @@
       "g_gl_fen": 0.67
       },
       "partially retrofitted": {
-      "u_aw": 0.6,
-      "u_fen": 1.44,
-      "u_d_opak": 0.2,
-      "u_ug": 0.35,
-      "g_gl_fen": 0.67
+      "u_aw": 0.28,
+      "u_fen": 0.86,
+      "u_d_opak": 0.5,
+      "u_ug": 0.8,
+      "g_gl_fen": 0.50
       },
       "completely retrofitted": {
       "u_aw": 0.28,
@@ -156,18 +156,18 @@
         "g_gl_fen": 0.87
       },
           "partially retrofitted": {
-            "u_aw": 1.4,
+            "u_aw": 0.6,
             "u_fen": 1.44,
-            "u_d_opak": 0.5,
-            "u_ug": 0.8,
-            "g_gl_fen": 0.78
+            "u_d_opak": 2.1,
+            "u_ug": 1.5,
+            "g_gl_fen": 0.67
         },
           "completely retrofitted": {
             "u_aw": 0.6,
             "u_fen": 1.44,
             "u_d_opak": 0.5,
             "u_ug": 0.8,
-            "g_gl_fen": 0.78
+            "g_gl_fen": 0.67
           }
       },
       "1979 - 2009": {
@@ -179,17 +179,17 @@
         "g_gl_fen": 0.78
       },
         "partially retrofitted": {
-        "u_aw": 1,
+        "u_aw": 0.28,
         "u_fen": 1.44,
-        "u_d_opak": 0.5,
-        "u_ug": 0.8,
-        "g_gl_fen": 0.78
+        "u_d_opak": 1,
+        "u_ug": 1,
+        "g_gl_fen": 0.67
         },
         "completely retrofitted": {
-        "u_aw": 0.6,
-        "u_fen": 0.86,
-        "u_d_opak": 0.5,
-        "u_ug": 0.8,
+        "u_aw": 0.28,
+        "u_fen": 1.44,
+        "u_d_opak": 0.2,
+        "u_ug": 0.35,
         "g_gl_fen": 0.67
           }
       },
@@ -202,11 +202,11 @@
       "g_gl_fen": 0.67
       },
       "partially retrofitted": {
-      "u_aw": 0.6,
-      "u_fen": 1.44,
-      "u_d_opak": 0.2,
-      "u_ug": 0.35,
-      "g_gl_fen": 0.67
+      "u_aw": 0.28,
+      "u_fen": 0.86,
+      "u_d_opak": 0.5,
+      "u_ug": 0.8,
+      "g_gl_fen": 0.50
       },
       "completely retrofitted": {
       "u_aw": 0.28,

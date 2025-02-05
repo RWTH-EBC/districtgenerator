@@ -1,66 +1,190 @@
-[
-    {
-        "type": "LED",
-        "model": "High Bay LED",
-        "luminous_flux": 18000,
-        "luminous_flux_unit": "lm",
-        "power": 150,
-        "power_unit": "W"
-    },
-    {
-        "type": "LED",
-        "model": "LED Panel Light",
-        "luminous_flux": 3200,
-        "luminous_flux_unit": "lm",
-        "power": 40,
-        "power_unit": "W"
-    },
-    {
-        "type": "Fluorescent",
-        "model": "T8 Fluorescent Tube",
-        "luminous_flux": 2800,
-        "luminous_flux_unit": "lm",
-        "power": 32,
-        "power_unit": "W"
-    },
-    {
-        "type": "Fluorescent",
-        "model": "T5 Fluorescent Tube",
-        "luminous_flux": 3300,
-        "luminous_flux_unit": "lm",
-        "power": 28,
-        "power_unit": "W"
-    },
-    {
-        "type": "HID",
-        "model": "High-Pressure Sodium",
-        "luminous_flux": 14000,
-        "luminous_flux_unit": "lm",
-        "power": 100,
-        "power_unit": "W"
-    },
-    {
-        "type": "HID",
-        "model": "Metal Halide Lamp",
-        "luminous_flux": 15000,
-        "luminous_flux_unit": "lm",
-        "power": 100,
-        "power_unit": "W"
-    },
-    {
-        "type": "CFL",
-        "model": "Compact Fluorescent Lamp",
-        "luminous_flux": 1600,
-        "luminous_flux_unit": "lm",
-        "power": 23,
-        "power_unit": "W"
-    },
-    {
-        "type": "LED",
-        "model": "Aisle Shelf LED Strip",
-        "luminous_flux": 600,
-        "luminous_flux_unit": "lm",
-        "power": 8,
-        "power_unit": "W"
-    }
-]
+{
+    "combi_1": [
+        {
+            "type": "Fluorescent",
+            "model": "T8 Fluorescent Tube",
+            "luminous_flux": 2800,
+            "luminous_flux_unit": "lm",
+            "power": 32,
+            "power_unit": "W"
+        },
+        {
+            "type": "Fluorescent",
+            "model": "T8 Fluorescent Tube",
+            "luminous_flux": 2800,
+            "luminous_flux_unit": "lm",
+            "power": 32,
+            "power_unit": "W"
+        },
+        {
+            "type": "Fluorescent",
+            "model": "T8 Fluorescent Tube",
+            "luminous_flux": 2800,
+            "luminous_flux_unit": "lm",
+            "power": 32,
+            "power_unit": "W"
+        },
+        {
+            "type": "Fluorescent",
+            "model": "T5 Fluorescent Tube",
+            "luminous_flux": 3300,
+            "luminous_flux_unit": "lm",
+            "power": 28,
+            "power_unit": "W"
+        },
+        {
+            "type": "HID",
+            "model": "Metal Halide Lamp",
+            "luminous_flux": 15000,
+            "luminous_flux_unit": "lm",
+            "power": 100,
+            "power_unit": "W"
+        },
+        {
+            "type": "CFL",
+            "model": "Compact Fluorescent Lamp",
+            "luminous_flux": 1600,
+            "luminous_flux_unit": "lm",
+            "power": 23,
+            "power_unit": "W"
+        },
+        {
+            "type": "CFL",
+            "model": "Compact Fluorescent Lamp",
+            "luminous_flux": 1600,
+            "luminous_flux_unit": "lm",
+            "power": 23,
+            "power_unit": "W"
+        },
+        {
+            "type": "LED",
+            "model": "LED Panel Light",
+            "luminous_flux": 3200,
+            "luminous_flux_unit": "lm",
+            "power": 40,
+            "power_unit": "W"
+        },
+        {
+            "type": "LED",
+            "model": "LED Panel Light",
+            "luminous_flux": 3200,
+            "luminous_flux_unit": "lm",
+            "power": 40,
+            "power_unit": "W"
+        },
+        {
+            "type": "Incandescent",
+            "model": "Standard Incandescent Bulb",
+            "luminous_flux": 800,
+            "luminous_flux_unit": "lm",
+            "power": 60,
+            "power_unit": "W"
+        },
+        {
+            "type": "Incandescent",
+            "model": "Standard Incandescent Bulb",
+            "luminous_flux": 800,
+            "luminous_flux_unit": "lm",
+            "power": 60,
+            "power_unit": "W"
+        },
+        {
+            "type": "Halogen",
+            "model": "Halogen Spotlight",
+            "luminous_flux": 1600,
+            "luminous_flux_unit": "lm",
+            "power": 70,
+            "power_unit": "W"
+        },
+        {
+            "type": "Halogen",
+            "model": "Halogen Spotlight",
+            "luminous_flux": 1600,
+            "luminous_flux_unit": "lm",
+            "power": 70,
+            "power_unit": "W"
+        }
+    ],
+    "combi_2": [
+        {
+            "type": "LED",
+            "model": "LED Panel Light",
+            "luminous_flux": 3200,
+            "luminous_flux_unit": "lm",
+            "power": 40,
+            "power_unit": "W"
+        },
+        {
+            "type": "LED",
+            "model": "LED Panel Light",
+            "luminous_flux": 3200,
+            "luminous_flux_unit": "lm",
+            "power": 40,
+            "power_unit": "W"
+        },
+        {
+            "type": "LED",
+            "model": "LED Panel Light",
+            "luminous_flux": 3200,
+            "luminous_flux_unit": "lm",
+            "power": 40,
+            "power_unit": "W"
+        },
+        {
+            "type": "LED",
+            "model": "Aisle Shelf LED Strip",
+            "luminous_flux": 600,
+            "luminous_flux_unit": "lm",
+            "power": 8,
+            "power_unit": "W"
+        },
+        {
+            "type": "Fluorescent",
+            "model": "T5 Fluorescent Tube",
+            "luminous_flux": 3300,
+            "luminous_flux_unit": "lm",
+            "power": 28,
+            "power_unit": "W"
+        },
+        {
+            "type": "Fluorescent",
+            "model": "T5 Fluorescent Tube",
+            "luminous_flux": 3300,
+            "luminous_flux_unit": "lm",
+            "power": 28,
+            "power_unit": "W"
+        },
+        {
+            "type": "Fluorescent",
+            "model": "T5 Fluorescent Tube",
+            "luminous_flux": 3300,
+            "luminous_flux_unit": "lm",
+            "power": 28,
+            "power_unit": "W"
+        },
+        {
+            "type": "OLED",
+            "model": "OLED Panel Light",
+            "luminous_flux": 2500,
+            "luminous_flux_unit": "lm",
+            "power": 30,
+            "power_unit": "W"
+        },
+        {
+            "type": "OLED",
+            "model": "OLED Panel Light",
+            "luminous_flux": 2500,
+            "luminous_flux_unit": "lm",
+            "power": 30,
+            "power_unit": "W"
+        },
+        {
+            "type": "HID",
+            "model": "Metal Halide Lamp",
+            "luminous_flux": 15000,
+            "luminous_flux_unit": "lm",
+            "power": 100,
+            "power_unit": "W"
+        }
+    ]
+}

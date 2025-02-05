@@ -60,7 +60,7 @@ class Users:
         Heat demand for each building.
     """
 
-    def __init__(self, building, area):
+    def __init__(self, building, area, year_of_construction, retrofit):
         """
         Constructor of Users class.
 
@@ -101,7 +101,7 @@ class Users:
         self.generate_annual_el_consumption_residential()
         self.generate_annual_app_el_consumption_non_residential(area)  # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
 
-        self.generate_lighting_index(area)
+        self.generate_lighting_index(area, year_of_construction, retrofit)
         self.create_el_wrapper()
 
     def generate_number_flats_and_rooms(self, area):
@@ -377,7 +377,7 @@ class Users:
                                 i += 1
                         self.annual_el_demand_zones[zone_name] = annual_el_demand_zone
 
-    def generate_lighting_index(self, area):
+    def generate_lighting_index(self, area, year_of_construction, retrofit):
         """
         Choose a random lighting index between 0 and 99 for the residential buildings.
         This index defines the lighting configuration of the household.
@@ -391,6 +391,12 @@ class Users:
 
         Parameters
         ----------
+        area : float
+            The area of the building in square meters.
+        year_of_construction : int
+            The year the building was constructed.
+        retrofit : str
+            Indicates whether the building is retrofitted or not
         room_illuminance : int
             The needed illuminance for the rooms in lux (Source: DIN EN 12464-1)
         lm_needed : float
@@ -405,66 +411,49 @@ class Users:
         -------
         None.
         """
-        file_name = "LightBulbs_residential.json" if self.building in {"SFH", "TH", "MFH","AB"} else "LightBulbs_nonresidential.json"
-
-        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data',
-                               file_name)) as json_file:
-            jsonData = json.load(json_file)
-            luminous_flux = []  # The luminous flux of the different available bulbs in lumen
-            power = []  # The corresponding power of the different available bulbs in watt
-            for light in jsonData:
-                luminous_flux.append(light["luminous_flux"])
-                power.append(light["power"])
 
         if self.building in {"SFH","TH","MFH","AB"}:
             for j in range(self.nb_flats):
                 random_nb = rd.random()
                 self.lighting_index.append(int(random_nb * 100))
 
-        elif self.building in {"OB"}:
-            for j in range(self.nb_rooms):
-                room_illuminance =rd.randint(300, 750)
+        else:
+            file_name = "LightBulbs_nonresidential.json"
+            # If the building was constructed before the year 2000 and has not been retrofitted
+            # (indicated by `retrofit == 0`), select "combi_1" as the bulb configuration.
+            if year_of_construction < 2000 and retrofit == 0:
+                bulbs_combination =  "combi_1"
+            # For buildings constructed in or after the year 2000, or for buildings that have been retrofitted
+            # (indicated by any value other than 0 for `retrofit`), select "combi_2" as the bulb configuration.
+            else:
+                bulbs_combination = "combi_2"
 
-                room_area = area/self.nb_rooms
+            try:
+                with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data',
+                                   file_name)) as json_file:
+                    jsonData = json.load(json_file)
+            except FileNotFoundError:
+                print(f"Error: File '{file_name}' not found.")
+                return
+
+            # Process data for different building types
+            selected_combination = jsonData.get(bulbs_combination, [])
+            illuminance_range = {
+                "OB": (300, 650),
+                "School": (300, 500),
+                "Grocery_store": (500, 750),
+            }
+
+            for _ in range(self.nb_rooms):
+                room_illuminance = rd.randint(*illuminance_range[self.building])
+                room_area = area / self.nb_rooms
                 lm_needed = room_illuminance * room_area
                 total_lm = 0
                 selected_lamps = []
 
-                # Install random bulbs as long as the required luminous flux has not yet been reached
+                # Install random bulbs as long as the required luminous flux has not yet been reached.
                 while total_lm < lm_needed:
-                    lamp = rd.choice(jsonData)
-                    selected_lamps.append(lamp)
-                    total_lm += lamp["luminous_flux"]
-                    self.bulbs_power.append(lamp["power"])
-
-        elif self.building in {"School"}:
-            for j in range(self.nb_rooms):
-                room_illuminance =rd.randint(300, 750)
-
-                room_area = area/self.nb_rooms
-                lm_needed = room_illuminance * room_area
-                total_lm = 0
-                selected_lamps = []
-
-                # Install random bulbs as long as the required luminous flux has not yet been reached
-                while total_lm < lm_needed:
-                    lamp = rd.choice(jsonData)
-                    selected_lamps.append(lamp)
-                    total_lm += lamp["luminous_flux"]
-                    self.bulbs_power.append(lamp["power"])
-
-        elif self.building in {"Grocery_store"}:
-            for j in range(self.nb_rooms):
-                room_illuminance =rd.randint(500, 750)
-
-                room_area = area/self.nb_rooms
-                lm_needed = room_illuminance * room_area
-                total_lm = 0
-                selected_lamps = []
-
-                # Install random bulbs as long as the required luminous flux has not yet been reached
-                while total_lm < lm_needed:
-                    lamp = rd.choice(jsonData)
+                    lamp = rd.choice(selected_combination)
                     selected_lamps.append(lamp)
                     total_lm += lamp["luminous_flux"]
                     self.bulbs_power.append(lamp["power"])

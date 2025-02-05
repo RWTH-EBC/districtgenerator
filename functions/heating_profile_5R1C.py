@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Script to generate heating and cooling demands sccording to DIN EN ISO 13790.
+Script to generate heating and cooling demands according to DIN EN ISO 13790.
 """
 
 from __future__ import division
@@ -217,9 +217,9 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
 
     timesteps_per_day = numberTimesteps / 365  # Calculate timesteps per day
     if building_type in {"SFH", "TH", "MFH", "AB"}:
-        night_hours = list(range(22, 24)) + list(range(0, 5))  # 22:00 to 04:59
+        night_hours = list(range(22, 24)) + list(range(0, 6))  # 22:00 to 05:59 Source: E. Sperber et al. (2024), Turn down your thermostats – A contribution to overcoming the European gas crisis? The example of Germany
     else:
-        night_hours = list(range(18, 24)) + list(range(0, 6))  # 22:00 to 05:59
+        night_hours = list(range(18, 24)) + list(range(0, 6))  # 18:00 to 05:59
 
     for t in range(numberTimesteps):
 

@@ -8,7 +8,7 @@ Data for the U-values of the Non-Residential Buildings is taken from: Behrooz Ba
 
 For the retrofitting of buildings, there are three options based on the extent of improvements:
     Not retrofitted: The building remains in its original condition; no part of the building has been upgraded for energy efficiency.
-    Partially retrofitted: Includes renovations to the basement ceiling, windows, and roof only.
+    Partially retrofitted: Includes renovations to the walls and windows only. This assumption regarding partial retrofitting is based on the findings of Murray et al. (2019), Optimal transformation strategies for buildings, neighbourhoods and districts to reach CO₂ emission reduction targets (https://doi.org/10.1016/j.enbuild.2019.109569).
     Fully retrofitted: Includes renovations to all parts of the building, such as the basement ceiling, windows, roof, and walls.
 
 
@@ -39,7 +39,7 @@ g_value for windows is obtained from Tabula and the following classes:
 
 | German Description (TABULA Window Model)          | Explanation in English                                                        |
 |---------------------------------------------------|-------------------------------------------------------------------------------|
-| Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.78.                      |
+| Fenster-Holzfenster, einfach                      | Wooden window, single-glazed; g-value of 0.87.                                |
 | Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.78.                      |
 | Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.67.                      |
 | Fenster mit Wärmeschutzverglasung (dreifach)      | Window with triple heat-protection glazing; g-value of 0.50.                  |

@@ -20,26 +20,22 @@ class LightingModelConfiguration():
 
     def __init__(self,
                  external_irradiance_threshold=[60, 10],
-                 calibration_scalar=0.00915368639667705,
+                 calibration_scalar=0.025,
                  effective_occupancy=[0,
                                       1,
                                       1.52814569536424,
                                       1.69370860927152,
                                       1.98344370860927,
-                                      2.09437086092715,
-                                      2.22464198472047,
-                                      2.32898657989554,
-                                      2.41937397956308,
-                                      2.49910131639889],
-                 lighting_event_lower_value=[1, 2, 3, 5, 9, 17, 28, 50, 92],
-                 lighting_event_upper_value=[1, 2, 4, 8, 16, 27, 49, 91, 259]):
+                                      2.09437086092715],
+                 lighting_event_lower_value=[2, 15, 60, 120, 180, 300],
+                 lighting_event_upper_value=[4, 60, 90, 150, 240, 360]):
         """
         Constructor of lighting class object instance
 
         Parameters
         ----------
         external_irradiance_threshold : list, optional
-            List holding house external global irradiance threshold values
+            List holding building external global irradiance threshold values
             in W/m2 [index 0: mean value; index 1: standard deviation value]
             (default: [60, 10])
         calibration_scalar : float, optional
@@ -63,7 +59,7 @@ class LightingModelConfiguration():
             (default: [1, 2, 4, 8, 16, 27, 49, 91, 259])
         """
 
-        # House external global irradiance threshold
+        # External global irradiance threshold
         self.ext_irr_threshold_mean = external_irradiance_threshold[0]
         self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
 
@@ -83,7 +79,7 @@ class LightingModelConfiguration():
     def relative_bulb_use_weighting(self):
         """
         This represents the concept that some bulbs are used more
-        frequently than others in a house.
+        frequently than others in a building.
 
         The return value is [-ln(random_variable)]
 
@@ -116,7 +112,7 @@ def run_lighting_simulation(vOccupancyArray, vBulbArray, vIrradianceArray,
     # Instantiate LightingModelConfiguration (with standard values)
     #    light_mod_config = LightingModelConfiguration()
 
-    # Determine the irradiance threshold of this house
+    # Determine the irradiance threshold of this Building
     iIrradianceThreshold = random.gauss(
         light_mod_config.ext_irr_threshold_mean,
         light_mod_config.ext_irr_threshold_std_dev)
@@ -160,8 +156,8 @@ def run_lighting_simulation(vOccupancyArray, vBulbArray, vIrradianceArray,
                     random.random() < 0.05))
 
             # Get the effective occupancy for this number of active occupants to allow for sharing
-            if iActiveOccupants > 9:
-                iActiveOccupants = 9
+            if iActiveOccupants > 5:
+                iActiveOccupants = 5
 
             fEffectiveOccupancy = light_mod_config.eff_occupancy[
                 iActiveOccupants]
@@ -177,9 +173,9 @@ def run_lighting_simulation(vOccupancyArray, vBulbArray, vIrradianceArray,
                 cml = 0
 
                 j = 1
-                while j <= 9:
+                while j <= 6:
                     # Get the cumulative probability of this duration
-                    cml = j / 9  # Equally distributed probabilities
+                    cml = j / 6  # Equally distributed probabilities
 
                     # Check to see if this is the type of light
                     if r1 < cml:
