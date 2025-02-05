@@ -12,7 +12,7 @@ class DemandPlots:
     Class to generate plots of energy consumption and generation.
     """
 
-    def __init__(self):
+    def __init__(self, resultPath = None):
         """
         Constructor of DemandPlots class.
         Load economical and ecological data to compute costs and CO2 emissions.
@@ -23,7 +23,10 @@ class DemandPlots:
         """
 
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.resultPath = os.path.join(self.srcPath, 'results')
+        if resultPath is not None:
+            self.resultPath = resultPath
+        else:
+            self.resultPath = os.path.join(self.srcPath, 'results')
 
     def preparePlots(self, data):
         """
@@ -358,7 +361,7 @@ class DemandPlots:
                     stamp = '_D' + strDate + 'T' + strTime
                 else:
                     stamp = ''
-                plt.savefig(os.path.join(self.resultPath, 'plots') +  plotType + '_' + plotResolution + stamp,
+                plt.savefig(os.path.join(self.resultPath, 'plots/') + plotType + '_' + plotResolution + stamp,
                             dpi=300, bbox_inches="tight")
 
             if show:
@@ -401,7 +404,7 @@ class DemandPlots:
                     stamp = '_D' + strDate + 'T' + strTime
                 else:
                     stamp = ''
-                plt.savefig(os.path.join(self.resultPath, 'plots') + plotType + '_' + plotResolution + stamp,
+                plt.savefig(os.path.join(self.resultPath, 'plots/') + plotType + '_' + plotResolution + stamp,
                             dpi=300, bbox_inches="tight")
             if show:
                 plt.show()

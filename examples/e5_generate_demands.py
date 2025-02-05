@@ -16,13 +16,13 @@ import matplotlib.pyplot as plt
 def example5_generate_demands():
 
     # Initialize District
-    data = Datahandler()
+    data = Datahandler(scenario_name = "example")
 
     # Generate Environment for the District
     data.generateEnvironment()
 
     # Initialize Buildings to the District
-    data.initializeBuildings(scenario_name="example")
+    data.initializeBuildings()
 
     # Generate a more detailed Building
     data.generateBuildings()
@@ -57,7 +57,7 @@ def exemplary_plot(data):
     heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
 
     # Create a dataframe that contains the timestamps
-    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='15T')
+    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='15min')
     df = pd.DataFrame(heat, index=date_range, columns=['Value'])
 
     # Aggregate the data on a monthly basis (totalled value per month)

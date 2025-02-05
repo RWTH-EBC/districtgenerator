@@ -12,10 +12,10 @@ from districtgenerator.classes import *
 def example8_scenario_evaluation():
 
     # Initialize District
-    data = Datahandler()
+    data = Datahandler(scenario_name = "example")
 
-    data.initializeBuildings(scenario_name='example')
-    data.generateEnvironment(plz="52064")
+    data.initializeBuildings()
+    data.generateEnvironment()
     data.generateBuildings()
     data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)
 
