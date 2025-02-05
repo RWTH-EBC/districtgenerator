@@ -13,13 +13,13 @@ from districtgenerator.classes import *
 
 def example4_generate_buildings():
     # Initialize District
-    data = Datahandler()
+    data = Datahandler(scenario_name = "example")
 
     # Generate Environment for the District
     data.generateEnvironment()
 
     # Initialize Buildings to the District
-    data.initializeBuildings(scenario_name="example")
+    data.initializeBuildings()
 
     # Next we generate more information and add them to the building models.
     # To do this we use the TEASER tool. This tool returns more detailed information about an archetype building
