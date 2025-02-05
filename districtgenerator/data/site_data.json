@@ -19,7 +19,7 @@
   },
   {
     "name": "TRYType",
-    "value": "Wint",
+    "value": "Jahr",
     "unit": "-",
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   },
