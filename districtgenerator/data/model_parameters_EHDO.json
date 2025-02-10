@@ -176,6 +176,25 @@
         "unit": "MWh/year",
         "description" : "Maximum available waste."
     },
+        {
+        "name": "supply_limit_gas",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum available gas."
+    },
+    {
+        "name": "enable_supply_limit_gas",
+        "value": "False",
+        "unit": "-",
+        "description" : "Enable limit annual gas import."
+    },
+    {
+        "name": "peak_dem_met_conv",
+        "value": "True",
+        "unit": "-",
+        "description" : "Meet peak demands of unclustered demands"
+    },
+
 
 
 

@@ -883,7 +883,7 @@ class Datahandler:
 
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster, centralEnergySupply)
-            results_temp = self.optimizer.run_cen_opti(optiData)
+            results_temp = self.optimizer.run_cen_opti()
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)

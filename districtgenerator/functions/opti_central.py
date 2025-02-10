@@ -8,10 +8,8 @@ import os, json
 import gurobipy as gp
 import time
 
-def run_opti_central(model, data, cluster, optiData={}):
+def run_opti_central(model, data, cluster):
 
-    if optiData == {}:
-        optiData["webtool"] = False
 
     timeData = data.time
     ecoData = data.ecoData
@@ -684,37 +682,22 @@ def run_opti_central(model, data, cluster, optiData={}):
     # %% OBJECTIVE FUNCTIONS
     # select the objective function based on input parameters
     ### Total operational costs
-    if optiData["webtool"] == True:
-        model.addConstr(operational_costs == from_grid_total_el * optiData["C_dem_electricity"]
-                                            - to_grid_total_el * optiData["C_feed_electricity"]
-                                            + from_grid_total_gas * optiData["C_dem_gas"]
-                                            + from_grid_total_hydrogen * optiData["price_hydrogen"]
-                                            + total_biomass_used * optiData["price_biomass"]
-                                            + total_waste_used * optiData["price_waste"]
-                                            , name="Total_amount_operational_costs")
-    else:
-        model.addConstr(operational_costs == from_grid_total_el * ecoData["C_dem_electricity"]
-                                            - to_grid_total_el * ecoData["C_feed_electricity"]
-                                            + from_grid_total_gas * ecoData["C_dem_gas"]
+    model.addConstr(operational_costs == from_grid_total_el * model_param_eh["price_supply_el"]
+                                            - to_grid_total_el * model_param_eh["revenue_feed_in_el"]
+                                            + from_grid_total_gas * model_param_eh["price_supply_gas"]
                                             + from_grid_total_hydrogen * model_param_eh["price_hydrogen"]
                                             + total_biomass_used * model_param_eh["price_biomass"]
                                             + total_waste_used * model_param_eh["price_waste"]
-                                            ,name="Total_amount_operational_costs")
+                                            , name="Total_amount_operational_costs")
 
     # Emissions
-    if optiData["webtool"] == True:
-        model.addConstr(co2_total == from_grid_total_el * optiData["Emi_elec"]
-                                    + from_grid_total_gas * optiData["Emi_gas"]
-                                    + from_grid_total_hydrogen * optiData["Emi_hydrogen"]
-                                    + total_biomass_used * optiData["Emi_biomass"]
-                                    + total_waste_used * optiData["Emi_waste"]
+    model.addConstr(co2_total == from_grid_total_el * model_param_eh["co2_el_grid"]
+                                    + from_grid_total_gas * model_param_eh["co2_gas"]
+                                    + from_grid_total_hydrogen * model_param_eh["co2_hydrogen"]
+                                    + total_biomass_used * model_param_eh["co2_waste"]
+                                    + total_waste_used * model_param_eh["co2_biom"]
                                     , name="Total_amount_emissions")
-    else:
-        model.addConstr(co2_total == from_grid_total_el * ecoData["Emi_elec"]
-                                    + from_grid_total_gas * ecoData["Emi_gas"]
-                                    + from_grid_total_hydrogen * model_param_eh["price_hydrogen"]
-                                    + total_biomass_used * model_param_eh["price_biomass"]
-                                    + total_waste_used * model_param_eh["price_waste"])
+
 
     # daily peaks
     for d in days:
@@ -722,13 +705,11 @@ def run_opti_central(model, data, cluster, optiData={}):
     model.addConstr(peaksum == sum(daily_peak[d] for d in days))
 
     # Set objective
-    if optiData["webtool"] == True:
-        if optiData["obj"] == "costs":
-            model.addConstr(obj == operational_costs + peaksum * 1)
-        elif optiData["obj"] == "co2_total":
-            model.addConstr(obj == co2_total + peaksum * 1)
-    else:
+    if model_param_eh["optim_focus"] == 0:
         model.addConstr(obj == operational_costs + peaksum * 1)
+    elif model_param_eh["optim_focus"] == 1:
+        model.addConstr(obj == co2_total + peaksum * 1)
+
 
     # Carry out optimization
     model.optimize()
