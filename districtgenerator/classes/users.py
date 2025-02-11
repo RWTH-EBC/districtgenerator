@@ -129,7 +129,10 @@ class Users:
 
         if self.building == "SFH":
             # choose random number of occupants (1-5) for single family houses  (assumption)
-            probabilities = (0.245114, 0.402323, 0.154148, 0.148869, 0.049623) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a single-family house, assuming a maximum of 5 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # Probabilities of having 1, 2, 3, 4 or 5 occupants in a single-family house, assuming a maximum of 5 occupants.
+            # Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html
+            #          https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            probabilities = (0.245114, 0.402323, 0.154148, 0.148869, 0.049623)
             # loop over all flats of current single family house
             for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
@@ -140,10 +143,16 @@ class Users:
                         self.nb_occ.append(j)  # minimum is 1 occupant
                         break
                     j += 1
+                else:
+                    # Fallback in case no condition matched (due to floating-point issues)
+                    self.nb_occ.append(5)
 
         elif self.building == "TH":
             # choose random number of occupants (1-5) for terraced houses  (assumption)
-            probabilities = (0.236817, 0.400092, 0.157261, 0.154371, 0.051457) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a terraced house, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # Probabilities of having 1, 2, 3, 4 or 5 occupants in a terraced house, assuming a maximum of 5 occupants.
+            # Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html
+            #          https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            probabilities = (0.236817, 0.400092, 0.157261, 0.154371, 0.051457)
             # loop over all flats of current terraced house
             for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
@@ -154,10 +163,16 @@ class Users:
                         self.nb_occ.append(j)  # minimum is 1 occupant
                         break
                     j += 1
+                else:
+                    # Fallback in case no condition matched (due to floating-point issues)
+                    self.nb_occ.append(5)
 
         elif self.building == "MFH":
             # choose random number of occupants (1-5) for each flat in the multi family house  (assumption)
-            probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 5 occupants.
+            # Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html
+            #          https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805)
             # loop over all flats of current multi family house
             for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
@@ -168,10 +183,16 @@ class Users:
                         self.nb_occ.append(j)  # minimum is 1 occupant
                         break
                     j += 1
+                else:
+                    # Fallback in case no condition matched (due to floating-point issues)
+                    self.nb_occ.append(5)
 
         elif self.building == "AB":
             # choose random number of occupants (1-5) for each flat in the apartment block  (assumption)
-            probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805) # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 4 occupants. Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html and https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            # Probabilities of having 1, 2, 3, 4 or 5 occupants in a flat, assuming a maximum of 5 occupants.
+            # Sources: https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-mietwohnungen.html
+            #          https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Wohnen/Tabellen/tabelle-wo2-eigentuemerwohnungen.html
+            probabilities = (0.490622, 0.307419, 0.101949, 0.074417, 0.024805)
             # loop over all flats of current apartment block
             for k in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
@@ -182,6 +203,9 @@ class Users:
                         self.nb_occ.append(j)  # minimum is 1 occupant
                         break
                     j += 1
+                else:
+                    # Fallback in case no condition matched (due to floating-point issues)
+                    self.nb_occ.append(5)
 
 
     def generate_annual_el_consumption(self):
