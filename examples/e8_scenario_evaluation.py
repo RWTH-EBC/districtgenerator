@@ -19,7 +19,7 @@ def example8_scenario_evaluation():
     data.generateBuildings()
     data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)
 
-    centralEnergySupply = False
+    centralEnergySupply = True
     # Sizing of the selected devices
     if centralEnergySupply == True:
         data.designCentralDevices(saveGenerationProfiles=False)

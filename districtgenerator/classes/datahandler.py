@@ -149,13 +149,6 @@ class Datahandler:
             for subData in jsonData:
                 self.ecoData[subData["name"]] = subData["value"]
 
-        with open(os.path.join(self.filePath, 'technical_parameters_EHDO.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.params_ehdo_technical[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.params_ehdo_technical[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
         with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
             self.central_device_data = json.load(json_file)
 

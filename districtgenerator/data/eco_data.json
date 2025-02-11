@@ -1,38 +1,68 @@
 [
     {
-        "name": "C_dem_electricity",
-        "value": 0.4573,
-        "unit": "EUR/kWh",
-        "description" : "Price for 1 kWh electricity"
+        "name": "price_supply_el",
+        "value": 0.32,
+        "unit": "€/kWh",
+        "description" : "Electricity price."
     },
     {
-        "name": "C_feed_electricity",
+        "name": "revenue_feed_in_el",
         "value": 0.0811,
         "unit": "EUR/kWh",
-        "description" : "Feed-in tarif for 1 kWh of fed in electricity"
+        "description" : "Feed-in electricity price."
     },
     {
-        "name": "C_dem_gas",
-        "value": 0.108,
-        "unit": "EUR/kWh",
-        "description" : "Price for 1 kWh gas"
+        "name": "price_supply_gas",
+        "value": 0.12,
+        "unit": "€/kWh",
+        "description" : "Gas price."
     },
     {
-        "name": "Emi_elec",
-        "value": 0.434,
-        "unit": "kg/Wh",
-        "description" : "CO2 factor of grid electricity"
+        "name": "price_hydrogen",
+        "value": 0.1,
+        "unit": "€/kWh",
+        "description" : "Hydrogen price."
     },
     {
-        "name": "Emi_gas",
-        "value": 0.202,
-        "unit": "kg/Wh",
-        "description" : "CO2 factor of grid gas"
+        "name": "price_waste",
+        "value": 0.1,
+        "unit": "€/kWh",
+        "description" : "Waste price."
     },
     {
-        "name": "Emi_pv",
-        "value": 0.053,
+        "name": "price_biomass",
+        "value": 0.05,
+        "unit": "€/kWh",
+        "description" : "Biomass price."
+    },
+    {
+        "name": "co2_el_grid",
+        "value": 0.49,
         "unit": "kg/kWh",
-        "description" : "CO2 factor of pv electricity production"
+        "description" : "CO2 emissions for electricity import (grid mix)."
+    },
+    {
+        "name": "co2_gas",
+        "value": 0.25,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning natural gas."
+    },
+    {
+        "name": "co2_biom",
+        "value": 0.35,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning biomass."
+    },
+    {
+        "name": "co2_waste",
+        "value": 0,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning waste."
+    },
+    {
+        "name": "co2_hydrogen",
+        "value": 0,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning hydrogen."
     }
 ]

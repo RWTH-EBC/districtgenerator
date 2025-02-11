@@ -16,7 +16,7 @@ def run_opti_central(model, data, cluster):
     siteData = data.site
     param_dec_devs = data.decentral_device_data
     model_param_eh = data.params_ehdo_model
-    technical_param_eh = data.params_ehdo_technical
+    central_device_data = data.central_device_data
     buildingData = data.district
     energyHubData = data.centralDevices
 
@@ -76,8 +76,12 @@ def run_opti_central(model, data, cluster):
     except KeyError:
         for n in range(nb):
             buildingData[n]["capacities"] = {}
-            for dev in ["HP", "EH", "CHP", "FC", "BOI", "STC", "BAT", "TES", "EV"]:
+            buildingData[n]["capacities"]["PV"] = {}
+            buildingData[n]["capacities"]["STC"] = {}
+            for dev in ["HP", "EH", "CHP", "FC", "BOI", "BAT", "TES", "EV"]:
                 buildingData[n]["capacities"][dev] = 0
+            buildingData[n]["capacities"]["PV"]["area"] = 0
+            buildingData[n]["capacities"]["STC"]["area"] = 0
 
     # %% TECHNICAL PARAMETERS
     soc_nom = {}
@@ -369,38 +373,38 @@ def run_opti_central(model, data, cluster):
     for t in time_steps:
         # Electric heat pump
         # todo: variable COP
-        model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * technical_param_eh["HP"]["COP"])
+        model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * central_device_data["HP"]["COP_const"])
         # Electric boiler
-        model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * technical_param_eh["EB"]["eta_th"])
+        model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * central_device_data["EB"]["eta_th"])
         # Compression chiller
-        model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * technical_param_eh["CC"]["COP"])
+        model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * central_device_data["CC"]["COP"])
         # Absorption chiller
-        model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * technical_param_eh["AC"]["eta_th"])
+        model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * central_device_data["AC"]["eta_th"])
         # Gas CHP
-        model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * technical_param_eh["CHP"]["eta_el"])
-        model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * technical_param_eh["CHP"]["eta_th"])
+        model.addConstr(eh_power["CHP"][t] == eh_gas["CHP"][t] * central_device_data["CHP"]["eta_el"])
+        model.addConstr(eh_heat["CHP"][t] == eh_gas["CHP"][t] * central_device_data["CHP"]["eta_th"])
         # Gas boiler
-        model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * technical_param_eh["BOI"]["eta_th"])
+        model.addConstr(eh_heat["BOI"][t] == eh_gas["BOI"][t] * central_device_data["BOI"]["eta_th"])
         # Gas heat pump
-        model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * technical_param_eh["GHP"]["COP"])
+        model.addConstr(eh_heat["GHP"][t] == eh_gas["GHP"][t] * central_device_data["GHP"]["COP"])
         # Biomass CHP
-        model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * technical_param_eh["BCHP"]["eta_el"])
-        model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * technical_param_eh["BCHP"]["eta_th"])
+        model.addConstr(eh_power["BCHP"][t] == eh_biom["BCHP"][t] * central_device_data["BCHP"]["eta_el"])
+        model.addConstr(eh_heat["BCHP"][t] == eh_biom["BCHP"][t] * central_device_data["BCHP"]["eta_th"])
         # Biomass boiler
-        model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * technical_param_eh["BBOI"]["eta_th"])
+        model.addConstr(eh_heat["BBOI"][t] == eh_biom["BBOI"][t] * central_device_data["BBOI"]["eta_th"])
         # Waste CHP
-        model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * technical_param_eh["WCHP"]["eta_el"])
-        model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * technical_param_eh["WCHP"]["eta_th"])
+        model.addConstr(eh_power["WCHP"][t] == eh_waste["WCHP"][t] * central_device_data["WCHP"]["eta_el"])
+        model.addConstr(eh_heat["WCHP"][t] == eh_waste["WCHP"][t] * central_device_data["WCHP"]["eta_th"])
         # Waste boiler
-        model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * technical_param_eh["WBOI"]["eta_th"])
+        model.addConstr(eh_heat["WBOI"][t] == eh_waste["WBOI"][t] * central_device_data["WBOI"]["eta_th"])
         # Electrolyzer
-        model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * technical_param_eh["ELYZ"]["eta_el"])
+        model.addConstr(eh_hydrogen["ELYZ"][t] == eh_power["ELYZ"][t] * central_device_data["ELYZ"]["eta_el"])
         # Fuel cell
-        model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * technical_param_eh["FC"]["eta_el"])
+        model.addConstr(eh_power["FC"][t] == eh_hydrogen["FC"][t] * central_device_data["FC"]["eta_el"])
         # Heat must be used
-        model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * technical_param_eh["FC"]["eta_th"])
+        model.addConstr(eh_heat["FC"][t] == eh_hydrogen["FC"][t] * central_device_data["FC"]["eta_th"])
         # Sabatier reactor
-        model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * technical_param_eh["SAB"]["eta"])
+        model.addConstr(eh_gas["SAB"][t] == eh_hydrogen["SAB"][t] * central_device_data["SAB"]["eta"])
 
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -643,7 +647,7 @@ def run_opti_central(model, data, cluster):
                 eh_soc_prev = eh_soc_init[device]
             else:
                 eh_soc_prev = eh_soc[device][t - 1]
-            model.addConstr(eh_soc[device][t] == eh_soc_prev * (1-technical_param_eh[device]["sto_loss"])
+            model.addConstr(eh_soc[device][t] == eh_soc_prev * (1-central_device_data[device]["sto_loss"])
                             + eh_ch[device][t] - eh_dch[device][t],
                             name="Storage_balance_energyHub" + str(device) + "_" + str(t))
             if t == last_time_step:
@@ -682,20 +686,20 @@ def run_opti_central(model, data, cluster):
     # %% OBJECTIVE FUNCTIONS
     # select the objective function based on input parameters
     ### Total operational costs
-    model.addConstr(operational_costs == from_grid_total_el * model_param_eh["price_supply_el"]
-                                            - to_grid_total_el * model_param_eh["revenue_feed_in_el"]
-                                            + from_grid_total_gas * model_param_eh["price_supply_gas"]
-                                            + from_grid_total_hydrogen * model_param_eh["price_hydrogen"]
-                                            + total_biomass_used * model_param_eh["price_biomass"]
-                                            + total_waste_used * model_param_eh["price_waste"]
+    model.addConstr(operational_costs == from_grid_total_el * ecoData["price_supply_el"]
+                                            - to_grid_total_el * ecoData["revenue_feed_in_el"]
+                                            + from_grid_total_gas * ecoData["price_supply_gas"]
+                                            + from_grid_total_hydrogen * ecoData["price_hydrogen"]
+                                            + total_biomass_used * ecoData["price_biomass"]
+                                            + total_waste_used * ecoData["price_waste"]
                                             , name="Total_amount_operational_costs")
 
     # Emissions
-    model.addConstr(co2_total == from_grid_total_el * model_param_eh["co2_el_grid"]
-                                    + from_grid_total_gas * model_param_eh["co2_gas"]
-                                    + from_grid_total_hydrogen * model_param_eh["co2_hydrogen"]
-                                    + total_biomass_used * model_param_eh["co2_waste"]
-                                    + total_waste_used * model_param_eh["co2_biom"]
+    model.addConstr(co2_total == from_grid_total_el * ecoData["co2_el_grid"]
+                                    + from_grid_total_gas * ecoData["co2_gas"]
+                                    + from_grid_total_hydrogen * ecoData["co2_hydrogen"]
+                                    + total_biomass_used * ecoData["co2_waste"]
+                                    + total_waste_used * ecoData["co2_biom"]
                                     , name="Total_amount_emissions")
 
 

@@ -1,5 +1,5 @@
 {
-  "Photovoltaic": {
+  "PV": {
     "feasible": true,
     "eta": 0.15,
     "life_time": 25,
@@ -9,7 +9,7 @@
     "min_area": 10,
     "G_stc": 1
   },
-  "WindTurbine": {
+  "WT": {
     "feasible": true,
     "inv_var": 1500,
     "life_time": 20,
@@ -21,7 +21,7 @@
     "ref_h": 10,
     "norm_power": 0.85
   },
-  "Hydropower": {
+  "WAT": {
     "feasible": true,
     "inv_var": 2000,
     "life_time": 30,
@@ -30,7 +30,7 @@
     "max_cap": 2000,
     "potential": 50000
   },
-  "SolarThermalCollector": {
+  "STC": {
     "feasible": true,
     "eta": 0.7,
     "inv_var": 800,
@@ -50,7 +50,7 @@
     "min_cap": 50,
     "max_cap": 1000
   },
-  "GasBoiler": {
+  "BOI": {
     "feasible": true,
     "inv_var": 500,
     "eta_th": 0.9,
@@ -59,7 +59,7 @@
     "min_cap": 10,
     "max_cap": 500
   },
-  "GasHeatPump": {
+  "GHP": {
     "feasible": false,
     "inv_var": 1000,
     "COP": 3.5,
@@ -68,7 +68,7 @@
     "min_cap": 10,
     "max_cap": 500
   },
-  "HeatPump": {
+  "HP": {
     "feasible": true,
     "CCOP_feasible": false,
     "ASHP_feasible": false,
@@ -83,7 +83,7 @@
     "COP_const": 4
 
   },
-  "ElectricBoiler": {
+  "EB": {
     "feasible": true,
     "inv_var": 600,
     "eta_th": 0.99,
@@ -92,7 +92,7 @@
     "min_cap": 10,
     "max_cap": 300
   },
-  "CompressionChiller": {
+  "CC": {
     "feasible": true,
     "inv_var": 700,
     "COP": 3.5,
@@ -101,7 +101,7 @@
     "min_cap": 10,
     "max_cap": 500
   },
-  "AbsorptionChiller": {
+  "AC": {
     "feasible": true,
     "inv_var": 1000,
     "eta_th": 0.75,
@@ -110,7 +110,7 @@
     "min_cap": 10,
     "max_cap": 500
   },
-  "BiomassCHP": {
+  "BCHP": {
     "feasible": true,
     "inv_var": 1500,
     "eta_el": 0.35,
@@ -120,7 +120,7 @@
     "min_cap": 50,
     "max_cap": 1000
   },
-  "BiomassBoiler": {
+  "BBOI": {
     "feasible": true,
     "inv_var": 600,
     "eta_th": 0.85,
@@ -129,7 +129,7 @@
     "min_cap": 10,
     "max_cap": 500
   },
-  "WasteCHP": {
+  "WCHP": {
     "feasible": true,
     "inv_var": 2000,
     "eta_el": 0.3,
@@ -139,7 +139,7 @@
     "min_cap": 50,
     "max_cap": 1000
   },
-  "WasteBoiler": {
+  "WBOI": {
     "feasible": true,
     "inv_var": 700,
     "eta_th": 0.8,
@@ -148,7 +148,7 @@
     "min_cap": 10,
     "max_cap": 500
   },
-  "Electrolyzer": {
+  "ELYZ": {
     "feasible": true,
     "inv_var": 1500,
     "eta_el": 0.7,
@@ -157,7 +157,7 @@
     "min_cap": 50,
     "max_cap": 1000
   },
-  "FuelCell": {
+  "FC": {
     "feasible": true,
     "inv_var": 1800,
     "eta_el": 0.5,
@@ -168,7 +168,7 @@
     "max_cap": 1000,
     "enable_heat_diss": true
   },
-  "H2Storage": {
+  "H2S": {
     "feasible": true,
     "inv_var": 1200,
     "sto_loss": 0,
@@ -177,7 +177,7 @@
     "min_cap": 100,
     "max_cap": 5000
   },
-  "SabatierReactor": {
+  "SAB": {
     "feasible": true,
     "inv_var": 2000,
     "eta": 0.6,
@@ -186,7 +186,7 @@
     "min_cap": 50,
     "max_cap": 1000
   },
-  "HeatStorage": {
+  "TES": {
     "feasible": true,
     "inv_var": 1200,
     "sto_loss": 0.01,
@@ -197,7 +197,7 @@
     "delta_T": 30,
     "soc_init": 0.5
   },
-  "ColdStorage": {
+  "CTES": {
     "feasible": true,
     "inv_var": 1300,
     "sto_loss": 0.01,
@@ -208,7 +208,7 @@
     "delta_T": 30,
     "soc_init": 0.5
   },
-  "Battery": {
+  "BAT": {
     "feasible": true,
     "inv_var": 200,
     "life_time": 15,
@@ -218,7 +218,7 @@
     "sto_loss": 0,
     "soc_init": 0.5
   },
-  "GasStorage": {
+  "GS": {
     "feasible": true,
     "inv_var": 150,
     "life_time": 20,
