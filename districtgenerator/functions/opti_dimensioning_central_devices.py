@@ -346,15 +346,6 @@ def run_optim(data, devs, param, dem, result_dict):
             model.addConstr(waste["import"][d][t] == waste["WCHP"][d][t] + waste["WBOI"][d][t])
 
 
-    # Additional constraints (currently not in use)
-    #for d in days:
-    #    for t in time_steps:
-    #        # AC and TES can only be supplied by BOI, EB, CHP, BCHP and FC    + #heat["BCHP"][d][t]
-    #         model.addConstr(heat["BOI"][d][t] + heat["CHP"][d][t] + heat["FC"][d][t] >= heat["AC"][d][t])  # add EB
-    # CTES can only be supplied by CC and AC
-    #        model.addConstr(cool["AC"][d][t] + cool["CC"][d][t] >= ch["CTES"][d][t])
-
-
     #%% MEET PEAK DEMANDS OF UNCLUSTERED DEMANDS
 
     if param["peak_dem_met_conv"] == False:
@@ -488,8 +479,8 @@ def run_optim(data, devs, param, dem, result_dict):
     # Limitation of biomass supply (user input)
     if param["enable_supply_biomass"] != True:
         model.addConstr(biom_import_total == 0)
-    if param["enable_supply_limit_biom"] == True:
-        model.addConstr(biom_import_total <= param["supply_limit_biom"])
+    if param["enable_supply_limit_biomass"] == True:
+        model.addConstr(biom_import_total <= param["supply_limit_biomass"])
 
     # Limitation of waste supply (user input)
     if param["enable_supply_waste"] != True:

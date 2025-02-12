@@ -1,29 +1,29 @@
 [
     {
         "name": "enable_supply_el",
-        "value": "True",
+        "value": true,
         "description" : "Enable electricity supply."
     },
     {
         "name": "enable_feed_in_el",
-        "value": "True",
+        "value": true,
         "description" : "Enable electricity supply."
     },
     {
         "name": "enable_price_cap_el",
-        "value": "False",
+        "value": false,
         "unit": " - ",
         "description" : "Enable electricity capacity price."
     },
     {
         "name": "price_cap_el",
-        "value": "60",
+        "value": 60,
         "unit": "€/kW",
         "description" : "Electricity capacity price."
     },
     {
         "name": "enable_cap_limit_el",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Consider capacity of grid connection."
     },
@@ -35,7 +35,7 @@
     },
     {
         "name": "enable_supply_limit_el",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable restriction of electricity demand from grid."
     },
@@ -47,12 +47,12 @@
     },
     {
         "name": "enable_supply_gas",
-        "value": "True",
+        "value": false,
         "description" : "Enable gas supply."
     },
     {
         "name": "enable_price_cap_gas",
-        "value": "False",
+        "value": false,
         "unit": " - ",
         "description" : "Enable gas capacity price."
     },
@@ -64,7 +64,7 @@
     },
     {
         "name": "enable_feed_in_gas",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable natural gas feed-in."
     },
@@ -76,7 +76,7 @@
     },
         {
         "name": "enable_cap_limit_gas",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict gas demand from grid."
     },
@@ -88,13 +88,13 @@
     },
     {
         "name": "enable_supply_biomass",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict available biomass."
     },
     {
         "name": "enable_supply_limit_biomass",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable limit annual biomass import."
     },
@@ -106,15 +106,15 @@
     },
     {
         "name": "enable_supply_hydrogen",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict available hydrogen."
     },
     {
         "name": "enable_supply_limit_hydrogen",
-        "value": "False",
+        "value": false,
         "unit": "-",
-        "description" : "Enable limit annual biomass import."
+        "description" : "Enable limit annual hydrogen import."
     },
     {
         "name": "supply_limit_hydrogen",
@@ -124,13 +124,13 @@
     },
     {
         "name": "enable_supply_waste",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict available waste."
     },
     {
         "name": "enable_supply_limit_waste",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable limit annual waste import."
     },
@@ -148,13 +148,13 @@
     },
     {
         "name": "enable_supply_limit_gas",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable limit annual gas import."
     },
     {
         "name": "peak_dem_met_conv",
-        "value": "True",
+        "value": true,
         "unit": "-",
         "description" : "Meet peak demands of unclustered demands"
     },
