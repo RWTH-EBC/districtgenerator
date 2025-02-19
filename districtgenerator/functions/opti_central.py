@@ -516,7 +516,7 @@ def run_opti_central(model, data, cluster):
                 soc_prev = soc_dom[device][n][t - 1]
 
             model.addConstr(soc_dom[device][n][t] == soc_prev
-                            + ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"]* dt
+                            + ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"] * dt
                             - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"] * dt
                             - EV_dem[n][t],
                             name="EV_storage_balance_" + str(n) + "_" + str(t))
@@ -528,15 +528,10 @@ def run_opti_central(model, data, cluster):
                 model.addConstr(ch_dom[device][n][t] >= EV_dem[n][t], name="res_power_ev")
                 model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
             else:
-                # Charging only possible when someone is at home
-                if occ[n][t] != 0:
-                    if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
+                if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
                         model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"])
-                    else:
-                        model.addConstr(dch_dom[device][n][t] == 0)
                 else:
-                    model.addConstr(ch_dom[device][n][t] == 0)
-                    model.addConstr(dch_dom[device][n][t] == 0)
+                        model.addConstr(dch_dom[device][n][t] == 0)
 
     # %% DOMESTIC FLEXIBILITIES
 

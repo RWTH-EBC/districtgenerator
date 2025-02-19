@@ -457,9 +457,9 @@ class KPIs:
         ## loop over cluster
         for c in range(len(self.inputData["clusters"])):
             sum_ClusterWeights += self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        #for c in range(len(self.inputData["clusters"])):
-        #    self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        #                                                  / sum_ClusterWeights)
+        for c in range(len(self.inputData["clusters"])):
+            self.EnergyAutonomy_year += self.EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                                                          / sum_ClusterWeights)
 
     def calculateAllKPIs(self, data):
         """

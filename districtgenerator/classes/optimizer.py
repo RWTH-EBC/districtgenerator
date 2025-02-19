@@ -44,7 +44,7 @@ class Optimizer:
         Identifier of the currently regarded cluster.
     """
 
-    def __init__(self, data, cluster, centralEnergySupply):
+    def __init__(self, data, cluster):
         """
         Constructor of Optimizer class.
 
