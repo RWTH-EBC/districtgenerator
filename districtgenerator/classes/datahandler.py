@@ -859,7 +859,7 @@ class Datahandler:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
 
-    def optimizationClusters(self, centralEnergySupply):
+    def optimizationClusters(self):
         """
         Optimize the operation costs for each cluster.
 
@@ -875,7 +875,7 @@ class Datahandler:
         for cluster in range(self.time["clusterNumber"]):
 
             # optimize operating costs of the district for current cluster
-            self.optimizer = Optimizer(self, cluster, centralEnergySupply)
+            self.optimizer = Optimizer(self, cluster)
             results_temp = self.optimizer.run_cen_opti()
 
             # save results as attribute

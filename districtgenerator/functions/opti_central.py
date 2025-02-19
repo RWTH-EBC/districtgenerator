@@ -493,11 +493,9 @@ def run_opti_central(model, data, cluster):
                     model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
                                     name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
                 else:
-                    model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"]
-                                    * binary[device][n][t],
+                    model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
                                     name="max_ch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
-                    model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"]
-                                    * (1 - binary[device][n][t]),
+                    model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
                                     name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
 
                 model.addConstr(soc_dom[device][n][t] <= param_dec_devs[device]["soc_max"] * buildingData[n]["capacities"][device],
@@ -575,16 +573,16 @@ def run_opti_central(model, data, cluster):
                 model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
                                 name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
-            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 1000000,
-                            name="Binary1_ev" + str(n) + "_" + str(t))
-            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 1000000,
-                            name="Binary2_ev" + str(n) + "_" + str(t))
+            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 10000000,
+                            name="Binary1_bat_" + str(n) + "_" + str(t))
+            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 10000000,
+                            name="Binary2_bat_" + str(n) + "_" + str(t))
 
     for n in range(nb):
         for t in time_steps:
-            model.addConstr(res_dom["power"][n][t] <= binary["HLINE"][n][t] * 1000000,
+            model.addConstr(res_dom["power"][n][t] <= binary["HLINE"][n][t] * 10000000,
                             name="Binary1_" + str(n) + "_" + str(t))
-            model.addConstr(res_dom["feed"][n][t] <= (1 - binary["HLINE"][n][t]) * 1000000,
+            model.addConstr(res_dom["feed"][n][t] <= (1 - binary["HLINE"][n][t]) * 10000000,
                             name="Binary2_" + str(n) + "_" + str(t))
 
     # Residual loads
@@ -600,8 +598,8 @@ def run_opti_central(model, data, cluster):
             model.addConstr(res_dom["power"][n][t] + PV_gen[n][t]
                             + power_dom["CHP"][n][t] + dch_dom["BAT"][n][t] + dch_dom["EV"][n][t]
                             == elec_dem[n][t] + ch_dom["EV"][n][t]
-                            + power_dom["HP"][n][t] + power_dom["EH"][n][t] +
-                            ch_dom["BAT"][n][t]  + res_dom["feed"][n][t],
+                            + power_dom["HP"][n][t] + power_dom["EH"][n][t]
+                            + ch_dom["BAT"][n][t] + res_dom["feed"][n][t],
                             name="Electricity_balance_" + str(n) + "_" + str(t))
             model.addConstr(res_dom["feed"][n][t] <= power_dom["PV"][n][t] + power_dom["CHP"][n][t] + dch_dom["BAT"][n][t], # + dch_dom["EV"][n][t],
                             name="Feed-in_max_" + str(n) + "_" + str(t))

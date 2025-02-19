@@ -347,7 +347,7 @@
   "specifications": [
     {
       "name": "soc_min",
-      "value": 0.05,
+      "value": 0.00,
       "unit": "-",
       "description": "Minimum state of charge."
     },
@@ -371,13 +371,13 @@
     },
     {
       "name": "coeff_ch",
-      "value": 0.6,
+      "value": 0.8,
       "unit": "Watt per Watthour",
       "description": "Charging and discharging coefficient."
     },
     {
       "name": "init",
-      "value": 0.5,
+      "value": 0.2,
       "unit": "-",
       "description": "Initial state of charge."
     },
@@ -438,7 +438,7 @@
     },
     {
       "name": "init",
-      "value": 0.5,
+      "value": 0.2,
       "unit": "-",
       "description": "Initial state of charge."
     },

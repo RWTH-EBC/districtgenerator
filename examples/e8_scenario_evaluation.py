@@ -32,7 +32,7 @@ def example8_scenario_evaluation():
     data.clusterProfiles(centralEnergySupply)
 
     # Calculation of the devices' optimal operation
-    data.optimizationClusters(centralEnergySupply)
+    data.optimizationClusters()
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
     webtool = {}
