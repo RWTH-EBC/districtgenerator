@@ -8,8 +8,7 @@ import numpy as np
 import pylightxl as xl
 import richardsonpy.classes.occupancy as occ_residential
 import richardsonpy.functions.change_resolution as cr
-import districtgenerator.functions.OpenDHW as OpenDHW
-import districtgenerator.functions.dhw_stochastical as dhw_profil  # wurde nicht genutzt
+import OpenDHW
 import districtgenerator.functions.change_resolution as chres
 import districtgenerator.functions.SIA as SIA
 
@@ -63,7 +62,7 @@ class Profiles:
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data()
         self.building = building
-        if self.building not in {"SFH", "TH", "MFH", "AB"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
+        if self.building in {"OB", "School", "Grocery_store"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
             self.building_zones = self.SIA2024[self.building]
 
         self.activity_profile = []

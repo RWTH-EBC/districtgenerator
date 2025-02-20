@@ -49,13 +49,13 @@
   },
   {
     "name": "buildings_short",
-    "value": ["SFH", "MFH", "TH", "AB","OB","School","Grocery_store"],
+    "value": ["SFH", "MFH", "TH", "AB","OB","Shool","Grocery_store", "MFH+Grocery_store", "AB+Grocery_store"],
     "unit": "-",
     "description": "Abbreviations of the selectable building types."
   },
   {
     "name": "buildings_long",
-    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store"],
+    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "multi_family_house+grocery_store", "apartment_block+grocery_store"],
     "unit":  "-",
     "description": "Names of the selectable building types."
   },

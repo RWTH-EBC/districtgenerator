@@ -92,7 +92,7 @@ class Users:
 
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data()
-        if self.building not in {"SFH", "TH", "MFH", "AB"}:
+        if self.building in {"OB", "School", "Grocery_store"}:
             self.building_zones = self.SIA2024[self.building]
 
 
@@ -129,13 +129,19 @@ class Users:
         elif self.building == "TH":
             self.nb_flats = 1
         elif self.building == "MFH":
-            if area <= 4 * 100:
-                self.nb_flats = 4
+            if area <= 2 * 100:
+                self.nb_flats = 3
+            elif area <= 4 * 100:
+                self.nb_flats = 5
             elif area > 4 * 100:
-                self.nb_flats = rd.randint((area//100)-1, (area//100)+1)
+                self.nb_flats = rd.randint((area//80)-1, (area//80)+1)
         elif self.building == "AB":
-            self.nb_flats = 8
-
+            if area <= 2 * 100:
+                self.nb_flats = 3
+            elif area <= 4 * 100:
+                self.nb_flats = 5
+            elif area > 4 * 100:
+                self.nb_flats = rd.randint((area//80)-1, (area//80)+1)
         else:
             if self.building == "OB":
                 proportion_office = 0
