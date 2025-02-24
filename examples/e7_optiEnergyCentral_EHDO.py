@@ -4,17 +4,17 @@
 In this example we use the EHDO tool to """
 
 # Import classes of the districtgenerator to be able to use the district generator.
-from classes import *
+from districtgenerator.classes import *
 
 
 def example7_optiEnergyCentral_EHDO():
 
     # Initialize District
-    data = Datahandler()
+    data = Datahandler(scenario_name = "example")
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(scenario_name='example', calcUserProfiles=True, saveUserProfiles=True,
-                                  saveGenProfiles=True)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False,
+                                  saveGenProfiles=False)
 
     # As last step we use the EHDO tool to get an optimized energy central for neighborhoods. EHDO is a tool for
     # planning and designing complex energy systems. The central feature is coupling of different

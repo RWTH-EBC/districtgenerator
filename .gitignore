@@ -1,8 +1,8 @@
 results/*
-data/scenarios/*
-!data/scenarios/example.csv
-!data/scenarios/central_devices_example.csv
-!data/scenarios/info.txt
+districtgenerator/data/scenarios/*
+!districtgenerator/data/scenarios/example.csv
+!districtgenerator/data/scenarios/central_devices_example.csv
+!districtgenerator/data/scenarios/info.txt
 errorfile.txt
 *.bk
 *.log
@@ -16,4 +16,4 @@ errorfile.txt
 __pycache__/
 .idea/
 demands/
-data/TRY_2015_Jahr/
+districtgenerator/data/TRY_2015_Jahr/

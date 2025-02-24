@@ -45,7 +45,7 @@ The minimal input data set was defined following the [TABULA archetype approach]
 * _retrofit_: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 * _area_: reference floor area (given in square meters)
 
-Please find a template [here](./data/scenarios/example.csv).
+Please find a template [here](districtgenerator/data/scenarios/example.csv).
 
 ### What you get
 
@@ -57,7 +57,7 @@ the .csv format in folder results/demands. The results contain:
 * _occ_: number of persons present
 * _gains_: internal gains from persons, lighting and electric household devices
 
-All values are given in Watt and for the [time resolution](./data/time_data.json) you require.
+All values are given in Watt and for the [time resolution](districtgenerator/data/time_data.json) you require.
 
 ## License
 

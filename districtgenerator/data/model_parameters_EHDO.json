@@ -1,0 +1,209 @@
+[
+    {
+        "name": "enable_supply_el",
+        "value": true,
+        "description" : "Enable electricity supply."
+    },
+    {
+        "name": "enable_feed_in_el",
+        "value": true,
+        "description" : "Enable electricity supply."
+    },
+    {
+        "name": "enable_price_cap_el",
+        "value": false,
+        "unit": " - ",
+        "description" : "Enable electricity capacity price."
+    },
+    {
+        "name": "price_cap_el",
+        "value": 60,
+        "unit": "€/kW",
+        "description" : "Electricity capacity price."
+    },
+    {
+        "name": "enable_cap_limit_el",
+        "value": false,
+        "unit": "-",
+        "description" : "Consider capacity of grid connection."
+    },
+    {
+        "name": "cap_limit_el",
+        "value": 100000,
+        "unit": "kW",
+        "description" : "Capacity of grid connection."
+    },
+    {
+        "name": "enable_supply_limit_el",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable restriction of electricity demand from grid."
+    },
+    {
+        "name": "supply_limit_el",
+        "value": 100000,
+        "unit": "MWh/year",
+        "description" : "Restrict electricity demand from grid."
+    },
+    {
+        "name": "enable_supply_gas",
+        "value": false,
+        "description" : "Enable gas supply."
+    },
+    {
+        "name": "enable_price_cap_gas",
+        "value": false,
+        "unit": " - ",
+        "description" : "Enable gas capacity price."
+    },
+    {
+        "name": "price_cap_gas",
+        "value": 0.04,
+        "unit": "€/kWh",
+        "description" : "Gas capacity price."
+    },
+    {
+        "name": "enable_feed_in_gas",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable natural gas feed-in."
+    },
+    {
+        "name": "revenue_feed_in_gas",
+        "value": 0.02,
+        "unit": "€/kWh",
+        "description" : "Revenue for natural gas feed-in ."
+    },
+        {
+        "name": "enable_cap_limit_gas",
+        "value": false,
+        "unit": "-",
+        "description" : "Restrict gas demand from grid."
+    },
+    {
+        "name": "cap_limit_gas",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum annual energy drawn from the gas grid."
+    },
+    {
+        "name": "enable_supply_biomass",
+        "value": false,
+        "unit": "-",
+        "description" : "Restrict available biomass."
+    },
+    {
+        "name": "enable_supply_limit_biomass",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable limit annual biomass import."
+    },
+    {
+        "name": "supply_limit_biomass",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum available biomass."
+    },
+    {
+        "name": "enable_supply_hydrogen",
+        "value": false,
+        "unit": "-",
+        "description" : "Restrict available hydrogen."
+    },
+    {
+        "name": "enable_supply_limit_hydrogen",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable limit annual hydrogen import."
+    },
+    {
+        "name": "supply_limit_hydrogen",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum available Hydrogen."
+    },
+    {
+        "name": "enable_supply_waste",
+        "value": false,
+        "unit": "-",
+        "description" : "Restrict available waste."
+    },
+    {
+        "name": "enable_supply_limit_waste",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable limit annual waste import."
+    },
+    {
+        "name": "supply_limit_waste",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum available waste."
+    },
+        {
+        "name": "supply_limit_gas",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum available gas."
+    },
+    {
+        "name": "enable_supply_limit_gas",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable limit annual gas import."
+    },
+    {
+        "name": "peak_dem_met_conv",
+        "value": true,
+        "unit": "-",
+        "description" : "Meet peak demands of unclustered demands"
+    },
+    {
+        "name": "co2_tax",
+        "value": 0,
+        "unit": "€/t_CO2",
+        "description" : "CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste."
+    },
+    {
+        "name": "co2_el_feed_in",
+        "value": 0,
+        "unit": "kg/kWh",
+        "description" : "CO₂ emission credit for electricity feed-in."
+    },
+        {
+        "name": "co2_gas_feed_in",
+        "value": 0,
+        "unit": "kg/kWh",
+        "description" : "CO₂ emission credit for gas feed-in."
+    },
+
+
+
+
+
+
+    {
+        "name": "optim_focus",
+        "value": 0,
+        "unit": "-",
+        "description" : "Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization."
+    },
+    {
+        "name": "interest_rate",
+        "value": 0.05,
+        "unit": "-",
+        "description" : "Interest rate. The interest rate affects the annualization of the investments according to VDI 2067."
+    },
+    {
+        "name": "observation_time",
+        "value": 20,
+        "unit": "years",
+        "description" : "Project lifetime. The project lifetime affects annualization of investments according to VDI 2067."
+    },
+    {
+        "name": "n_clusters",
+        "value": 12,
+        "unit": "days",
+        "description" : "Number of design days."
+    }
+]

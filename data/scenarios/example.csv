@@ -1,6 +1,0 @@
-id;building;year;retrofit;construction_type;night_setback;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
-0;SFH;1999;0;;1;100;heat_grid;1;1;0;1;35;1;M;0.4;0.04;0;on_demand
-1;MFH+Grocery_store;1999;0;1;1;300;heat_grid;1;1;0;1;35;1;M;0.4;0.04;0;on_demand
-2;SFH;1999;0;;1;100;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
-3;MFH+Grocery_store;1999;0;1;1;300;heat_grid;1;1;1;1;35;1;M;0.4;0.04;0;on_demand
-
