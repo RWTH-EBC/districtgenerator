@@ -49,13 +49,13 @@
   },
   {
     "name": "buildings_short",
-    "value": ["SFH", "MFH", "TH", "AB","OB","School","Grocery_store", "MFH+Grocery_store", "AB+Grocery_store"],
+    "value": ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"],
     "unit": "-",
     "description": "Abbreviations of the selectable building types."
   },
   {
     "name": "buildings_long",
-    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "multi_family_house+grocery_store", "apartment_block+grocery_store"],
+    "value": ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "multi_family_house+grocery_store", "apartment_block+grocery_store", "multi_family_house+restaurant", "apartment_block+restaurant"],
     "unit":  "-",
     "description": "Names of the selectable building types."
   },
@@ -96,15 +96,15 @@
     "description": "Names of the construction types of the non residential buildings."
   },
   {
-    "name": "dhwload",
-    "value": [4662.1, 4662.1, 4662.1, 3999.8, 2000, 3000, 7000],
-    "unit":  "Watt",
-    "description": "Maximal power for domestic hot water for each flat in the building types SFH, MFH, TH, and AB, and for each main room in the building types OB, School, and Store."
+    "name": "dhwpower",
+    "value": [3, 3, 3, 3, 7.1, 8.6, 7.2, 24],
+    "unit": "Watt per square meter of living area",
+    "description": "The additional power required by the heating system to meet the domestic hot water demand per square meter in the building types: SFH, MFH, TH, AB, OB, SC, GS, and RE. Source: SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik"
   },
   {
     "name": "mean_drawoff_vol_per_day",
-    "value": [40, 40, 40, 40, 6, 1.5, 1.5],
-    "unit":  "Liter",
-    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, School, Store). Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 for non-residential buidlings (with some adjustments to approach the real values"
+    "value": [40, 40, 40, 40, 6, 1.5, 1.5, 8],
+    "unit":  "Liter per day and person",
+    "description": "Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE). Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik for non-residential buildings"
   }
 ]

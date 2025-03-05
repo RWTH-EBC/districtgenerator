@@ -57,7 +57,7 @@ def exemplary_plot(data):
     heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
 
     # Create a dataframe that contains the timestamps
-    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='15min')
+    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='1h')
     df = pd.DataFrame(heat, index=date_range, columns=['Value'])
 
     # Aggregate the data on a monthly basis (totalled value per month)

@@ -94,7 +94,7 @@ class Users:
 
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data()
-        if self.building in {"OB", "School", "Grocery_store"}:
+        if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
         self.generate_number_flats_and_rooms(area)
@@ -108,42 +108,53 @@ class Users:
 
     def generate_number_flats_and_rooms(self, area):
         """
-        Generate number of flats for different of building types.
+        Generate number of flats and main rooms for different building types.
         Possible building types are:
             - single family house (SFH)
             - terraced house (TH)
             - multifamily house (MFH)
             - apartment block (AP)
+            - office building (OB)
+            - school (SC)
+            - grocery store (GS)
+            - restaurant (RE)
 
         Parameters
         ----------
         area : integer
             Floor area of different building types.
-        total_main_area : float
-            The main area consists only of the workspaces, which here are the offices
+
         Returns
         -------
-        None.
+        nb_flats : int
+            The estimated number of flats.
+        total_main_area : float
+            The main area consists only of the main zones in the building
         """
 
-        if self.building == "SFH":
+        # Residential buildings
+
+        if self.building in ["SFH", "TH"]:
             self.nb_flats = 1
-        elif self.building == "TH":
-            self.nb_flats = 1
-        elif self.building == "MFH":
-            if area <= 2 * 100:
-                self.nb_flats = 3
-            elif area <= 4 * 100:
-                self.nb_flats = 5
-            elif area > 4 * 100:
-                self.nb_flats = rd.randint((area//80)-1, (area//80)+1)
-        elif self.building == "AB":
-            if area <= 2 * 100:
-                self.nb_flats = 3
-            elif area <= 4 * 100:
-                self.nb_flats = 5
-            elif area > 4 * 100:
-                self.nb_flats = rd.randint((area//80)-1, (area//80)+1)
+
+        elif self.building in ["MFH", "AB"]:
+            # Source: Ergebnisse des Zensus 2022 Gebäude- und Wohnungszählung
+            area_categories = [(20, 40), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
+            probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
+            while True:
+                # Choose one consistent flat size for the entire building
+                chosen_area_range = rd.choices(area_categories, weights=probabilities, k=1)[0]
+                chosen_area = (chosen_area_range[0] + chosen_area_range[1]) // 2  # Use the mean area of the selected range
+
+                # Calculate the number of flats using rounding to the nearest integer
+                self.nb_flats = round(area / chosen_area)
+
+                # Ensure at least 2 flats
+                if self.nb_flats > 1:
+                    break
+
+        # Non-residential buildings
+
         else:
             if self.building == "OB":
                 proportion_office = 0
@@ -161,7 +172,7 @@ class Users:
                 self.total_main_area = area * proportion_office
                 self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room, mean_area_per_main_room * 0.1))   # A random number of offices following a Gaussian distribution with a mean of mean_area_per_main_room (36 m²) and a standard deviation of 10%. The number of offices is calculated in order to later determine the number of occupants of the building depending on it
 
-            if self.building == "School":
+            if self.building == "SC":
                 proportion_classrooms = 0
                 nb_rooms = 0
                 mean_area_per_main_room = 70  # According to SIA, the net area is 70 m² per classroom.
@@ -178,7 +189,7 @@ class Users:
                 self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room,
                                                                            mean_area_per_main_room * 0.1))  # A random number of classrooms following a Gaussian distribution with a mean of mean_area_per_main_room (70 m²) and a standard deviation of 10%. The number of offices is calculated in order to later determine the number of occupants of the building depending on it
 
-            if self.building == "Grocery_store":
+            if self.building == "GS":
                 proportion_selling_space = 0
                 nb_rooms = 0
                 mean_area_per_main_room = 400
@@ -194,6 +205,24 @@ class Users:
                 self.total_main_area = area * proportion_selling_space
                 self.nb_main_rooms = max(round(self.total_main_area / rd.gauss(mean_area_per_main_room,
                                                                            mean_area_per_main_room * 0.1)),1)
+
+            if self.building == "RE":
+                proportion_restaurant = 0
+                nb_rooms = 0
+                mean_area_per_main_room = 144
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        nb_rooms += area * proportion / data['area_room']
+                self.nb_rooms = round(nb_rooms)
+
+                for zone_name in {"Restaurant", "Küche zu Restaurant"}:
+                    proportion_restaurant += self.building_zones[zone_name]
+                self.total_main_area = area * proportion_restaurant
+                self.nb_main_rooms = max(round(self.total_main_area / rd.gauss(mean_area_per_main_room,
+                                                                           mean_area_per_main_room * 0.1)),1)
+
     def generate_number_occupants(self,area):
         """
         Generate number of occupants for different building types.
@@ -293,16 +322,21 @@ class Users:
                     # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/12,area/self.nb_main_rooms/12 * 0.15)))  # 12 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
-        elif self.building == "School":
+        elif self.building == "SC":
                 # loop over all School main rooms of current School building
                 for k in range(self.nb_main_rooms):
                     # self.nb_occ is the number of occupants in every main room
                     self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/3,area/self.nb_main_rooms/3 * 0.15)))  # 3 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
-        elif self.building == "Grocery_store":
+        elif self.building == "GS":
                 for k in range(self.nb_main_rooms):
                     # self.nb_occ is the number of occupants in every main room
-                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/8,area/self.nb_main_rooms/8 * 0.15)))
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/8,area/self.nb_main_rooms/8 * 0.15)))  # 8 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
+
+        elif self.building == "RE":
+                for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/2,area/self.nb_main_rooms/2 * 0.15)))  # 2 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
     def generate_annual_el_consumption_residential(self):
         """
@@ -471,10 +505,12 @@ class Users:
 
             # Process data for different building types
             selected_combination = jsonData.get(bulbs_combination, [])
+            # Source: DIN EN 12464-1
             illuminance_range = {
                 "OB": (300, 650),
-                "School": (300, 500),
-                "Grocery_store": (500, 750),
+                "SC": (300, 500),
+                "GS": (500, 750),
+                "RE": (300, 500)
             }
 
             for _ in range(self.nb_rooms):
@@ -543,7 +579,7 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -576,12 +612,7 @@ class Users:
             self.elec = np.zeros(int(time_horizon / time_resolution))
             self.gains = np.zeros(int(time_horizon / time_resolution))
             self.car = np.zeros(int(time_horizon / time_resolution))
-            if building['buildingFeatures']['building'] == "AB":
-                unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-            elif building['buildingFeatures']['building'] == "TH":
-                unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-            else:
-                unique_name = building['unique_name']
+
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
@@ -595,13 +626,7 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand[j])
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
             # currently only one car per building possible
-            self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']['f_EV'])
-
-        # ------ Webtool: import of existing time series to save computing time ------ #
-        # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
-        # self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
-        # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
-        # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
+            self.car = self.car + temp_obj.generate_EV_profile(building=building, occ=self.occ, holidays=holidays)
 
         else:
             temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
@@ -613,7 +638,7 @@ class Users:
             self.gains = gains_persons + gains_others
 
             self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
-            self.car = temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']['f_EV'])
+            self.car = temp_obj.generate_EV_profile(building=building, occ=self.occ, holidays=holidays)
 
     def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
         """

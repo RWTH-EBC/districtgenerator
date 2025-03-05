@@ -10,6 +10,7 @@ import numpy as np
 import openpyxl
 import pandas as pd
 import random as rd
+import holidays as hol
 from teaser.project import Project
 from .envelope import Envelope
 from .solar import Sun
@@ -58,6 +59,7 @@ class Datahandler:
 
         self.site = {}
         self.time = {}
+        self.initial_day = None
         self.district = []
         self.scenario_name = scenario_name
         self.scenario = None
@@ -193,6 +195,29 @@ class Datahandler:
             """
             # weatherdatafile_location = 507755060854
 
+    def get_holidays(self, country_code: str, year: int, state: str = None):
+        """
+        Get the Julian day (day of the year) for holidays in a specific country, year, and state.
+
+        Args:
+            country_code (str): The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+            year (int): The year for which to retrieve holidays.
+            state (str): The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+
+        Returns:
+            list: A list of tuples containing the Julian day of the holiday.
+        """
+        try:
+            # Initialize the holidays object for the given country, year, and state
+            holidays = hol.CountryHoliday(country_code, years=year, subdiv=state)
+
+            # Get the Julian day for each holiday
+            julian_holidays = [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
+
+            return julian_holidays
+        except KeyError:
+            return f"Invalid country or state code '{country_code}', '{state}'. Please provide valid codes."
+
     def generateEnvironment(self):
         """
         Load physical district environment - site and weather.
@@ -204,8 +229,11 @@ class Datahandler:
         # %% load first day of the year
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
+            self.initial_day = 3 # Thursday
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
+            self.initial_day = 6 # Sunday
+
 
         self.select_plz_data()
         # load weather data
@@ -239,9 +267,9 @@ class Datahandler:
 
         # load the holidays
         if self.site["TRYYear"] == "TRY2015":
-            self.time["holidays"] = self.time["holidays2015"]
+            self.time["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
-            self.time["holidays"] = self.time["holidays2045"]
+            self.time["holidays"] = self.get_holidays(country_code="DE", year=2045)
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -302,13 +330,15 @@ class Datahandler:
         -------
         None.
         """
-        duration = datetime.timedelta(minutes=1)
         num_sfh = 0
         num_mfh = 0
         num_OB = 0
-        num_schools = 0
+        num_school = 0
         num_grocery_store = 0
+        num_restaurant = 0
+        num_mfh_office_building = 0
         num_mfh_grocery_store = 0
+        num_mfh_restaurant = 0
 
         # Prepare a new list to collect updated scenario rows
         new_scenario = []
@@ -320,65 +350,74 @@ class Datahandler:
             # Make a copy of the row to work on.
             building_features = row.copy()
 
-            # Check if the building type is a combined type (MFH+Grocery_store or AB+Grocery_store)
-            if row["building"] in ['MFH+Grocery_store', 'AB+Grocery_store']:
+            # Check if the building type is a combined type
+            if row["building"] in ['MFH+OB', 'AB+OB', 'MFH+GS', 'AB+GS', 'MFH+RE', 'AB+RE']:
                 # Make a copy of the building features for the MFH part
                 building_mfh = building_features.copy()
-                # Assign a new unique id using the original id with a .1 suffix.
+                # Assign a new unique id using the original id
                 building_mfh["id"] = next_id
                 # Set the building type to MFH.
                 building_mfh["building"] = "MFH"
                 # Reset the construction type so that it matches with teaser.
                 building_mfh["construction_type"] = ""
 
-                # Determine the area of the MFH portion.
-                # Assumption: The grocery store occupies the area of 3 flats,
-                # and a typical flat has an area of about 80 m^2.
                 total_area = building_mfh["area"]
-                # Determine the number of flats.
-                if total_area <= 4 * 100:
-                    # Minimum case: At least 3 flats if the area is small
-                    nb_flats = 3
-                elif total_area > 4 * 100:
-                    # For larger areas, pick a random number around total_area/80,
-                    # then subtract 3 (the grocery store's assumed share).
-                    nb_flats = rd.randint((total_area // 80) - 1, (total_area // 80) + 1) - 3
-                # Calculate the area per flat (total area divided by the total number of flats including the grocery store).
-                area_flat = total_area / (nb_flats + 3)
-                # Set the MFH building area to be the area occupied by its flats.
+
+                # Determine secondary share and type:
+                # For office building: occupies 4 flats; for grocery store: occupies 4 flats; for restaurant: occupies 2 flats.
+                if row["building"] in ['MFH+OB', 'AB+OB']:
+                    secondary_share = 4 # Assumption
+                    secondary_type = "OB"
+                elif row["building"] in ['MFH+GS', 'AB+GS']:
+                    secondary_share = 4 # Assumption
+                    secondary_type = "GS"
+                elif row["building"] in ['MFH+RE', 'AB+RE']:
+                    secondary_share = 2 # Assumption
+                    secondary_type = "RE"
+
+                # Determine the number of flats for the MFH portion.
+                # Pick a random number assuming a typical flat has an area of about 80 m^2 (Source: Ergebnisse des Zensus 2022 Gebäude- und Wohnungszählung),
+                # then subtract the office building's/grocery store's/restaurant's assumed share.
+                nb_flats = rd.randint((total_area // 80) - 1, (total_area // 80) + 1) - secondary_share
+
+                if nb_flats < 1:
+                    raise ValueError("The building area is too small to be used as a mix building")
+
+                # Calculate the area per flat based on the total number of flats (MFH + secondary share).
+                area_flat = total_area / (nb_flats + secondary_share)
+                # Determine the area of the MFH portion.
                 building_mfh["area"] = int(nb_flats * area_flat)
 
-
-                # --- Create the Grocery Store building entry ---
-                building_grocery = building_features.copy()
+                # Create the secondary building entry
+                secondary_building = building_features.copy()
                 # Assign a new unique id using the original id with a .2 suffix.
-                building_grocery["id"] = next_id + 1  # assign the next id
-                # Set the building type to Grocery_store
-                building_grocery["building"] = "Grocery_store"
-                # Set the area for the grocery store as the remaining area.
-                building_grocery["area"] = int(total_area - building_mfh["area"])
+                secondary_building["id"] = next_id + 1
+                # Set the building type
+                secondary_building["building"] = secondary_type
+                # Set the area for secondary_type as the remaining area.
+                secondary_building["area"] = int(total_area - building_mfh["area"])
 
-                # Set various technical attributes for the Grocery_store to "0"
+                # Set various technical attributes for the secondary_type to "0"
                 # since the roof is assumed to be exclusively used by the MFH
-                building_grocery["PV"] = 0
-                building_grocery["STC"] = 0
-                building_grocery["BAT"] = 0
-                building_grocery["f_BAT"] = 0
-                building_grocery["f_PV"] = 0
-                building_grocery["f_STC"] = 0
-                building_grocery["gamma_PV"] = 0
-                building_grocery["mix"] = "mix"
+                secondary_building["PV"] = 0
+                secondary_building["STC"] = 0
+                secondary_building["BAT"] = 0
+                secondary_building["f_BAT"] = 0
+                secondary_building["f_PV"] = 0
+                secondary_building["f_STC"] = 0
+                secondary_building["gamma_PV"] = 0
+                secondary_building["mix"] = "mix"
 
                 # Create the mix feature for both parts.
                 mix_value = f"mix {next_id} {next_id + 1}"
                 building_mfh["mix"] = mix_value
-                building_grocery["mix"] = mix_value
+                secondary_building["mix"] = mix_value
 
                 # Save both entries.
                 self.district.append({"buildingFeatures": building_mfh})
                 new_scenario.append(building_mfh)
-                self.district.append({"buildingFeatures": building_grocery})
-                new_scenario.append(building_grocery)
+                self.district.append({"buildingFeatures": secondary_building})
+                new_scenario.append(secondary_building)
 
                 next_id += 2  # increment counter by 2
 
@@ -397,12 +436,18 @@ class Datahandler:
                 num_mfh += 1
             elif b_type == 'OB':
                 num_OB += 1
-            elif b_type == 'School':
-                num_schools += 1
-            elif b_type == 'Grocery_store':
+            elif b_type == 'SC':
+                num_school += 1
+            elif b_type == 'GS':
                 num_grocery_store += 1
-            elif b_type in ['MFH+Grocery_store', 'AB+Grocery_store']:
+            elif b_type == 'RE':
+                num_restaurant += 1
+            elif b_type in ['MFH+OB', 'AB+OB']:
+                num_mfh_office_building += 1
+            elif b_type in ['MFH+GS', 'AB+GS']:
                 num_mfh_grocery_store += 1
+            elif b_type in ['MFH+RE', 'AB+RE']:
+                num_mfh_restaurant += 1
 
         # Update self.scenario with the new (split) building entries.
         self.scenario = pd.DataFrame(new_scenario)
@@ -421,7 +466,7 @@ class Datahandler:
         """
 
         # Filter the data for specified building types
-        filtered_data = self.scenario[self.scenario['building'].isin(['SFH', 'TH', 'MFH', 'AB', 'MFH+Grocery_store', 'AB+Grocery_store'])]
+        filtered_data = self.scenario[self.scenario['building'].isin(['SFH', 'TH', 'MFH', 'AB', 'MFH+OB', 'AB+OB', 'MFH+GS', 'AB+GS', 'MFH+RE', 'AB+RE'])]
 
         # Generate the dictionary
         temp_id = 0
@@ -515,12 +560,7 @@ class Datahandler:
             # at heating limit temperature
             building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
             # for drinking hot water
-            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_flats
-            elif building["user"].building in {"OB", "School", "Grocery_store"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_main_rooms
+            building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
@@ -550,12 +590,7 @@ class Datahandler:
             b_type = building["buildingFeatures"]["building"]
             b_id = building["buildingFeatures"]["id"]
             # %% create unique building name
-            if b_type in {'SFH', 'MFH', 'TH', 'AB'}:
-                # Name includes building type, ID, and number of flats
-                name = f"{b_type}_{building['user'].nb_flats}_{b_id}"
-            elif b_type in {"OB", "School", "Grocery_store"}:
-                # Name includes building type, ID, and number of main rooms
-                name = f"{b_type}_{building['user'].nb_main_rooms}_{b_id}"
+            name = f"{b_type}_{b_id}"
 
             # If the building has a "mix" feature, append it to the name.
             mix_info = building["buildingFeatures"].get("mix")
@@ -571,7 +606,8 @@ class Datahandler:
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
                                               building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+                                              path=os.path.join(self.resultPath, 'demands'),
+                                              initial_day = self.initial_day)
 
                 if saveUserProfiles:
                     building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
@@ -881,7 +917,7 @@ class Datahandler:
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
             self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 3]
             if centralEnergySupply == False:
-                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
+                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[self.scenario["id"] == id, "EV"].iloc[0]
                 self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
                                                         * self.district[id]["buildingFeatures"]["PV"]
                 self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \

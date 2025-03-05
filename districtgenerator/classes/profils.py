@@ -26,7 +26,7 @@ class Profiles:
         Number of occupants who live in the building.
     initial_day : integer
         Day of the week with which the generation starts.
-        1-7 for monday-sunday.
+        0-6 for monday-sunday.
     nb_days : integer
         Number of days for which a stochastic profile is generated.
     time_resolution : integer
@@ -62,7 +62,7 @@ class Profiles:
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data()
         self.building = building
-        if self.building in {"OB", "School", "Grocery_store"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
+        if self.building in {"OB", "SC", "GS", "RE"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
             self.building_zones = self.SIA2024[self.building]
 
         self.activity_profile = []
@@ -86,7 +86,7 @@ class Profiles:
             Number of occupants who live in the house or flat.
         initial_day : integer
             Day of the week with which the generation starts
-            1-7 for monday-sunday.
+            0-6 for monday-sunday.
         nb_days : integer
             Number of days for which a stochastic profile is generated.
 
@@ -161,10 +161,12 @@ class Profiles:
             sia_week_profile_devices_zone = []
 
             for i in range(7):
-                if self.building == "Grocery_store":
+                if self.building in ["GS"]:
                     is_not_working_day = (i + self.initial_day) % 7 in [6]
-                else:
-                    is_not_working_day = (i + self.initial_day) % 7 in [0, 6]
+                elif self.building in ["SC", "OB"]:
+                    is_not_working_day = (i + self.initial_day) % 7 in [5, 6]
+                elif self.building == "RE":
+                    is_not_working_day = False  # RE is always working
 
                 sia_day_profile_people_zone = [0] * 24 if is_not_working_day else data['profile_people']
                 sia_day_profile_devices_zone = [min(data['profile_devices'])] * 24 if is_not_working_day else data['profile_devices']
@@ -180,7 +182,7 @@ class Profiles:
 
             # Consider holidays
             for day in range(self.nb_days):
-                if (day + self.initial_day) in holidays:
+                if (day+1 in holidays and self.building in ["SC", "OB", "GS"]):
                     sia_profile_people_zone[24 * day: 24 * (day + 1)] = [0] * 24
                     sia_profile_devices_zone[24 * day: 24 * (day + 1)] = [min(data['profile_devices'])] * 24
 
@@ -225,17 +227,23 @@ class Profiles:
             occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
                                          self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])
 
-        elif self.building == "School":
+        elif self.building == "SC":
             self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                     # self.number_occupants is the mean number of occupants in a main room
-                                self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])   # self.occ_profile is the occupancy profile in a classroom of the many existing in the building
+                                self.building_profiles['SC']["Schulzimmer"]['profile_people_zone']])   # self.occ_profile is the occupancy profile in a classroom of the many existing in the building
             occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['School']["Schulzimmer"]['profile_people_zone']])
+                                         self.building_profiles['SC']["Schulzimmer"]['profile_people_zone']])
 
-        elif self.building == "Grocery_store":
+        elif self.building == "GS":
             self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                                    # self.number_occupants is the mean number of occupants in a main room
-                                self.building_profiles['Grocery_store']["Lebensmittelverkauf"]['profile_people_zone']])
+                                self.building_profiles['GS']["Lebensmittelverkauf"]['profile_people_zone']])
             occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['Grocery_store']["Lebensmittelverkauf"]['profile_people_zone']])
+                                         self.building_profiles['GS']["Lebensmittelverkauf"]['profile_people_zone']])
+
+        elif self.building == "RE":
+            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                                    # self.number_occupants is the mean number of occupants in a main room
+                                self.building_profiles['RE']["Restaurant"]['profile_people_zone']])
+            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
+                                         self.building_profiles['RE']["Restaurant"]['profile_people_zone']])
 
         self.occ_profile_building = occ_profile_building_main_part
         max_value = max(occ_profile_building_main_part)
@@ -304,7 +312,8 @@ class Profiles:
             building_type=self.building,
             weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
             holidays = holidays,
-            mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"]
+            mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"],
+            initial_day = self.initial_day
         )
 
         dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
@@ -360,9 +369,8 @@ class Profiles:
 
         #  Loop over all days
         for i in range(self.nb_days):
-
             # Define if the day is a working day or not
-            if (i + self.initial_day) % 7 in (0, 6) or (i + self.initial_day) in holidays:
+            if (i + self.initial_day) % 7 in (5, 6) or i + 1 in holidays:
                 not_working_day = True
             else:
                 not_working_day = False
@@ -606,48 +614,130 @@ class Profiles:
 
         return gains_persons, gains_others
 
-    def generate_EV_profile(self, occ, size_ev_battery):
+####################################################
+    def generate_EV_profile(self, building, holidays, occ):
         """
-        Generate profile for an electric vehicle (EV)
+            Generate daily EV charging demand (distinguishing between workdays and non-workdays) and return an annual load curve.
 
-        Returns
-        -------
-        car_demand_total : list
-            Electricity demand of the EV in [Wh].
-        """
+            Returns
+            -------
+            car_loadcurve : np.array
+                EV electricity demand curve (in W) for nb_days * (86400 / time_resolution) timesteps.
+            """
+        battery_capacity_Wh = building["buildingFeatures"]["f_EV"]  # all car have the same battery capacity
+        consumption_today_Wh = 0
 
-        # determine how long one day is (in number of steps)
+        # Calculate the number of timesteps per day
         array = int(len(occ) / self.nb_days)
-        # initialize empty list for all days
-        car_demand_total = []
-        # loop over all days
+        total_steps = int(len(occ))
+
+        # Define the possible daily distances (in km)
+        # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile <https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile>
+        # Tabelle A A10.2 Gesamtstrecke des Pkw am Stichtag (genutzte Pkw)
+        distance_intervals = [
+            (0, 5),  # 0-5 km
+            (5, 10),
+            (10, 20),
+            (20, 30),
+            (30, 50),
+            (50, 100),
+            (100, 200),
+            (200, 600)]
+
+        # Define the corresponding probabilities for each distance (must sum to 1)
+        weekday_distance_probs = [0.08, 0.11, 0.19, 0.14, 0.20, 0.19, 0.06, 0.03]
+        not_working_day_probs = [0.13, 0.12, 0.19, 0.11, 0.15, 0.16, 0.10, 0.04]
+
+        # Define a function to generate random distance
+        def random_distance(intervals, probs):
+
+            idx = np.random.choice(len(intervals), p=probs)
+            low, high = intervals[idx]
+
+            dist = np.random.uniform(low, high)
+            return dist
+
+        # define consumption rate
+        consumption_per_km = 147  # wh/km #to be changed
+
+        #generate number of cars for every family
+        def generate_car_count(household_size):
+            # Car distribution probabilities (excluding the case of 0 cars)
+            car_distribution = {
+                1: [0.57, 0.02, 0.00],  # 1-person household
+                2: [0.61, 0.27, 0.01],  # 2-person household
+                3: [0.40, 0.41, 0.10],  # 3-person household
+                4: [0.35, 0.48, 0.11],  # 4-person household
+                5: [0.36, 0.41, 0.15]  # 5+ person household
+            }
+
+            # Normalize the probability distribution to ensure the sum equals 1
+            probabilities = np.array(car_distribution[household_size])
+            probabilities /= probabilities.sum()
+
+            # Define car count categories (1, 2, or 3 cars)
+            car_counts = np.arange(1, len(probabilities) + 1)
+
+            # Perform random sampling based on probabilities
+            return np.random.choice(car_counts, p=probabilities)
+
+        # initial load curve
+        car_demand_total = np.zeros(total_steps)
+
+        # Iterate through all days, distinguishing workdays and non-workdays ======
         for day in range(self.nb_days):
+            # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
+            if (day + self.initial_day) % 7 in (5, 6) or day + 1 in holidays:
+                not_working_day = True
+            else:
+                not_working_day = False
+                # treat every flats in MFH as SFH
+
             # slice occupancy profile for current day
             occ_day = occ[day * array:(day + 1) * array]
-            # initialize electricity demand of EV for current day
-            car_demand_day = np.zeros(len(occ_day))
-
-            # Check if there is no occupancy for the entire day
-            if np.all(occ_day == 0.0):
-                # If the entire day's occupancy profile is zero, set demand to 0 for the day
-                car_demand_total[day * array:(day + 1) * array] = car_demand_day
-                continue  # Skip to the next day
-
-            # identify time steps where nobody is home
+            daily_demand = np.zeros(len(occ_day))
             nobody_home = np.where(occ_day == 0.0)
+
             try:
                 # assumption: car returns shortly after the last time step when nobody is home
-                car_almost_arrives = nobody_home[0][-1]
+                car_arrive = nobody_home[0][-1]
             except:
                 # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
-                car_almost_arrives = array - int(array / 4)
-            # calculate electricity demand of current day [Wh]
-            demand = min(size_ev_battery, max(0, rd.gauss(size_ev_battery, 0.5 * size_ev_battery)))
-            # demand for the energy system at home just relevant with return of EV
-            # assumption: just last return of the day is relevant, because EV is not connected at home between
-            # first leave and last return of the day
-            car_demand_day[car_almost_arrives] = demand
-            # add current day to demand for all days
-            car_demand_total[day * array:(day + 1) * array] = car_demand_day
+                car_arrive = array - int(array / 4)
+
+            # Select the driving distance distribution for the day
+            if not_working_day:
+                distance_probs = not_working_day_probs
+            else:
+                distance_probs = weekday_distance_probs
+
+            # Sample the daily driving distance
+            if building["buildingFeatures"]["EV"] == 0:
+                number_of_EV = 0
+            else:
+                number_of_EV = generate_car_count(self.number_occupants)
+
+            # calculate how many people go out in the same time in one day.
+            mobile_person = max(occ_day) - min(occ_day)
+
+            # the prob of not using the car
+            # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile <https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile>
+            # Tabelle 7 Anteil Personen, die ein Verkehrsmittel am Stichtag nutzen und Tagesstrecke mit diesem Verkehrsmittel
+            if number_of_EV > 0:
+                prob_car_not_used = (1 - (0.48 / number_of_EV)) ** mobile_person
+
+                # Iterate through all cars in a building
+                for j in range(number_of_EV):
+                    daily_dist = 0
+                    if np.random.rand() > prob_car_not_used:
+                        daily_dist += random_distance(distance_intervals, distance_probs)
+                    else:
+                        daily_dist += 0
+
+                    # Compute daily charging demand (Wh), capping it at battery capacity
+                    consumption_today_Wh += min(daily_dist * consumption_per_km, battery_capacity_Wh)
+                    daily_demand[car_arrive] = consumption_today_Wh
+                # add current day to demand for all days
+                car_demand_total[day * array:(day + 1) * array] += daily_demand
 
         return car_demand_total
