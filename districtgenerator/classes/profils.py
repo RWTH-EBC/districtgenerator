@@ -8,7 +8,7 @@ import numpy as np
 import pylightxl as xl
 import richardsonpy.classes.occupancy as occ_residential
 import richardsonpy.functions.change_resolution as cr
-import districtgenerator.functions.OpenDHW as OpenDHW
+import OpenDHW
 import districtgenerator.functions.change_resolution as chres
 
 class Profiles:

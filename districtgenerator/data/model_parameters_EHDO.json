@@ -1,41 +1,29 @@
 [
     {
         "name": "enable_supply_el",
-        "value": "True",
+        "value": true,
         "description" : "Enable electricity supply."
-    },
-    {
-        "name": "price_supply_el",
-        "value": 0.32,
-        "unit": "€/kWh",
-        "description" : "Electricity price."
     },
     {
         "name": "enable_feed_in_el",
-        "value": "True",
+        "value": true,
         "description" : "Enable electricity supply."
     },
     {
-        "name": "revenue_feed_in_el",
-        "value": 0.072,
-        "unit": "€/kWh",
-        "description" : "Feed-in electricity price."
-    },
-    {
         "name": "enable_price_cap_el",
-        "value": "False",
+        "value": false,
         "unit": " - ",
         "description" : "Enable electricity capacity price."
     },
     {
         "name": "price_cap_el",
-        "value": "60",
+        "value": 60,
         "unit": "€/kW",
         "description" : "Electricity capacity price."
     },
     {
         "name": "enable_cap_limit_el",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Consider capacity of grid connection."
     },
@@ -47,7 +35,7 @@
     },
     {
         "name": "enable_supply_limit_el",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable restriction of electricity demand from grid."
     },
@@ -59,18 +47,12 @@
     },
     {
         "name": "enable_supply_gas",
-        "value": "True",
+        "value": false,
         "description" : "Enable gas supply."
     },
     {
-        "name": "price_supply_gas",
-        "value": 0.12,
-        "unit": "€/kWh",
-        "description" : "Gas price."
-    },
-    {
         "name": "enable_price_cap_gas",
-        "value": "False",
+        "value": false,
         "unit": " - ",
         "description" : "Enable gas capacity price."
     },
@@ -82,7 +64,7 @@
     },
     {
         "name": "enable_feed_in_gas",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable natural gas feed-in."
     },
@@ -94,7 +76,7 @@
     },
         {
         "name": "enable_cap_limit_gas",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict gas demand from grid."
     },
@@ -106,19 +88,13 @@
     },
     {
         "name": "enable_supply_biomass",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict available biomass."
     },
     {
-        "name": "price_biomass",
-        "value": 0.05,
-        "unit": "€/kWh",
-        "description" : "Biomass price."
-    },
-    {
         "name": "enable_supply_limit_biomass",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Enable limit annual biomass import."
     },
@@ -130,21 +106,15 @@
     },
     {
         "name": "enable_supply_hydrogen",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict available hydrogen."
     },
     {
-        "name": "price_hydrogen",
-        "value": 0.1,
-        "unit": "€/kWh",
-        "description" : "Hydrogen price."
-    },
-    {
         "name": "enable_supply_limit_hydrogen",
-        "value": "False",
+        "value": false,
         "unit": "-",
-        "description" : "Enable limit annual biomass import."
+        "description" : "Enable limit annual hydrogen import."
     },
     {
         "name": "supply_limit_hydrogen",
@@ -154,21 +124,15 @@
     },
     {
         "name": "enable_supply_waste",
-        "value": "False",
+        "value": false,
         "unit": "-",
         "description" : "Restrict available waste."
     },
     {
-        "name": "price_waste",
-        "value": 0.1,
-        "unit": "€/kWh",
-        "description" : "Waste price."
-    },
-    {
         "name": "enable_supply_limit_waste",
-        "value": "False",
+        "value": false,
         "unit": "-",
-        "description" : "Enable limit annual biomass import."
+        "description" : "Enable limit annual waste import."
     },
     {
         "name": "supply_limit_waste",
@@ -176,47 +140,30 @@
         "unit": "MWh/year",
         "description" : "Maximum available waste."
     },
-
-
-
-
+        {
+        "name": "supply_limit_gas",
+        "value": 1000000,
+        "unit": "MWh/year",
+        "description" : "Maximum available gas."
+    },
+    {
+        "name": "enable_supply_limit_gas",
+        "value": false,
+        "unit": "-",
+        "description" : "Enable limit annual gas import."
+    },
+    {
+        "name": "peak_dem_met_conv",
+        "value": true,
+        "unit": "-",
+        "description" : "Meet peak demands of unclustered demands"
+    },
     {
         "name": "co2_tax",
         "value": 0,
         "unit": "€/t_CO2",
         "description" : "CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste."
     },
-    {
-        "name": "co2_el_grid",
-        "value": 0.49,
-        "unit": "kg/kWh",
-        "description" : "CO2 emissions for electricity import (grid mix)."
-    },
-    {
-        "name": "co2_gas",
-        "value": 0.25,
-        "unit": "kg/kWh",
-        "description" : "CO2 emissions by burning natural gas."
-    },
-    {
-        "name": "co2_biom",
-        "value": 0.35,
-        "unit": "kg/kWh",
-        "description" : "CO2 emissions by burning biomass."
-    },
-    {
-        "name": "co2_waste",
-        "value": 0,
-        "unit": "kg/kWh",
-        "description" : "CO2 emissions by burning waste."
-    },
-    {
-        "name": "co2_hydrogen",
-        "value": 0,
-        "unit": "kg/kWh",
-        "description" : "CO2 emissions by burning hydrogen."
-    },
-
     {
         "name": "co2_el_feed_in",
         "value": 0,

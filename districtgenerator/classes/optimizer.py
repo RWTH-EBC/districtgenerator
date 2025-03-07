@@ -44,7 +44,7 @@ class Optimizer:
         Identifier of the currently regarded cluster.
     """
 
-    def __init__(self, data, cluster, centralEnergySupply):
+    def __init__(self, data, cluster):
         """
         Constructor of Optimizer class.
 
@@ -98,7 +98,7 @@ class Optimizer:
         self.model.setParam("TimeLimit", self.optiSettings["TimeLimit"])
         self.model.setParam("DualReductions", self.optiSettings["DualReductions"])
 
-    def run_cen_opti(self, optiData):
+    def run_cen_opti(self):
         """
         Load the variables and constrains into the model.
 
@@ -107,6 +107,6 @@ class Optimizer:
         None.
         """
 
-        results = opti_central.run_opti_central(self.model, self.data, self.cluster, optiData)
+        results = opti_central.run_opti_central(self.model, self.data, self.cluster)
 
         return results

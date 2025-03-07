@@ -149,13 +149,6 @@ class Datahandler:
             for subData in jsonData:
                 self.ecoData[subData["name"]] = subData["value"]
 
-        with open(os.path.join(self.filePath, 'technical_parameters_EHDO.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.params_ehdo_technical[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.params_ehdo_technical[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
-
         with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
             self.central_device_data = json.load(json_file)
 
@@ -1052,7 +1045,7 @@ class Datahandler:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
 
-    def optimizationClusters(self, centralEnergySupply):
+    def optimizationClusters(self):
         """
         Optimize the operation costs for each cluster.
 
@@ -1068,8 +1061,8 @@ class Datahandler:
         for cluster in range(self.time["clusterNumber"]):
 
             # optimize operating costs of the district for current cluster
-            self.optimizer = Optimizer(self, cluster, centralEnergySupply)
-            results_temp = self.optimizer.run_cen_opti(optiData)
+            self.optimizer = Optimizer(self, cluster)
+            results_temp = self.optimizer.run_cen_opti()
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)

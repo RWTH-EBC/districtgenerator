@@ -23,7 +23,8 @@ setuptools.setup(name='districtgenerator',
                      'geopy~=2.4.1',
                      'pyproj~=3.7.0',
                      'openpyxl==3.1.5',
-                     'seaborn==0.13.2'
+                     'seaborn==0.13.2',
+                     'OpenDHW>=0.2.2'
                  ],
                  classifiers=("Programming Language :: Python :: 3", ),
                  )
