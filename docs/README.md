@@ -82,6 +82,12 @@ the .csv format in folder results/demands. The results contain:
 
 ![Library Structure](./img/Struktur_Quartiersgenerator.png)
 
+## Documentation
+We are still working on the documentation. You can access the documentation in the repository.
+The documentation is available as HTML files in the repository. To view it:
+1. Navigate to `districtgenerator/docs/_build/html/` in the project folder
+2. Open `index.html` in your web browser
+
 ## Running examples for functional testing
 
 Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
