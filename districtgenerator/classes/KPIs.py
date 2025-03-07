@@ -10,9 +10,11 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.graphics.shapes import *
 from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.charts.legends import Legend
 from datetime import datetime
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
+from itertools import zip_longest
 
 class KPIs:
 
@@ -48,8 +50,14 @@ class KPIs:
         self.scf_year = None
         self.annual_investment_total = None
         self.totalarea = None
+        self.totalheatload = None
+        self.totalcoolingload = None
         self.totalnumberflats = None
         self.totalnumberocc = None
+        self.total_heating_demand = None
+        self.total_cooling_demand = None
+        self.total_electricity_demand = None
+        self.total_dhw_demand = None
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -130,7 +138,6 @@ class KPIs:
 
         ### for central energy unit
 
-
     def calculateResidualLoad(self, data):
         """
         Calculate residual load at grid connection point (GCP) in [kW].
@@ -166,7 +173,6 @@ class KPIs:
 
         # maximal injection [kW]
         self.peakInjection = round(np.min(self.residualLoad) *(-1), 3)
-
 
     def calculatePeakToValley(self):
         """
@@ -223,7 +229,6 @@ class KPIs:
             self.W_inj_buildings_year += sum(self.sum_res_inj[c, :] * data.time["timeResolution"] / 3600 / 1000) \
                                          * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
 
-
     def calculateCoverFactors(self, data):
         """
         Calculate the ratio between the self-consumed electricity and the total electricity demand.
@@ -232,9 +237,6 @@ class KPIs:
         -------
         None.
         """
-
-        # How much of the electricity demand is covered by the self-generated electricity? [-]
-
 
         self.supplyCoverFactor = np.zeros(len(self.inputData["clusters"]))
         self.demandCoverFactor = np.zeros(len(self.inputData["clusters"]))
@@ -320,6 +322,7 @@ class KPIs:
                                         + calc_annual_investment["EV"] * heater_counts["EV"]
                                         + calc_annual_investment["BAT"] * heater_counts["BAT"]
                                         + calc_annual_investment["BAT"] * heater_counts["BAT"])
+
     def calc_annual_cost_device(self, dev, param, cap):
         """
         Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
@@ -339,9 +342,15 @@ class KPIs:
         # Projektlaufzeit (observation_time)
         # Zinssatz (für Kapitalkosten) (interest_rate)
         # Anschaffungskosten inkl. Installation, etc. [€/kW]
-        # Lebensdauer [Jahre]
-        # Betriebs- und Wartungskosten [% of Invest]
-        # Defaultwerte aus Technikkatalog KKW (Moritz, Nico)
+        # Lebensdauer (life_time) [years]
+        # Betriebs- und Wartungskosten (operation and maintenance costs, c_om) [% of Invest]
+
+        # Values from Technikkatalog (Langreder et al. 2024):
+        # Langreder, Nora; Lettow, Frederik; Sahnoun, Malek; Kreidelmeyer, Sven; Wünsch, Aurel; Lengning, Saskia et al.
+        # (2024): Technikkatalog Wärmeplanung. Hg. v. ifeu – Institut für Energie- und Umweltforschung Heidelberg,
+        # Öko-Institut e.V., IER Stuttgart, adelphi consult GmbH, Becker Büttner Held PartGmbB, Prognos AG, et al.
+        # Online available at:
+        # https://api.kww-halle.de/fileadmin/user_upload/Technikkatalog_W%C3%A4rmeplanung_Version_1.1_August24.xlsx
 
         observation_time = param["observation_time"]
         interest_rate = param["interest_rate"]
@@ -445,12 +454,15 @@ class KPIs:
 
     def calculateAutonomy(self):
         """
+        Calculation of the ratio of operating time in which the local electricity demand is completely covered
+        by electricity generation in the district.
+
         Returns
         -------
         None.
         """
         LOLP = np.zeros(len(self.inputData["clusters"]))
-        self.EnergyAutonomy = np.zeros(len(self.inputData["clusters"]))
+        self.energy_autonomy = np.zeros(len(self.inputData["clusters"]))
 
         # loop over cluster
         for c in range(len(self.inputData["clusters"])):
@@ -461,18 +473,18 @@ class KPIs:
                 else:
                     y += 0
             LOLP[c] = y / len(self.residualLoad[c])
-        self.EnergyAutonomy = np.array([1,1,1,1]) - LOLP
+        self.energy_autonomy = np.array([1, 1, 1, 1]) - LOLP
 
-        self.EnergyAutonomy_year = 0
+        self.energy_autonomy_year = 0
         sum_ClusterWeights = 0
         ## loop over cluster
         for c in range(len(self.inputData["clusters"])):
             sum_ClusterWeights += self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        #for c in range(len(self.inputData["clusters"])):
-        #    self.EnergyAutonomy_year += EnergyAutonomy[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        #                                                  / sum_ClusterWeights)
+        for c in range(len(self.inputData["clusters"])):
+            self.energy_autonomy_year += self.energy_autonomy[c] * (
+                    self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights)
 
-    def calcareas(self, data):
+    def calc_total_areas_and_demands(self, data):
         """
         Returns
         -------
@@ -481,15 +493,57 @@ class KPIs:
         total_net_leased_area = 0
         total_number_flats = 0
         total_number_occ = 0
+        total_heat_load = 0
+        # total_cooling_load = 0
+        total_heating_demand = 0
+        total_cooling_demand = 0
+        total_electricity_demand = 0
+        total_dhw_demand = 0
+        sum_electricity_profile = []
+        sum_heat_profile = []
+        sum_cool_profile = []
+        sum_dhw_profile = []
 
         for building in data.district:
+            # sum all building areas
             total_net_leased_area += building["buildingFeatures"]["area"]
             total_number_flats += building["user"].nb_flats
-            total_number_occ += building["user"].nb_occ
+            for flat in building["user"].nb_occ:
+                total_number_occ += flat
+
+            # sum all building design heat and cooling loads
+            total_heat_load += building["envelope"].heatload
+            # total_cooling_load += building["envelope"].cooling_load
+
+            # sum all building demands
+            total_heating_demand += sum(building["user"].heat)
+            total_cooling_demand += sum(building["user"].cooling)
+            total_electricity_demand += sum(building["user"].elec)
+            total_dhw_demand += sum(building["user"].dhw)
+
+            # sum all building demand profiles
+            sum_electricity_profile = [sum(i) for i in zip_longest(
+                sum_electricity_profile, building["user"].elec, fillvalue=0)] # w/o cars
+            sum_heat_profile = [sum(i) for i in zip_longest(
+                sum_electricity_profile, building["user"].heat, fillvalue=0)]
+            sum_cool_profile = [sum(i) for i in zip_longest(
+                sum_electricity_profile, building["user"].cooling, fillvalue=0)]
+            sum_dhw_profile = [sum(i) for i in zip_longest(
+                sum_electricity_profile, building["user"].dhw, fillvalue=0)]
 
         self.totalarea = total_net_leased_area
         self.totalnumberflats = total_number_flats
         self.totalnumberocc = total_number_occ
+        self.totalheatload = total_heat_load
+        # self.totalcoolingload = total_cooling_load
+        self.total_heating_demand = total_heating_demand
+        self.total_cooling_demand = total_cooling_demand
+        self.total_electricity_demand = total_electricity_demand
+        self.total_dhw_demand = total_dhw_demand
+        self.total_electricity_peak = max(sum_electricity_profile)
+        self.total_heat_peak = max(sum_heat_profile)
+        self.total_dhw_peak = max(sum_dhw_profile)
+        self.total_cooling_peak = max(sum_cool_profile)
 
     def calculateAllKPIs(self, data):
         """
@@ -511,6 +565,7 @@ class KPIs:
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
+        self.calc_total_areas_and_demands(data)
 
     def create_certificate(self, data, result_path):
         """
@@ -538,6 +593,7 @@ class KPIs:
         TH = dict(template_dict)
         MFH = dict(template_dict)
         AB = dict(template_dict)
+        gebaeudeliste = []
 
         for building in data.district:
             if building["buildingFeatures"]["building"] == 'SFH':
@@ -616,6 +672,22 @@ class KPIs:
                     AB["2010-2015"] += building["buildingFeatures"]["area"]
                 elif building["buildingFeatures"]["year"] >= 2016:
                     AB["ab 2016"] += building["buildingFeatures"]["area"]
+            gebaeudeliste.append([building["buildingFeatures"]["building"],
+                                  building["buildingFeatures"]["year"],
+                                  building["buildingFeatures"]["retrofit"],
+                                  building["buildingFeatures"]["area"],
+                                  building["buildingFeatures"]["heater"],
+                                  building["buildingFeatures"]["PV"],
+                                  building["buildingFeatures"]["STC"],
+                                  building["buildingFeatures"]["EV"],
+                                  building["buildingFeatures"]["BAT"],
+                                  building["buildingFeatures"]["f_TES"],
+                                  building["buildingFeatures"]["f_BAT"],
+                                  building["buildingFeatures"]["f_EV"],
+                                  building["buildingFeatures"]["f_PV"],
+                                  building["buildingFeatures"]["f_STC"],
+                                  building["buildingFeatures"]["gamma_PV"],
+                                  building["buildingFeatures"]["ev_charging"]])
 
         # create dicts to categorize KPIs and building information
         # kennwerte: a dictionary with the following keys (in order, formatted as strings), and all values formatted as
@@ -679,36 +751,44 @@ class KPIs:
         #                 ev_charging:
         kennwerte={
                 # TODO: We don't have any primary factors for gas and electricity mix. Should be added?
-                "Primärenergiebedarf": "120 kWh/m\u00B2a",
+                # "Primärenergiebedarf": "120 kWh/m\u00B2a",
                 # TODO: Discuss total final energy calculation and if a specific value would be better
-                "Endenergiebedarf": str(self.Gas_year + self.W_dem_GCP_year) + " kWh",  # /m\u00B2a",
-                "Norm-Heizlast insgesamt": str(self.totalheatload) + " kW",
+                "Nutzenergiebedarf": str(round((self.total_electricity_demand
+                                               + self.total_heating_demand
+                                               + self.total_cooling_demand
+                                               + self.total_dhw_demand) / 1000, 2)) + " kWh/a",
+                "Norm-Heizlast": str(round(self.totalheatload / 1000)) + " kW",
                 "Solltemperatur": str(data.design_building_data["T_set_min"]) + " \u00B0C / " + str(
-                    data.design_building_data["T_set_min"]) + " \u00B0C",
-                "Bedarfe": (self.total_el_demand, self.total_heat_demand, self.total_dhw_demand),
-                "Max. Leistungen": (self.total_el_peak, self.total_heat_peak, self.total_dhw_peak)
+                    data.design_building_data["T_set_max"]) + " \u00B0C",
+                "Bedarfe": (round(self.total_electricity_demand / 1000000, 2),
+                            round(self.total_heating_demand / 1000000, 2),
+                            round(self.total_dhw_demand / 1000000, 2),
+                            round(self.total_cooling_demand / 1000000, 2)),
+                "Max. Leistungen": (round(self.total_electricity_peak / 1000),
+                                    round(self.total_heat_peak / 1000),
+                                    round(self.total_dhw_peak / 1000),
+                                    round(self.total_cooling_peak / 1000))
             }
         opt_ergebnisse={
-                "CO2-äqui. Emissionen": str(self.co2emissions) + " t/a",
-                "Energiekosten": str(self.operationCosts) + " \u20AC/kWh",
-                "Spitzenlast (el.) gesamt": str(self.peakDemand) + " kW",
-                "Max. Einspeiseleistung gesamt": str(self.peakInjection) + " kW",
-                "Supply-Cover-Faktor": str(self.scf_year),
-                "Demand-Cover-Faktor": str(self.dcf_year)
+                "CO2-äqui. Emissionen": str(round(sum(self.co2emissions))) + " t/a",
+                "Energiekosten": str(round(self.operationCosts)) + " \u20AC/a",
+                "Spitzenlast (el.)": str(round(self.peakDemand, 2)) + " kW",
+                "Max. Einspeiseleistung": str(round(self.peakInjection, 2)) + " kW",
+                "Supply-Cover-Faktor": str(round(self.scf_year, 2)),
+                "Demand-Cover-Faktor": str(round(self.dcf_year, 2))
             }
         struktur={
                 "EFH": SFH,
                 "MFH": MFH,
                 "Reihenhaus": TH,
                 "Block": AB,
-                "Wohnungen gesamt": self.totalnumberflats,
+                "Wohneinheiten gesamt": self.totalnumberflats,
                 "Bewohner gesamt": self.totalnumberocc,
                 "Nettowohnfläche gesamt": str(self.totalarea) + " m\u00B2",
-                "Standort (PLZ)": str(data.site["PLZ"]),
+                "Standort (PLZ)": str(data.site["zip"]),
                 "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
                 "Quartiersname": str(data.scenario_name)
             }
-        gebaeudeliste=data.district
 
         if result_path is None:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -763,11 +843,10 @@ class KPIs:
         certificate.line(width - 72, height - top3, width - 72, height - bottom3)
         certificate.setFont("Helvetica-Bold", 12)
         certificate.drawString(85, height - ((top3 + bottom3) / 2) - 4, "Quartiersname: ")
-        certificate.setFont("Helvetica", 12)
+        certificate.setFont("Helvetica", 10)
         certificate.drawString(177, height - ((top3 + bottom3) / 2) - 4, struktur["Quartiersname"])
-        today = datetime.now()
-        certificate.drawString(400, height - ((top3 + bottom3) / 2) - 4,
-                               "Erstellt am " + str(today.day) + "." + str(today.month) + "." + str(today.year))
+        certificate.drawString(380, height - ((top3 + bottom3) / 2) - 4,
+                               "Erstellt am: " + datetime.now().strftime('%d.%m.%Y %H:%M'))
 
         # filling in the first section
         # in the create_certificate function, the argument would be a dictionary of parameters and their values. this dictionary would be titled quartier_daten
@@ -775,8 +854,8 @@ class KPIs:
         certificate.setFont("Helvetica", 12)
         content = tuple(kennwerte.keys())
         values = tuple(kennwerte.values())
-        content = content[0:4]
-        values = values[0:4]
+        content = content[0:3]
+        values = values[0:3]
 
         i = 0
         for item in content:
@@ -785,7 +864,7 @@ class KPIs:
 
         j = 0
         for value in values:
-            certificate.drawString(240, height - top1 - 32 - (18 * j), str(value))
+            certificate.drawString(200, height - top1 - 32 - (18 * j), str(value))
             j = j + 1
 
         bottom_kennwerte = top1 + 32 + 18 * j
@@ -798,7 +877,7 @@ class KPIs:
         certificate.line(325, height - bottom_kennwerte, 325, height - bottom1)
 
         certificate.setFont("Helvetica-Bold", 14)
-        certificate.drawString(85, height - bottom_kennwerte - 25, "Optimierungsergebnisse")
+        certificate.drawString(85, height - bottom_kennwerte - 25, "Optimierter Anlagenbetrieb")
 
         certificate.setFont("Helvetica", 12)
         opt_keys = tuple(opt_ergebnisse.keys())
@@ -811,7 +890,7 @@ class KPIs:
 
         j = 0
         for value in opt_values:
-            certificate.drawString(260, height - bottom_kennwerte - 50 - (18 * j), str(value))
+            certificate.drawString(230, height - bottom_kennwerte - 50 - (18 * j), str(value))
             j = j + 1
 
         # create graphics for the energy demands and maximum powers by energy type
@@ -821,7 +900,10 @@ class KPIs:
         pc.width = 90
         pc.height = 90
         pc.data = kennwerte["Bedarfe"]
-        pc.labels = ['Strom: ' + str(pc.data[0]), 'Wärme: ' + str(pc.data[1]), 'TWW: ' + str(pc.data[2]),'Kälte: '+str(pc.data[3])]
+        pc.labels = None#['Strom: ' + str(pc.data[0]), 'Wärme: ' + str(pc.data[1]), 'TWW: ' + str(pc.data[2]),'Kälte: '+str(pc.data[3])]
+        #pc.sideLabelsOffset = 0.1
+        #pc.sideLabels = 1
+        #pc.checkLabelOverlap = 1
 
         pc.slices.strokeWidth = 1
         pc.slices.labelRadius = 1.5
@@ -831,20 +913,42 @@ class KPIs:
 
         pc.slices[0].fillColor = colors.Color(0 / 256, 85 / 256, 31 / 256)
         pc.slices[1].fillColor = colors.Color(134 / 256, 169 / 256, 26 / 256)
-        pc.slices[2].fillColor = colors.Color(122 / 256, 186 / 256, 214 / 256)
-        pc.slices[3].fillColor = colors.Color(54 / 256, 132 / 256, 39 / 256)
+        pc.slices[2].fillColor = colors.Color(54 / 256, 132 / 256, 39 / 256)
+        pc.slices[3].fillColor = colors.Color(122 / 256, 186 / 256, 214 / 256)
 
         d.add(pc)
 
-        d.drawOn(certificate,(width/2)+80,height-top1-130)
+        legend = Legend()
+        legend.alignment = 'right'
+        legend.fontName = "Helvetica"
+        legend.fontSize = 10
+        legend.dx = 7
+        legend.dy = 7
+        legend.yGap = 0
+        legend.deltax = 90
+        legend.deltay = 10
+        legend.strokeWidth = 0
+        legend.strokeColor = colors.white
+        legend.columnMaximum = 2
+        legend.boxAnchor = 'nw'
+        legend.y = -5
+        legend.x = -36
+        legend.colorNamePairs = [
+            (colors.Color(0 / 256, 85 / 256, 31 / 256), u'Strom: ' + str(pc.data[0])),
+            (colors.Color(134 / 256, 169 / 256, 26 / 256), u'Wärme: ' + str(pc.data[1])),
+            (colors.Color(54 / 256, 132 / 256, 39 / 256), u'TWW: ' + str(pc.data[2])),
+            (colors.Color(122 / 256, 186 / 256, 214 / 256), u'Kälte: ' + str(pc.data[3])),]
+        d.add(legend)
+
+        d.drawOn(certificate,(width/2)+80,height-top1-120)
 
         certificate.setFont("Helvetica-Bold", 14)
-        certificate.drawString(340, height - top1 - 20, "Energiebedarfe (kWh)")
+        certificate.drawString(340, height - top1 - 20, "Energiebedarfe in MWh")
 
         max_leistungen = kennwerte["Max. Leistungen"]
         leist_labels = ("Strom: ", "Wärme: ", "TWW: ","Kälte: ")
 
-        ML_top = 265
+        ML_top = 263
 
         certificate.drawString(340, height - ML_top, "Maximale Leistungen")
 
@@ -853,11 +957,13 @@ class KPIs:
         certificate.setLineCap(2)
         certificate.setFont("Helvetica", 12)
 
+        scaling_line = 75 / max(max_leistungen)
+
         for i in range(len(max_leistungen)):
-            certificate.drawString(340, height - ML_top - 20 - (16 * i), leist_labels[i])
-            certificate.line(390, height - ML_top - 16 - (16 * i), 390 + (5 * max_leistungen[i]),
-                             height - ML_top - 16 - (16 * i))
-            certificate.drawString(400 + (5 * max_leistungen[i]), height - ML_top - 20 - (16 * i),
+            certificate.drawString(340, height - ML_top - 18 - (18 * i), leist_labels[i])
+            certificate.line(387, height - ML_top - 16 - (18 * i), 390 + (scaling_line * max_leistungen[i]),
+                             height - ML_top - 16 - (18 * i))
+            certificate.drawString(395 + (scaling_line * max_leistungen[i]), height - ML_top - 18 - (18 * i),
                                    str(max_leistungen[i]) + " kW")
 
         # create table in section 2
@@ -899,33 +1005,33 @@ class KPIs:
         RH_values = tuple(struktur["Reihenhaus"].values())
         B_values = tuple(struktur["Block"].values())
 
-        certificate.drawString((table_width * 2 / 5) + (((table_width / 5) - (len(EFH_values[0]) - 5) * 6.8) / 2) - 8,
-                               table_top - 14 - 18, EFH_values[0])
-        certificate.drawString((table_width * 3 / 5) + (((table_width / 5) - (len(MFH_values[0]) - 5) * 6.8) / 2) - 8,
-                               table_top - 14 - 18, MFH_values[0])
-        certificate.drawString((table_width * 4 / 5) + (((table_width / 5) - (len(RH_values[0]) - 5) * 6.8) / 2) - 8,
-                               table_top - 14 - 18, RH_values[0])
-        certificate.drawString((table_width) + (((table_width / 5) - (len(B_values[0]) - 5) * 6.8) / 2) - 8,
-                               table_top - 14 - 18, B_values[0])
+        certificate.drawString((table_width * 2 / 5) + (((table_width / 5) - (EFH_values[0] - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, str(EFH_values[0]))
+        certificate.drawString((table_width * 3 / 5) + (((table_width / 5) - (MFH_values[0] - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, str(MFH_values[0]))
+        certificate.drawString((table_width * 4 / 5) + (((table_width / 5) - (RH_values[0] - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, str(RH_values[0]))
+        certificate.drawString((table_width) + (((table_width / 5) - (B_values[0] - 5) * 6.8) / 2) - 8,
+                               table_top - 14 - 18, str(B_values[0]))
 
         for i in range(1, len(EFH_values)):
-            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 12.3 - (len(EFH_values[i]) * 6.5),
-                                   table_top - 14 - 18 - (18 * i), EFH_values[i])
+            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 12.3 - (len(str(EFH_values[i])) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), str(EFH_values[i]))
             certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
         for i in range(1, len(MFH_values)):
-            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 12.3 - (len(MFH_values[i]) * 6.5),
-                                   table_top - 14 - 18 - (18 * i), MFH_values[i])
+            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 12.3 - (len(str(MFH_values[i])) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), str(MFH_values[i]))
             certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
         for i in range(1, len(RH_values)):
-            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 12.3 - (len(RH_values[i]) * 6.5),
-                                   table_top - 14 - 18 - (18 * i), RH_values[i])
+            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 12.3 - (len(str(RH_values[i])) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), str(RH_values[i]))
             certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
         for i in range(1, len(B_values)):
-            certificate.drawString((table_width) + ((table_width / 5) / 2) + 12.3 - (len(B_values[i]) * 6.5),
-                                   table_top - 14 - 18 - (18 * i), B_values[i])
+            certificate.drawString((table_width) + ((table_width / 5) / 2) + 12.3 - (len(str(B_values[i])) * 6.5),
+                                   table_top - 14 - 18 - (18 * i), str(B_values[i]))
             certificate.drawString((table_width) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
 
@@ -1102,56 +1208,75 @@ class KPIs:
         certificate.drawString(85, height - 36 - 6, "Allgemeine Hinweise")
 
         # add information
-        terms = ["Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierungsergebnisse"]
+        terms = ["Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierter Anlagenbetrieb"]
         details = [
-            "Gebäude ID: Gebäudenummer zur Identifizierung \n"
-            "Gebäudetyp: SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, AB = Wohnblock \n"
-            "Baujahr: Baualtersklasse (vor 1969, )"
-            "Sanierung: 0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55"
-            "Wohnfläche: Nettoraumfläche in m²"
-            "Heizung: ausgewählter Wärmeerzeuger"
-            "PV: 0 = Photovoltaic nicht vorhanden, 1 = Photovoltaic vorhanden"
-            "STC: 0 = Solarthermie nicht vorhanden, 1 = Solarthermie vorhanden"
-            "EV:0 = Elektroauto nicht vorhanden, 1 = Elektroauto vorhanden"
-            "BAT:0 = Batteriespeicher nicht vorhanden, 1 = Betteriespeicher vorhanden"
-            "fTES: Größe des Pufferspeichers in Liter"
-            "fBAT: Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV"
-            "fEV: Größe des Batteriespeichers im Elektroauto in Wh"
-            "fPV: Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)"
-            "fSTC: Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)"
-            "gammaPV: Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°"
-            "EV Charging: Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)",
-            "Primärenergiebedarf: "
-            "Endenergiebedarf:"
-            "Norm-Heizlast insgesamt: Über alle Gebäude aufsummierte Norm-Heizlast nach DIN ..."
-            "Solltemperatur: Voreingestellte Solltemperatur für die Gebäude. Wird für die Berechnung der Wärmebedarfsprofile genutzt."
-            "Energiebedarfe (kWh): Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom und Trinkwarmwasser)"
-            "Maximale Leistungen: Maximale Leistungen in kW im Quartier auf Basis der aufsummierten Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)",
-            "CO2-äqui. Emissionen: Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten Betrieb (Gasbedarf und Strombedarf)"
-            "Energiekosten: Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der Betriebsoptimierung"
-            "Spitzenlast (el.) gesamt: Maximaler Strombezug des gesamten Quartiers aus übergeordnetem Stromnetz auf Basis der Betriebsoptimierung"
-            "Max. Einspeiseleistung gesamt: Maximale Stromeinspeisung des gesamten Quartiers in übergeordnetes Stromnetz auf Basis der Betriebsoptimierung"
-            "Supply-Cover-Faktor: Anteil des im Quartier erzeugten Stroms am gesamten elektrischen Energiebedarf (typischerweise Werte zwischen 0 und 1; >1 steht für ein 'Plus-Energie-Quartier', dass mehr Sotrm erzeugt, als es verbaucht)"
-            "Demand-Cover-Faktor: Anteil des Strombedarfs, der durch im Quartier erzeugten Strom gedeckt wird (Werte zwischen 0 und 1)"
+            "<b>Gebäude ID:</b> Gebäudenummer zur Identifizierung<br />"
+            "<b>Gebäudetyp:</b> SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, AB = Wohnblock<br />"
+            "<b>Baujahr:</b> Baualtersklasse (vor 1969, 1968-1978, 1979-1983, 1984-1994, 1995-2001, 2002-2009, "
+            "2010-2015, ab 2016)<br />"
+            "<b>Sanierung:</b> 0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55<br />"
+            "<b>Wohnfläche:</b> Nettoraumfläche in m²<br />"
+            "<b>Heizung:</b> ausgewählter Wärmeerzeuger<br />"
+            "<b>PV:</b> 0 = Photovoltaic nicht vorhanden, 1 = Photovoltaic vorhanden<br />"
+            "<b>STC:</b> 0 = Solarthermie nicht vorhanden, 1 = Solarthermie vorhanden<br />"
+            "<b>EV:</b> 0 = Elektroauto nicht vorhanden, 1 = Elektroauto vorhanden<br />"
+            "<b>BAT:</b> 0 = Batteriespeicher nicht vorhanden, 1 = Betteriespeicher vorhanden<br />"
+            "<b>fTES:</b> Größe des Pufferspeichers in Liter<br />"
+            "<b>fBAT:</b> Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV<br />"
+            "<b>fEV:</b> Größe des Batteriespeichers im Elektroauto in Wh<br />"
+            "<b>fPV:</b> Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen "
+            "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
+            "<b>fSTC:</b> Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen "
+            "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
+            "<b>gammaPV:</b> Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°<br />"
+            "<b>EV Charging:</b> Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als "
+            "Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)<br />",
+            "Die hier angegebenen Werte basieren auf den rechnerischen Bedarfen auf Nutzerebene. "
+            "Ein Anlagenbetrieb ist hier nicht berücksichtigt.<br />"
+            "<b>Nutzenergiebedarf:</b> Über alle Gebäude aufsummierter Nutzenergiebedarf (Haushaltsstrom, Wärme, "
+            "Trinkwarmwasser und Kälte)<br />"
+            "<b>Norm-Heizlast:</b> Über alle Gebäude aufsummierte Norm-Heizlast nach DIN EN ISO 13790<br />"
+            "<b>Solltemperatur:</b> Voreingestellte Solltemperatur für die Gebäude. Wird für die Berechnung der "
+            "Wärmebedarfsprofile genutzt.<br />"
+            "<b>Energiebedarfe (kWh):</b> Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der "
+            "generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom und Trinkwarmwasser)<br />"
+            "<b>Maximale Leistungen:</b> Maximale Leistungen in kW im Quartier auf Basis der aufsummierten "
+            "Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)<br /><br />",
+            "Die hier angegebenen Werte wurden nach einer Betriebsoptimierung unter Berücksichtigung aller "
+            "definierten Anlagen (Erzeuger wie auch Speicher) im Quartier berechnet.<br />"
+            "<b>CO2-äqui. Emissionen:</b> Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten "
+            "Betrieb (Gasbedarf und Strombedarf)<br />"
+            "<b>Energiekosten:</b> Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der "
+            "Betriebsoptimierung<br />"
+            "<b>Spitzenlast (el.):</b> Maximaler Strombezug des gesamten Quartiers aus übergeordnetem "
+            "Stromnetz auf Basis der Betriebsoptimierung<br />"
+            "<b>Max. Einspeiseleistung:</b> Maximale Stromeinspeisung des gesamten Quartiers in "
+            "übergeordnetes Stromnetz auf Basis der Betriebsoptimierung<br />"
+            "<b>Supply-Cover-Faktor:</b> Anteil des im Quartier erzeugten Stroms am gesamten elektrischen "
+            "Energiebedarf (typischerweise Werte zwischen 0 und 1; >1 steht für ein 'Plus-Energie-Quartier', "
+            "dass mehr Sotrm erzeugt, als es verbaucht)<br />"
+            "<b>Demand-Cover-Faktor:</b> Anteil des Strombedarfs, der durch im Quartier erzeugten Strom "
+            "gedeckt wird (Werte zwischen 0 und 1)<br />"
             ]
 
         details_Style = ParagraphStyle('My Para style',
                                        fontName='Helvetica',
                                        fontSize=10,
                                        alignment=0,
-                                       leftIndent=20,
-                                       firstLineIndent=-20
+                                       leftIndent=10,
+                                       firstLineIndent=-20,
+                                       spaceafter=6
                                        )
 
-        term_height = height - 72
+        term_height = height - 100
 
         for i in range(len(terms)):
-            p = Paragraph("<b>" + terms[i] + ":</b> " + details[i], details_Style)
+            p = Paragraph("<font size=12><b>" + terms[i] + ":</b></font> <br />" + details[i], details_Style)
             p.wrap(width - 144, term_height)
             num_lines = len(p.blPara.lines)
             term_height = term_height - num_lines * 10
             p.drawOn(certificate, 72, term_height)
-            term_height = term_height - 15
+            term_height = term_height - 30
 
         # save certificate
         certificate.save()
