@@ -63,6 +63,7 @@ class Datahandler:
         self.district = []
         self.scenario_name = scenario_name
         self.scenario = None
+        self.total_building_area = None
         self.design_building_data = {}
         self.physics = {}
         self.decentral_device_data = {}
@@ -361,7 +362,7 @@ class Datahandler:
                 # Reset the construction type so that it matches with teaser.
                 building_mfh["construction_type"] = ""
 
-                total_area = building_mfh["area"]
+                self.total_building_area = building_features["area"]
 
                 # Determine secondary share and type:
                 # For office building: occupies 4 flats; for grocery store: occupies 4 flats; for restaurant: occupies 2 flats.
@@ -378,13 +379,13 @@ class Datahandler:
                 # Determine the number of flats for the MFH portion.
                 # Pick a random number assuming a typical flat has an area of about 80 m^2 (Source: Ergebnisse des Zensus 2022 Gebäude- und Wohnungszählung),
                 # then subtract the office building's/grocery store's/restaurant's assumed share.
-                nb_flats = rd.randint((total_area // 80) - 1, (total_area // 80) + 1) - secondary_share
+                nb_flats = rd.randint((self.total_building_area // 80) - 1, (self.total_building_area // 80) + 1) - secondary_share
 
                 if nb_flats < 1:
                     raise ValueError("The building area is too small to be used as a mix building")
 
                 # Calculate the area per flat based on the total number of flats (MFH + secondary share).
-                area_flat = total_area / (nb_flats + secondary_share)
+                area_flat = self.total_building_area / (nb_flats + secondary_share)
                 # Determine the area of the MFH portion.
                 building_mfh["area"] = int(nb_flats * area_flat)
 
@@ -395,7 +396,7 @@ class Datahandler:
                 # Set the building type
                 secondary_building["building"] = secondary_type
                 # Set the area for secondary_type as the remaining area.
-                secondary_building["area"] = int(total_area - building_mfh["area"])
+                secondary_building["area"] = int(self.total_building_area - building_mfh["area"])
 
                 # Set various technical attributes for the secondary_type to "0"
                 # since the roof is assumed to be exclusively used by the MFH
@@ -501,11 +502,35 @@ class Datahandler:
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
+                if building_type == "single_family_house":
+                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
+                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+                elif building_type == "terraced_house":
+                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
+                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+                elif building_type == "multi_family_house":
+                    # Generate a valid one-floor area and number of floors in one step
+                    one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
+                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
+                    number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
+                    # Cap the number of floors to a maximum of 8
+                    if number_of_floors > 8:
+                        number_of_floors = 8
+
+                elif building_type == "apartment_block":
+                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
+                    number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+
                 prj.add_residential(method='tabula_de',
                                     usage=building_type,
                                     name="ResidentialBuildingTabula",
                                     year_of_construction=building["buildingFeatures"]["year"],
-                                    number_of_floors=3,
+                                    number_of_floors=number_of_floors,
                                     height_of_floors=3.125,
                                     net_leased_area=building["buildingFeatures"]["area"],
                                     construction_type=retrofit_level)
@@ -522,6 +547,7 @@ class Datahandler:
                                                 teaser_id=teaser_id)
 
             else:
+
                 retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
                 construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
 
@@ -529,9 +555,11 @@ class Datahandler:
                         usage=building["buildingFeatures"]["building"],
                         name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
-                        number_of_floors=3,
                         height_of_floors=3.125,
-                        net_leased_area=building["buildingFeatures"]["area"],
+                        net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
+                        total_building_area=(                                          # Total net leased area of building
+                            building["buildingFeatures"]["area"] if self.total_building_area is None
+                            else self.total_building_area),
                         construction_type=construction_type,
                         retrofit_level=retrofit_level)
 
@@ -638,8 +666,6 @@ class Datahandler:
 
             if saveUserProfiles:
                 building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-
-
 
         print("Finished generating demands!")
 

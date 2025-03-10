@@ -139,7 +139,7 @@ class Users:
 
         elif self.building in ["MFH", "AB"]:
             # Source: Ergebnisse des Zensus 2022 Gebäude- und Wohnungszählung
-            area_categories = [(20, 40), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
+            area_categories = [(20, 39), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
             probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
             while True:
                 # Choose one consistent flat size for the entire building
@@ -192,7 +192,7 @@ class Users:
             if self.building == "GS":
                 proportion_selling_space = 0
                 nb_rooms = 0
-                mean_area_per_main_room = 400
+                mean_area_per_main_room = 400         # According to SIA
                 for number, data in self.SIA2024.items():
                     zone_name = data.get('Zone_name_GER')
                     if zone_name:
@@ -209,7 +209,7 @@ class Users:
             if self.building == "RE":
                 proportion_restaurant = 0
                 nb_rooms = 0
-                mean_area_per_main_room = 144
+                mean_area_per_main_room = 144   # According to SIA
                 for number, data in self.SIA2024.items():
                     zone_name = data.get('Zone_name_GER')
                     if zone_name:
