@@ -85,20 +85,40 @@ class Users():
             Floor area of different building types
 
         '''
-        if self.building == "SFH":
+
+        # If the building is a SFH or TH,
+        # it has only one flat.
+        if self.building in ["SFH", "TH"]:
             self.nb_flats = 1
-        elif self.building == "TH":
-            self.nb_flats = 1
-        elif self.building == "MFH":
-            if area <= 4*100:
-                self.nb_flats = 4
-            elif area > 4 * 100:
-                self.nb_flats = math.floor(area/100)
-        elif self.building == "AB":
-            if area <= 10*100:
-                self.nb_flats = 10
-            elif area > 10*100:
-                self.nb_flats = math.floor(area/100)
+
+        # If the building is a MFH or AB,
+        # we estimate the number of flats probabilistically.
+        elif self.building in ["MFH", "AB"]:
+            # Data source: Federal Statistical Office of Germany (Destatis), Zensus 2022
+            # URL: https://www.zensus2022.de/
+            # This method estimates the number of flats for multi-family houses (MFH) and apartment buildings (AB)
+            # based on statistical data from Zensus 2022. The approach follows these steps:
+            # 1. A predefined set of apartment size categories (in square meters) is used, each with an associated
+            #   probability based on real-world statistics.
+            # 2. A random apartment size category is selected using a weighted probability distribution.
+            # 3. The mean value of the selected size range is used as the approximate flat size.
+            # 4. The total number of flats is calculated by dividing the building’s total floor area by the selected flat size.
+            # 5. The method ensures that the estimated number of flats is at least 2, as MFH and AB buildings should have
+            #   multiple flats.
+
+            area_categories = [(20, 39), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
+            probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
+            while True:
+                # Choose one consistent flat size for the entire building
+                chosen_area_range = rd.choices(area_categories, weights=probabilities, k=1)[0]
+                chosen_area = (chosen_area_range[0] + chosen_area_range[1]) // 2  # Use the mean area of the selected range
+
+                # Calculate the number of flats using rounding to the nearest integer
+                self.nb_flats = round(area / chosen_area)
+
+                # Ensure at least 2 flats
+                if self.nb_flats > 1:
+                    break
 
     def generate_number_occupants(self):
         '''
@@ -180,6 +200,10 @@ class Users():
 
         # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
+        #     The electricity consumption is modeled using a Gaussian distribution to introduce
+        #     a variation. The mean consumption value is taken from the standard data,
+        #     while the standard deviation is assumed to be 10% of the mean value.
+
         standard_consumption = {"SFH" : {1 : 2300,
                                          2 : 3000,
                                          3 : 3500,
@@ -196,19 +220,19 @@ class Users():
             if self.building == "SFH":
                 annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
                 self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
+                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
             if self.building == "TH":
                 annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
                 self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
+                                                         annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
             if self.building == "MFH":
                 annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
                 self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
+                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
             if self.building == "AB":
                 annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
                 self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
-                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 20% of mean value
+                                                 annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
 
 
     def generate_lighting_index(self):
