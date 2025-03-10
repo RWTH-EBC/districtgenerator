@@ -5,6 +5,7 @@ import pickle
 import os
 import numpy as np
 import pandas as pd
+import random as rd
 from itertools import count
 from teaser.project import Project
 from .envelope import Envelope
@@ -192,14 +193,55 @@ class Datahandler():
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
             retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
+            # Determining the number of floors in a building based on its type.
+            # The method estimates the number of floors by:
+            # - Assigning a range of possible floor areas per level based on building type.
+            # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
+            # - Calculating the total number of floors by dividing the building’s total floor area
+            #   by the selected single-floor area.
+
+            if building_type == "single_family_house":
+                one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
+                number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+            elif building_type == "terraced_house":
+                one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
+                number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+            elif building_type == "multi_family_house":
+                # Generate a valid one-floor area and number of floors in one step
+                one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
+                # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
+                number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
+                # Cap the number of floors to a maximum of 8
+                if number_of_floors > 8:
+                    number_of_floors = 8
+
+            elif building_type == "apartment_block":
+                one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
+                number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+            # Determining the typical floor height based on the building's construction year.
+            # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
+            # (built from 1960 onwards) tend to have lower ceilings.
+            # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
+
+            if building["buildingFeatures"]["year"] < 1960:
+                height_of_floors = 3.3 # m
+            elif building["buildingFeatures"]["year"] >= 1960:
+                height_of_floors = 2.5 # m
+
             # add buildings to TEASER project
             prj.add_residential(
                 method='tabula_de',
                 usage=building_type,
                 name="ResidentialBuildingTabula",
                 year_of_construction=building["buildingFeatures"]["year"],
-                number_of_floors=3,
-                height_of_floors=3.125,
+                number_of_floors=number_of_floors,
+                height_of_floors=height_of_floors,
                 net_leased_area=building["buildingFeatures"]["area"],
                 construction_type=retrofit_level)
 
