@@ -502,6 +502,13 @@ class Datahandler:
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
+                # Determining the number of floors in a building based on its type.
+                # The method estimates the number of floors by:
+                # - Assigning a range of possible floor areas per level based on building type.
+                # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
+                # - Calculating the total number of floors by dividing the building’s total floor area
+                #   by the selected single-floor area.
+
                 if building_type == "single_family_house":
                     one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
@@ -509,7 +516,7 @@ class Datahandler:
 
                 elif building_type == "terraced_house":
                     one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
+                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "multi_family_house":
@@ -526,12 +533,22 @@ class Datahandler:
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                     number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
+                # Determining the typical floor height based on the building's construction year.
+                # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
+                # (built from 1960 onwards) tend to have lower ceilings.
+                # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
+
+                if building["buildingFeatures"]["year"] < 1960:
+                    height_of_floors = 3.3  # m
+                elif building["buildingFeatures"]["year"] >= 1960:
+                    height_of_floors = 2.5  # m
+
                 prj.add_residential(method='tabula_de',
                                     usage=building_type,
                                     name="ResidentialBuildingTabula",
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=number_of_floors,
-                                    height_of_floors=3.125,
+                                    height_of_floors=height_of_floors,
                                     net_leased_area=building["buildingFeatures"]["area"],
                                     construction_type=retrofit_level)
 
@@ -551,11 +568,16 @@ class Datahandler:
                 retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
                 construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
 
+                if building["buildingFeatures"]["year"] < 1960:
+                    height_of_floors = 3.3  # m
+                elif building["buildingFeatures"]["year"] >= 1960:
+                    height_of_floors = 2.5  # m
+
                 nrb_prj = NonResidential(
                         usage=building["buildingFeatures"]["building"],
                         name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
-                        height_of_floors=3.125,
+                        height_of_floors=height_of_floors,
                         net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
                         total_building_area=(                                          # Total net leased area of building
                             building["buildingFeatures"]["area"] if self.total_building_area is None

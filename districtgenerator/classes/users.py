@@ -133,12 +133,26 @@ class Users:
         """
 
         # Residential buildings
-
+        # If the building is a SFH or TH,
+        # it has only one flat.
         if self.building in ["SFH", "TH"]:
             self.nb_flats = 1
 
+        # If the building is a MFH or AB,
+        # we estimate the number of flats probabilistically.
         elif self.building in ["MFH", "AB"]:
-            # Source: Ergebnisse des Zensus 2022 Gebäude- und Wohnungszählung
+            # Data source: Federal Statistical Office of Germany (Destatis), Zensus 2022
+            # URL: https://www.zensus2022.de/
+            # This method estimates the number of flats for multi-family houses (MFH) and apartment buildings (AB)
+            # based on statistical data from Zensus 2022. The approach follows these steps:
+            # 1. A predefined set of apartment size categories (in square meters) is used, each with an associated
+            #   probability based on real-world statistics.
+            # 2. A random apartment size category is selected using a weighted probability distribution.
+            # 3. The mean value of the selected size range is used as the approximate flat size.
+            # 4. The total number of flats is calculated by dividing the building’s total floor area by the selected flat size.
+            # 5. The method ensures that the estimated number of flats is at least 2, as MFH and AB buildings should have
+            #   multiple flats.
+
             area_categories = [(20, 39), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
             probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
             while True:
