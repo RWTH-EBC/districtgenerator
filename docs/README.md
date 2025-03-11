@@ -117,7 +117,7 @@ a reviewer before merging. Once review is finished, you can merge.
 
 ## Alumni
 
-* Sarah Henn
+* Sarah Henn 
 
 ## Reference
 
