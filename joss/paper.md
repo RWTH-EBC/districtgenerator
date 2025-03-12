@@ -49,7 +49,7 @@ While joint heating concepts, such as local heating networks, have been the focu
 For example, the European Union proposed and introduced the concept of energy communities [@REDII_2018; @IEMD_2019].
 According to the Renewable Energy Directive [@REDII_2018], a district can also form an energy community where energy is shared or traded Peer-to-Peer.
 By this, district concepts can lead to financial benefits for consumers and prosumers. Moreover, its expected that self-consumption increases, 
-* peaks are evened out and the superordinate grid might be decongested. [@bose_reinforcement_2021]
+peaks are evened out and the superordinate grid might be decongested. [@bose_reinforcement_2021]
 
 * **Scalability** is a key issue for a resource-efficient transformation of the energy system, especially as numerous existing districts will have to be retrofitted and newly equipped in the next few years [@IEA_2021].
 The `Districtgenerator` enables its users to easily gain information about districts in order to identify promising concepts and conduct comparative evaluations.
@@ -74,7 +74,7 @@ For every site, the user is able to select between warm, cold and normal TRYs.
 Moreover, TRYs are available for 2015 and 2045, reflecting either current or future weather conditions.
 
 \setkeys{Gin}{width=.9\linewidth}
-![Figure 1: Usage of external tools and data sources to generate occupancy and demand profiles with the `Districtgenerator`.}](Schema_QG.pdf)
+![Usage of external tools and data sources to generate occupancy and demand profiles with the Districtgenerator.](Schema_QG.pdf)
 
 The district generator integrates multiple open-source tools and databases. 
 Figure 1 visualizes the dependencies of external tools and data with internal functions.
