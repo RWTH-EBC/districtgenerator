@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-"""
-
 import os
 import numpy as np
 import random as rd
@@ -10,42 +7,25 @@ import richardsonpy.functions.change_resolution as cr
 import districtgenerator.functions.dhw_stochastical as dhw_profil
 import pylightxl as xl
 
-
 class Profiles():
     """
-    Profile class
-    calculating user related profiles of a building or flat
+    Profile class for calculating user related profiles of a building or flat
 
-    Parameters
-    ----------
-    number_occupants : integer
-        Number of occupants who live in the house or flat.
-    initial_day : integer
-        Day of the week with which the generation starts
-        1-7 for monday-sunday.
-    nb_days : integer
-        Number of days for which a stochastic profile is generated.
-    time_resolution : integer
-        resolution of time steps of output array in seconds.
-
-    Attributes
-    ----------
-    activity_profile : array
-        Numpy-arry with acctive occupants 10-minutes-wise.
-    occ_profile : array
-         stochastic occupancy profiles for a district
-    app_load : Array-like
-        Electric load profile of appliances in W.
-    light_load : Array-like
-        Electric load profile of lighting in W.
+    Attributes:
+        - number_occupants (int): Number of occupants who live in the house or flat.
+        - initial_day (int): Day of the week with which the generation starts 1-7 for monday-sunday.
+        - nb_days (int): Number of days for which a stochastic profile is generated.
+        - time_resolution (int): resolution of time steps of output array in seconds.
+        - activity_profile (array): Numpy-arry with acctive occupants 10-minutes-wise.
+        - occ_profile (array): stochastic occupancy profiles for a district
+        - app_load (array): Electric load profile of appliances in W.
+        - light_load (array):Electric load profile of lighting in W.
     """
 
     def __init__(self, number_occupants, initital_day, nb_days, time_resolution):
-
         """
         Constructor of Profiles Class
         """
-
         self.number_occupants = number_occupants
         self.initial_day = initital_day
         self.nb_days = nb_days
@@ -61,19 +41,17 @@ class Profiles():
 
     def generate_activity_profile(self):
         """
-        Generate a stochastic activity profile
-        (on base of ridchardsonpy)
+        Generate a stochastic activity profile (on base of ridchardson.py).
 
         Parameters
         ----------
-        number_occupants : integer
-            Number of occupants who live in the house or flat.
-        initial_day : integer
-            Day of the week with which the generation starts
-            1-7 for monday-sunday.
-        nb_days : integer
-            Number of days for which a stochastic profile is generated.
+            - number_occupants (int): Number of occupants who live in the house or flat.
+            - initial_day (int): Day of the week with which the generation starts. 1-7 for monday-sunday.
+            - nb_days (int): Number of days for which a stochastic profile is generated.
 
+        Returns
+        -------
+            - activity_profile (array): Numpy-arry with acctive occupants 10-minutes-wise.
         """
 
         activity = occ.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
@@ -87,10 +65,12 @@ class Profiles():
 
         Parameters
         ----------
-        time_resolution : integer
-            resolution of time steps of output array in seconds.
-        activity_profile : array
-            Numpy-arry with acctive occupants 10-minutes-wise.
+            - time_resolution (int): resolution of time steps of output array in seconds.
+            - activity_profile (array): Numpy-arry with acctive occupants 10-minutes-wise.
+
+        Returns
+        -------
+            - occ_profile (array): stochastic occupancy profile
 
         """
 
@@ -124,6 +104,14 @@ class Profiles():
     def loadProbabilitiesDhw(self):
         """
         Load probabilities of dhw usage
+
+        Parameters
+        ----------
+            - filename (str): Name of the file with the probabilities of dhw usage.
+
+        Returns
+        -------
+            - prob_profiles_dhw (array): probabilities of dhw usage
         """
 
         #  Define src path
@@ -161,24 +149,17 @@ class Profiles():
     def generate_dhw_profile(self):
         """
         Generate a stochastic dhw profile
-        (on base of pycity_base)
 
         Parameters
         ----------
-        time_resolution : integer
-            resolution of time steps of output array in seconds.
-        activity_profile : array
-            Numpy-arry with acctive occupants 10-minutes-wise.
-        prob_profiles_dhw: array
-            probabilities of dhw usage
-        initial_day : integer
-            Day of the week with which the generation starts
-            1-7 for monday-sunday.
+            - time_resolution (int): resolution of time steps of output array in seconds.
+            - activity_profile (array): Numpy-arry with acctive occupants 10-minutes-wise.
+            - prob_profiles_dhw (array): probabilities of dhw usage
+            - initial_day (int): Day of the week with which the generation starts. 1-7 for monday-sunday.
 
         Returns
         -------
-        dhw_heat : array
-            Numpy-array with heat demand of dhw consumption in W.
+            - dhw_heat (array): Numpy-array with heat demand of dhw consumption in W.
 
         """
 
@@ -193,25 +174,20 @@ class Profiles():
         return dhw_heat
 
 
-    def generate_el_profile(self, irradiance, el_wrapper,
-                            annual_demand, do_normalization = True):
+    def generate_el_profile(self, irradiance, el_wrapper, annual_demand, do_normalization = True):
         """
         Generate electric load profile for one household
 
         Parameters
         -------
-        irradiance : array
-            if none is given default weather data (TRY 2015 Potsdam) is used
-        el_wrapper : object
-            This objects holdes information about the lighting and appliance configuration.
-        annual_demand : integer
-            Annual elictricity demand in kWh.
-        do_normalization : boolean
-            Normalize el. load profile to annual_demand
+            - irradiance (array): if none is given default weather data (TRY 2015 Potsdam) is used
+            - el_wrapper (object): This objects holdes information about the lighting and appliance configuration.
+            - annual_demand (int): Annual elictricity demand in kWh.
+            - do_normalization (boolean): Normalize el. load profile to annual_demand
+
         Returns
         -------
-        loadcurve : Array-like
-            Total electric load profile in W.
+            - loadcurve (array): Total electric load profile in W.
 
         """
 
@@ -322,30 +298,20 @@ class Profiles():
 
         Parameters
         -------
-        personGain : float
-            Heat dissipation of one person
+            - personGain (float): Heat dissipation of one person
             Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik
-        lightGain : float
-            share of waste heat (LED)
+            - lightGain (float): share of waste heat (LED)
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
             Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
             62 (2014), Januar, 32–41.
-        appGain :
-            share of waste heat (assumed)
+            - appGain (int): share of waste heat (assumed)
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
             Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
             62 (2014), Januar, 32–41.
-        occ_profile : float
-             stochastic occupancy profiles for a district
-        app_load : Array-like
-            Electric load profile of appliances in W.
-        light_load : Array-like
-            Electric load profile of lighting in W.
 
         Returns
         -------
-        gains : array
-            Internal gain of each flat
+            - gains (array): Internal gain of each flat
 
         """
 

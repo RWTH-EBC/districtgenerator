@@ -1,22 +1,20 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>districtgenerator.classes.envelope &mdash; DistrictGenerator 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
   
-  <!--[if lt IE 9]>
-    <script src="../../../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
-        <script src="../../../_static/doctools.js?v=888ff710"></script>
-        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
@@ -41,8 +39,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"></div>
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -72,41 +76,29 @@
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 
-<div class="viewcode-block" id="Envelope"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope">[docs]</a><span class="k">class</span> <span class="nc">Envelope</span><span class="p">():</span>
+<div class="viewcode-block" id="Envelope">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Envelope</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Abstract class for envelop component management handling</span>
 
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    prj : Project()</span>
-<span class="sd">        Project() instance of TEASER, contains functions to generate</span>
-<span class="sd">        archetype buildings</span>
-<span class="sd">    building_params : dict</span>
-<span class="sd">        building parameters like construction year, retrofit</span>
-<span class="sd">    construction_type : string</span>
-<span class="sd">        building type</span>
-<span class="sd">    file_path : str</span>
-<span class="sd">        file path</span>
-
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    id :</span>
-
-<span class="sd">    construction_year : int</span>
-<span class="sd">        construction year of the building</span>
-<span class="sd">    retrofit : string</span>
-<span class="sd">        retrofit of the building</span>
-<span class="sd">    usage_short :</span>
-
+<span class="sd">    Attributes:</span>
+<span class="sd">        - prj (object): Instance of TEASER, contains functions to generate archetype buildings</span>
+<span class="sd">        - building_params (dict): building parameters like construction year, retrofit</span>
+<span class="sd">        - construction_type (str): building type</span>
+<span class="sd">        - file_path (str): file path</span>
+<span class="sd">        - id (int): building id</span>
+<span class="sd">        - construction_year (int): construction year of the building</span>
+<span class="sd">        - retrofit (str): retrofit of the building</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">,</span> <span class="n">building_params</span><span class="p">,</span> <span class="n">construction_type</span><span class="p">,</span> <span class="n">file_path</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">,</span> <span class="n">building_params</span><span class="p">,</span> <span class="n">construction_type</span><span class="p">,</span> <span class="n">file_path</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Constructor of Envelope Class</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -134,15 +126,22 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">loadComponentProperties</span><span class="p">(</span><span class="n">prj</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loadAreas</span><span class="p">(</span><span class="n">prj</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Envelope.loadParams"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadParams">[docs]</a>    <span class="k">def</span> <span class="nf">loadParams</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Envelope.loadParams">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadParams">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loadParams</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        load physical and use-specific parameters</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        physics : json file</span>
-<span class="sd">            physical and use-specific parameters</span>
+<span class="sd">            - physics (json file): physical and use-specific parameters</span>
 
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - c_p_air (float): specific heat capacity of air [J/kgK]</span>
+<span class="sd">            - rho_air (float): density of air [kg/m3]</span>
+<span class="sd">            - T_set_min (float): minimum set temperature [°C]</span>
+<span class="sd">            - ventilationRate (float): ventilation rate [m3/h]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">physics</span> <span class="o">=</span> <span class="p">{}</span>
@@ -165,26 +164,23 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">T_set_min</span> <span class="o">=</span> <span class="n">design_data</span><span class="p">[</span><span class="s2">&quot;T_set_min&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ventilationRate</span> <span class="o">=</span> <span class="n">design_data</span><span class="p">[</span><span class="s2">&quot;ventilation_rate&quot;</span><span class="p">]</span></div>
 
-<div class="viewcode-block" id="Envelope.specificHeatCapacity"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.specificHeatCapacity">[docs]</a>    <span class="k">def</span> <span class="nf">specificHeatCapacity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">d_iso</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">cp</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Envelope.specificHeatCapacity">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.specificHeatCapacity">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">specificHeatCapacity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">d_iso</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">cp</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Computation of (specific) heat capacity of each wall-type-surface</span>
-<span class="sd">        ISO 13786 A.2.4</span>
-<span class="sd">        Result is in J/m2K</span>
+<span class="sd">        Computation of (specific) heat capacity of each wall-type-surface (ISO 13786 A.2.4)</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        d :</span>
-
-<span class="sd">        d_iso :</span>
-
-<span class="sd">        density :</span>
-
-<span class="sd">        cp :</span>
+<span class="sd">            - d (float): thickness of each layer in m</span>
+<span class="sd">            - d_iso (float): sum of all layer thicknesses in m</span>
+<span class="sd">            - density (float): density of each layer in kg/m3</span>
+<span class="sd">            - cp (float): heat capacity of each layer in J/kgK</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        ----------</span>
-<span class="sd">        kappa : float</span>
-<span class="sd">            (specific) heat capacity of each wall-type-surface</span>
+<span class="sd">            - kappa(float): (specific) heat capacity of each wall-type-surface in J/m2K</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">d_t</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">d</span><span class="p">),</span> <span class="n">d_iso</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
@@ -202,29 +198,25 @@
 
         <span class="k">return</span> <span class="n">kappa</span></div>
 
-<div class="viewcode-block" id="Envelope.loadMaterialID"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadMaterialID">[docs]</a>    <span class="k">def</span> <span class="nf">loadMaterialID</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mat_id</span><span class="p">,</span> <span class="n">data_class</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Envelope.loadMaterialID">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadMaterialID">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loadMaterialID</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mat_id</span><span class="p">,</span> <span class="n">data_class</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Material loader by id.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        mat_id :</span>
-
-<span class="sd">        data_class :</span>
+<span class="sd">            - mat_id (str): id of archetypes components</span>
+<span class="sd">            - data_class (dict): TABULA archetype&#39;s material parameters</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        ----------</span>
-
-<span class="sd">        name : string</span>
-<span class="sd">            material type</span>
-<span class="sd">        density : float</span>
-<span class="sd">            density of the material</span>
-<span class="sd">        thermal_conduc :</span>
-<span class="sd">            thermal conductivity</span>
-<span class="sd">        heat_capac :</span>
-<span class="sd">            heat capacity</span>
-<span class="sd">        solar_absorp :</span>
-<span class="sd">            solar adsorption</span>
+<span class="sd">            - name (string): material type</span>
+<span class="sd">            - density (float)density of the material</span>
+<span class="sd">            - thermal_conduc (florat): thermal conductivity</span>
+<span class="sd">            - heat_capac (float): heat capacity</span>
+<span class="sd">            - solar_absorp (float): solar adsorption</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">binding</span> <span class="o">=</span> <span class="n">data_class</span>
@@ -239,15 +231,21 @@
 
         <span class="k">return</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thermal_conduc</span><span class="p">,</span> <span class="n">heat_capac</span><span class="p">,</span> <span class="n">solar_absorp</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Envelope.loadComponentProperties"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadComponentProperties">[docs]</a>    <span class="k">def</span> <span class="nf">loadComponentProperties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">):</span>
 
+<div class="viewcode-block" id="Envelope.loadComponentProperties">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadComponentProperties">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loadComponentProperties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Load component-specific material parameters</span>
+<span class="sd">        Load component-specific material parameters (attributes)</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        prj : class</span>
-<span class="sd">            contains functions to generate archetype buildings</span>
+<span class="sd">            - attributes (dict): component-specific material parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - specificHeatCapacity (float): specific heat capacity of each component</span>
+<span class="sd">            - U (dict): heat transfer coefficient of each component</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -530,15 +528,20 @@
                                                   <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">Lambda</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">])</span>
                                             <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">R_se</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">])))</span></div>
 
-<div class="viewcode-block" id="Envelope.loadAreas"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadAreas">[docs]</a>    <span class="k">def</span> <span class="nf">loadAreas</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">):</span>
 
+<div class="viewcode-block" id="Envelope.loadAreas">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.loadAreas">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loadAreas</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prj</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Load component-specific area data</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        prj : class</span>
-<span class="sd">            contains functions to generate archetype buildings</span>
+<span class="sd">            - prj (object): contains component-specific area data</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - A (dict): component-specific area data</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -590,21 +593,20 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="s2">&quot;sum&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;window&quot;</span><span class="p">][</span><span class="n">d</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">drct</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Envelope.calcHeatLoad"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.calcHeatLoad">[docs]</a>    <span class="k">def</span> <span class="nf">calcHeatLoad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;design&quot;</span><span class="p">):</span>
 
+<div class="viewcode-block" id="Envelope.calcHeatLoad">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.calcHeatLoad">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calcHeatLoad</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to calculate the heat load of the building</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        site : dict</span>
-<span class="sd">            information about location and climate conditions</span>
-<span class="sd">        method : string</span>
-<span class="sd">            method to calculate heat load</span>
+<span class="sd">            - site (dict): information about location and climate conditions</span>
+
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-
-<span class="sd">        Q_nHC : float</span>
-<span class="sd">            heat load</span>
+<span class="sd">            - Q_nHC (float): heat load</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -635,16 +637,22 @@
 
         <span class="k">return</span> <span class="n">Q_nHC</span></div>
 
-<div class="viewcode-block" id="Envelope.calcNormativeProperties"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.calcNormativeProperties">[docs]</a>    <span class="k">def</span> <span class="nf">calcNormativeProperties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SunRad</span><span class="p">,</span> <span class="n">internal_gains</span><span class="p">):</span>
 
+<div class="viewcode-block" id="Envelope.calcNormativeProperties">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.envelope.Envelope.calcNormativeProperties">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calcNormativeProperties</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SunRad</span><span class="p">,</span> <span class="n">internal_gains</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to thermal transmittance coefficient and heat flows</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        SunRad : array</span>
-<span class="sd">            solar radiation</span>
-<span class="sd">        internal_gains :</span>
-<span class="sd">            internal gains of the building</span>
+<span class="sd">            - SunRad (array): solar radiation</span>
+<span class="sd">            - internal_gains (array): internal gains of the building</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">            - thermal transmittance coefficients [W/K]</span>
+<span class="sd">            - heat flows [W]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="n">SunRad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -864,7 +872,9 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">H_tr_em</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">A</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct2</span><span class="p">]</span>
                                   <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">U</span><span class="p">[</span><span class="s2">&quot;opaque&quot;</span><span class="p">][</span><span class="n">drct2</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">b_tr</span><span class="p">[</span><span class="n">drct2</span><span class="p">][</span>
                                       <span class="n">t</span><span class="p">]</span>
-                                  <span class="k">for</span> <span class="n">drct2</span> <span class="ow">in</span> <span class="n">direction2</span><span class="p">)</span></div></div>
+                                  <span class="k">for</span> <span class="n">drct2</span> <span class="ow">in</span> <span class="n">direction2</span><span class="p">)</span></div>
+</div>
+
 </pre></div>
 
            </div>
