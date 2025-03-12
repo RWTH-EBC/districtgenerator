@@ -17,41 +17,29 @@ class Sun():
 
         Parameters
         ----------
-        initialTime : integer
-            Time passed since January 1st, 00:00:00 in seconds
-        timeDiscretization : integer
-            Time between two consecutive time steps in seconds
-        timesteps : integer
-            Number of investigated / requested time steps
-        timeZone : integer, optional
-            Shift between the location's time and GMT in hours. CET would be 1.
-        location : tuple
-            (latitude, longitude) of the simulated system's position.
-        altitude : float
-            The locations altitude in meters
-        beta : list
-            Array of all slopes of building walls and roof.
+            - initialTime (int): Time passed since January 1st, 00:00:00 in seconds
+            - timeDiscretization (int): Time between two consecutive time steps in seconds
+            - timesteps (int): Number of investigated / requested time steps
+            - timeZone (int): Shift between the location's time and GMT in hours. CET would be 1.
+            - location (tuple): (latitude, longitude) of the simulated system's position.
+            - altitude (float): The locations altitude in meters
+            - beta (list): Array of all slopes of building walls and roof.
             A slope is the angle (in degree) between the plane of the surface in
             question and the horizontal. 0 <= beta <= 180. If beta > 90, the
             surface faces downwards.
-        gamma : list
-            Array of surface azimuth angles. The deviation of the projection on a horizontal
+            - gamma (list): Array of surface azimuth angles. The deviation of the projection on a horizontal
             plane of the normal to the surface from the local meridian, with zero
             due south, east negative, and west positive.
             -180 <= gamma <= 180
-        beamRadiation : array_like
-            The solar radiation received from the sun without having been
+            - beamRadiation (array): The solar radiation received from the sun without having been
             scattered by the atmosphere (also often named direct radiation)
-        diffuse : array_like
-            The solar radiation received from the sun after its direction has been
+            - diffuse (array): The solar radiation received from the sun after its direction has been
             changed by scattering by the atmosphere.
-        albedo : float
-            Ground reflectance. 0 <= albedo <= 1
+            - albedo (float): Ground reflectance. 0 <= albedo <= 1
 
         Returns
         -------
-        results: array_like
-            Solar radiation profiles for diffent all surface azimut angles in gamma.
+            - results (array): Solar radiation profiles for diffent all surface azimut angles in gamma.
 
         """
         
@@ -86,32 +74,23 @@ class Sun():
 
         Parameters
         ----------
-        initialTime : integer
-            Time passed since January 1st, 00:00:00 in seconds
-        timeDiscretization : integer
-            Time between two consecutive time steps in seconds
-        timesteps : integer
-            Number of investigated / requested time steps
-        timeZone : integer, optional
-            Shift between the location's time and GMT in hours. CET would be 1.
-        location : tuple, optional
-            (latitude, longitude) of the simulated system's position. Standard
+            - initialTime (int): Time passed since January 1st, 00:00:00 in seconds
+            - timeDiscretization (int): Time between two consecutive time steps in seconds
+            - timesteps (int): Number of investigated / requested time steps
+            - timeZone (int): Shift between the location's time and GMT in hours. CET would be 1.
+            - location (tuple): (latitude, longitude) of the simulated system's position. Standard
             values (50.76, 6.07) represent Aachen, Germany.
-        altitude : float, optional
-            The locations altitude in meters
+            - altitude (float): The locations altitude in meters
 
         Returns
         -------
-        omega : array_like
-            Hour angle. The angular displacement of the sun east or west of the
+            - omega (array): Hour angle. The angular displacement of the sun east or west of the
             local meridian due to rotation of the earth on its axis at 15 degrees
             per hour; morning negative, afternoon positive
-        delta : array_like
-            Declination. The angular position of the sun at solar noon (i.e., when
+            - delta (array): Declination. The angular position of the sun at solar noon (i.e., when
             the sun is on the local meridian) with respect to the plane of the
             equator, north positive; −23.45 <= delta <= 23.45
-        thetaZ : array_like
-            Zenith angle. The angle between the vertical and the line to the sun,
+            - thetaZ (array): Zenith angle. The angle between the vertical and the line to the sun,
             that is, the angle of incidence of beam radiation on a horizontal
             surface; 0 <= thetaZ <= 90
         """
@@ -221,30 +200,29 @@ class Sun():
     def getIncidenceAngle(self, beta,gamma,phi,omega,delta) :
         """
         Compute the incidence angle on a tilted surface.
-
         All inputs/outputs are supposed to be in degrees!
 
         Parameters
         ----------
-        beta : float
-            Slope, the angle (in degree) between the plane of the surface in
+            - beta (float): Slope, the angle (in degree) between the plane of the surface in
             question and the horizontal. 0 <= beta <= 180. If beta > 90, the
             surface faces downwards.
-        gamma : float
-            Surface azimuth angle. The deviation of the projection on a horizontal
+            - gamma (float): Surface azimuth angle. The deviation of the projection on a horizontal
             plane of the normal to the surface from the local meridian, with zero
             due south, east negative, and west positive.
             -180 <= gamma <= 180
-        phi : float
-            Latitude. North is positive, south negative. -90 <= phi <= 90
-        omega : array_like
-            Hour angle. The angular displacement of the sun east or west of the
+            - phi (float): Latitude. North is positive, south negative. -90 <= phi <= 90
+            - omega (array): Hour angle. The angular displacement of the sun east or west of the
             local meridian due to rotation of the earth on its axis at 15 degrees
             per hour; morning negative, afternoon positive
-        delta : array_like
-            Declination. The angular position of the sun at solar noon (i.e., when
+            - delta (array): Declination. The angular position of the sun at solar noon (i.e., when
             the sun is on the local meridian) with respect to the plane of the
             equator, north positive; −23.45 <= delta <= 23.45
+
+        Returns
+        -------
+            - incidence angle in radian
+
         """
         # Compute incidence angle of beam radiation
         # Transform to radian
@@ -287,32 +265,27 @@ class Sun():
 
         Parameters
         ----------
-        theta : array_like
-            Incidence angle.
-        thetaZ : array_like
-            Zenith angle. The angle between the vertical and the line to the sun,
-            that is, the angle of incidence of beam radiation on a horizontal
-            surface; 0 <= thetaZ <= 90
-        beamRadiation : array_like
-            The solar radiation received from the sun without having been
-            scattered by the atmosphere (also often named direct radiation)
-        diffuseRadiation : array_like
-            The solar radiation received from the sun after its direction has been
+            - theta (array): Incidence angle.
+            - thetaZ (array): Zenith angle. The angle between the vertical and the line to the sun, that is, the angle
+            of incidence of beam radiation on a horizontal surface; 0 <= thetaZ <= 90
+            - beamRadiation (array): The solar radiation received from the sun without having been scattered by the
+            atmosphere (also often named direct radiation)
+            -  diffuseRadiation (array_like): The solar radiation received from the sun after its direction has been
             changed by scattering by the atmosphere.
-        airmass : array_like
-            The ratio of the mass of atmosphere through which beam radiation
+            - airmass (array): The ratio of the mass of atmosphere through which beam radiation
             passes to the mass it would pass through if the sun were at the zenith.
             Thus at sea level ``m=1`` when the sun is at the zenith and ``m=2``
             for a zenith angle ``thetaZ=60`` degrees.
-        extraterrestrialIrradiance : array_like
-            Extraterrestrial radiation incident on the plane normal to the
+            - extraterrestrialIrradiance (array_like): Extraterrestrial radiation incident on the plane normal to the
             radiation on the nth day of the year.
-        beta : float
-            Slope, the angle (in degree) between the plane of the surface in
+            - beta (float): Slope, the angle (in degree) between the plane of the surface in
             question and the horizontal. 0 <= beta <= 180. If beta > 90, the
             surface faces downwards.
-        albedo : float
-            Ground reflectance. 0 <= albedo <= 1
+            - albedo (float): Ground reflectance. 0 <= albedo <= 1
+
+        Returns
+        -------
+            - total radiation on a tilted surface
         """
         # Model coefficients
         # Table 6, in Perez et al - 1990 - Modeling daylight availability and

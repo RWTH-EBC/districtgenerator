@@ -1,22 +1,20 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>districtgenerator.classes.datahandler &mdash; DistrictGenerator 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
   
-  <!--[if lt IE 9]>
-    <script src="../../../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
-        <script src="../../../_static/doctools.js?v=888ff710"></script>
-        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
@@ -76,44 +74,40 @@
   <h1>Source code for districtgenerator.classes.datahandler</h1><div class="highlight"><pre>
 <span></span><span class="c1"># -*- coding: utf-8 -*-</span>
 
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">pickle</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
-<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">count</span>
-<span class="kn">from</span> <span class="nn">teaser.project</span> <span class="kn">import</span> <span class="n">Project</span>
-<span class="kn">from</span> <span class="nn">.envelope</span> <span class="kn">import</span> <span class="n">Envelope</span>
-<span class="kn">from</span> <span class="nn">.solar</span> <span class="kn">import</span> <span class="n">Sun</span>
-<span class="kn">from</span> <span class="nn">.users</span> <span class="kn">import</span> <span class="n">Users</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">count</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">teaser.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">Project</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.envelope</span><span class="w"> </span><span class="kn">import</span> <span class="n">Envelope</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.solar</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sun</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.users</span><span class="w"> </span><span class="kn">import</span> <span class="n">Users</span>
 
-<div class="viewcode-block" id="Datahandler"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler">[docs]</a><span class="k">class</span> <span class="nc">Datahandler</span><span class="p">():</span>
+<div class="viewcode-block" id="Datahandler">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Datahandler</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Abstract class for data handling</span>
-<span class="sd">    Collects data from input files, TEASER, User and Enevelope.</span>
+<span class="sd">    Handles data collection, processing, and simulation for urban building energy modeling.</span>
 
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    site:</span>
-<span class="sd">        dict for site data, e.g. weather</span>
-<span class="sd">    time:</span>
-<span class="sd">        dict for time settings</span>
-<span class="sd">    district:</span>
-<span class="sd">        list of all buildings within district</span>
-<span class="sd">    scenario_name:</span>
-<span class="sd">        name of scenario file</span>
-<span class="sd">    scenario:</span>
-<span class="sd">        scenario data</span>
-<span class="sd">    counter:</span>
-<span class="sd">        dict for counting number of equal building types</span>
-<span class="sd">    srcPath:</span>
-<span class="sd">        source path</span>
-<span class="sd">    filePath:</span>
-<span class="sd">        file path</span>
+<span class="sd">    This class integrates various sources of data, including site information, weather conditions,</span>
+<span class="sd">    building configurations, and user behaviors. It generates realistic demand profiles for heating,</span>
+<span class="sd">    domestic hot water, and electricity consumption.</span>
 
+<span class="sd">    Attributes:</span>
+<span class="sd">        - site (dict): Stores site-related data including weather and location.</span>
+<span class="sd">        - time (dict): Stores time-related parameters.</span>
+<span class="sd">        - district (list): A list containing all buildings.</span>
+<span class="sd">        - scenario_name (str or None): Name of the current scenario file being used.</span>
+<span class="sd">        - scenario (pd.DataFrame or None): DataFrame containing the scenario&#39;s buildings parameters.</span>
+<span class="sd">        - counter (dict): Tracks unique building identifiers.</span>
+<span class="sd">        - srcPath (str): The base directory path of the project.</span>
+<span class="sd">        - filePath (str): The directory path where data files are stored.</span>
+<span class="sd">        - resultPath (str): The directory path where demand results are stored.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">site</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">time</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="p">[]</span>
@@ -125,16 +119,21 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">srcPath</span><span class="p">,</span> <span class="s1">&#39;results&#39;</span><span class="p">,</span> <span class="s1">&#39;demands&#39;</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="Datahandler.generateEnvironment"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateEnvironment">[docs]</a>    <span class="k">def</span> <span class="nf">generateEnvironment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="viewcode-block" id="Datahandler.generateEnvironment">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateEnvironment">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generateEnvironment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Load physical district environment - site and weather</span>
+<span class="sd">        Loads and processes site and weather data for the simulation environment.</span>
+<span class="sd">        ----------</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
+<span class="sd">            - Site-specific data from `site_data.json`.</span>
+<span class="sd">            - Loads weather data (solar radiation and temperature) based on the selected TRY (Test Reference Year).</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-
+<span class="sd">        ----------</span>
+<span class="sd">            - Saving the interpolated data to the data handler.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># %% load information about of the site under consideration</span>
@@ -205,18 +204,22 @@
                                         <span class="n">albedo</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">site</span><span class="p">[</span><span class="s2">&quot;albedo&quot;</span><span class="p">])</span></div>
 
 
-<div class="viewcode-block" id="Datahandler.initializeBuildings"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.initializeBuildings">[docs]</a>    <span class="k">def</span> <span class="nf">initializeBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Datahandler.initializeBuildings">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.initializeBuildings">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initializeBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Fill district with buildings from scenario file</span>
+<span class="sd">        Initializes the district by loading building data from a scenario file.</span>
+
+<span class="sd">        ----------</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        scenario_name: string, optional</span>
-<span class="sd">            name of scenario file to be read</span>
+<span class="sd">            - scenario_name (str, optional): The name of the scenario file to be read. Defaults to &#39;example&#39;.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-
+<span class="sd">        ----------</span>
+<span class="sd">            - Populates the `district` list with building objects containing their respective features.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">=</span> <span class="n">scenario_name</span>
@@ -237,16 +240,26 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">building</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="Datahandler.generateBuildings"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateBuildings">[docs]</a>    <span class="k">def</span> <span class="nf">generateBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Datahandler.generateBuildings">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateBuildings">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generateBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Load building envelope and user data</span>
+<span class="sd">        Loads building envelope and user data for each building in the district.</span>
+
+<span class="sd">        ----------</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
+<span class="sd">            - building features (dict): Contains building-specific data.</span>
+<span class="sd">            - number_of_floors (int): The number of floors in the building.</span>
+<span class="sd">            - height_of_floors (float): The height of each floor in the building.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-
+<span class="sd">        ----------</span>
+<span class="sd">            - Creates and assigns building envelope data using the `Envelope` class.</span>
+<span class="sd">            - Generates and assigns user profiles for each building using the `Users` class.</span>
+<span class="sd">            - Computes design heat loads and assigns to each building.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># %% load general building information</span>
@@ -268,14 +281,55 @@
             <span class="n">building_type</span> <span class="o">=</span> <span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;buildings_long&quot;</span><span class="p">][</span><span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;buildings_short&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">])]</span>
             <span class="n">retrofit_level</span> <span class="o">=</span> <span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;retrofit_long&quot;</span><span class="p">][</span><span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;retrofit_short&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;retrofit&quot;</span><span class="p">])]</span>
 
+            <span class="c1"># Determining the number of floors in a building based on its type.</span>
+            <span class="c1"># The method estimates the number of floors by:</span>
+            <span class="c1"># - Assigning a range of possible floor areas per level based on building type.</span>
+            <span class="c1"># - Randomly selecting a value within the assigned range using the TABULA German Building Typology.</span>
+            <span class="c1"># - Calculating the total number of floors by dividing the building’s total floor area</span>
+            <span class="c1">#   by the selected single-floor area.</span>
+
+            <span class="k">if</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;single_family_house&quot;</span><span class="p">:</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">62</span><span class="p">,</span> <span class="mi">115</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 1</span>
+                <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
+
+            <span class="k">elif</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;terraced_house&quot;</span><span class="p">:</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">73</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 1</span>
+                <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
+
+            <span class="k">elif</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;multi_family_house&quot;</span><span class="p">:</span>
+                <span class="c1"># Generate a valid one-floor area and number of floors in one step</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">102</span><span class="p">,</span> <span class="mi">971</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 2</span>
+                <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
+                <span class="c1"># Cap the number of floors to a maximum of 8</span>
+                <span class="k">if</span> <span class="n">number_of_floors</span> <span class="o">&gt;</span> <span class="mi">8</span><span class="p">:</span>
+                    <span class="n">number_of_floors</span> <span class="o">=</span> <span class="mi">8</span>
+
+            <span class="k">elif</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;apartment_block&quot;</span><span class="p">:</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">350</span><span class="p">,</span> <span class="mi">540</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 3</span>
+                <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
+
+            <span class="c1"># Determining the typical floor height based on the building&#39;s construction year.</span>
+            <span class="c1"># Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings</span>
+            <span class="c1"># (built from 1960 onwards) tend to have lower ceilings.</span>
+            <span class="c1"># Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe</span>
+
+            <span class="k">if</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1960</span><span class="p">:</span>
+                <span class="n">height_of_floors</span> <span class="o">=</span> <span class="mf">3.3</span> <span class="c1"># m</span>
+            <span class="k">elif</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">1960</span><span class="p">:</span>
+                <span class="n">height_of_floors</span> <span class="o">=</span> <span class="mf">2.5</span> <span class="c1"># m</span>
+
             <span class="c1"># add buildings to TEASER project</span>
             <span class="n">prj</span><span class="o">.</span><span class="n">add_residential</span><span class="p">(</span>
                 <span class="n">method</span><span class="o">=</span><span class="s1">&#39;tabula_de&#39;</span><span class="p">,</span>
                 <span class="n">usage</span><span class="o">=</span><span class="n">building_type</span><span class="p">,</span>
                 <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ResidentialBuildingTabula&quot;</span><span class="p">,</span>
                 <span class="n">year_of_construction</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;year&quot;</span><span class="p">],</span>
-                <span class="n">number_of_floors</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
-                <span class="n">height_of_floors</span><span class="o">=</span><span class="mf">3.125</span><span class="p">,</span>
+                <span class="n">number_of_floors</span><span class="o">=</span><span class="n">number_of_floors</span><span class="p">,</span>
+                <span class="n">height_of_floors</span><span class="o">=</span><span class="n">height_of_floors</span><span class="p">,</span>
                 <span class="n">net_leased_area</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">],</span>
                 <span class="n">construction_type</span><span class="o">=</span><span class="n">retrofit_level</span><span class="p">)</span>
 
@@ -287,7 +341,7 @@
                                             <span class="n">file_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filePath</span><span class="p">)</span>
 
             <span class="c1"># %% create user object</span>
-            <span class="c1"># containing number occupants, electricity demand,...</span>
+            <span class="c1"># containing number occupants, electricity demand, ...</span>
             <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Users</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">],</span>
                              <span class="n">area</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">])</span>
 
@@ -302,20 +356,27 @@
             <span class="n">building</span><span class="p">[</span><span class="s2">&quot;dhwload&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;dhwload&quot;</span><span class="p">][</span><span class="n">bldgs</span><span class="p">[</span><span class="s2">&quot;buildings_short&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">])]</span> <span class="o">*</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">nb_flats</span></div>
 
 
-<div class="viewcode-block" id="Datahandler.generateDemands"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateDemands">[docs]</a>    <span class="k">def</span> <span class="nf">generateDemands</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">calcUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Datahandler.generateDemands">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateDemands">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generateDemands</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">calcUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Generate occupancy profile, heat demand, domestic hot water demand and heating demand</span>
+<span class="sd">        Generates cooling, heating, domestic hot water demand and household electricity demand profiles</span>
+<span class="sd">        for each building.</span>
+
+<span class="sd">        ----------</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        calcUserProfiles: bool, optional</span>
-<span class="sd">            True: calculate new user profiles</span>
-<span class="sd">            False: load user profiles from file</span>
-<span class="sd">        saveUserProfiles: bool, optional</span>
-<span class="sd">            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)</span>
+<span class="sd">            - calcUserProfiles (bool, optional): Determines whether to calculate new user profiles (`True`) or load</span>
+<span class="sd">            existing ones (`False`). Defaults to `True`.</span>
+<span class="sd">            - saveUserProfiles (bool, optional): If `True`, saves calculated user profiles to the workspace.</span>
+<span class="sd">            Only applicable if `calcUserProfiles` is `True`.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        -------</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - Computes user behavior profiles for energy demand estimation.</span>
+<span class="sd">            - Cooling, heating, domestic hot water demand and household electricity demand profiles based on user behavior, envelope properties and site conditions.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="nb">set</span> <span class="o">=</span> <span class="p">[]</span>
@@ -358,22 +419,13 @@
         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finished generating demands!&quot;</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="Datahandler.generateDistrictComplete"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateDistrictComplete">[docs]</a>    <span class="k">def</span> <span class="nf">generateDistrictComplete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">calcUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Datahandler.generateDistrictComplete">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateDistrictComplete">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generateDistrictComplete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">,</span> <span class="n">calcUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        All in one solution for district and demand generation</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        scenario_name:string, optional</span>
-<span class="sd">            name of scenario file to be read</span>
-<span class="sd">        calcUserProfiles: bool, optional</span>
-<span class="sd">            True: calculate new user profiles</span>
-<span class="sd">            False: load user profiles from file</span>
-<span class="sd">        saveUserProfiles: bool, optional</span>
-<span class="sd">            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        -------</span>
+<span class="sd">        Executes the complete process of district generation, including environment setup,</span>
+<span class="sd">        building initialization, envelope creation, and demand calculation.</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
 
@@ -382,36 +434,46 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">generateBuildings</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">generateDemands</span><span class="p">(</span><span class="n">calcUserProfiles</span><span class="p">,</span> <span class="n">saveUserProfiles</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Datahandler.saveDistrict"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.saveDistrict">[docs]</a>    <span class="k">def</span> <span class="nf">saveDistrict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Save district dict as pickle file</span>
 
-<span class="sd">        Parameters</span>
+<div class="viewcode-block" id="Datahandler.saveDistrict">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.saveDistrict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">saveDistrict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Saves the district data as a pickle file for later use.</span>
+
 <span class="sd">        ----------</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-
+<span class="sd">        ----------</span>
+<span class="sd">        - Stores the current `district` data as a pickle file in the results directory.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.p&quot;</span><span class="p">,</span><span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
             <span class="n">pickle</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="p">,</span> <span class="n">fp</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">pickle</span><span class="o">.</span><span class="n">HIGHEST_PROTOCOL</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="Datahandler.loadDistrict"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.loadDistrict">[docs]</a>    <span class="k">def</span> <span class="nf">loadDistrict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Datahandler.loadDistrict">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.loadDistrict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loadDistrict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scenario_name</span><span class="o">=</span><span class="s1">&#39;example&#39;</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Load district dict from pickle file</span>
+<span class="sd">        Loads district data from a previously saved pickle file.</span>
+
+<span class="sd">        ----------</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
+<span class="sd">            - scenario_name (str, optional): The name of the scenario file to be loaded. Defaults to &#39;example&#39;.</span>
 
 <span class="sd">        Returns</span>
-<span class="sd">        -------</span>
-
+<span class="sd">        ----------</span>
+<span class="sd">            - Restores the `district` data from the saved pickle file in the results directory.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">=</span> <span class="n">scenario_name</span>
 
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">resultPath</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.p&quot;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">district</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span></div>
+</div>
+
 </pre></div>
 
            </div>

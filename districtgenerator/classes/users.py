@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-"""
-
 import os, math
 import random as rd
 import numpy as np
@@ -13,47 +10,28 @@ import richardsonpy.classes.lighting as light_model
 import districtgenerator.functions.heating_profile_5R1C as heating
 
 class Users():
-    '''
+    """
     Building Users class describing the number of occupants and their configs
 
-    Parameters
+    Attributes:
     ----------
-    building : object
-        buildings objects of TEASER project
-    area : integer
-        Floor area of different building types
-
-    Attributes
-    ----------
-    building : string
-        building type according to TABULA database
-    nb_flats : integer
-        number of flats in building
-    annual_el_demand : array
-        annual elictricity consumption in dependency of the building type and the number of occupants
-    lighting_index : integer
-        This index defines the lighting configuration of the houshold.
-    el_wrapper : object
-        This objects holdes information about the lighting and appliance configuration.
-    nc_occ : list
-        list with the number of occupants for each flat of the current building.
-    occ : array
-        occupancy profile for each flat of the current building.
-    dhw :
-        drinking hot water profile for each building.
-    elec :
-        electrical demand for each building.
-    gains :
-        internal gains for each building.
-    heat :
-        heat demand for each building.
-    '''
-
-
-
+        - building (object): buildings objects of TEASER project
+        - area (int): Floor area of different building types
+        - nb_flats (int): number of flats in building
+        - annual_el_demand (array): annual elictricity consumption in dependency of the building type and the number of occupants
+        - lighting_index (int): This index defines the lighting configuration of the houshold.
+        - el_wrapper (object): This objects holdes information about the lighting and appliance configuration.
+        - nc_occ (list): list with the number of occupants for each flat of the current building.
+        - occ (array): occupancy profile for each flat of the current building.
+        - dhw (array): drinking hot water profile for each building.
+        - elec (array): electrical demand for each building.
+        - gains (array): internal gains for each building.
+        - heat (array): heat demand for each building.
+        - cooling (array): cooling demand for each building.
+    """
     def __init__(self, building, area):
         """
-        Constructor of Users Class
+        Initialize the Users object
         """
 
         self.building = building
@@ -76,15 +54,18 @@ class Users():
 
 
     def generate_number_flats(self,area):
-        '''
+        """
         Generate number of flats for different of building types.
 
         Parameters
         ----------
-        area : integer
-            Floor area of different building types
+            - area (int): Floor area of different building types
 
-        '''
+        Returns
+        ----------
+        - nb_flats (int): number of flats in building
+
+        """
 
         # If the building is a SFH or TH,
         # it has only one flat.
@@ -121,14 +102,18 @@ class Users():
                     break
 
     def generate_number_occupants(self):
-        '''
+        """
         Generate number of occupants for different of building types.
 
         Parameters
         ----------
-        random_nb : random number in [0,1)
+            - building (object): building type and number of flats
 
-        '''
+        Returns
+        ----------
+            - nb_occ (list): list with the number of occupants for each flat of the current building.
+
+        """
 
         if self.building == "SFH":
             # choose random number of occupants (2-5) for single family houses  (assumption)
@@ -188,15 +173,18 @@ class Users():
 
 
     def generate_annual_el_consumption(self):
-        '''
-        Generate annual elictricity consumption
-        in dependency of the building type and the number of occupants
+        """
+        Generate annual elictricity consumption in dependency of the building type and the number of occupants
 
         Parameters
         ----------
-        standard_consumption : standard annual consumption in kWh (assumption)
+            - standard_consumption : standard annual consumption in kWh (assumption)
 
-        '''
+        Returns
+        ----------
+            - annual_el_demand (array): annual elictricity consumption in Wh for each flat of the current building
+
+        """
 
         # source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
         # method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/
@@ -236,18 +224,21 @@ class Users():
 
 
     def generate_lighting_index(self):
-        '''
+        """
         Choose a random lighting index between 0 and 99.
         This index defines the lighting configuration of the houshold.
         There are 100 predifined ligthing configurations.
 
-        Annahme: Alle Lichtkonfigurationen sind gleich wahrscheinlich.
-        Es wird kein Unterschied zwischen  SHF und MFH gemacht.
+        Assumption: All lighting configurations are equally likely. No distinction between building types.
 
         Parameters
         ----------
-        random_nb : random number in [0,1)
-        '''
+            - random_nb (float): random number in [0,1)
+
+        Returns
+        ----------
+            - lighting_index (int): This index defines the lighting configuration of the houshold.
+        """
 
         for j in range(self.nb_flats):
             random_nb = rd.random()
@@ -255,20 +246,20 @@ class Users():
 
 
     def create_el_wrapper(self) :
-        '''
-        Creat a wrapper-object
-        holding information about the lighting and appliance configuration.
+        """
+        Creat a wrapper-object holding information about the lighting and appliance configuration.
 
         Parameters
         ----------
-        annual_demand : integer
-            Annual elictricity demand in kWh.
-        light_config : integer
-            This index defines the lighting configuration of the houshold.
+           -  annual_demand (int): Annual elictricity demand in kWh.
+            - light_config (int): This index defines the lighting configuration of the houshold.
             There are 100 predifined ligthing configurations.
 
+        Returns
+        ----------
+            - el_wrapper (object): This objects holdes information about the lighting and appliance configuration
 
-        '''
+        """
 
         src_path = os.path.dirname(richardsonpy.__file__)
         path_app = os.path.join(src_path,'inputs','Appliances.csv')
@@ -299,30 +290,27 @@ class Users():
 
 
     def calcProfiles(self, site, time_resolution, time_horizon, initital_day=1):
-        '''
+        """
         Calclulate profiles for every flat and summarize them for the whole building
 
         Parameters
         ----------
-        site: dict
-            site data, e.g. weather
-        initial_day : integer
-            Day of the week with which the generation starts
-            1-7 for monday-sunday.
-        time_horizon : integer
-            Time horizon for which a stochastic profile is generated.
-        time_resolution : integer
-            resolution of time steps of output array in seconds.
-        irradiation: array
-            if none is given default weather data (TRY 2015 Potsdam) is used
+            - site (dict): site data, e.g. weather
+            - time_horizon (int): Time horizon for which a stochastic profile is generated.
+            - time_resolution (int): resolution of time steps of output array in seconds.
 
+        Returns
+        ----------
+            - occ (array): occupancy profile for each building.
+            - dhw (array): drinking hot water profile for each building.
+            - elec (array): electrical demand for each building.
+            - gains (array): internal gains for each building.
 
-        '''
+        """
 
         irradiation = site["SunTotal"]
-        T_e = site["T_e"]
 
-        time_day = 24 * 60 * 60
+        time_day = 24 * 60 * 60 # seconds in a day
         nb_days = int(time_horizon/time_day)
 
         self.occ = np.zeros(int(time_horizon/time_resolution))
@@ -339,23 +327,20 @@ class Users():
             self.gains = self.gains + temp_obj.generate_gain_profile()
 
     def calcHeatingProfile(self,site,envelope,time_resolution) :
-
-        '''
+        """
         Calclulate heat demand for each building
 
         Parameters
         ----------
-        site: dict
-            site data, e.g. weather
-        envelope: object
-            containing all physical data of the envelope
-        time_resolution : integer
-            resolution of time steps of output array in seconds.
-        Q_HC : float
-            Heating (positive) or cooling (negative) load for the current time
-            step in Watt.
+            - site (dict): site data, e.g. weather
+            - envelope (object): containing all physical data of the envelope
+            - time_resolution (int): resolution of time steps of output array in seconds.
 
-        '''
+        Returns
+        ----------
+            - Q_HC (float): Heating (positive) or cooling (negative) load for the current time step in Watt.
+
+        """
 
 
         dt = time_resolution/(60*60)
@@ -367,54 +352,54 @@ class Users():
             self.heat[t] = max(0,Q_HC[t])
 
     def saveProfiles(self,unique_name,path):
-        '''
+        """
         Save profiles to csv
 
         Parameters
         ----------
-        unique_name : string
-            unique building name
-        path : string
-            results path
-        '''
+            - unique_name (str):unique building name
+            - path (str): results path
+
+        Returns
+        ----------
+            - csv files with profiles
+        """
 
         np.savetxt(path + '/elec_' + unique_name + '.csv', self.elec, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/dhw_' + unique_name + '.csv', self.dhw, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/occ_' + unique_name + '.csv', self.occ, fmt='%1.2f', delimiter=',')
         np.savetxt(path + '/gains_' + unique_name + '.csv', self.gains, fmt='%1.2f', delimiter=',')
 
-        '''
-        fields = [name + "_" + str(id), str(sum(self.nb_occ))]
-        with open(path + '/_nb_occupants.csv','a') as f :
-            writer = csv.writer(f)
-            writer.writerow(fields)
-        '''
 
     def saveHeatingProfile(self,unique_name,path) :
-        '''
+        """
         Save heat demand to csv
 
         Parameters
         ----------
-        unique_name : string
-            unique building name
-        path : string
-            results path
-        '''
+            - unique_name (str): unique building name
+            - path (str): results path
+
+        Returns
+        ----------
+            - csv files with heat demand
+        """
 
         np.savetxt(path + '/heat_' + unique_name + '.csv',self.heat,fmt='%1.2f',delimiter=',')
 
     def loadProfiles(self,unique_name,path):
-        '''
+        """
         Load profiles from csv
 
         Parameters
         ----------
-        unique_name : string
-            unique building name
-        path : string
-            results path
-        '''
+            - unique_name (str): unique building name
+            - path (str): results path
+
+        Returns
+        ----------
+            - profiles assigned to the object
+        """
 
         self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
         self.dhw = np.loadtxt(path + '/dhw_' + unique_name + '.csv', delimiter=',')

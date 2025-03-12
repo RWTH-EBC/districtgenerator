@@ -54,7 +54,7 @@ pip install -e districtgenerator
 Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
 to learn how to use the different components.
 
-### Minimum required input data
+### Minimum manual required input data
 
 To generate your district, you need to know some information about its buildings. 
 The minimal input data set was defined following the [TABULA archetype approach](https://webtool.building-typology.eu/#bm):
@@ -67,20 +67,67 @@ The minimal input data set was defined following the [TABULA archetype approach]
 
 The example.csv file can be used as [template](../districtgenerator/data/scenarios/example.csv).
 
-### What you get
+### Additional input data
 
-After executing district generation you can find building-specific and time-dependent profiles in 
-the .csv format in folder results/demands. The results contain: 
+In the folder [data](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/data) 
+further data can be found. Default values are already stored there.
+Optionally, the following data can be changed to:
+- design_building_data.json: Maximum and minimum indoor temperature and the room ventilation rate
+- site_data.json: Test referece year and its conditions, 
+- time_data.json: The time resolution of the profiles 
 
-- heat: space heating demand
-- dhw: domestic hot water demand
-- elec: electricity demand for lighting and electric household devices
-- occ: number of persons present
-- gains: internal gains from persons, lighting and electric household devices
+The data in the following files must not be changed because they are fixed parameters and external data:
+- design_weather_data.json: Contains the 16 German climate zones of the DWD. Climate zones are large areas 
+in which the main characteristics of the climate are the same. Each zone is represented by a city.
+- physics_data.json
+- dhw_stochstical.xlsx
+
+The weather data can be found in [weather](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/data/weather).
 
 ## Structure of the DistrictGenerator
 
 ![Library Structure](./img/Struktur_Quartiersgenerator.png)
+
+## Workflow of the DistrictGenerator
+
+The district generator integrates multiple open-source tools and databases. 
+The figure below visualizes the dependencies of external tools and data with internal 
+functions. The user input for the parameterization of a neighborhood consists 
+of a minimum of data. First, the user enters the number of buildings and basic 
+information about each building, namely the building type, year of construction, 
+retrofit level, and net floor area. The number of buildings to be calculated is 
+not limited by the program. Optionally, the site of the district, the time 
+resolution of the profiles and the test reference year (TRY) for weather data 
+can be modified.
+
+![Library Structure](./img/Workflow_DistrictGenerator.png)
+
+To obtain a fully parameterized building model, the TEASER tool performs a data 
+enrichment with data from the TABULA WebTool and uses statistical and normative 
+information about the building stock. Finally, the TEASER python package determines 
+the geometry and material properties of the buildings. As the TABULA WebTool 
+defines archetypal building properties for type, age class and retrofit level, the 
+generated districts are composed of representative buildings, making them ideal 
+for representative analyses or scalability studies. The richardsonpy tool generates 
+occupancy profiles that fluctuates pseudo-randomly throughout the day, mirroring the 
+natural behavior of individuals in their daily routines. Based on this, the tool 
+stochastically creates synthetic profiles of the electricity demand. With the DHWcalc tool 
+the domestic hot water demand is calculated. Therefore, it considers various factors 
+such as the number of occupants, building characteristics and climate data to stochastically 
+estimate the hot water usage patterns in a residential setting. 
+
+## Final output of the DistrictGenerator
+
+Including all these tools the DistrictGenerator gives as output time-resolved demand profiles 
+as csv. file for each building in the neighborhood. The output contains: 
+
+- heat: space heating demand
+- dhw: domestic hot water demand
+- elec: electricity demand for lighting and electric household devices
+- gains: internal gains from persons, lighting and electric household devices
+
+All csv files are finally saved in the [demands](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands)
+folder. The unit of the demand profiles is watt.
 
 ## Running examples for functional testing
 

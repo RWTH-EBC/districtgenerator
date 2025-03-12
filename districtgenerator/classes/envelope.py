@@ -12,28 +12,14 @@ class Envelope():
     """
     Abstract class for envelop component management handling
 
-    Parameters
-    ----------
-    prj : Project()
-        Project() instance of TEASER, contains functions to generate
-        archetype buildings
-    building_params : dict
-        building parameters like construction year, retrofit
-    construction_type : string
-        building type
-    file_path : str
-        file path
-
-    Attributes
-    ----------
-    id :
-
-    construction_year : int
-        construction year of the building
-    retrofit : string
-        retrofit of the building
-    usage_short :
-
+    Attributes:
+        - prj (object): Instance of TEASER, contains functions to generate archetype buildings
+        - building_params (dict): building parameters like construction year, retrofit
+        - construction_type (str): building type
+        - file_path (str): file path
+        - id (int): building id
+        - construction_year (int): construction year of the building
+        - retrofit (str): retrofit of the building
     """
 
     def __init__(self, prj, building_params, construction_type, file_path):
@@ -70,9 +56,14 @@ class Envelope():
 
         Parameters
         ----------
-        physics : json file
-            physical and use-specific parameters
+            - physics (json file): physical and use-specific parameters
 
+        Returns
+        ----------
+            - c_p_air (float): specific heat capacity of air [J/kgK]
+            - rho_air (float): density of air [kg/m3]
+            - T_set_min (float): minimum set temperature [°C]
+            - ventilationRate (float): ventilation rate [m3/h]
         """
 
         physics = {}
@@ -97,24 +88,18 @@ class Envelope():
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
-        Computation of (specific) heat capacity of each wall-type-surface
-        ISO 13786 A.2.4
-        Result is in J/m2K
+        Computation of (specific) heat capacity of each wall-type-surface (ISO 13786 A.2.4)
 
         Parameters
         ----------
-        d :
-
-        d_iso :
-
-        density :
-
-        cp :
+            - d (float): thickness of each layer in m
+            - d_iso (float): sum of all layer thicknesses in m
+            - density (float): density of each layer in kg/m3
+            - cp (float): heat capacity of each layer in J/kgK
 
         Returns
         ----------
-        kappa : float
-            (specific) heat capacity of each wall-type-surface
+            - kappa(float): (specific) heat capacity of each wall-type-surface in J/m2K
 
         """
         d_t = min(0.5 * np.sum(d), d_iso, 0.1)
@@ -138,23 +123,16 @@ class Envelope():
 
         Parameters
         ----------
-        mat_id :
-
-        data_class :
+            - mat_id (str): id of archetypes components
+            - data_class (dict): TABULA archetype's material parameters
 
         Returns
         ----------
-
-        name : string
-            material type
-        density : float
-            density of the material
-        thermal_conduc :
-            thermal conductivity
-        heat_capac :
-            heat capacity
-        solar_absorp :
-            solar adsorption
+            - name (string): material type
+            - density (float)density of the material
+            - thermal_conduc (florat): thermal conductivity
+            - heat_capac (float): heat capacity
+            - solar_absorp (float): solar adsorption
         """
 
         binding = data_class
@@ -170,14 +148,17 @@ class Envelope():
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
     def loadComponentProperties(self, prj):
-
         """
-        Load component-specific material parameters
+        Load component-specific material parameters (attributes)
 
         Parameters
         ----------
-        prj : class
-            contains functions to generate archetype buildings
+            - attributes (dict): component-specific material parameters
+
+        Returns
+        ----------
+            - specificHeatCapacity (float): specific heat capacity of each component
+            - U (dict): heat transfer coefficient of each component
 
         """
 
@@ -461,14 +442,16 @@ class Envelope():
                                             + self.R_se["window"])))
 
     def loadAreas(self, prj):
-
         """
         Load component-specific area data
 
         Parameters
         ----------
-        prj : class
-            contains functions to generate archetype buildings
+            - prj (object): contains component-specific area data
+
+        Returns
+        ----------
+            - A (dict): component-specific area data
 
         """
 
@@ -520,21 +503,17 @@ class Envelope():
 
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
 
-    def calcHeatLoad(self, site, method="design"):
-
+    def calcHeatLoad(self, site):
         """
+        Function to calculate the heat load of the building
 
         Parameters
         ----------
-        site : dict
-            information about location and climate conditions
-        method : string
-            method to calculate heat load
+            - site (dict): information about location and climate conditions
+
         Returns
         -------
-
-        Q_nHC : float
-            heat load
+            - Q_nHC (float): heat load
 
         """
 
@@ -566,15 +545,18 @@ class Envelope():
         return Q_nHC
 
     def calcNormativeProperties(self, SunRad, internal_gains):
-
         """
+        Function to thermal transmittance coefficient and heat flows
 
         Parameters
         ----------
-        SunRad : array
-            solar radiation
-        internal_gains :
-            internal gains of the building
+            - SunRad (array): solar radiation
+            - internal_gains (array): internal gains of the building
+
+        Returns
+        -------
+            - thermal transmittance coefficients [W/K]
+            - heat flows [W]
         """
 
         if SunRad is None:

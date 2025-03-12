@@ -14,30 +14,23 @@ from .users import Users
 
 class Datahandler():
     """
-    Abstract class for data handling
-    Collects data from input files, TEASER, User and Enevelope.
+    Handles data collection, processing, and simulation for urban building energy modeling.
 
-    Attributes
-    ----------
-    site:
-        dict for site data, e.g. weather
-    time:
-        dict for time settings
-    district:
-        list of all buildings within district
-    scenario_name:
-        name of scenario file
-    scenario:
-        scenario data
-    counter:
-        dict for counting number of equal building types
-    srcPath:
-        source path
-    filePath:
-        file path
+    This class integrates various sources of data, including site information, weather conditions,
+    building configurations, and user behaviors. It generates realistic demand profiles for heating,
+    domestic hot water, and electricity consumption.
 
+    Attributes:
+        - site (dict): Stores site-related data including weather and location.
+        - time (dict): Stores time-related parameters.
+        - district (list): A list containing all buildings.
+        - scenario_name (str or None): Name of the current scenario file being used.
+        - scenario (pd.DataFrame or None): DataFrame containing the scenario's buildings parameters.
+        - counter (dict): Tracks unique building identifiers.
+        - srcPath (str): The base directory path of the project.
+        - filePath (str): The directory path where data files are stored.
+        - resultPath (str): The directory path where demand results are stored.
     """
-
     def __init__(self):
         self.site = {}
         self.time = {}
@@ -52,14 +45,17 @@ class Datahandler():
 
     def generateEnvironment(self):
         """
-        Load physical district environment - site and weather
+        Loads and processes site and weather data for the simulation environment.
+        ----------
 
         Parameters
         ----------
+            - Site-specific data from `site_data.json`.
+            - Loads weather data (solar radiation and temperature) based on the selected TRY (Test Reference Year).
 
         Returns
-        -------
-
+        ----------
+            - Saving the interpolated data to the data handler.
         """
 
         # %% load information about of the site under consideration
@@ -132,16 +128,17 @@ class Datahandler():
 
     def initializeBuildings(self, scenario_name='example'):
         """
-        Fill district with buildings from scenario file
+        Initializes the district by loading building data from a scenario file.
+
+        ----------
 
         Parameters
         ----------
-        scenario_name: string, optional
-            name of scenario file to be read
+            - scenario_name (str, optional): The name of the scenario file to be read. Defaults to 'example'.
 
         Returns
-        -------
-
+        ----------
+            - Populates the `district` list with building objects containing their respective features.
         """
 
         self.scenario_name = scenario_name
@@ -164,14 +161,21 @@ class Datahandler():
 
     def generateBuildings(self):
         """
-        Load building envelope and user data
+        Loads building envelope and user data for each building in the district.
+
+        ----------
 
         Parameters
         ----------
+            - building features (dict): Contains building-specific data.
+            - number_of_floors (int): The number of floors in the building.
+            - height_of_floors (float): The height of each floor in the building.
 
         Returns
-        -------
-
+        ----------
+            - Creates and assigns building envelope data using the `Envelope` class.
+            - Generates and assigns user profiles for each building using the `Users` class.
+            - Computes design heat loads and assigns to each building.
         """
 
         # %% load general building information
@@ -253,7 +257,7 @@ class Datahandler():
                                             file_path = self.filePath)
 
             # %% create user object
-            # containing number occupants, electricity demand,...
+            # containing number occupants, electricity demand, ...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                              area=building["buildingFeatures"]["area"])
 
@@ -270,18 +274,22 @@ class Datahandler():
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
-        Generate occupancy profile, heat demand, domestic hot water demand and heating demand
+        Generates cooling, heating, domestic hot water demand and household electricity demand profiles
+        for each building.
+
+        ----------
 
         Parameters
         ----------
-        calcUserProfiles: bool, optional
-            True: calculate new user profiles
-            False: load user profiles from file
-        saveUserProfiles: bool, optional
-            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)
+            - calcUserProfiles (bool, optional): Determines whether to calculate new user profiles (`True`) or load
+            existing ones (`False`). Defaults to `True`.
+            - saveUserProfiles (bool, optional): If `True`, saves calculated user profiles to the workspace.
+            Only applicable if `calcUserProfiles` is `True`.
 
         Returns
-        -------
+        ----------
+            - Computes user behavior profiles for energy demand estimation.
+            - Cooling, heating, domestic hot water demand and household electricity demand profiles based on user behavior, envelope properties and site conditions.
         """
 
         set = []
@@ -326,20 +334,8 @@ class Datahandler():
 
     def generateDistrictComplete(self, scenario_name='example', calcUserProfiles=True, saveUserProfiles=True):
         """
-        All in one solution for district and demand generation
-
-        Parameters
-        ----------
-        scenario_name:string, optional
-            name of scenario file to be read
-        calcUserProfiles: bool, optional
-            True: calculate new user profiles
-            False: load user profiles from file
-        saveUserProfiles: bool, optional
-            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True)
-
-        Returns
-        -------
+        Executes the complete process of district generation, including environment setup,
+        building initialization, envelope creation, and demand calculation.
 
         """
 
@@ -350,14 +346,13 @@ class Datahandler():
 
     def saveDistrict(self):
         """
-        Save district dict as pickle file
+        Saves the district data as a pickle file for later use.
 
-        Parameters
         ----------
 
         Returns
-        -------
-
+        ----------
+        - Stores the current `district` data as a pickle file in the results directory.
         """
         with open(self.resultPath + "/" + self.scenario_name + ".p",'wb') as fp:
             pickle.dump(self.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
@@ -365,14 +360,17 @@ class Datahandler():
 
     def loadDistrict(self, scenario_name='example'):
         """
-        Load district dict from pickle file
+        Loads district data from a previously saved pickle file.
+
+        ----------
 
         Parameters
         ----------
+            - scenario_name (str, optional): The name of the scenario file to be loaded. Defaults to 'example'.
 
         Returns
-        -------
-
+        ----------
+            - Restores the `district` data from the saved pickle file in the results directory.
         """
         self.scenario_name = scenario_name
 
