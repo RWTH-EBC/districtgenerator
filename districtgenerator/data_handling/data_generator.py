@@ -2,10 +2,39 @@ import json
 import csv
 import pandas as pd
 from typing import Dict, List, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import itertools
 
+# Data classes for configuration
+# Location
+@dataclass
+class ValidAlbedo:
+    min_val: float = 0.0
+    max_val: float = 1.0
 
+    @classmethod
+    def get_valid_range(cls) -> Tuple[float, float]:
+        return (cls.min_val, cls.max_val)
+
+
+@dataclass
+class TRYYears:
+    years: List[str] = field(default_factory=lambda: ["TRY2015", "TRY2045"])
+
+    @classmethod
+    def get_valid_years(cls) -> List[str]:
+        return ["TRY2015", "TRY2045"]
+
+
+@dataclass
+class TRYTypes:
+    types: List[str] = field(default_factory=lambda: ["Jahr", "Somm", "Wint"])
+
+    @classmethod
+    def get_valid_types(cls) -> List[str]:
+        return ["Jahr", "Somm", "Wint"]
+
+# Building
 @dataclass
 class TechnologyParams:
     PV: bool = False
@@ -13,7 +42,6 @@ class TechnologyParams:
     EV: bool = False
     BAT: bool = False
 
-    # Class method to get valid ranges for binary parameters
     @classmethod
     def get_valid_ranges(cls) -> Dict[str, Tuple[int, int]]:
         return {
@@ -23,40 +51,33 @@ class TechnologyParams:
             "BAT": (0, 1)
         }
 
-
 @dataclass
 class StorageParams:
-    f_TES: float = 35.0  # Default thermal energy storage factor
-    f_BAT: float = 1.0  # Default battery storage factor
-    f_EV: float = 6000.0  # Default EV storage factor
-    f_PV: float = 0.4  # Default PV sizing factor
-    f_STC: float = 0.04  # Default solar thermal collector factor
+    f_TES: float = 35.0
+    f_BAT: float = 1.0
+    f_EV: float = 6000.0
+    f_PV: float = 0.4
+    f_STC: float = 0.04
 
-    # Class method to get valid ranges for continuous parameters
     @classmethod
     def get_valid_ranges(cls) -> Dict[str, Tuple[float, float]]:
-        # TODO: check if valid
         return {
-            "f_TES": (20.0, 50.0),  # Thermal storage 20-50 L/m²
-            "f_BAT": (0.5, 2.0),  # Battery sizing factor 0.5-2
-            "f_EV": (3000.0, 9000.0),  # EV storage 3-9 kWh
-            "f_PV": (0.2, 1.0),  # PV sizing factor 20-100%
-            "f_STC": (0.02, 0.08)  # Solar thermal collector sizing 2-8%
+            "f_TES": (20.0, 50.0),
+            "f_BAT": (0.5, 2.0),
+            "f_EV": (3000.0, 9000.0),
+            "f_PV": (0.2, 1.0),
+            "f_STC": (0.02, 0.08)
         }
 
 @dataclass
 class ChargingModes:
-    modes: List[str] = None
-
-    def __post_init__(self):
-        if self.modes is None:
-            self.modes = ["on_demand"]
+    modes: List[str] = field(default_factory=lambda: ["on_demand"])
 
     @classmethod
     def get_valid_modes(cls) -> List[str]:
-        return ["on_demand", "night_charge", "pv_optimized"]  # Todo: Example future modes
+        return ["on_demand", "night_charge", "pv_optimized"]
 
-
+#Config
 @dataclass
 class LocationConfig:
     time_zone: float
@@ -65,17 +86,26 @@ class LocationConfig:
     try_type: str
     zip_code: str
 
+    def __post_init__(self):
+        allowed_try_years = TRYYears.get_valid_years()
+        allowed_try_types = TRYTypes.get_valid_types()
+        if self.try_year not in allowed_try_years:
+            raise ValueError(f"try_year must be one of {allowed_try_years}, got '{self.try_year}'")
+        if self.try_type not in allowed_try_types:
+            raise ValueError(f"try_type must be one of {allowed_try_types}, got '{self.try_type}'")
 
 @dataclass
 class BuildingConfig:
     building_types: List[str]
     construction_years: List[int]
+    construction_types: List[str]
     retrofit_options: List[int]
     area_ranges: Dict[str, List[float]]
     heater_types: List[str]
-    tech_params: TechnologyParams = TechnologyParams()
-    storage_params: StorageParams = StorageParams()
-    charging_modes: ChargingModes = ChargingModes()
+    night_setback: bool = False
+    tech_params: TechnologyParams = field(default_factory=TechnologyParams)
+    storage_params: StorageParams = field(default_factory=StorageParams)
+    charging_modes: ChargingModes = field(default_factory=ChargingModes)
 
 
 class DataGenerator:
@@ -113,31 +143,31 @@ class DataGenerator:
                 "name": "timeZone",
                 "value": self.location.time_zone,
                 "unit": "h",
-                "description": "Shift between the location's time and GMT in hours"
+                "description": "Shift between the location's time and GMT in hours. CET would be 1."
             },
             {
                 "name": "albedo",
                 "value": self.location.albedo,
                 "unit": "-",
-                "description": "Ground reflectance"
+                "description": "Ground reflectance. 0 refers to 0% and 1 refers to 100%."
             },
             {
                 "name": "TRYYear",
                 "value": self.location.try_year,
                 "unit": "-",
-                "description": "Test reference year"
+                "description": "Test reference year of DWD. Possible entries are TRY2015 and TRY2045."
             },
             {
                 "name": "TRYType",
                 "value": self.location.try_type,
                 "unit": "-",
-                "description": "Test reference conditions"
+                "description": "Test reference conditions of DWD. Possible entries are Jahr, Somm, Wint."
             },
             {
                 "name": "zip",
                 "value": self.location.zip_code,
                 "unit": "-",
-                "description": "Zip code of the location"
+                "description": "Zip code of the location."
             }
         ]
 
@@ -157,6 +187,8 @@ class DataGenerator:
                 "id": id_counter,
                 "building": btype,
                 "year": year,
+                "construction_type": self.building.construction_types[0],
+                "night_setback": int(self.building.night_setback),
                 "retrofit": self.building.retrofit_options[0],
                 "area": area,
                 "heater": heater,
@@ -196,8 +228,8 @@ if __name__ == "__main__":
     location_config = LocationConfig(
         time_zone=1,
         albedo=0.2,
-        try_year="TRY2015",
-        try_type="Jahr",
+        try_year="TRY2015", # Possible entries are TRY2015 and TRY2045
+        try_type="Jahr", # Possible entries are Jahr, Somm, Wint.
         zip_code="52064"
     )
 
@@ -205,6 +237,8 @@ if __name__ == "__main__":
     building_config = BuildingConfig(
         building_types=["SFH"],
         construction_years=[1980],
+        construction_types=[None],
+        night_setback=False,
         retrofit_options=[0],
         area_ranges={"SFH": [140, 300]},
         heater_types=["HP", "BOI"],
