@@ -109,7 +109,7 @@ class JSONDataAdapter:
         self.data = json_data
 
     def get_location_config(self) -> LocationConfig:
-        location_data = self.data.get("location", {})
+        location_data = self.data.get("location_config", {})
         return LocationConfig(
             time_zone=location_data.get("time_zone", 1),
             albedo=location_data.get("albedo", 0.2),
@@ -119,7 +119,7 @@ class JSONDataAdapter:
         )
 
     def get_building_config(self) -> BuildingConfig:
-        building_data = self.data.get("building", {})
+        building_data = self.data.get("building_config", {})
         return BuildingConfig(
             buildings=building_data.get("buildings", []),
             heater_types=building_data.get("heater_types", ["HP", "BOI"]),
