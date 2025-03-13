@@ -103,6 +103,7 @@ class BuildingConfig:
     storage_params: StorageParams = field(default_factory=StorageParams)
     charging_modes: ChargingModes = field(default_factory=ChargingModes)
 
+
 class JSONDataAdapter:
     def __init__(self, json_data: Dict):
         self.data = json_data
@@ -280,10 +281,55 @@ if __name__ == "__main__":
         heater_types=["HP", "BOI"],
         night_setback=False,
         tech_params=TechnologyParams(PV=False, STC=False, EV=False, BAT=False),
-        storage_params=StorageParams(),
-        charging_modes=ChargingModes()
+        storage_params=StorageParams(f_BAT=0.2, f_EV=8000.0, f_PV=0.6, f_STC=0.05),
+        charging_modes=ChargingModes(["on_demand"])
     )
 
     # Generate district
     generator = DataGenerator(location_config, building_config)
     generator.save_files()
+
+##  # Example JSON structure:
+##  example_json = {
+##      "location": {
+##          "time_zone": 1,
+##          "albedo": 0.2,
+##          "try_year": "TRY2015",
+##          "try_type": "Jahr",
+##          "zip_code": "52064"
+##      },
+##      "building": {
+##          "buildings": [
+##              {
+##                  "building_type": "SFH",
+##                  "construction_year": 1980,
+##                  "construction_type": None,
+##                  "area": 140,
+##                  "heater_type": "HP"
+##              },
+##              {
+##                  "building_type": "MFH",
+##                  "construction_year": 1960,
+##                  "construction_type": None,
+##                  "area": 300,
+##                  "heater_type": "BOI",
+##                  "retrofit": 1
+##              }
+##          ],
+##          "heater_types": ["HP", "BOI"],
+##          "night_setback": False
+##      }
+##  }
+
+
+##  def generate_district_from_json(json_data: Dict, output_path: str = "./files/"):
+##      """Generate district files from JSON data"""
+##      adapter = JSONDataAdapter(json_data)
+##      location_config = adapter.get_location_config()
+##      building_config = adapter.get_building_config()
+##      generator = DataGenerator(location_config, building_config)
+##      generator.save_files(output_path)
+
+
+## if __name__ == "__main__":
+##     generate_district_from_json(example_json)
