@@ -18,7 +18,8 @@ def example5_generate_demands():
     # Initialize District
     data = Datahandler()
 
-    # Generate Environment for the District
+    # Generate Environment for the District with Data from districtgenerator/data/site_data.json
+    # and districtgenerator/data/time_data.json
     data.generateEnvironment()
 
     # Initialize Buildings to the District
@@ -30,7 +31,7 @@ def example5_generate_demands():
     # Now we generate building specific demand profiles. The computation can take a few minutes,
     # because energy profiles for a hole year are computed. As input we tell the program,
     # if we want to calculate and save the demand profiles: If "calcUserProfiles=True", the datahandler
-    # generates the profiles and saves them in the directory "results/demands/".
+    # generates the profiles and saves them in the directory "districtgenerator/results/demands/".
     # Alternatively we can load existing profiles. To do so, we put "calcUserProfiles=False".
     # The Richardson tool is used to generate stochastic occupancy, internal heat gain and electric load profiles.
     # With an 5R1C thermal building model the space heat profiles and a stochastic model the drinking hot water
@@ -46,6 +47,11 @@ def example5_generate_demands():
     # We can now use the profiles for exemplary analyses like monthly demands or peak loads.
     # We plot the district space heat demand in kWh
     exemplary_plot(data)
+
+    print("The demand profiles are generated and saved in the directory 'districtgenerator/results/demands/'.")
+    print("In data.district[0].user for example you find the demand profiles.")
+    print("The space heat demand in W of the first 10 time steps is for example:")
+    print(data.district[0]["user"].heat[:10])
 
     return data
 

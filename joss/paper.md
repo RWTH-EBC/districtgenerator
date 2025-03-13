@@ -68,7 +68,8 @@ knowledge in energy planning, modeling, and data analysis, thus restricting acce
 The minimum input data required is the number of buildings  and basic information about each building, namely the building type, year of construction, retrofit level, and net floor area.
 The district size is freely choosable and the number of buildings to compute is not limited by the program. 
 The default file format for the building information is .csv because of its compatibility and ease of use.
-Optionally, the site of the district, the time resolution of the profiles and the test reference year (TRY) for weather data [@dwd_2023; @bbsr_2020] can be modified. 
+Optionally, the site of the district, the time resolution of the profiles and the test reference year (TRY) for weather data 
+[@dwd_2023], [@bbsr_2020] can be modified. 
 There are 16 choosable sites, which refer to the representative locations of the German climate zones. 
 For every site, the user is able to select between warm, cold and normal TRYs. 
 Moreover, TRYs are available for 2015 and 2045, reflecting either current or future weather conditions.

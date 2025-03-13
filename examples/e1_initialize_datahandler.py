@@ -21,6 +21,10 @@ def example1_initialize_datahandler():
     # This creates the datahandler object and empty files for information about the environment,
     # the buildings and the district.
 
+    print("Datahandler initialized. Empty files for district, site and time data created.")
+    print("Here you get an empty list for the single buildings:")
+    print(data.district)
+
     return data
 
 

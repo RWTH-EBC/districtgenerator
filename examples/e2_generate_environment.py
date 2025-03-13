@@ -17,16 +17,25 @@ def example2_generate_environment():
     # Initialize District (description in the first example)
     data = Datahandler()
 
-    # Next we generate the environment of the district
+    # Generate Environment for the District with Data from districtgenerator/data/site_data.json
+    # and districtgenerator/data/time_data.json
     data.generateEnvironment()
 
     ### =====================================  Output  ===================================== ###
     # Based on the location of the district the environment includes outside temperatures and
-    # sun radiation. When you open "data.site", you see the "location" is [51.0,6.55], the
-    # "climateZone" 0 and the "altitude" 0. The weather data is taken from a test reference
-    # year database from the DWD. You find the time resolution in "data.time". For this example
-    # it is 900 seconds, which is equal to 15 Minutes.
+    # sun radiation. When you open "data.site" (data from districtgenerator/data/site_data.json),
+    # you see the "location" is [51.0,6.55], the "climateZone" 0 and the "altitude" 0. The weather
+    # data is taken from a test reference year database from the DWD. You find the time resolution
+    # in "data.time" (data from districtgenerator/data/time_data.json).
+    # For this example it is 900 seconds, which is equal to 15 Minutes.
 
+    print("The environment for the district is generated.")
+    print("In data.site['T_e'] for example you find the outside temperature. Get the first 10 values:")
+    print(data.site['T_e'][:10])
+    print("In data.time['timeSteps'] you find the number of time steps in a year:")
+    print(data.time['timeSteps'])
+    print("The list for the buildings is still empty:")
+    print(data.district)
 
     return data
 
