@@ -84,6 +84,8 @@ class Envelope():
                 design_data[subData["name"]] = subData["value"]
 
         self.T_set_min = design_data["T_set_min"]
+        self.T_bivalent = design_data["T_bivalent"]
+        self.T_heatlimit = design_data["T_heatlimit"]
         self.ventilationRate = design_data["ventilation_rate"]
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
@@ -503,7 +505,7 @@ class Envelope():
 
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
 
-    def calcHeatLoad(self, site):
+    def calcHeatLoad(self, site, method="design"):
         """
         Function to calculate the heat load of the building
 
@@ -533,14 +535,28 @@ class Envelope():
         f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
         G_w = 1.0  # influence of ground water neglected
 
-        Q_nHC = (self.A["opaque"]["wall"] * (
-                self.U["opaque"]["wall"] + U_TB)
-                 + self.A["window"]["sum"] * self.U["window"]
-                 + self.A["opaque"]["roof"] * self.U["opaque"]["roof"]
-                 + self.A["opaque"]["floor"] * self.U["opaque"]["floor"]
-                 * f_g1 * f_g2 * G_w
-                 + self.ventilationRate * self.c_p_air * self.rho_air
-                 * self.V / 3600) * (self.T_set_min - T_ne)
+        if method == "design":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                            self.A["window"]["sum"] * (self.U["window"] + U_TB) +
+                            self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
+                            self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w +
+                            self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) * (self.T_set_min - site["T_e"])
+
+        if method == "bivalent":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * (self.U["window"] + U_TB) +
+                     self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
+                       * (self.T_set_min - self.T_bivalent)
+
+        if method == "heatlimit":
+            Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
+                     self.A["window"]["sum"] * (self.U["window"] + U_TB) +
+                     self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) +
+                     self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * f_g1 * f_g2 * G_w
+                     + self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600) \
+                       * (self.T_set_min - self.T_heatlimit)
 
         return Q_nHC
 

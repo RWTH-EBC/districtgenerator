@@ -15,7 +15,8 @@ def example4_generate_buildings():
     # Initialize District
     data = Datahandler()
 
-    # Generate Environment for the District
+    # Generate Environment for the District with Data from districtgenerator/data/site_data.json
+    # and districtgenerator/data/time_data.json
     data.generateEnvironment()
 
     # Initialize Buildings to the District
@@ -34,6 +35,9 @@ def example4_generate_buildings():
     # Furthermore the user class is added to every building which contains at this point information about
     # the total annual electrical demand, the number of flats and occupants within the building.
 
+    print("Besides the building features, the envelope and user class are added to the buildings.")
+    print("In data.district[0].envelope for example you find the wall areas:")
+    print(data.district[0]["envelope"].A["opaque"])
 
     return data
 
