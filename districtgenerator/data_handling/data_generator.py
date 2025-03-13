@@ -96,17 +96,50 @@ class LocationConfig:
 
 @dataclass
 class BuildingConfig:
-    building_types: List[str]
-    construction_years: List[int]
-    construction_types: List[str]
-    retrofit_options: List[int]
-    area_ranges: Dict[str, List[float]]
+    buildings: List[Dict[str, any]]  # List of individual building configurations
     heater_types: List[str]
     night_setback: bool = False
     tech_params: TechnologyParams = field(default_factory=TechnologyParams)
     storage_params: StorageParams = field(default_factory=StorageParams)
     charging_modes: ChargingModes = field(default_factory=ChargingModes)
 
+class JSONDataAdapter:
+    def __init__(self, json_data: Dict):
+        self.data = json_data
+
+    def get_location_config(self) -> LocationConfig:
+        location_data = self.data.get("location", {})
+        return LocationConfig(
+            time_zone=location_data.get("time_zone", 1),
+            albedo=location_data.get("albedo", 0.2),
+            try_year=location_data.get("try_year", "TRY2015"),
+            try_type=location_data.get("try_type", "Jahr"),
+            zip_code=location_data.get("zip_code", "52064")
+        )
+
+    def get_building_config(self) -> BuildingConfig:
+        building_data = self.data.get("building", {})
+        return BuildingConfig(
+            buildings=building_data.get("buildings", []),
+            heater_types=building_data.get("heater_types", ["HP", "BOI"]),
+            night_setback=building_data.get("night_setback", False),
+            tech_params=TechnologyParams(
+                PV=building_data.get("PV", False),
+                STC=building_data.get("STC", False),
+                EV=building_data.get("EV", False),
+                BAT=building_data.get("BAT", False)
+            ),
+            storage_params=StorageParams(
+                f_TES=building_data.get("f_TES", 35.0),
+                f_BAT=building_data.get("f_BAT", 1.0),
+                f_EV=building_data.get("f_EV", 6000.0),
+                f_PV=building_data.get("f_PV", 0.4),
+                f_STC=building_data.get("f_STC", 0.04)
+            ),
+            charging_modes=ChargingModes(
+                modes=building_data.get("charging_modes", ["on_demand"])
+            )
+        )
 
 class DataGenerator:
     def __init__(self, location_config: LocationConfig, building_config: BuildingConfig):
@@ -172,40 +205,32 @@ class DataGenerator:
         ]
 
     def generate_building_combinations(self) -> List[Dict]:
-        """Generate building combinations based on config"""
+        """Generate building data based on individual configurations"""
         buildings = []
-        id_counter = 0
 
-        # Generate all possible combinations
-        for btype, year, area, heater in itertools.product(
-                self.building.building_types,
-                self.building.construction_years,
-                self.building.area_ranges[self.building.building_types[0]],
-                self.building.heater_types
-        ):
+        for idx, building_config in enumerate(self.building.buildings):
             building = {
-                "id": id_counter,
-                "building": btype,
-                "year": year,
-                "construction_type": self.building.construction_types[0],
-                "night_setback": int(self.building.night_setback),
-                "retrofit": self.building.retrofit_options[0],
-                "area": area,
-                "heater": heater,
-                "PV": int(self.building.tech_params.PV),
-                "STC": int(self.building.tech_params.STC),
-                "EV": int(self.building.tech_params.EV),
-                "BAT": int(self.building.tech_params.BAT),
-                "f_TES": self.building.storage_params.f_TES,
-                "f_BAT": self.building.storage_params.f_BAT,
-                "f_EV": self.building.storage_params.f_EV,
-                "f_PV": self.building.storage_params.f_PV,
-                "f_STC": self.building.storage_params.f_STC,
-                "gamma_PV": 0,
-                "ev_charging": self.building.charging_modes.modes[0]
+                "id": idx,
+                "building": building_config.get("building_type"),
+                "year": building_config.get("construction_year"),
+                "construction_type": building_config.get("construction_type"),
+                "night_setback": int(building_config.get("night_setback", self.building.night_setback)),
+                "retrofit": building_config.get("retrofit", 0),
+                "area": building_config.get("area"),
+                "heater": building_config.get("heater_type"),
+                "PV": int(building_config.get("PV", self.building.tech_params.PV)),
+                "STC": int(building_config.get("STC", self.building.tech_params.STC)),
+                "EV": int(building_config.get("EV", self.building.tech_params.EV)),
+                "BAT": int(building_config.get("BAT", self.building.tech_params.BAT)),
+                "f_TES": building_config.get("f_TES", self.building.storage_params.f_TES),
+                "f_BAT": building_config.get("f_BAT", self.building.storage_params.f_BAT),
+                "f_EV": building_config.get("f_EV", self.building.storage_params.f_EV),
+                "f_PV": building_config.get("f_PV", self.building.storage_params.f_PV),
+                "f_STC": building_config.get("f_STC", self.building.storage_params.f_STC),
+                "gamma_PV": building_config.get("gamma_PV", 0),
+                "ev_charging": building_config.get("ev_charging", self.building.charging_modes.modes[0])
             }
             buildings.append(building)
-            id_counter += 1
 
         return buildings
 
@@ -221,27 +246,39 @@ class DataGenerator:
         df = pd.DataFrame(building_data)
         df.to_csv(f"{output_path}example.csv", sep=';', index=False)
 
-
 # Example usage
 if __name__ == "__main__":
     # Location configuration
     location_config = LocationConfig(
         time_zone=1,
         albedo=0.2,
-        try_year="TRY2015", # Possible entries are TRY2015 and TRY2045
-        try_type="Jahr", # Possible entries are Jahr, Somm, Wint.
+        try_year="TRY2015",  # Possible entries are TRY2015 and TRY2045
+        try_type="Jahr",  # Possible entries are Jahr, Somm, Wint.
         zip_code="52064"
     )
 
-    # Building configuration with default parameters
+    # Building configuration with individual buildings
     building_config = BuildingConfig(
-        building_types=["SFH"],
-        construction_years=[1980],
-        construction_types=[None],
-        night_setback=False,
-        retrofit_options=[0],
-        area_ranges={"SFH": [140, 300]},
+        buildings=[
+            {
+                "building_type": "SFH",
+                "construction_year": 1980,
+                "construction_type": None,
+                "area": 140,
+                "heater_type": "HP",
+                "retrofit": 0
+            },
+            {
+                "building_type": "MFH",
+                "construction_year": 1960,
+                "construction_type": None,
+                "area": 300,
+                "heater_type": "BOI",
+                "retrofit": 1
+            }
+        ],
         heater_types=["HP", "BOI"],
+        night_setback=False,
         tech_params=TechnologyParams(PV=False, STC=False, EV=False, BAT=False),
         storage_params=StorageParams(),
         charging_modes=ChargingModes()
