@@ -38,7 +38,6 @@ of the DistrictGenerator as follows:
   selection and penetrations. We thereby create a platform for early-stage comparison of neighborhood concepts 
   with the flexibility of selecting different variants, given the tool's rapid recalculations.
 
-
 ## Getting started
 
 ### Install the DistrictGenerator
