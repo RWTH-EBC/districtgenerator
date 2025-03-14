@@ -145,3 +145,4 @@ The districtgenerator has been developed within the public funded project
 and with financial support by BMWK (German Federal Ministry for Economic Affairs and Climate Action).
 
 <img src="https://www.innovation-beratung-foerderung.de/INNO/Redaktion/DE/Bilder/Titelbilder/titel_foerderlogo_bmwi.jpg?__blob=normal" width="200">
+
