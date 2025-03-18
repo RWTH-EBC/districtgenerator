@@ -1,8 +1,5 @@
-results/*
+districtgenerator/results/*
 districtgenerator/data/scenarios/*
-!districtgenerator/data/scenarios/example.csv
-!districtgenerator/data/scenarios/central_devices_example.csv
-!districtgenerator/data/scenarios/info.txt
 errorfile.txt
 *.bk
 *.log
@@ -16,4 +13,7 @@ errorfile.txt
 __pycache__/
 .idea/
 demands/
-districtgenerator/data/TRY_2015_Jahr/
+districtgenerator/data/weather/*
+*.egg-info/
+*.egg/
+*.eggs
