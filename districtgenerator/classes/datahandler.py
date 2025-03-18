@@ -105,7 +105,7 @@ class Datahandler:
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
 
-                # %% load time information and requirements (used in generateEnvironment)
+        # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
         with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
             jsonData = json.load(json_file)
@@ -123,13 +123,13 @@ class Datahandler:
             for subData in jsonData:
                 self.design_building_data[subData["name"]] = subData["value"]
 
-                # load building physics data (used in envelope and system BES/CES)
+        # load building physics data (used in envelope and system BES/CES)
         with open(os.path.join(self.filePath, 'physics_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.physics[subData["name"]] = subData["value"]
 
-                # Load list of possible devices (used in system BES)
+        # Load list of possible devices (used in system BES)
         with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
@@ -331,124 +331,108 @@ class Datahandler:
         -------
         None.
         """
-        num_sfh = 0
-        num_mfh = 0
-        num_OB = 0
-        num_school = 0
-        num_grocery_store = 0
-        num_restaurant = 0
-        num_mfh_office_building = 0
-        num_mfh_grocery_store = 0
-        num_mfh_restaurant = 0
+        # Building type counters
+        building_counts = {
+            "SFH": 0, "TH": 0, "MFH": 0, "AB": 0, "OB": 0, "SC": 0,
+            "GS": 0, "RE": 0, "MFH+OB": 0, "AB+OB": 0, "MFH+GS": 0,
+            "AB+GS": 0, "MFH+RE": 0, "AB+RE": 0
+        }
 
+        name_pool = set()
         # Prepare a new list to collect updated scenario rows
         new_scenario = []
         next_id = 0
 
         # initialize buildings for scenario
-        # loop over all buildings
+        # Iterate through all buildings in scenario
         for idx, row in self.scenario.iterrows():
+
+            # Ensure ID is numeric
+            if not isinstance(idx, (int, float)):
+                try:
+                    idx = float(idx)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Building ID '{idx}' is not a number")
+
             # Make a copy of the row to work on.
             building_features = row.copy()
+            building_type = row["building"]
 
             # Check if the building type is a combined type
-            if row["building"] in ['MFH+OB', 'AB+OB', 'MFH+GS', 'AB+GS', 'MFH+RE', 'AB+RE']:
-                # Make a copy of the building features for the MFH part
-                building_mfh = building_features.copy()
-                # Assign a new unique id using the original id
-                building_mfh["id"] = next_id
-                # Set the building type to MFH.
-                building_mfh["building"] = "MFH"
-                # Reset the construction type so that it matches with teaser.
-                building_mfh["construction_type"] = ""
-
-                self.total_building_area = building_features["area"]
-
-                # Determine secondary share and type:
-                # For office building: occupies 4 flats; for grocery store: occupies 4 flats; for restaurant: occupies 2 flats.
-                if row["building"] in ['MFH+OB', 'AB+OB']:
-                    secondary_share = 4 # Assumption
-                    secondary_type = "OB"
-                elif row["building"] in ['MFH+GS', 'AB+GS']:
-                    secondary_share = 4 # Assumption
-                    secondary_type = "GS"
-                elif row["building"] in ['MFH+RE', 'AB+RE']:
-                    secondary_share = 2 # Assumption
-                    secondary_type = "RE"
+            if building_type in ['MFH+OB', 'AB+OB', 'MFH+GS', 'AB+GS', 'MFH+RE', 'AB+RE']:
+                secondary_mapping = {"MFH+OB": "OB", "AB+OB": "OB", "MFH+GS": "GS", "AB+GS": "GS", "MFH+RE": "RE", "AB+RE": "RE"}
+                # Assumptions: For office building: occupies the area of 4 flats; for grocery store: occupies 4 flats; for restaurant: occupies 2 flats:
+                secondary_shares = {"OB": 4, "GS": 4, "RE": 2}
+                secondary_type = secondary_mapping[building_type]
+                secondary_share = secondary_shares[secondary_type]
+                total_area = building_features["area"]
 
                 # Determine the number of flats for the MFH portion.
                 # Pick a random number assuming a typical flat has an area of about 80 m^2 (Source: Ergebnisse des Zensus 2022 Gebäude- und Wohnungszählung),
                 # then subtract the office building's/grocery store's/restaurant's assumed share.
-                nb_flats = rd.randint((self.total_building_area // 80) - 1, (self.total_building_area // 80) + 1) - secondary_share
+                num_flats = rd.randint((total_area // 80) - 1, (total_area // 80) + 1) - secondary_share
+                if num_flats < 1:
+                    raise ValueError("Building area is too small for a mixed-use configuration.")
 
-                if nb_flats < 1:
-                    raise ValueError("The building area is too small to be used as a mix building")
+                # Calculate the area per flat based on the total number of flats (MFH + secondary share):
+                area_per_flat = total_area / (num_flats + secondary_share)
+                # Determine the area of the MFH portion:
+                mfh_area = int(num_flats * area_per_flat)
+                # Set the area for secondary part of the building as the remaining area.
+                secondary_area = int(total_area - mfh_area)
 
-                # Calculate the area per flat based on the total number of flats (MFH + secondary share).
-                area_flat = self.total_building_area / (nb_flats + secondary_share)
-                # Determine the area of the MFH portion.
-                building_mfh["area"] = int(nb_flats * area_flat)
+                # Make a copy of the building features for the MFH part
+                mfh_building = building_features.copy()
+                mfh_building.update({"id": next_id, "building": "MFH", "area": mfh_area, "construction_type": ""})
 
-                # Create the secondary building entry
+                # Create secondary building part
                 secondary_building = building_features.copy()
-                # Assign a new unique id using the original id with a .2 suffix.
-                secondary_building["id"] = next_id + 1
-                # Set the building type
-                secondary_building["building"] = secondary_type
-                # Set the area for secondary_type as the remaining area.
-                secondary_building["area"] = int(self.total_building_area - building_mfh["area"])
+                secondary_building.update({"id": next_id + 1, "building": secondary_type, "area": secondary_area,
+                                           "PV": 0, "STC": 0, "BAT": 0, "f_BAT": 0, "f_PV": 0, "f_STC": 0,
+                                           "gamma_PV": 0})
 
-                # Set various technical attributes for the secondary_type to "0"
-                # since the roof is assumed to be exclusively used by the MFH
-                secondary_building["PV"] = 0
-                secondary_building["STC"] = 0
-                secondary_building["BAT"] = 0
-                secondary_building["f_BAT"] = 0
-                secondary_building["f_PV"] = 0
-                secondary_building["f_STC"] = 0
-                secondary_building["gamma_PV"] = 0
-                secondary_building["mix"] = "mix"
-
-                # Create the mix feature for both parts.
+                # Assign unique mix identifier
                 mix_value = f"mix {next_id} {next_id + 1}"
-                building_mfh["mix"] = mix_value
+                mfh_building["mix"] = mix_value
                 secondary_building["mix"] = mix_value
 
-                # Save both entries.
-                self.district.append({"buildingFeatures": building_mfh})
-                new_scenario.append(building_mfh)
+                # Generate unique names
+                # needed for loading and storing data with unique name
+                # name is composed of building id, and building type
+                for building in [mfh_building, secondary_building]:
+                    unique_name = f"{building['id']}_{building['building']}_{building.get('mix', '')}"
+                    if unique_name in name_pool:
+                        raise ValueError(f"Duplicate building name: {unique_name}")
+                    name_pool.add(unique_name)
+                    building["unique_name"] = unique_name
+
+                # Save buildings
+                self.district.append({"buildingFeatures": mfh_building})
+                new_scenario.append(mfh_building)
                 self.district.append({"buildingFeatures": secondary_building})
                 new_scenario.append(secondary_building)
-
-                next_id += 2  # increment counter by 2
+                next_id += 2
 
             else:
-                # For non-combined buildings, assign the next available id.
+                # For non-mixed buildings, assign the next available id.
                 building_features["id"] = next_id
+
+                # %% Create unique building name
+                # needed for loading and storing data with unique name
+                # name is composed of building id, and building type
+                unique_name = f"{building_features['id']}_{building_features['building']}"
+                if unique_name in name_pool:
+                    raise ValueError(f"Duplicate building name: {unique_name}")
+                name_pool.add(unique_name)
+                building_features["unique_name"] = unique_name
+
                 self.district.append({"buildingFeatures": building_features})
                 new_scenario.append(building_features)
                 next_id += 1
 
             # Count number of builidings to predict the approximate calculation time
-            b_type = row["building"]
-            if b_type in ['SFH', 'TH']:
-                num_sfh += 1
-            elif b_type in ['MFH', 'AB']:
-                num_mfh += 1
-            elif b_type == 'OB':
-                num_OB += 1
-            elif b_type == 'SC':
-                num_school += 1
-            elif b_type == 'GS':
-                num_grocery_store += 1
-            elif b_type == 'RE':
-                num_restaurant += 1
-            elif b_type in ['MFH+OB', 'AB+OB']:
-                num_mfh_office_building += 1
-            elif b_type in ['MFH+GS', 'AB+GS']:
-                num_mfh_grocery_store += 1
-            elif b_type in ['MFH+RE', 'AB+RE']:
-                num_mfh_restaurant += 1
+            building_counts[building_type] += 1
+            #ToDo: Add the calculation time
 
         # Update self.scenario with the new (split) building entries.
         self.scenario = pd.DataFrame(new_scenario)
@@ -457,7 +441,7 @@ class Datahandler:
     def generate_building_dict(self):
         """
         Processes the scenario file and checks whether the building is residential or a mixed-use building.
-        Creates a temp storage, to handle TEASER prj with ids starting from ß.
+        Creates a temp storage, to handle TEASER prj with ids starting from 0.
 
         Args:
             csv_file (str): Path to the CSV file containing building data with 'id' and 'building' columns.
@@ -635,20 +619,7 @@ class Datahandler:
         None.
         """
 
-
         for building in self.district:
-            b_type = building["buildingFeatures"]["building"]
-            b_id = building["buildingFeatures"]["id"]
-            # %% create unique building name
-            name = f"{b_type}_{b_id}"
-
-            # If the building has a "mix" feature, append it to the name.
-            mix_info = building["buildingFeatures"].get("mix")
-            if mix_info:
-                name += "_" + mix_info
-
-            building["unique_name"] = name
-
             # calculate or load user profiles
             if calcUserProfiles:
                 building["user"].calcProfiles(site=self.site,
@@ -660,13 +631,31 @@ class Datahandler:
                                               initial_day = self.initial_day)
 
                 if saveUserProfiles:
-                    building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                    self.saveProfiles(name=building["buildingFeatures"]["unique_name"],
+                                      elec=building["user"].elec,
+                                      dhw=building["user"].dhw,
+                                      occ=building["user"].occ,
+                                      gains=building["user"].gains,
+                                      car=building["user"].car,
+                                      nb_flats_or_mainrooms=building["user"].nb_flats if building["buildingFeatures"]["building"] in {"SFH", "MFH", "TH", "AB"} else building["user"].nb_main_rooms,
+                                      nb_occ=building["user"].nb_occ,
+                                      heatload=building["envelope"].heatload,
+                                      bivalent=building["envelope"].bivalent,
+                                      heatlimit=building["envelope"].heatlimit,
+                                      path=os.path.join(self.resultPath, 'demands'))
 
-                print("Calculate demands of building " + building["unique_name"])
+                print("Calculate demands of building " + building["buildingFeatures"]["unique_name"])
 
             else:
-                building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-                print("Load demands of building " + building["unique_name"])
+                (building["user"].elec, building["user"].dhw,
+                 building["user"].occ, building["user"].gains,
+                 building["user"].car, building["user"].nb_flats, building["user"].nb_main_rooms,
+                 building["user"].nb_occ, building["envelope"].heatload,
+                 building["envelope"].bivalent,
+                 building["envelope"].heatlimit) = self.loadProfiles(building["buildingFeatures"]["unique_name"],
+                                                                     os.path.join(self.resultPath, 'demands'))
+
+                print("Load demands of building " + building["buildingFeatures"]["unique_name"])
 
             # check if EV exist
             building["clusteringData"] = {
@@ -678,16 +667,26 @@ class Datahandler:
 
             night_setback = building["buildingFeatures"]["night_setback"]
 
-            # calculate heating profiles
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                night_setback=night_setback,
-                                                holidays=self.time["holidays"],
-                                                time_resolution=self.time["timeResolution"]
-                                                )
+            # calculate or load heating profiles
+            if calcUserProfiles:
+                building["user"].calcHeatingProfile(site=self.site,
+                                                    envelope=building["envelope"],
+                                                    night_setback=night_setback,
+                                                    holidays=self.time["holidays"],
+                                                    time_resolution=self.time["timeResolution"]
+                                                    )
 
-            if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                if saveUserProfiles:
+                    self.saveHeatingProfile(heat=building["user"].heat,
+                                            cooling=building["user"].cooling,
+                                            name=building["buildingFeatures"]["unique_name"],
+                                            path=os.path.join(self.resultPath, 'demands'))
+
+            else:
+                heat, cooling = self.loadHeatingProfiles(name=building["buildingFeatures"]["unique_name"],
+                                                         path=os.path.join(self.resultPath, 'demands'))
+                building["user"].heat = heat
+                building["user"].cooling = cooling
 
         print("Finished generating demands!")
 
@@ -740,6 +739,151 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
+    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats_or_mainrooms, nb_occ, heatload, bivalent, heatlimit, path):
+        """
+        Save profiles to csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        data_dict = {
+            'Electricity': (pd.DataFrame(elec), ["Electricity Demand (W)"]),
+            'Hot Water': (pd.DataFrame(dhw), ["Drinking Hot Water Demand (W)"]),
+            'Occupancy': (pd.DataFrame(occ), ["Number of Occupants"]),
+            'Internal Gains': (pd.DataFrame(gains), ["Internal Gains (W)"]),
+            'EV': (pd.DataFrame(car), ["Electric Vehicle Electricity Demand (W)"]),
+            'Building Info': (pd.DataFrame({
+                "Number of Flats or main Rooms": [nb_flats_or_mainrooms],
+                "Number of Occupants": str(nb_occ)[1:-1],
+                "Design Heat Load (W)": [heatload],
+                "Bivalent Heat Load (W)": [bivalent],
+                "Heat Limit Heat Load (W)": [heatlimit]
+            }), ["Number of Flats or main Rooms", "Number of Occupants",
+                 "Design Heat Load (W)", "Bivalent Heat Load (W)",
+                 "Heat Limit Heat Load (W)"])
+        }
+
+        # Define the Excel file path
+        excel_file = os.path.join(path, name + '.xlsx')
+
+        # Save each dataset into an Excel sheet with appropriate column names
+        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+            for sheet_name, (df, headers) in data_dict.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False, header=headers)
+
+    def saveHeatingProfile(self, heat, cooling, name, path):
+        """
+        Save heating demand to csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, name + '.xlsx')
+
+        # Create a dictionary for storing datasets and their corresponding headers
+        data_dict = {
+            'Cooling': (pd.DataFrame(cooling), ["Cooling Demand (W)"]),
+            'Heating': (pd.DataFrame(heat), ["Heating Demand (W)"])
+        }
+
+        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            for sheet_name, (df, headers) in data_dict.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False, header=headers)
+
+    def loadProfiles(self, name, path):
+        """
+        Load profiles from csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, name + '.xlsx')
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+
+        def load_sheet_to_numpy(workbook, sheet_name):
+            sheet = workbook[sheet_name]
+            data = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                data.append(row[0])
+            return np.array(data)
+
+        elec = load_sheet_to_numpy(workbook, 'Electricity')
+        dhw = load_sheet_to_numpy(workbook, 'Hot Water')
+        occ = load_sheet_to_numpy(workbook, 'Occupancy')
+        gains = load_sheet_to_numpy(workbook, 'Internal Gains')
+        car = load_sheet_to_numpy(workbook, 'EV')
+        sheet = workbook['Building Info']
+        other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
+        nb_flats = int(other_data[0])
+        nb_mainrooms = int(other_data[0])
+        nb_occ = np.fromstring(other_data[1], dtype=int, sep=',')
+        heatload = float(other_data[2])
+        bivalent = float(other_data[3])
+        heatlimit = float(other_data[4])
+
+        workbook.close()
+
+        return elec, dhw, occ, gains, car, nb_flats, nb_mainrooms, nb_occ, heatload, bivalent, heatlimit
+
+    def loadHeatingProfiles(self, name, path):
+        """
+        Load profiles from csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, name + '.xlsx')
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+
+        def load_sheet_to_numpy(workbook, sheet_name):
+            sheet = workbook[sheet_name]
+            data = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                data.append(row[0])
+            return np.array(data)
+
+        heat = load_sheet_to_numpy(workbook, 'Heating')
+        cooling = load_sheet_to_numpy(workbook, 'Cooling')
+
+        workbook.close()
+
+        return heat, cooling
 
     def designDecentralDevices(self, saveGenerationProfiles=True):
         """
@@ -793,11 +937,11 @@ class Datahandler:
             # optionally save generation profiles
             if saveGenerationProfiles == True:
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '.csv',
+                           + '/decentralPV_' + building["buildingFeatures"]["unique_name"] + '.csv',
                            building["generationPV"],
                            delimiter=',')
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '.csv',
+                           + '/decentralSTC_' + building["buildingFeatures"]["unique_name"] + '.csv',
                            building["generationSTC"],
                            delimiter=',')
 

@@ -303,7 +303,7 @@ def run_opti_central(model, data, cluster):
     # total power to grid
     to_grid_total_el = model.addVar(vtype="C",name="to_grid_total_el")
     # total gas amounts taken from grid
-    from_grid_total_gas = model.addVar(vtype="C",name="from_grid_total_el")
+    from_grid_total_gas = model.addVar(vtype="C",name="from_grid_total_gas")
     # total hydrogen amounts taken from grid
     from_grid_total_hydrogen = model.addVar(vtype = "C", name="from_grid_total_hydrogen")
     # total biomass used
@@ -501,7 +501,7 @@ def run_opti_central(model, data, cluster):
                 model.addConstr(soc_dom[device][n][t] <= param_dec_devs[device]["soc_max"] * buildingData[n]["capacities"][device],
                                 name="max_soc_bat_" + str(device) + "_" + str(n) + "_" + str(t))
                 model.addConstr(soc_dom[device][n][t] >= param_dec_devs[device]["soc_min"] * buildingData[n]["capacities"][device],
-                                name="max_soc_bat_" + str(device) + "_" + str(n) + "_" + str(t))
+                                name="min_soc_bat_" + str(device) + "_" + str(n) + "_" + str(t))
 
     # %% EV CONSTRAINTS CONSTRAINTS
     device = "EV"
