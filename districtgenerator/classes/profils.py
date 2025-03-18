@@ -625,7 +625,6 @@ class Profiles:
                 EV electricity demand curve (in W) for nb_days * (86400 / time_resolution) timesteps.
             """
         battery_capacity_Wh = building["buildingFeatures"]["f_EV"]  # all car have the same battery capacity
-        consumption_today_Wh = 0
 
         # Calculate the number of timesteps per day
         array = int(len(occ) / self.nb_days)
@@ -735,9 +734,8 @@ class Profiles:
                         daily_dist += 0
 
                     # Compute daily charging demand (Wh), capping it at battery capacity
-                    consumption_today_Wh += min(daily_dist * consumption_per_km, battery_capacity_Wh)
+                    consumption_today_Wh = min(daily_dist * consumption_per_km, battery_capacity_Wh)
                     daily_demand[car_arrive] = consumption_today_Wh
-                # add current day to demand for all days
-                car_demand_total[day * array:(day + 1) * array] += daily_demand
-
+                    # add current day to demand for all days
+                    car_demand_total[day * array:(day + 1) * array] = daily_demand
         return car_demand_total
