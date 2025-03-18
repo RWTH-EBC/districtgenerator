@@ -1296,7 +1296,7 @@ class KPIs:
             "<b>Supply-Cover-Faktor:</b> Anteil des aus den Gebäuden des Quartiers ins lokale Netz eingespeisten "
             "Stroms, der für den Eigenverbrauch innerhalb des Quartiers durch andere Gebäude genutzt wird "
             "(Werte zwischen 0 % und 100 %)<br />"  
-            "<b>Demand-Cover-Faktor:</b> Anteil des Strombedarfs im Quartier, der durch den von den Gebäuden "
+            "<b>Demand-Cover-Faktor:</b> Anteil des residualen Strombedarfs im Quartier, der durch den von den Gebäuden "
             "im Quartier erzeugten und ins lokale Netz eingespeisten Stroms gedeckt wird (Werte zwischen 0 % und 100 %)<br />"
             ]
 
