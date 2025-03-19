@@ -52,7 +52,7 @@ def example5_generate_demands():
 def exemplary_plot(data):
 
     # Sum heat demand of buildings
-    heat = data.district[0]["user"].heat + data.district[1]["user"].heat
+    heat = data.district[0]["user"].heat
     # Unit conversion [kWh]
     heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
 

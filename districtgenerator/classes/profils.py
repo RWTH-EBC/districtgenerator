@@ -307,7 +307,7 @@ class Profiles:
 
         dhw_profile = OpenDHW.generate_dhw_profile(
             s_step=60,
-            categories=1,
+            categories=4,
             occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
             building_type=self.building,
             weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
@@ -614,7 +614,7 @@ class Profiles:
 
         return gains_persons, gains_others
 
-####################################################
+
     def generate_EV_profile(self, building, holidays, occ):
         """
             Generate daily EV charging demand (distinguishing between workdays and non-workdays) and return an annual load curve.
@@ -738,4 +738,5 @@ class Profiles:
                     daily_demand[car_arrive] = consumption_today_Wh
                     # add current day to demand for all days
                     car_demand_total[day * array:(day + 1) * array] = daily_demand
+
         return car_demand_total
