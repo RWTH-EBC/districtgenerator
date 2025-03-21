@@ -133,7 +133,7 @@ folder. The unit of the demand profiles is watt.
 We are still working on the documentation. You can access the documentation in the repository.
 The documentation is available as HTML files in the repository. To view it:
 1. Navigate to `districtgenerator/docs/_build/html/` in the project folder
-2. Open `index.html` in your web browser
+2. Open `index.html` in your web browser 
 
 ## Running examples for functional testing
 
