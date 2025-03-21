@@ -452,29 +452,26 @@ class Datahandler:
         None.
         """
         thread_queue = queue.Queue()
-        # Anzahl der maximalen worker Threads
+        # max worker thread count
         max_worker = 8
 
-
+        #
         for building in self.district:
-
             t = Thread(target=self.generate_demands_worker, kwargs={"building":building, "calcUserProfiles":calcUserProfiles, "saveUserProfiles":saveUserProfiles})
             thread_queue.put(t)
 
 
-        # Laufende Threads verfolgen
+        # running threads list
         active_threads = []
 
-        # Maximal 10 Threads gleichzeitig starten
-
-        # Starte die ersten 10 Threads
+        # Start the first worker
         for _ in range(min(thread_queue.qsize(), max_worker)):
             t = thread_queue.get()
             t.start()
             sleep(1)
             active_threads.append(t)
 
-        # Überwachung der Threads
+        # supervise the worker and start new ones
         while active_threads:
             for t in active_threads:
                 if not t.is_alive():
@@ -493,7 +490,16 @@ class Datahandler:
 
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
-
+        """
+        :param building:
+        :param calcUserProfiles: bool
+            True: calculate new user profiles.
+            False: load user profiles from file.
+            The default is True.
+        :param saveUserProfiles: bool
+            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
+            The default is True.
+        """
         print(f'starting {building["unique_name"]}')
 
         # calculate or load user profiles
