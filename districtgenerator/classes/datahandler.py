@@ -798,13 +798,22 @@ class Datahandler:
         if saveGenerationProfiles == True:
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
                        self.centralDevices["generation"]["PV"],
-                       delimiter=',')
+                       delimiter=',',
+                       fmt='%.3f')
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
                        self.centralDevices["generation"]["STC"],
-                       delimiter=',')
+                       delimiter=',',
+                       fmt='%.3f')
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
                        self.centralDevices["generation"]["Wind"],
-                       delimiter=',')
+                       delimiter=',',
+                       fmt='%.3f')
+
+            # Print the annual sum of the generation by PV and Wind
+            pv_sum = np.sum(self.centralDevices["generation"]["PV"])
+            wind_sum = np.sum(self.centralDevices["generation"]["Wind"])
+            print(f"Annual PV Generation: {pv_sum:.3f} Wh")
+            print(f"Annual Wind Generation: {wind_sum:.3f} Wh")
 
     def designDevicesComplete(self, saveGenerationProfiles=True):
         """

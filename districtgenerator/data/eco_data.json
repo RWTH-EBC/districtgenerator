@@ -1,13 +1,13 @@
 [
     {
         "name": "price_supply_el",
-        "value": 0.32,
+        "value": 0.3453,
         "unit": "€/kWh",
         "description" : "Electricity price."
     },
     {
         "name": "revenue_feed_in_el",
-        "value": 0.0811,
+        "value": 0.1047,
         "unit": "EUR/kWh",
         "description" : "Feed-in electricity price."
     },

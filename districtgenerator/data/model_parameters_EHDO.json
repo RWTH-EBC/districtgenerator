@@ -29,7 +29,7 @@
     },
     {
         "name": "cap_limit_el",
-        "value": 100000,
+        "value": 100000000,
         "unit": "kW",
         "description" : "Capacity of grid connection."
     },
@@ -41,13 +41,13 @@
     },
     {
         "name": "supply_limit_el",
-        "value": 100000,
+        "value": 10000000,
         "unit": "MWh/year",
         "description" : "Restrict electricity demand from grid."
     },
     {
         "name": "enable_supply_gas",
-        "value": false,
+        "value": true,
         "description" : "Enable gas supply."
     },
     {
@@ -82,7 +82,7 @@
     },
     {
         "name": "cap_limit_gas",
-        "value": 1000000,
+        "value": 100000000,
         "unit": "MWh/year",
         "description" : "Maximum annual energy drawn from the gas grid."
     },
@@ -142,7 +142,7 @@
     },
         {
         "name": "supply_limit_gas",
-        "value": 1000000,
+        "value": 100000000,
         "unit": "MWh/year",
         "description" : "Maximum available gas."
     },
@@ -202,7 +202,7 @@
     },
     {
         "name": "n_clusters",
-        "value": 12,
+        "value": 24,
         "unit": "days",
         "description" : "Number of design days."
     }

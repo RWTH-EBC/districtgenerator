@@ -21,6 +21,7 @@ import time
 import os
 import sys
 import copy
+import pandas as pd
 
 def load_params(data):
 
@@ -53,24 +54,30 @@ def load_params(data):
     for b in range(len(data.district)):
         if b == 0:
             heating = data.district[b]["user"].heat / 1000 # kW
-            cooling = data.district[b]["user"].cooling / 1000 # kW
+            cooling = data.district[b]["user"].cooling * 0 / 1000 # kW
             dhw = data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances = data.district[b]["user"].elec / 1000 # kW
 
         else:
             heating += data.district[b]["user"].heat / 1000 # kW
-            cooling += data.district[b]["user"].cooling / 1000 # kW
+            cooling += data.district[b]["user"].cooling * 0 / 1000 # kW
             dhw += data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances += data.district[b]["user"].elec / 1000 # kW
 
     heat_total = heating + dhw
     electricity_total = electricityAppliances
     dem_uncl["heat"] = heat_total
-    dem_uncl["cool"] = cooling
+#    dem_uncl["cool"] = cooling
+    dem_uncl["cool"] = cooling * 0
+
     dem_uncl["power"] = electricity_total
     for k in ["heat", "cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
+    df = pd.DataFrame.from_dict(dem_uncl)
+
+    # Save the DataFrame to an Excel file
+    df.to_excel('dem_total.xlsx', index=False)
 
     ################################################################
     # DESIGN CLUSTERING
@@ -613,9 +620,9 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
         for month in range(12):
             monthly_dem[m][month_tuple[month]] = sum(dem_uncl[m][t] for t in range(days_sum[month]*24, days_sum[month+1]*24)) / 1000
 
-    result_dict["monthly_dem"] = monthly_dem
-    result_dict["year_peak"] = year_peak
-    result_dict["year_sum"] = year_sum
+    result_dict["monthly_dem"] = monthly_dem # in kW
+    result_dict["year_peak"] = year_peak # in W
+    result_dict["year_sum"] = year_sum # in kW
 
 
     #monthly_val = {}

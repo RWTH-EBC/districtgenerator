@@ -18,6 +18,7 @@ import gurobipy as gp
 import numpy as np
 import time
 import os
+import json
 #from optim_app.help_functions import create_excel_file
 
 
@@ -746,6 +747,7 @@ def run_optim(data, devs, param, dem, result_dict):
         for k in all_devs:
             if cap[k].X > eps:
                 result_dict[k]["inst"] = True
+                result_dict[k]["cap"] = cap[k].X
             else:
                 result_dict[k]["inst"] = False
 #        result_dict["PV_or_STC_inst"] = (result_dict["PV"]["inst"] or result_dict["STC"]["inst"])
@@ -761,7 +763,7 @@ def run_optim(data, devs, param, dem, result_dict):
 #
 #        # Calculate volume of thermal storages
         for k in ["TES", "CTES"]:
-            result_dict[k]["vol_liter"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600, 1)
+            result_dict[k]["vol_m3"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600, 1)
 #
 #        # Calculate emissions
         result_dict["total_co2_el"] = int(from_el_grid_total.X * param["co2_el_grid"]/1000) # t/a
@@ -776,5 +778,22 @@ def run_optim(data, devs, param, dem, result_dict):
 #        result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
 #        result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
 
+        result_dict["peak_heat"] = param["peak_heat"]
+        result_dict["peak_cool"] = param["peak_cool"]
+        result_dict["peak_power"] = param["peak_power"]
+        def convert_ndarray_to_list(d):
+            for key, value in d.items():
+                if isinstance(value, np.ndarray):
+                    d[key] = value.tolist()
+                elif isinstance(value, dict):
+                    convert_ndarray_to_list(value)
+            return d
+
+        def save_dict_to_txt(results_dict, file_path):
+            results_dict = convert_ndarray_to_list(results_dict)
+            with open(file_path, 'w') as file:
+                json.dump(results_dict, file, indent=4)
+
+        save_dict_to_txt(result_dict, os.path.join(result_dir, 'results.json'))
 
         return result_dict

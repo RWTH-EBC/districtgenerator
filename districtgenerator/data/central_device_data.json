@@ -1,23 +1,23 @@
 {
   "PV": {
     "feasible": true,
-    "eta": 0.15,
-    "life_time": 25,
-    "inv_var": 1000,
+    "eta": 0.18,
+    "life_time": 20,
+    "inv_var": 900,
     "cost_om": 0.02,
-    "max_area": 10000,
-    "min_area": 100,
+    "max_area": 675,
+    "min_area": 0,
     "G_stc": 1
   },
   "WT": {
     "feasible": true,
-    "inv_var": 1500,
+    "inv_var": 900,
     "life_time": 20,
-    "cost_om": 0.015,
-    "min_cap": 100,
-    "max_cap": 3000,
-    "h_coeff": 0.2,
-    "hub_h": 100,
+    "cost_om": 0.03,
+    "min_cap": 2720,
+    "max_cap": 2720,
+    "h_coeff": 0.14,
+    "hub_h": 122,
     "ref_h": 10,
     "norm_power": 0.85
   },
@@ -48,7 +48,7 @@
     "life_time": 20,
     "cost_om": 0.03,
     "min_cap": 50,
-    "max_cap": 1000
+    "max_cap": 100000
   },
   "BOI": {
     "feasible": false,
@@ -71,43 +71,43 @@
   "HP": {
     "feasible": true,
     "CCOP_feasible": false,
-    "ASHP_feasible": false,
-    "CSV_feasible": true,
-    "inv_var": 800,
+    "ASHP_feasible": true,
+    "CSV_feasible": false,
+    "inv_var": 1307.33,
     "life_time": 20,
-    "cost_om": 0.015,
-    "min_cap": 10,
-    "max_cap": 500,
-    "ASHP_carnot_eff": 0.4,
+    "cost_om": 0.028,
+    "min_cap": 500,
+    "max_cap": 20000,
+    "ASHP_carnot_eff": 45,
     "ASHP_supply_temp": 60,
     "COP_const": 4
 
   },
   "EB": {
     "feasible": true,
-    "inv_var": 600,
+    "inv_var": 188.48,
     "eta_th": 0.99,
     "life_time": 20,
-    "cost_om": 0.01,
-    "min_cap": 10,
-    "max_cap": 300
+    "cost_om": 0.025,
+    "min_cap": 0,
+    "max_cap": 2000
   },
   "CC": {
-    "feasible": true,
-    "inv_var": 700,
-    "COP": 3.5,
+    "feasible": false,
+    "inv_var": 600,
+    "COP": 5,
     "life_time": 20,
-    "cost_om": 0.02,
+    "cost_om": 0.05,
     "min_cap": 10,
-    "max_cap": 500
+    "max_cap": 100000
   },
   "AC": {
     "feasible": false,
-    "inv_var": 1000,
+    "inv_var": 750,
     "eta_th": 0.75,
     "life_time": 20,
-    "cost_om": 0.02,
-    "min_cap": 10,
+    "cost_om": 0.05,
+    "min_cap": 0,
     "max_cap": 500
   },
   "BCHP": {
@@ -188,11 +188,11 @@
   },
   "TES": {
     "feasible": true,
-    "inv_var": 1200,
-    "sto_loss": 0.01,
+    "inv_var": 1570,
+    "sto_loss": 0.0021,
     "life_time": 20,
     "cost_om": 0.01,
-    "min_vol": 100,
+    "min_vol": 0,
     "max_vol": 5000,
     "delta_T": 30,
     "soc_init": 0.5
@@ -209,13 +209,13 @@
     "soc_init": 0.5
   },
   "BAT": {
-    "feasible": false,
-    "inv_var": 200,
-    "life_time": 15,
-    "cost_om": 0.02,
+    "feasible": true,
+    "inv_var": 500,
+    "life_time": 20,
+    "cost_om": 0.01,
     "min_cap": 10,
-    "max_cap": 200,
-    "sto_loss": 0,
+    "max_cap": 100000,
+    "sto_loss": 0.00013,
     "soc_init": 0.5
   },
   "GS": {
