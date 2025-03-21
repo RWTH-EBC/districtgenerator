@@ -17,3 +17,5 @@ variables:
 include:
   - project: 'EBC/EBC_all/gitlab_ci/templates'
     file: 'pages/gh-pages.gitlab-ci.yml'
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'sphinxdoc/sphinxdoc.gitlab-ci.yml'
