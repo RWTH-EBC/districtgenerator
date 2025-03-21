@@ -3,9 +3,13 @@
 import json
 import pickle
 import os
+import queue
 import sys
 import copy
 import datetime
+from threading import Thread
+from time import sleep
+
 import numpy as np
 import time
 import openpyxl
@@ -499,17 +503,59 @@ class Datahandler:
         -------
         None.
         """
+        thread_queue = queue.Queue()
+        # Anzahl der maximalen worker Threads
+        max_worker = 8
+
 
         for building in self.district:
 
-            # calculate or load user profiles
-            if calcUserProfiles:
-                building["user"].calcProfiles(site=self.site,
-                                              holidays=self.time["holidays"],
-                                              time_resolution=self.time["timeResolution"],
-                                              time_horizon=self.time["dataLength"],
-                                              building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+            t = Thread(target=self.generate_demands_worker, kwargs={"building":building, "calcUserProfiles":calcUserProfiles, "saveUserProfiles":saveUserProfiles})
+            thread_queue.put(t)
+
+
+        # Laufende Threads verfolgen
+        active_threads = []
+
+        # Maximal 10 Threads gleichzeitig starten
+
+        # Starte die ersten 10 Threads
+        for _ in range(min(thread_queue.qsize(), max_worker)):
+            t = thread_queue.get()
+            t.start()
+            sleep(1)
+            active_threads.append(t)
+
+        # Überwachung der Threads
+        while active_threads:
+            for t in active_threads:
+                if not t.is_alive():
+                    active_threads.remove(t)
+                    if not thread_queue.empty():
+                        new_thread = thread_queue.get()
+                        new_thread.start()
+                        active_threads.append(new_thread)
+            sleep(1)
+
+
+        # for t in thread_list:
+        #     t.join()
+
+        print("Finished generating demands!")
+
+
+    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
+
+        print(f'starting {building["unique_name"]}')
+
+        # calculate or load user profiles
+        if calcUserProfiles:
+            building["user"].calcProfiles(site=self.site,
+                                          holidays=self.time["holidays"],
+                                          time_resolution=self.time["timeResolution"],
+                                          time_horizon=self.time["dataLength"],
+                                          building=building,
+                                          path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
                     self.saveProfiles(name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
@@ -527,7 +573,7 @@ class Datahandler:
                                       path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
-                print("Calculate demands of building " + building["unique_name"])
+            print("Calculate demands of building " + building["unique_name"])
 
             else:
                 (building["user"].elec, building["user"].dhw,
@@ -540,24 +586,24 @@ class Datahandler:
                 #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
-            # check if EV exist
-            building["clusteringData"] = {
-                "potentialEV": copy.deepcopy(building["user"].car)
-            }
-            building["user"].car *= building["buildingFeatures"]["EV"]
+        # check if EV exist
+        building["clusteringData"] = {
+            "potentialEV": copy.deepcopy(building["user"].car)
+        }
+        building["user"].car *= building["buildingFeatures"]["EV"]
 
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+        building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
 
-            night_setback = building["buildingFeatures"]["night_setback"]
+        night_setback = building["buildingFeatures"]["night_setback"]
 
-            # calculate or load heating profiles
-            if calcUserProfiles:
-                building["user"].calcHeatingProfile(site=self.site,
-                                                    envelope=building["envelope"],
-                                                    night_setback=night_setback,
-                                                    holidays=self.time["holidays"],
-                                                    time_resolution=self.time["timeResolution"]
-                                                    )
+        # calculate or load heating profiles
+        if calcUserProfiles:
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                night_setback=night_setback,
+                                                holidays=self.time["holidays"],
+                                                time_resolution=self.time["timeResolution"]
+                                                )
 
                 if saveUserProfiles:
                     idArray = []
@@ -574,7 +620,6 @@ class Datahandler:
                 building["user"].heat = heat
                 building["user"].cooling = cooling
 
-        print("Finished generating demands!")
 
     def generateDistrictComplete(self, name = None, generateDemands=True, calcUserProfiles=True, saveUserProfiles=True,
                                  designDevs=False, saveGenProfiles=True, clustering=False, optimization=False):
