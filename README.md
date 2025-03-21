@@ -129,6 +129,12 @@ as csv. file for each building in the neighborhood. The output contains:
 All csv files are finally saved in the [demands](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands)
 folder. The unit of the demand profiles is watt.
 
+## Documentation
+We are still working on the documentation. You can access the documentation in the repository.
+The documentation is available as HTML files in the repository. To view it:
+1. Navigate to `districtgenerator/docs/_build/html/` in the project folder
+2. Open `index.html` in your web browser 
+
 ## Running examples for functional testing
 
 Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
@@ -155,6 +161,7 @@ a reviewer before merging. Once review is finished, you can merge.
 * [Joel Schölzel](https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/digitale-energie-quartiere/~obome/schoelzel-joel/?allou=1) (corresponding)
 * [Tobias Beckhölter](https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Team6/~scaj/Beckhoelter-Tobias/)
 * [Carla Wüller](https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Digitale-Energie-Quartiere/~beoyus/Wueller-Carla/)
+* [Rawad Hamze](https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/team6/~birwyf/hamze-rawad/?lidx=1)
 
 ## Alumni
 
