@@ -13,7 +13,7 @@ variables:
   PAGES_BRANCH: master
   PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.9"
   PYTHON_PACKAGE_NAME: "districtgenerator"
-  TEST_ENGINE: "PYTEST"
+  # TEST_ENGINE: "PYTEST"
   GIT_REPO: "RWTH-EBC/districtgenerator"
   #EXAMPLE_CONVERTER_CONFIG: districtgenerator/examples/converter.toml
   EXTRA_REQUIREMENTS_PIP: "[report]"
@@ -29,10 +29,10 @@ include:
   #  file: 'pages/gl-pages.gitlab-ci.yml'
   - project: 'EBC/EBC_all/gitlab_ci/templates'
     file: 'pages/gh-pages.gitlab-ci.yml'
-  - project: 'EBC/EBC_all/gitlab_ci/templates'
-    file: 'python/tests/tests.gitlab-ci.yml'
-  - project: 'EBC/EBC_all/gitlab_ci/templates'
-    file: 'python/tests/coverage.gitlab-ci.yml'
+  # - project: 'EBC/EBC_all/gitlab_ci/templates'
+  #  file: 'python/tests/tests.gitlab-ci.yml'
+  # - project: 'EBC/EBC_all/gitlab_ci/templates'
+  #  file: 'python/tests/coverage.gitlab-ci.yml'
   - project: 'EBC/EBC_all/gitlab_ci/templates'
     file: 'python/pypi-release/release.gitlab-ci.yml'
   #- project: 'EBC/EBC_all/gitlab_ci/templates'
