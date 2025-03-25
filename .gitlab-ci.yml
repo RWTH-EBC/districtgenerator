@@ -1,21 +1,41 @@
 stages:
-    - test
-    - doc
-    - code_quality
-    - build
-    - release
-    - deploy
+ - test
+ - doc
+ - code_quality
+ - examples
+ - build
+ - release
+ - deploy
 
 variables:
-    EXCLUDE_PYTHON: 37
-    PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.9"
-    PAGES_BRANCH: master
-    GIT_REPO: "RWTH-EBC/districtgenerator"
-    PYTHON_VERSION_NAME: "__version__"
-    PYTHON_PACKAGE_NAME: "districtgenerator"
+  COVERAGE_TYPE: "NotDymola"
+  EXCLUDE_PYTHON: 37
+  PAGES_BRANCH: master
+  PYTHON_VERSION: "registry.git.rwth-aachen.de/ebc/ebc_all/gitlab_ci/templates:python_3.9"
+  PYTHON_PACKAGE_NAME: "districtgenerator"
+  TEST_ENGINE: "PYTEST"
+  GIT_REPO: "RWTH-EBC/districtgenerator"
+  #EXAMPLE_CONVERTER_CONFIG: districtgenerator/examples/converter.toml
+  EXTRA_REQUIREMENTS_PIP: "[report]"
 
 include:
   - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'python/code-quality/pylint.gitlab-ci.yml'
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'python/doc/sphinxdoc.gitlab-ci.yml'
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'python/build/build.gitlab-ci.yml'
+  #- project: 'EBC/EBC_all/gitlab_ci/templates'
+  #  file: 'pages/gl-pages.gitlab-ci.yml'
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
     file: 'pages/gh-pages.gitlab-ci.yml'
   - project: 'EBC/EBC_all/gitlab_ci/templates'
-    file: 'sphinxdoc/sphinxdoc.gitlab-ci.yml'
+    file: 'python/tests/tests.gitlab-ci.yml'
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'python/tests/coverage.gitlab-ci.yml'
+  - project: 'EBC/EBC_all/gitlab_ci/templates'
+    file: 'python/pypi-release/release.gitlab-ci.yml'
+  #- project: 'EBC/EBC_all/gitlab_ci/templates'
+  #  file: 'python/examples/examples.gitlab-ci.yml'
+  - template: Dependency-Scanning.gitlab-ci.yml
+  - template: SAST.gitlab-ci.yml
