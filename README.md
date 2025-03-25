@@ -52,7 +52,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](./examples/) 
 to learn how to use the different components.
 
 ### Minimum manual required input data
@@ -66,11 +66,11 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 - area: reference floor area (given in square meters)
 
-The example.csv file can be used as [template](../districtgenerator/data/scenarios/example.csv).
+The example.csv file can be used as [template](./districtgenerator/data/scenarios/example.csv).
 
 ### Additional input data
 
-In the folder [data](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/data) 
+In the folder [data](./districtgenerator/data) 
 further data can be found. Default values are already stored there.
 Optionally, the following data can be changed to:
 - design_building_data.json: Maximum and minimum indoor temperature and the room ventilation rate
@@ -83,11 +83,11 @@ in which the main characteristics of the climate are the same. Each zone is repr
 - physics_data.json
 - dhw_stochstical.xlsx
 
-The weather data can be found in [weather](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/data/weather).
+The weather data can be found in [weather](./districtgenerator/data/weather).
 
 ## Structure of the DistrictGenerator
 
-![Library Structure](./img/Struktur_Quartiersgenerator.png)
+![Library Structure](./docs/img/Struktur_Quartiersgenerator.png)
 
 ## Workflow of the DistrictGenerator
 
@@ -101,7 +101,7 @@ not limited by the program. Optionally, the site of the district, the time
 resolution of the profiles and the test reference year (TRY) for weather data 
 can be modified.
 
-![Library Structure](./img/Workflow_DistrictGenerator.png)
+![Library Structure](./docs/img/Workflow_DistrictGenerator.png)
 
 To obtain a fully parameterized building model, the TEASER tool performs a data 
 enrichment with data from the TABULA WebTool and uses statistical and normative 
@@ -127,15 +127,15 @@ as csv. file for each building in the neighborhood. The output contains:
 - elec: electricity demand for lighting and electric household devices
 - gains: internal gains from persons, lighting and electric household devices
 
-All csv files are finally saved in the [demands](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands)
+All csv files are finally saved in the [demands](./districtgenerator/results/demands)
 folder. The unit of the demand profiles is watt.
 
 ## Running examples for functional testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](./examples/) 
 to learn how to use the different components. 
 
-To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests)  in the tests folder. 
+To test the tool's executability, run [test_examples.py](./tests)  in the tests folder. 
 This functional testing checks the entire chain of the tool, from data input and 
 initialization to the output of the calculated profiles. It does not correspond to a 
 test of the functional units of the entire process. This  functional testing is based 
