@@ -3,7 +3,7 @@
 # DistrictGenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
-[documentation](https://rwth-ebc.github.io/districtgenerator/master/docs/README.html)
+[![Documentation](https://rwth-ebc.github.io/districtgenerator/master/docs/doc.svg)](https://rwth-ebc.github.io/districtgenerator/master/docs/README.html)
 
 Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
 housing associations, engineering firms, architectural professionals, as well as academic and research institutions. 
@@ -129,12 +129,6 @@ as csv. file for each building in the neighborhood. The output contains:
 
 All csv files are finally saved in the [demands](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands)
 folder. The unit of the demand profiles is watt.
-
-## Documentation
-We are still working on the documentation. You can access the documentation in the repository.
-The documentation is available as HTML files in the repository. To view it:
-1. Navigate to `districtgenerator/docs/_build/html/` in the project folder
-2. Open `index.html` in your web browser 
 
 ## Running examples for functional testing
 
