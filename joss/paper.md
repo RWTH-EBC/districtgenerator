@@ -15,7 +15,10 @@ authors:
   - name: Tobias Beckhölter
     affiliation: 1
   - name: Carla Wüller
-    affiliation: 1 
+    orcid: 0009-0001-1761-4805
+    affiliation: 1
+  - name: Rawad Hamze
+    affiliation: 1
   - name: Dirk Müller
     orcid: 0000-0002-6106-6607
     affiliation: 1
