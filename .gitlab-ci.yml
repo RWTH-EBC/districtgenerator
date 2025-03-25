@@ -1,5 +1,5 @@
 stages:
- #- test
+ - test
  - doc
  - code_quality
  # - examples
