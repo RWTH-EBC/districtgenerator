@@ -1,0 +1,16 @@
+districtgenerator classes
+=========================
+
+
+.. toctree::
+   :maxdepth: 2
+
+   districtgenerator.classes
+
+Module contents
+---------------
+
+.. automodule:: districtgenerator
+   :members:
+   :undoc-members:
+   :show-inheritance:

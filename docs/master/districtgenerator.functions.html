@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Internal functions &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Examples" href="EXAMPLES.html" />
+    <link rel="prev" title="Classes" href="districtgenerator.classes.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="README.html">DistrictGenerator</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">Classes and internal functions</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="districtgenerator.classes.html">Classes</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Internal functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions.change_resolution">districtgenerator.functions.change_resolution</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.change_resolution.changeResolution"><code class="docutils literal notranslate"><span class="pre">changeResolution()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions.dhw_stochastical">districtgenerator.functions.dhw_stochastical</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.dhw_stochastical.compute_daily_demand"><code class="docutils literal notranslate"><span class="pre">compute_daily_demand()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.dhw_stochastical.full_year_computation"><code class="docutils literal notranslate"><span class="pre">full_year_computation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.dhw_stochastical.load_profiles"><code class="docutils literal notranslate"><span class="pre">load_profiles()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-districtgenerator.functions.heating_profile_5R1C">districtgenerator.functions.heating_profile_5R1C</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.heating_profile_5R1C.calc"><code class="docutils literal notranslate"><span class="pre">calc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#districtgenerator.functions.heating_profile_5R1C.calculate"><code class="docutils literal notranslate"><span class="pre">calculate()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/index.html">About DistrictGenerator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">Classes and internal functions</a></li>
+      <li class="breadcrumb-item active">Internal functions</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/districtgenerator.functions.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="internal-functions">
+<h1>Internal functions<a class="headerlink" href="#internal-functions" title="Permalink to this heading"></a></h1>
+<section id="module-districtgenerator.functions.change_resolution">
+<span id="districtgenerator-functions-change-resolution"></span><h2>districtgenerator.functions.change_resolution<a class="headerlink" href="#module-districtgenerator.functions.change_resolution" title="Permalink to this heading"></a></h2>
+<p>Script to change resolution of timeseries values with constant
+sampling rate.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions.change_resolution.changeResolution">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.change_resolution.</span></span><span class="sig-name descname"><span class="pre">changeResolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">oldResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">newResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/change_resolution.html#changeResolution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.change_resolution.changeResolution" title="Permalink to this definition"></a></dt>
+<dd><p>Change the temporal resolution of averages that have a constant sampling rate</p>
+<section id="parameters">
+<h3>Parameters<a class="headerlink" href="#parameters" title="Permalink to this heading"></a></h3>
+<dl>
+<dt>values<span class="classifier">array-like</span></dt><dd><p>data points</p>
+</dd>
+<dt>oldResolution<span class="classifier">integer</span></dt><dd><p>temporal resolution of the given values. oldResolution=3600 means
+hourly sampled data</p>
+</dd>
+<dt>newResolution<span class="classifier">integer</span></dt><dd><p>temporal resolution of the given data shall be converted to</p>
+</dd>
+<dt>method<span class="classifier"><code class="docutils literal notranslate"><span class="pre">{&quot;mean&quot;;</span> <span class="pre">&quot;sum&quot;}</span></code>, optional</span></dt><dd><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code> : compute mean values while resampling (e.g. for power).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;sum&quot;</span></code>  : compute sum values while resampling (e.g. for energy).</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
+<section id="module-districtgenerator.functions.dhw_stochastical">
+<span id="districtgenerator-functions-dhw-stochastical"></span><h2>districtgenerator.functions.dhw_stochastical<a class="headerlink" href="#module-districtgenerator.functions.dhw_stochastical" title="Permalink to this heading"></a></h2>
+<p>Script to generate domestic hot water demands.
+This script is a copy of dhw_stochastical.py from pyCity.
+<a class="reference external" href="https://github.com/RWTH-EBC/pyCity">https://github.com/RWTH-EBC/pyCity</a></p>
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.compute_daily_demand">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">compute_daily_demand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probability_profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">average_profile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#compute_daily_demand"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.compute_daily_demand" title="Permalink to this definition"></a></dt>
+<dd><section id="id1">
+<h3>Parameters<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>probability_profiles<span class="classifier">array-like</span></dt><dd><p>Minute-wise sampled probability distribution.
+“Haushaltewd” and “Haushaltewe” in Lion’s thesis.
+This input should also be equivalent to “pwd” and “pwe”, because only 
+one household is taken into account.</p>
+</dd>
+<dt>average_profile<span class="classifier">array-like</span></dt><dd><p>Minute-wise sampled average tap water profiles (in liters per hour).
+“mwwd” and “mwwe” in Lion’s thesis.</p>
+</dd>
+<dt>occupancy<span class="classifier">array-like</span></dt><dd><p>10-Minute-wise sampled occupancy of the considered building/apartment.</p>
+</dd>
+<dt>current_day<span class="classifier">integer</span></dt><dd><p>Current day of the year (January 1st -&gt; 0, February 1st -&gt; 31, …)</p>
+</dd>
+<dt>temperature_difference<span class="classifier">float</span></dt><dd><p>How much does the tap water has to be heated up? Either enter a float
+or an array with the same dimension as probability_profiles.</p>
+</dd>
+</dl>
+</section>
+<section id="returns">
+<h3>Returns<a class="headerlink" href="#returns" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>water<span class="classifier">array-like</span></dt><dd><p>Tap water volume flow in liters per hour.</p>
+</dd>
+<dt>heat<span class="classifier">array-like</span></dt><dd><p>Resulting minute-wise sampled heat demand in Watt.
+The heat capacity of water is assumed to be 4180 J/(kg.K) and the
+density is assumed to be 980 kg/m3</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.full_year_computation">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">full_year_computation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_dis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3600</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#full_year_computation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.full_year_computation" title="Permalink to this definition"></a></dt>
+<dd><section id="id2">
+<h3>Parameters<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<dl>
+<dt>occupancy<span class="classifier">array-ike</span></dt><dd><p>Full year, 10-minute-wise sampled occupancy profile. All values have
+to be integers.</p>
+</dd>
+<dt>profiles<span class="classifier">dictionary</span></dt><dd><p>All probability distributions. The dictionary has to have the 
+following structure:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Top level: [<cite>wd_mw</cite>, <cite>we_mw</cite>, <cite>wd</cite>, <cite>we</cite>] (strings)</p></li>
+<li><p>Within <cite>we</cite> and <cite>wd</cite>: [<cite>1</cite>, <cite>2</cite>, <cite>3</cite>, <cite>4</cite>, <cite>5</cite>, <cite>6</cite>] (integers)</p></li>
+</ul>
+</div></blockquote>
+</dd>
+<dt>time_dis<span class="classifier">integer</span></dt><dd><p>Time discretization in seconds.</p>
+</dd>
+<dt>initial_day<span class="classifier">integer</span></dt><dd><ul class="simple">
+<li><p>0 : Monday</p></li>
+<li><p>1 : Tuesday</p></li>
+<li><p>2 : Wednesday</p></li>
+<li><p>3 : Thursday</p></li>
+<li><p>4 : Friday</p></li>
+<li><p>5 : Saturday</p></li>
+<li><p>6 : Sunday</p></li>
+</ul>
+</dd>
+<dt>temperature_difference<span class="classifier">float</span></dt><dd><p>How much does the tap water has to be heated up? Either enter a float
+or an array with the same dimension as probability_profiles.</p>
+</dd>
+</dl>
+</section>
+<section id="id3">
+<h3>Returns<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>water<span class="classifier">array-like</span></dt><dd><p>Tap water volume flow in liters per hour.</p>
+</dd>
+<dt>heat<span class="classifier">array-like</span></dt><dd><p>Resulting minute-wise sampled heat demand in Watt.
+The heat capacity of water is assumed to be 4180 J/(kg.K) and the
+density is assumed to be 980 kg/m3</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.load_profiles">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">load_profiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#load_profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.load_profiles" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+<section id="module-districtgenerator.functions.heating_profile_5R1C">
+<span id="districtgenerator-functions-heating-profile-5r1c"></span><h2>districtgenerator.functions.heating_profile_5R1C<a class="headerlink" href="#module-districtgenerator.functions.heating_profile_5R1C" title="Permalink to this heading"></a></h2>
+<p>Script to generate heating and cooling demands sccording to DIN EN ISO 13790.</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions.heating_profile_5R1C.calc">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zoneInputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_m_init</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">TCoolingSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">THeatingSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beQuiet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calc" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="districtgenerator.functions.heating_profile_5R1C.calculate">
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calculate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calculate" title="Permalink to this definition"></a></dt>
+<dd><section id="id4">
+<h3>Parameters<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h3>
+<dl class="simple">
+<dt>zoneParameters<span class="classifier">ZoneParameters</span></dt><dd><p>Resistances and capacity</p>
+</dd>
+<dt>zoneInputs<span class="classifier">ZoneInputs</span></dt><dd><p>External inputs (solar, internal gains, set temperatures)</p>
+</dd>
+<dt>T_m_init<span class="classifier">float</span></dt><dd><p>Initial temperature of the thermal mass in degC</p>
+</dd>
+</dl>
+</section>
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="districtgenerator.classes.html" class="btn btn-neutral float-left" title="Classes" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="EXAMPLES.html" class="btn btn-neutral float-right" title="Examples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

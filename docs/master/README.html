@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DistrictGenerator &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Classes and internal functions" href="modules.html" />
+    <link rel="prev" title="Welcome to the documentation of the DistrictGenerator!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">DistrictGenerator</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#general-motivation">General Motivation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-started">Getting started</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#install-the-districtgenerator">Install the DistrictGenerator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#minimum-required-input-data">Minimum required input data</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#what-you-get">What you get</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#structure-of-the-districtgenerator">Structure of the DistrictGenerator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-examples-for-functional-testing">Running examples for functional testing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-to-contribute">How to contribute</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#authors">Authors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#alumni">Alumni</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reference">Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#license">License</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#acknowledgements">Acknowledgements</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="about/index.html">About DistrictGenerator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">DistrictGenerator</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/README.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <p><img alt="E.ON EBC RWTH Aachen University" src="_images/EBC_Logo.png" /></p>
+<section id="districtgenerator">
+<h1>DistrictGenerator<a class="headerlink" href="#districtgenerator" title="Permalink to this heading"></a></h1>
+<p><a class="reference external" href="http://doge.mit-license.org"><img alt="License" src="http://img.shields.io/:license-mit-blue.svg" /></a>
+<a class="reference external" href="https://rwth-ebc.github.io/FiLiP/master/docs/index.html"><img alt="Documentation" src="https://rwth-ebc.github.io/FiLiP/master/docs/doc.svg" /></a></p>
+<p>Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
+housing associations, engineering firms, architectural professionals, as well as academic and research institutions.
+This tool furnishes crucial insights into energy demands, pivotal for the effective design and operation of
+neighborhoods energy systems. Consequently, users can discern actionable measures to harmonize energy supply.
+The DistrictGenerator offers a pioneering approach by mapping entire urban
+building stocks in neighborhood models for automated load profile calculations and dimensioning of distributed
+energy resources. By integrating several open-source data bases and tools like <a class="reference external" href="https://github.com/RWTH-EBC/TEASER">TEASER</a>
+and <a class="reference external" href="https://github.com/RWTH-EBC/richardsonpy">richardsonpy</a>.</p>
+<p>The DistrictGenerator is being developed at <a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/~dmzz/E-ON-ERC-EBC/?lidx=1">RWTH Aachen University, E.ON Energy
+Research Center, Institute for Energy Efficient Buildings and Indoor
+Climate</a>.</p>
+<section id="general-motivation">
+<h2>General Motivation<a class="headerlink" href="#general-motivation" title="Permalink to this heading"></a></h2>
+<p>In the early stages of neighborhood planning, crucial data such as demand profiles of electricity, heating,
+domestic hot water, and occupancy profiles are often not available. The absence of this data hampers
+accurate evaluations of energy systems in districts. The DistrictGenerator seeks to advance the applicability
+of sustainable, cross-sectoral energy systems in neighborhoods, with a specific emphasis on exploiting synergy
+potentials among buildings of diverse usage structures through integrated concepts. We summarize the key contributions
+of the DistrictGenerator as follows:</p>
+<ul class="simple">
+<li><p>An open-source tool with minimal input requirements. Leveraging pre-set elements and default values of temporally
+resolved demand profiles, as well as decentralized heat generator sizing conforming to DIN standards.</p></li>
+<li><p>The tool enables the bottom-up representation of entire urban structures through neighborhood models, affording a
+sufficiently detailed analysis foundation.</p></li>
+<li><p>Facilitation of central operational optimization and presentation of analytical results and key performance
+indicators. This supports the examination of various neighborhood types and supply scenarios concerning technology
+selection and penetrations. We thereby create a platform for early-stage comparison of neighborhood concepts
+with the flexibility of selecting different variants, given the tool’s rapid recalculations.</p></li>
+</ul>
+</section>
+<section id="getting-started">
+<h2>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading"></a></h2>
+<section id="install-the-districtgenerator">
+<h3>Install the DistrictGenerator<a class="headerlink" href="#install-the-districtgenerator" title="Permalink to this heading"></a></h3>
+<p>To install, first clone this repository with</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">RWTH</span><span class="o">-</span><span class="n">EBC</span><span class="o">/</span><span class="n">districtgenerator</span>
+</pre></div>
+</div>
+<p>and secondly run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="n">districtgenerator</span>
+</pre></div>
+</div>
+<p>Once you have installed the DistrictGenerator, you can check the <a class="reference internal" href="EXAMPLES.html"><span class="std std-doc">examples</span></a>
+to learn how to use the different components.</p>
+</section>
+<section id="minimum-required-input-data">
+<h3>Minimum required input data<a class="headerlink" href="#minimum-required-input-data" title="Permalink to this heading"></a></h3>
+<p>To generate your district, you need to know some information about its buildings.
+The minimal input data set was defined following the <a class="reference external" href="https://webtool.building-typology.eu/#bm">TABULA archetype approach</a>:</p>
+<ul class="simple">
+<li><p>id: building ID (just numerate the buildings)</p></li>
+<li><p>building: residential building type (single family house, terraced house, multi family house or apartment block)</p></li>
+<li><p>year: construction year (the calendar year in which the building was constructed)</p></li>
+<li><p>retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)</p></li>
+<li><p>area: reference floor area (given in square meters)</p></li>
+</ul>
+<p>The example.csv file can be used as <a class="reference download internal" download="" href="_downloads/333ce692e0cf26e26df2ba752f88b5d8/example.csv"><span class="xref download myst">template</span></a>.</p>
+</section>
+<section id="what-you-get">
+<h3>What you get<a class="headerlink" href="#what-you-get" title="Permalink to this heading"></a></h3>
+<p>After executing district generation you can find building-specific and time-dependent profiles in
+the .csv format in folder results/demands. The results contain:</p>
+<ul class="simple">
+<li><p>heat: space heating demand</p></li>
+<li><p>dhw: domestic hot water demand</p></li>
+<li><p>elec: electricity demand for lighting and electric household devices</p></li>
+<li><p>occ: number of persons present</p></li>
+<li><p>gains: internal gains from persons, lighting and electric household devices</p></li>
+</ul>
+</section>
+</section>
+<section id="structure-of-the-districtgenerator">
+<h2>Structure of the DistrictGenerator<a class="headerlink" href="#structure-of-the-districtgenerator" title="Permalink to this heading"></a></h2>
+<p><img alt="Library Structure" src="_images/Struktur_Quartiersgenerator.png" /></p>
+</section>
+<section id="running-examples-for-functional-testing">
+<h2>Running examples for functional testing<a class="headerlink" href="#running-examples-for-functional-testing" title="Permalink to this heading"></a></h2>
+<p>Once you have installed the DistrictGenerator, you can check the <a class="reference internal" href="EXAMPLES.html"><span class="std std-doc">examples</span></a>
+to learn how to use the different components.</p>
+<p>To test the tool’s executability, run <a class="reference external" href="https://github.com/RWTH-EBC/districtgenerator/tree/15-joss-documentation/tests">test_examples.py</a>  in the tests folder.
+This functional testing checks the entire chain of the tool, from data input and
+initialization to the output of the calculated profiles. It does not correspond to a
+test of the functional units of the entire process. This  functional testing is based
+on the examples automatically executed one after another.</p>
+</section>
+<section id="how-to-contribute">
+<h2>How to contribute<a class="headerlink" href="#how-to-contribute" title="Permalink to this heading"></a></h2>
+<p>The documentation and examples should be understandable and the code bug-free.
+As all users have different backgrounds, you may not understand everything or encounter bugs.
+If you have questions, want to contribute new features or fix bugs yourself,
+please <a class="reference external" href="https://github.com/RWTH-EBC/districtgenerator/issues/new">raise an issue here</a>.</p>
+<p>If you wrote a new feature, create a pull request and assign
+a reviewer before merging. Once review is finished, you can merge.</p>
+</section>
+<section id="authors">
+<h2>Authors<a class="headerlink" href="#authors" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/digitale-energie-quartiere/~obome/schoelzel-joel/?allou=1">Joel Schölzel</a> (corresponding)</p></li>
+<li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Team6/~scaj/Beckhoelter-Tobias/">Tobias Beckhölter</a></p></li>
+<li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Digitale-Energie-Quartiere/~beoyus/Wueller-Carla/">Carla Wüller</a></p></li>
+</ul>
+</section>
+<section id="alumni">
+<h2>Alumni<a class="headerlink" href="#alumni" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>Sarah Henn</p></li>
+</ul>
+</section>
+<section id="reference">
+<h2>Reference<a class="headerlink" href="#reference" title="Permalink to this heading"></a></h2>
+<p>We presented or applied the library in the following publications:</p>
+<ul class="simple">
+<li><p>J. Schölzel, S. Henn, R. Streblow, D. Müller. Evaluation of Energy Sharing on a
+Local Energy Market Through Comparison of Energy Management Techniques. 36th International
+Conference on Efficiency, Cost, Optimization, Simulation and Environmental Impact of Energy Systems.
+https://doi.org/10.52202/069564-0307</p></li>
+<li><p>J. Schölzel, T. Beckhölter, S. Henn, C.Wüller, R. Streblow, D. Müller.
+Districtgenerator: A Novel Open-Source Webtool to Generate Building-Specific Load
+Profiles and Evaluate Energy Systems of Residential Districts. 37th International
+Conference on Efficiency, Cost, Optimization, Simulation and Environmental Impact of
+Energy Systems.</p></li>
+<li><p>C. Wüller, J. Schölzel, R. Streblow, D. Müller. Optimizing Local Energy Trading in Residential Neighborhoods:A Price Signal Approach
+in Local Energy Markets. 37th International Conference on Efficiency, Cost, Optimization,
+Simulation and Environmental Impact of Energy Systems.</p></li>
+</ul>
+</section>
+<section id="license">
+<h2>License<a class="headerlink" href="#license" title="Permalink to this heading"></a></h2>
+<p>The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
+Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
+under the <a class="reference internal" href="about/LICENSE.html"><span class="std std-doc">MIT License</span></a>.</p>
+</section>
+<section id="acknowledgements">
+<h2>Acknowledgements<a class="headerlink" href="#acknowledgements" title="Permalink to this heading"></a></h2>
+<p>The districtgenerator has been developed within the public funded project
+“BF2020 Begleitforschung ENERGIEWENDEBAUEN - Modul Quartiere” (promotional reference: 03EWB003B)
+and with financial support by BMWK (German Federal Ministry for Economic Affairs and Climate Action).</p>
+<img src="https://www.innovation-beratung-foerderung.de/INNO/Redaktion/DE/Bilder/Titelbilder/titel_foerderlogo_bmwi.jpg?__blob=normal" width="200">
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to the documentation of the DistrictGenerator!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="modules.html" class="btn btn-neutral float-right" title="Classes and internal functions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>districtgenerator.classes.profils &mdash; DistrictGenerator 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            DistrictGenerator
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">DistrictGenerator</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">districtgenerator.classes.profils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for districtgenerator.classes.profils</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">random</span> <span class="k">as</span> <span class="nn">rd</span>
+<span class="kn">import</span> <span class="nn">richardsonpy.classes.occupancy</span> <span class="k">as</span> <span class="nn">occ</span>
+<span class="kn">import</span> <span class="nn">richardsonpy.functions.change_resolution</span> <span class="k">as</span> <span class="nn">cr</span>
+<span class="kn">import</span> <span class="nn">districtgenerator.functions.dhw_stochastical</span> <span class="k">as</span> <span class="nn">dhw_profil</span>
+<span class="kn">import</span> <span class="nn">pylightxl</span> <span class="k">as</span> <span class="nn">xl</span>
+
+
+<div class="viewcode-block" id="Profiles"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles">[docs]</a><span class="k">class</span> <span class="nc">Profiles</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Profile class</span>
+<span class="sd">    calculating user related profiles of a building or flat</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    number_occupants : integer</span>
+<span class="sd">        Number of occupants who live in the house or flat.</span>
+<span class="sd">    initial_day : integer</span>
+<span class="sd">        Day of the week with which the generation starts</span>
+<span class="sd">        1-7 for monday-sunday.</span>
+<span class="sd">    nb_days : integer</span>
+<span class="sd">        Number of days for which a stochastic profile is generated.</span>
+<span class="sd">    time_resolution : integer</span>
+<span class="sd">        resolution of time steps of output array in seconds.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    activity_profile : array</span>
+<span class="sd">        Numpy-arry with acctive occupants 10-minutes-wise.</span>
+<span class="sd">    occ_profile : array</span>
+<span class="sd">         stochastic occupancy profiles for a district</span>
+<span class="sd">    app_load : Array-like</span>
+<span class="sd">        Electric load profile of appliances in W.</span>
+<span class="sd">    light_load : Array-like</span>
+<span class="sd">        Electric load profile of lighting in W.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">number_occupants</span><span class="p">,</span> <span class="n">initital_day</span><span class="p">,</span> <span class="n">nb_days</span><span class="p">,</span> <span class="n">time_resolution</span><span class="p">):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructor of Profiles Class</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">number_occupants</span> <span class="o">=</span> <span class="n">number_occupants</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">initial_day</span> <span class="o">=</span> <span class="n">initital_day</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span> <span class="o">=</span> <span class="n">nb_days</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span> <span class="o">=</span> <span class="n">time_resolution</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">occ_profile</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">generate_activity_profile</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loadProbabilitiesDhw</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Profiles.generate_activity_profile"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles.generate_activity_profile">[docs]</a>    <span class="k">def</span> <span class="nf">generate_activity_profile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a stochastic activity profile</span>
+<span class="sd">        (on base of ridchardsonpy)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        number_occupants : integer</span>
+<span class="sd">            Number of occupants who live in the house or flat.</span>
+<span class="sd">        initial_day : integer</span>
+<span class="sd">            Day of the week with which the generation starts</span>
+<span class="sd">            1-7 for monday-sunday.</span>
+<span class="sd">        nb_days : integer</span>
+<span class="sd">            Number of days for which a stochastic profile is generated.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">activity</span> <span class="o">=</span> <span class="n">occ</span><span class="o">.</span><span class="n">Occupancy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">number_occupants</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">initial_day</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span> <span class="o">=</span> <span class="n">activity</span><span class="o">.</span><span class="n">occupancy</span></div>
+
+
+<div class="viewcode-block" id="Profiles.generate_occupancy_profiles"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles.generate_occupancy_profiles">[docs]</a>    <span class="k">def</span> <span class="nf">generate_occupancy_profiles</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate stochastic occupancy profiles for a district for calculating internal gains.</span>
+<span class="sd">        Change time resolution of 10 min profiles to required resolution</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        time_resolution : integer</span>
+<span class="sd">            resolution of time steps of output array in seconds.</span>
+<span class="sd">        activity_profile : array</span>
+<span class="sd">            Numpy-arry with acctive occupants 10-minutes-wise.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">tr_min</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="o">/</span><span class="mi">60</span><span class="p">)</span>
+        <span class="n">sia_profile_daily_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">60</span><span class="o">*</span><span class="mi">8</span><span class="p">),</span>
+                                                <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">60</span><span class="o">*</span><span class="mi">13</span><span class="p">),</span>
+                                                <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">60</span><span class="o">*</span><span class="mi">3</span><span class="p">)),</span>
+                                                <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+
+        <span class="c1"># generate array for minutly profile</span>
+        <span class="n">activity_profile_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span><span class="p">)</span><span class="o">*</span><span class="mi">10</span><span class="p">)</span>
+        <span class="c1"># generate array for time adjusted profile</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">occ_profile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span><span class="p">)</span><span class="o">*</span><span class="mi">10</span><span class="o">/</span><span class="n">tr_min</span><span class="p">))</span>
+
+        <span class="c1"># append minutly sia profiles until nb_days is reached</span>
+        <span class="n">sia_profile</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">sia_profile</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">activity_profile_min</span><span class="p">):</span>
+            <span class="n">sia_profile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">sia_profile</span><span class="p">,</span><span class="n">sia_profile_daily_min</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">sia_profile</span> <span class="o">=</span> <span class="n">sia_profile</span> <span class="o">*</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span><span class="p">)</span>
+
+        <span class="c1"># calculate minutely profile</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">activity_profile_min</span><span class="p">)):</span>
+            <span class="n">activity_profile_min</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="o">/</span><span class="mi">10</span><span class="p">)],</span><span class="n">sia_profile</span><span class="p">[</span><span class="n">t</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">occ_profile</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">occ_profile</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">activity_profile_min</span><span class="p">[(</span><span class="n">t</span><span class="o">*</span><span class="n">tr_min</span><span class="p">):(</span><span class="n">t</span><span class="o">*</span><span class="n">tr_min</span><span class="o">+</span><span class="n">tr_min</span><span class="p">)]))</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">occ_profile</span></div>
+
+
+<div class="viewcode-block" id="Profiles.loadProbabilitiesDhw"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles.loadProbabilitiesDhw">[docs]</a>    <span class="k">def</span> <span class="nf">loadProbabilitiesDhw</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Load probabilities of dhw usage</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1">#  Define src path</span>
+        <span class="n">src_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))))</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s1">&#39;dhw_stochastical.xlsx&#39;</span>
+        <span class="n">path_DHW</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span> <span class="s1">&#39;districtgenerator&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+
+        <span class="c1"># Initialization</span>
+        <span class="n">profiles</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;we&quot;</span><span class="p">:</span> <span class="p">{},</span> <span class="s2">&quot;wd&quot;</span><span class="p">:</span> <span class="p">{}}</span>
+        <span class="c1"># book = xlrd.open_workbook(filename)</span>
+        <span class="n">book</span> <span class="o">=</span> <span class="n">xl</span><span class="o">.</span><span class="n">readxl</span><span class="p">(</span><span class="n">fn</span><span class="o">=</span><span class="n">path_DHW</span><span class="p">)</span>
+        <span class="n">sheetnames</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">ws_names</span>
+
+        <span class="c1"># Iterate over all sheets</span>
+        <span class="k">for</span> <span class="n">sheetname</span> <span class="ow">in</span> <span class="n">sheetnames</span><span class="p">:</span>
+            <span class="c1"># sheet = xl.readxl(fn=filename, ws=sheetname)</span>
+
+            <span class="c1"># Read values</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">book</span><span class="o">.</span><span class="n">ws</span><span class="p">(</span><span class="n">ws</span><span class="o">=</span><span class="n">sheetname</span><span class="p">)</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">col</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
+                      <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1441</span><span class="p">)]</span>  <span class="c1"># [sheet.cell_value(i,0) for i in range(1440)]</span>
+
+            <span class="c1"># Store values in dictionary</span>
+            <span class="k">if</span> <span class="n">sheetname</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;wd_mw&quot;</span><span class="p">,</span> <span class="s2">&quot;we_mw&quot;</span><span class="p">):</span>
+                <span class="n">profiles</span><span class="p">[</span><span class="n">sheetname</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">sheetname</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;e&quot;</span><span class="p">:</span>
+                <span class="n">profiles</span><span class="p">[</span><span class="s2">&quot;we&quot;</span><span class="p">][</span><span class="nb">int</span><span class="p">(</span><span class="n">sheetname</span><span class="p">[</span><span class="mi">2</span><span class="p">])]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">profiles</span><span class="p">[</span><span class="s2">&quot;wd&quot;</span><span class="p">][</span><span class="nb">int</span><span class="p">(</span><span class="n">sheetname</span><span class="p">[</span><span class="mi">2</span><span class="p">])]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="c1"># Load profiles</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prob_profiles_dhw</span> <span class="o">=</span> <span class="n">profiles</span></div>
+
+
+<div class="viewcode-block" id="Profiles.generate_dhw_profile"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles.generate_dhw_profile">[docs]</a>    <span class="k">def</span> <span class="nf">generate_dhw_profile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a stochastic dhw profile</span>
+<span class="sd">        (on base of pycity_base)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        time_resolution : integer</span>
+<span class="sd">            resolution of time steps of output array in seconds.</span>
+<span class="sd">        activity_profile : array</span>
+<span class="sd">            Numpy-arry with acctive occupants 10-minutes-wise.</span>
+<span class="sd">        prob_profiles_dhw: array</span>
+<span class="sd">            probabilities of dhw usage</span>
+<span class="sd">        initial_day : integer</span>
+<span class="sd">            Day of the week with which the generation starts</span>
+<span class="sd">            1-7 for monday-sunday.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dhw_heat : array</span>
+<span class="sd">            Numpy-array with heat demand of dhw consumption in W.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Run simulation</span>
+        <span class="c1"># run the simulation for just x days</span>
+        <span class="c1"># therefor occupancy has to have the length of x days</span>
+        <span class="p">(</span><span class="n">dhw_water</span><span class="p">,</span> <span class="n">dhw_heat</span><span class="p">)</span> <span class="o">=</span> <span class="n">dhw_profil</span><span class="o">.</span><span class="n">full_year_computation</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span><span class="p">,</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">prob_profiles_dhw</span><span class="p">,</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="p">,</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">initial_day</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">dhw_heat</span></div>
+
+
+<div class="viewcode-block" id="Profiles.generate_el_profile"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles.generate_el_profile">[docs]</a>    <span class="k">def</span> <span class="nf">generate_el_profile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">irradiance</span><span class="p">,</span> <span class="n">el_wrapper</span><span class="p">,</span>
+                            <span class="n">annual_demand</span><span class="p">,</span> <span class="n">do_normalization</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate electric load profile for one household</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        -------</span>
+<span class="sd">        irradiance : array</span>
+<span class="sd">            if none is given default weather data (TRY 2015 Potsdam) is used</span>
+<span class="sd">        el_wrapper : object</span>
+<span class="sd">            This objects holdes information about the lighting and appliance configuration.</span>
+<span class="sd">        annual_demand : integer</span>
+<span class="sd">            Annual elictricity demand in kWh.</span>
+<span class="sd">        do_normalization : boolean</span>
+<span class="sd">            Normalize el. load profile to annual_demand</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        loadcurve : Array-like</span>
+<span class="sd">            Total electric load profile in W.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Make simulation over x days</span>
+        <span class="n">demand</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#  Check if irradiance timestep is identical with param. timestep</span>
+        <span class="n">timesteps_irr</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span> <span class="o">*</span> <span class="mi">3600</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">irradiance</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span> <span class="o">!=</span> <span class="n">timesteps_irr</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Time discretization of irradiance is different from &#39;</span> \
+                  <span class="s1">&#39;timestep &#39;</span> \
+                  <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="p">)</span> \
+                  <span class="o">+</span> <span class="s1">&#39;seconds . You need to change the resolution, first!&#39;</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">_timestep_rich</span> <span class="o">=</span> <span class="mi">60</span>  <span class="c1"># timesteps in seconds</span>
+
+        <span class="c1"># number of timesteps per day for given time resolution</span>
+        <span class="n">timesteps_per_Day</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mi">86400</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="p">)</span>
+
+        <span class="c1"># Array holding index of timesteps (60 second timesteps)</span>
+        <span class="c1">### Irradiance is needed for every minute of the day</span>
+        <span class="n">required_timestamp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1440</span><span class="p">)</span>
+
+        <span class="c1"># Array holding each timestep in seconds</span>
+        <span class="c1">### the timesteps of the irradiance array in minutes</span>
+        <span class="n">given_timestamp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span> <span class="o">/</span> <span class="n">_timestep_rich</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">timesteps_per_Day</span><span class="p">)</span>
+
+        <span class="c1">#  Loop over all days</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span><span class="p">):</span>
+
+            <span class="c1">#  Define, if days is weekday or weekend</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">initial_day</span><span class="p">)</span> <span class="o">%</span> <span class="mi">7</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span>
+                <span class="n">weekend</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">weekend</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="c1">#  Extract array with radiation for each timestep of day</span>
+            <span class="n">irrad_day</span> <span class="o">=</span> <span class="n">irradiance</span><span class="p">[</span><span class="n">timesteps_per_Day</span> <span class="o">*</span> <span class="n">i</span><span class="p">:</span> <span class="n">timesteps_per_Day</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+
+            <span class="c1">#  Interpolate radiation values for required timestep of 60 seconds</span>
+            <span class="n">irrad_day_minutewise</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">required_timestamp</span><span class="p">,</span>
+                                            <span class="n">given_timestamp</span><span class="p">,</span> <span class="n">irrad_day</span><span class="p">)</span>
+
+            <span class="c1"># Extract current occupancy profile for current day</span>
+            <span class="c1"># (10-minutes-timestep assumed)</span>
+            <span class="n">current_occupancy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activity_profile</span><span class="p">[</span><span class="mi">144</span> <span class="o">*</span> <span class="n">i</span><span class="p">:</span> <span class="mi">144</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+
+            <span class="n">day_of_the_year</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># only necessary for electric heating</span>
+            <span class="c1"># Perform lighting and appliance usage simulation for one day</span>
+            <span class="p">(</span><span class="n">el_p_curve</span><span class="p">,</span> <span class="n">light_p_curve</span><span class="p">,</span> <span class="n">app_p_curve</span><span class="p">)</span> <span class="o">=</span> <span class="n">el_wrapper</span><span class="o">.</span><span class="n">power_sim</span><span class="p">(</span><span class="n">irradiation</span><span class="o">=</span><span class="n">irrad_day_minutewise</span><span class="p">,</span>
+                                                                            <span class="n">weekend</span><span class="o">=</span><span class="n">weekend</span><span class="p">,</span>
+                                                                            <span class="n">day</span><span class="o">=</span><span class="n">i</span><span class="o">+</span><span class="n">day_of_the_year</span><span class="p">,</span>
+                                                                            <span class="n">occupancy</span><span class="o">=</span><span class="n">current_occupancy</span><span class="p">)</span>
+            <span class="c1"># Append results</span>
+            <span class="n">demand</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">el_p_curve</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">light_p_curve</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">app_p_curve</span><span class="p">)</span>
+
+        <span class="c1"># Convert to nd-arrays</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">demand</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">light_load</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_load</span><span class="p">)</span>
+
+        <span class="c1"># Reshape arrays (nd-array structure to 1d structure)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">light_load</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_load</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+        <span class="c1"># Change time resolution to timestep defined by user</span>
+        <span class="n">loadcurve</span> <span class="o">=</span> <span class="n">cr</span><span class="o">.</span><span class="n">change_resolution</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">_timestep_rich</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">=</span> <span class="n">cr</span><span class="o">.</span><span class="n">change_resolution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">light_load</span><span class="p">,</span> <span class="n">_timestep_rich</span><span class="p">,</span>
+                                          <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">=</span> <span class="n">cr</span><span class="o">.</span><span class="n">change_resolution</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">app_load</span><span class="p">,</span> <span class="n">_timestep_rich</span><span class="p">,</span>
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span><span class="p">)</span>
+
+        <span class="c1">#  Normalize el. load profile to annual_demand</span>
+        <span class="k">if</span> <span class="n">do_normalization</span><span class="p">:</span>
+
+            <span class="c1"># Convert power to energy values</span>
+            <span class="n">energy_curve</span> <span class="o">=</span> <span class="n">loadcurve</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span>  <span class="c1"># in Ws</span>
+            <span class="n">energy_lighting</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span>  <span class="c1"># in Ws</span>
+            <span class="n">energy_app</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_resolution</span>  <span class="c1"># in Ws</span>
+
+            <span class="c1"># Sum up energy values (plus conversion from Ws to kWh)</span>
+            <span class="n">curr_el_dem</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">energy_curve</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">3600</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+            <span class="n">curr_lighting_dem</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">energy_lighting</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">3600</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+            <span class="n">curr_app_dem</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">energy_app</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">3600</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+
+            <span class="c1"># these factor can be used for normalization or just to compare with annual demand</span>
+            <span class="c1"># for comparison with annual demand-&gt; if factor &gt; 1: current demand for one year would be beneath annual demand</span>
+            <span class="n">factor_compare_annual_demand</span> <span class="o">=</span> <span class="n">annual_demand</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span> <span class="o">/</span> <span class="mi">365</span><span class="p">)</span> <span class="o">/</span> <span class="n">curr_el_dem</span>
+            <span class="n">factor_compare_annual_lighting</span> <span class="o">=</span> <span class="mf">0.1</span> <span class="o">*</span> <span class="n">annual_demand</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span> <span class="o">/</span> <span class="mi">365</span><span class="p">)</span> <span class="o">/</span> <span class="n">curr_lighting_dem</span>
+            <span class="n">factor_compare_annual_app</span> <span class="o">=</span> <span class="mf">0.9</span> <span class="o">*</span> <span class="n">annual_demand</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_days</span> <span class="o">/</span> <span class="mi">365</span><span class="p">)</span> <span class="o">/</span> <span class="n">curr_app_dem</span>
+
+            <span class="c1">#  Rescale load curves</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">*=</span> <span class="n">factor_compare_annual_lighting</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">*=</span> <span class="n">factor_compare_annual_app</span>
+            <span class="n">loadcurve</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span>
+
+        <span class="k">return</span> <span class="n">loadcurve</span></div>
+
+
+<div class="viewcode-block" id="Profiles.generate_gain_profile"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.profils.Profiles.generate_gain_profile">[docs]</a>    <span class="k">def</span> <span class="nf">generate_gain_profile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate profile of internal gains</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        -------</span>
+<span class="sd">        personGain : float</span>
+<span class="sd">            Heat dissipation of one person</span>
+<span class="sd">            Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik</span>
+<span class="sd">        lightGain : float</span>
+<span class="sd">            share of waste heat (LED)</span>
+<span class="sd">            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat</span>
+<span class="sd">            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia</span>
+<span class="sd">            62 (2014), Januar, 32–41.</span>
+<span class="sd">        appGain :</span>
+<span class="sd">            share of waste heat (assumed)</span>
+<span class="sd">            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat</span>
+<span class="sd">            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia</span>
+<span class="sd">            62 (2014), Januar, 32–41.</span>
+<span class="sd">        occ_profile : float</span>
+<span class="sd">             stochastic occupancy profiles for a district</span>
+<span class="sd">        app_load : Array-like</span>
+<span class="sd">            Electric load profile of appliances in W.</span>
+<span class="sd">        light_load : Array-like</span>
+<span class="sd">            Electric load profile of lighting in W.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        gains : array</span>
+<span class="sd">            Internal gain of each flat</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">personGain</span> <span class="o">=</span> <span class="mf">70.0</span>  <span class="c1"># [Watt]</span>
+        <span class="n">lightGain</span> <span class="o">=</span> <span class="mf">0.65</span>
+        <span class="n">appGain</span> <span class="o">=</span> <span class="mf">0.33</span>
+
+        <span class="n">gains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">occ_profile</span> <span class="o">*</span> <span class="n">personGain</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">light_load</span> <span class="o">*</span> <span class="n">lightGain</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">app_load</span> <span class="o">*</span> <span class="n">appGain</span>
+
+        <span class="k">return</span> <span class="n">gains</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Joel Schoelzel.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
