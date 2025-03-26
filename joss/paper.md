@@ -18,6 +18,7 @@ authors:
     orcid: 0009-0001-1761-4805
     affiliation: 1
   - name: Rawad Hamze
+    orcid: 0009-0005-0562-6285
     affiliation: 1
   - name: Dirk Müller
     orcid: 0000-0002-6106-6607
