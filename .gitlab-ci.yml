@@ -18,6 +18,7 @@ variables:
   #EXAMPLE_CONVERTER_CONFIG: districtgenerator/examples/converter.toml
   EXTRA_REQUIREMENTS_PIP: "[report]"
 
+
 include:
   - project: 'EBC/EBC_all/gitlab_ci/templates'
     file: 'python/code-quality/pylint.gitlab-ci.yml'
