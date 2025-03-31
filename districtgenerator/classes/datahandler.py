@@ -355,8 +355,8 @@ class Datahandler:
                                 usage=building_type,
                                 name="ResidentialBuildingTabula",
                                 year_of_construction=building["buildingFeatures"]["year"],
-                                number_of_floors=3,
-                                height_of_floors=3.125,
+                                number_of_floors=building["buildingFeatures"]["number_of_floors"],
+                                height_of_floors=building["buildingFeatures"]["height"]/building["buildingFeatures"]["number_of_floors"],
                                 net_leased_area=building["buildingFeatures"]["area"],
                                 construction_type=retrofit_level)
 
@@ -372,7 +372,8 @@ class Datahandler:
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                                     area=building["buildingFeatures"]["area"],
+                                     elec=building["buildingFeatures"]["elec"])
 
             # %% calculate design heat loads
             # at norm outside temperature

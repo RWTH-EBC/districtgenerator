@@ -51,7 +51,7 @@ class Users:
         Heat demand for each building.
     """
 
-    def __init__(self, building, area):
+    def __init__(self, building, area, elec):
         """
         Constructor of Users class.
 
@@ -71,7 +71,7 @@ class Users:
         self.nb_occ = []
         self.occ = None
         self.dhw = None
-        self.elec = None
+        self.elec = elec
         self.gains = None
         self.heat = None
         self.cooling = None
@@ -325,7 +325,7 @@ class Users:
                 # annual demand of the electric appliances (annual demand minus lighting)
                 # source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/energieverbrauch-privater-haushalte#stromverbrauch-mit-einem-anteil-von-rund-einem-funftel
                 # share of the electricity demand for lighting of the total electricity demand without heating, dhw and cooling for 2022: 7.9 / 81.8 = 9.6%
-                appliancesDemand = 0.904 * self.annual_el_demand[j]
+                appliancesDemand = 0.904 * self.elec
 
                 # Create and save appliances object
                 appliances = \
@@ -388,10 +388,10 @@ class Users:
                 self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
                 # Occupancy profile in a flat
                 self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
-                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
-                                                                                 irradiance=irradiation,
-                                                                                 el_wrapper=self.el_wrapper[j],
-                                                                                 annual_demand=self.annual_el_demand[j])
+                #self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
+                                                                                 #irradiance=irradiation,
+                                                                                 #el_wrapper=self.el_wrapper[j],
+                                                                                 #annual_demand=self.annual_el_demand[j])
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
             # currently only one car per building possible
             self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']['f_EV'])
