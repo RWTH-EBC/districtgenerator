@@ -1,0 +1,14 @@
+numpy>=1.20.1
+pandas>=1.2.3
+matplotlib>=3.3.4
+scipy>=1.6.1
+teaser==0.7.7
+richardsonpy
+pylightxl
+gurobipy>=9.5.1
+xlsxwriter~=3.2.0
+geopy~=2.4.1
+pyproj~=3.7.0
+openpyxl==3.1.5
+seaborn==0.13.2
+OpenDHW>=0.2.2
