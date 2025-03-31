@@ -100,7 +100,7 @@ class Datahandler:
             for subData in jsonData:
                 self.site[subData["name"]] = subData["value"]
 
-                # %% load time information and requirements (used in generateEnvironment)
+        # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
         with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
             jsonData = json.load(json_file)
@@ -303,22 +303,58 @@ class Datahandler:
         duration = datetime.timedelta(minutes=1)
         num_sfh = 0
         num_mfh = 0
+        name_pool = []
 
         # initialize buildings for scenario
         # loop over all buildings
         for id in self.scenario["id"]:
-            # create empty dict for observed building
-            building = {}
+            try:
+                # Check if ID is a number
+                try:
+                    # Try to convert id to float to check if it's numeric
+                    float(id)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Building ID '{id}' is not a number")
 
-            # store features of the observed building
-            building["buildingFeatures"] = self.scenario.loc[id]
+                # Create empty dict for observed building
+                building = {}
 
-            # append building to district
-            self.district.append(building)
+                # Store features of the observed building
+                building["buildingFeatures"] = self.scenario.loc[id]
 
-            # Count number of builidings to predict the approximate calculation time
-            if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH': num_sfh +=1
-            elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB': num_mfh +=1
+                # %% Create unique building name
+                # needed for loading and storing data with unique name
+                # name is composed of building id, and building type
+                name = str(id) + "_" + building["buildingFeatures"]["building"]
+
+                # Check if the name is already in the district
+                if name in name_pool:
+                    raise ValueError(f"Building name '{name}' is not unique. ID collision detected.")
+
+                name_pool.append(name)
+
+                # Assign the unique name to the building
+                building["unique_name"] = name
+
+                # Append building to district
+                self.district.append(building)
+
+                # Count number of builidings to predict the approximate calculation time
+                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH':
+                    num_sfh +=1
+                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB':
+                    num_mfh +=1
+            except ValueError as e:
+                # Handle the case where we have a duplicate name
+                print(f"Error: {e}")
+                print(f"The building ID must be a unique number to ensure proper identification and data tracking.")
+                print(f"Building with ID {id} will be skipped and not added to the district")
+                continue
+            except Exception as e:
+                # Handle any other unexpected errors
+                print(f"Unexpected error processing building ID {id}: {e}")
+                print(f"Building with ID {id} will be skipped and not added to the district.")
+                continue
 
         # Calculate calculation time for the whole district generation
         duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
@@ -355,8 +391,8 @@ class Datahandler:
                                 usage=building_type,
                                 name="ResidentialBuildingTabula",
                                 year_of_construction=building["buildingFeatures"]["year"],
-                                number_of_floors=building["buildingFeatures"]["number_of_floors"],
-                                height_of_floors=building["buildingFeatures"]["height"]/building["buildingFeatures"]["number_of_floors"],
+                                number_of_floors=3,
+                                height_of_floors=3.125,
                                 net_leased_area=building["buildingFeatures"]["area"],
                                 construction_type=retrofit_level)
 
@@ -372,8 +408,7 @@ class Datahandler:
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"],
-                                     elec=building["buildingFeatures"]["elec"])
+                                     area=building["buildingFeatures"]["area"])
 
             # %% calculate design heat loads
             # at norm outside temperature
@@ -413,18 +448,7 @@ class Datahandler:
         None.
         """
 
-
-        set = []
         for building in self.district:
-            # %% create unique building name
-            # needed for loading and storing data with unique name
-            # name is composed of building type, number of flats, serial number of building of this properties
-            name = building["buildingFeatures"]["building"] + "_" + str(building["user"].nb_flats)
-            if name not in set:
-                set.append(name)
-                self.counter[name] = count()
-            nb = next(self.counter[name])
-            building["unique_name"] = name + "_" + str(nb)
 
             # calculate or load user profiles
             if calcUserProfiles:
@@ -436,12 +460,31 @@ class Datahandler:
                                               path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
-                    building["user"].saveProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                    self.saveProfiles(name=building["unique_name"],
+                                      elec=building["user"].elec,
+                                      dhw= building["user"].dhw,
+                                      occ= building["user"].occ,
+                                      gains= building["user"].gains,
+                                      car= building["user"].car,
+                                      nb_flats= building["user"].nb_flats,
+                                      nb_occ= building["user"].nb_occ,
+                                      heatload= building["envelope"].heatload,
+                                      bivalent= building["envelope"].bivalent,
+                                      heatlimit= building["envelope"].heatlimit,
+                                      path=os.path.join(self.resultPath, 'demands'))
+                    #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
                 print("Calculate demands of building " + building["unique_name"])
 
             else:
-                building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                (building["user"].elec, building["user"].dhw,
+                 building["user"].occ, building["user"].gains,
+                 building["user"].car, building["user"].nb_flats,
+                 building["user"].nb_occ, building["envelope"].heatload,
+                 building["envelope"].bivalent,
+                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                                                                     os.path.join(self.resultPath, 'demands'))
+                #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
 
             # check if EV exist
@@ -454,18 +497,26 @@ class Datahandler:
 
             night_setback = building["buildingFeatures"]["night_setback"]
 
-            # calculate heating profiles
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                night_setback=night_setback,
-                                                holidays=self.time["holidays"],
-                                                time_resolution=self.time["timeResolution"]
-                                                )
+            # calculate or load heating profiles
+            if calcUserProfiles:
+                building["user"].calcHeatingProfile(site=self.site,
+                                                    envelope=building["envelope"],
+                                                    night_setback=night_setback,
+                                                    holidays=self.time["holidays"],
+                                                    time_resolution=self.time["timeResolution"]
+                                                    )
 
-            if saveUserProfiles:
-                building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-
-
+                if saveUserProfiles:
+                    self.saveHeatingProfile(heat=building["user"].heat,
+                                            cooling=building["user"].cooling,
+                                            name=building["unique_name"],
+                                            path=os.path.join(self.resultPath, 'demands'))
+                    #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+            else:
+                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                                                         path=os.path.join(self.resultPath, 'demands'))
+                building["user"].heat = heat
+                building["user"].cooling = cooling
 
         print("Finished generating demands!")
 
@@ -518,6 +569,140 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
+    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, path):
+        """
+        Save profiles to csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        other_data = [nb_flats, str(nb_occ)[1:-1], heatload, bivalent, heatlimit]
+
+        data_dict = {
+            'elec': (elec, "Electricity demand in W"),
+            'dhw': (dhw, "Drinking hot water in W"),
+            'occ': (occ, "Occupancy of persons"),
+            'gains': (gains, "Internal gains in W"),
+            'car': (car, "Electricity demand of EV in W"),
+            'other': (other_data, "Number of flats , "
+                                  "Number of occupants, "
+                                  "Design heat load in W, "
+                                  "Bivalent heat load in W, "
+                                  "Heat limit heat load in W"),
+        }
+
+        excel_file = os.path.join(path, name + '.xlsx')
+        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+            for sheet_name, (data, header) in data_dict.items():
+                df = pd.DataFrame(data)
+                df.to_excel(writer, sheet_name=sheet_name, index=False, header=header)
+
+    def saveHeatingProfile(self, heat, cooling, name, path):
+        """
+        Save heating demand to csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, name + '.xlsx')
+        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            cooling_df = pd.DataFrame(cooling)
+            heating_df = pd.DataFrame(heat)
+            cooling_df.to_excel(writer, sheet_name='cooling', index=False, header='Cooling in W')
+            heating_df.to_excel(writer, sheet_name='heating', index=False, header='Heating in W')
+
+    def loadProfiles(self, name, path):
+        """
+        Load profiles from csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, name + '.xlsx')
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+
+        def load_sheet_to_numpy(workbook, sheet_name):
+            sheet = workbook[sheet_name]
+            data = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                data.append(row[0])
+            return np.array(data)
+
+        elec = load_sheet_to_numpy(workbook, 'elec')
+        dhw = load_sheet_to_numpy(workbook, 'dhw')
+        occ = load_sheet_to_numpy(workbook, 'occ')
+        gains = load_sheet_to_numpy(workbook, 'gains')
+        car = load_sheet_to_numpy(workbook, 'car')
+        other_data = load_sheet_to_numpy(workbook, 'other')
+        nb_flats = int(other_data[0])
+        nb_occ = np.fromstring(other_data[1], dtype=int, sep=',')
+        heatload = float(other_data[2])
+        bivalent = float(other_data[3])
+        heatlimit = float(other_data[4])
+
+        workbook.close()
+
+        return elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit
+
+    def loadHeatingProfiles(self, name, path):
+        """
+        Load profiles from csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, name + '.xlsx')
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+
+        def load_sheet_to_numpy(workbook, sheet_name):
+            sheet = workbook[sheet_name]
+            data = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                data.append(row[0])
+            return np.array(data)
+
+        heat = load_sheet_to_numpy(workbook, 'heating')
+        cooling = load_sheet_to_numpy(workbook, 'cooling')
+
+        workbook.close()
+
+        return heat, cooling
 
     def designDecentralDevices(self, saveGenerationProfiles=True):
         """

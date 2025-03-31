@@ -380,8 +380,6 @@ class Envelope:
             self.d_iso["opaque"][x] = sum(self.d["opaque"][x])
         # Compute U and kappa for each component
         for x in self.opaque_ext:
-            if self.d["opaque"] == None: 
-                break
             self.kappa["opaque"][x] = self.specificHeatCapacity(
                 self.d["opaque"][x],
                 self.d_iso["opaque"][x],
