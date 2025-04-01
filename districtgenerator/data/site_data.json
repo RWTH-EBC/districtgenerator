@@ -3,30 +3,30 @@
     "name": "timeZone",
     "value": 1,
     "unit": "h",
-    "description": "Shift between the location's time and GMT in hours. CET would be 1."
+    "description": "Time zone offset from GMT (e.g. CET is 1)."
   },
   {
     "name": "albedo",
     "value": 0.2,
-    "unit": "-",
-    "description": "Ground reflectance. 0 refers to 0% and 1 refers to 100%."
+    "unit": "",
+    "description": "Ground reflectance (0 = 0%, 1 = 100%)."
   },
   {
     "name": "TRYYear",
     "value": "TRY2015",
-    "unit": "-",
-    "description": "Test referece year of DWD. Possible entries are TRY2015 and TRY2045."
+    "unit": "",
+    "description": "Test reference year (e.g. TRY2015 or TRY2045)."
   },
   {
     "name": "TRYType",
     "value": "Jahr",
-    "unit": "-",
-    "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
+    "unit": "",
+    "description": "Test reference condition (e.g. Jahr, Somm, Wint)."
   },
   {
     "name": "zip",
-    "value": "52064",
-    "unit": "-",
+    "value": "52078",
+    "unit": "",
     "description": "Zip code of the location."
   }
 ]

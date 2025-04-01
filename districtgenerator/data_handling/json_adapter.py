@@ -1,6 +1,8 @@
 import json
 from typing import Any, Dict, List
 from districtgenerator.data_handling.config import LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, BuildingConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
+from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
+from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
 class JSONDataAdapter:
     def __init__(self, json_data: Dict[str, Any]):
@@ -148,3 +150,21 @@ class JSONDataAdapter:
             co2_waste=eco_data.get("co2_waste", 0.0),
             co2_hydrogen=eco_data.get("co2_hydrogen", 0.0)
         )
+
+    def get_central_device_config(self) -> CentralDeviceConfig:
+        tech_data = self.data.get("central_device_config", {})
+        kwargs = {}
+        for key, value in tech_data.items():
+            # Replace the dot with underscore to match our dataclass field names.
+            new_key = key.replace(".", "_")
+            kwargs[new_key] = value
+        return CentralDeviceConfig(**kwargs)
+
+    def get_decentral_device_config(self) -> DecentralDeviceConfig:
+        tech_data = self.data.get("decentral_device_config", {})
+        kwargs = {}
+        for key, value in tech_data.items():
+            # Replace dots with underscores to match the dataclass field names.
+            new_key = key.replace(".", "_")
+            kwargs[new_key] = value
+        return DecentralDeviceConfig(**kwargs)

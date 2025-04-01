@@ -81,7 +81,6 @@
     "ASHP_carnot_eff": 0.4,
     "ASHP_supply_temp": 60,
     "COP_const": 4
-
   },
   "EB": {
     "feasible": true,
@@ -171,7 +170,7 @@
   "H2S": {
     "feasible": false,
     "inv_var": 1200,
-    "sto_loss": 0,
+    "sto_loss": 0.0,
     "life_time": 20,
     "cost_om": 0.02,
     "min_cap": 100,
@@ -215,7 +214,7 @@
     "cost_om": 0.02,
     "min_cap": 10,
     "max_cap": 200,
-    "sto_loss": 0,
+    "sto_loss": 0.0,
     "soc_init": 0.5
   },
   "GS": {
@@ -225,7 +224,7 @@
     "cost_om": 0.01,
     "min_cap": 1000,
     "max_cap": 10000,
-    "sto_loss": 0,
+    "sto_loss": 0.0,
     "soc_init": 0.5
   }
 }

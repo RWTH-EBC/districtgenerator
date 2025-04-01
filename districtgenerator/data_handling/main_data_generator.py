@@ -8,6 +8,10 @@ from districtgenerator.data_handling.physics_data_generator import PhysicsDataGe
 from districtgenerator.data_handling.EHDO_generator import EHDOGenerator
 from districtgenerator.data_handling.gurobi_generator import GurobiGenerator
 from districtgenerator.data_handling.heat_grid_data_generator import HeatGridDataGenerator
+from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
+from districtgenerator.data_handling.central_device_generator import CentralDeviceDataGenerator
+from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
+from districtgenerator.data_handling.decentral_device_data_generator import DecentralDeviceDataGenerator
 from districtgenerator.data_handling.json_adapter import JSONDataAdapter
 from typing import Dict, Any
 import json
@@ -24,7 +28,9 @@ class DataGenerator:
                  EHDO_config: EHDOConfig = None,
                  physics_config: PhysicsConfig = None,
                  gurobi_config: GurobiConfig = None,
-                 heat_grid_config: HeatGridConfig = None):
+                 heat_grid_config: HeatGridConfig = None,
+                 central_device_config: CentralDeviceConfig = None,
+                 decentral_device_config = None):
         self.location_config = location_config
         self.building_config = building_config
         self.time_config = time_config if time_config is not None else TimeConfig()
@@ -34,6 +40,9 @@ class DataGenerator:
         self.EHDO_config = EHDO_config if EHDO_config is not None else EHDOConfig()  
         self.gurobi_config = gurobi_config if gurobi_config is not None else GurobiConfig()
         self.heat_grid_config = heat_grid_config if heat_grid_config is not None else HeatGridConfig()
+        self.central_device_config = central_device_config if central_device_config is not None else CentralDeviceConfig()
+        self.decentral_device_config = decentral_device_config if decentral_device_config is not None else DecentralDeviceConfig()
+        self.decentral_device_data_gen = DecentralDeviceDataGenerator(self.decentral_device_config)
 
         self.site_data_gen = SiteDataGenerator(self.location_config)
         self.time_data_gen = TimeDataGenerator(self.time_config)
@@ -44,6 +53,7 @@ class DataGenerator:
         self.EHDO_data_gen = EHDOGenerator(self.EHDO_config)
         self.gurobi_data_gen = GurobiGenerator(self.gurobi_config)
         self.heat_grid_data_gen = HeatGridDataGenerator(self.heat_grid_config)
+        self.central_device_data_gen = CentralDeviceDataGenerator(self.central_device_config)
 
     def save_files(self, output_path: str = "/home/ubuntu/daten_modell/examples/files/"):
         # Save site data to JSON
@@ -89,4 +99,14 @@ class DataGenerator:
         building_data = self.building_data_gen.generate_building_data()
         df = pd.DataFrame(building_data)
         df.to_csv(f"{output_path}example.csv", sep=";", index=False)
+
+        # Save central device data to JSON
+        cd_data = self.central_device_data_gen.generate_tech_data()
+        with open(f"{output_path}central_device_data.json", "w", encoding="utf-8") as f:
+            json.dump(cd_data, f, indent=2, ensure_ascii=False)
+
+        # Save decentral device data to JSON
+        dd_data = self.decentral_device_data_gen.generate_tech_data()
+        with open(f"{output_path}decentral_device_data.json", "w", encoding="utf-8") as f:
+            json.dump(dd_data, f, indent=2, ensure_ascii=False)
 

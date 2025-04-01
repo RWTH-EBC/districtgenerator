@@ -20,8 +20,11 @@ districtgenerator/classes/users.py
 districtgenerator/data_handling/EHDO_generator.py
 districtgenerator/data_handling/__init__.py
 districtgenerator/data_handling/building_data_generator.py
+districtgenerator/data_handling/central_device_config.py
+districtgenerator/data_handling/central_device_generator.py
 districtgenerator/data_handling/config.py
-districtgenerator/data_handling/data_generator.py
+districtgenerator/data_handling/decentral_device_config.py
+districtgenerator/data_handling/decentral_device_data_generator.py
 districtgenerator/data_handling/design_building_data_generator.py
 districtgenerator/data_handling/eco_data_generator.py
 districtgenerator/data_handling/gurobi_generator.py
