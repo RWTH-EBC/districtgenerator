@@ -307,7 +307,7 @@ class Profiles:
 
         dhw_profile = OpenDHW.generate_dhw_profile(
             s_step=60,
-            categories=4,
+            categories=1,
             occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
             building_type=self.building,
             weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
@@ -464,17 +464,17 @@ class Profiles:
                   + 'seconds . You need to change the resolution, first!'
             raise AssertionError(msg)
 
-        _timestep_rich = 60  # timesteps in seconds
+        _timestep_rich = 600  # timesteps in seconds
 
         # number of timesteps per day for given time resolution
         timesteps_per_Day = int(86400 / self.time_resolution)
 
-        # Array holding index of timesteps (60 second timesteps)
-        # Irradiance is needed for every minute of the day
-        required_timestamp = np.arange(1440)
+        # Array holding index of timesteps (600 second timesteps)
+        # Irradiance is needed for every 10 minutes of the day
+        required_timestamp = np.arange(144)
 
         # Array holding each timestep in seconds
-        # the timesteps of the irradiance array in minutes
+        # the timesteps of the irradiance array in 10minutes
         given_timestamp = self.time_resolution / _timestep_rich * np.arange(timesteps_per_Day)
 
         #  Loop over all days
@@ -483,8 +483,8 @@ class Profiles:
             #  Extract array with radiation for each timestep of day
             irrad_day = irradiance[timesteps_per_Day * i: timesteps_per_Day * (i + 1)]
 
-            #  Interpolate radiation values for required timestep of 60 seconds
-            irrad_day_minutewise = np.interp(required_timestamp, given_timestamp, irrad_day)
+            #  Interpolate radiation values for required timestep of 600 seconds
+            irrad_day_10minutewise = np.interp(required_timestamp, given_timestamp, irrad_day)
 
             # Extract current occupancy profile for current day
             # We assume occupancy for a single main room, as each main room operates independently.
@@ -506,11 +506,10 @@ class Profiles:
 
             # Extract current occupancy profile for current day
             # (10-minutes-timestep assumed)
-            current_occupancy = np.round(np.interp(np.arange(144), given_timestamp/10, occ_profile_building_part)).astype(int)
+            current_occupancy = np.round(np.interp(np.arange(144), given_timestamp, occ_profile_building_part)).astype(int)
 
-            day_of_the_year = 0 # only necessary for electric heating
             # Perform lighting usage simulation for one day
-            light_p_curve = el_wrapper.power_sim_lighting(irradiation=irrad_day_minutewise, occupancy=current_occupancy)
+            light_p_curve = el_wrapper.power_sim_lighting(irradiation=irrad_day_10minutewise, occupancy=current_occupancy)
 
             # Append results
             self.light_load.append(light_p_curve)
@@ -615,7 +614,7 @@ class Profiles:
         return gains_persons, gains_others
 
 
-    def generate_EV_profile(self, building, holidays, occ):
+    def generate_ev_profile(self, building, holidays):
         """
             Generate daily EV charging demand (distinguishing between workdays and non-workdays) and return an annual load curve.
 
@@ -624,119 +623,178 @@ class Profiles:
             car_loadcurve : np.array
                 EV electricity demand curve (in W) for nb_days * (86400 / time_resolution) timesteps.
             """
-        battery_capacity_Wh = building["buildingFeatures"]["f_EV"]  # all car have the same battery capacity
+
+        if self.building in {"SFH", "TH", "MFH", "AB"}:
+            occ_profile = self.occ_profile
+        elif self.building in {"OB"}:
+            occ_profile = self.occ_profile_building
 
         # Calculate the number of timesteps per day
-        array = int(len(occ) / self.nb_days)
-        total_steps = int(len(occ))
+        array = int(len(occ_profile) / self.nb_days)
+        total_steps = int(len(occ_profile))
 
-        # Define the possible daily distances (in km)
-        # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile <https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile>
-        # Tabelle A A10.2 Gesamtstrecke des Pkw am Stichtag (genutzte Pkw)
-        distance_intervals = [
-            (0, 5),  # 0-5 km
-            (5, 10),
-            (10, 20),
-            (20, 30),
-            (30, 50),
-            (50, 100),
-            (100, 200),
-            (200, 600)]
-
-        # Define the corresponding probabilities for each distance (must sum to 1)
-        weekday_distance_probs = [0.08, 0.11, 0.19, 0.14, 0.20, 0.19, 0.06, 0.03]
-        not_working_day_probs = [0.13, 0.12, 0.19, 0.11, 0.15, 0.16, 0.10, 0.04]
-
-        # Define a function to generate random distance
-        def random_distance(intervals, probs):
-
-            idx = np.random.choice(len(intervals), p=probs)
-            low, high = intervals[idx]
-
-            dist = np.random.uniform(low, high)
-            return dist
-
-        # define consumption rate
-        consumption_per_km = 147  # wh/km #to be changed
-
-        #generate number of cars for every family
-        def generate_car_count(household_size):
-            # Car distribution probabilities (excluding the case of 0 cars)
-            car_distribution = {
-                1: [0.57, 0.02, 0.00],  # 1-person household
-                2: [0.61, 0.27, 0.01],  # 2-person household
-                3: [0.40, 0.41, 0.10],  # 3-person household
-                4: [0.35, 0.48, 0.11],  # 4-person household
-                5: [0.36, 0.41, 0.15]  # 5+ person household
-            }
-
-            # Normalize the probability distribution to ensure the sum equals 1
-            probabilities = np.array(car_distribution[household_size])
-            probabilities /= probabilities.sum()
-
-            # Define car count categories (1, 2, or 3 cars)
-            car_counts = np.arange(1, len(probabilities) + 1)
-
-            # Perform random sampling based on probabilities
-            return np.random.choice(car_counts, p=probabilities)
-
-        # initial load curve
+        # Car demand profile
         car_demand_total = np.zeros(total_steps)
+        # Total EV battery capacity in every flat
+        ev_capacity = []
 
-        # Iterate through all days, distinguishing workdays and non-workdays ======
-        for day in range(self.nb_days):
-            # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
-            if (day + self.initial_day) % 7 in (5, 6) or day + 1 in holidays:
-                not_working_day = True
-            else:
-                not_working_day = False
-                # treat every flats in MFH as SFH
+        # Define the possible total driving distances per day (in km)
+        # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
+        # Table A A10.2
+        distance_intervals = [(0, 5),  # 0-5 km
+                            (5, 10),
+                            (10, 20),
+                            (20, 30),
+                            (30, 50),
+                            (50, 100),
+                            (100, 200)] #Assumption: No use beyond 200 km
 
-            # slice occupancy profile for current day
-            occ_day = occ[day * array:(day + 1) * array]
-            daily_demand = np.zeros(len(occ_day))
-            nobody_home = np.where(occ_day == 0.0)
+        # Define the corresponding probabilities for each distance
+        weekday_distance_probs = np.array([0.08, 0.11, 0.19, 0.14, 0.20, 0.19, 0.06])
+        not_working_day_probs = np.array([0.13, 0.12, 0.19, 0.11, 0.15, 0.16, 0.10])
+        weekday_distance_probs /= weekday_distance_probs.sum()
+        not_working_day_probs /= not_working_day_probs.sum()
 
-            try:
-                # assumption: car returns shortly after the last time step when nobody is home
-                car_arrive = nobody_home[0][-1]
-            except:
-                # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
-                car_arrive = array - int(array / 4)
+        # Define the possible one-way driving distances to work per day (in km) (not including the return trip)
+        # https://www.destatis.de/DE/Themen/Arbeit/Arbeitsmarkt/Erwerbstaetigkeit/Tabellen/pendler1.html
+        distance_work = [(0, 5),  # 0-5 km
+                         (5, 10),
+                         (10, 25),
+                         (25, 50)]
 
-            # Select the driving distance distribution for the day
-            if not_working_day:
-                distance_probs = not_working_day_probs
-            else:
-                distance_probs = weekday_distance_probs
+        distance_work_probs = np.array([26.6, 21.8, 29.1, 14.1])
+        distance_work_probs /= distance_work_probs.sum()
 
-            # Sample the daily driving distance
-            if building["buildingFeatures"]["EV"] == 0:
-                number_of_EV = 0
-            else:
-                number_of_EV = generate_car_count(self.number_occupants)
+        # Define Car Segment
+        # https://ev-database.org/cheatsheet/range-electric-car
+        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(srcPath, 'data', 'car_segment.json')) as json_file:
+            segments = json.load(json_file)
+        segment_names = list(segments.keys())
+        # Source of the proportions: https: // www.kba.de / DE / Statistik / Fahrzeuge / Bestand / Segmente / segmente_node.html
+        segment_names_probs = [segments[name]["proportion"] for name in segment_names]
 
-            # calculate how many people go out in the same time in one day.
-            mobile_person = max(occ_day) - min(occ_day)
+        # Normalize proportions (ensure sum equals 1)
+        total_prob = sum(segment_names_probs)
+        normalized_probs = [p / total_prob for p in segment_names_probs]
 
-            # the prob of not using the car
-            # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile <https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile>
-            # Tabelle 7 Anteil Personen, die ein Verkehrsmittel am Stichtag nutzen und Tagesstrecke mit diesem Verkehrsmittel
-            if number_of_EV > 0:
-                prob_car_not_used = (1 - (0.48 / number_of_EV)) ** mobile_person
+        # generate number of cars for every flat
+        def generate_nb_ev(number_of_occupancy):
 
-                # Iterate through all cars in a building
-                for j in range(number_of_EV):
-                    daily_dist = 0
-                    if np.random.rand() > prob_car_not_used:
-                        daily_dist += random_distance(distance_intervals, distance_probs)
+            ev_ratio = building["buildingFeatures"]["EV"]  # the ratio between EV and total cars
+            if self.building in {"SFH", "TH", "MFH", "AB"}:
+                # Car distribution probabilities (excluding the case of 0 cars)
+                # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
+                # Table A H8
+                car_distribution = {
+                    1: [0.57, 0.02, 0.00],  # 1-person household
+                    2: [0.61, 0.27, 0.01],  # 2-person household
+                    3: [0.40, 0.41, 0.10],  # 3-person household
+                    4: [0.35, 0.48, 0.11],  # 4-person household
+                    5: [0.36, 0.41, 0.15]  # 5+ person household
+                }
+
+                household_size = min(number_of_occupancy, 5)  # 5+ household treated as 5
+
+                # Normalize the distribution to ensure the sum equals 1
+                probabilities = np.array(car_distribution[household_size])
+                probabilities /= probabilities.sum()
+
+                # Define car count categories (1, 2, or 3 cars)
+                car_interval = np.arange(1, 4)
+
+                # Perform random sampling based on probabilities(ICE-cars and EV)
+                total_car = np.random.choice(car_interval, p=probabilities)
+
+                # Number of EV: based on ratio between EV and all cars in input
+                nb_ev = sum(1 for car in range(total_car) if np.random.rand() < ev_ratio)
+
+            elif self.building in {"OB"}:
+                # https://www.destatis.de/DE/Themen/Arbeit/Arbeitsmarkt/Erwerbstaetigkeit/Tabellen/pendler1.html
+                nb_ev = int(np.round(ev_ratio * number_of_occupancy * 0.68))  # 68% of people commute to work by car.
+
+            return nb_ev
+
+        # generate number of EV
+        number_of_ev = generate_nb_ev(max(occ_profile))
+
+        if self.building in {"SFH", "TH", "MFH", "AB"}:
+            # Randomly select a segment based on probabilities
+            for car in range(number_of_ev):
+                segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
+                consumption_per_km = np.random.normal(segment_data["energy_mean"], segment_data["energy_std"])
+                battery_capacity = 1000 * np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]) #Wh
+                ev_capacity.append(battery_capacity)
+
+                # Iterate through all days, distinguishing workdays and non-workdays ======
+                for day in range(self.nb_days):
+                    # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
+                    if (day + self.initial_day) % 7 in (5, 6) or day + 1 in holidays:
+                        not_working_day = True
                     else:
-                        daily_dist += 0
+                        not_working_day = False
 
-                    # Compute daily charging demand (Wh), capping it at battery capacity
-                    consumption_today_Wh = min(daily_dist * consumption_per_km, battery_capacity_Wh)
-                    daily_demand[car_arrive] = consumption_today_Wh
+                    # slice occupancy profile for current day
+                    occ_day = occ_profile[day * array:(day + 1) * array]
+                    daily_demand = np.zeros(len(occ_day))
+                    nobody_home = np.where(occ_day == 0.0)
+
+                    # Select the driving distance distribution for the day
+                    distance_probs = not_working_day_probs if not_working_day else weekday_distance_probs
+
+                    # calculate how many people go out maximum in the same time in one day.
+                    mobile_person = max(occ_profile) - min(occ_day)
+                    try:
+                        # assumption: car returns shortly after the last time step when nobody is home
+                        car_arrive = nobody_home[0][-1]
+                    except:
+                        # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
+                        car_arrive = array - int(array / 4)
+
+                    # the prob of not using the car
+                    # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
+                    # Table 7
+                    if number_of_ev > 0:
+                        prob_car_not_used = (1 - (0.48 / number_of_ev)) ** mobile_person  # 48% People use car during day
+
+                        daily_dist = np.random.uniform(*distance_intervals[np.random.choice(len(distance_intervals),
+                                                                                            p=distance_probs)]) if np.random.rand() > prob_car_not_used else 0
+
+                        # Compute daily charging demand (Wh), capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
+                        # The commuting one-way driving distance to work accounts for 21%/2 of the total daily distance.
+                        # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
+                        # Table 8
+                        consumption = min(daily_dist * consumption_per_km * (1 - 0.105), battery_capacity * 0.9)
+                        daily_demand[car_arrive] = consumption
+
                     # add current day to demand for all days
-                    car_demand_total[day * array:(day + 1) * array] = daily_demand
+                    car_demand_total[day * array:(day + 1) * array] += daily_demand
 
-        return car_demand_total
+        elif self.building in {"OB"}:
+
+            # Only the consumption related to commuting is charged in the workplace.
+            # Find the first time index where occ_day is not 0 (i.e., the first person arrives at work)
+            for car_OB in range(number_of_ev):
+                segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
+                consumption_per_km = np.random.normal(segment_data["energy_mean"], segment_data["energy_std"])
+                battery_capacity = 1000 * np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]) # Wh
+                ev_capacity.append(battery_capacity)
+
+                dist_OB = np.random.uniform(*distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
+                consumption = min(dist_OB * consumption_per_km, battery_capacity * 0.9)  # Wh; Capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
+
+                for day in range(self.nb_days):
+                    # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
+                    if (day + self.initial_day) % 7 not in (5, 6) and (day + 1 not in holidays):
+                        occ_day = occ_profile[day * array:(day + 1) * array]
+                        daily_demand = np.zeros(len(occ_day))
+                        try:
+                            car_arrive = np.where(occ_day != 0.0)[0][0]
+                        except:
+                            car_arrive = None
+                        daily_demand[car_arrive] = consumption
+                        # add current day to demand for all days
+                        car_demand_total[day * array:(day + 1) * array] += daily_demand
+
+        return car_demand_total, ev_capacity
+

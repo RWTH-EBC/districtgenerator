@@ -11,7 +11,7 @@
     },
     {
         "name": "enable_price_cap_el",
-        "value": false,
+        "value": true,
         "unit": " - ",
         "description" : "Enable electricity capacity price."
     },
@@ -156,7 +156,7 @@
         "name": "peak_dem_met_conv",
         "value": true,
         "unit": "-",
-        "description" : "Meet peak demands of unclustered demands"
+        "description": "Meet peak demands of unclustered demand. If true, the total capacity of all power producers (including renewables) must be higher than the peak demand. If false, only the capacity of non-renewable-based producers must exceed the peak demand."
     },
     {
         "name": "co2_tax",
@@ -176,12 +176,6 @@
         "unit": "kg/kWh",
         "description" : "CO₂ emission credit for gas feed-in."
     },
-
-
-
-
-
-
     {
         "name": "optim_focus",
         "value": 0,
@@ -199,11 +193,5 @@
         "value": 20,
         "unit": "years",
         "description" : "Project lifetime. The project lifetime affects annualization of investments according to VDI 2067."
-    },
-    {
-        "name": "n_clusters",
-        "value": 12,
-        "unit": "days",
-        "description" : "Number of design days."
     }
 ]

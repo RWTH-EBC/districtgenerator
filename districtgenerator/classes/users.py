@@ -91,6 +91,8 @@ class Users:
         self.gains = None
         self.heat = None
         self.cooling = None
+        self.car = None
+        self.ev_capacity = None
 
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data()
@@ -623,6 +625,7 @@ class Users:
             self.elec = np.zeros(int(time_horizon / time_resolution))
             self.gains = np.zeros(int(time_horizon / time_resolution))
             self.car = np.zeros(int(time_horizon / time_resolution))
+            self.ev_capacity = []
 
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
@@ -638,7 +641,9 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
-            self.car = self.car + temp_obj.generate_EV_profile(building=building, occ=self.occ, holidays=holidays)
+                carprofile, ev_capacity = temp_obj.generate_ev_profile(building=building, holidays=holidays)
+                self.car = self.car + carprofile
+                self.ev_capacity += ev_capacity
 
         else:
             temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
@@ -650,9 +655,9 @@ class Users:
             self.gains = gains_persons + gains_others
 
             self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
-            self.car = temp_obj.generate_EV_profile(building=building, occ=self.occ, holidays=holidays)
+            self.car, self.ev_capacity = temp_obj.generate_ev_profile(building=building, holidays=holidays)
 
-    def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
+    def calcHeatingProfile(self, site, envelope, night_setback, is_cooled, holidays, time_resolution):
         """
         Calculate heat demand for each building.
 
@@ -664,9 +669,10 @@ class Users:
             Containing all physical data of the envelope.
         time_resolution : integer
             Resolution of time steps of output array in seconds.
-        Q_HC : float
-            Heating (positive) or cooling (negative) load for the current time
-            step in Watt.
+        Q_H : float
+            Heating load for the current time step in Watt.
+        Q_C : float
+            Cooling load for the current time step in Watt.
 
         Returns
         -------
@@ -680,6 +686,11 @@ class Users:
                                                                          self.building)
         elif night_setback == 0:
             (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+
+        # Force cooling to zero if building is not actively cooled
+        if is_cooled == 0:
+            Q_C = np.zeros_like(Q_C)
+
         # heating and cooling loads for the current time step in Watt
         self.heat = Q_H
         self.cooling = Q_C

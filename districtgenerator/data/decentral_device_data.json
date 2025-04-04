@@ -1,5 +1,37 @@
 [
   {
+  "device": "compression chiller" ,
+  "abbreviation": "CC" ,
+  "description": "Air-to-water compression chiller." ,
+  "specifications": [
+    {
+      "name": "grade" ,
+      "value": 0.4 ,
+      "unit": "-" ,
+      "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
+    },
+        {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 700,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.02,
+      "unit": "percentage",
+      "description": ""
+    }
+  ]
+  },
+
+  {
   "device": "heat pump" ,
   "abbreviation": "HP" ,
   "description": "Air-to-water heat pump." ,
@@ -19,7 +51,7 @@
     {
       "name": "inv_var",
       "value": 1000,
-      "unit": "€/liter",
+      "unit": "€/kW",
       "description": ""
     },
     {
@@ -292,7 +324,7 @@
       "name": "eta_standby",
       "value": 0.97,
       "unit": "-",
-      "description": "Standby efficiency."
+      "description": "Standby hourly efficiency (to consider the self-discharge)."
     },
     {
       "name": "eta_ch",
@@ -361,7 +393,7 @@
       "name": "eta_standby",
       "value": 0.97,
       "unit": "-",
-      "description": "Standby efficiency."
+      "description": "Standby hourly efficiency (to consider the self-discharge)."
     },
     {
       "name": "eta_ch",
@@ -377,7 +409,7 @@
     },
     {
       "name": "init",
-      "value": 0.2,
+      "value": 0.5,
       "unit": "-",
       "description": "Initial state of charge."
     },
@@ -422,7 +454,7 @@
       "name": "eta_standby",
       "value": 1.0,
       "unit": "-",
-      "description": "Standby efficiency."
+      "description": "Standby hourly efficiency (to consider the self-discharge)."
     },
     {
       "name": "eta_ch",
@@ -432,13 +464,13 @@
     },
         {
       "name": "coeff_ch",
-      "value": 1.2,
+      "value": 0.1,
       "unit": "Watt per Watthour",
       "description": "Charging and discharging coefficient."
     },
     {
       "name": "init",
-      "value": 0.2,
+      "value": 0.5,
       "unit": "-",
       "description": "Initial state of charge."
     },

@@ -56,8 +56,12 @@ def exemplary_plot(data):
     # Unit conversion [kWh]
     heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
 
+    # Calculate frequency in hours
+    freq_hours = data.time["timeResolution"] / 3600
+    freq_str = f'{freq_hours}H'
+
     # Create a dataframe that contains the timestamps
-    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='1h')
+    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq=freq_str)
     df = pd.DataFrame(heat, index=date_range, columns=['Value'])
 
     # Aggregate the data on a monthly basis (totalled value per month)

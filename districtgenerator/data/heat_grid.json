@@ -1,22 +1,27 @@
-[    
-  {
-    "name" : "T_hot",
-    "value": 332.15,
-    "unit": "K",
-    "description" : "flow temperature of heat grid"
+{
+  "T_hot_heating_network": {
+    "value": 60,
+    "unit": "°C",
+    "description": "flow temperature of heat grid"
   },
-    
-  {
-    "name" : "T_cold",
-    "value": 323.15,
-    "unit": "K",
-    "description" : "return temperature of heat grid"
+  "T_cold_heating_network": {
+    "value": 50,
+    "unit": "°C",
+    "description": "return temperature of heat grid"
   },
-    
-  {
-    "name" : "delta_T_heatTransfer",
+  "T_hot_cooling_network": {
+  "value": 12,
+  "unit": "°C",
+  "description": "return temperature of cooling grid"
+  },
+  "T_cold_cooling_network": {
+  "value": 6,
+  "unit": "°C",
+  "description": "flow temperature of cooling grid"
+  },
+  "delta_T_heatTransfer": {
     "value": 5,
     "unit": "K",
-    "description" : "temperature difference in heat exchangers"
+    "description": "temperature difference in heat exchangers"
   }
-]
+}

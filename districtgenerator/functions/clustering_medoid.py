@@ -40,7 +40,7 @@ def _distances(values, norm=2):
     return d
 
 
-def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None):
+def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None, scalings=None):
     """
     Cluster a set of inputs into clusters by solving a k-medoid problem.
 
@@ -90,6 +90,11 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
         elif not sum(weights) == 1:  # Rescale weights
             weights = np.array(weights) / sum(weights)
 
+    # Default: all profiles are scaled
+    if scalings is None:
+        scalings = [True] * inputs.shape[0]
+    assert len(scalings) == inputs.shape[0], "Length of 'scalings' must match number of input profiles"
+
     # Manipulate inputs
     # Initialize arrays
     inputsTransformed = []
@@ -98,7 +103,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
 
     # Fill and reshape
     # Scaling to values between 0 and 1, thus all inputs shall have the same
-    # weight and will be clustered equally in terms of quality 
+    # weight and will be clustered equally in terms of quality
     for i in range(inputs.shape[0]):
         vals = inputs[i, :]
         if np.max(vals) == np.min(vals):
@@ -142,9 +147,12 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     clusters = [c for c, value in enumerate(y) if value == 1]
     for j in range(inputs.shape[0]):  # Loop over different inputs
         for c in range(number_clusters):  # Loop over clusters
-            total_clustered = sum(inputsTransformed[j][:, clusters[c]]) * nc[c]
-            total_input = sum([sum(inputsTransformed[j][:, a]) for a in range(num_periods)] * z[clusters[c], :])
-            scaling_factors[j, c] = total_input / total_clustered if total_clustered > 0 else 1
+            if scalings[j]:
+                total_clustered = sum(inputsTransformed[j][:, clusters[c]]) * nc[c]
+                total_input = sum([sum(inputsTransformed[j][:, a]) for a in range(num_periods)] * z[clusters[c], :])
+                scaling_factors[j, c] = total_input / total_clustered if total_clustered > 0 else 1
+            else:
+                scaling_factors[j, c] = 1  # No scaling applied
 
     # Apply scaling factors
     scaled_typ_clusters = []

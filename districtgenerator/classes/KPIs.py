@@ -283,14 +283,14 @@ class KPIs:
     def calc_annual_cost_total(self, scenario, decentral_device_data, district, physics):
 
         # Count occurrences of "BOI", "HP", and "CHP" in the 'heater' column
-        heater_counts = scenario['heater'].value_counts()
-        heater_counts["TES"] = heater_counts.sum()
+        counts = scenario['heater'].value_counts()
 
-        # Sum the values in the 'PV', 'STC', 'EV', and 'BAT' columns
-        heater_counts["PV"] = scenario['PV'].sum()
-        heater_counts["STC"] = scenario['STC'].sum()
-        heater_counts["EV"] = scenario['EV'].sum()
-        heater_counts["BAT"] = scenario['BAT'].sum()
+        # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
+        counts["TES"] = scenario['f_TES'].apply(lambda x: 1 if x > 0 else 0).sum()
+        counts["PV"] = scenario['f_PV'].apply(lambda x: 1 if x > 0 else 0).sum()
+        counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
+        counts["EV"] = scenario['EV'].sum()
+        counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
 
         capacities = {}
         for n in range(len(district)):
@@ -310,23 +310,23 @@ class KPIs:
             for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
                 calc_annual_investment[dev] = {}
                 try:
-                    if heater_counts[dev] > 0:
+                    if counts[dev] > 0:
                         calc_annual_investment[dev] = self.calc_annual_cost_device(decentral_device_data[dev],
                                                                                 decentral_device_data["inv_data"],
                                                                                 capacities[n][dev])
                     else: calc_annual_investment[dev] = 0
                 except:
                     calc_annual_investment[dev] = 0
-                    heater_counts[dev] = 0
+                    counts[dev] = 0
 
-        self.annual_investment_total = (calc_annual_investment["BOI"] * heater_counts["BOI"]
-                                        + calc_annual_investment["HP"] * heater_counts["HP"]
-                                        + calc_annual_investment["CHP"] * heater_counts["CHP"]
-                                        + calc_annual_investment["PV"] * heater_counts["PV"]
-                                        + calc_annual_investment["STC"] * heater_counts["STC"]
-                                        + calc_annual_investment["EV"] * heater_counts["EV"]
-                                        + calc_annual_investment["BAT"] * heater_counts["BAT"]
-                                        + calc_annual_investment["BAT"] * heater_counts["BAT"])
+        self.annual_investment_total = (calc_annual_investment["BOI"] * counts["BOI"]
+                                        + calc_annual_investment["HP"] * counts["HP"]
+                                        + calc_annual_investment["CHP"] * counts["CHP"]
+                                        + calc_annual_investment["PV"] * counts["PV"]
+                                        + calc_annual_investment["STC"] * counts["STC"]
+                                        + calc_annual_investment["EV"] * counts["EV"]
+                                        + calc_annual_investment["BAT"] * counts["BAT"]
+                                        + calc_annual_investment["BAT"] * counts["BAT"])
 
     def calc_annual_cost_device(self, dev, param, cap):
         """
@@ -418,7 +418,7 @@ class KPIs:
                 += operationCosts_clusters[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
 
         # central operation costs for one year [€]
-        self.operationCosts = round(temp_operationCosts, 2) / 1000
+        self.operationCosts = round(temp_operationCosts, 2)
 
     def calculateCO2emissions(self, data):
         """
@@ -534,11 +534,11 @@ class KPIs:
             sum_electricity_profile = [sum(i) for i in zip_longest(
                 sum_electricity_profile, building["user"].elec, fillvalue=0)] # w/o cars
             sum_heat_profile = [sum(i) for i in zip_longest(
-                sum_electricity_profile, building["user"].heat, fillvalue=0)]
+                sum_heat_profile, building["user"].heat, fillvalue=0)]
             sum_cool_profile = [sum(i) for i in zip_longest(
-                sum_electricity_profile, building["user"].cooling, fillvalue=0)]
+                sum_cool_profile, building["user"].cooling, fillvalue=0)]
             sum_dhw_profile = [sum(i) for i in zip_longest(
-                sum_electricity_profile, building["user"].dhw, fillvalue=0)]
+                sum_dhw_profile, building["user"].dhw, fillvalue=0)]
 
         self.totalarea_residential = total_net_leased_area_residential
         self.totalarea_non_residential = total_net_leased_area_non_residential
@@ -689,13 +689,9 @@ class KPIs:
                                   building["buildingFeatures"]["night_setback"],
                                   building["buildingFeatures"]["area"],
                                   building["buildingFeatures"]["heater"],
-                                  building["buildingFeatures"]["PV"],
-                                  building["buildingFeatures"]["STC"],
                                   building["buildingFeatures"]["EV"],
-                                  building["buildingFeatures"]["BAT"],
                                   building["buildingFeatures"]["f_TES"],
                                   building["buildingFeatures"]["f_BAT"],
-                                  building["buildingFeatures"]["f_EV"],
                                   building["buildingFeatures"]["f_PV"],
                                   building["buildingFeatures"]["f_STC"],
                                   building["buildingFeatures"]["gamma_PV"],
@@ -756,7 +752,6 @@ class KPIs:
         #                 BAT:
         #                 f_TES:
         #                 f_BAT:
-        #                 f_EV:
         #                 f_PV:
         #                 f_STC:
         #                 gamma_PV:
@@ -768,7 +763,7 @@ class KPIs:
                 "Nutzenergiebedarf": str(round((self.total_electricity_demand
                                                + self.total_heating_demand
                                                + self.total_cooling_demand
-                                               + self.total_dhw_demand) / 1000, 2)) + " kWh/a",
+                                               + self.total_dhw_demand) / 1000, 0)) + " kWh/a",
                 "Norm-Heizlast": str(round(self.totalheatload / 1000)) + " kW",
                 "Solltemperatur": str(data.design_building_data["T_set_min"]) + " \u00B0C / " + str(
                     data.design_building_data["T_set_max"]) + " \u00B0C",
@@ -1051,24 +1046,24 @@ class KPIs:
                                table_top - 14 - 18, str(B_values[0]))
 
         for i in range(1, len(EFH_values)):
-            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 12.3 - (len(str(EFH_values[i])) * 6.5),
+            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 17 - (len(str(EFH_values[i])) * 6.5),
                                    table_top - 14 - 18 - (18 * i), str(EFH_values[i]))
-            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+            certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 22, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
         for i in range(1, len(MFH_values)):
-            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 12.3 - (len(str(MFH_values[i])) * 6.5),
+            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 17 - (len(str(MFH_values[i])) * 6.5),
                                    table_top - 14 - 18 - (18 * i), str(MFH_values[i]))
-            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+            certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 22, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
         for i in range(1, len(RH_values)):
-            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 12.3 - (len(str(RH_values[i])) * 6.5),
+            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 17 - (len(str(RH_values[i])) * 6.5),
                                    table_top - 14 - 18 - (18 * i), str(RH_values[i]))
-            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+            certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 22, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
         for i in range(1, len(B_values)):
-            certificate.drawString((table_width) + ((table_width / 5) / 2) + 12.3 - (len(str(B_values[i])) * 6.5),
+            certificate.drawString((table_width) + ((table_width / 5) / 2) + 17 - (len(str(B_values[i])) * 6.5),
                                    table_top - 14 - 18 - (18 * i), str(B_values[i]))
-            certificate.drawString((table_width) + ((table_width / 5) / 2) + 16, table_top - 14 - 18 - (18 * i),
+            certificate.drawString((table_width) + ((table_width / 5) / 2) + 22, table_top - 14 - 18 - (18 * i),
                                    "m\u00B2")
 
         # fill in the info under the table
@@ -1101,7 +1096,7 @@ class KPIs:
         else:
             n_rows = 27
 
-        n_columns = 19
+        n_columns = 15
         certificate.setStrokeColorRGB(0, 0, 0)
         certificate.setLineWidth(1)
         certificate.setLineCap(2)
@@ -1122,23 +1117,23 @@ class KPIs:
                                  table_bottom)
 
             # column titles
-            certificate.setFont("Helvetica-Bold", 5.5)
+            certificate.setFont("Helvetica-Bold", 6)
             column_titles = (
-            "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung", "Wohnfläche", "Heizung", "PV", "STC", "EV", "BAT",
-            "fTES", "fBAT", "fEV", "fPV", "fSTC", "gammaPV ", "EV Charging")
+            "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung", "Wohnfläche", "Heizung", "EV",
+            "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
             for i in range(len(column_titles)):
                 certificate.drawString(54 + table_width * (i / n_columns) + (
                             ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
                                        column_titles[i])
 
             # add table values
-            certificate.setFont("Helvetica", 5.5)
+            certificate.setFont("Helvetica", 6)
             for i in range(len(gebaeudeliste)):
-                certificate.drawString((table_width / 19) + (((table_width / 19) - (len(str(i))) * 3.2) / 2) + 10,
+                certificate.drawString((table_width / 15) + (((table_width / 15) - (len(str(i))) * 3.2) / 2) + 10,
                                        table_top - 11 - 18 - (18 * i), str(i))
-                for j in range(18):
-                    certificate.drawString((table_width * (j + 2) / 19) + (
-                                ((table_width / 19) - (len(str(gebaeudeliste[i][j]))) * 3.2) / 2) + 10,
+                for j in range(14):
+                    certificate.drawString((table_width * (j + 2) / 15) + (
+                                ((table_width / 15) - (len(str(gebaeudeliste[i][j]))) * 3.2) / 2) + 10,
                                            table_top - 11 - 18 - (18 * i), str(gebaeudeliste[i][j]))
 
                     # add border and title
@@ -1159,19 +1154,19 @@ class KPIs:
 
                 if page != total_pages or len(gebaeudeliste) % 26 == 0:
                     for ii in range(n_rows + 1):
-                        certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
+                        certificate.line(54, table_top - (15 * ii), width - 54, table_top - (15 * ii))
                     for jj in range(n_columns + 1):
                         certificate.line(54 + table_width * (jj / n_columns), table_top,
                                          54 + table_width * (jj / n_columns), table_bottom)
 
                     # add table values
-                    certificate.setFont("Helvetica", 5.5)
+                    certificate.setFont("Helvetica", 6)
                     for i in range(26):
-                        certificate.drawString((table_width / 19) + (
-                                    ((table_width / 19) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
+                        certificate.drawString((table_width / 15) + (
+                                    ((table_width / 15) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
                                                table_top - 11 - 18 - (18 * i), str(i + (26 * (page - 1))))
-                        for j in range(18):
-                            certificate.drawString((table_width * (j + 2) / 19) + (((table_width / 19) - (
+                        for j in range(15):
+                            certificate.drawString((table_width * (j + 2) / 15) + (((table_width / 15) - (
                                 len(str(gebaeudeliste[i + (26 * (page - 1))][j]))) * 3.2) / 2) + 10,
                                                    table_top - 11 - 18 - (18 * i),
                                                    str(gebaeudeliste[i + (26 * (page - 1))][j]))
@@ -1179,32 +1174,32 @@ class KPIs:
                 elif page == total_pages:
 
                     n_rows = len(gebaeudeliste) % 26 + 1
-                    table_bottom = table_top - (18 * n_rows)
+                    table_bottom = table_top - (15 * n_rows)
 
                     for ii in range(n_rows + 1):
-                        certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
+                        certificate.line(54, table_top - (15 * ii), width - 54, table_top - (15 * ii))
                     for jj in range(n_columns + 1):
                         certificate.line(54 + table_width * (jj / n_columns), table_top,
                                          54 + table_width * (jj / n_columns), table_bottom)
 
                     # add table values
-                    certificate.setFont("Helvetica", 5.5)
+                    certificate.setFont("Helvetica", 6)
                     for i in range(n_rows - 1):
-                        certificate.drawString((table_width / 19) + (
-                                    ((table_width / 19) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
+                        certificate.drawString((table_width / 15) + (
+                                    ((table_width / 15) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
                                                table_top - 11 - 18 - (18 * i), str(i + (26 * (page - 1))))
-                        for j in range(18):
-                            certificate.drawString((table_width * (j + 2) / 19) + (((table_width / 19) - (
+                        for j in range(15):
+                            certificate.drawString((table_width * (j + 2) / 15) + (((table_width / 15) - (
                                 len(str(gebaeudeliste[i + (26 * (page - 1))][j]))) * 3.2) / 2) + 10,
                                                    table_top - 11 - 18 - (18 * i),
                                                    str(gebaeudeliste[i + (26 * (page - 1))][j]))
 
                             # column titles
-                certificate.setFont("Helvetica-Bold", 5.5)
+                certificate.setFont("Helvetica-Bold", 6)
                 column_titles = (
                     "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung",
                     "Wohnfläche", "Heizung", "PV", "STC", "EV", "BAT",
-                    "fTES", "fBAT", "fEV", "fPV", "fSTC", "gammaPV ", "EV Charging")
+                    "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
                 for i in range(len(column_titles)):
                     certificate.drawString(54 + table_width * (i / n_columns) + (
                                 ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
@@ -1258,13 +1253,9 @@ class KPIs:
             "<b>N-Absenkung:</b> Nachtabsenkung: 0 = keine Nachtabsenkung, 1 = mit Nachtabsenkung<br />"
             "<b>Wohnfläche:</b> Nettoraumfläche in m²<br />"
             "<b>Heizung:</b> ausgewählter Wärmeerzeuger<br />"
-            "<b>PV:</b> 0 = Photovoltaic nicht vorhanden, 1 = Photovoltaic vorhanden<br />"
-            "<b>STC:</b> 0 = Solarthermie nicht vorhanden, 1 = Solarthermie vorhanden<br />"
             "<b>EV:</b> 0 = Elektroauto nicht vorhanden, 1 = Elektroauto vorhanden<br />"
-            "<b>BAT:</b> 0 = Batteriespeicher nicht vorhanden, 1 = Betteriespeicher vorhanden<br />"
-            "<b>fTES:</b> Größe des Pufferspeichers in Liter<br />"
+            "<b>fTES:</b> Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage<br />"
             "<b>fBAT:</b> Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV<br />"
-            "<b>fEV:</b> Größe des Batteriespeichers im Elektroauto in Wh<br />"
             "<b>fPV:</b> Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen "
             "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
             "<b>fSTC:</b> Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen "

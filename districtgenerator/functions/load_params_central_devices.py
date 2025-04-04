@@ -21,12 +21,14 @@ import time
 import os
 import sys
 import copy
+from districtgenerator.classes.solar import Sun
 
 def load_params(data):
 
     result_dict = {}
     # import model parameters
     central_device_data = copy.deepcopy(data.central_device_data)
+    heat_grid_data = copy.deepcopy(data.heat_grid_data)
     param = copy.deepcopy(data.params_ehdo_model)
     ecoData = copy.deepcopy(data.ecoData)
     param_uncl = {}  # unclustered time series for weather data
@@ -56,15 +58,21 @@ def load_params(data):
             cooling = data.district[b]["user"].cooling / 1000 # kW
             dhw = data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances = data.district[b]["user"].elec / 1000 # kW
+            electricityEV = data.district[b]["user"].car / 1000 # kW
+            generationPV = data.district[b]["generationPV"] / 1000 # kW
+            generationSTC = data.district[b]["generationSTC"] / 1000 # kW
 
         else:
             heating += data.district[b]["user"].heat / 1000 # kW
             cooling += data.district[b]["user"].cooling / 1000 # kW
             dhw += data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances += data.district[b]["user"].elec / 1000 # kW
+            electricityEV += data.district[b]["user"].car / 1000 # kW
+            generationPV += data.district[b]["generationPV"] / 1000 # kW
+            generationSTC += data.district[b]["generationSTC"] / 1000 # kW
 
-    heat_total = heating + dhw
-    electricity_total = electricityAppliances
+    heat_total = heating + dhw - generationSTC
+    electricity_total = electricityAppliances + electricityEV - generationPV
     dem_uncl["heat"] = heat_total
     dem_uncl["cool"] = cooling
     dem_uncl["power"] = electricity_total
@@ -112,35 +120,32 @@ def load_params(data):
     param["wind_speed"] = clustered_series[6]
 
     # Save number of design days and design-day matrix
-    param["day_weights"] = nc
-    param["day_matrix"] = z
+    param["cluster_weights"] = nc
+    param["cluster_matrix"] = z
 
     # Get sigma-function: for each day of the year, find the corresponding design day
     # Get list of days which are used as design days
-    typedays = np.zeros(data.time["clusterNumber"], dtype = np.int32)
+    param["typedays"] = np.zeros(data.time["clusterNumber"], dtype = np.int32)
     n = 0
     for d in range(52):
         if any(z[d]):
-            typedays[n] = d
+            param["typedays"][n] = d
             n += 1
     # Assign each day of the year to its design day
     sigma = np.zeros(52, dtype = np.int32)
     for day in range(len(sigma)):
         d = np.where(z[:,day] == 1 )[0][0]
-        sigma[day] = np.where(typedays == d)[0][0]
+        sigma[day] = np.where(param["typedays"] == d)[0][0]
     param["sigma"] = sigma
 
-    # Cluster secondary time series
-    #for k in ["T_air", "GHI", "wind_speed"]:
-    #    series_clustered = np.zeros((param["n_clusters"], 24))
-    #    for d in range(param["n_clusters"]):
-    #        for t in range(24):
-    #            series_clustered[d][t] = param_uncl[k][24*typedays[d]+t]
-        # Replace original time series with the clustered one
-    #    param[k] = series_clustered
-
-    ################################################################
-    # LOAD TECHNICAL PARAMETERS
+    heat_grid = {
+        k: heat_grid_data[k]["value"]
+        for k in ["T_hot_heating_network", "T_cold_heating_network", "T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
+    heat_grid["T_hot_heating_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_hot_heating_network"]
+    heat_grid["T_cold_heating_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_heating_network"]
+    heat_grid["T_hot_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_hot_cooling_network"]
+    heat_grid["T_cold_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_cooling_network"]
+    heat_grid["delta_T_heatTransfer"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["delta_T_heatTransfer"]
 
     all_models = {}
     for key, value in central_device_data.items():
@@ -153,6 +158,8 @@ def load_params(data):
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
             "cost_om": value.get("cost_om", 0) * 100,
+            "beta": value.get("beta", 0),
+            "gamma": value.get("gamma", 0),
             "max_area": value.get("max_area", 0),
             "min_area": value.get("min_area", 0),
             "G_stc": value.get("G_stc", 0),
@@ -173,7 +180,6 @@ def load_params(data):
             "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
-            "soc_init": value.get("soc_init", 0),
             "enable_heat_diss": value.get("enable_heat_diss", False)
         }
 
@@ -183,6 +189,8 @@ def load_params(data):
     devs["PV"] = {
         "feasible": all_models["PV"]["enabled"],
         "eta": all_models["PV"]["eta"] / 100,
+        "beta": all_models["PV"]["beta"],
+        "gamma": all_models["PV"]["gamma"],
         "life_time": all_models["PV"]["life_time"],
         "inv_var": all_models["PV"]["inv_var"],
         "cost_om": all_models["PV"]["cost_om"] / 100,
@@ -191,12 +199,6 @@ def load_params(data):
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
     }
-    #devs["PV"]["norm_power"] = solar_modeling.pv_system(direct_tilted_irrad = param["GHI"] - param["DHI"],
-    #                                             diffuse_tilted_irrad = param["DHI"],
-    #                                             theta = 0,
-    #                                             T_air = param["T_air"],
-    #                                             wind_speed = param["wind_speed"]
-    #                                             )/1e3  # in kW/kWp
 
     # Wind turbine
     devs["WT"] = {
@@ -210,7 +212,7 @@ def load_params(data):
         "hub_h": all_models["WT"]["hub_h"],
         "ref_h": all_models["WT"]["ref_h"],
     }
-    devs["WT"]["norm_power"] = calc_WT_power(devs, param, data.time["clusterNumber"])  # relative power between 0 and 1
+    devs["WT"]["norm_power"], devs["WT"]["norm_power_clustered"] = calc_WT_power(devs, param, data)  # relative power between 0 and 1
 
     # Hydropower
     devs["WAT"] = {
@@ -227,6 +229,8 @@ def load_params(data):
     devs["STC"] = {
         "feasible": all_models["STC"]["enabled"],
         "eta": all_models["STC"]["eta"] / 100,
+        "beta": all_models["STC"]["beta"],
+        "gamma": all_models["STC"]["gamma"],
         "inv_var": all_models["STC"]["inv_var"],
         "life_time": all_models["STC"]["life_time"],
         "cost_om": all_models["STC"]["cost_om"] / 100,
@@ -235,6 +239,9 @@ def load_params(data):
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
     }
+
+    # calculate theoretical PV and STC generation per m^2
+    devs["PV"]["norm_power"], devs["STC"]["norm_power"], devs["PV"]["norm_power_clustered"], devs["STC"]["norm_power_clustered"] = get_PVandSTC_power(devs, param, data)
 
     ### Natural gas ###
 
@@ -274,61 +281,104 @@ def load_params(data):
 
     ### Heating and cooling ###
 
-    # Heat pump (depending on investment and COP, it can be air source or ground source heat pump)
-    devs["HP"] = {
-        "feasible": all_models["HP"]["enabled"],
-        "CCOP_feasible": all_models["HP"]["CCOP_feasible"],
-        "ASHP_feasible": all_models["HP"]["ASHP_feasible"],
-        "CSV_feasible": all_models["HP"]["CSV_feasible"],
-        "COP_const": all_models["HP"]["COP_const"],
-        "inv_var": all_models["HP"]["inv_var"],
-        "life_time": all_models["HP"]["life_time"],
-        "cost_om": all_models["HP"]["cost_om"] / 100,
-        "min_cap": all_models["HP"]["min_cap"],
-        "max_cap": all_models["HP"]["max_cap"],
-    }
-    # COP assignment
+    # Heat pump (depending on investment and COP, it can be an air source, a ground source or a default heat pump)
 
-    COP = np.ones((data.time["clusterNumber"], clusterHorizon))
-    eta_carnot = all_models["HP"]["ASHP_carnot_eff"] / 100
-    supply_temp = all_models["HP"]["ASHP_supply_temp"]
-    for d in range(data.time["clusterNumber"]):
-        for t in range(clusterHorizon):
-            COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
-    devs["HP"]["COP"] = COP
+    # Ground source heat pump
+    if all_models["GroundHP"]["enabled"]:
 
-    # COP assignment
-    if all_models["HP"]["enabled"]:
-        #if (not all_models["HeatPump"]["CCOP_feasible"]) and (not all_models["HeatPump"]["ASHP_feasible"]) and (
-        #not all_models["HeatPump"]["CSV_feasible"]):
-        #    flags["HeatPump_no_COP_option_selected"] = False
+        devs["HP"] = {
+                    "feasible": all_models["GroundHP"]["enabled"],
+                    "inv_var": all_models["GroundHP"]["inv_var"],
+                    "life_time": all_models["GroundHP"]["life_time"],
+                    "cost_om": all_models["GroundHP"]["cost_om"] / 100,
+                    "min_cap": all_models["GroundHP"]["min_cap"],
+                    "max_cap": all_models["GroundHP"]["max_cap"],
+                    "dT_min_soil": 2,                                       # K,    minimal temperature difference between soil and brine
+                    "dT_evap": 5,                                           # K,    temperature difference of water in evaporator (how much the brine cools down in the evaporator)
+                    "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"],    # K,    temperature difference of water in condenser (how much network's water heats up in the condenser)
+                    "dT_pinch_cond": 2,                                     # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
+                    "dT_pinch_evap": 2,                                     # K,    temperature difference between both fluids in the evaporator at pinch point
+                    "eta_compr": 0.8,                                       # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+                    "heatloss_compr": 0.3,                                  # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+                    "COP_max": 7,                                           # ---,  maximum heat pump COP
+                    "q_soil": 50,                                           # W/m,   heat flow from soil into bride per meter (VDI 4640, for lambda_soil = 2 W/mK and low full load hours, assumption: no thermal interaction between boreholes)
+                    "c_borehole": 90,                                       # EUR/m, borehole costs (BMVBS)
+                    "t_max": 400                                            # m,     maximum borehole depth covered by VDI4640
+                    }
+
+        # Temperatures
+        T_soil_deep = np.ones((data.time["clusterNumber"], clusterHorizon)) * 10         # deep ground temperature is assumed to be 10 °C
+        t_c_in = T_soil_deep - devs["HP"]["dT_min_soil"] + 273.15                  # heat source inlet (deep soil temperature - minimal temperature difference)
+        dt_c = devs["HP"]["dT_evap"]                                               # heat source temperature difference
+        t_h_in = heat_grid["T_cold_heating_network"] + 273.15                            # heat sink (Network fluid) inlet temperature
+        dt_h = devs["HP"]["dT_cond"]                                               # heat sink (Network fluid) temperature spread
+
+        # Calculate heat pump COPs
+        devs["HP"]["COP"] = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+
+    # Air source heat pump
+    elif all_models["AirHP"]["enabled"]:
+
+        devs["HP"] = {
+            "feasible": all_models["AirHP"]["enabled"],
+            "inv_var": all_models["AirHP"]["inv_var"],
+            "life_time": all_models["AirHP"]["life_time"],
+            "cost_om": all_models["AirHP"]["cost_om"] / 100,
+            "min_cap": all_models["AirHP"]["min_cap"],
+            "max_cap": all_models["AirHP"]["max_cap"],
+            "dT_evap": 10,                                                                               # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+            "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"],        # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
+            "dT_pinch_cond": 2,                                                                         # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
+            "dT_pinch_evap": 5,                                                                         # K,    temperature difference between both fluids in the evaporator at pinch point
+            "eta_compr": 0.8,                                                                           # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+            "heatloss_compr": 0.3,                                                                      # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+            "COP_max": 7,                                                                               # ---,  maximum heat pump COP
+        }
+
+        # Temperatures
+        t_c_in = param["T_air"] + 273.15                                                                # heat source inlet (Air)
+        dt_c = devs["HP"]["dT_evap"]                                                                    # heat source temperature difference
+        t_h_in = heat_grid["T_cold_heating_network"] + 273.15                                           # heat sink (Network fluid) inlet temperature
+        dt_h = devs["HP"]["dT_cond"]                                                                    # heat sink (Network fluid) temperature spread
+
+        # Calculate heat pump COPs
+        devs["HP"]["COP"] = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+
+    # Default heat pump
+    else:
+        devs["HP"] = {
+            "feasible": all_models["HP"]["enabled"],
+            "CCOP_feasible": all_models["HP"]["CCOP_feasible"],
+            "ASHP_feasible": all_models["HP"]["ASHP_feasible"],
+            "CSV_feasible": all_models["HP"]["CSV_feasible"],
+            "COP_const": all_models["HP"]["COP_const"],
+            "inv_var": all_models["HP"]["inv_var"],
+            "life_time": all_models["HP"]["life_time"],
+            "cost_om": all_models["HP"]["cost_om"] / 100,
+            "min_cap": all_models["HP"]["min_cap"],
+            "max_cap": all_models["HP"]["max_cap"],
+        }
+
+        # COP assignment
         if all_models["HP"]["CCOP_feasible"]:
             devs["HP"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
+
         elif all_models["HP"]["ASHP_feasible"]:
             COP = np.ones((data.time["clusterNumber"], clusterHorizon))
-            eta_carnot = all_models["HP"]["ASHP_carnot_eff"] / 100
-            supply_temp = all_models["HP"]["ASHP_supply_temp"]
+            eta_carnot = all_models["HP"]["ASHP_carnot_eff"]
             for d in range(data.time["clusterNumber"]):
                 for t in range(clusterHorizon):
-                    COP[d][t] = eta_carnot * (supply_temp + 273.15) / (supply_temp - param["T_air"][d][t])
+                    COP[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
             devs["HP"]["COP"] = COP
 
         elif all_models["HP"]["CSV_feasible"]:
-            #try:
-                COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data',
-                                                          'coefficient_of_performance.txt'))
-                # Cluster COP time series
-                COP_clustered = np.zeros((data.time["clusterNumber"], clusterHorizon))
-                for d in range(data.time["clusterNumber"]):
-                    for t in range(24):
-                        COP_clustered[d][t] = COP_unclustered[clusterHorizon * typedays[d] + t]
-                # Replace original time series with the clustered one
-                devs["HP"]["COP"] = COP_clustered
-            #except:
-            #    flags["HeatPump_invalid_file"] = False
-    else:
-        devs["HP"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon))
-
+            COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
+            # Cluster COP time series
+            COP = np.ones((data.time["clusterNumber"], clusterHorizon))
+            for d in range(data.time["clusterNumber"]):
+                for t in range(clusterHorizon):
+                    COP[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
+            devs["HP"]["COP"] = COP
 
     # Electric boiler
     devs["EB"] = {
@@ -342,15 +392,48 @@ def load_params(data):
     }
 
     # Compression chiller
-    devs["CC"] = {
-        "feasible": all_models["CC"]["enabled"],
-        "inv_var": all_models["CC"]["inv_var"],
-        "COP": all_models["CC"]["COP"],
-        "life_time": all_models["CC"]["life_time"],
-        "cost_om": all_models["CC"]["cost_om"] / 100,
-        "min_cap": all_models["CC"]["min_cap"],
-        "max_cap": all_models["CC"]["max_cap"],
-    }
+
+    # Air source compression chiller
+    if all_models["AirCC"]["enabled"]:
+
+        devs["CC"] = {
+            "feasible": all_models["AirCC"]["enabled"],
+            "inv_var": all_models["AirCC"]["inv_var"],
+            "life_time": all_models["AirCC"]["life_time"],
+            "cost_om": all_models["AirCC"]["cost_om"] / 100,
+            "min_cap": all_models["AirCC"]["min_cap"],
+            "max_cap": all_models["AirCC"]["max_cap"],
+            "dT_evap": heat_grid["T_hot_cooling_network"] - heat_grid["T_cold_cooling_network"],        # K,    temperature difference in evaporator (how much the cooling fluid in the network cools down in the evaporator)
+            "dT_cond": 15,                                                                              # K,    temperature differencein condenser (how much the air heats up in the condenser)
+            "dT_pinch_cond": 5,                                                                         # K,    temperature difference between both fluids in the condenser at pinch point
+            "dT_pinch_evap": 2,                                                                         # K,    temperature difference between both fluids in the evaporator at pinch point
+            "eta_compr": 0.75,                                                                          # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+            "heatloss_compr": 0.3,                                                                      # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+            "COP_max": 6,                                                                               # ---,  maximum heat pump COP
+        }
+
+        # Temperatures
+        t_c_in = heat_grid["T_hot_cooling_network"] + 273.15                                            # heat source inlet (Network fluid)
+        dt_c = devs["CC"]["dT_evap"]                                                                    # heat source temperature difference
+        t_h_in = param["T_air"] + 273.15                                                                # heat sink (Air) inlet temperature
+        dt_h = devs["CC"]["dT_cond"]                                                                    # heat sink (Air) temperature spread
+
+        # Calculate heat pump COPs
+        devs["CC"]["COP"] = calc_COP(data, clusterHorizon, devs, "CC", [t_c_in, dt_c, t_h_in, dt_h])
+
+    # Default compression chiller
+    else:
+        devs["CC"] = {
+            "feasible": all_models["CC"]["enabled"],
+            "inv_var": all_models["CC"]["inv_var"],
+            "COP": all_models["CC"]["COP"],
+            "life_time": all_models["CC"]["life_time"],
+            "cost_om": all_models["CC"]["cost_om"] / 100,
+            "min_cap": all_models["CC"]["min_cap"],
+            "max_cap": all_models["CC"]["max_cap"],
+        }
+
+        devs["CC"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
 
     # Absorption chiller
     devs["AC"] = {
@@ -441,7 +524,7 @@ def load_params(data):
     devs["H2S"] = {
         "feasible": all_models["H2S"]["enabled"],
         "inv_var": all_models["H2S"]["inv_var"],
-        "sto_loss": 0,
+        "sto_loss": all_models["H2S"]["sto_loss"] / 100,
         "life_time": all_models["H2S"]["life_time"],
         "cost_om": all_models["H2S"]["cost_om"] / 100,
         "min_cap": all_models["H2S"]["min_cap"],
@@ -474,7 +557,6 @@ def load_params(data):
         "max_cap": all_models["TES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
             "TES"]["delta_T"] / 3600,  # kWh
         "delta_T": all_models["TES"]["delta_T"],  # K
-        "soc_init": 0.5,  # ---,              maximum initial state of charge
     }
 
     # Cold thermal energy storage
@@ -490,7 +572,6 @@ def load_params(data):
         "max_cap": all_models["CTES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
             "CTES"]["delta_T"] / 3600,  # kWh
         "delta_T": all_models["CTES"]["delta_T"],  # K,
-        "soc_init": 0.5,  # ---,              maximum initial state of charge
     }
 
     # Battery
@@ -501,8 +582,7 @@ def load_params(data):
         "cost_om": all_models["BAT"]["cost_om"] / 100,
         "min_cap": all_models["BAT"]["min_cap"],
         "max_cap": all_models["BAT"]["max_cap"],
-        "sto_loss": 0,  # 1/h,              standby losses over one time step
-        "soc_init": 0.5,  # ---,              maximum initial state of charge
+        "sto_loss": all_models["BAT"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
     }
 
     # Gas storage
@@ -513,8 +593,7 @@ def load_params(data):
         "cost_om": all_models["GS"]["cost_om"] / 100,
         "min_cap": all_models["GS"]["min_cap"],  # kWh
         "max_cap": all_models["GS"]["max_cap"],  # kWh
-        "sto_loss": 0,  # 1/h,              standby losses over one time step
-        "soc_init": 0.5,  # ---,              maximum initial state of charge
+        "sto_loss": all_models["GS"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
     }
 
     ################################################################
@@ -596,8 +675,6 @@ def calc_annual_investment(devs, param):
 
     return devs, param
 
-
-
 def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
 
     month_tuple = ("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
@@ -617,23 +694,10 @@ def calc_monthly_dem(dem_uncl, param_uncl, result_dict):
     result_dict["year_peak"] = year_peak
     result_dict["year_sum"] = year_sum
 
-
-    #monthly_val = {}
-    #year_peak = {}
-    #year_sum = {}
-    #for m in ["T_air", "GHI"]:  # "wind_speed"]:
-    #    monthly_val[m] = {}
-    #    year_peak[m] = int(np.max(param_uncl[m]))
-    #    year_sum[m] = int(np.sum(param_uncl[m]) / 1000)
-    #    for month in range(12):
-    #        monthly_val[m][month_tuple[month]] = sum(param_uncl[m][t] for t in range(days_sum[month]*24, #days_sum[month+1]*24)) / 1000
-
-    #result_dict["monthly_val"] = monthly_val
-
     return result_dict
 
 
-def calc_WT_power(devs, param, clusterNumber):
+def calc_WT_power(devs, param, data):
     """
     According to data sheet of wind turbine Enercon E40.
     """
@@ -667,17 +731,23 @@ def calc_WT_power(devs, param, clusterNumber):
                    26: (25.1,   0.00),
                    27: (1000,   0.00),
                    }
-
-    wind_speed_corr = param["wind_speed"]*(devs["WT"]["hub_h"]/devs["WT"]["ref_h"]) ** devs["WT"]["h_coeff"]  # kW
+    wind_speed_corr = data.site["wind_speed"] * (devs["WT"]["hub_h"]/devs["WT"]["ref_h"]) ** devs["WT"]["h_coeff"]  # kW
+    wind_speed_corr_clustered = param["wind_speed"] * (devs["WT"]["hub_h"] / devs["WT"]["ref_h"]) ** devs["WT"]["h_coeff"]  # kW
 
     WT_power = np.zeros(np.shape(wind_speed_corr))
-    for d in range(clusterNumber):
+    WT_power_clustered = np.zeros(np.shape(wind_speed_corr_clustered))
+
+    for i in range(len(wind_speed_corr)):
+        WT_power[i] = get_turbine_power(wind_speed_corr[i], power_curve)
+
+    for d in range(data.time["clusterNumber"]):
         for t in range(24*7):
-            WT_power[d][t] = get_turbine_power(wind_speed_corr[d][t], power_curve)
+            WT_power_clustered[d][t] = get_turbine_power(wind_speed_corr_clustered[d][t], power_curve)
 
     WT_power_norm = WT_power / 500  # power_curve with 500 kW as maximum output
+    WT_power_norm_clustered = WT_power_clustered / 500  # power_curve with 500 kW as maximum output
 
-    return WT_power_norm
+    return WT_power_norm, WT_power_norm_clustered
 
 
 def get_turbine_power(wind_speed, power_curve):
@@ -693,3 +763,106 @@ def get_turbine_power(wind_speed, power_curve):
            power = (power_curve[k][1]-power_curve[k-1][1])/(power_curve[k][0]-power_curve[k-1][0]) * (wind_speed-power_curve[k-1][0]) + power_curve[k-1][1]
            break
     return power
+
+
+def get_PVandSTC_power(devs, param, data):
+
+    filePath = data.filePath
+    time = data.time
+    site = data.site
+    global sun
+    sun = Sun(filePath=filePath)
+
+    potentialPV, _ = sun.calcPVAndSTCProfile(time=time,
+                                    site=site,
+                                    area_roof=1,
+                                    beta=[devs["PV"]["beta"]],
+                                    gamma=[devs["PV"]["gamma"]],
+                                    usageFactorPV=1,
+                                    usageFactorSTC=0)
+
+    # calculate theoretical STC generation
+    _, potentialSTC = sun.calcPVAndSTCProfile(time=time,
+                                site=site,
+                                area_roof=1,
+                                beta=[devs["STC"]["beta"]],
+                                gamma=[devs["STC"]["gamma"]],
+                                usageFactorPV=0,
+                                usageFactorSTC=1)
+
+    # Get the corresponding values for the typedays
+    chunk_size = len(param["GHI"][0])
+    num_chunks = len(potentialPV) // chunk_size
+
+    # Split both potentialPV and potentialSTC into chunks
+    pv_chunks = np.split(potentialPV[:chunk_size * num_chunks], num_chunks)
+    stc_chunks = np.split(potentialSTC[:chunk_size * num_chunks], num_chunks)
+
+    # Initialize empty arrays with the same shape as the GHI input
+    potentialPV_clustered = np.zeros_like(param["GHI"])
+    potentialSTC_clustered = np.zeros_like(param["GHI"])
+
+    # Fill both arrays according to the day types
+    for i, day_type in enumerate(param["typedays"]):
+        potentialPV_clustered[i] = pv_chunks[day_type]
+        potentialSTC_clustered[i] = stc_chunks[day_type]
+
+    return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
+
+
+# %% COP model for ammonia-heat pumps
+# Heat pump COP, part 2: Generalized COP estimation of heat pump processes
+# DOI: 10.18462/iir.gl.2018.1386
+# Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+def calc_COP(data, clusterHorizon, devs, device, temperatures):
+
+    # get temperature parameters
+    t_c_in = temperatures[0]
+    dt_c = temperatures[1]
+    t_h_in = temperatures[2]
+    dt_h = temperatures[3]
+
+    # device parameters
+    dt_pp_cond = devs[device]["dT_pinch_cond"]  # pinch point temperature difference in the condenser
+    dt_pp_evap = devs[device]["dT_pinch_evap"]  # pinch point temperature difference in the evaporator
+
+    eta_is = devs[device]["eta_compr"]  # isentropic compression efficiency
+    f_Q = devs[device]["heatloss_compr"]  # heat loss rate during compression
+
+    # Entropic mean temperautures ( or Logarithmic mean temperatures)
+    t_h_s = dt_h / np.log((t_h_in + dt_h) / t_h_in)
+    t_c_s = dt_c / np.log(t_c_in / (t_c_in - dt_c))
+
+    # Prevent numeric issues
+    for d in range(data.time["clusterNumber"]):
+        for t in range(clusterHorizon):
+            if t_h_s[d][t] == t_c_s[d][t]:
+                t_h_s[d][t] += 1e-5
+
+    # Lorentz-COP
+    COP_Lor = t_h_s / (t_h_s - t_c_s)
+
+    # linear model equations; Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+    dt_r_H = 0.2 * (t_h_in + dt_h - (
+                t_c_in - dt_c) + (dt_pp_cond + dt_pp_evap)) + 0.2 * dt_h + 0.016  # mean entropic heat difference in condenser deducting dt_pp and assuming an ammonia heat pump
+    w_is = 0.0014 * (t_h_in + dt_h - (
+                t_c_in - dt_c) + (dt_pp_cond + dt_pp_evap)) - 0.0015 * dt_h + 0.039  # ratio of isentropic expansion work to isentropic compression work and assuming an ammonia heat pump
+
+    # help values
+    num = 1 + (dt_r_H + dt_pp_cond) / t_h_s
+    denom = 1 + (dt_r_H + 0.5 * dt_c + (dt_pp_cond + dt_pp_evap)) / (t_h_s - t_c_s)
+
+    # COP
+    COP = COP_Lor * num / denom * eta_is * (1 - w_is) + 1 - eta_is - f_Q
+
+    if device == "CC":
+        COP = COP - 1  # consider COP definition for compression chillers (COP_CC = Q_0/P_el = (Q - P_el)/P_el = COP_HP - 1)
+
+    # limit COP's
+    COP_max = devs[device]["COP_max"]
+    for d in range(data.time["clusterNumber"]):
+        for t in range(clusterHorizon):
+            if COP[d, t] > COP_max or COP[d, t] < 0:
+                COP[d, t] = COP_max
+
+    return COP

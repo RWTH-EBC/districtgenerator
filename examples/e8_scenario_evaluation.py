@@ -14,15 +14,13 @@ def example8_scenario_evaluation():
     # Initialize District
     data = Datahandler(scenario_name = "example")
 
-    data.initializeBuildings()
-    data.generateEnvironment()
-    data.generateBuildings()
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
+    # We directly generate a complete district.
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
 
-    centralEnergySupply = False
+    centralEnergySupply = True
     # Sizing of the selected devices
     if centralEnergySupply == True:
-        data.designCentralDevices(saveGenerationProfiles=False)
+        data.designDevicesComplete(saveGenerationProfiles=True)
     else:
         data.designDecentralDevices(saveGenerationProfiles=True)
         data.centralDevices = {}
