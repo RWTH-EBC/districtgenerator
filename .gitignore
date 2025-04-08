@@ -3,6 +3,7 @@ districtgenerator/data/scenarios/*
 !districtgenerator/data/scenarios/example.csv
 !districtgenerator/data/scenarios/info.txt
 errorfile.txt
+build
 *.bk
 *.log
 *.lp

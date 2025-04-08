@@ -98,7 +98,7 @@ class DataGenerator:
         # Save building data to CSV
         building_data = self.building_data_gen.generate_building_data()
         df = pd.DataFrame(building_data)
-        df.to_csv(f"{output_path}example.csv", sep=";", index=False)
+        df.to_csv(f"{output_path}scenarios/example.csv", sep=";", index=False)
 
         # Save central device data to JSON
         cd_data = self.central_device_data_gen.generate_tech_data()
