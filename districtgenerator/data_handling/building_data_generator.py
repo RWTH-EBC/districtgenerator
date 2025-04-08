@@ -10,6 +10,7 @@ class BuildingDataGenerator:
         for idx, b in enumerate(self.building.buildings):
             building = {
                 "id": idx,
+                "gmlId": b.get("id"),
                 "building": b.get("building_type"),
                 "year": b.get("construction_year"),
                 "construction_type": b.get("construction_type"),

@@ -321,7 +321,8 @@ class Datahandler:
 
                 # Store features of the observed building
                 building["buildingFeatures"] = self.scenario.loc[id]
-
+                building["gmlId"] = building["buildingFeatures"]["gmlId"]
+                #print(self.scenario)                
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
                 # name is composed of building id, and building type
@@ -507,9 +508,12 @@ class Datahandler:
                                                     )
 
                 if saveUserProfiles:
+                    idArray = []
+                    idArray.append(building["gmlId"])
                     self.saveHeatingProfile(heat=building["user"].heat,
                                             cooling=building["user"].cooling,
                                             name=building["unique_name"],
+                                            gmlId=idArray,
                                             path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
@@ -606,7 +610,7 @@ class Datahandler:
                 df = pd.DataFrame(data)
                 df.to_excel(writer, sheet_name=sheet_name, index=False, header=header)
 
-    def saveHeatingProfile(self, heat, cooling, name, path):
+    def saveHeatingProfile(self, heat, cooling, gmlId, name, path):
         """
         Save heating demand to csv.
 
@@ -626,6 +630,8 @@ class Datahandler:
         with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
             cooling_df = pd.DataFrame(cooling)
             heating_df = pd.DataFrame(heat)
+            id = pd.DataFrame(gmlId)
+            id.to_excel(writer, sheet_name='id', index=False, header='id')
             cooling_df.to_excel(writer, sheet_name='cooling', index=False, header='Cooling in W')
             heating_df.to_excel(writer, sheet_name='heating', index=False, header='Heating in W')
 
