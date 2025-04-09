@@ -1,5 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+# dict = {
+#     "location_config": {
+#         "time_zone": 1, #hgrrg
+# }
+
+# dictonary class?
 
 @dataclass
 class LocationConfig:
@@ -54,17 +60,17 @@ class EcoConfig:
 
 @dataclass
 class PhysicsConfig:
-    rho_air: float = 1.2
+    rho_air: float = 1.2 # kg/m3
     c_p_air: float = 1000.0
     rho_water: float = 1000.0
     c_p_water: float = 4.18
 
 @dataclass
 class GurobiConfig:
-    ModelName: str = "Central_Operational_Optimization"
+    ModelName: str = "Central_Operational_Optimization" # Name of the model
     TimeLimit: int = 3600         # seconds
     MIPGap: float = 0.01
-    MIPFocus: int = 3
+    MIPFocus: int = 3 #
     NonConvex: int = 2
     NumericFocus: int = 3
     PoolSolution: int = 3

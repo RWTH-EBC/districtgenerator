@@ -21,6 +21,12 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 import districtgenerator.functions.clustering_medoid as cm
 
+# configs sollten hier abrufbar sein
+#- -> eigene dicts die die jsons abbilden, klassen könnte auch gehen -> sind die langsamer?
+# zwischen step json überspringen -> nur eine config, die kommentiert ist
+# -> braucht man klassen? es sind ja nur variablen
+# in webapp datahandler wird immer neu eingeladen, daher performance wichtig bei einladen
+
 class Datahandler:
     """
     Abstract class for data handling.
@@ -382,7 +388,7 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-
+            print(building["unique_name"])
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
