@@ -7,6 +7,7 @@ import sys
 import copy
 import datetime
 import numpy as np
+import time
 import openpyxl
 import pandas as pd
 from itertools import count
@@ -20,6 +21,9 @@ from .plots import DemandPlots
 from .optimizer import Optimizer
 from .KPIs import KPIs
 import districtgenerator.functions.clustering_medoid as cm
+from districtgenerator.data_handling.config import LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, BuildingConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
+from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
+from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
 # configs sollten hier abrufbar sein
 #- -> eigene dicts die die jsons abbilden, klassen könnte auch gehen -> sind die langsamer?
@@ -100,65 +104,73 @@ class Datahandler:
         -------
         None.
         """
-
-        # %% load information about of the site under consideration (used in generateEnvironment)
-        # important for weather conditions
-        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.site[subData["name"]] = subData["value"]
-
-        # %% load time information and requirements (used in generateEnvironment)
-        # needed for data conversion into the right time format
-        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.time[subData["name"]] = subData["value"]
-
         # %% load scenario file with building information
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
 
+        # %% load information about of the site under consideration (used in generateEnvironment)
+        # important for weather conditions
+        site_config = LocationConfig()
+        self.site = {}
+        for attr, value in site_config.__dict__.items():
+            self.site[attr] = value
+
+        # %% load time information and requirements (used in generateEnvironment)
+        # needed for data conversion into the right time format
+        time_config = TimeConfig()
+        self.time = {}
+        for attr, value in time_config.__dict__.items():
+            self.time[attr] = value
+
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.design_building_data[subData["name"]] = subData["value"]
+        design_building_config = DesignBuildingConfig()
+        self.design_building_data = {}
+        for attr, value in design_building_config.__dict__.items():
+            self.design_building_data[attr] = value
 
-                # load building physics data (used in envelope and system BES/CES)
-        with open(os.path.join(self.filePath, 'physics_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.physics[subData["name"]] = subData["value"]
+        # load building physics data (used in envelope and system BES/CES)
+        physics_config = PhysicsConfig()
+        self.physics = {}
+        for attr, value in physics_config.__dict__.items():
+            self.physics[attr] = value
 
-                # Load list of possible devices (used in system BES)
-        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.decentral_device_data[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+        # Load list of possible devices (used in system BES)
+        decentral_config = DecentralDeviceConfig() 
+        self.decentral_device_data = {}
+        # Iterate over all attributes of the config instance
+        for attribute, value in decentral_config.__dict__.items():
+            # Split the attribute into abbreviation and parameter name parts based on the first underscore
+            abbr, _, param = attribute.partition("_")
+            
+            # Initialize the sub-dictionary if needed.
+            if abbr not in self.decentral_device_data:
+                self.decentral_device_data[abbr] = {}
+            self.decentral_device_data[abbr][param] = value
 
-        # import model parameters from json-file (used in system CES)
-        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["name"] != "ref":
-                    self.params_ehdo_model[subData["name"]] = subData["value"]
-                else:
-                    self.params_ehdo_model[subData["name"]] = {}
-                    for subSubData in subData["value"]:
-                        self.params_ehdo_model[subData["name"]][subSubData["name"]] = subSubData["value"]
+        ehdo_config = EHDOConfig()
+        self.params_ehdo_model = {}
+        for attr, value in ehdo_config.__dict__.items():
+            self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.ecoData[subData["name"]] = subData["value"]
+        eco_config = EcoConfig()
+        self.ecoData = {}
+        for attr, value in eco_config.__dict__.items():
+            self.ecoData[attr] = value
 
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
-            self.central_device_data = json.load(json_file)
+        # Load list of possible devices (used in system BES)
+        central_config = CentralDeviceConfig() 
+        self.central_device_data = {}
+        # Iterate over all attributes of the config instance
+        for attribute, value in central_config.__dict__.items():
+            # Split the attribute into abbreviation and parameter name parts based on the first underscore
+            abbr, _, param = attribute.partition("_")
+            
+            # Initialize the sub-dictionary if needed.
+            if abbr not in self.central_device_data:
+                self.central_device_data[abbr] = {}
+            self.central_device_data[abbr][param] = value
 
     def select_plz_data(self):
         """

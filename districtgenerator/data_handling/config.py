@@ -9,30 +9,34 @@ from typing import Any, Dict, List
 
 @dataclass
 class LocationConfig:
-    time_zone: float
-    albedo: float
-    try_year: str
-    try_type: str
-    zip_code: str
+    timeZone: float = 1
+    albedo: float = 0.2
+    TRYYear: str = 'TRY2015'
+    TRYType: str = 'Jahr'
+    zip: str = '52078'
 
     ALLOWED_TRY_YEARS = {"TRY2015", "TRY2045"}
     ALLOWED_TRY_TYPES = {"Jahr", "Somm", "Wint"}
 
     def __post_init__(self):
-        if self.try_year not in self.ALLOWED_TRY_YEARS:
-            raise ValueError(f"try_year must be one of {self.ALLOWED_TRY_YEARS}, got '{self.try_year}'")
-        if self.try_type not in self.ALLOWED_TRY_TYPES:
-            raise ValueError(f"try_type must be one of {self.ALLOWED_TRY_TYPES}, got '{self.try_type}'")
+        if self.TRYYear not in self.ALLOWED_TRY_YEARS:
+            raise ValueError(f"try_year must be one of {self.ALLOWED_TRY_YEARS}, got '{self.TRYYear}'")
+        if self.TRYType not in self.ALLOWED_TRY_TYPES:
+            raise ValueError(f"try_type must be one of {self.ALLOWED_TRY_TYPES}, got '{self.TRYType}'")
         if not (0.0 <= self.albedo <= 1.0):
             raise ValueError("albedo must be between 0.0 and 1.0.")
 
 @dataclass
 class TimeConfig:
-    time_resolution: int = 3600
-    cluster_length: int = 604800
-    cluster_number: int = 4
-    data_resolution: int = 3600
-    data_length: int = 31536000
+    timeResolution: int = 3600
+    clusterLength: int = 604800
+    clusterNumber: int = 4
+    dataResolution: int = 3600
+    dataLength: int = 31536000
+    holidays2015: list = field(default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365],)
+    holidays2045: list = field(default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365],)
+    initial_day_2015: list = field(default_factory=lambda: [4])
+    initial_day_2045: list = field(default_factory=lambda: [6])
 
 @dataclass
 class DesignBuildingConfig:
@@ -43,6 +47,12 @@ class DesignBuildingConfig:
     T_bivalent: float = -2.0
     T_heatlimit: float = 15.0
     ventilation_rate: float = 0.5
+    buildings_short: list = field(default_factory=lambda: ['SFH', 'MFH', 'TH', 'AB'])
+    buildings_long: list = field(default_factory=lambda: ['single_family_house', 'multi_family_house', 'terraced_house', 'apartment_block'])
+    retrofit_short: list = field(default_factory=lambda: [0, 1, 2])
+    retrofit_long: list = field(default_factory=lambda: ['tabula_standard', 'tabula_retrofit', 'tabula_adv_retrofit'])
+    dhwload: list = field(default_factory=lambda: [4662.1, 4662.1, 4662.1, 3999.8])
+    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40])
 
 @dataclass
 class EcoConfig:
