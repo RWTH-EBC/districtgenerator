@@ -16,7 +16,7 @@ from districtgenerator.data_handling.json_adapter import JSONDataAdapter
 from typing import Dict, Any
 import json
 import pandas as pd
-
+import os
 
 class DataGenerator:
     def __init__(self,
@@ -55,7 +55,7 @@ class DataGenerator:
         self.heat_grid_data_gen = HeatGridDataGenerator(self.heat_grid_config)
         self.central_device_data_gen = CentralDeviceDataGenerator(self.central_device_config)
 
-    def save_files(self, output_path: str = "./files/"):
+    def save_files(self, output_path: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "files/")):
         # Save site data to JSON
         site_data = self.site_data_gen.generate_site_data()
         with open(f"{output_path}site_data.json", "w", encoding='utf-8') as f:

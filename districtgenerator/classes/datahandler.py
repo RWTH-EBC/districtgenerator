@@ -56,7 +56,10 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None, srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filePath = None):
+    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None, srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filePath = None, 
+                 site_config:LocationConfig = LocationConfig(), time_config:TimeConfig = TimeConfig(), design_building_config:DesignBuildingConfig = DesignBuildingConfig(), 
+                 physics_config:PhysicsConfig = PhysicsConfig(), decentral_config:DecentralDeviceConfig = DecentralDeviceConfig(),  ehdo_config:EHDOConfig = EHDOConfig(), 
+                 eco_config:EcoConfig = EcoConfig(), central_config:CentralDeviceConfig= CentralDeviceConfig(), gurobi_config:GurobiConfig = GurobiConfig()):
         """
         Constructor of Datahandler class.
 
@@ -82,6 +85,7 @@ class Datahandler:
         self.counter = {}
         self.srcPath = srcPath
         self.filePath = filePath
+        self.gurobiConfig = gurobi_config,
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -94,9 +98,16 @@ class Datahandler:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
         self.KPIs = None
-        self.load_all_data()
+        self.load_all_data(site_config, time_config, design_building_config, physics_config, decentral_config, ehdo_config, eco_config, central_config)
 
-    def load_all_data(self):
+    def load_all_data(self, site_config:LocationConfig, 
+                      time_config:TimeConfig, 
+                      design_building_config:DesignBuildingConfig, 
+                      physics_config:PhysicsConfig, 
+                      decentral_config:DecentralDeviceConfig, 
+                      ehdo_config:EHDOConfig, 
+                      eco_config:EcoConfig, 
+                      central_config:CentralDeviceConfig):
         """
         General data import from JSON files and transformation into dictionaries.
 
@@ -110,33 +121,28 @@ class Datahandler:
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
-        site_config = LocationConfig()
         self.site = {}
         for attr, value in site_config.__dict__.items():
             self.site[attr] = value
 
         # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
-        time_config = TimeConfig()
         self.time = {}
         for attr, value in time_config.__dict__.items():
             self.time[attr] = value
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        design_building_config = DesignBuildingConfig()
         self.design_building_data = {}
         for attr, value in design_building_config.__dict__.items():
             self.design_building_data[attr] = value
 
         # load building physics data (used in envelope and system BES/CES)
-        physics_config = PhysicsConfig()
         self.physics = {}
         for attr, value in physics_config.__dict__.items():
             self.physics[attr] = value
 
         # Load list of possible devices (used in system BES)
-        decentral_config = DecentralDeviceConfig() 
         self.decentral_device_data = {}
         # Iterate over all attributes of the config instance
         for attribute, value in decentral_config.__dict__.items():
@@ -148,19 +154,16 @@ class Datahandler:
                 self.decentral_device_data[abbr] = {}
             self.decentral_device_data[abbr][param] = value
 
-        ehdo_config = EHDOConfig()
         self.params_ehdo_model = {}
         for attr, value in ehdo_config.__dict__.items():
             self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        eco_config = EcoConfig()
         self.ecoData = {}
         for attr, value in eco_config.__dict__.items():
             self.ecoData[attr] = value
 
         # Load list of possible devices (used in system BES)
-        central_config = CentralDeviceConfig() 
         self.central_device_data = {}
         # Iterate over all attributes of the config instance
         for attribute, value in central_config.__dict__.items():
@@ -766,7 +769,8 @@ class Datahandler:
                                         # surface azimuth angles (Orientation to the south: 0°)
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
-                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        usageFactorSTC=building["buildingFeatures"]["f_STC"],
+                                        devices = self.decentral_device_data)
 
             # assign real PV generation to building
             building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
@@ -1087,7 +1091,7 @@ class Datahandler:
         for cluster in range(self.time["clusterNumber"]):
 
             # optimize operating costs of the district for current cluster
-            self.optimizer = Optimizer(self, cluster)
+            self.optimizer = Optimizer(self, cluster, self.gurobiConfig)
             results_temp = self.optimizer.run_cen_opti()
 
             # save results as attribute
