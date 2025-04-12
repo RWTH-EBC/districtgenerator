@@ -18,7 +18,7 @@ from itertools import zip_longest
 
 class KPIs:
 
-    def __init__(self, data):
+    def __init__(self, data, decentral_config):
         """
         Constructor of KPIs class.
 
@@ -79,7 +79,7 @@ class KPIs:
         self.inputData = inputData
 
         # prepare data to compute KPIs
-        self.prepareData(data)
+        self.prepareData(data, decentral_config)
         self.calculateResidualLoad(data)
         self.calculatePeakLoad()
         self.calculatePeakToValley()
@@ -89,7 +89,7 @@ class KPIs:
         self.calculateCoverFactors(data)
         self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
 
-    def prepareData(self, data):
+    def prepareData(self, data, decentralDev):
         """
         Prepare the data to compute the KPIs demand and supply cover factor
         as well as the ratio of renewable electricity generation.
@@ -111,13 +111,13 @@ class KPIs:
         lossesBattery_cumulated_cluster = []
         # Load data of decentral devices (to calculate battery losses)
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        decentralDev = {}
-        with open(os.path.join(srcPath, 'data', 'decentral_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                decentralDev[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    decentralDev[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+        #decentralDev = {}
+        #with open(os.path.join(srcPath, 'data', 'decentral_device_data.json')) as json_file:
+        #    jsonData = json.load(json_file)
+        #    for subData in jsonData:
+        #        decentralDev[subData["abbreviation"]] = {}
+        #        for subsubData in subData["specifications"]:
+        #            decentralDev[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # summed el. load of all buildings , [number of time periods, time steps within periods]
         self.sum_res_load = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
@@ -415,7 +415,7 @@ class KPIs:
         # central operation costs for one year [€]
         self.operationCosts = round(temp_operationCosts, 2) / 1000
 
-    def calculateCO2emissions(self, data):
+    def calculateCO2emissions(self, data, jsonData):
         """
         Calculate the CO2 emissions for one year in [kg].
 
@@ -426,12 +426,12 @@ class KPIs:
 
         filePath = os.path.join(data.srcPath, 'data')
         # important for weather conditions
-        with open(os.path.join(filePath, 'eco_data.json')) as json_file:
-            jsonData = json.load(json_file)
+        #with open(os.path.join(filePath, 'eco_data.json')) as json_file:
+        #    jsonData = json.load(json_file)
 
-        CO2_factor_el_grid = jsonData[3]["value"]  # Emi_elec_grid
-        CO2_factor_gas = jsonData[4]["value"]      # Emi_gas
-        CO2_factor_pv = jsonData[5]["value"]       # Emi_pv
+        CO2_factor_el_grid = jsonData["co2_el_grid"]  # Emi_elec_grid
+        CO2_factor_gas = jsonData["co2_gas"]      # Emi_gas
+        CO2_factor_pv = jsonData["co2_biom"]       # Emi_pv  ??? does not have key co2_pv
 
         # change unit from [Wh] to [kWh] and consider time resolution --> in function "calculateEnergyExchangeGCP"
         co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid
@@ -545,7 +545,7 @@ class KPIs:
         self.total_dhw_peak = max(sum_dhw_profile)
         self.total_cooling_peak = max(sum_cool_profile)
 
-    def calculateAllKPIs(self, data):
+    def calculateAllKPIs(self, data, ecoData):
         """
         Calculate all KPIs.
 
@@ -562,7 +562,7 @@ class KPIs:
         self.calculateCoverFactors(data)
         #self.calculateSupplyCoverFactor()
         self.calculateOperationCosts(data)
-        self.calculateCO2emissions(data)
+        self.calculateCO2emissions(data, ecoData)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
         self.calc_total_areas_and_demands(data)

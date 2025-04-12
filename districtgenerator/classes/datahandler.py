@@ -1107,6 +1107,6 @@ class Datahandler:
         """
 
         # initialize KPI class
-        self.KPIs = KPIs(self)
+        self.KPIs = KPIs(self, self.decentral_device_data)
         # calculate KPIs
-        self.KPIs.calculateAllKPIs(self)
+        self.KPIs.calculateAllKPIs(self, self.ecoData)
