@@ -9,7 +9,7 @@ class SiteDataGenerator:
         return [
             {
                 "name": "timeZone",
-                "value": self.location.time_zone,
+                "value": self.location.timeZone,
                 "unit": "h",
                 "description": "Time zone offset from GMT (e.g. CET is 1)."
             },
@@ -21,19 +21,19 @@ class SiteDataGenerator:
             },
             {
                 "name": "TRYYear",
-                "value": self.location.try_year,
+                "value": self.location.TRYYear,
                 "unit": "",
                 "description": "Test reference year (e.g. TRY2015 or TRY2045)."
             },
             {
                 "name": "TRYType",
-                "value": self.location.try_type,
+                "value": self.location.TRYType,
                 "unit": "",
                 "description": "Test reference condition (e.g. Jahr, Somm, Wint)."
             },
             {
                 "name": "zip",
-                "value": self.location.zip_code,
+                "value": self.location.zip,
                 "unit": "",
                 "description": "Zip code of the location."
             }

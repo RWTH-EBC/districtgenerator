@@ -9,56 +9,56 @@ class TimeDataGenerator:
         return [
             {
                 "name": "timeResolution",
-                "value": self.time_config.time_resolution,
+                "value": self.time_config.timeResolution,
                 "unit": "sec",
                 "description": ("Required time resolution. For example, 3600 refers to an hourly resolution "
                                 "and 900 to a 15min resolution.")
             },
             {
                 "name": "clusterLength",
-                "value": self.time_config.cluster_length,
+                "value": self.time_config.clusterLength,
                 "unit": "sec",
                 "description": ("Length of cluster. For example, 604800 refers to one week and 86400 to one day.")
             },
             {
                 "name": "clusterNumber",
-                "value": self.time_config.cluster_number,
+                "value": self.time_config.clusterNumber,
                 "unit": "-",
                 "description": "Number of clusters"
             },
             {
                 "name": "dataResolution",
-                "value": self.time_config.data_resolution,
+                "value": self.time_config.dataResolution,
                 "unit": "sec",
                 "description": "Time resolution of input data."
             },
             {
                 "name": "dataLength",
-                "value": self.time_config.data_length,
+                "value": self.time_config.dataLength,
                 "unit": "sec",
                 "description": "Length of input data."
             },
             {
                 "name": "holidays2015",
-                "value": [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365],
+                "value": self.time_config.holidays2015,
                 "unit": "",
                 "description": "Julian day number of the holidays in NRW in 2015."
             },
             {
                 "name": "holidays2045",
-                "value": [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365],
+                "value": self.time_config.holidays2045,
                 "unit": "",
                 "description": "Julian day number of the holidays in NRW in 2045."
             },
             {
                 "name": "initial_day_2015",
-                "value": [4],
+                "value": self.time_config.initial_day_2015,
                 "unit": "",
                 "description": "Thursday"
             },
             {
                 "name": "initial_day_2045",
-                "value": [6],
+                "value": self.time_config.initial_day_2045,
                 "unit": "",
                 "description": "Saturday"
             }

@@ -1,5 +1,6 @@
 import json
 from typing import Any, Dict, List
+from dataclasses import field
 from districtgenerator.data_handling.config import LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, BuildingConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
@@ -11,11 +12,11 @@ class JSONDataAdapter:
     def get_location_config(self) -> LocationConfig:
         location_data = self.data.get("location_config", {})
         return LocationConfig(
-            time_zone=location_data.get("time_zone", 1),
+            timeZone=location_data.get("timeZone", 1),
             albedo=location_data.get("albedo", 0.2),
-            try_year=location_data.get("try_year", "TRY2015"),
-            try_type=location_data.get("try_type", "Jahr"),
-            zip_code=location_data.get("zip_code", "52064")
+            TRYYear=location_data.get("TRYYear", "TRY2015"),
+            TRYType=location_data.get("TRYType", "Jahr"),
+            zip=location_data.get("zip", "52064")
         )
     
     def get_physics_config(self) -> PhysicsConfig:
@@ -116,11 +117,15 @@ class JSONDataAdapter:
     def get_time_config(self) -> TimeConfig:
         time_data = self.data.get("time_config", {})
         return TimeConfig(
-            time_resolution=time_data.get("time_resolution", 3600),
-            cluster_length=time_data.get("cluster_length", 604800),
-            cluster_number=time_data.get("cluster_number", 4),
-            data_resolution=time_data.get("data_resolution", 3600),
-            data_length=time_data.get("data_length", 31536000)
+            timeResolution=time_data.get("timeResolution", 3600),
+            clusterLength=time_data.get("clusterLength", 604800),
+            clusterNumber=time_data.get("clusterNumber", 4),
+            dataResolution=time_data.get("dataResolution", 3600),
+            dataLength=time_data.get("dataLength", 31536000),
+            holidays2015=time_data.get("holidays2015", field(default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365])),
+            holidays2045=time_data.get("holidays2045", field(default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365])),
+            initial_day_2015=time_data.get("initial_day_2015", field(default_factory=lambda: [4])),
+            initial_day_2045=time_data.get("initial_day_2045", field(default_factory=lambda: [6]))
         )
 
     def get_design_building_config(self) -> DesignBuildingConfig:

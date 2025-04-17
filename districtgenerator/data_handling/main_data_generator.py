@@ -95,6 +95,7 @@ class DataGenerator:
         gurobi_data = self.gurobi_data_gen.generate_optimization_data()
         with open(f"{output_path}gurobi_settings.json", "w", encoding='utf-8') as f:
             json.dump(gurobi_data, f, indent=2, ensure_ascii=False)
+        
         # Save building data to CSV
         building_data = self.building_data_gen.generate_building_data()
         df = pd.DataFrame(building_data)

@@ -283,7 +283,7 @@ class Datahandler:
 
         # Load other site-dependent values based on DIN/TS 12831-1:2020-04
         srcPath = os.path.dirname(os.path.abspath(__file__))
-        filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
+        filePath = os.path.join(os.path.dirname(self.srcPath), 'data', 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
         # Filter data for the specific zip code
