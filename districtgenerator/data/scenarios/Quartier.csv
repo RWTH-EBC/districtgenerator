@@ -1,4 +1,0 @@
-id;building;year;retrofit;construction_type;night_setback;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
-0;SFH;1889;0;0;0;150;BOI;0;0;1;0;20;0;0;0.0;0.0;0;on_demand
-1;SFH;1889;0;0;0;150;BOI;0;0;1;0;20;0;0;0.0;0.0;0;on_demand
-2;SFH;1889;0;0;0;150;BOI;0;0;1;0;20;0;0;0.0;0.0;0;on_demand
