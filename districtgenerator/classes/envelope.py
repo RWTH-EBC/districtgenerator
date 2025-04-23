@@ -468,7 +468,7 @@ class Envelope:
 
     def calcHeatLoad(self, site, method="design"):
         """
-        Calculate design (nominal) heat load at norm outside temperature
+        Calculate design (nominal) heat load at norm outside temperature following DIN EN 12831-1 / DIN/TS 12831-1.
 
         Parameters
         ----------
@@ -483,12 +483,17 @@ class Envelope:
             Heat load.
         """
 
-
-        U_TB = 0.05  # [W/m²K] Thermal bridge surcharge
-        f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
-        # Reduction factor
+        # Thermal bridge surcharge for opaque components (categroy A) [table 2, DIN/TS 12831-1]
+        U_TB = 0.05  # [W/m²K]
+        # Correction factor for annual fluctuation of the outdoor temperature (fθann) [DIN/TS 12831-1, 4.3.1]
+        f_g1 = 1.45
+        # Reduction factor (fix,k) [DIN EN 12831-1, 6.3.2.5 and table 7]
+        # T_me = mean outdoor temperature
+        # T_ne = norm outdoor temperature
+        # for an exterior wall f1 = 1 -> fix,k = f1 + f2 = f2
         f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
-        G_w = 1.0  # influence of groundwater neglected
+        # influence of groundwater neglected [DIN/TS 12831-1, 4.3.1]
+        G_w = 1.0
 
         if method == "design":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
