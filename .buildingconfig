@@ -1,0 +1,7 @@
+night_setback=False
+PV=False
+STC=False
+EV=False
+BAT=False
+storage={"f_TES": 35.0, "f_BAT": 1.0, "f_EV": 6000.0, "f_PV": 0.4, "f_STC": 0.04}
+charging_modes=["on_demand"]

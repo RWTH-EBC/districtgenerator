@@ -1,0 +1,8 @@
+ModelName=Central_Operational_Optimization
+TimeLimit=3600
+MIPGap=0.01
+MIPFocus=3
+NonConvex=2
+NumericFocus=3
+PoolSolution=3
+DualReductions=0

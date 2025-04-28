@@ -1,0 +1,11 @@
+price_supply_el=0.32
+revenue_feed_in_el=0.0811
+price_supply_gas=0.12
+price_hydrogen=0.1
+price_waste=0.1
+price_biomass=0.05
+co2_el_grid=0.49
+co2_gas=0.25
+co2_biom=0.35
+co2_waste=0.0
+co2_hydrogen=0.0

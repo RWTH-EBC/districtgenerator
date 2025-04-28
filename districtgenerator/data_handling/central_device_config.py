@@ -1,7 +1,6 @@
-from dataclasses import dataclass
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-@dataclass
-class CentralDeviceConfig:
+class CentralDeviceConfig(BaseSettings):
     # PV parameters
     PV_feasible: bool = True
     PV_eta: float = 0.15
@@ -229,4 +228,9 @@ class CentralDeviceConfig:
     GS_max_cap: int = 10000
     GS_sto_loss: float = 0.0
     GS_soc_init: float = 0.5
+
+    model_config = SettingsConfigDict(
+        env_file= ".centraldeviceconfig",
+        extra="forbid" 
+    )
 

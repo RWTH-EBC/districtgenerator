@@ -1,0 +1,5 @@
+timeResolution=3600
+clusterLength=604800
+clusterNumber=4
+dataResolution=3600
+dataLength=31536000

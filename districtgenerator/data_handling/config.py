@@ -1,22 +1,22 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
-# dict = {
-#     "location_config": {
-#         "time_zone": 1, #hgrrg
-# }
+from typing import Any, Dict, List, ClassVar, Set
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# dictonary class?
 
-@dataclass
-class LocationConfig:
+class LocationConfig(BaseSettings):
     timeZone: float = 1
     albedo: float = 0.2
     TRYYear: str = 'TRY2015'
     TRYType: str = 'Jahr'
     zip: str = '52078'
 
-    ALLOWED_TRY_YEARS = {"TRY2015", "TRY2045"}
-    ALLOWED_TRY_TYPES = {"Jahr", "Somm", "Wint"}
+    ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
+    ALLOWED_TRY_TYPES: ClassVar[Set[str]] ={"Jahr", "Somm", "Wint"}
+
+    model_config = SettingsConfigDict(
+        env_file= ".locationconfig",
+        extra="forbid" 
+    )
 
     def __post_init__(self):
         if self.TRYYear not in self.ALLOWED_TRY_YEARS:
@@ -26,8 +26,7 @@ class LocationConfig:
         if not (0.0 <= self.albedo <= 1.0):
             raise ValueError("albedo must be between 0.0 and 1.0.")
 
-@dataclass
-class TimeConfig:
+class TimeConfig(BaseSettings):
     timeResolution: int = 3600
     clusterLength: int = 604800
     clusterNumber: int = 4
@@ -37,9 +36,12 @@ class TimeConfig:
     holidays2045: list = field(default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365],)
     initial_day_2015: list = field(default_factory=lambda: [4])
     initial_day_2045: list = field(default_factory=lambda: [6])
+    model_config = SettingsConfigDict(
+        env_file= ".timeconfig",
+        extra="forbid" 
+    )
 
-@dataclass
-class DesignBuildingConfig:
+class DesignBuildingConfig(BaseSettings):
     T_set_min: float = 20.0
     T_set_min_night: float = 18.0
     T_set_max: float = 23.0
@@ -53,9 +55,12 @@ class DesignBuildingConfig:
     retrofit_long: list = field(default_factory=lambda: ['tabula_standard', 'tabula_retrofit', 'tabula_adv_retrofit'])
     dhwload: list = field(default_factory=lambda: [4662.1, 4662.1, 4662.1, 3999.8])
     mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40])
+    model_config = SettingsConfigDict(
+        env_file= ".designbuildingconfig",
+        extra="forbid" 
+    )
 
-@dataclass
-class EcoConfig:
+class EcoConfig(BaseSettings):
     price_supply_el: float = 0.32
     revenue_feed_in_el: float = 0.0811
     price_supply_gas: float = 0.12
@@ -67,16 +72,22 @@ class EcoConfig:
     co2_biom: float = 0.35
     co2_waste: float = 0.0
     co2_hydrogen: float = 0.0
+    model_config = SettingsConfigDict(
+        env_file= ".ecoconfig",
+        extra="forbid" 
+    )
 
-@dataclass
-class PhysicsConfig:
+class PhysicsConfig(BaseSettings):
     rho_air: float = 1.2 # kg/m3
     c_p_air: float = 1000.0
     rho_water: float = 1000.0
     c_p_water: float = 4.18
+    model_config = SettingsConfigDict(
+        env_file= ".physicsconfig",
+        extra="forbid" 
+    )
 
-@dataclass
-class GurobiConfig:
+class GurobiConfig(BaseSettings):
     ModelName: str = "Central_Operational_Optimization" # Name of the model
     TimeLimit: int = 3600         # seconds
     MIPGap: float = 0.01
@@ -85,16 +96,21 @@ class GurobiConfig:
     NumericFocus: int = 3
     PoolSolution: int = 3
     DualReductions: int = 0
+    model_config = SettingsConfigDict(
+        env_file= ".gurobiconfig",
+        extra="forbid" 
+    )
 
-@dataclass
-class HeatGridConfig:
+class HeatGridConfig(BaseSettings):
     T_hot: float = 332.15           # Flow temperature in Kelvin
     T_cold: float = 323.15          # Return temperature in Kelvin
     delta_T_heatTransfer: float = 5 # Temperature difference in heat exchangers (K)
+    model_config = SettingsConfigDict(
+        env_file= ".heatgridconfig",
+        extra="forbid" 
+    )
 
-
-@dataclass
-class EHDOConfig:
+class EHDOConfig(BaseSettings):
     # Electricity configuration
     enable_supply_el: bool = True
     enable_feed_in_el: bool = True
@@ -146,10 +162,12 @@ class EHDOConfig:
     # Helper attributes for unit formatting
     unit_placeholder: str = " - "  # used for cases where unit is a placeholder
     unit_dash: str = "-"         # used for cases where unit is a dash
+    model_config = SettingsConfigDict(
+        env_file= ".ehdoonfig",
+        extra="forbid" 
+    )
 
-
-@dataclass
-class BuildingConfig:
+class BuildingConfig(BaseSettings):
     buildings: List[Dict[str, Any]]
     heater_types: List[str]
     night_setback: bool = False
@@ -166,9 +184,14 @@ class BuildingConfig:
             "f_STC": 0.04
         }
     )
+    model_config = SettingsConfigDict(
+        env_file= ".buildingconfig",
+        extra="forbid" 
+    )
+
     charging_modes: List[str] = field(default_factory=lambda: ["on_demand"])
 
-    ALLOWED_CHARGING_MODES = {"on_demand", "night_charge", "pv_optimized"}
+    ALLOWED_CHARGING_MODES: ClassVar[Set[str]] = {"on_demand", "night_charge", "pv_optimized"}
 
     def __post_init__(self):
         for mode in self.charging_modes:
@@ -187,13 +210,3 @@ class BuildingConfig:
                 value = self.storage[key]
                 if not (low <= value <= high):
                     raise ValueError(f"{key} must be between {low} and {high}.")
-
-# New Config Class for Device Data
-#@dataclass
-#class CentralDeviceConfig:
-
-#@dataclass
-#class DecentralDeviceConfig:
-
-#@dataclass
-#class PhysicsConfig:

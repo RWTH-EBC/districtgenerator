@@ -1,7 +1,6 @@
-from dataclasses import dataclass
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-@dataclass
-class DecentralDeviceConfig:
+class DecentralDeviceConfig(BaseSettings):
     # HP parameters
     HP_grade: float = 0.4
     HP_life_time: int = 18
@@ -90,4 +89,8 @@ class DecentralDeviceConfig:
     # Investment data parameters
     inv_data_observation_time: int = 20
     inv_data_interest_rate: float = 0.05
-
+    
+    model_config = SettingsConfigDict(
+        env_file= ".decentraldeviceconfig",
+        extra="forbid" 
+    )
