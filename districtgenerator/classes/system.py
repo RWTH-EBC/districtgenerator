@@ -4,6 +4,8 @@ import json
 import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
+import districtgenerator.functions.heating_network as heating_network
+
 from .solar import Sun
 import numpy as np
 
@@ -102,15 +104,19 @@ class BES:
 
             # thermal energy storage (TES)
             if k == "TES":
-                # f_TES in l per kW design load
-                # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
-                # design refers to DHL
-                BES["TES"] = buildingFeatures["f_TES"] \
-                                * self.design_load_heating / 1000 \
-                                * self.physics["rho_water"] \
-                                * self.physics["c_p_water"] \
-                                * self.decentral_device_data["TES"]["T_diff_max"] \
-                                / 3600
+                # No TES if the system is centralized
+                if buildingFeatures["heater"] == "heat_grid":
+                    BES["TES"] = 0
+                else:
+                    # f_TES in l per kW design load
+                    # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
+                    # design refers to DHL
+                    BES["TES"] = buildingFeatures["f_TES"] \
+                                    * self.design_load_heating / 1000 \
+                                    * self.physics["rho_water"] \
+                                    * self.physics["c_p_water"] \
+                                    * self.decentral_device_data["TES"]["T_diff_max"] \
+                                    / 3600
 
             # compression chiller (CC)
             # A compression chiller is only designed if the building is actively cooled
@@ -180,7 +186,10 @@ class CES:
             The capacities of the central devices.
         """
 
-        # Load parameters
+        # Load parameters of the heating network
+        data = heating_network.heating_network(data)
+
+        # Load parameters of the energy hub
         param, devs, dem, result_dict = load_params_central_devices.load_params(data)
 
         # Run optimization

@@ -464,13 +464,13 @@
     },
         {
       "name": "coeff_ch",
-      "value": 0.1,
+      "value": 0.15,
       "unit": "Watt per Watthour",
       "description": "Charging and discharging coefficient."
     },
     {
       "name": "init",
-      "value": 0.5,
+      "value": 0.9,
       "unit": "-",
       "description": "Initial state of charge."
     },

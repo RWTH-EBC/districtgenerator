@@ -58,7 +58,7 @@ def load_params(data):
             cooling = data.district[b]["user"].cooling / 1000 # kW
             dhw = data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances = data.district[b]["user"].elec / 1000 # kW
-            electricityEV = data.district[b]["user"].car / 1000 # kW
+            electricityEV = data.district[b]["user"].carcharging_ondemand / 1000 # kW
             generationPV = data.district[b]["generationPV"] / 1000 # kW
             generationSTC = data.district[b]["generationSTC"] / 1000 # kW
 
@@ -67,14 +67,16 @@ def load_params(data):
             cooling += data.district[b]["user"].cooling / 1000 # kW
             dhw += data.district[b]["user"].dhw / 1000 # kW
             electricityAppliances += data.district[b]["user"].elec / 1000 # kW
-            electricityEV += data.district[b]["user"].car / 1000 # kW
+            electricityEV += data.district[b]["user"].carcharging_ondemand / 1000 # kW
             generationPV += data.district[b]["generationPV"] / 1000 # kW
             generationSTC += data.district[b]["generationSTC"] / 1000 # kW
 
-    heat_total = heating + dhw - generationSTC
+    heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
+    cooling_total = cooling + heat_grid_data["total_losses_cooling_network"]
+
     electricity_total = electricityAppliances + electricityEV - generationPV
-    dem_uncl["heat"] = heat_total
-    dem_uncl["cool"] = cooling
+    dem_uncl["heat"] = heating_total
+    dem_uncl["cool"] = cooling_total
     dem_uncl["power"] = electricity_total
     for k in ["heat", "cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
@@ -98,6 +100,12 @@ def load_params(data):
 
     # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
     inputs = np.array(time_series)
+
+    # Scaling flags for each profile (True = scale after clustering, False = preserve values)
+    scalings = []
+    for feature in inputs:
+        scalings.append(0)
+
     # Execute k-medoids algorithm
     print("Cluster design days...")
     start = time.time()
@@ -106,7 +114,7 @@ def load_params(data):
                                      len_cluster=int(clusterHorizon),
                                      norm = 2,
                                      mip_gap = 0.02,
-                                     )
+                                    scalings=scalings)
 
     print("Design clustering finished. (" + str(time.time()-start) + ")\n")
 

@@ -614,7 +614,7 @@ class Profiles:
         return gains_persons, gains_others
 
 
-    def generate_ev_profile(self, building, holidays):
+    def generate_ev_profile(self, building, building_devices_data, holidays):
         """
             Generate daily EV charging demand (distinguishing between workdays and non-workdays) and return an annual load curve.
 
@@ -630,12 +630,15 @@ class Profiles:
             occ_profile = self.occ_profile_building
 
         # Calculate the number of timesteps per day
-        array = int(len(occ_profile) / self.nb_days)
+        steps_per_day = int(len(occ_profile) / self.nb_days)
         total_steps = int(len(occ_profile))
+        dt = self.time_resolution / (60 * 60)
 
-        # Car demand profile
-        car_demand_total = np.zeros(total_steps)
-        # Total EV battery capacity in every flat
+        # All cars demand and charging profiles
+        all_cars_demand_total = np.zeros(total_steps)
+        on_demand_all_cars_charging = np.zeros(total_steps)
+
+        # EV battery capacities
         ev_capacity = []
 
         # Define the possible total driving distances per day (in km)
@@ -726,7 +729,11 @@ class Profiles:
                 battery_capacity = 1000 * np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]) #Wh
                 ev_capacity.append(battery_capacity)
 
-                # Iterate through all days, distinguishing workdays and non-workdays ======
+                # Initialize the EV's demand profile (in Wh) over the entire simulation period
+                ev_demand = np.zeros(total_steps)
+                ev_charging_profile = np.zeros(total_steps)
+
+                # Iterate through all days, distinguishing workdays and non-workdays
                 for day in range(self.nb_days):
                     # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
                     if (day + self.initial_day) % 7 in (5, 6) or day + 1 in holidays:
@@ -735,8 +742,12 @@ class Profiles:
                         not_working_day = False
 
                     # slice occupancy profile for current day
-                    occ_day = occ_profile[day * array:(day + 1) * array]
-                    daily_demand = np.zeros(len(occ_day))
+                    start_idx = day * steps_per_day
+                    end_idx = (day + 1) * steps_per_day
+                    occ_day = occ_profile[start_idx:end_idx]
+                    daily_demand = np.zeros(steps_per_day)
+
+                    # Find timesteps when nobody is at home.
                     nobody_home = np.where(occ_day == 0.0)
 
                     # Select the driving distance distribution for the day
@@ -749,7 +760,7 @@ class Profiles:
                         car_arrive = nobody_home[0][-1]
                     except:
                         # if all day at least one occupant is at home, assume that EV returns circa at 18:00 pm
-                        car_arrive = array - int(array / 4)
+                        car_arrive = steps_per_day - int(steps_per_day / 4)
 
                     # the prob of not using the car
                     # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
@@ -767,8 +778,39 @@ class Profiles:
                         consumption = min(daily_dist * consumption_per_km * (1 - 0.105), battery_capacity * 0.9)
                         daily_demand[car_arrive] = consumption
 
-                    # add current day to demand for all days
-                    car_demand_total[day * array:(day + 1) * array] += daily_demand
+                        # Add the day's demand to the EV's overall profile.
+                        ev_demand[start_idx:end_idx] += daily_demand
+
+                    for t in range(total_steps):
+                        if ev_demand[t] > 0:
+
+                            # On_demand EVs must begin charging immediately after arrival
+                            max_charging_power = battery_capacity * building_devices_data["EV"]["coeff_ch"]
+                            max_energy_per_step = max_charging_power * building_devices_data["EV"]["eta_ch"] * dt
+                            charging_timesteps = ev_demand[t] / max_energy_per_step
+
+                            if 0 < charging_timesteps <= 1:
+                                # So the EV is charged in just one timestep
+                                ev_charging_profile[t] = ev_demand[t] / (building_devices_data["EV"]["eta_ch"] * dt)
+
+                            elif charging_timesteps > 1:
+                                # So the EV is charged in more than one timestep
+                                fullpower_charging_timesteps = int(np.floor(charging_timesteps))
+
+                                for tt in range(t, min(t + fullpower_charging_timesteps, total_steps)):
+                                    ev_charging_profile[tt] = max_charging_power
+
+                                # Charge the remaining energy (if any) in the next timestep.
+                                remaining_energy = ev_demand[t] - (fullpower_charging_timesteps * max_energy_per_step)
+                                # Convert remaining_energy back into power
+                                ch_power_last_step = remaining_energy / (building_devices_data["EV"]["eta_ch"] * dt)
+                                # The charging power needed in the last timestep
+                                if t + fullpower_charging_timesteps < total_steps:
+                                    ev_charging_profile[t + fullpower_charging_timesteps] = ch_power_last_step
+
+                # Accumulate the EV's profiles into the total profiles.
+                all_cars_demand_total += ev_demand
+                on_demand_all_cars_charging += ev_charging_profile
 
         elif self.building in {"OB"}:
 
@@ -780,21 +822,59 @@ class Profiles:
                 battery_capacity = 1000 * np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]) # Wh
                 ev_capacity.append(battery_capacity)
 
+                # Initialize the EV's demand profile (in Wh) over the entire simulation period
+                ev_demand = np.zeros(total_steps)
+                ev_charging_profile = np.zeros(total_steps)
+
                 dist_OB = np.random.uniform(*distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
                 consumption = min(dist_OB * consumption_per_km, battery_capacity * 0.9)  # Wh; Capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
 
                 for day in range(self.nb_days):
                     # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
                     if (day + self.initial_day) % 7 not in (5, 6) and (day + 1 not in holidays):
-                        occ_day = occ_profile[day * array:(day + 1) * array]
-                        daily_demand = np.zeros(len(occ_day))
+                        # slice occupancy profile for current day
+                        start_idx = day * steps_per_day
+                        end_idx = (day + 1) * steps_per_day
+                        occ_day = occ_profile[start_idx:end_idx]
+                        daily_demand = np.zeros(steps_per_day)
                         try:
                             car_arrive = np.where(occ_day != 0.0)[0][0]
                         except:
                             car_arrive = None
                         daily_demand[car_arrive] = consumption
-                        # add current day to demand for all days
-                        car_demand_total[day * array:(day + 1) * array] += daily_demand
+                        # Add the day's demand to the EV's overall profile.
+                        ev_demand[start_idx:end_idx] += daily_demand
 
-        return car_demand_total, ev_capacity
+                for t in range(total_steps):
+                    if ev_demand[t] > 0:
+
+                        # On_demand EVs must begin charging immediately after arrival
+                        max_charging_power = battery_capacity * building_devices_data["EV"]["coeff_ch"]
+                        max_energy_per_step = max_charging_power * building_devices_data["EV"]["eta_ch"] * dt
+                        charging_timesteps = ev_demand[t] / max_energy_per_step
+
+                        if 0 < charging_timesteps <= 1:
+                            # So the EV is charged in just one timestep
+                            ev_charging_profile[t] = ev_demand[t] / (building_devices_data["EV"]["eta_ch"] * dt)
+
+                        elif charging_timesteps > 1:
+                            # So the EV is charged in more than one timestep
+                            fullpower_charging_timesteps = int(np.floor(charging_timesteps))
+
+                            for tt in range(t, min(t + fullpower_charging_timesteps, total_steps)):
+                                ev_charging_profile[tt] = max_charging_power
+
+                            # Charge the remaining energy (if any) in the next timestep.
+                            remaining_energy = ev_demand[t] - (fullpower_charging_timesteps * max_energy_per_step)
+                            # Convert remaining_energy back into power
+                            ch_power_last_step = remaining_energy / (building_devices_data["EV"]["eta_ch"] * dt)
+                            # The charging power needed in the last timestep
+                            if t + fullpower_charging_timesteps < total_steps:
+                                ev_charging_profile[t + fullpower_charging_timesteps] = ch_power_last_step
+
+                # Accumulate the EV's profiles into the total profiles.
+                all_cars_demand_total += ev_demand
+                on_demand_all_cars_charging += ev_charging_profile
+
+        return all_cars_demand_total, on_demand_all_cars_charging, ev_capacity
 

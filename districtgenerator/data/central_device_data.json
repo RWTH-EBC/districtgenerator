@@ -91,7 +91,7 @@
     "cost_om": 0.015,
     "inv_var": 800,
     "min_cap": 0,
-    "max_cap": 500
+    "max_cap": 1000
   },
   "GroundHP": {
     "feasible": false,

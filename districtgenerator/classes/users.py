@@ -91,7 +91,8 @@ class Users:
         self.gains = None
         self.heat = None
         self.cooling = None
-        self.car = None
+        self.carprofile = None
+        self.carcharging_ondemand = None
         self.ev_capacity = None
 
         # Initialize SIA class and read data
@@ -592,7 +593,7 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -624,7 +625,8 @@ class Users:
             self.dhw = np.zeros(int(time_horizon / time_resolution))
             self.elec = np.zeros(int(time_horizon / time_resolution))
             self.gains = np.zeros(int(time_horizon / time_resolution))
-            self.car = np.zeros(int(time_horizon / time_resolution))
+            self.carprofile = np.zeros(int(time_horizon / time_resolution))
+            self.carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
             self.ev_capacity = []
 
             for j in range(self.nb_flats):
@@ -641,8 +643,9 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
-                carprofile, ev_capacity = temp_obj.generate_ev_profile(building=building, holidays=holidays)
-                self.car = self.car + carprofile
+                carprofile, on_demand_charging, ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
+                self.carprofile = self.carprofile + carprofile # Sum car profiles over all flats in the building
+                self.carcharging_ondemand = self.carcharging_ondemand + on_demand_charging
                 self.ev_capacity += ev_capacity
 
         else:
@@ -655,7 +658,14 @@ class Users:
             self.gains = gains_persons + gains_others
 
             self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
-            self.car, self.ev_capacity = temp_obj.generate_ev_profile(building=building, holidays=holidays)
+
+            # In the case of non-residential buildings, EVs are only for office buildings
+            if self.building in {"OB"}:
+                self.carprofile, self.carcharging_ondemand, self.ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
+            else:
+                self.carprofile = np.zeros(len(self.occ), dtype=np.float64)
+                self.carcharging_ondemand = np.zeros(len(self.occ), dtype=np.float64)
+                self.ev_capacity = [0.0]
 
     def calcHeatingProfile(self, site, envelope, night_setback, is_cooled, holidays, time_resolution):
         """

@@ -20,6 +20,7 @@ def run_opti_central(model, data, cluster):
     central_device_data = data.central_device_data
     buildingData = data.district
     energyHubData = data.centralDevices
+    heatingNetworkData = data.heat_grid_data
 
     now = time.time()
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -31,16 +32,25 @@ def run_opti_central(model, data, cluster):
     last_time_step = len(time_steps) - 1
 
     T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
+
+    # Consider network losses only if a heating/cooling network exists
+    try:
+        network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000 # W
+        network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000 # W
+    except:
+        network_losses_heating = [0] * T_e
+        network_losses_cooling = [0] * T_e
+
     Q_DHW = {}      # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
     Q_cooling = {}  # space cooling [W]
     PV_gen = {}     # electricity generation of PV [W]
     STC_heat = {}   # electricity generation of PV [W]
     EV_dem = {}     # electricity demand electric vehicle (EV) [Wh]
+    EV_charging_ondemand = {}     # charging power electric vehicle (EV) if on-demand [W]
+
     elec_dem = {}   # electricity demand for appliances and lighting [W]
     occ = {}
-    COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][cluster]
-    COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][cluster]
     for n in range(buildings):
         Q_DHW[n] = buildingData[n]["user"].dhw_cluster[cluster]
         Q_heating[n] = buildingData[n]["user"].heat_cluster[cluster]
@@ -50,12 +60,13 @@ def run_opti_central(model, data, cluster):
         try:
             PV_gen[n] = buildingData[n]["generationPV_cluster"][cluster]
             STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
-            EV_dem[n] = buildingData[n]["user"].car_cluster[cluster]
+            EV_dem[n] = buildingData[n]["user"].carprofile_cluster[cluster]
+            EV_charging_ondemand[n] = buildingData[n]["user"].carcharging_ondemand_cluster[cluster]
         except:
             PV_gen[n] = [0] * len(elec_dem[n])
             STC_heat[n] = [0] * len(elec_dem[n])
             EV_dem[n] = [0] * len(elec_dem[n])
-
+            EV_charging_ondemand[n] = [0] * len(elec_dem[n])
 
     # %% Sets of energy conversion systems in the buildings
     ecs_heat = ("HP", "EH", "CHP", "FC", "BOI", "STC", "heat_grid")
@@ -358,11 +369,19 @@ def run_opti_central(model, data, cluster):
     #%% INPUT / OUTPUT CONSTRAINTS
     for t in time_steps:
         # Electric heat pump
-        model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * COP_HP_eh[t])
+        if energyHubData == {}:
+            model.addConstr(eh_heat["HP"][t] == 0)
+        else:
+            COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][cluster]
+            model.addConstr(eh_heat["HP"][t] == eh_power["HP"][t] * COP_HP_eh[t])
         # Electric boiler
         model.addConstr(eh_heat["EB"][t] == eh_power["EB"][t] * central_device_data["EB"]["eta_th"])
         # Compression chiller
-        model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * COP_CC_eh[t])
+        if energyHubData == {}:
+            model.addConstr(eh_cool["CC"][t] == 0)
+        else:
+            COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][cluster]
+            model.addConstr(eh_cool["CC"][t] == eh_power["CC"][t] * COP_CC_eh[t])
         # Absorption chiller
         model.addConstr(eh_cool["AC"][t] == eh_heat["AC"][t] * central_device_data["AC"]["eta_th"])
         # Gas CHP
@@ -484,19 +503,23 @@ def run_opti_central(model, data, cluster):
 
     # %% EV CONSTRAINTS
     device = "EV"
+
     for n in range(buildings):
+
         plug_in_time = None
         # Define the charging period (parking time or until the end of time_steps)
-        parking_time = 12 / dt if buildingData[n]["buildingFeatures"]["building"] in {"SFH", "TH", "MFH","AB"} else 7 / dt
+        parking_time = 12 / dt if buildingData[n]["buildingFeatures"]["building"] in {"SFH", "TH", "MFH", "AB"} else 7 / dt
 
-        # Energy balance
-        for t in time_steps:
-            if t == 0:
-                soc_prev = soc_init[device][n]
-            else:
-                soc_prev = soc_dom[device][n][t - 1]
+        if buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional", "on_demand"}:
 
-            if buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional", "on_demand"}:
+            for t in time_steps:
+                if t == 0:
+                    soc_prev = soc_init[device][n]
+                else:
+                    soc_prev = soc_dom[device][n][t - 1]
+
+
+                # Energy balance
                 # This is the general constraint that applies directly (without additional constraints) when the EV has a bidirectional charging mode
                 model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"] ** dt
                                 + ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"] * dt
@@ -505,72 +528,49 @@ def run_opti_central(model, data, cluster):
                                 name="EV_storage_balance_" + str(n) + "_" + str(t))
 
 
-            else:
-                raise ValueError(f"Invalid 'ev_charging' value: '{buildingData[n]['buildingFeatures']['ev_charging']}'. "f" It should be one of 'intelligent', 'bi_directional', or 'on_demand'.")
+                if buildingData[n]["buildingFeatures"]["ev_charging"] == "on_demand":
+                    # On_demand EVs can only charge, not discharge
+                    model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
+                    model.addConstr(ch_dom[device][n][t] == EV_charging_ondemand[n][t], name="charge_ondemand_ev_" + str(n) + "_" + str(t))
 
+                elif buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional"}:
 
-            if t == last_time_step:
-                model.addConstr(soc_dom[device][n][t] == soc_init[device][n])
+                    if t == last_time_step:
+                    # In the case of on-demand, this constraint is not needed because the car is directly charged the same amount as it consumes
+                            model.addConstr(soc_dom[device][n][t] == soc_init[device][n])
 
-            # Detect charging periods based on EV_dem
-            if plug_in_time is None and EV_dem[n][t] > 0:
-                plug_in_time = t
-            # If charging start time is found
-            if plug_in_time is not None:
-                # Charging period constraints
-                if t >= plug_in_time and t < min(plug_in_time + parking_time, len(time_steps)):
-                    # Within charging period, allow charging and discharging
-                    if buildingData[n]["buildingFeatures"]["ev_charging"] == "intelligent":
-                        # Intelligent EVs can only charge, not discharge
-                        model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
+                    # Detect charging periods based on EV_dem
+                    if plug_in_time is None and EV_dem[n][t] > 0:
+                        plug_in_time = t
+                    # If charging start time is found
+                    if plug_in_time is not None:
+                        # Charging period constraints
+                        if t >= plug_in_time and t < min(plug_in_time + parking_time, len(time_steps)):
+                            # Within charging period, allow charging and discharging
+                            if buildingData[n]["buildingFeatures"]["ev_charging"] == "intelligent":
+                                # Intelligent EVs can only charge, not discharge
+                                model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
 
-                    elif buildingData[n]["buildingFeatures"]["ev_charging"] == "on_demand":
-                        # On_demand EVs can only charge, not discharge
-                        model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
+                        else:
+                            # Outside charging period, force charging and discharging power to zero
+                            model.addConstr(ch_dom[device][n][t] == 0, name="no_charging" + str(n) + "_" + str(t))
+                            model.addConstr(dch_dom[device][n][t] == 0, name="no_discharging" + str(n) + "_" + str(t))
+                            # to reset plug_in_time when time is outside the parking_time window
+                            if t >= plug_in_time + parking_time:
+                                plug_in_time = None
+                    else:
+                        # When it's not a plug-in time, charging and discharging rate is zero
+                        model.addConstr(ch_dom[device][n][t] == 0, name="not_plug-in-time_charging_" + str(n) + "_" + str(t))
+                        model.addConstr(dch_dom[device][n][t] == 0, name="not_plug-in-time_discharging_" + str(n) + "_" + str(t))
 
-                        # On_demand EVs must begin charging immediately after arrival
-                        max_charging_power = buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"]
-                        max_energy_per_step = max_charging_power * param_dec_devs[device]["eta_ch"] * dt
-                        charging_timesteps = EV_dem[n][t] / max_energy_per_step
+                    model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 10000000,
+                                    name="Binary1_ev_" + str(n) + "_" + str(t))
+                    model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 10000000,
+                                    name="Binary2_ev_" + str(n) + "_" + str(t))
+        else:
+            raise ValueError(
+                f"Invalid 'ev_charging' value: '{buildingData[n]['buildingFeatures']['ev_charging']}'. "f" It should be one of 'intelligent', 'bi_directional', or 'on_demand'.")
 
-                        if 0 < charging_timesteps <= 1:
-                            # So the EV is charged in just one timestep
-                            model.addConstr(
-                                ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"] * dt == EV_dem[n][t],
-                                name="res_power_ev_" + str(n) + "_" + str(t))
-
-                        elif charging_timesteps > 1:
-                            # So the EV is charged in more than one timestep
-                            full_charging_timesteps = int(np.floor(charging_timesteps))
-                            for tt in range(t, min(t + full_charging_timesteps, len(time_steps))):
-                                    model.addConstr(ch_dom[device][n][tt] == buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                        name="res_power_ev_" + str(n) + "_" + str(tt))
-
-                            # Charge the remaining energy in the final step (if needed)
-                            remaining_energy = EV_dem[n][t] - (full_charging_timesteps * buildingData[n]["capacities"][device] * param_dec_devs[device][
-                                "coeff_ch"] * param_dec_devs[device]["eta_ch"] * dt)
-                            # Convert remaining_energy back into power
-                            ch_power_last_step = remaining_energy / (param_dec_devs[device]["eta_ch"] * dt)
-                            # The charging power needed in the last timestep
-                            model.addConstr(ch_dom[device][n][t + full_charging_timesteps] == ch_power_last_step,
-                                name=f"res_power_ev_{n}_{t}_final")
-
-                else:
-                    # Outside charging period, force charging and discharging power to zero
-                    model.addConstr(ch_dom[device][n][t] == 0, name="no_charging" + str(n) + "_" + str(t))
-                    model.addConstr(dch_dom[device][n][t] == 0, name="no_discharging" + str(n) + "_" + str(t))
-                    # to reset plug_in_time when time is outside the parking_time window
-                    if t >= plug_in_time + parking_time:
-                        plug_in_time = None
-            else:
-                # When it's not a plug-in time, charging and discharging rate is zero
-                model.addConstr(ch_dom[device][n][t] == 0, name="not_plug-in-time_charging_" + str(n) + "_" + str(t))
-                model.addConstr(dch_dom[device][n][t] == 0, name="not_plug-in-time_discharging_" + str(n) + "_" + str(t))
-
-            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 10000000,
-                            name="Binary1_ev_" + str(n) + "_" + str(t))
-            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 10000000,
-                            name="Binary2_ev_" + str(n) + "_" + str(t))
 
 
 
@@ -663,11 +663,10 @@ def run_opti_central(model, data, cluster):
                         == eh_heat["grid"][t] + eh_heat["AC"][t] + eh_ch["TES"][t],
                         name="Heating_balance_EnergyHub_" + str(t))
 
-        # todo: heat losses heat grid
-        model.addConstr(eh_heat["grid"][t] >= sum(heat_dom["heat_grid"][n][t] for n in range(buildings)),
+        model.addConstr(eh_heat["grid"][t] >= sum(heat_dom["heat_grid"][n][t] for n in range(buildings)) + network_losses_heating[t],
                         name="Heat_Supply_EnergyHub_" + str(t))
 
-        model.addConstr(eh_cool["grid"][t] >= sum(cool_dom["heat_grid"][n][t] for n in range(buildings)),
+        model.addConstr(eh_cool["grid"][t] >= sum(cool_dom["heat_grid"][n][t] for n in range(buildings)) + network_losses_cooling[t],
                         name="Cool_Supply_EnergyHub_" + str(t))
 
         # Electricity balance
@@ -777,21 +776,29 @@ def run_opti_central(model, data, cluster):
     print("Model run time was " + str(difference) + " seconds")
     print("********************************************")
 
-    if model.status == gp.GRB.Status.INFEASIBLE or model.status == gp.GRB.Status.INF_OR_UNBD:
-        print(model.status)
+    if model.status == gp.GRB.Status.INFEASIBLE:
+        print("Model is infeasible")
+        # Compute IIS and write details to file
         model.computeIIS()
-        f = open('errorfile.txt','w')
-        f.write('\nThe following constraint(s) cannot be satisfied:\n')
-        for c in model.getConstrs():
-            if c.IISConstr:
-                f.write('%s' % c.constrName)
-                f.write('\n')
-        f.close()
-
-        # Save model files in current directory
-        model.write("model.lp")
-        model.write("model.sol")
+        with open('errorfile.txt', 'w') as f:
+            f.write('\nThe following constraint(s) cannot be satisfied:\n')
+            for c in model.getConstrs():
+                if c.IISConstr:
+                    f.write(f'{c.ConstrName}\n')
+        # Save IIS info
         model.write("model.ilp")
+
+    elif model.status == gp.GRB.Status.UNBOUNDED:
+        print("Model is unbounded")
+    elif model.status == gp.GRB.Status.OPTIMAL:
+        print("Model solved to optimality")
+    else:
+        print(f"Model status: {model.status}")
+
+    # Save model files in current directory
+    model.write("model.lp")
+    if model.Status == gp.GRB.Status.OPTIMAL:
+        model.write("model.sol")
 
     # %% SAVE RESULTS IN ONE CENTRAL RESULT FILE: result_file
 

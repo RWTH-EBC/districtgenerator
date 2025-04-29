@@ -9,6 +9,11 @@
     "unit": "°C",
     "description": "return temperature of heat grid"
   },
+  "D_heating_network": {
+    "value": 1,
+    "unit": "m",
+    "description": "Distance between the centerlines of the supply and return pipelines"
+  },
   "T_hot_cooling_network": {
   "value": 12,
   "unit": "°C",
@@ -19,9 +24,60 @@
   "unit": "°C",
   "description": "flow temperature of cooling grid"
   },
+  "D_cooling_network": {
+    "value": 1,
+    "unit": "m",
+    "description": "Distance between the centerlines of the supply and return pipelines"
+  },
   "delta_T_heatTransfer": {
     "value": 5,
     "unit": "K",
     "description": "temperature difference in heat exchangers"
+  },
+  "life_time": {
+  "value": 40,
+  "unit": "years",
+  "description": "lifetime of the heating/cooling network and its components"
+  },
+  "asphaltlayer": {
+  "value": 1,
+  "unit": "-",
+  "description": "consideration of asphalt layer? 1 = yes, 0 = no"
+  },
+  "d_asph": {
+  "value": 0.18,
+  "unit": "m",
+  "description": "asphalt layer thickness"
+  },
+  "grid_depth": {
+  "value": 1,
+  "unit": "m",
+  "description": "installation depth beneath surface"
+  },
+  "k_soil": {
+  "value": 1.52,
+  "unit": "W/(m*K)",
+  "description": "soil heat conductivity. Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht"
+  },
+  "k_PUF": {
+  "value": 0.03,
+  "unit": "W/(m*K)",
+  "description": "Polyurethane foam heat conductivity. Source: VDI Wärmeatlas"
+  },
+  "h_loss_subst": {
+  "value": 4.5,
+  "unit": "%",
+  "description": "Heat losses at the substation. Source: Technikkatalog Wärmeplanung 2024"
+  },
+  "C_subst": {
+  "value": 277.79,
+  "unit": "€/kW_th",
+  "description": "Invest. for the substation; Source: Technikkatalog Wärmeplanung 2024"
+  },
+  "C_O&M": {
+  "value": 1.44,
+  "unit": "€/MWh_th",
+  "description": "Variable O&M costs; Source: Technikkatalog Wärmeplanung 2024"
   }
 }
+

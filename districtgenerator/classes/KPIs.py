@@ -434,13 +434,13 @@ class KPIs:
         with open(os.path.join(filePath, 'eco_data.json')) as json_file:
             jsonData = json.load(json_file)
 
-        CO2_factor_el_grid = jsonData[3]["value"]  # Emi_elec_grid
-        CO2_factor_gas = jsonData[4]["value"]      # Emi_gas
-        CO2_factor_pv = jsonData[5]["value"]       # Emi_pv
+        CO2_factor_el_grid = next(item["value"] for item in jsonData if item["name"] == "co2_el_grid")  # Emi_elec_grid
+        CO2_factor_gas = next(item["value"] for item in jsonData if item["name"] == "co2_gas")      # Emi_gas
+        CO2_factor_pv = next(item["value"] for item in jsonData if item["name"] == "co2_PV")       # Emi_pv
 
         # change unit from [Wh] to [kWh] and consider time resolution --> in function "calculateEnergyExchangeGCP"
-        co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid
-        co2_gas = self.Gas_year * CO2_factor_gas
+        co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid / 1000    # in t/a
+        co2_gas = self.Gas_year * CO2_factor_gas / 1000                   # in t/a
 
         # caused CO2 emissions by PV [kg]
         co2_pv = 0
@@ -449,7 +449,7 @@ class KPIs:
                 try:
                     co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
                                  * data.time["timeResolution"] / 3600 / 1000) * CO2_factor_pv \
-                          * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                          * self.inputData["clusterWeights"][self.inputData["clusters"][c]]  / 1000     # in t/a
                 except KeyError:
                     co2_pv += 0
 
@@ -1036,13 +1036,13 @@ class KPIs:
         RH_values = tuple(struktur["Reihenhaus"].values())
         B_values = tuple(struktur["Block"].values())
 
-        certificate.drawString((table_width * 2 / 5) + (((table_width / 5) - (EFH_values[0] - 5) * 6.8) / 2) - 8,
+        certificate.drawString((table_width * 2 / 5) + ((table_width / 5) / 2) + 17 - (len(str(EFH_values[0])) * 6.5),
                                table_top - 14 - 18, str(EFH_values[0]))
-        certificate.drawString((table_width * 3 / 5) + (((table_width / 5) - (MFH_values[0] - 5) * 6.8) / 2) - 8,
+        certificate.drawString((table_width * 3 / 5) + ((table_width / 5) / 2) + 17 - (len(str(MFH_values[0])) * 6.5),
                                table_top - 14 - 18, str(MFH_values[0]))
-        certificate.drawString((table_width * 4 / 5) + (((table_width / 5) - (RH_values[0] - 5) * 6.8) / 2) - 8,
+        certificate.drawString((table_width * 4 / 5) + ((table_width / 5) / 2) + 17 - (len(str(RH_values[i])) * 6.5),
                                table_top - 14 - 18, str(RH_values[0]))
-        certificate.drawString((table_width) + (((table_width / 5) - (B_values[0] - 5) * 6.8) / 2) - 8,
+        certificate.drawString((table_width) + ((table_width / 5) / 2) + 17 - (len(str(B_values[i])) * 6.5),
                                table_top - 14 - 18, str(B_values[0]))
 
         for i in range(1, len(EFH_values)):
@@ -1149,56 +1149,61 @@ class KPIs:
             certificate.drawString(85, height - 36 - 6, "Liste der Gebäude")
 
         else:
-
+            num_data_cols = len(gebaeudeliste[0])
             for page in range(1, total_pages + 1, 1):
+                offset = 26 * (page - 1)
+                rows_on_page = min(26, len(gebaeudeliste) - offset)
 
                 if page != total_pages or len(gebaeudeliste) % 26 == 0:
                     for ii in range(n_rows + 1):
-                        certificate.line(54, table_top - (15 * ii), width - 54, table_top - (15 * ii))
+                        certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
                     for jj in range(n_columns + 1):
                         certificate.line(54 + table_width * (jj / n_columns), table_top,
                                          54 + table_width * (jj / n_columns), table_bottom)
 
                     # add table values
                     certificate.setFont("Helvetica", 6)
-                    for i in range(26):
+                    for i in range(rows_on_page):
+                        row_idx = offset + i
                         certificate.drawString((table_width / 15) + (
                                     ((table_width / 15) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
-                                               table_top - 11 - 18 - (18 * i), str(i + (26 * (page - 1))))
-                        for j in range(15):
+                                               table_top - 11 - 18 - (18 * i), str(row_idx))
+                        for j in range(num_data_cols):
+                            val = gebaeudeliste[row_idx][j]
                             certificate.drawString((table_width * (j + 2) / 15) + (((table_width / 15) - (
                                 len(str(gebaeudeliste[i + (26 * (page - 1))][j]))) * 3.2) / 2) + 10,
                                                    table_top - 11 - 18 - (18 * i),
-                                                   str(gebaeudeliste[i + (26 * (page - 1))][j]))
+                                                   str(val))
 
                 elif page == total_pages:
 
                     n_rows = len(gebaeudeliste) % 26 + 1
-                    table_bottom = table_top - (15 * n_rows)
+                    table_bottom = table_top - (18 * n_rows)
 
                     for ii in range(n_rows + 1):
-                        certificate.line(54, table_top - (15 * ii), width - 54, table_top - (15 * ii))
+                        certificate.line(54, table_top - (18 * ii), width - 54, table_top - (18 * ii))
                     for jj in range(n_columns + 1):
                         certificate.line(54 + table_width * (jj / n_columns), table_top,
                                          54 + table_width * (jj / n_columns), table_bottom)
 
                     # add table values
                     certificate.setFont("Helvetica", 6)
-                    for i in range(n_rows - 1):
+                    for i in range(rows_on_page):
+                        row_idx = offset + i
                         certificate.drawString((table_width / 15) + (
-                                    ((table_width / 15) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
-                                               table_top - 11 - 18 - (18 * i), str(i + (26 * (page - 1))))
-                        for j in range(15):
+                                ((table_width / 15) - (len(str(i + (26 * (page - 1))))) * 3.2) / 2) + 10,
+                                               table_top - 11 - 18 - (18 * i), str(row_idx))
+                        for j in range(num_data_cols):
+                            val = gebaeudeliste[row_idx][j]
                             certificate.drawString((table_width * (j + 2) / 15) + (((table_width / 15) - (
                                 len(str(gebaeudeliste[i + (26 * (page - 1))][j]))) * 3.2) / 2) + 10,
                                                    table_top - 11 - 18 - (18 * i),
-                                                   str(gebaeudeliste[i + (26 * (page - 1))][j]))
-
+                                                   str(val))
                             # column titles
                 certificate.setFont("Helvetica-Bold", 6)
                 column_titles = (
                     "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung",
-                    "Wohnfläche", "Heizung", "PV", "STC", "EV", "BAT",
+                    "Wohnfläche", "Heizung", "EV",
                     "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
                 for i in range(len(column_titles)):
                     certificate.drawString(54 + table_width * (i / n_columns) + (
@@ -1253,7 +1258,7 @@ class KPIs:
             "<b>N-Absenkung:</b> Nachtabsenkung: 0 = keine Nachtabsenkung, 1 = mit Nachtabsenkung<br />"
             "<b>Wohnfläche:</b> Nettoraumfläche in m²<br />"
             "<b>Heizung:</b> ausgewählter Wärmeerzeuger<br />"
-            "<b>EV:</b> 0 = Elektroauto nicht vorhanden, 1 = Elektroauto vorhanden<br />"
+            "<b>EV:</b> Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude<br />"
             "<b>fTES:</b> Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage<br />"
             "<b>fBAT:</b> Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV<br />"
             "<b>fPV:</b> Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen "

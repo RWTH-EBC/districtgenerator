@@ -495,26 +495,26 @@ def run_optim(data, devs, param, dem, result_dict):
         model.addConstr(hydrogen_import_total <= param["supply_limit_hydrogen"])
 
 
-    # Total investment costs
+    # Total investment costs for the energy hub
     for device in all_devs:
         model.addConstr(inv[device] == devs[device]["inv_var"] * cap[device])
 
-    # Annual investment costs
+    # Annual investment costs for the energy hub
     for device in all_devs:
         model.addConstr(c_inv[device] == inv[device] * devs[device]["ann_factor"])
 
-    # Operation and maintenance costs
+    # Operation and maintenance costs for the energy hub
     for device in all_devs:
         model.addConstr(c_om[device] == devs[device]["cost_om"] * inv[device])
 
-    # Total annual costs
+    # Total annual costs for the energy hub
     for device in all_devs:
         model.addConstr(c_total[device] == c_inv[device] + c_om[device])
 
 
     #%% OBJECTIVE FUNCTIONS
     # Total annualized costs
-    model.addConstr(obj["tac"] == sum(c_total[dev] for dev in all_devs) # annualized investments
+    model.addConstr(obj["tac"] == sum(c_total[dev] for dev in all_devs) + data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"] # annualized investments and O&M
                                 + supply_costs_gas + cap_costs_gas # gas costs
                                 + supply_costs_el + cap_costs_el # electricity costs
                                 - rev_feed_in_el - rev_feed_in_gas # revenues
@@ -593,9 +593,9 @@ def run_optim(data, devs, param, dem, result_dict):
             result_dict["from_grid"] = {"cap": float("inf")}
             result_dict["to_grid"] = {"cap": float("inf")}
 
-        result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()))
-        result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()))
-        result_dict["total_om_cost"]         = int(sum(c_om[k].X  for k in cap.keys()))
+        result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()) + data.heat_grid_data["costs"])
+        result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()) + data.heat_grid_data["ann_costs"])
+        result_dict["total_om_cost"]         = int(sum(c_om[k].X  for k in cap.keys()) + data.heat_grid_data["om_costs"])
         result_dict["from_el_grid_total"]    = int(from_el_grid_total.X / 1000)    # MWh
         result_dict["to_el_grid_total"]      = int(to_el_grid_total.X / 1000)      # MWh
         result_dict["from_gas_grid_total"]   = int(from_gas_grid_total.X / 1000)   # MWh

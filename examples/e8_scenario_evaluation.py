@@ -17,18 +17,6 @@ def example8_scenario_evaluation():
     # We directly generate a complete district.
     data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
 
-    centralEnergySupply = True
-    # Sizing of the selected devices
-    if centralEnergySupply == True:
-        data.designDevicesComplete(saveGenerationProfiles=True)
-    else:
-        data.designDecentralDevices(saveGenerationProfiles=True)
-        data.centralDevices = {}
-
-    # Within a clustered time series, data points are aggregated across different time periods
-    # based on the k-medoids method
-    data.clusterProfiles(centralEnergySupply)
-
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
 

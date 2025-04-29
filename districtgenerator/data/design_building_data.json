@@ -1,15 +1,15 @@
 [
   {
     "name": "T_set_min",
-    "value":  20.0,
+    "value":  21.0,
     "unit": "degree Celsius",
-    "description": "Required minimum indoor temperature (for heating load calculation)"
+    "description": "Required minimum indoor temperature, used only for non-residential buildings"
   },
     {
     "name": "T_set_min_night",
     "value":  18.0,
     "unit": "degree Celsius",
-    "description": "Required minimum indoor temperature at night (for heating load calculation)"
+    "description": "Required minimum indoor temperature at night, used only for non-residential buildings"
   },
     {
     "name": "T_set_min_free_day",
@@ -43,7 +43,7 @@
   },
   {
     "name": "ventilation_rate",
-    "value": 0.5,
+    "value": 0.50,
     "unit": "1/h",
     "description": "Room ventilation rate"
   },

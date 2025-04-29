@@ -160,6 +160,9 @@ class Datahandler:
         with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
             self.heat_grid_data = json.load(json_file)
 
+        csv_path = os.path.join(self.filePath, 'pipe_specifications.csv')
+        self.pipe_data = pd.read_csv(csv_path, sep=";")
+
     def select_plz_data(self):
         """
         Select the closest TRY weather station for the location of the postal code.
@@ -264,8 +267,8 @@ class Datahandler:
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
         # get weather data of interest
-        [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
-            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
+        [temp_sunDirect, temp_sunDiff, temp_tempe, temp_wind, temp_rhum, temp_pre] = \
+            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8], weatherData[:, 11], weatherData[:, 6]]
 
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
@@ -285,10 +288,16 @@ class Datahandler:
                                             temp_sunDiff)[0:-1]
         self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                      np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                     temp_temp)[0:-1]
+                                     temp_tempe)[0:-1]
         self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_wind)[0:-1]
+        self.site["r_humidity"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
+                                            temp_rhum)[0:-1]
+        self.site["pressure"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
+                                            temp_pre)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
 
@@ -589,13 +598,14 @@ class Datahandler:
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"])
 
+            night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads
             # at norm outside temperature
-            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design", night_setback = night_setback)
             # at bivalent temperature
-            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent", night_setback = night_setback)
             # at heating limit temperature
-            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit", night_setback = night_setback)
             # for drinking hot water
             building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
 
@@ -629,6 +639,7 @@ class Datahandler:
                                               holidays=self.time["holidays"],
                                               time_resolution=self.time["timeResolution"],
                                               time_horizon=self.time["dataLength"],
+                                              building_devices_data=self.decentral_device_data,
                                               building=building,
                                               path=os.path.join(self.resultPath, 'demands'),
                                               initial_day = self.initial_day)
@@ -639,7 +650,8 @@ class Datahandler:
                                       dhw=building["user"].dhw,
                                       occ=building["user"].occ,
                                       gains=building["user"].gains,
-                                      car=building["user"].car,
+                                      carcharging_ondemand=building["user"].carcharging_ondemand,
+                                      carprofile=building["user"].carprofile,
                                       nb_flats_or_mainrooms=building["user"].nb_flats if building["buildingFeatures"]["building"] in {"SFH", "MFH", "TH", "AB"} else building["user"].nb_main_rooms,
                                       nb_occ=building["user"].nb_occ,
                                       ev_capacity=building["user"].ev_capacity or [0],
@@ -653,7 +665,7 @@ class Datahandler:
             else:
                 (building["user"].elec, building["user"].dhw,
                  building["user"].occ, building["user"].gains,
-                 building["user"].car, building["user"].nb_flats, building["user"].nb_main_rooms,
+                 building["user"].carcharging_ondemand, building["user"].carprofile, building["user"].nb_flats, building["user"].nb_main_rooms,
                  building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
                  building["envelope"].bivalent,
                  building["envelope"].heatlimit) = self.loadProfiles(building["buildingFeatures"]["unique_name"],
@@ -691,7 +703,7 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def saveProfiles(self, name, elec, dhw, occ, gains, car, ev_capacity, nb_flats_or_mainrooms, nb_occ, heatload, bivalent, heatlimit, path):
+    def saveProfiles(self, name, elec, dhw, occ, gains, carcharging_ondemand, carprofile, ev_capacity, nb_flats_or_mainrooms, nb_occ, heatload, bivalent, heatlimit, path):
         """
         Save profiles to csv.
 
@@ -712,7 +724,8 @@ class Datahandler:
             'Hot Water': (pd.DataFrame(dhw), ["Drinking Hot Water Demand (W)"]),
             'Occupancy': (pd.DataFrame(occ), ["Number of Occupants"]),
             'Internal Gains': (pd.DataFrame(gains), ["Internal Gains (W)"]),
-            'EV': (pd.DataFrame(car), ["Electric Vehicle Electricity Demand (W)"]),
+            'EV_charging': (pd.DataFrame(carcharging_ondemand), ["Electric Vehicle Charging Power on-Demand (W)"]),
+            'EV_demand': (pd.DataFrame(carprofile), ["Electric Vehicle Energy Demand (Wh)"]),
             'Building Info': (pd.DataFrame({
                 "Number of Flats or main Rooms": [nb_flats_or_mainrooms],
                 "Number of Occupants": str(nb_occ)[1:-1],
@@ -791,7 +804,8 @@ class Datahandler:
         dhw = load_sheet_to_numpy(workbook, 'Hot Water')
         occ = load_sheet_to_numpy(workbook, 'Occupancy')
         gains = load_sheet_to_numpy(workbook, 'Internal Gains')
-        car = load_sheet_to_numpy(workbook, 'EV')
+        carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging')
+        carprofile = load_sheet_to_numpy(workbook, 'EV_demand')
         sheet = workbook['Building Info']
         other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
         nb_flats = int(other_data[0])
@@ -804,7 +818,7 @@ class Datahandler:
 
         workbook.close()
 
-        return elec, dhw, occ, gains, car, nb_flats, nb_mainrooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit
+        return elec, dhw, occ, gains, carcharging_ondemand, carprofile, nb_flats, nb_mainrooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit
 
     def loadHeatingProfiles(self, name, path):
         """
@@ -875,6 +889,19 @@ class Datahandler:
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
 
+        #Todo: make a mix of central and decentral buildings possible
+        if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
+            centralEnergySupply = True
+            self.designDevicesComplete(saveGenerationProfiles=True)
+        else:
+            centralEnergySupply = False
+            self.designDecentralDevices(saveGenerationProfiles=True)
+            self.centralDevices = {}
+
+        # Within a clustered time series, data points are aggregated across different time periods
+        # based on the k-medoids method
+        self.clusterProfiles(centralEnergySupply)
+
     def designDecentralDevices(self, saveGenerationProfiles=True):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
@@ -912,11 +939,6 @@ class Datahandler:
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"])
-
-            # Data for clustering
-            building["clusteringData"] = {"potentialEV": building["user"].car}
-            building["clusteringData"]["potentialPV"] = building["generationPV"]
-            building["clusteringData"]["potentialSTC"] = building["generationSTC"]
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
@@ -1018,21 +1040,28 @@ class Datahandler:
             adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
             adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
             adjProfiles[id]["occ"] = self.district[id]["user"].occ[0:lenghtArray]
-            adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
+            adjProfiles[id]["carcharging_ondemand"] = self.district[id]["user"].carcharging_ondemand[0:lenghtArray]
+            adjProfiles[id]["carprofile"] = self.district[id]["user"].carprofile[0:lenghtArray]
             adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
             adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
 
         if centralEnergySupply == True:
+
+            adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lenghtArray]
+            adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lenghtArray]
+
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lenghtArray]
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
                 adjProfiles["generationCentralWT"] = np.ones(lenghtArray) * sys.float_info.epsilon
+
             if self.centralDevices["capacities"]["PV"]["cap"] > 0:
                 adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
                 adjProfiles["generationCentralPV"] = np.ones(lenghtArray) * sys.float_info.epsilon
+
             if self.centralDevices["capacities"]["STC"]["cap"] > 0:
                 adjProfiles["generationCentralSTC"] = self.centralDevices["generation"]["STC"][0:lenghtArray]
             else:
@@ -1073,7 +1102,11 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
-            inputsClustering.append(adjProfiles[id]["car"])
+            inputsClustering.append(adjProfiles[id]["carcharging_ondemand"])
+            weights.append(0)      # This profile is not used at all for clustering
+            scalings.append(False)  # This profile is not scaled
+
+            inputsClustering.append(adjProfiles[id]["carprofile"])
             weights.append(0)      # This profile is not used at all for clustering
             scalings.append(False)  # This profile is not scaled
 
@@ -1095,8 +1128,17 @@ class Datahandler:
         scalings.append(True)
 
         if centralEnergySupply == True:
-            # central renewable generation
 
+            # Heating and cooling networks losses
+            inputsClustering.append(adjProfiles["losses_heating_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["losses_cooling_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            # central renewable generation
             inputsClustering.append(adjProfiles["generationCentralWT"])
             weights.append(len(self.scenario["id"]))
             scalings.append(True)
@@ -1118,18 +1160,21 @@ class Datahandler:
 
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
-            index_house = int(8)    # number of profiles per building
+            index_house = int(9)    # number of profiles per building
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
             self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
             self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
             self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 3]
             self.district[id]["user"].occ_cluster = newProfiles[index_house * id + 4]
-            self.district[id]["user"].car_cluster = newProfiles[index_house * id + 5]
-            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 6]
-            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 7]
+            self.district[id]["user"].carcharging_ondemand_cluster = newProfiles[index_house * id + 5]
+            self.district[id]["user"].carprofile_cluster = newProfiles[index_house * id + 6]
+            self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 7]
+            self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 8]
 
         if centralEnergySupply == True:
-            self.site["T_e_cluster"] = newProfiles[-4]
+            self.site["T_e_cluster"] = newProfiles[-6]
+            self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[-5]
+            self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[-4]
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[-3]
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[-2]
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[-1]
