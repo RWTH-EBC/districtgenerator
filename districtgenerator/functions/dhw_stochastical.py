@@ -16,6 +16,22 @@ import pylightxl as xl
 
 def load_profiles(filename):
     """
+    Loads domestic hot water (DHW) usage profiles from an Excel file and structures them by day type and occupancy level.
+
+    ----------
+
+    Parameters
+    ----------
+    - filename: Path to the Excel file containing water demand profiles.
+      The file must include sheets named for weekday (`wd`) and weekend (`we`) profiles, both average and probability-based.
+
+    Returns
+    ----------
+    - profiles: Dictionary containing structured demand profiles.
+      Includes:
+        - 'wd': Weekday probability profiles by occupancy count.
+        - 'we': Weekend probability profiles by occupancy count.
+        - 'wd_mw' and 'we_mw': Average minute-wise water usage profiles for weekdays and weekends.
     """
     # Initialization
     profiles = {"we": {}, "wd": {}}
@@ -46,32 +62,25 @@ def load_profiles(filename):
 def compute_daily_demand(probability_profiles, average_profile, occupancy,
                          current_day, temperature_difference=35):
     """
+    Computes the daily domestic hot water (DHW) usage and corresponding heat demand
+    based on occupancy and stochastic probability profiles.
+
+    ----------
+
     Parameters
     ----------
-    probability_profiles : array-like
-        Minute-wise sampled probability distribution.
-        "Haushaltewd" and "Haushaltewe" in Lion's thesis.
-        This input should also be equivalent to "pwd" and "pwe", because only 
-        one household is taken into account.
-    average_profile : array-like
-        Minute-wise sampled average tap water profiles (in liters per hour).
-        "mwwd" and "mwwe" in Lion's thesis.
-    occupancy : array-like
-        10-Minute-wise sampled occupancy of the considered building/apartment.
-    current_day : integer
-        Current day of the year (January 1st -> 0, February 1st -> 31, ...)
-    temperature_difference : float
-        How much does the tap water has to be heated up? Either enter a float
-        or an array with the same dimension as probability_profiles.
-    
+    - probability_profiles: Dictionary of minute-wise sampled probability distributions
+      for different occupancy levels.
+    - average_profile: Array of average tap water demand (liters/hour) per minute of the day.
+    - occupancy: Array of 10-minute sampled occupancy values for the building/apartment.
+    - current_day: Integer representing the current day of the year (0 = Jan 1).
+    - temperature_difference: Float or array indicating the temperature rise required [°C]
+      (default is 35°C).
+
     Returns
-    -------
-    water : array-like
-        Tap water volume flow in liters per hour.
-    heat : array-like
-        Resulting minute-wise sampled heat demand in Watt.
-        The heat capacity of water is assumed to be 4180 J/(kg.K) and the
-        density is assumed to be 980 kg/m3
+    ----------
+    - water: Array of minute-wise tap water volume flow in liters/hour.
+    - heat: Array of minute-wise heat demand in Watts based on water usage.
     """
     # Initialization
     water = []
@@ -120,38 +129,22 @@ def full_year_computation(occupancy,
                           initial_day=0, 
                           temperature_difference=35):
     """
+    Computes a full year of domestic hot water (DHW) usage and heat demand based on occupancy and stochastic profiles.
+
+    ----------
+
     Parameters
     ----------
-    occupancy : array-ike
-        Full year, 10-minute-wise sampled occupancy profile. All values have
-        to be integers.
-    profiles : dictionary
-        All probability distributions. The dictionary has to have the 
-        following structure: 
-            - Top level: [`wd_mw`, `we_mw`, `wd`, `we`] (strings)
-            - Within `we` and `wd`: [`1`, `2`, `3`, `4`, `5`, `6`] (integers)
-    time_dis : integer
-        Time discretization in seconds.
-    initial_day : integer
-        - 0 : Monday
-        - 1 : Tuesday
-        - 2 : Wednesday
-        - 3 : Thursday
-        - 4 : Friday
-        - 5 : Saturday
-        - 6 : Sunday
-    temperature_difference : float
-        How much does the tap water has to be heated up? Either enter a float
-        or an array with the same dimension as probability_profiles.
-    
+    - occupancy: Array-like, 10-minute sampled occupancy values for the entire year.
+    - profiles: Dictionary containing probability and average demand profiles for weekdays (`wd`) and weekends (`we`) by occupancy level.
+    - time_dis: Integer, time discretization of the output data in seconds (default is 3600 seconds).
+    - initial_day: Integer representing the first day of the year (0 = Monday, 6 = Sunday).
+    - temperature_difference: Float or array indicating the temperature rise required [°C] (default is 35°C).
+
     Returns
-    -------
-    water : array-like
-        Tap water volume flow in liters per hour.
-    heat : array-like
-        Resulting minute-wise sampled heat demand in Watt.
-        The heat capacity of water is assumed to be 4180 J/(kg.K) and the
-        density is assumed to be 980 kg/m3
+    ----------
+    - water: Array of tap water flow in liters/hour, resampled to the specified time resolution.
+    - heat: Array of heat demand in Watts, resampled to the specified time resolution.
     """
     # Initialization
     number_days = int(len(occupancy) / 144)

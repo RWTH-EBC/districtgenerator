@@ -191,19 +191,26 @@ not limited by the program. Optionally, the site of the district, the time
 resolution of the profiles and the test reference year (TRY) for weather data
 can be modified.</p>
 <p><img alt="Library Structure" src="_images/Workflow_DistrictGenerator.png" /></p>
-<p>To obtain a fully parameterized building model, the TEASER tool performs a data
-enrichment with data from the TABULA WebTool and uses statistical and normative
-information about the building stock. Finally, the TEASER python package determines
-the geometry and material properties of the buildings. As the TABULA WebTool
-defines archetypal building properties for type, age class and retrofit level, the
+<p>To obtain a fully parameterized building model, the TEASER tool (https://rwth-ebc.github.io/TEASER/main/docs/index.html)
+performs a data enrichment with data from the TABULA WebTool (https://webtool.building-typology.eu/#bm)
+that provides statistical and normative information about the building stock.
+Finally, the TEASER python package determines the geometry and material properties of the buildings.
+As the TABULA WebTool defines archetypal building properties for type, age class and retrofit level, the
 generated districts are composed of representative buildings, making them ideal
-for representative analyses or scalability studies. The richardsonpy tool generates
-occupancy profiles that fluctuates pseudo-randomly throughout the day, mirroring the
-natural behavior of individuals in their daily routines. Based on this, the tool
-stochastically creates synthetic profiles of the electricity demand. With the DHWcalc tool
-the domestic hot water demand is calculated. Therefore, it considers various factors
-such as the number of occupants, building characteristics and climate data to stochastically
-estimate the hot water usage patterns in a residential setting.</p>
+for representative analyses or scalability studies. A number of residents is randomly,
+but within defined limits, attributed to each dwelling and serves as input data for the richardsonpy tool
+(https://doi.org/10.1016/j.enbuild.2010.05.023, https://github.com/RWTH-EBC/richardsonpy)
+to calculate the time-resolved occupancy profiles.
+Furthermore, the Stromspiegel (https://www.stromspiegel.de/fileadmin/ssi/stromspiegel/Downloads/Stromspiegel-2019-web.pdf)
+provides statistical data on annual electricity consumption in German households. Annual consumption
+is stochastically assigned to each building, upon which the time-resolved electricity profile is
+created using the stochastic profile generator richardsonpy again. The electricity and occupancy
+profiles serve as input for a time-resolved internal gain calculation. Additionally, the occupancy
+profiles are needed for stochastic domestic hot water profile generation, for which functions from the
+pyCity tool (https://doi.org/10.1016/j.buildenv.2018.12.025, https://github.com/RWTH-EBC/pyCity/tree/master)
+are utilized. Finally, the static building data, as well as the time-resolved weather and internal gain data,
+are included in the space heating profile generation. These are computed by means of a 5R1C-substitution model
+according to DIN EN ISO 13790:2008-09, using the simplified hourly method.</p>
 </section>
 <section id="final-output-of-the-districtgenerator">
 <h2>Final output of the DistrictGenerator<a class="headerlink" href="#final-output-of-the-districtgenerator" title="Link to this heading"></a></h2>
@@ -214,6 +221,7 @@ as csv. file for each building in the neighborhood. The output contains:</p>
 <li><p>dhw: domestic hot water demand</p></li>
 <li><p>elec: electricity demand for lighting and electric household devices</p></li>
 <li><p>gains: internal gains from persons, lighting and electric household devices</p></li>
+<li><p>occ: occupancy profile</p></li>
 </ul>
 <p>All csv files are finally saved in the <a class="reference external" href="https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands">demands</a>
 folder. The unit of the demand profiles is watt.</p>
@@ -243,6 +251,7 @@ a reviewer before merging. Once review is finished, you can merge.</p>
 <li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/digitale-energie-quartiere/~obome/schoelzel-joel/?allou=1">Joel Schölzel</a> (corresponding)</p></li>
 <li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Team6/~scaj/Beckhoelter-Tobias/">Tobias Beckhölter</a></p></li>
 <li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Digitale-Energie-Quartiere/~beoyus/Wueller-Carla/">Carla Wüller</a></p></li>
+<li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/team6/~birwyf/hamze-rawad/?lidx=1">Rawad Hamze</a></p></li>
 </ul>
 </section>
 <section id="alumni">

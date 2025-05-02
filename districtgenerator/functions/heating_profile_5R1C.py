@@ -10,7 +10,7 @@ import numpy.linalg as linalg
 def _solve(A, b):
     return linalg.solve(A,b)
 
-def _calculateNoHeat(self, zone, zoneParameters, zoneInputs, T_m_init, timestep=0):
+def _calculateNoHeat(zoneParameters, zoneInputs, T_m_init, timestep=0):
     """
     Calculate the temperatures (T_op, T_m, T_air, T_s) if neither heating nor
     cooling devices are activated. 
@@ -18,25 +18,18 @@ def _calculateNoHeat(self, zone, zoneParameters, zoneInputs, T_m_init, timestep=
     
     Parameters
     ----------
-    zoneParameters : ZoneParameters
-        Resistances and capacity
-    zoneInputs : ZoneInputs
-        External inputs (solar, internal gains, set temperatures)
-    T_m_init : float
-        Initial temperature of the thermal mass in degree Celsius.
-    timestep : integer, optional
-        Define which index is relevant (zoneInputs, H_ve)
+    - zoneParameters: Resistances and capacity
+    - zoneInputs: External inputs (solar, internal gains, set temperatures)
+    - T_m_init: Initial temperature of the thermal mass in degree Celsius.
+    - timestep: Define which index is relevant (zoneInputs, H_ve)
         
     Returns
     -------
-    T_op : float
-        .
-    T_m : float
-        .
-    T_air : float
-        .
-    T_s : float
-        .
+    - Q_HC: Heating (positive) or cooling (negative) load for the current time step in Watt.
+    - T_op: Array of operative temperatures [°C].
+    - T_m: Array of thermal mass temperatures [°C].
+    - T_i: Array of air temperatures [°C].
+    - T_s: Array of surface temperatures [°C].
     """
     
     # Note: If not stated differently, all equations, pages and sections
@@ -99,37 +92,26 @@ def _calculateNoHeat(self, zone, zoneParameters, zoneInputs, T_m_init, timestep=
     return (T_op, T_m, T_i, T_s)
     
     
-def _calculateHeat(self, zone, zoneParameters, zoneInputs, T_m_init, T_set, timestep=0):
+def _calculateHeat(zoneParameters, zoneInputs, T_m_init, T_set, timestep=0):
     """
     Calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s) that result when
     reaching a given set temperature T_set. 
     
     Parameters
     ----------
-    zoneParameters : ZoneParameters
-        Resistances and capacity
-    zoneInputs : ZoneInputs
-        External inputs (solar, internal gains, set temperatures)
-    T_m_init : float
-        Initial temperature of the thermal mass in degree Celsius.
-    T_set : float
-        Set temperature in degree Celsius.
-    timestep : integer, optional
-        Define which index is relevant (zoneInputs, H_ve)
+    - zoneParameters: Resistances and capacity
+    - zoneInputs: External inputs (solar, internal gains, set temperatures)
+    - T_m_init: Initial temperature of the thermal mass in degree Celsius.
+    - T_set: Set temperature in degree Celsius.
+    - timestep: Define which index is relevant (zoneInputs, H_ve)
         
     Returns
     -------
-    Q_HC : float
-        Heating (positive) or cooling (negative) load for the current time 
-        step in Watt.
-    T_op : float
-        .
-    T_m : float
-        .
-    T_air : float
-        .
-    T_s : float
-        .
+    - Q_HC: Heating (positive) or cooling (negative) load for the current time step in Watt.
+    - T_op: Array of operative temperatures [°C].
+    - T_m: Array of thermal mass temperatures [°C].
+    - T_i: Array of air temperatures [°C].
+    - T_s: Array of surface temperatures [°C].
     """
     
     # Note: If not stated differently, all equations, pages and sections
@@ -201,9 +183,28 @@ def _calculateHeat(self, zone, zoneParameters, zoneInputs, T_m_init, T_set, time
     return (Q_HC, T_op, T_m, T_i, T_s)
    
    
-def calc(zoneParameters, zoneInputs, T_m_init, TCoolingSet, THeatingSet,
-         beQuiet=False):
+def calc(zoneParameters, zoneInputs, T_m_init, TCoolingSet, THeatingSet):
     """
+    Calculates heating and cooling demand over time based on indoor comfort targets and thermal zone properties.
+
+    ----------
+
+    Parameters
+    ----------
+    - zoneParameters: Object containing thermal zone parameters (resistances, capacities, etc.).
+    - zoneInputs: Object containing environmental and internal gains (solar radiation, internal heat, etc.).
+    - T_m_init: Initial temperature of the thermal mass [°C].
+    - TCoolingSet: Array of cooling setpoint temperatures [°C] for each timestep.
+    - THeatingSet: Array of heating setpoint temperatures [°C] for each timestep.
+
+    Returns
+    ----------
+    - Q_H: Array of heating demand per timestep [W].
+    - Q_C: Array of cooling demand per timestep [W].
+    - T_op: Array of operative temperatures [°C].
+    - T_m: Array of thermal mass temperatures [°C].
+    - T_i: Array of air temperatures [°C].
+    - T_s: Array of surface temperatures [°C].
     """
     numberTimesteps = len(zoneInputs.T_e)
 
@@ -266,15 +267,23 @@ def calc(zoneParameters, zoneInputs, T_m_init, TCoolingSet, THeatingSet,
 
 def calculate(zoneParameters, T_e, dt):
     """
-    
+    Calculates heating or cooling demand based on simplified 5R1C thermal model using DIN EN ISO 13790.
+
+    ----------
+
     Parameters
     ----------
-    zoneParameters : ZoneParameters
-        Resistances and capacity
-    zoneInputs : ZoneInputs
-        External inputs (solar, internal gains, set temperatures)
-    T_m_init : float
-        Initial temperature of the thermal mass in degC
+    - zoneParameters: Object containing thermal zone characteristics such as resistances, capacities, and gains.
+    - T_e: Array of external temperatures [°C] for each timestep.
+    - dt: Time step duration in hours.
+
+    Returns
+    ----------
+    - Q_HC: Array of heating or cooling power required [W] at each timestep.
+    - T_i: Array of air temperatures [°C].
+    - T_s: Array of surface temperatures [°C].
+    - T_m: Array of thermal mass temperatures [°C].
+    - T_op: Array of operative temperatures [°C].
     """
 
     T_m_init = 20 #[°C]

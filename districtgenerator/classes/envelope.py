@@ -529,8 +529,8 @@ class Envelope():
                     # outside average temperature in °C
                     T_me = subData["Theta_e_m"]
 
-        U_TB = 0.05  # [W/m²K] Wärmebrückenzuschlag
-        f_g1 = 1.45  # Korrekturfaktor jährliche Schwankung der Außentemperatur
+        U_TB = 0.05  # [W/m²K] Thermal bridge allowance
+        f_g1 = 1.45  # Correction factor for annual fluctuation in outside temperature
         # Reduction factor
         f_g2 = (self.T_set_min - T_me) / (self.T_set_min - T_ne)
         G_w = 1.0  # influence of ground water neglected
