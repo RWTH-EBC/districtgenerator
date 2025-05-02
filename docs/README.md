@@ -120,7 +120,7 @@ profiles are needed for stochastic domestic hot water profile generation, for wh
 [pyCity tool](https://github.com/RWTH-EBC/pyCity/tree/master) 
 are utilized. Finally, the static building data, as well as the time-resolved weather and internal gain data, 
 are included in the space heating profile generation. These are computed by means of a 5R1C-substitution model 
-according to DIN EN ISO 13790:2008-09, using the simplified hourly method.
+according to DIN EN ISO 13790:2008-09 using the simplified hourly method.
 
 ## Final output of the DistrictGenerator
 
