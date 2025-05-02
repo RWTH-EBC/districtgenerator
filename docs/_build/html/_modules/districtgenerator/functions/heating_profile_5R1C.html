@@ -42,7 +42,7 @@
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">cd Classes and internal functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
 </ul>
@@ -84,7 +84,7 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_solve</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">linalg</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">b</span><span class="p">)</span>
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_calculateNoHeat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">zone</span><span class="p">,</span> <span class="n">zoneParameters</span><span class="p">,</span> <span class="n">zoneInputs</span><span class="p">,</span> <span class="n">T_m_init</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_calculateNoHeat</span><span class="p">(</span><span class="n">zoneParameters</span><span class="p">,</span> <span class="n">zoneInputs</span><span class="p">,</span> <span class="n">T_m_init</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculate the temperatures (T_op, T_m, T_air, T_s) if neither heating nor</span>
 <span class="sd">    cooling devices are activated. </span>
@@ -92,25 +92,18 @@
 <span class="sd">    </span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    zoneParameters : ZoneParameters</span>
-<span class="sd">        Resistances and capacity</span>
-<span class="sd">    zoneInputs : ZoneInputs</span>
-<span class="sd">        External inputs (solar, internal gains, set temperatures)</span>
-<span class="sd">    T_m_init : float</span>
-<span class="sd">        Initial temperature of the thermal mass in degree Celsius.</span>
-<span class="sd">    timestep : integer, optional</span>
-<span class="sd">        Define which index is relevant (zoneInputs, H_ve)</span>
+<span class="sd">    - zoneParameters: Resistances and capacity</span>
+<span class="sd">    - zoneInputs: External inputs (solar, internal gains, set temperatures)</span>
+<span class="sd">    - T_m_init: Initial temperature of the thermal mass in degree Celsius.</span>
+<span class="sd">    - timestep: Define which index is relevant (zoneInputs, H_ve)</span>
 <span class="sd">        </span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    T_op : float</span>
-<span class="sd">        .</span>
-<span class="sd">    T_m : float</span>
-<span class="sd">        .</span>
-<span class="sd">    T_air : float</span>
-<span class="sd">        .</span>
-<span class="sd">    T_s : float</span>
-<span class="sd">        .</span>
+<span class="sd">    - Q_HC: Heating (positive) or cooling (negative) load for the current time step in Watt.</span>
+<span class="sd">    - T_op: Array of operative temperatures [°C].</span>
+<span class="sd">    - T_m: Array of thermal mass temperatures [°C].</span>
+<span class="sd">    - T_i: Array of air temperatures [°C].</span>
+<span class="sd">    - T_s: Array of surface temperatures [°C].</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     
     <span class="c1"># Note: If not stated differently, all equations, pages and sections</span>
@@ -173,37 +166,26 @@
     <span class="k">return</span> <span class="p">(</span><span class="n">T_op</span><span class="p">,</span> <span class="n">T_m</span><span class="p">,</span> <span class="n">T_i</span><span class="p">,</span> <span class="n">T_s</span><span class="p">)</span>
     
     
-<span class="k">def</span><span class="w"> </span><span class="nf">_calculateHeat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">zone</span><span class="p">,</span> <span class="n">zoneParameters</span><span class="p">,</span> <span class="n">zoneInputs</span><span class="p">,</span> <span class="n">T_m_init</span><span class="p">,</span> <span class="n">T_set</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_calculateHeat</span><span class="p">(</span><span class="n">zoneParameters</span><span class="p">,</span> <span class="n">zoneInputs</span><span class="p">,</span> <span class="n">T_m_init</span><span class="p">,</span> <span class="n">T_set</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s) that result when</span>
 <span class="sd">    reaching a given set temperature T_set. </span>
 <span class="sd">    </span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    zoneParameters : ZoneParameters</span>
-<span class="sd">        Resistances and capacity</span>
-<span class="sd">    zoneInputs : ZoneInputs</span>
-<span class="sd">        External inputs (solar, internal gains, set temperatures)</span>
-<span class="sd">    T_m_init : float</span>
-<span class="sd">        Initial temperature of the thermal mass in degree Celsius.</span>
-<span class="sd">    T_set : float</span>
-<span class="sd">        Set temperature in degree Celsius.</span>
-<span class="sd">    timestep : integer, optional</span>
-<span class="sd">        Define which index is relevant (zoneInputs, H_ve)</span>
+<span class="sd">    - zoneParameters: Resistances and capacity</span>
+<span class="sd">    - zoneInputs: External inputs (solar, internal gains, set temperatures)</span>
+<span class="sd">    - T_m_init: Initial temperature of the thermal mass in degree Celsius.</span>
+<span class="sd">    - T_set: Set temperature in degree Celsius.</span>
+<span class="sd">    - timestep: Define which index is relevant (zoneInputs, H_ve)</span>
 <span class="sd">        </span>
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
-<span class="sd">    Q_HC : float</span>
-<span class="sd">        Heating (positive) or cooling (negative) load for the current time </span>
-<span class="sd">        step in Watt.</span>
-<span class="sd">    T_op : float</span>
-<span class="sd">        .</span>
-<span class="sd">    T_m : float</span>
-<span class="sd">        .</span>
-<span class="sd">    T_air : float</span>
-<span class="sd">        .</span>
-<span class="sd">    T_s : float</span>
-<span class="sd">        .</span>
+<span class="sd">    - Q_HC: Heating (positive) or cooling (negative) load for the current time step in Watt.</span>
+<span class="sd">    - T_op: Array of operative temperatures [°C].</span>
+<span class="sd">    - T_m: Array of thermal mass temperatures [°C].</span>
+<span class="sd">    - T_i: Array of air temperatures [°C].</span>
+<span class="sd">    - T_s: Array of surface temperatures [°C].</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     
     <span class="c1"># Note: If not stated differently, all equations, pages and sections</span>
@@ -277,9 +259,28 @@
    
 <div class="viewcode-block" id="calc">
 <a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.heating_profile_5R1C.calc">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">calc</span><span class="p">(</span><span class="n">zoneParameters</span><span class="p">,</span> <span class="n">zoneInputs</span><span class="p">,</span> <span class="n">T_m_init</span><span class="p">,</span> <span class="n">TCoolingSet</span><span class="p">,</span> <span class="n">THeatingSet</span><span class="p">,</span>
-         <span class="n">beQuiet</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">calc</span><span class="p">(</span><span class="n">zoneParameters</span><span class="p">,</span> <span class="n">zoneInputs</span><span class="p">,</span> <span class="n">T_m_init</span><span class="p">,</span> <span class="n">TCoolingSet</span><span class="p">,</span> <span class="n">THeatingSet</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates heating and cooling demand over time based on indoor comfort targets and thermal zone properties.</span>
+
+<span class="sd">    ----------</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - zoneParameters: Object containing thermal zone parameters (resistances, capacities, etc.).</span>
+<span class="sd">    - zoneInputs: Object containing environmental and internal gains (solar radiation, internal heat, etc.).</span>
+<span class="sd">    - T_m_init: Initial temperature of the thermal mass [°C].</span>
+<span class="sd">    - TCoolingSet: Array of cooling setpoint temperatures [°C] for each timestep.</span>
+<span class="sd">    - THeatingSet: Array of heating setpoint temperatures [°C] for each timestep.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - Q_H: Array of heating demand per timestep [W].</span>
+<span class="sd">    - Q_C: Array of cooling demand per timestep [W].</span>
+<span class="sd">    - T_op: Array of operative temperatures [°C].</span>
+<span class="sd">    - T_m: Array of thermal mass temperatures [°C].</span>
+<span class="sd">    - T_i: Array of air temperatures [°C].</span>
+<span class="sd">    - T_s: Array of surface temperatures [°C].</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">numberTimesteps</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">zoneInputs</span><span class="o">.</span><span class="n">T_e</span><span class="p">)</span>
 
@@ -345,15 +346,23 @@
 <a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.heating_profile_5R1C.calculate">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="n">zoneParameters</span><span class="p">,</span> <span class="n">T_e</span><span class="p">,</span> <span class="n">dt</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    </span>
+<span class="sd">    Calculates heating or cooling demand based on simplified 5R1C thermal model using DIN EN ISO 13790.</span>
+
+<span class="sd">    ----------</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    zoneParameters : ZoneParameters</span>
-<span class="sd">        Resistances and capacity</span>
-<span class="sd">    zoneInputs : ZoneInputs</span>
-<span class="sd">        External inputs (solar, internal gains, set temperatures)</span>
-<span class="sd">    T_m_init : float</span>
-<span class="sd">        Initial temperature of the thermal mass in degC</span>
+<span class="sd">    - zoneParameters: Object containing thermal zone characteristics such as resistances, capacities, and gains.</span>
+<span class="sd">    - T_e: Array of external temperatures [°C] for each timestep.</span>
+<span class="sd">    - dt: Time step duration in hours.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - Q_HC: Array of heating or cooling power required [W] at each timestep.</span>
+<span class="sd">    - T_i: Array of air temperatures [°C].</span>
+<span class="sd">    - T_s: Array of surface temperatures [°C].</span>
+<span class="sd">    - T_m: Array of thermal mass temperatures [°C].</span>
+<span class="sd">    - T_op: Array of operative temperatures [°C].</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">T_m_init</span> <span class="o">=</span> <span class="mi">20</span> <span class="c1">#[°C]</span>

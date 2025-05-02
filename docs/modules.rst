@@ -1,5 +1,5 @@
 Classes and internal functions
-==============================
+===============================
 
 .. toctree::
    :maxdepth: 2
