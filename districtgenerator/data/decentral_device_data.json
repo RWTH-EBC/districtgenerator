@@ -278,7 +278,7 @@
   "specifications": [
     {
       "name": "soc_min",
-      "value": 0.0,
+      "value": 0.05,
       "unit": "-",
       "description": "Minimum state of charge."
     },
