@@ -192,7 +192,7 @@ We presented or applied the library in the following publications:
 
 The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the [MIT License](about/LICENSE.md).
+under the [MIT License](docs/about/LICENSE.md).
 
 ## Acknowledgements
 
