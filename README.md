@@ -51,7 +51,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
 to learn how to use the different components.
 
 ### Minimum manual required input data
@@ -139,7 +139,7 @@ folder. The unit of the demand profiles is watt.
 
 ## Running examples for functional testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](EXAMPLES.md) 
+Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
 to learn how to use the different components. 
 
 To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests)  in the tests folder. 
