@@ -3,7 +3,6 @@
 # DistrictGenerator
 
 [![License](http://img.shields.io/:license-mit-blue.svg)](http://doge.mit-license.org)
-[![Documentation](https://rwth-ebc.github.io/districtgenerator/master/docs/doc.svg)](https://rwth-ebc.github.io/districtgenerator/master/docs/README.html)
 
 Through the DistrictGenerator, we introduce an python-based open-source tool aimed at urban planners, energy suppliers,
 housing associations, engineering firms, architectural professionals, as well as academic and research institutions. 
@@ -52,7 +51,7 @@ and secondly run:
 pip install -e districtgenerator
 ```
 
-Once you have installed the DistrictGenerator, you can check the [examples](./examples/) 
+Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
 to learn how to use the different components.
 
 ### Minimum manual required input data
@@ -66,11 +65,11 @@ The minimal input data set was defined following the [TABULA archetype approach]
 - retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 - area: reference floor area (given in square meters)
 
-The example.csv file can be used as [template](./districtgenerator/data/scenarios/example.csv).
+The example.csv file can be used as [template](../districtgenerator/data/scenarios/example.csv).
 
 ### Additional input data
 
-In the folder [data](./districtgenerator/data) 
+In the folder [data](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/data) 
 further data can be found. Default values are already stored there.
 Optionally, the following data can be changed to:
 - design_building_data.json: Maximum and minimum indoor temperature and the room ventilation rate
@@ -83,11 +82,11 @@ in which the main characteristics of the climate are the same. Each zone is repr
 - physics_data.json
 - dhw_stochstical.xlsx
 
-The weather data can be found in [weather](./districtgenerator/data/weather).
+The weather data can be found in [weather](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/data/weather).
 
 ## Structure of the DistrictGenerator
 
-![Library Structure](./docs/img/Struktur_Quartiersgenerator.png)
+![Library Structure](img/Struktur_Quartiersgenerator.png)
 
 ## Workflow of the DistrictGenerator
 
@@ -101,21 +100,27 @@ not limited by the program. Optionally, the site of the district, the time
 resolution of the profiles and the test reference year (TRY) for weather data 
 can be modified.
 
-![Library Structure](./docs/img/Workflow_DistrictGenerator.png)
+![Library Structure](img/Workflow_DistrictGenerator.png)
 
-To obtain a fully parameterized building model, the TEASER tool performs a data 
-enrichment with data from the TABULA WebTool and uses statistical and normative 
-information about the building stock. Finally, the TEASER python package determines 
-the geometry and material properties of the buildings. As the TABULA WebTool 
-defines archetypal building properties for type, age class and retrofit level, the 
+To obtain a fully parameterized building model, the [TEASER tool](https://rwth-ebc.github.io/TEASER/main/docs/index.html) 
+performs a data enrichment with data from the [TABULA WebTool](https://webtool.building-typology.eu/#bm) 
+that provides statistical and normative information about the building stock. 
+Finally, the TEASER python package determines the geometry and material properties of the buildings. 
+As the TABULA WebTool defines archetypal building properties for type, age class and retrofit level, the 
 generated districts are composed of representative buildings, making them ideal 
-for representative analyses or scalability studies. The richardsonpy tool generates 
-occupancy profiles that fluctuates pseudo-randomly throughout the day, mirroring the 
-natural behavior of individuals in their daily routines. Based on this, the tool 
-stochastically creates synthetic profiles of the electricity demand. With the DHWcalc tool 
-the domestic hot water demand is calculated. Therefore, it considers various factors 
-such as the number of occupants, building characteristics and climate data to stochastically 
-estimate the hot water usage patterns in a residential setting. 
+for representative analyses or scalability studies. A number of residents is randomly, 
+but within defined limits, attributed to each dwelling and serves as input data for the [richardsonpy tool](https://github.com/RWTH-EBC/richardsonpy) 
+to calculate the time-resolved occupancy profiles. 
+Furthermore, the [Stromspiegel](https://www.stromspiegel.de/fileadmin/ssi/stromspiegel/Downloads/Stromspiegel-2019-web.pdf) 
+provides statistical data on annual electricity consumption in German households. Annual consumption
+is stochastically assigned to each building, upon which the time-resolved electricity profile is
+created using the stochastic profile generator richardsonpy again. The electricity and occupancy
+profiles serve as input for a time-resolved internal gain calculation. Additionally, the occupancy
+profiles are needed for stochastic domestic hot water profile generation, for which functions from the
+[pyCity tool](https://github.com/RWTH-EBC/pyCity/tree/master) 
+are utilized. Finally, the static building data, as well as the time-resolved weather and internal gain data, 
+are included in the space heating profile generation. These are computed by means of a 5R1C-substitution model 
+according to DIN EN ISO 13790:2008-09 using the simplified hourly method.
 
 ## Final output of the DistrictGenerator
 
@@ -126,16 +131,18 @@ as csv. file for each building in the neighborhood. The output contains:
 - dhw: domestic hot water demand
 - elec: electricity demand for lighting and electric household devices
 - gains: internal gains from persons, lighting and electric household devices
+- occ: occupancy profile
 
-All csv files are finally saved in the [demands](./districtgenerator/results/demands)
+All csv files are finally saved in the [demands](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands)
 folder. The unit of the demand profiles is watt.
+
 
 ## Running examples for functional testing
 
-Once you have installed the DistrictGenerator, you can check the [examples](./examples/) 
+Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
 to learn how to use the different components. 
 
-To test the tool's executability, run [test_examples.py](./tests)  in the tests folder. 
+To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests)  in the tests folder. 
 This functional testing checks the entire chain of the tool, from data input and 
 initialization to the output of the calculated profiles. It does not correspond to a 
 test of the functional units of the entire process. This  functional testing is based 
