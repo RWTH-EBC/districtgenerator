@@ -1,22 +1,20 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>districtgenerator.functions.dhw_stochastical &mdash; DistrictGenerator 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
   
-  <!--[if lt IE 9]>
-    <script src="../../../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
-        <script src="../../../_static/doctools.js?v=888ff710"></script>
-        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
@@ -41,8 +39,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"></div>
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">cd Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -75,17 +79,35 @@
 <span class="sd">https://github.com/RWTH-EBC/pyCity</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
-<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">division</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">division</span>
 
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">math</span>
-<span class="kn">import</span> <span class="nn">random</span>
-<span class="kn">import</span> <span class="nn">districtgenerator.functions.change_resolution</span> <span class="k">as</span> <span class="nn">chres</span>
-<span class="kn">import</span> <span class="nn">pylightxl</span> <span class="k">as</span> <span class="nn">xl</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">districtgenerator.functions.change_resolution</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">chres</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pylightxl</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xl</span>
 
-<div class="viewcode-block" id="load_profiles"><a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.dhw_stochastical.load_profiles">[docs]</a><span class="k">def</span> <span class="nf">load_profiles</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+<div class="viewcode-block" id="load_profiles">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.dhw_stochastical.load_profiles">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_profiles</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Loads domestic hot water (DHW) usage profiles from an Excel file and structures them by day type and occupancy level.</span>
+
+<span class="sd">    ----------</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - filename: Path to the Excel file containing water demand profiles.</span>
+<span class="sd">      The file must include sheets named for weekday (`wd`) and weekend (`we`) profiles, both average and probability-based.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - profiles: Dictionary containing structured demand profiles.</span>
+<span class="sd">      Includes:</span>
+<span class="sd">        - &#39;wd&#39;: Weekday probability profiles by occupancy count.</span>
+<span class="sd">        - &#39;we&#39;: Weekend probability profiles by occupancy count.</span>
+<span class="sd">        - &#39;wd_mw&#39; and &#39;we_mw&#39;: Average minute-wise water usage profiles for weekdays and weekends.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Initialization</span>
     <span class="n">profiles</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;we&quot;</span><span class="p">:</span> <span class="p">{},</span> <span class="s2">&quot;wd&quot;</span><span class="p">:</span> <span class="p">{}}</span>
@@ -113,35 +135,31 @@
     <span class="k">return</span> <span class="n">profiles</span></div>
 
 
-<div class="viewcode-block" id="compute_daily_demand"><a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.dhw_stochastical.compute_daily_demand">[docs]</a><span class="k">def</span> <span class="nf">compute_daily_demand</span><span class="p">(</span><span class="n">probability_profiles</span><span class="p">,</span> <span class="n">average_profile</span><span class="p">,</span> <span class="n">occupancy</span><span class="p">,</span>
+
+<div class="viewcode-block" id="compute_daily_demand">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.dhw_stochastical.compute_daily_demand">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_daily_demand</span><span class="p">(</span><span class="n">probability_profiles</span><span class="p">,</span> <span class="n">average_profile</span><span class="p">,</span> <span class="n">occupancy</span><span class="p">,</span>
                          <span class="n">current_day</span><span class="p">,</span> <span class="n">temperature_difference</span><span class="o">=</span><span class="mi">35</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the daily domestic hot water (DHW) usage and corresponding heat demand</span>
+<span class="sd">    based on occupancy and stochastic probability profiles.</span>
+
+<span class="sd">    ----------</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    probability_profiles : array-like</span>
-<span class="sd">        Minute-wise sampled probability distribution.</span>
-<span class="sd">        &quot;Haushaltewd&quot; and &quot;Haushaltewe&quot; in Lion&#39;s thesis.</span>
-<span class="sd">        This input should also be equivalent to &quot;pwd&quot; and &quot;pwe&quot;, because only </span>
-<span class="sd">        one household is taken into account.</span>
-<span class="sd">    average_profile : array-like</span>
-<span class="sd">        Minute-wise sampled average tap water profiles (in liters per hour).</span>
-<span class="sd">        &quot;mwwd&quot; and &quot;mwwe&quot; in Lion&#39;s thesis.</span>
-<span class="sd">    occupancy : array-like</span>
-<span class="sd">        10-Minute-wise sampled occupancy of the considered building/apartment.</span>
-<span class="sd">    current_day : integer</span>
-<span class="sd">        Current day of the year (January 1st -&gt; 0, February 1st -&gt; 31, ...)</span>
-<span class="sd">    temperature_difference : float</span>
-<span class="sd">        How much does the tap water has to be heated up? Either enter a float</span>
-<span class="sd">        or an array with the same dimension as probability_profiles.</span>
-<span class="sd">    </span>
+<span class="sd">    - probability_profiles: Dictionary of minute-wise sampled probability distributions</span>
+<span class="sd">      for different occupancy levels.</span>
+<span class="sd">    - average_profile: Array of average tap water demand (liters/hour) per minute of the day.</span>
+<span class="sd">    - occupancy: Array of 10-minute sampled occupancy values for the building/apartment.</span>
+<span class="sd">    - current_day: Integer representing the current day of the year (0 = Jan 1).</span>
+<span class="sd">    - temperature_difference: Float or array indicating the temperature rise required [°C]</span>
+<span class="sd">      (default is 35°C).</span>
+
 <span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    water : array-like</span>
-<span class="sd">        Tap water volume flow in liters per hour.</span>
-<span class="sd">    heat : array-like</span>
-<span class="sd">        Resulting minute-wise sampled heat demand in Watt.</span>
-<span class="sd">        The heat capacity of water is assumed to be 4180 J/(kg.K) and the</span>
-<span class="sd">        density is assumed to be 980 kg/m3</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - water: Array of minute-wise tap water volume flow in liters/hour.</span>
+<span class="sd">    - heat: Array of minute-wise heat demand in Watts based on water usage.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Initialization</span>
     <span class="n">water</span> <span class="o">=</span> <span class="p">[]</span>
@@ -184,44 +202,31 @@
     <span class="k">return</span> <span class="p">(</span><span class="n">water</span><span class="p">,</span> <span class="n">heat</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="full_year_computation"><a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.dhw_stochastical.full_year_computation">[docs]</a><span class="k">def</span> <span class="nf">full_year_computation</span><span class="p">(</span><span class="n">occupancy</span><span class="p">,</span> 
+
+<div class="viewcode-block" id="full_year_computation">
+<a class="viewcode-back" href="../../../districtgenerator.functions.html#districtgenerator.functions.dhw_stochastical.full_year_computation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">full_year_computation</span><span class="p">(</span><span class="n">occupancy</span><span class="p">,</span> 
                           <span class="n">profiles</span><span class="p">,</span> 
                           <span class="n">time_dis</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span>
                           <span class="n">initial_day</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> 
                           <span class="n">temperature_difference</span><span class="o">=</span><span class="mi">35</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes a full year of domestic hot water (DHW) usage and heat demand based on occupancy and stochastic profiles.</span>
+
+<span class="sd">    ----------</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
-<span class="sd">    occupancy : array-ike</span>
-<span class="sd">        Full year, 10-minute-wise sampled occupancy profile. All values have</span>
-<span class="sd">        to be integers.</span>
-<span class="sd">    profiles : dictionary</span>
-<span class="sd">        All probability distributions. The dictionary has to have the </span>
-<span class="sd">        following structure: </span>
-<span class="sd">            - Top level: [`wd_mw`, `we_mw`, `wd`, `we`] (strings)</span>
-<span class="sd">            - Within `we` and `wd`: [`1`, `2`, `3`, `4`, `5`, `6`] (integers)</span>
-<span class="sd">    time_dis : integer</span>
-<span class="sd">        Time discretization in seconds.</span>
-<span class="sd">    initial_day : integer</span>
-<span class="sd">        - 0 : Monday</span>
-<span class="sd">        - 1 : Tuesday</span>
-<span class="sd">        - 2 : Wednesday</span>
-<span class="sd">        - 3 : Thursday</span>
-<span class="sd">        - 4 : Friday</span>
-<span class="sd">        - 5 : Saturday</span>
-<span class="sd">        - 6 : Sunday</span>
-<span class="sd">    temperature_difference : float</span>
-<span class="sd">        How much does the tap water has to be heated up? Either enter a float</span>
-<span class="sd">        or an array with the same dimension as probability_profiles.</span>
-<span class="sd">    </span>
+<span class="sd">    - occupancy: Array-like, 10-minute sampled occupancy values for the entire year.</span>
+<span class="sd">    - profiles: Dictionary containing probability and average demand profiles for weekdays (`wd`) and weekends (`we`) by occupancy level.</span>
+<span class="sd">    - time_dis: Integer, time discretization of the output data in seconds (default is 3600 seconds).</span>
+<span class="sd">    - initial_day: Integer representing the first day of the year (0 = Monday, 6 = Sunday).</span>
+<span class="sd">    - temperature_difference: Float or array indicating the temperature rise required [°C] (default is 35°C).</span>
+
 <span class="sd">    Returns</span>
-<span class="sd">    -------</span>
-<span class="sd">    water : array-like</span>
-<span class="sd">        Tap water volume flow in liters per hour.</span>
-<span class="sd">    heat : array-like</span>
-<span class="sd">        Resulting minute-wise sampled heat demand in Watt.</span>
-<span class="sd">        The heat capacity of water is assumed to be 4180 J/(kg.K) and the</span>
-<span class="sd">        density is assumed to be 980 kg/m3</span>
+<span class="sd">    ----------</span>
+<span class="sd">    - water: Array of tap water flow in liters/hour, resampled to the specified time resolution.</span>
+<span class="sd">    - heat: Array of heat demand in Watts, resampled to the specified time resolution.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># Initialization</span>
     <span class="n">number_days</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">occupancy</span><span class="p">)</span> <span class="o">/</span> <span class="mi">144</span><span class="p">)</span>
@@ -258,6 +263,7 @@
     <span class="k">return</span> <span class="p">(</span><span class="n">water</span><span class="p">,</span> <span class="n">heat</span><span class="p">)</span></div>
 
 
+
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
 
     <span class="c1">#  Define src path</span>
@@ -286,7 +292,7 @@
     <span class="n">hd</span> <span class="o">=</span> <span class="n">chres</span><span class="o">.</span><span class="n">changeResolution</span><span class="p">(</span><span class="n">heat</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="n">dt</span><span class="o">*</span><span class="mi">60</span><span class="p">,</span> <span class="s2">&quot;sum&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="n">dt</span>
 
     <span class="c1"># Plot heat demand</span>
-    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
     <span class="n">ax1</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">heat</span><span class="p">))</span><span class="o">/</span><span class="mi">60</span><span class="p">,</span> <span class="n">heat</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;b&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
     <span class="n">plt</span><span class="o">.</span><span class="n">step</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">hd</span><span class="p">))</span> <span class="o">*</span> <span class="n">dt</span><span class="o">+</span><span class="n">dt</span><span class="p">)</span><span class="o">/</span><span class="mi">60</span><span class="p">,</span> <span class="n">hd</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
