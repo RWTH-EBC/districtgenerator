@@ -86,7 +86,7 @@ The weather data can be found in [weather](https://github.com/RWTH-EBC/districtg
 
 ## Structure of the DistrictGenerator
 
-![Library Structure](./img/Struktur_Quartiersgenerator.png)
+![Library Structure](img/Struktur_Quartiersgenerator.png)
 
 ## Workflow of the DistrictGenerator
 
@@ -100,7 +100,7 @@ not limited by the program. Optionally, the site of the district, the time
 resolution of the profiles and the test reference year (TRY) for weather data 
 can be modified.
 
-![Library Structure](./img/Workflow_DistrictGenerator.png)
+![Library Structure](img/Workflow_DistrictGenerator.png)
 
 To obtain a fully parameterized building model, the [TEASER tool](https://rwth-ebc.github.io/TEASER/main/docs/index.html) 
 performs a data enrichment with data from the [TABULA WebTool](https://webtool.building-typology.eu/#bm) 
