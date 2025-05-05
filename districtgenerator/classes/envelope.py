@@ -65,7 +65,11 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
+        # TODO: If the u-values are inside the example.csv, they should be inside the building_params. So we can give that here to the loadComponentProperties function
+        # hopefully we can then overwrite the values we have but keep the archetype TABULA values (from TEASER/prj) we don't have
+        # ex: self.u_values(building_params) -> which then loads u_values like loadParams
         self.loadComponentProperties(prj)
+        #self.loadComponentProperties(prj, self.u_values)
         self.loadAreas(prj)
 
     def loadParams(self):
@@ -184,6 +188,22 @@ class Envelope:
         None.
         """
 
+        #TODO:
+        # We need to load the u-value properties from FIWARE to the prj, so they can be used here
+        # Idea: if there is a u-value (thermalTransmittance) in the FIWARE, use it instead of calculating it
+        # this also means, that the calculation has to "stay" to be a back-up
+        # BUT: we need to check if the u-value is correct, so we need to compare it with the calculated one (at least for now)
+        # .
+        # So: For first testing use e.g. the e4 until generate_buildings. -> so it doesn't calculate load profiles
+        # 1. implement the u-value import into the the example.csv, so adjusting needed in optimizer -> new branch
+        # 2. implement the import from the csv in the Datahandler (i think it is self.scenario, line 119), maybe there is no additional step necessary here
+        # 2. put the if / then / else decisions in the loadComponentProperties (the u-values are calculated for opaque
+        #       surfaces in line 409 and for the window in line 424)
+        # -> if there is a FIWARE u-value, use it. But save the calculated u-value in the prj or print it out, so we can compare the values
+        # .
+        # (after comparing the values)
+        # 3. check if the u-value is correct, e.g. compare with TABULA values (hgo will have a look at this)
+
         material_bind = prj.data.material_bind
         element_bind = prj.data.element_bind
 
@@ -234,6 +254,7 @@ class Envelope:
 
         comp = "wall"
         # WALLS: Materials and U-value
+        # TODO: Add thermalTransmittanceFacade
         for name, elem in element_bind.items():
             if "OuterWall" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -254,6 +275,7 @@ class Envelope:
 
         comp = "roof"
         # ROOF: Materials and U-value
+        # TODO: Add thermalTransmittanceRoof
         for name, elem in element_bind.items():
             if "Rooftop" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -274,6 +296,7 @@ class Envelope:
 
         comp = "floor"
         # FLOOR: Materials and U-value
+        # TODO: Add thermalTransmittanceFloor
         for name, elem in element_bind.items():
             if "GroundFloor" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -294,6 +317,7 @@ class Envelope:
 
         comp = "intWall"
         # INTERNAL WALL: Materials and U-value
+        # TODO: We don't have that in the database, solution pending
         for name, elem in element_bind.items():
             if "InnerWall" in name:
                 dummy = min(2015,
@@ -315,6 +339,7 @@ class Envelope:
 
         comp = "ceiling"
         # CEILING: Materials and U-value
+        # TODO: Add thermalTransmittanceCeiling
         for name, elem in element_bind.items():
             if "Ceiling" in name:
                 dummy = min(2015,
@@ -336,6 +361,7 @@ class Envelope:
 
         comp = "intFloor"
         # INTERNAL FLOOR: Materials and U-value
+        # Todo: We don't have that in the database, solution pending
         for name, elem in element_bind.items():
             if "Floor" in name:
                 dummy = min(2015,
@@ -356,7 +382,7 @@ class Envelope:
                                                             material_prop[3] * 1000)
 
         comp = "window"
-        # INTERNAL FLOOR: Materials and U-value
+        # WINDOW: Materials and U-value
         for name, elem in element_bind.items():
             if "Window" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -386,6 +412,7 @@ class Envelope:
                 self.rho["opaque"][x],
                 self.cp["opaque"][x]
             )
+            # TODO: They calculate the u-value here, so this is where it need to be replaced
             self.U["opaque"][x] = 1.0 / (self.R_si["opaque"][x]
                                          + sum(self.d["opaque"][x]
                                                / self.Lambda["opaque"][x])
@@ -399,10 +426,12 @@ class Envelope:
                 self.cp["opaque"][x]
             )
 
+        # TODO: Add thermalTransmittanceWindow
         self.U["window"] = min(2.8, (1.0 / (self.R_si["window"]
                                             + sum(self.d["window"]
                                                   / self.Lambda["window"])
                                             + self.R_se["window"])))
+
 
     def loadAreas(self, prj):
         """
