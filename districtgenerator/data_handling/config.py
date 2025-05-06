@@ -1,6 +1,12 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, ClassVar, Set
+import os
+from typing import Any, Dict, List, ClassVar, Set, Optional
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
+from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
+
+
 
 
 class LocationConfig(BaseSettings):
@@ -15,7 +21,7 @@ class LocationConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file= ".locationconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
     def __post_init__(self):
@@ -38,7 +44,7 @@ class TimeConfig(BaseSettings):
     initial_day_2045: list = field(default_factory=lambda: [6])
     model_config = SettingsConfigDict(
         env_file= ".timeconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
 class DesignBuildingConfig(BaseSettings):
@@ -57,7 +63,7 @@ class DesignBuildingConfig(BaseSettings):
     mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40])
     model_config = SettingsConfigDict(
         env_file= ".designbuildingconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
 class EcoConfig(BaseSettings):
@@ -74,7 +80,7 @@ class EcoConfig(BaseSettings):
     co2_hydrogen: float = 0.0
     model_config = SettingsConfigDict(
         env_file= ".ecoconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
 class PhysicsConfig(BaseSettings):
@@ -84,7 +90,7 @@ class PhysicsConfig(BaseSettings):
     c_p_water: float = 4.18
     model_config = SettingsConfigDict(
         env_file= ".physicsconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
 class GurobiConfig(BaseSettings):
@@ -98,7 +104,7 @@ class GurobiConfig(BaseSettings):
     DualReductions: int = 0
     model_config = SettingsConfigDict(
         env_file= ".gurobiconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
 class HeatGridConfig(BaseSettings):
@@ -107,7 +113,7 @@ class HeatGridConfig(BaseSettings):
     delta_T_heatTransfer: float = 5 # Temperature difference in heat exchangers (K)
     model_config = SettingsConfigDict(
         env_file= ".heatgridconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
 class EHDOConfig(BaseSettings):
@@ -164,49 +170,38 @@ class EHDOConfig(BaseSettings):
     unit_dash: str = "-"         # used for cases where unit is a dash
     model_config = SettingsConfigDict(
         env_file= ".ehdoonfig",
-        extra="forbid" 
+        extra="allow" 
     )
 
-class BuildingConfig(BaseSettings):
-    buildings: List[Dict[str, Any]]
-    heater_types: List[str]
-    night_setback: bool = False
-    PV: bool = False
-    STC: bool = False
-    EV: bool = False
-    BAT: bool = False
-    storage: Dict[str, float] = field(
-        default_factory=lambda: {
-            "f_TES": 35.0,
-            "f_BAT": 1.0,
-            "f_EV": 6000.0,
-            "f_PV": 0.4,
-            "f_STC": 0.04
-        }
+
+class GlobalConfig(BaseModel):
+    location: LocationConfig
+    time: TimeConfig
+    design_building: DesignBuildingConfig
+    eco: EcoConfig
+    physics: PhysicsConfig
+    gurobi: GurobiConfig
+    heatgrid: HeatGridConfig
+    ehdo: EHDOConfig
+    #building: BuildingConfig
+    decentral: DecentralDeviceConfig
+    central: CentralDeviceConfig
+
+def load_global_config(env_file: Optional[str] = ".env") -> GlobalConfig:
+    os.environ["ENV_FILE"] = env_file  
+
+    return GlobalConfig(
+        location=LocationConfig(_env_file=env_file),
+        time=TimeConfig(_env_file=env_file),
+        design_building=DesignBuildingConfig(_env_file=env_file),
+        eco=EcoConfig(_env_file=env_file),
+        physics=PhysicsConfig(_env_file=env_file),
+        gurobi=GurobiConfig(_env_file=env_file),
+        heatgrid=HeatGridConfig(_env_file=env_file),
+        ehdo=EHDOConfig(_env_file=env_file),
+        #building=BuildingConfig(_env_file=env_file),
+        decentral=DecentralDeviceConfig(_env_file=env_file),
+        central=CentralDeviceConfig(_env_file=env_file)
     )
-    model_config = SettingsConfigDict(
-        env_file= ".buildingconfig",
-        extra="forbid" 
-    )
 
-    charging_modes: List[str] = field(default_factory=lambda: ["on_demand"])
 
-    ALLOWED_CHARGING_MODES: ClassVar[Set[str]] = {"on_demand", "night_charge", "pv_optimized"}
-
-    def __post_init__(self):
-        for mode in self.charging_modes:
-            if mode not in self.ALLOWED_CHARGING_MODES:
-                raise ValueError(f"Invalid charging mode: {mode}")
-
-        storage_ranges = {
-            "f_TES": (20.0, 50.0),
-            "f_BAT": (0.5, 2.0),
-            "f_EV": (3000.0, 9000.0),
-            "f_PV": (0.2, 1.0),
-            "f_STC": (0.02, 0.08)
-        }
-        for key, (low, high) in storage_ranges.items():
-            if key in self.storage:
-                value = self.storage[key]
-                if not (low <= value <= high):
-                    raise ValueError(f"{key} must be between {low} and {high}.")

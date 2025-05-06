@@ -231,6 +231,6 @@ class CentralDeviceConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file= ".centraldeviceconfig",
-        extra="forbid" 
+        extra="allow" 
     )
 

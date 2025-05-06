@@ -1,7 +1,0 @@
-T_set_min=20.0
-T_set_min_night=18.0
-T_set_max=23.0
-T_set_max_night=28.0
-T_bivalent=-2.0
-T_heatlimit=15.0
-ventilation_rate=0.5

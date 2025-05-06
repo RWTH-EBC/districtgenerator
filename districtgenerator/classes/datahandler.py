@@ -21,7 +21,7 @@ from .plots import DemandPlots
 from .optimizer import Optimizer
 from .KPIs import KPIs
 import districtgenerator.functions.clustering_medoid as cm
-from districtgenerator.data_handling.config import LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, BuildingConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
@@ -57,9 +57,7 @@ class Datahandler:
     """
 
     def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None, srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filePath = None, 
-                 site_config:LocationConfig = LocationConfig(), time_config:TimeConfig = TimeConfig(), design_building_config:DesignBuildingConfig = DesignBuildingConfig(), 
-                 physics_config:PhysicsConfig = PhysicsConfig(), decentral_config:DecentralDeviceConfig = DecentralDeviceConfig(),  ehdo_config:EHDOConfig = EHDOConfig(), 
-                 eco_config:EcoConfig = EcoConfig(), central_config:CentralDeviceConfig= CentralDeviceConfig(), gurobi_config:GurobiConfig = GurobiConfig()):
+                 global_config: GlobalConfig = load_global_config()):
         """
         Constructor of Datahandler class.
 
@@ -85,7 +83,7 @@ class Datahandler:
         self.counter = {}
         self.srcPath = srcPath
         self.filePath = filePath
-        self.gurobiConfig = gurobi_config,
+        self.gurobiConfig = global_config.gurobi,
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -98,8 +96,18 @@ class Datahandler:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
         self.KPIs = None
-        self.load_all_data(site_config, time_config, design_building_config, physics_config, decentral_config, ehdo_config, eco_config, central_config)
+        self.load_all_data(
+            site_config=global_config.location,
+            time_config=global_config.time,
+            design_building_config=global_config.design_building,
+            physics_config=global_config.physics,
+            decentral_config=global_config.decentral,
+            ehdo_config=global_config.ehdo,
+            eco_config=global_config.eco,
+            central_config=global_config.central
+        )
 
+        
     def load_all_data(self, site_config:LocationConfig, 
                       time_config:TimeConfig, 
                       design_building_config:DesignBuildingConfig, 

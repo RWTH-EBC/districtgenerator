@@ -92,5 +92,5 @@ class DecentralDeviceConfig(BaseSettings):
     
     model_config = SettingsConfigDict(
         env_file= ".decentraldeviceconfig",
-        extra="forbid" 
+        extra="allow" 
     )
