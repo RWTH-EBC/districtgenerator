@@ -199,7 +199,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;SFH&quot;</span><span class="p">:</span>
             <span class="c1"># choose random number of occupants (2-5) for single family houses  (assumption)</span>
 
-            <span class="c1"># loop over all flats of current multi family house</span>
+            <span class="c1"># loop over all flats of current single family houses</span>
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
                 <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
                 <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># staring with one (additional) occupant</span>
@@ -211,9 +211,9 @@
                     <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;TH&quot;</span><span class="p">:</span>
-            <span class="c1"># choose random number of occupants (2-5) for single family houses  (assumption)</span>
+            <span class="c1"># choose random number of occupants (2-5) for terraced houses  (assumption)</span>
 
-            <span class="c1"># loop over all flats of current multi family house</span>
+            <span class="c1"># loop over all flats of current terraced house</span>
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span> <span class="p">:</span>
                 <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
                 <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># staring with one (additional) occupant</span>
