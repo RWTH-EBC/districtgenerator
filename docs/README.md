@@ -108,15 +108,16 @@ that provides statistical and normative information about the building stock.
 Finally, the TEASER python package determines the geometry and material properties of the buildings. 
 As the TABULA WebTool defines archetypal building properties for type, age class and retrofit level, the 
 generated districts are composed of representative buildings, making them ideal 
-for representative analyses or scalability studies. A number of residents is randomly, 
-but within defined limits, attributed to each dwelling and serves as input data for the [richardsonpy tool](https://github.com/RWTH-EBC/richardsonpy) 
-to calculate the time-resolved occupancy profiles. 
+for representative analyses or scalability studies. The number of occupants within a dwelling is randomly determined, 
+but within defined limits (1 to 4 occupants for each flat in multi-family houses and apartment block, 
+2-5 occupants in single-family houses and terraced houses), and serves as input data 
+for the [richardsonpy tool](https://github.com/RWTH-EBC/richardsonpy) to calculate stochastically the time-resolved occupancy profiles. 
 Furthermore, the [Stromspiegel](https://www.stromspiegel.de/fileadmin/ssi/stromspiegel/Downloads/Stromspiegel-2019-web.pdf) 
-provides statistical data on annual electricity consumption in German households. Annual consumption
-is stochastically assigned to each building, upon which the time-resolved electricity profile is
+provides statistical data on annual electricity consumption in German dwellings. Annual consumption
+is assigned to each dwelling with a possible standard deviation of 10%, upon which the time-resolved electricity profile is
 created using the stochastic profile generator richardsonpy again. The electricity and occupancy
 profiles serve as input for a time-resolved internal gain calculation. Additionally, the occupancy
-profiles are needed for stochastic domestic hot water profile generation, for which functions from the
+profiles are needed for domestic hot water profile generation, for which functions from the
 [pyCity tool](https://github.com/RWTH-EBC/pyCity/tree/master) 
 are utilized. Finally, the static building data, as well as the time-resolved weather and internal gain data, 
 are included in the space heating profile generation. These are computed by means of a 5R1C-substitution model 
@@ -192,7 +193,7 @@ We presented or applied the library in the following publications:
 
 The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the [MIT License](docs/about/LICENSE.md).
+under the [MIT License](about/LICENSE.md).
 
 ## Acknowledgements
 
