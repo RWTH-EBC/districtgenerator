@@ -1,5 +1,5 @@
 districtgenerator/results/*
-data/scenarios/*
+districtgenerator/data/scenarios/*
 errorfile.txt
 *.bk
 *.log

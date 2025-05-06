@@ -118,7 +118,7 @@ class Users():
         if self.building == "SFH":
             # choose random number of occupants (2-5) for single family houses  (assumption)
 
-            # loop over all flats of current multi family house
+            # loop over all flats of current single family houses
             for j in range(self.nb_flats):
                 random_nb = rd.random()  # picking random number in [0,1)
                 j = 1  # staring with one (additional) occupant
@@ -130,9 +130,9 @@ class Users():
                     j += 1
 
         if self.building == "TH":
-            # choose random number of occupants (2-5) for single family houses  (assumption)
+            # choose random number of occupants (2-5) for terraced houses  (assumption)
 
-            # loop over all flats of current multi family house
+            # loop over all flats of current terraced house
             for j in range(self.nb_flats) :
                 random_nb = rd.random()  # picking random number in [0,1)
                 j = 1  # staring with one (additional) occupant
