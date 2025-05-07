@@ -215,7 +215,7 @@ def load_global_config(env_file: Optional[str] = None ) -> GlobalConfig:
 
 
 class EnvFileNotFoundError(Exception):
-    """Custom exception for when .env file cannot be found"""
+    """Custom exception for when .env.CONFIG file cannot be found"""
     pass
 
 
@@ -229,13 +229,12 @@ def find_env_file():
     for location in possible_locations:
         env_path = location / '.env.CONFIG'
         if env_path.exists():
-            print(env_path)
             return str(env_path)
 
     raise EnvFileNotFoundError(
-        "No .env file found in the expected locations:\n"
+        "No .env.CONFIG file found in the expected locations:\n"
         f"- Current working directory: {possible_locations[0]}\n"
         f"- Parent of current working directory: {possible_locations[1]}\n"
         f"- Project root directory [udp_connector]: {possible_locations[2]}\n"
-        "Please ensure your .env file exists in one of these locations.\n"
+        "Please ensure your .env.CONFIG file exists in one of these locations.\n"
     )

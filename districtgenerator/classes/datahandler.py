@@ -62,7 +62,8 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 global_config: GlobalConfig = load_global_config()):
+                 env_path = None
+                 ):
         """
         Constructor of Datahandler class.
 
@@ -70,6 +71,8 @@ class Datahandler:
         -------
         None.
         """
+        global_config: GlobalConfig = load_global_config(env_file=env_path)
+
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
             
