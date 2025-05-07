@@ -68,8 +68,9 @@ class Envelope:
         # TODO: If the u-values are inside the example.csv, they should be inside the building_params. So we can give that here to the loadComponentProperties function
         # hopefully we can then overwrite the values we have but keep the archetype TABULA values (from TEASER/prj) we don't have
         # ex: self.u_values(building_params) -> which then loads u_values like loadParams
+        self.loadUValues() # TODO
         self.loadComponentProperties(prj)
-        #self.loadComponentProperties(prj, self.u_values)
+        # self.loadComponentProperties(prj, self.u_values)
         self.loadAreas(prj)
 
     def loadParams(self):
@@ -95,6 +96,21 @@ class Envelope:
         self.ventilationRate = self.design_building_data["ventilation_rate"]
         self.T_bivalent = self.design_building_data["T_bivalent"]
         self.T_heatlimit = self.design_building_data["T_heatlimit"]
+
+    def loadUValues(self, building_params):
+        """
+        Load u-values from the example.csv file.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+        """
+        self.u_value["thermalTransmittanceFacade"] = building_params["thermalTransmittanceFacade"]
+        pass
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
@@ -254,7 +270,7 @@ class Envelope:
 
         comp = "wall"
         # WALLS: Materials and U-value
-        # TODO: Add thermalTransmittanceFacade
+        # TODO: thermalTransmittanceFacade
         for name, elem in element_bind.items():
             if "OuterWall" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -275,7 +291,7 @@ class Envelope:
 
         comp = "roof"
         # ROOF: Materials and U-value
-        # TODO: Add thermalTransmittanceRoof
+        # TODO: thermalTransmittanceRoof
         for name, elem in element_bind.items():
             if "Rooftop" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -296,7 +312,7 @@ class Envelope:
 
         comp = "floor"
         # FLOOR: Materials and U-value
-        # TODO: Add thermalTransmittanceFloor
+        # TODO: thermalTransmittanceFloor
         for name, elem in element_bind.items():
             if "GroundFloor" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -339,7 +355,7 @@ class Envelope:
 
         comp = "ceiling"
         # CEILING: Materials and U-value
-        # TODO: Add thermalTransmittanceCeiling
+        # TODO: thermalTransmittanceCeiling
         for name, elem in element_bind.items():
             if "Ceiling" in name:
                 dummy = min(2015,
@@ -406,6 +422,7 @@ class Envelope:
             self.d_iso["opaque"][x] = sum(self.d["opaque"][x])
         # Compute U and kappa for each component
         for x in self.opaque_ext:
+            # passt das zum U?
             self.kappa["opaque"][x] = self.specificHeatCapacity(
                 self.d["opaque"][x],
                 self.d_iso["opaque"][x],
@@ -413,6 +430,9 @@ class Envelope:
                 self.cp["opaque"][x]
             )
             # TODO: They calculate the u-value here, so this is where it need to be replaced
+            # hgo will check with the kappa. Store the calculated u-value somehow, so we can compare them afterwards
+            # i need a list or a sheet where the values for the different buildings are compared
+
             self.U["opaque"][x] = 1.0 / (self.R_si["opaque"][x]
                                          + sum(self.d["opaque"][x]
                                                / self.Lambda["opaque"][x])
