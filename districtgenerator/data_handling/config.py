@@ -187,11 +187,16 @@ class GlobalConfig(BaseModel):
     decentral: DecentralDeviceConfig
     central: CentralDeviceConfig
 
-def load_global_config(env_file: Optional[str] = ".env") -> GlobalConfig:
-    env_file = find_env_file()
+def load_global_config(env_file: Optional[str] = None ) -> GlobalConfig:
+    if env_file is None:
+        env_file = find_env_file() # wenn man den genauen Pfad angibt (als input-> dann geht das) -> der findet die generelle env
+
+
     # der findet das environement file nicht, wenn ich nur den string angebe. Ich konnte leider nicht herausfinden
     # warum er das nicht findet. Da gab es keine Errormeldung oder einen Hinweis. der ist immer auf die Defaultwerte zurückgegangen
+    #-> find_env_file() überschreibt den env_file string
     os.environ["ENV_FILE"] = env_file
+    print(os.environ["ENV_FILE"])
 
 
     return GlobalConfig(
@@ -216,19 +221,21 @@ class EnvFileNotFoundError(Exception):
 
 def find_env_file():
     possible_locations = [
-        Path.cwd().parent,  # Current working directory
+        Path.cwd(), # Current working directory
+        Path.cwd().parent,  # Parent of current working directory
         Path(__file__).parent.parent.parent,  # Topmost Level of Connector. This is the default location
     ]
 
     for location in possible_locations:
-        env_path = location / '.env'
+        env_path = location / '.env.CONFIG'
         if env_path.exists():
             print(env_path)
             return str(env_path)
 
     raise EnvFileNotFoundError(
         "No .env file found in the expected locations:\n"
-        f"- Parent of current working directory: {possible_locations[0]}\n"
-        f"- Project root directory [udp_connector]: {possible_locations[1]}\n"
+        f"- Current working directory: {possible_locations[0]}\n"
+        f"- Parent of current working directory: {possible_locations[1]}\n"
+        f"- Project root directory [udp_connector]: {possible_locations[2]}\n"
         "Please ensure your .env file exists in one of these locations.\n"
     )
