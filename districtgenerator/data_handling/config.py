@@ -5,12 +5,12 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
-
+from pathlib import Path
 
 
 
 class LocationConfig(BaseSettings):
-    timeZone: float = 1
+    timeZone: float = 10 #1
     albedo: float = 0.2
     TRYYear: str = 'TRY2015'
     TRYType: str = 'Jahr'
@@ -188,7 +188,11 @@ class GlobalConfig(BaseModel):
     central: CentralDeviceConfig
 
 def load_global_config(env_file: Optional[str] = ".env") -> GlobalConfig:
-    os.environ["ENV_FILE"] = env_file  
+    env_file = find_env_file()
+    # der findet das environement file nicht, wenn ich nur den string angebe. Ich konnte leider nicht herausfinden
+    # warum er das nicht findet. Da gab es keine Errormeldung oder einen Hinweis. der ist immer auf die Defaultwerte zurückgegangen
+    os.environ["ENV_FILE"] = env_file
+
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file),
@@ -205,3 +209,26 @@ def load_global_config(env_file: Optional[str] = ".env") -> GlobalConfig:
     )
 
 
+class EnvFileNotFoundError(Exception):
+    """Custom exception for when .env file cannot be found"""
+    pass
+
+
+def find_env_file():
+    possible_locations = [
+        Path.cwd().parent,  # Current working directory
+        Path(__file__).parent.parent.parent,  # Topmost Level of Connector. This is the default location
+    ]
+
+    for location in possible_locations:
+        env_path = location / '.env'
+        if env_path.exists():
+            print(env_path)
+            return str(env_path)
+
+    raise EnvFileNotFoundError(
+        "No .env file found in the expected locations:\n"
+        f"- Parent of current working directory: {possible_locations[0]}\n"
+        f"- Project root directory [udp_connector]: {possible_locations[1]}\n"
+        "Please ensure your .env file exists in one of these locations.\n"
+    )

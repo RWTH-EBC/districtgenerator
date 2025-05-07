@@ -56,7 +56,12 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None, srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filePath = None, 
+    def __init__(self,
+                 scenario_name = "example",
+                 resultPath = None,
+                 scenario_file_path = None,
+                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 filePath = None,
                  global_config: GlobalConfig = load_global_config()):
         """
         Constructor of Datahandler class.
