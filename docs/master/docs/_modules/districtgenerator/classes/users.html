@@ -1,22 +1,20 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>districtgenerator.classes.users &mdash; DistrictGenerator 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
 
   
-  <!--[if lt IE 9]>
-    <script src="../../../_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
-        <script src="../../../_static/doctools.js?v=888ff710"></script>
-        <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" /> 
@@ -41,8 +39,14 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <!-- Local TOC -->
-              <div class="local-toc"></div>
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../README.html">DistrictGenerator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">Classes and internal functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../EXAMPLES.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../about/index.html">About DistrictGenerator</a></li>
+</ul>
+
         </div>
       </div>
     </nav>
@@ -69,61 +73,41 @@
              
   <h1>Source code for districtgenerator.classes.users</h1><div class="highlight"><pre>
 <span></span><span class="c1"># -*- coding: utf-8 -*-</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">random</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.profils</span><span class="w"> </span><span class="kn">import</span> <span class="n">Profiles</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy.classes.stochastic_el_load_wrapper</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">wrap</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy.classes.appliance</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">app_model</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">richardsonpy.classes.lighting</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">light_model</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">districtgenerator.functions.heating_profile_5R1C</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">heating</span>
 
-<span class="kn">import</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">math</span>
-<span class="kn">import</span> <span class="nn">random</span> <span class="k">as</span> <span class="nn">rd</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">.profils</span> <span class="kn">import</span> <span class="n">Profiles</span>
-<span class="kn">import</span> <span class="nn">richardsonpy</span>
-<span class="kn">import</span> <span class="nn">richardsonpy.classes.stochastic_el_load_wrapper</span> <span class="k">as</span> <span class="nn">wrap</span>
-<span class="kn">import</span> <span class="nn">richardsonpy.classes.appliance</span> <span class="k">as</span> <span class="nn">app_model</span>
-<span class="kn">import</span> <span class="nn">richardsonpy.classes.lighting</span> <span class="k">as</span> <span class="nn">light_model</span>
-<span class="kn">import</span> <span class="nn">districtgenerator.functions.heating_profile_5R1C</span> <span class="k">as</span> <span class="nn">heating</span>
-
-<div class="viewcode-block" id="Users"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users">[docs]</a><span class="k">class</span> <span class="nc">Users</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<div class="viewcode-block" id="Users">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Users</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Building Users class describing the number of occupants and their configs</span>
 
-<span class="sd">    Parameters</span>
+<span class="sd">    Attributes:</span>
 <span class="sd">    ----------</span>
-<span class="sd">    building : object</span>
-<span class="sd">        buildings objects of TEASER project</span>
-<span class="sd">    area : integer</span>
-<span class="sd">        Floor area of different building types</span>
-
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    building : string</span>
-<span class="sd">        building type according to TABULA database</span>
-<span class="sd">    nb_flats : integer</span>
-<span class="sd">        number of flats in building</span>
-<span class="sd">    annual_el_demand : array</span>
-<span class="sd">        annual elictricity consumption in dependency of the building type and the number of occupants</span>
-<span class="sd">    lighting_index : integer</span>
-<span class="sd">        This index defines the lighting configuration of the houshold.</span>
-<span class="sd">    el_wrapper : object</span>
-<span class="sd">        This objects holdes information about the lighting and appliance configuration.</span>
-<span class="sd">    nc_occ : list</span>
-<span class="sd">        list with the number of occupants for each flat of the current building.</span>
-<span class="sd">    occ : array</span>
-<span class="sd">        occupancy profile for each flat of the current building.</span>
-<span class="sd">    dhw :</span>
-<span class="sd">        drinking hot water profile for each building.</span>
-<span class="sd">    elec :</span>
-<span class="sd">        electrical demand for each building.</span>
-<span class="sd">    gains :</span>
-<span class="sd">        internal gains for each building.</span>
-<span class="sd">    heat :</span>
-<span class="sd">        heat demand for each building.</span>
-<span class="sd">    &#39;&#39;&#39;</span>
-
-
-
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">building</span><span class="p">,</span> <span class="n">area</span><span class="p">):</span>
+<span class="sd">        - building (object): buildings objects of TEASER project</span>
+<span class="sd">        - area (int): Floor area of different building types</span>
+<span class="sd">        - nb_flats (int): number of flats in building</span>
+<span class="sd">        - annual_el_demand (array): annual elictricity consumption in dependency of the building type and the number of occupants</span>
+<span class="sd">        - lighting_index (int): This index defines the lighting configuration of the houshold.</span>
+<span class="sd">        - el_wrapper (object): This objects holdes information about the lighting and appliance configuration.</span>
+<span class="sd">        - nc_occ (list): list with the number of occupants for each flat of the current building.</span>
+<span class="sd">        - occ (array): occupancy profile for each flat of the current building.</span>
+<span class="sd">        - dhw (array): drinking hot water profile for each building.</span>
+<span class="sd">        - elec (array): electrical demand for each building.</span>
+<span class="sd">        - gains (array): internal gains for each building.</span>
+<span class="sd">        - heat (array): heat demand for each building.</span>
+<span class="sd">        - cooling (array): cooling demand for each building.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">building</span><span class="p">,</span> <span class="n">area</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Constructor of Users Class</span>
+<span class="sd">        Initialize the Users object</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">=</span> <span class="n">building</span>
@@ -145,45 +129,77 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">create_el_wrapper</span><span class="p">()</span>
 
 
-<div class="viewcode-block" id="Users.generate_number_flats"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_flats">[docs]</a>    <span class="k">def</span> <span class="nf">generate_number_flats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">area</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<div class="viewcode-block" id="Users.generate_number_flats">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_flats">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_number_flats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">area</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate number of flats for different of building types.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        area : integer</span>
-<span class="sd">            Floor area of different building types</span>
+<span class="sd">            - area (int): Floor area of different building types</span>
 
-<span class="sd">        &#39;&#39;&#39;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;SFH&quot;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;TH&quot;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;MFH&quot;</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">area</span> <span class="o">&lt;=</span> <span class="mi">4</span><span class="o">*</span><span class="mi">100</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="mi">4</span>
-            <span class="k">elif</span> <span class="n">area</span> <span class="o">&gt;</span> <span class="mi">4</span> <span class="o">*</span> <span class="mi">100</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">area</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;AB&quot;</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">area</span> <span class="o">&lt;=</span> <span class="mi">10</span><span class="o">*</span><span class="mi">100</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="mi">10</span>
-            <span class="k">elif</span> <span class="n">area</span> <span class="o">&gt;</span> <span class="mi">10</span><span class="o">*</span><span class="mi">100</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">area</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span></div>
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">        - nb_flats (int): number of flats in building</span>
 
-<div class="viewcode-block" id="Users.generate_number_occupants"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_occupants">[docs]</a>    <span class="k">def</span> <span class="nf">generate_number_occupants</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># If the building is a SFH or TH,</span>
+        <span class="c1"># it has only one flat.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;SFH&quot;</span><span class="p">,</span> <span class="s2">&quot;TH&quot;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># If the building is a MFH or AB,</span>
+        <span class="c1"># we estimate the number of flats probabilistically.</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;MFH&quot;</span><span class="p">,</span> <span class="s2">&quot;AB&quot;</span><span class="p">]:</span>
+            <span class="c1"># Data source: Federal Statistical Office of Germany (Destatis), Zensus 2022</span>
+            <span class="c1"># URL: https://www.zensus2022.de/</span>
+            <span class="c1"># This method estimates the number of flats for multi-family houses (MFH) and apartment buildings (AB)</span>
+            <span class="c1"># based on statistical data from Zensus 2022. The approach follows these steps:</span>
+            <span class="c1"># 1. A predefined set of apartment size categories (in square meters) is used, each with an associated</span>
+            <span class="c1">#   probability based on real-world statistics.</span>
+            <span class="c1"># 2. A random apartment size category is selected using a weighted probability distribution.</span>
+            <span class="c1"># 3. The mean value of the selected size range is used as the approximate flat size.</span>
+            <span class="c1"># 4. The total number of flats is calculated by dividing the building’s total floor area by the selected flat size.</span>
+            <span class="c1"># 5. The method ensures that the estimated number of flats is at least 2, as MFH and AB buildings should have</span>
+            <span class="c1">#   multiple flats.</span>
+
+            <span class="n">area_categories</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">39</span><span class="p">),</span> <span class="p">(</span><span class="mi">40</span><span class="p">,</span> <span class="mi">59</span><span class="p">),</span> <span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">79</span><span class="p">),</span> <span class="p">(</span><span class="mi">80</span><span class="p">,</span> <span class="mi">99</span><span class="p">),</span> <span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="mi">119</span><span class="p">),</span> <span class="p">(</span><span class="mi">120</span><span class="p">,</span> <span class="mi">139</span><span class="p">),</span> <span class="p">(</span><span class="mi">140</span><span class="p">,</span> <span class="mi">159</span><span class="p">),</span> <span class="p">(</span><span class="mi">160</span><span class="p">,</span> <span class="mi">179</span><span class="p">),</span> <span class="p">(</span><span class="mi">180</span><span class="p">,</span> <span class="mi">199</span><span class="p">)]</span>
+            <span class="n">probabilities</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.05896</span><span class="p">,</span> <span class="mf">0.181403</span><span class="p">,</span> <span class="mf">0.23811</span><span class="p">,</span> <span class="mf">0.17094</span><span class="p">,</span> <span class="mf">0.118865</span><span class="p">,</span> <span class="mf">0.107155</span><span class="p">,</span> <span class="mf">0.067465</span><span class="p">,</span> <span class="mf">0.0350566</span><span class="p">,</span> <span class="mf">0.02204</span><span class="p">]</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="c1"># Choose one consistent flat size for the entire building</span>
+                <span class="n">chosen_area_range</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">choices</span><span class="p">(</span><span class="n">area_categories</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">probabilities</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">chosen_area</span> <span class="o">=</span> <span class="p">(</span><span class="n">chosen_area_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">chosen_area_range</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">//</span> <span class="mi">2</span>  <span class="c1"># Use the mean area of the selected range</span>
+
+                <span class="c1"># Calculate the number of flats using rounding to the nearest integer</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">area</span> <span class="o">/</span> <span class="n">chosen_area</span><span class="p">)</span>
+
+                <span class="c1"># Ensure at least 2 flats</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">break</span></div>
+
+
+<div class="viewcode-block" id="Users.generate_number_occupants">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_number_occupants">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_number_occupants</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate number of occupants for different of building types.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        random_nb : random number in [0,1)</span>
+<span class="sd">            - building (object): building type and number of flats</span>
 
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - nb_occ (list): list with the number of occupants for each flat of the current building.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;SFH&quot;</span><span class="p">:</span>
             <span class="c1"># choose random number of occupants (2-5) for single family houses  (assumption)</span>
 
-            <span class="c1"># loop over all flats of current multi family house</span>
+            <span class="c1"># loop over all flats of current single family houses</span>
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
                 <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
                 <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># staring with one (additional) occupant</span>
@@ -195,9 +211,9 @@
                     <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;TH&quot;</span><span class="p">:</span>
-            <span class="c1"># choose random number of occupants (2-5) for single family houses  (assumption)</span>
+            <span class="c1"># choose random number of occupants (2-5) for terraced houses  (assumption)</span>
 
-            <span class="c1"># loop over all flats of current multi family house</span>
+            <span class="c1"># loop over all flats of current terraced house</span>
             <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">)</span> <span class="p">:</span>
                 <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>  <span class="c1"># picking random number in [0,1)</span>
                 <span class="n">j</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># staring with one (additional) occupant</span>
@@ -237,19 +253,29 @@
                     <span class="n">k</span> <span class="o">+=</span> <span class="mi">1</span></div>
 
 
-<div class="viewcode-block" id="Users.generate_annual_el_consumption"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_annual_el_consumption">[docs]</a>    <span class="k">def</span> <span class="nf">generate_annual_el_consumption</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        Generate annual elictricity consumption</span>
-<span class="sd">        in dependency of the building type and the number of occupants</span>
+
+<div class="viewcode-block" id="Users.generate_annual_el_consumption">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_annual_el_consumption">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_annual_el_consumption</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate annual elictricity consumption in dependency of the building type and the number of occupants</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        standard_consumption : standard annual consumption in kWh (assumption)</span>
+<span class="sd">            - standard_consumption : standard annual consumption in kWh (assumption)</span>
 
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - annual_el_demand (array): annual elictricity consumption in Wh for each flat of the current building</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># source: https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951</span>
         <span class="c1"># method: https://www.stromspiegel.de/ueber-uns-partner/methodik-des-stromspiegels/</span>
+        <span class="c1">#     The electricity consumption is modeled using a Gaussian distribution to introduce</span>
+        <span class="c1">#     a variation. The mean consumption value is taken from the standard data,</span>
+        <span class="c1">#     while the standard deviation is assumed to be 10% of the mean value.</span>
+
         <span class="n">standard_consumption</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;SFH&quot;</span> <span class="p">:</span> <span class="p">{</span><span class="mi">1</span> <span class="p">:</span> <span class="mi">2300</span><span class="p">,</span>
                                          <span class="mi">2</span> <span class="p">:</span> <span class="mi">3000</span><span class="p">,</span>
                                          <span class="mi">3</span> <span class="p">:</span> <span class="mi">3500</span><span class="p">,</span>
@@ -266,55 +292,64 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;SFH&quot;</span><span class="p">:</span>
                 <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;SFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                         <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 20% of mean value</span>
+                                                         <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;TH&quot;</span><span class="p">:</span>
                 <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;SFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                         <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 20% of mean value</span>
+                                                         <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;MFH&quot;</span><span class="p">:</span>
                 <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;MFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                 <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 20% of mean value</span>
+                                                 <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">building</span> <span class="o">==</span> <span class="s2">&quot;AB&quot;</span><span class="p">:</span>
                 <span class="n">annual_el_demand_temp</span> <span class="o">=</span> <span class="n">standard_consumption</span><span class="p">[</span><span class="s2">&quot;MFH&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_occ</span><span class="p">[</span><span class="n">j</span><span class="p">]]</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">gauss</span><span class="p">(</span><span class="n">annual_el_demand_temp</span><span class="p">,</span>
-                                                 <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 20% of mean value</span></div>
+                                                 <span class="n">annual_el_demand_temp</span> <span class="o">*</span> <span class="mf">0.10</span><span class="p">)</span>  <span class="c1"># assumption: standard deviation 10% of mean value</span></div>
 
 
-<div class="viewcode-block" id="Users.generate_lighting_index"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_lighting_index">[docs]</a>    <span class="k">def</span> <span class="nf">generate_lighting_index</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="Users.generate_lighting_index">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.generate_lighting_index">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_lighting_index</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Choose a random lighting index between 0 and 99.</span>
 <span class="sd">        This index defines the lighting configuration of the houshold.</span>
 <span class="sd">        There are 100 predifined ligthing configurations.</span>
 
-<span class="sd">        Annahme: Alle Lichtkonfigurationen sind gleich wahrscheinlich.</span>
-<span class="sd">        Es wird kein Unterschied zwischen  SHF und MFH gemacht.</span>
+<span class="sd">        Assumption: All lighting configurations are equally likely. No distinction between building types.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        random_nb : random number in [0,1)</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">            - random_nb (float): random number in [0,1)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - lighting_index (int): This index defines the lighting configuration of the houshold.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nb_flats</span><span class="p">):</span>
             <span class="n">random_nb</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">lighting_index</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">random_nb</span> <span class="o">*</span> <span class="mi">100</span><span class="p">))</span></div>
 
 
-<div class="viewcode-block" id="Users.create_el_wrapper"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.create_el_wrapper">[docs]</a>    <span class="k">def</span> <span class="nf">create_el_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="p">:</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        Creat a wrapper-object</span>
-<span class="sd">        holding information about the lighting and appliance configuration.</span>
+
+<div class="viewcode-block" id="Users.create_el_wrapper">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.create_el_wrapper">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_el_wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creat a wrapper-object holding information about the lighting and appliance configuration.</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        annual_demand : integer</span>
-<span class="sd">            Annual elictricity demand in kWh.</span>
-<span class="sd">        light_config : integer</span>
-<span class="sd">            This index defines the lighting configuration of the houshold.</span>
+<span class="sd">           -  annual_demand (int): Annual elictricity demand in kWh.</span>
+<span class="sd">            - light_config (int): This index defines the lighting configuration of the houshold.</span>
 <span class="sd">            There are 100 predifined ligthing configurations.</span>
 
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - el_wrapper (object): This objects holdes information about the lighting and appliance configuration</span>
 
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">src_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">richardsonpy</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)</span>
         <span class="n">path_app</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span><span class="s1">&#39;inputs&#39;</span><span class="p">,</span><span class="s1">&#39;Appliances.csv&#39;</span><span class="p">)</span>
@@ -344,31 +379,31 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">el_wrapper</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">wrap</span><span class="o">.</span><span class="n">ElectricityProfile</span><span class="p">(</span><span class="n">appliances</span><span class="p">,</span><span class="n">lights</span><span class="p">))</span></div>
 
 
-<div class="viewcode-block" id="Users.calcProfiles"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.calcProfiles">[docs]</a>    <span class="k">def</span> <span class="nf">calcProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">time_resolution</span><span class="p">,</span> <span class="n">time_horizon</span><span class="p">,</span> <span class="n">initital_day</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="Users.calcProfiles">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.calcProfiles">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calcProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">site</span><span class="p">,</span> <span class="n">time_resolution</span><span class="p">,</span> <span class="n">time_horizon</span><span class="p">,</span> <span class="n">initital_day</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calclulate profiles for every flat and summarize them for the whole building</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        site: dict</span>
-<span class="sd">            site data, e.g. weather</span>
-<span class="sd">        initial_day : integer</span>
-<span class="sd">            Day of the week with which the generation starts</span>
-<span class="sd">            1-7 for monday-sunday.</span>
-<span class="sd">        time_horizon : integer</span>
-<span class="sd">            Time horizon for which a stochastic profile is generated.</span>
-<span class="sd">        time_resolution : integer</span>
-<span class="sd">            resolution of time steps of output array in seconds.</span>
-<span class="sd">        irradiation: array</span>
-<span class="sd">            if none is given default weather data (TRY 2015 Potsdam) is used</span>
+<span class="sd">            - site (dict): site data, e.g. weather</span>
+<span class="sd">            - time_horizon (int): Time horizon for which a stochastic profile is generated.</span>
+<span class="sd">            - time_resolution (int): resolution of time steps of output array in seconds.</span>
 
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - occ (array): occupancy profile for each building.</span>
+<span class="sd">            - dhw (array): drinking hot water profile for each building.</span>
+<span class="sd">            - elec (array): electrical demand for each building.</span>
+<span class="sd">            - gains (array): internal gains for each building.</span>
 
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">irradiation</span> <span class="o">=</span> <span class="n">site</span><span class="p">[</span><span class="s2">&quot;SunTotal&quot;</span><span class="p">]</span>
-        <span class="n">T_e</span> <span class="o">=</span> <span class="n">site</span><span class="p">[</span><span class="s2">&quot;T_e&quot;</span><span class="p">]</span>
 
-        <span class="n">time_day</span> <span class="o">=</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
+        <span class="n">time_day</span> <span class="o">=</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span> <span class="c1"># seconds in a day</span>
         <span class="n">nb_days</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_day</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time_horizon</span><span class="o">/</span><span class="n">time_resolution</span><span class="p">))</span>
@@ -384,24 +419,24 @@
                                                                  <span class="n">annual_demand</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">annual_el_demand</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">+</span> <span class="n">temp_obj</span><span class="o">.</span><span class="n">generate_gain_profile</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="Users.calcHeatingProfile"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.calcHeatingProfile">[docs]</a>    <span class="k">def</span> <span class="nf">calcHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">site</span><span class="p">,</span><span class="n">envelope</span><span class="p">,</span><span class="n">time_resolution</span><span class="p">)</span> <span class="p">:</span>
 
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<div class="viewcode-block" id="Users.calcHeatingProfile">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.calcHeatingProfile">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">calcHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">site</span><span class="p">,</span><span class="n">envelope</span><span class="p">,</span><span class="n">time_resolution</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Calclulate heat demand for each building</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        site: dict</span>
-<span class="sd">            site data, e.g. weather</span>
-<span class="sd">        envelope: object</span>
-<span class="sd">            containing all physical data of the envelope</span>
-<span class="sd">        time_resolution : integer</span>
-<span class="sd">            resolution of time steps of output array in seconds.</span>
-<span class="sd">        Q_HC : float</span>
-<span class="sd">            Heating (positive) or cooling (negative) load for the current time</span>
-<span class="sd">            step in Watt.</span>
+<span class="sd">            - site (dict): site data, e.g. weather</span>
+<span class="sd">            - envelope (object): containing all physical data of the envelope</span>
+<span class="sd">            - time_resolution (int): resolution of time steps of output array in seconds.</span>
 
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - Q_HC (float): Heating (positive) or cooling (negative) load for the current time step in Watt.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
 
 
         <span class="n">dt</span> <span class="o">=</span> <span class="n">time_resolution</span><span class="o">/</span><span class="p">(</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">)</span>
@@ -412,60 +447,71 @@
         <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">Q_HC</span><span class="p">)):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">heat</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">Q_HC</span><span class="p">[</span><span class="n">t</span><span class="p">])</span></div>
 
-<div class="viewcode-block" id="Users.saveProfiles"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.saveProfiles">[docs]</a>    <span class="k">def</span> <span class="nf">saveProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="Users.saveProfiles">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.saveProfiles">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">saveProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save profiles to csv</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        unique_name : string</span>
-<span class="sd">            unique building name</span>
-<span class="sd">        path : string</span>
-<span class="sd">            results path</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">            - unique_name (str):unique building name</span>
+<span class="sd">            - path (str): results path</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - csv files with profiles</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/elec_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">elec</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
         <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/dhw_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
         <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/occ_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">occ</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/gains_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gains</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/gains_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gains</span><span class="p">,</span> <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div>
 
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
-<span class="sd">        fields = [name + &quot;_&quot; + str(id), str(sum(self.nb_occ))]</span>
-<span class="sd">        with open(path + &#39;/_nb_occupants.csv&#39;,&#39;a&#39;) as f :</span>
-<span class="sd">            writer = csv.writer(f)</span>
-<span class="sd">            writer.writerow(fields)</span>
-<span class="sd">        &#39;&#39;&#39;</span></div>
 
-<div class="viewcode-block" id="Users.saveHeatingProfile"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.saveHeatingProfile">[docs]</a>    <span class="k">def</span> <span class="nf">saveHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">)</span> <span class="p">:</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="Users.saveHeatingProfile">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.saveHeatingProfile">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">saveHeatingProfile</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Save heat demand to csv</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        unique_name : string</span>
-<span class="sd">            unique building name</span>
-<span class="sd">        path : string</span>
-<span class="sd">            results path</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">            - unique_name (str): unique building name</span>
+<span class="sd">            - path (str): results path</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - csv files with heat demand</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/heat_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">heat</span><span class="p">,</span><span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%1.2f</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Users.loadProfiles"><a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.loadProfiles">[docs]</a>    <span class="k">def</span> <span class="nf">loadProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="Users.loadProfiles">
+<a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.users.Users.loadProfiles">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loadProfiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">unique_name</span><span class="p">,</span><span class="n">path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Load profiles from csv</span>
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        unique_name : string</span>
-<span class="sd">            unique building name</span>
-<span class="sd">        path : string</span>
-<span class="sd">            results path</span>
-<span class="sd">        &#39;&#39;&#39;</span>
+<span class="sd">            - unique_name (str): unique building name</span>
+<span class="sd">            - path (str): results path</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">            - profiles assigned to the object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">elec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/elec_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dhw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/dhw_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">occ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/occ_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/gains_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gains</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">path</span> <span class="o">+</span> <span class="s1">&#39;/gains_&#39;</span> <span class="o">+</span> <span class="n">unique_name</span> <span class="o">+</span> <span class="s1">&#39;.csv&#39;</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span></div>
+</div>
+
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
