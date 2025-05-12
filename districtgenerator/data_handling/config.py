@@ -1,12 +1,11 @@
 from dataclasses import dataclass, field
 import os
 from typing import Any, Dict, List, ClassVar, Set, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 from pathlib import Path
-
 
 
 class LocationConfig(BaseSettings):
@@ -175,29 +174,33 @@ class EHDOConfig(BaseSettings):
 
 
 class GlobalConfig(BaseModel):
-    location: LocationConfig
-    time: TimeConfig
-    design_building: DesignBuildingConfig
-    eco: EcoConfig
-    physics: PhysicsConfig
-    gurobi: GurobiConfig
-    heatgrid: HeatGridConfig
-    ehdo: EHDOConfig
-    #building: BuildingConfig
-    decentral: DecentralDeviceConfig
-    central: CentralDeviceConfig
+    location: 'LocationConfig'
+    time: 'TimeConfig'
+    design_building: 'DesignBuildingConfig'
+    eco: 'EcoConfig'
+    physics: 'PhysicsConfig'
+    gurobi: 'GurobiConfig'
+    heatgrid: 'HeatGridConfig'
+    ehdo: 'EHDOConfig'
+    decentral: 'DecentralDeviceConfig'
+    central: 'CentralDeviceConfig'
 
-def load_global_config(env_file: Optional[str] = None ) -> GlobalConfig:
+class Settings(BaseSettings):
+    env_file: str = '.env.CONFIG'
+
+    class Config:
+        env_file = '.env.CONFIG'  # Default .env file
+        env_file_encoding = 'utf-8'
+        extra = 'allow'
+
+
+def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     if env_file is None:
-        env_file = find_env_file() # wenn man den genauen Pfad angibt (als input-> dann geht das) -> der findet die generelle env
+        settings = Settings()  # Load settings from the .env file
+        env_file = settings.env_file
 
-
-    # der findet das environement file nicht, wenn ich nur den string angebe. Ich konnte leider nicht herausfinden
-    # warum er das nicht findet. Da gab es keine Errormeldung oder einen Hinweis. der ist immer auf die Defaultwerte zurückgegangen
-    #-> find_env_file() überschreibt den env_file string
     os.environ["ENV_FILE"] = env_file
-    print(os.environ["ENV_FILE"])
-
+    print(f'Using config: {os.environ["ENV_FILE"]}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file),
@@ -208,33 +211,14 @@ def load_global_config(env_file: Optional[str] = None ) -> GlobalConfig:
         gurobi=GurobiConfig(_env_file=env_file),
         heatgrid=HeatGridConfig(_env_file=env_file),
         ehdo=EHDOConfig(_env_file=env_file),
-        #building=BuildingConfig(_env_file=env_file),
         decentral=DecentralDeviceConfig(_env_file=env_file),
         central=CentralDeviceConfig(_env_file=env_file)
     )
 
-
-class EnvFileNotFoundError(Exception):
-    """Custom exception for when .env.CONFIG file cannot be found"""
-    pass
-
-
-def find_env_file():
-    possible_locations = [
-        Path.cwd(), # Current working directory
-        Path.cwd().parent,  # Parent of current working directory
-        Path(__file__).parent.parent.parent,  # Topmost Level of Connector. This is the default location
-    ]
-
-    for location in possible_locations:
-        env_path = location / '.env.CONFIG'
-        if env_path.exists():
-            return str(env_path)
-
-    raise EnvFileNotFoundError(
-        "No .env.CONFIG file found in the expected locations:\n"
-        f"- Current working directory: {possible_locations[0]}\n"
-        f"- Parent of current working directory: {possible_locations[1]}\n"
-        f"- Project root directory [udp_connector]: {possible_locations[2]}\n"
-        "Please ensure your .env.CONFIG file exists in one of these locations.\n"
-    )
+if __name__ == "__main__":
+    # Example usage Works
+    try:
+        config = load_global_config()
+        print(config.location.albedo)
+    except ValidationError as e:
+        print("Error loading configuration:", e)
