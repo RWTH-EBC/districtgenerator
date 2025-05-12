@@ -3,6 +3,7 @@
 import json
 import os
 import numpy as np
+from typing import Optional, Tuple
 
 
 class Envelope:
@@ -34,7 +35,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None):
         """
         Constructor of Envelope class.
 
@@ -65,7 +66,7 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
-        self.loadComponentProperties(prj)
+        self.loadComponentProperties(prj, u_values)
         self.loadAreas(prj)
 
     def loadParams(self):
@@ -170,7 +171,7 @@ class Envelope:
 
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
-    def loadComponentProperties(self, prj):
+    def loadComponentProperties(self, prj, u_values):
         """
         Load component-specific material parameters.
 
@@ -403,6 +404,15 @@ class Envelope:
                                             + sum(self.d["window"]
                                                   / self.Lambda["window"])
                                             + self.R_se["window"])))
+        
+        print(f' Calculated U-Values {self.U}')
+
+        if u_values:
+            for idx, x in enumerate(['wall', 'roof', 'floor', 'ceiling']):
+                self.U["opaque"][x] =  u_values[idx]
+ 
+            self.U["window"] = u_values[4]
+            print(f'Given U-Values {self.U}')
 
     def loadAreas(self, prj):
         """

@@ -79,6 +79,7 @@ class Datahandler:
         self.site = {}
         self.time = {}
         self.district = []
+        self.u_values = []
         self.scenario_name = scenario_name
         self.scenario = None
         self.design_building_data = {}
@@ -132,8 +133,15 @@ class Datahandler:
         None.
         """
         # %% load scenario file with building information
+        self.scenario = {}
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
+        
+        self.u_values = [self.scenario.thermalTransmittanceFacade.iloc[0], 
+                         self.scenario.thermalTransmittanceRoof.iloc[0], 
+                         self.scenario.thermalTransmittanceFloor.iloc[0], 
+                         self.scenario.thermalTransmittanceCeiling.iloc[0], 
+                         self.scenario.thermalTransmittanceWindow.iloc[0]]
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -443,8 +451,8 @@ class Datahandler:
                                             construction_type=retrofit_level,
                                             physics=self.physics,
                                             design_building_data=self.design_building_data,
-                                            file_path=self.filePath)
-
+                                            file_path=self.filePath,
+                                            u_values=self.u_values)
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
