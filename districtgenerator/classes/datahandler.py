@@ -22,6 +22,7 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
+from .plot import plot_all
 
 class Datahandler:
     """
@@ -800,12 +801,19 @@ class Datahandler:
                 data.append(row[0])
             return np.array(data)
 
+        building_id = int(name.split('_')[0])
+
         elec = load_sheet_to_numpy(workbook, 'Electricity')
         dhw = load_sheet_to_numpy(workbook, 'Hot Water')
         occ = load_sheet_to_numpy(workbook, 'Occupancy')
         gains = load_sheet_to_numpy(workbook, 'Internal Gains')
-        carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging')
-        carprofile = load_sheet_to_numpy(workbook, 'EV_demand')
+        if self.district[building_id]["buildingFeatures"].EV == 0:
+            shape = elec.shape
+            carcharging_ondemand = np.zeros(shape)
+            carprofile = np.zeros(shape)
+        else:
+            carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging')
+            carprofile = load_sheet_to_numpy(workbook, 'EV_demand')
         sheet = workbook['Building Info']
         other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
         nb_flats = int(other_data[0])
@@ -1320,3 +1328,6 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
+        # Plot everything
+        plot_all(self)

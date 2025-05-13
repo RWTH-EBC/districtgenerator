@@ -48,12 +48,6 @@
         "description" : "CO2 emissions by burning natural gas."
     },
     {
-        "name": "co2_PV",
-        "value": 0.0,
-        "unit": "kg/kWh",
-        "description" : "CO2 emissions for PV-electricity."
-    },
-    {
         "name": "co2_biom",
         "value": 0.35,
         "unit": "kg/kWh",

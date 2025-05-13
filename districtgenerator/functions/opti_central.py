@@ -69,9 +69,9 @@ def run_opti_central(model, data, cluster):
             EV_charging_ondemand[n] = [0] * len(elec_dem[n])
 
     # %% Sets of energy conversion systems in the buildings
-    ecs_heat = ("HP", "EH", "CHP", "FC", "BOI", "STC", "heat_grid")
+    ecs_heat = ("HP", "EH", "CHP", "FC", "BOI", "STC", "heat_grid", "DHW", "Heating")
     ecs_cool = ("CC", "heat_grid")
-    ecs_power = ("HP", "EH", "CC", "CHP", "FC", "PV")  # power consuming/producing devices (photovoltaic (PV))
+    ecs_power = ("HP", "EH", "CC", "CHP", "FC", "PV", "Demand")  # power consuming/producing devices (photovoltaic (PV))
     ecs_gas = ("CHP", "FC", "BOI")  # gas consuming devices
     ecs_storage = ("BAT", "TES", "EV")  # battery (BAT), thermal energy storage (TES), electric vehicle (EV)
     hp_modi = ("HP35", "HP55")  # modi of the HP with different HP supply temperatures in °C
@@ -110,7 +110,14 @@ def run_opti_central(model, data, cluster):
         for n in range(buildings):
             power_dom[device][n] = {}
             for t in time_steps:
-                power_dom[device][n][t] = model.addVar(vtype="C",name="power_" + device + "_n" + str(n) + "_t" + str(t))
+                if device == 'PV':
+                    # Set to the PV generation value (known, not a variable)
+                    power_dom[device][n][t] = PV_gen[n][t]
+                elif device == 'Demand':
+                    # Set to the demand value (known, not a variable)
+                    power_dom[device][n][t] = elec_dem[n][t]
+                else:
+                    power_dom[device][n][t] = model.addVar(vtype="C",name="power_" + device + "_n" + str(n) + "_t" + str(t))
 
     # Heat to/from devices
     heat_dom = {}
@@ -119,7 +126,12 @@ def run_opti_central(model, data, cluster):
         for n in range(buildings):
             heat_dom[device][n] = {}
             for t in time_steps:
-                heat_dom[device][n][t] = model.addVar(vtype="C",name="heat_" + device + "_n" + str(n) + "_t" + str(t))
+                if device == 'Heating':
+                    heat_dom[device][n][t] = Q_heating[n][t]
+                elif device == 'DHW':
+                    heat_dom[device][n][t] = Q_DHW[n][t]
+                else:
+                    heat_dom[device][n][t] = model.addVar(vtype="C",name="heat_" + device + "_n" + str(n) + "_t" + str(t))
 
     # Cool from devices
     cool_dom = {}
@@ -441,7 +453,7 @@ def run_opti_central(model, data, cluster):
 
             # heat generation of heat pump for each modus
             if buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
-                # HP can only run in HP35 mode if building is new enough
+                # HP can only run in HP35 mode if the building is new
                 model.addConstr(power_mode["HP55"][n][t] == 0,
                                 name="Activity_mode_" + str(n) + "_" + str(t))
             elif buildingData[n]["envelope"].construction_year < 1995 and buildingData[n]["capacities"]["HP"] > 0:
@@ -518,7 +530,6 @@ def run_opti_central(model, data, cluster):
                 else:
                     soc_prev = soc_dom[device][n][t - 1]
 
-
                 # Energy balance
                 # This is the general constraint that applies directly (without additional constraints) when the EV has a bidirectional charging mode
                 model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"] ** dt
@@ -572,8 +583,6 @@ def run_opti_central(model, data, cluster):
                 f"Invalid 'ev_charging' value: '{buildingData[n]['buildingFeatures']['ev_charging']}'. "f" It should be one of 'intelligent', 'bi_directional', or 'on_demand'.")
 
 
-
-
     # %% TES CONSTRAINTS
     device = "TES"
     for n in range(buildings):
@@ -596,7 +605,7 @@ def run_opti_central(model, data, cluster):
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
                             + heat_dom["EH"][n][t] + heat_dom["STC"][n][t] + heat_dom["FC"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
-            model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t],
+            model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == heat_dom["DHW"][n][t] + heat_dom["Heating"][n][t],
                             name="Heat_discharging_" + str(n) + "_" + str(t))
 
     # %% BAT CONSTRAINTS
@@ -640,14 +649,14 @@ def run_opti_central(model, data, cluster):
     for n in range(buildings):
         for t in time_steps:
             # Electricity balance
-            model.addConstr(res_dom["power"][n][t] + PV_gen[n][t]
+            model.addConstr(res_dom["power"][n][t] + power_dom["PV"][n][t]
                             + power_dom["CHP"][n][t] + power_dom["FC"][n][t] + dch_dom["BAT"][n][t] + dch_dom["EV"][n][t]
-                            == elec_dem[n][t] + ch_dom["EV"][n][t]
+                            == power_dom["Demand"][n][t] + ch_dom["EV"][n][t]
                             + power_dom["HP"][n][t] + power_dom["EH"][n][t]
                             + ch_dom["BAT"][n][t] + res_dom["feed"][n][t],
                             name="Electricity_balance_" + str(n) + "_" + str(t))
 
-            model.addConstr(res_dom["feed"][n][t] <= PV_gen[n][t] + power_dom["CHP"][n][t] + power_dom["FC"][n][t] + dch_dom["BAT"][n][t] + dch_dom["EV"][n][t],
+            model.addConstr(res_dom["feed"][n][t] <= power_dom["PV"][n][t] + power_dom["CHP"][n][t] + power_dom["FC"][n][t] + dch_dom["BAT"][n][t] + dch_dom["EV"][n][t],
                             name="Feed-in_max_" + str(n) + "_" + str(t))
 
             # Cooling balance
@@ -763,9 +772,13 @@ def run_opti_central(model, data, cluster):
 
     # Set objective
     if model_param_eh["optim_focus"] == 0:
-        model.addConstr(obj == operational_costs + peaksum * 1)
+        model.addConstr(obj == operational_costs)
     elif model_param_eh["optim_focus"] == 1:
-        model.addConstr(obj == co2_total + peaksum * 1)
+        model.addConstr(obj == co2_total)
+#    if model_param_eh["optim_focus"] == 0:
+#        model.addConstr(obj == operational_costs + peaksum * 1)
+#    elif model_param_eh["optim_focus"] == 1:
+#        model.addConstr(obj == co2_total + peaksum * 1)
 
     # Carry out optimization
     model.optimize()
@@ -822,6 +835,29 @@ def run_opti_central(model, data, cluster):
     results["Cost_total"] = operational_costs.X
     results["Emission_total"] = co2_total.X
 
+    # Save energy hub power and heat results
+    results["eh_power"] = {}
+    for device in eh_power:
+        results["eh_power"][device] = []
+        for t in time_steps:
+            results["eh_power"][device].append(round(eh_power[device][t].X, 0))
+
+    results["eh_heat"] = {}
+    for device in eh_heat:
+        results["eh_heat"][device] = []
+        for t in time_steps:
+            results["eh_heat"][device].append(round(eh_heat[device][t].X, 0))
+
+    # Save energy hub charging and discharging results
+    results["eh_ch"] = {}
+    results["eh_dch"] = {}
+    for device in eh_ch:
+        results["eh_ch"][device] = []
+        results["eh_dch"][device] = []
+        for t in time_steps:
+            results["eh_ch"][device].append(round(eh_ch[device][t].X, 0))
+            results["eh_dch"][device].append(round(eh_dch[device][t].X, 0))
+
     # add results of the buildings
     for n in range(buildings):
         results[n] = {}
@@ -833,41 +869,53 @@ def run_opti_central(model, data, cluster):
             results[n]["res_inj"].append(round(res_dom["feed"][n][t].X, 0))
             results[n]["res_gas"].append(round(gas_dom["BOI"][n][t].X + gas_dom["CHP"][n][t].X+gas_dom["FC"][n][t].X, 0))
 
+    # Collect all devices appearing in any category to pre-initialize them
+    all_devices = set(ecs_heat + ecs_cool + ecs_power + hp_modi + ecs_storage)
+
+    for n in range(buildings):
+        for device in all_devices:
+            if device not in results[n]:
+                results[n][device] = {}
+
     for n in range(buildings):
         for device in ecs_heat:
-            results[n][device] = {}
-            results[n][device]["Q_th"] = []
+            results[n][device].setdefault("Q_th", [])
             for t in time_steps:
-                results[n][device]["Q_th"].append(round(heat_dom[device][n][t].X, 0))
+                value = heat_dom[device][n][t]
+                if hasattr(value, 'X'):
+                    results[n][device]["Q_th"].append(round(value.X, 0))
+                else:
+                    results[n][device]["Q_th"].append(round(value, 0))
 
     for n in range(buildings):
         for device in ecs_cool:
-            results[n][device] = {}
-            results[n][device]["Q_cool"] = []
+            results[n][device].setdefault("Q_cool", [])
             for t in time_steps:
                 results[n][device]["Q_cool"].append(round(cool_dom[device][n][t].X, 0))
 
     for n in range(buildings):
         for device in hp_modi:
-            results[n][device] = {}
-            results[n][device]["Q_th"] = []
-            results[n][device]["P_el"] = []
+            results[n][device].setdefault("Q_th", [])
+            results[n][device].setdefault("P_el", [])
             for t in time_steps:
                 results[n][device]["Q_th"].append(round(heat_mode[device][n][t].X, 0))
                 results[n][device]["P_el"].append(round(power_mode[device][n][t].X, 0))
 
     for n in range(buildings):
         for device in ecs_power:
-            results[n][device] = {}
-            results[n][device]["P_el"] = []
+            results[n][device].setdefault("P_el", [])
             for t in time_steps:
-                results[n][device]["P_el"].append(round(power_dom[device][n][t].X, 0))
+                value = power_dom[device][n][t]
+                if hasattr(value, 'X'):
+                    results[n][device]["P_el"].append(round(value.X, 0))
+                else:
+                    results[n][device]["P_el"].append(round(value, 0))
 
     for n in range(buildings):
         for device in ecs_storage:
-            results[n][device] = {}
-            for v in ("ch", "dch", "soc"):
-                results[n][device][v] = []
+            results[n][device].setdefault("ch", [])
+            results[n][device].setdefault("dch", [])
+            results[n][device].setdefault("soc", [])
             for t in time_steps:
                 results[n][device]["ch"].append(ch_dom[device][n][t].X)
                 results[n][device]["dch"].append(dch_dom[device][n][t].X)

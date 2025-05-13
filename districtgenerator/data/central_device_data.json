@@ -1,6 +1,6 @@
 {
   "PV": {
-    "feasible": true,
+    "feasible": false,
     "eta": 0.199,
     "beta": 35,
     "gamma": 0,
@@ -120,7 +120,7 @@
     "max_cap": 500
   },
   "AirCC": {
-    "feasible": true,
+    "feasible": false,
     "life_time": 20,
     "cost_om": 0.02,
     "inv_var": 700,
@@ -223,7 +223,7 @@
     "delta_T": 30
   },
   "CTES": {
-    "feasible": true,
+    "feasible": false,
     "inv_var": 1300,
     "sto_loss": 0.01,
     "life_time": 20,

@@ -482,8 +482,8 @@
     },
     {
       "name": "inv_var",
-      "value": 700,
-      "unit": "€/liter",
+      "value": 0,
+      "unit": "€/kWh",
       "description": ""
     },
     {

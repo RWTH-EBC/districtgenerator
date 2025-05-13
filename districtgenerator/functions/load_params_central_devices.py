@@ -334,7 +334,7 @@ def load_params(data):
             "cost_om": all_models["AirHP"]["cost_om"] / 100,
             "min_cap": all_models["AirHP"]["min_cap"],
             "max_cap": all_models["AirHP"]["max_cap"],
-            "dT_evap": 10,                                                                               # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+            "dT_evap": 10,                                                                              # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
             "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"],        # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
             "dT_pinch_cond": 2,                                                                         # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
             "dT_pinch_evap": 5,                                                                         # K,    temperature difference between both fluids in the evaporator at pinch point
@@ -556,7 +556,7 @@ def load_params(data):
     devs["TES"] = {
         "feasible": all_models["TES"]["enabled"],
         "inv_var": all_models["TES"]["inv_var"] / (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # EUR/kWh
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
         "cost_om": all_models["TES"]["cost_om"] / 100,
@@ -571,7 +571,7 @@ def load_params(data):
     devs["CTES"] = {
         "feasible": all_models["CTES"]["enabled"],
         "inv_var": all_models["CTES"]["inv_var"] / (
-                    param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # EUR/kWh
+                    param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "sto_loss": all_models["CTES"]["sto_loss"] / 100,
         "life_time": all_models["CTES"]["life_time"],
         "cost_om": all_models["CTES"]["cost_om"] / 100,
@@ -837,7 +837,7 @@ def calc_COP(data, clusterHorizon, devs, device, temperatures):
     eta_is = devs[device]["eta_compr"]  # isentropic compression efficiency
     f_Q = devs[device]["heatloss_compr"]  # heat loss rate during compression
 
-    # Entropic mean temperautures ( or Logarithmic mean temperatures)
+    # Entropic mean temperautures (or Logarithmic mean temperatures)
     t_h_s = dt_h / np.log((t_h_in + dt_h) / t_h_in)
     t_c_s = dt_c / np.log(t_c_in / (t_c_in - dt_c))
 

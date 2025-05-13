@@ -758,7 +758,7 @@ def run_optim(data, devs, param, dem, result_dict):
 
         # Calculate volume of thermal storages
         for k in ["TES", "CTES"]:
-            result_dict[k]["vol_liter"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600, 1)
+            result_dict[k]["vol_liter"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600 * 1000, 1)
 
         # Calculate emissions
         result_dict["total_co2_el"] = int(from_el_grid_total.X * param["co2_el_grid"]/1000) # t/a

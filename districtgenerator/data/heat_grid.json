@@ -1,11 +1,11 @@
 {
   "T_hot_heating_network": {
-    "value": 60,
+    "value": 80,
     "unit": "°C",
     "description": "flow temperature of heat grid"
   },
   "T_cold_heating_network": {
-    "value": 50,
+    "value": 60,
     "unit": "°C",
     "description": "return temperature of heat grid"
   },
