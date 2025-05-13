@@ -8,6 +8,7 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 
 import unittest
 import numpy as np
+import random
 
 class TestExamples(unittest.TestCase):
     """Unit Tests for the DistrictGenerator"""
@@ -57,14 +58,53 @@ class TestExamples(unittest.TestCase):
         self.assertIsInstance(data_e4.district[0]["envelope"].A["opaque"], dict)
 
     def test_e5_generate_demands(self):
-        """Tests the executability of example 5"""
+        """Run the example multiple times with a deterministic building setup using a seeded RNG,
+        and verify that the generated demands remain within a reasonable range."""
         from examples import e5_generate_demands as e5
 
-        # Executing the example and checking if no exceptions occur
-        data_e5 = e5.example5_generate_demands()
-        self.assertIsNotNone(data_e5)  # Ensure that data is returned
-        # Check functionality works as expected with exemplary output
-        self.assertIsInstance(data_e5.district[0]["user"].heat, np.ndarray)
+        for i in range(10):
+            # Fixed seed RNG to pass
+            rng = random.Random(42)
+            np.random.seed(42)
+
+            data_e5 = e5.example5_generate_demands(rng=rng)
+
+            # Expected outputs per building in Wh.
+            # - For heat and DHW, the values are taken from a trusted previous run.
+            # - For electricity, the values are based on the source:
+            #   https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
+            expected_outputs = [
+                {"total_heat": 16_520_000, "total_elec": 4_000_000, "total_dhw": 1_600_000},  # Building 0
+                {"total_heat": 9_090_000, "total_elec": 3_000_000, "total_dhw": 1_330_000},  # Building 1
+                {"total_heat": 29_210_000, "total_elec": 7_700_000, "total_dhw": 4_980_000},  # Building 2
+                {"total_heat": 17_120_000, "total_elec": 5_300_000, "total_dhw": 3_510_000},  # Building 3
+            ]
+
+            for idx, (building, expected) in enumerate(zip(data_e5.district, expected_outputs)):
+                heat = building["user"].heat
+                elec = building["user"].elec
+                dhw = building["user"].dhw
+
+                # Check functionality works as expected with exemplary output
+                self.assertIsInstance(heat, np.ndarray, f"Building {idx}: Heat is not ndarray")
+
+                actual = {
+                    "total_heat": np.sum(heat) * data_e5.time["timeResolution"] / 3600,
+                    "total_elec": np.sum(elec) * data_e5.time["timeResolution"] / 3600,
+                    "total_dhw": np.sum(dhw) * data_e5.time["timeResolution"] / 3600,
+                }
+
+                for key in expected:
+                    expected_val = expected[key]
+                    tol = expected_val * 0.10  # ±10% tolerance
+                    lower = expected_val - tol
+                    upper = expected_val + tol
+                    actual_val = actual[key]
+
+                    self.assertTrue(
+                        lower <= actual_val <= upper,
+                        f"Building {idx}: {key}={actual_val:.2f} not within 10% of expected {expected_val:.2f}"
+                    )
 
 if __name__ == '__main__':
     unittest.main()

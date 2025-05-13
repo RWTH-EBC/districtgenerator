@@ -13,7 +13,7 @@ from districtgenerator.classes import *
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def example5_generate_demands():
+def example5_generate_demands(rng=None):
 
     # Initialize District
     data = Datahandler()
@@ -26,7 +26,7 @@ def example5_generate_demands():
     data.initializeBuildings(scenario_name="example")
 
     # Generate a more detailed Building
-    data.generateBuildings()
+    data.generateBuildings(rng=rng)
 
     # Now we generate building specific demand profiles. The computation can take a few minutes,
     # because energy profiles for a hole year are computed. As input we tell the program,

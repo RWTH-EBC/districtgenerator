@@ -159,7 +159,7 @@ class Datahandler():
             self.district.append(building)
 
 
-    def generateBuildings(self):
+    def generateBuildings(self, rng=None):
         """
         Loads building envelope and user data for each building in the district.
 
@@ -177,6 +177,8 @@ class Datahandler():
             - Generates and assigns user profiles for each building using the `Users` class.
             - Computes design heat loads and assigns to each building.
         """
+
+        rg = rng or rd
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings
@@ -205,18 +207,18 @@ class Datahandler():
             #   by the selected single-floor area.
 
             if building_type == "single_family_house":
-                one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                one_floor_area = rg.randint(62, 115)  # Source: TABULA German Building Typology
                 # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                 number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
             elif building_type == "terraced_house":
-                one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                one_floor_area = rg.randint(50, 73)  # Source: TABULA German Building Typology
                 # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                 number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
             elif building_type == "multi_family_house":
                 # Generate a valid one-floor area and number of floors in one step
-                one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
+                one_floor_area = rg.randint(102, 971)  # Source: TABULA German Building Typology
                 # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                 number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                 # Cap the number of floors to a maximum of 8
@@ -224,7 +226,7 @@ class Datahandler():
                     number_of_floors = 8
 
             elif building_type == "apartment_block":
-                one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                one_floor_area = rg.randint(350, 540)  # Source: TABULA German Building Typology
                 # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                 number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -258,8 +260,14 @@ class Datahandler():
 
             # %% create user object
             # containing number occupants, electricity demand, ...
+            if rng is not None:
+                building_seed = 42 + building["buildingFeatures"]["id"]
+                building_rng = rd.Random(int(building_seed))
+            else:
+                building_rng = None
+
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                             area=building["buildingFeatures"]["area"])
+                             area=building["buildingFeatures"]["area"], rng=building_rng)
 
             # %% calculate design heat loads
             # at norm outside temperature
