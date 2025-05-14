@@ -497,78 +497,79 @@ class Datahandler:
         """
 
         for building in self.district:
-
-            # calculate or load user profiles
-            if calcUserProfiles:
-                building["user"].calcProfiles(site=self.site,
-                                              holidays=self.time["holidays"],
-                                              time_resolution=self.time["timeResolution"],
-                                              time_horizon=self.time["dataLength"],
-                                              building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
-
-                if saveUserProfiles:
-                    self.saveProfiles(name=building["unique_name"],
-                                      elec=building["user"].elec,
-                                      dhw= building["user"].dhw,
-                                      occ= building["user"].occ,
-                                      gains= building["user"].gains,
-                                      car= building["user"].car,
-                                      nb_flats= building["user"].nb_flats,
-                                      nb_occ= building["user"].nb_occ,
-                                      heatload= building["envelope"].heatload,
-                                      bivalent= building["envelope"].bivalent,
-                                      heatlimit= building["envelope"].heatlimit,
-                                      path=os.path.join(self.resultPath, 'demands'))
-                    #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
-
-                print("Calculate demands of building " + building["unique_name"])
-
-            else:
-                (building["user"].elec, building["user"].dhw,
-                 building["user"].occ, building["user"].gains,
-                 building["user"].car, building["user"].nb_flats,
-                 building["user"].nb_occ, building["envelope"].heatload,
-                 building["envelope"].bivalent,
-                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
-                                                                     os.path.join(self.resultPath, 'demands'))
-                #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-                print("Load demands of building " + building["unique_name"])
-
-            # check if EV exist
-            building["clusteringData"] = {
-                "potentialEV": copy.deepcopy(building["user"].car)
-            }
-            building["user"].car *= building["buildingFeatures"]["EV"]
-
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-
-            night_setback = building["buildingFeatures"]["night_setback"]
-
-            # calculate or load heating profiles
-            if calcUserProfiles:
-                building["user"].calcHeatingProfile(site=self.site,
-                                                    envelope=building["envelope"],
-                                                    night_setback=night_setback,
-                                                    holidays=self.time["holidays"],
-                                                    time_resolution=self.time["timeResolution"]
-                                                    )
-
-                if saveUserProfiles:
-                    idArray = []
-                    idArray.append(building["gmlId"])
-                    self.saveHeatingProfile(heat=building["user"].heat,
-                                            cooling=building["user"].cooling,
-                                            name=building["unique_name"],
-                                            gmlId=idArray,
-                                            path=os.path.join(self.resultPath, 'demands'))
-                    #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-            else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
-                                                         path=os.path.join(self.resultPath, 'demands'))
-                building["user"].heat = heat
-                building["user"].cooling = cooling
-
+            try:
+                # calculate or load user profiles
+                if calcUserProfiles:
+                    building["user"].calcProfiles(site=self.site,
+                                                  holidays=self.time["holidays"],
+                                                  time_resolution=self.time["timeResolution"],
+                                                  time_horizon=self.time["dataLength"],
+                                                  building=building,
+                                                  path=os.path.join(self.resultPath, 'demands'))
+    
+                    if saveUserProfiles:
+                        self.saveProfiles(name=building["unique_name"],
+                                          elec=building["user"].elec,
+                                          dhw= building["user"].dhw,
+                                          occ= building["user"].occ,
+                                          gains= building["user"].gains,
+                                          car= building["user"].car,
+                                          nb_flats= building["user"].nb_flats,
+                                          nb_occ= building["user"].nb_occ,
+                                          heatload= building["envelope"].heatload,
+                                          bivalent= building["envelope"].bivalent,
+                                          heatlimit= building["envelope"].heatlimit,
+                                          path=os.path.join(self.resultPath, 'demands'))
+                        #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
+    
+                    print("Calculate demands of building " + building["unique_name"])
+    
+                else:
+                    (building["user"].elec, building["user"].dhw,
+                     building["user"].occ, building["user"].gains,
+                     building["user"].car, building["user"].nb_flats,
+                     building["user"].nb_occ, building["envelope"].heatload,
+                     building["envelope"].bivalent,
+                     building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                                                                         os.path.join(self.resultPath, 'demands'))
+                    #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                    print("Load demands of building " + building["unique_name"])
+    
+                # check if EV exist
+                building["clusteringData"] = {
+                    "potentialEV": copy.deepcopy(building["user"].car)
+                }
+                building["user"].car *= building["buildingFeatures"]["EV"]
+    
+                building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+    
+                night_setback = building["buildingFeatures"]["night_setback"]
+    
+                # calculate or load heating profiles
+                if calcUserProfiles:
+                    building["user"].calcHeatingProfile(site=self.site,
+                                                        envelope=building["envelope"],
+                                                        night_setback=night_setback,
+                                                        holidays=self.time["holidays"],
+                                                        time_resolution=self.time["timeResolution"]
+                                                        )
+    
+                    if saveUserProfiles:
+                        idArray = []
+                        idArray.append(building["gmlId"])
+                        self.saveHeatingProfile(heat=building["user"].heat,
+                                                cooling=building["user"].cooling,
+                                                name=building["unique_name"],
+                                                gmlId=idArray,
+                                                path=os.path.join(self.resultPath, 'demands'))
+                        #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                else:
+                    heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                                                             path=os.path.join(self.resultPath, 'demands'))
+                    building["user"].heat = heat
+                    building["user"].cooling = cooling
+            except:
+                continue
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,

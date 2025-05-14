@@ -47,7 +47,7 @@ class TimeConfig(BaseSettings):
     )
 
 class DesignBuildingConfig(BaseSettings):
-    T_set_min: float = 20.0
+    T_set_min: float = 20.0 #
     T_set_min_night: float = 18.0
     T_set_max: float = 23.0
     T_set_max_night: float = 28.0
