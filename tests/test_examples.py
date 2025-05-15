@@ -62,7 +62,7 @@ class TestExamples(unittest.TestCase):
         and verify that the generated demands remain within a reasonable range."""
         from examples import e5_generate_demands as e5
 
-        for i in range(10):
+        for i in range(20):
             # Fixed seed RNG to pass
             rng = random.Random(42)
             np.random.seed(42)
@@ -70,12 +70,14 @@ class TestExamples(unittest.TestCase):
             data_e5 = e5.example5_generate_demands(rng=rng)
 
             # Expected outputs per building in Wh.
-            # - For heat and DHW, the values are taken from a trusted previous run.
+            # - Expected values for heat and DHW are averaged over multiple runs,
+            #   as the richardson.py tool stochastically generates varying occupancy profiles.
+            #   These profiles influence DHW demand directly, and heating demand indirectly via internal gains.
             # - For electricity, the values are based on the source:
             #   https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
             expected_outputs = [
                 {"total_heat": 16_520_000, "total_elec": 4_000_000, "total_dhw": 1_600_000},  # Building 0
-                {"total_heat": 9_090_000, "total_elec": 3_000_000, "total_dhw": 1_330_000},  # Building 1
+                {"total_heat": 9_090_000, "total_elec": 3_000_000, "total_dhw": 1_330_000},   # Building 1
                 {"total_heat": 29_210_000, "total_elec": 7_700_000, "total_dhw": 4_980_000},  # Building 2
                 {"total_heat": 17_120_000, "total_elec": 5_300_000, "total_dhw": 3_510_000},  # Building 3
             ]
