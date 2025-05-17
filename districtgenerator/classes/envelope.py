@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import pandas as pd
 import os
 import numpy as np
 from typing import Optional, Tuple
@@ -432,16 +433,50 @@ class Envelope:
                                             + sum(self.d["window"]
                                                   / self.Lambda["window"])
                                             + self.R_se["window"])))
+        
+        # Base row info
+        u_row = {
+            "ID": self.id,
+        }
 
-        print(f' Calculated U-Values {self.U}')
-
+        # Add calculated U-values
+        u_row.update({
+            "wall_calc": self.U["opaque"]["wall"],
+            "roof_calc": self.U["opaque"]["roof"],
+            "floor_calc": self.U["opaque"]["floor"],
+            "window_calc": self.U["window"]
+        })
 
         if u_values:
-            for idx, x in enumerate(['wall', 'roof', 'floor', 'ceiling']):
+            for idx, x in enumerate(['wall', 'roof', 'floor']):
                 self.U["opaque"][x] =  u_values[idx]
+ 
+            self.U["window"] = u_values[3]
 
-            self.U["window"] = u_values[4]
-            print(f'Given U-Values {self.U}')
+            u_row.update({
+                "wall_given": u_values[0],
+                "roof_given": u_values[1],
+                "floor_given": u_values[2],
+                "window_given": u_values[3]
+            })
+        else:
+            # Fill with NaN or some placeholder if no values given
+            u_row.update({
+                "wall_given": None,
+                "roof_given": None,
+                "floor_given": None,
+                "window_given": None
+            })
+        
+        csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
+
+        try:
+            df_existing = pd.read_csv(csv_log_path)
+            df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
+        except FileNotFoundError:
+            df_new = pd.DataFrame([u_row])
+
+        df_new.to_csv(csv_log_path, index=False)
 
     def loadAreas(self, prj):
         """
