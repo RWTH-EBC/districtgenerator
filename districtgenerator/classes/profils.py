@@ -541,17 +541,26 @@ class Profiles:
         -------
         personGain : float
             Heat dissipation of one person
-            Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik
+            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+            62 (2014), January, 32–41.
         lightGain : float
-            share of waste heat (LED)
+            share of waste heat
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
             Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
             62 (2014), January, 32–41.
         appGain :
-            share of waste heat (assumed)
+            share of waste heat
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
             Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
             62 (2014), January, 32–41.
+            Note: Appliances have an 80% internal gain factor (Elsland et al.). However, dishwashers
+            and washing machines only have a factor of around 25% (Elsland et al.), since a large part
+            of the energy is lost as hot water drainage. According to BDEW
+            (https://www.bdew.de/presse/pressemappen/faq-energieeffizienz/), these two categories
+            account for approximately 25% of the electricity consumption (excluding lighting and
+            electricity for hot water). Hence, the weighted average internal gain factor for appliances is:
+                appGain = 0.75 * 0.80 + 0.25 * 0.25 = 0.66
         occ_profile : float
              stochastic occupancy profiles for a district.
         app_load : array-like
@@ -566,8 +575,8 @@ class Profiles:
         """
 
         personGain = 70.0  # [Watt]
-        lightGain = 0.65
-        appGain = 0.33
+        lightGain = 0.80
+        appGain = 0.66
 
         gains = self.occ_profile * personGain + self.light_load * lightGain + self.app_load * appGain
 
@@ -581,7 +590,9 @@ class Profiles:
         -------
         personGain : float
             Heat dissipation of one person
-            Source: SIA 2024/2015 D - Raumnutzungsdaten für Energie- und Gebäudetechnik
+            Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
+            Gains Underestimated in Thermal Performance Evaluation of Buildings? In: Energy Procedia
+            62 (2014), January, 32–41.
         lightGain : float
             share of waste heat (LED)
             Source: Elsland, Rainer ; Peksen, Ilhan ; Wietschel, Martin: Are Internal Heat
@@ -605,8 +616,8 @@ class Profiles:
             Internal gain of each flat.
         """
         personGain = 70.0  # [Watt]
-        lightGain = 0.65
-        appGain = 0.33
+        lightGain = 0.80
+        appGain = 0.80
 
         gains_persons = self.occ_profile_building * personGain
         gains_others = self.light_load * lightGain + self.app_load * appGain
