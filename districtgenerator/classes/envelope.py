@@ -69,6 +69,8 @@ class Envelope:
         self.loadParams()
         self.loadComponentProperties(prj, u_values)
         self.loadAreas(prj)
+        # Todo: enable Code Negar
+        # self.compute_insulation_thickness()
 
     def loadParams(self):
         """
@@ -539,6 +541,48 @@ class Envelope:
         self.A["window"]["floor"] = 0.0
 
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
+
+
+## Code from Negar
+    def compute_insulation_thickness(self, target_U_values, insulation_lambda: float = 0.0035):
+        """
+        Calculates existing thickness and required insulation to meet target U-values.
+
+        Parameters
+        ----------
+        target_U_values : dict
+            U-values per component, e.g. {'wall': 0.24, 'roof': 0.24, 'floor': 0.3}
+        insulation_lambda : float
+            Thermal conductivity of insulation [W/mK]
+
+        Returns
+        -------
+        thickness_existing : dict
+            Existing component thicknesses [m]
+        insulation_needed : dict
+            Extra insulation to reach target U-values [m]
+        """
+        # todo: fix this if needed. This is the code that Negar provided to calculate the insulation thickness
+        # check if the u_value import is correct and the insulation is actually calculated per scenario
+        # technically the calculations should be correct. If any values are not found let me know
+        thickness_existing = {}
+        insulation_needed = {}
+
+        for comp in ['wall', 'roof', 'floor']:
+            R_material = sum(self.d['opaque'][comp] / self.Lambda['opaque'][comp])
+            R_si = self.R_si['opaque'][comp]
+            R_se = self.R_se['opaque'][comp]
+            R_total = R_material + R_si + R_se
+
+            thickness_existing[comp] = sum(self.d['opaque'][comp])
+
+            U_target = target_U_values[comp]
+            R_target = 1 / U_target if U_target > 0 else float('inf')
+            d_ins = (R_target - R_total) * insulation_lambda
+            insulation_needed[comp] = max(0,
+                                          d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+
+        return insulation_needed # todo: this needs to be in the xlsx under tab -> roof_ins, wall_ins, floor_ins
 
     def calcHeatLoad(self, site, method="design"):
         """
