@@ -79,7 +79,7 @@ class Datahandler:
         self.site = {}
         self.time = {}
         self.district = []
-        self.u_values = []
+        self.u_values = ()
         self.scenario_name = scenario_name
         self.scenario = None
         self.design_building_data = {}
@@ -136,14 +136,6 @@ class Datahandler:
         self.scenario = {}
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
-        
-        if not self.scenario.thermalTransmittanceFacade.empty:
-            self.u_values = [self.scenario.thermalTransmittanceFacade.iloc[0], 
-                            self.scenario.thermalTransmittanceRoof.iloc[0], 
-                            self.scenario.thermalTransmittanceFloor.iloc[0],  
-                            self.scenario.thermalTransmittanceWindow.iloc[0]]
-        else: 
-            self.u_values = None
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -371,6 +363,12 @@ class Datahandler:
                 # Store features of the observed building
                 building["buildingFeatures"] = self.scenario.loc[id]
                 building["gmlId"] = building["buildingFeatures"]["gmlId"]
+
+                if not self.scenario.thermalTransmittanceFacade.empty:
+                    self.u_values = (self.scenario.thermalTransmittanceFacade.iloc[id],
+                                                        self.scenario.thermalTransmittanceRoof.iloc[id],
+                                                        self.scenario.thermalTransmittanceFloor.iloc[id],
+                                                        self.scenario.thermalTransmittanceWindow.iloc[id])
                 #print(self.scenario)                
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
