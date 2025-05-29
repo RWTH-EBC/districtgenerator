@@ -62,8 +62,8 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None
-                 ):
+                 env_path = None,
+                 calcThick = False):
         """
         Constructor of Datahandler class.
 
@@ -73,6 +73,7 @@ class Datahandler:
         """
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
+        self.conf_scenario_name = global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
             
@@ -90,6 +91,7 @@ class Datahandler:
         self.central_device_data = {}
         self.ecoData = {}
         self.counter = {}
+        self.calcThick = calcThick
         self.srcPath = srcPath
         self.filePath = filePath
         self.gurobiConfig = global_config.gurobi,
@@ -364,11 +366,16 @@ class Datahandler:
                 building["buildingFeatures"] = self.scenario.loc[id]
                 building["gmlId"] = building["buildingFeatures"]["gmlId"]
 
-                if not self.scenario.thermalTransmittanceFacade.empty:
-                    self.u_values = (self.scenario.thermalTransmittanceFacade.iloc[id],
-                                                        self.scenario.thermalTransmittanceRoof.iloc[id],
-                                                        self.scenario.thermalTransmittanceFloor.iloc[id],
-                                                        self.scenario.thermalTransmittanceWindow.iloc[id])
+                if hasattr(self.scenario, 'thermalTransmittanceFacade') and not self.scenario.thermalTransmittanceFacade.empty:
+                    self.u_values = (
+                        self.scenario.thermalTransmittanceFacade.iloc[id],
+                        self.scenario.thermalTransmittanceRoof.iloc[id],
+                        self.scenario.thermalTransmittanceFloor.iloc[id],
+                        self.scenario.thermalTransmittanceWindow.iloc[id]
+                    )
+                else:
+                    # Handle the case where thermalTransmittanceFacade does not exist or is empty
+                    self.u_values = None  # or some default value
                 #print(self.scenario)                
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
@@ -452,7 +459,8 @@ class Datahandler:
                                             physics=self.physics,
                                             design_building_data=self.design_building_data,
                                             file_path=self.filePath,
-                                            u_values=self.u_values)
+                                            u_values=self.u_values,
+                                            calcThick = self.calcThick)
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
@@ -508,7 +516,7 @@ class Datahandler:
                                               path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
-                    self.saveProfiles(name= name if name else building["unique_name"],
+                    self.saveProfiles(name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
                                       elec=building["user"].elec,
                                       dhw= building["user"].dhw,
                                       occ= building["user"].occ,
@@ -519,6 +527,7 @@ class Datahandler:
                                       heatload= building["envelope"].heatload,
                                       bivalent= building["envelope"].bivalent,
                                       heatlimit= building["envelope"].heatlimit,
+                                      thick_req= building["envelope"].thick_req,
                                       path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
@@ -559,7 +568,7 @@ class Datahandler:
                     idArray.append(building["gmlId"])
                     self.saveHeatingProfile(heat=building["user"].heat,
                                             cooling=building["user"].cooling,
-                                            name= name if name else building["unique_name"],
+                                            name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
                                             gmlId=idArray,
                                             path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
@@ -620,7 +629,7 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, path):
+    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, thick_req, path):
         """
         Save profiles to csv.
 
@@ -636,6 +645,7 @@ class Datahandler:
         None.
         """
 
+
         other_data = [nb_flats, str(nb_occ)[1:-1], heatload, bivalent, heatlimit]
 
         data_dict = {
@@ -650,6 +660,9 @@ class Datahandler:
                                   "Bivalent heat load in W, "
                                   "Heat limit heat load in W"),
         }
+        
+        if thick_req:
+            data_dict['thick_req'] = (thick_req, "Insulation thickness required in m (wall, roof, floor)")
 
         excel_file = os.path.join(path, name + '.xlsx')
         with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:

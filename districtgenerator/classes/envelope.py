@@ -36,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None):
+    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None, calcThick = False):
         """
         Constructor of Envelope class.
 
@@ -58,6 +58,8 @@ class Envelope:
         self.epsilon = {}
         self.alpha_Sc = {}
 
+        self.thick_req = []
+
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_type = construction_type
@@ -67,7 +69,7 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
-        self.loadComponentProperties(prj, u_values)
+        self.loadComponentProperties(prj, u_values, calcThick)
         self.loadAreas(prj)
         # Todo: enable Code Negar
         # self.compute_insulation_thickness()
@@ -174,7 +176,7 @@ class Envelope:
 
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
-    def loadComponentProperties(self, prj, u_values):
+    def loadComponentProperties(self, prj, u_values, calcThick):
         """
         Load component-specific material parameters.
 
@@ -462,6 +464,10 @@ class Envelope:
             df_new = pd.DataFrame([u_row])
 
         df_new.to_csv(csv_log_path, index=False)
+        if calcThick:
+            self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
+        else: 
+            self.thick_req = None
 
     def loadAreas(self, prj):
         """
@@ -549,7 +555,7 @@ class Envelope:
         # check if the u_value import is correct and the insulation is actually calculated per scenario
         # technically the calculations should be correct. If any values are not found let me know
         thickness_existing = {}
-        insulation_needed = {}
+        insulation_needed = []
 
         for comp in ['wall', 'roof', 'floor']:
             R_material = sum(self.d['opaque'][comp] / self.Lambda['opaque'][comp])
@@ -562,8 +568,9 @@ class Envelope:
             U_target = target_U_values[comp]
             R_target = 1 / U_target if U_target > 0 else float('inf')
             d_ins = (R_target - R_total) * insulation_lambda
-            insulation_needed[comp] = max(0,
-                                          d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+            insulation_thickness = max(0, d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+
+            insulation_needed.append(insulation_thickness)
 
         return insulation_needed # todo: this needs to be in the xlsx under tab -> roof_ins, wall_ins, floor_ins
 

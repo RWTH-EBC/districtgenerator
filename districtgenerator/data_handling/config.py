@@ -19,7 +19,6 @@ class LocationConfig(BaseSettings):
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] ={"Jahr", "Somm", "Wint"}
 
     model_config = SettingsConfigDict(
-        env_file= ".locationconfig",
         extra="allow" 
     )
 
@@ -42,7 +41,6 @@ class TimeConfig(BaseSettings):
     initial_day_2015: list = field(default_factory=lambda: [4])
     initial_day_2045: list = field(default_factory=lambda: [6])
     model_config = SettingsConfigDict(
-        env_file= ".timeconfig",
         extra="allow" 
     )
 
@@ -61,7 +59,6 @@ class DesignBuildingConfig(BaseSettings):
     dhwload: list = field(default_factory=lambda: [4662.1, 4662.1, 4662.1, 3999.8])
     mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40])
     model_config = SettingsConfigDict(
-        env_file= ".designbuildingconfig",
         extra="allow" 
     )
 
@@ -78,7 +75,6 @@ class EcoConfig(BaseSettings):
     co2_waste: float = 0.0
     co2_hydrogen: float = 0.0
     model_config = SettingsConfigDict(
-        env_file= ".ecoconfig",
         extra="allow" 
     )
 
@@ -88,7 +84,6 @@ class PhysicsConfig(BaseSettings):
     rho_water: float = 1000.0
     c_p_water: float = 4.18
     model_config = SettingsConfigDict(
-        env_file= ".physicsconfig",
         extra="allow" 
     )
 
@@ -102,7 +97,6 @@ class GurobiConfig(BaseSettings):
     PoolSolution: int = 3
     DualReductions: int = 0
     model_config = SettingsConfigDict(
-        env_file= ".gurobiconfig",
         extra="allow" 
     )
 
@@ -111,7 +105,6 @@ class HeatGridConfig(BaseSettings):
     T_cold: float = 323.15          # Return temperature in Kelvin
     delta_T_heatTransfer: float = 5 # Temperature difference in heat exchangers (K)
     model_config = SettingsConfigDict(
-        env_file= ".heatgridconfig",
         extra="allow" 
     )
 
@@ -168,10 +161,14 @@ class EHDOConfig(BaseSettings):
     unit_placeholder: str = " - "  # used for cases where unit is a placeholder
     unit_dash: str = "-"         # used for cases where unit is a dash
     model_config = SettingsConfigDict(
-        env_file= ".ehdoonfig",
         extra="allow" 
     )
 
+class scenarioName(BaseSettings):
+    scenario_name: str = 'base_scenario'
+    model_config = SettingsConfigDict(
+        extra="allow" 
+    )
 
 class GlobalConfig(BaseModel):
     location: 'LocationConfig'
@@ -184,6 +181,7 @@ class GlobalConfig(BaseModel):
     ehdo: 'EHDOConfig'
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
+    scenario_name: scenarioName
 
 class Settings(BaseSettings):
     env_file: str = '.env.CONFIG'
@@ -212,7 +210,8 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         heatgrid=HeatGridConfig(_env_file=env_file),
         ehdo=EHDOConfig(_env_file=env_file),
         decentral=DecentralDeviceConfig(_env_file=env_file),
-        central=CentralDeviceConfig(_env_file=env_file)
+        central=CentralDeviceConfig(_env_file=env_file),
+        scenario_name = scenarioName(_env_file=env_file)
     )
 
 if __name__ == "__main__":
