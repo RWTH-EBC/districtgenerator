@@ -60,7 +60,7 @@ class Datahandler:
                  scenario_name = "example",
                  resultPath = None,
                  scenario_file_path = None,
-                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), # changed for use in dg
                  filePath = None,
                  env_path = None
                  ):
@@ -364,11 +364,15 @@ class Datahandler:
                 building["buildingFeatures"] = self.scenario.loc[id]
                 building["gmlId"] = building["buildingFeatures"]["gmlId"]
 
+                # try
                 if not self.scenario.thermalTransmittanceFacade.empty:
-                    self.u_values = (self.scenario.thermalTransmittanceFacade.iloc[id],
+                    building["buildingFeatures"]["thermalTransmittance"] = (self.scenario.thermalTransmittanceFacade.iloc[id],
                                                         self.scenario.thermalTransmittanceRoof.iloc[id],
                                                         self.scenario.thermalTransmittanceFloor.iloc[id],
                                                         self.scenario.thermalTransmittanceWindow.iloc[id])
+                # except
+                else:
+                    building["buildingFeatures"]["thermalTransmittance"] = None
                 #print(self.scenario)                
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
@@ -445,6 +449,7 @@ class Datahandler:
                                 construction_type=retrofit_level)
 
             # %% create envelope object
+            extra = [building["buildingFeatures"]["year"],building["buildingFeatures"]["retrofit"],building["buildingFeatures"]["gmlId"],building["buildingFeatures"]["building"]]
             # containing all physical data of the envelope
             building["envelope"] = Envelope(prj=prj,
                                             building_params=building["buildingFeatures"],
@@ -452,7 +457,8 @@ class Datahandler:
                                             physics=self.physics,
                                             design_building_data=self.design_building_data,
                                             file_path=self.filePath,
-                                            u_values=self.u_values)
+                                            u_values=building["buildingFeatures"]["thermalTransmittance"],
+                                            extra = extra )
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],

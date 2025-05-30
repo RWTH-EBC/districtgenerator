@@ -36,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None):
+    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None, extra: Optional[list]=None):
         """
         Constructor of Envelope class.
 
@@ -67,7 +67,7 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
-        self.loadComponentProperties(prj, u_values)
+        self.loadComponentProperties(prj, u_values, extra)
         self.loadAreas(prj)
         # Todo: enable Code Negar
         # self.compute_insulation_thickness()
@@ -174,7 +174,7 @@ class Envelope:
 
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
-    def loadComponentProperties(self, prj, u_values):
+    def loadComponentProperties(self, prj, u_values, extra=None):
         """
         Load component-specific material parameters.
 
@@ -428,7 +428,11 @@ class Envelope:
             "wall_calc": self.U["opaque"]["wall"],
             "roof_calc": self.U["opaque"]["roof"],
             "floor_calc": self.U["opaque"]["floor"],
-            "window_calc": self.U["window"]
+            "window_calc": self.U["window"],
+            "age": extra[0],
+            "retrofit": extra[1],
+            "id": extra[2],
+            "type": extra[3]
         })
 
         # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
@@ -444,24 +448,19 @@ class Envelope:
                 "floor_given": u_values[2],
                 "window_given": u_values[3]
             })
-        else:
-            # Fill with NaN or some placeholder if no values given
-            u_row.update({
-                "wall_given": None,
-                "roof_given": None,
-                "floor_given": None,
-                "window_given": None
-            })
-        
-        csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
 
-        try:
-            df_existing = pd.read_csv(csv_log_path)
-            df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
-        except FileNotFoundError:
-            df_new = pd.DataFrame([u_row])
+            # if no u-value analysis needed, comment rest of the code
+            csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
 
-        df_new.to_csv(csv_log_path, index=False)
+            try:
+                df_existing = pd.read_csv(csv_log_path)
+                df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
+            except FileNotFoundError:
+                df_new = pd.DataFrame([u_row])
+
+            df_new.to_csv(csv_log_path, index=False)
+
+
 
     def loadAreas(self, prj):
         """
