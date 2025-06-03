@@ -522,7 +522,7 @@ class Users:
             # Source: DIN EN 12464-1
             illuminance_range = {
                 "OB": (300, 650),
-                "SC": (300, 500),
+                "SC": (300, 400),
                 "GS": (500, 750),
                 "RE": (300, 500)
             }

@@ -736,8 +736,9 @@ class Profiles:
             # Randomly select a segment based on probabilities
             for car in range(number_of_ev):
                 segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
-                consumption_per_km = np.random.normal(segment_data["energy_mean"], segment_data["energy_std"])
-                battery_capacity = 1000 * np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]) #Wh
+                # Limit random values to within ±1 standard deviation to avoid extreme outliers.
+                consumption_per_km = np.clip(np.random.normal(segment_data["energy_mean"], segment_data["energy_std"]), segment_data["energy_mean"] - segment_data["energy_std"], segment_data["energy_mean"] + segment_data["energy_std"])
+                battery_capacity = float(1000 * np.clip(np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]), segment_data["battery_mean"] - segment_data["battery_std"], segment_data["battery_mean"] + segment_data["battery_std"]))   # Wh
                 ev_capacity.append(battery_capacity)
 
                 # Initialize the EV's demand profile (in Wh) over the entire simulation period
@@ -829,8 +830,9 @@ class Profiles:
             # Find the first time index where occ_day is not 0 (i.e., the first person arrives at work)
             for car_OB in range(number_of_ev):
                 segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
-                consumption_per_km = np.random.normal(segment_data["energy_mean"], segment_data["energy_std"])
-                battery_capacity = 1000 * np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]) # Wh
+                # Limit random values to within ±1 standard deviation to avoid extreme outliers.
+                consumption_per_km = np.clip(np.random.normal(segment_data["energy_mean"], segment_data["energy_std"]), segment_data["energy_mean"] - segment_data["energy_std"], segment_data["energy_mean"] + segment_data["energy_std"])
+                battery_capacity = float(1000 * np.clip(np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]), segment_data["battery_mean"] - segment_data["battery_std"], segment_data["battery_mean"] + segment_data["battery_std"]))   # Wh
                 ev_capacity.append(battery_capacity)
 
                 # Initialize the EV's demand profile (in Wh) over the entire simulation period

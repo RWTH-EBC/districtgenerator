@@ -13,7 +13,7 @@ def example8_scenario_evaluation():
 
     # Initialize District
 #    data = Datahandler(scenario_name = "example")
-    data = Datahandler(scenario_name = "Central_HP_f_EV0")
+    data = Datahandler(scenario_name = "Decentral_HP_f_EV05_intelligent")
 
     # We directly generate a complete district.
     data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
@@ -26,9 +26,6 @@ def example8_scenario_evaluation():
 
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
     data.KPIs.create_certificate(data=data, result_path=data.resultPath)
-
-    # TODO: erzeuge Energieausweis
-
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
 

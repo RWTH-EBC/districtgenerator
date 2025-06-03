@@ -1,6 +1,6 @@
 ## Information
 
-Data for the U-values of the Non-Residential Buildings is taken from: Behrooz Bagherian, Stefan Swiderek, Dr. Andreas Hartung, & Julian Bischof. (2021).
+Data for the U-values and window g-values for the Non-Residential Buildings is taken from: Behrooz Bagherian, Stefan Swiderek, Dr. Andreas Hartung, & Julian Bischof. (2021).
                                                                       Vergleichswerte für den Energieverbrauch von Nichtwohngebäuden: Anpassung eines
                                                                       vorliegenden Berechnungstools zur Ableitung von neuen Vergleichswerten für Energieverbrauchsausweise.
                                                                       Bundesinstitut für Bau-, Stadt- und Raumforschung (BBSR), Bundesministerium des Innern, für Bau und Heimat.
@@ -18,31 +18,25 @@ For the retrofitting of buildings, there are three options based on the extent o
 | U-Wert Fenster                                                                     | u_fen      | [W/m²K] | U-value of the windows                        |
 | U-Wert Dach                                                                        | u_d_opak   | [W/m²K] | U-value of the opaque parts of the roof       |
 | U-Wert der unteren Gebäudeabschlusses                                              | u_ug       | [W/m²K] | U-value of the lower building closure         |
+| g-Wert Fenster                                                                     | g_win      | [-]     | Solar energy transmittance (g-value) of the windows                |
 
 The surface estimation factors have been calculated. The Data for the calculation is taken from: [German non-residential building typology](https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-Deutschland)
 As there is no data on placement of windows, they are equally distributed.
 
 ow1  = aw_fl [m2] / nrf [m2]
 win1 = fen_fl [m²] / nrf [m2]
-rwt1 = D_fl_wueoA_opak [m2] / nrf [m2]
+rt1 = D_fl_wueoA_opak [m2] / nrf [m2]
 gf1 = UG_fl_wueuA / nrf [m2]
 
 | German Description                                                                 | Key        | Unit    | Explanation in English                                             |
 |------------------------------------------------------------------------------------|------------|---------|---------------------------------------------------------------------|
 | Verhältnis der Außenwandfläche zur Netto-Raumfläche                                | ow1        | [m²/m²] | Ratio of the exterior wall area to the net floor area               |
 | Verhältnis der Fensterfläche zur Netto-Raumfläche                                  | win1       | [m²/m²] | Ratio of the window area to the net floor area                      |
-| Verhältnis der wärmeübertragenden Fläche des opaken oberen Gebäudeabschlusses zur Netto-Raumfläche | rwt1       | [m²/m²] | Ratio of the heat-transmitting area of the opaque upper building closure to the net floor area |
+| Verhältnis der wärmeübertragenden Fläche des opaken oberen Gebäudeabschlusses zur Netto-Raumfläche | rt1       | [m²/m²] | Ratio of the heat-transmitting area of the opaque upper building closure to the net floor area |
 | Verhältnis der wärmeübertragenden Fläche des unteren Gebäudeabschlusses zur Netto-Raumfläche | gf1        | [m²/m²] | Ratio of the heat-transmitting area of the lower building closure to the net floor area |
 
 
-g_value for windows is obtained from Tabula and the following classes:
 
-| German Description (TABULA Window Model)          | Explanation in English                                                        |
-|---------------------------------------------------|-------------------------------------------------------------------------------|
-| Fenster-Holzfenster, einfach                      | Wooden window, single-glazed; g-value of 0.87.                                |
-| Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.78.                      |
-| Fenster-Kunststofffenster mit Isolierverglasung   | Plastic window with insulating glazing; g-value of 0.67.                      |
-| Fenster mit Wärmeschutzverglasung (dreifach)      | Window with triple heat-protection glazing; g-value of 0.50.                  |
 
 
 

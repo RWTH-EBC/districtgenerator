@@ -1,19 +1,19 @@
 [
     {
         "name": "price_supply_el",
-        "value": 0.32,
+        "value": 0.3969,
         "unit": "€/kWh",
         "description" : "Electricity price."
     },
     {
         "name": "revenue_feed_in_el",
-        "value": 0.0811,
+        "value": 0.0794,
         "unit": "EUR/kWh",
         "description" : "Feed-in electricity price."
     },
     {
         "name": "price_supply_gas",
-        "value": 0.12,
+        "value": 0.1236,
         "unit": "€/kWh",
         "description" : "Gas price."
     },
@@ -37,13 +37,13 @@
     },
     {
         "name": "co2_el_grid",
-        "value": 0.49,
+        "value": 0.363,
         "unit": "kg/kWh",
         "description" : "CO2 emissions for electricity import (grid mix)."
     },
     {
         "name": "co2_gas",
-        "value": 0.25,
+        "value": 0.201,
         "unit": "kg/kWh",
         "description" : "CO2 emissions by burning natural gas."
     },

@@ -73,30 +73,6 @@
             "power_unit": "W"
         },
         {
-            "type": "Incandescent",
-            "model": "Standard Incandescent Bulb",
-            "luminous_flux": 800,
-            "luminous_flux_unit": "lm",
-            "power": 60,
-            "power_unit": "W"
-        },
-        {
-            "type": "Incandescent",
-            "model": "Standard Incandescent Bulb",
-            "luminous_flux": 800,
-            "luminous_flux_unit": "lm",
-            "power": 60,
-            "power_unit": "W"
-        },
-        {
-            "type": "Halogen",
-            "model": "Halogen Spotlight",
-            "luminous_flux": 1600,
-            "luminous_flux_unit": "lm",
-            "power": 70,
-            "power_unit": "W"
-        },
-        {
             "type": "Halogen",
             "model": "Halogen Spotlight",
             "luminous_flux": 1600,

@@ -430,16 +430,16 @@ def run_opti_central(model, data, cluster):
     for n in range(buildings):
         for t in time_steps:
             for device in ["HP", "CHP", "BOI", "FC", "EH"]:
-                model.addConstr(heat_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_heat_cap_" + str(n))
+                model.addConstr(heat_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_heat_cap_" + str(n) + "_" + str(t))
 
     for n in range(buildings):
         for t in time_steps:
             for device in ["CC"]:
-                model.addConstr(cool_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_cool_cap_" + str(n))
+                model.addConstr(cool_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_cool_cap_" + str(n) + "_" + str(t))
 
     for n in range(buildings):
         for t in time_steps:
-            model.addConstr(heat_dom["STC"][n][t] <= STC_heat[n][t], name=str("STC") + "_heat_cap_" + str(n) + str(t))
+            model.addConstr(heat_dom["STC"][n][t] <= STC_heat[n][t], name=str("STC") + "_heat_cap_" + str(n) + "_"  + str(t))
 
 
     for n in range(buildings):
@@ -553,23 +553,23 @@ def run_opti_central(model, data, cluster):
                     # Detect charging periods based on EV_dem
                     if plug_in_time is None and EV_dem[n][t] > 0:
                         plug_in_time = t
+
                     # If charging start time is found
                     if plug_in_time is not None:
                         # Charging period constraints
-                        if t >= plug_in_time and t < min(plug_in_time + parking_time, len(time_steps)):
+                        if t < min(plug_in_time + parking_time, len(time_steps)):
                             # Within charging period, allow charging and discharging
                             if buildingData[n]["buildingFeatures"]["ev_charging"] == "intelligent":
                                 # Intelligent EVs can only charge, not discharge
                                 model.addConstr(dch_dom[device][n][t] == 0, name="p_feed_ev")
-
                         else:
                             # Outside charging period, force charging and discharging power to zero
                             model.addConstr(ch_dom[device][n][t] == 0, name="no_charging" + str(n) + "_" + str(t))
                             model.addConstr(dch_dom[device][n][t] == 0, name="no_discharging" + str(n) + "_" + str(t))
                             # to reset plug_in_time when time is outside the parking_time window
-                            if t >= plug_in_time + parking_time:
-                                plug_in_time = None
-                    else:
+                            plug_in_time = None
+
+                    if plug_in_time is None:
                         # When it's not a plug-in time, charging and discharging rate is zero
                         model.addConstr(ch_dom[device][n][t] == 0, name="not_plug-in-time_charging_" + str(n) + "_" + str(t))
                         model.addConstr(dch_dom[device][n][t] == 0, name="not_plug-in-time_discharging_" + str(n) + "_" + str(t))

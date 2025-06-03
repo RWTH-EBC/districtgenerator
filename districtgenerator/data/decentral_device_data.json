@@ -50,14 +50,14 @@
     },
     {
       "name": "inv_var",
-      "value": 1000,
-      "unit": "€/kW",
+      "value": 1982,
+      "unit": "€/kWth",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
+      "value": 0.02,
+      "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
   ]
@@ -94,14 +94,14 @@
     },
     {
       "name": "inv_var",
-      "value": 130,
+      "value": 350,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
+      "value": 0.03,
+      "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
   ]
@@ -241,14 +241,14 @@
     },
     {
       "name": "inv_var",
-      "value": 340,
+      "value": 250,
       "unit": "€/m^2",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
+      "value": 0.015,
+      "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
   ]
@@ -336,7 +336,7 @@
       "name": "coeff_ch",
       "value": 10000.0,
       "unit": "Watt per Watthour",
-      "description": "Charging and discharging coefficient."
+      "description": "Charging and discharging coefficient (Storage acting as a hydraulic decoupler (hydraulische Weiche))."
     },
     {
       "name": "init",
@@ -352,20 +352,20 @@
     },
     {
       "name": "life_time",
-      "value": 15,
+      "value": 20,
       "unit": "years",
       "description": "Maximum life time."
     },
     {
       "name": "inv_var",
-      "value": 20,
+      "value": 3,
       "unit": "€/liter",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
+      "value": 0.005,
+      "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
   ]
@@ -488,7 +488,7 @@
     },
     {
       "name": "cost_om",
-      "value": 0.05,
+      "value": 0,
       "unit": "percentage",
       "description": ""
     }

@@ -412,7 +412,7 @@ def load_params(data):
             "min_cap": all_models["AirCC"]["min_cap"],
             "max_cap": all_models["AirCC"]["max_cap"],
             "dT_evap": heat_grid["T_hot_cooling_network"] - heat_grid["T_cold_cooling_network"],        # K,    temperature difference in evaporator (how much the cooling fluid in the network cools down in the evaporator)
-            "dT_cond": 15,                                                                              # K,    temperature differencein condenser (how much the air heats up in the condenser)
+            "dT_cond": 15,                                                                              # K,    temperature difference in condenser (how much the air heats up in the condenser)
             "dT_pinch_cond": 5,                                                                         # K,    temperature difference between both fluids in the condenser at pinch point
             "dT_pinch_evap": 2,                                                                         # K,    temperature difference between both fluids in the evaporator at pinch point
             "eta_compr": 0.75,                                                                          # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158

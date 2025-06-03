@@ -12,10 +12,6 @@ import math
 import csv
 
 
-# The Excel Sheet has a fairly complicated configuration file
-# (which I suppose most people have ignored so far)
-# This class provides the standard inputs.
-# If required, other values can be entered.
 class LightingModelConfiguration():
 
     def __init__(self,

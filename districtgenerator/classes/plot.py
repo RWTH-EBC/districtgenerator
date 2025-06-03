@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import seaborn as sns
 
 def el_buildings(plotData, data):
 
@@ -10,20 +11,14 @@ def el_buildings(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    color_map = {
-        "Grid": "grey",
-        "PV": "yellow",
-        "CHP": "green",
-        "FC": "purple",
-        "BAT discharge": "blue",
-        "EV discharge": "cyan",
-        "Demand": "red",
-        "EV charge": "orange",
-        "HP": "magenta",
-        "EH": "brown",
-        "BAT charge": "lightblue",
-        "Feed-in": "black"
-    }
+    color_labels = [
+        "Grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
+        "Demand", "EV charge", "HP", "EH", "BAT charge", "Feed-in"
+    ]
+
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
+
 
     for n in range(num_buildings):
 
@@ -41,22 +36,22 @@ def el_buildings(plotData, data):
             ax = axes[c]
 
             # positive (sources/generation)
-            buy = np.array(plotData["resultsOptimization"][c][n]["res_load"])
+            buy = np.array(plotData["resultsOptimization"][c][n]["res_load"]) / 1000
 
-            PV_power = safe_array(plotData, c, n, "PV", "P_el", time_steps)
-            CHP = safe_array(plotData, c, n, "CHP", "P_el", time_steps)
-            FC = safe_array(plotData, c, n, "FC", "P_el", time_steps)
-            dch_BAT = safe_array(plotData, c, n, "BAT", "dch", time_steps)
-            dch_EV = safe_array(plotData, c, n, "EV", "dch", time_steps)
+            PV_power = safe_array(plotData, c, n, "PV", "P_el", time_steps) / 1000
+            CHP = safe_array(plotData, c, n, "CHP", "P_el", time_steps) / 1000
+            FC = safe_array(plotData, c, n, "FC", "P_el", time_steps) / 1000
+            dch_BAT = safe_array(plotData, c, n, "BAT", "dch", time_steps) / 1000
+            dch_EV = safe_array(plotData, c, n, "EV", "dch", time_steps) / 1000
 
             # negative (demands/sinks)
-            feed = np.array(plotData["resultsOptimization"][c][n]["res_inj"])
-            demand = np.array(plotData["resultsOptimization"][c][n]["Demand"]["P_el"])
+            feed = np.array(plotData["resultsOptimization"][c][n]["res_inj"]) / 1000
+            demand = np.array(plotData["resultsOptimization"][c][n]["Demand"]["P_el"]) / 1000
 
-            ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps)
-            HP = safe_array(plotData, c, n, "HP", "P_el", time_steps)
-            EH = safe_array(plotData, c, n, "EH", "P_el", time_steps)
-            ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps)
+            ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps) / 1000
+            HP = safe_array(plotData, c, n, "HP", "P_el", time_steps) / 1000
+            EH = safe_array(plotData, c, n, "EH", "P_el", time_steps) / 1000
+            ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps) / 1000
 
             # SOURCES
             sources = [buy, PV_power, CHP, FC, dch_BAT, dch_EV]
@@ -94,7 +89,7 @@ def el_buildings(plotData, data):
                     all_handles.append(h)
                     all_labels.append(l)
 
-            ax.set_ylabel('Electrical Power [W]')
+            ax.set_ylabel('Electrical Power [kW]')
             ax.set_title(f'Building {n} – Cluster {c} Electrical Power Balance')
             ax.grid(True)
 
@@ -116,19 +111,14 @@ def th_buildings(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    color_map = {
-        "Heat Pump": "blue",
-        "Boiler": "red",
-        "Electric Heater": "orange",
-        "Solar Thermal": "yellow",
-        "CHP": "green",
-        "Fuel Cell": "purple",
-        "TES discharge": "black",
-        "TES charge": "brown",
-        "Heating Demand": "darkred",
-        "DHW Demand": "darkorange",
-        "Heat Grid": "pink"
-    }
+    color_labels = [
+        "Heat Pump", "Boiler", "Electric Heater", "Solar Thermal",
+        "CHP", "Fuel Cell", "TES discharge", "TES charge",
+        "Heating Demand", "DHW Demand", "Heat Grid"
+    ]
+
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
 
     for n in range(num_buildings):
 
@@ -146,20 +136,20 @@ def th_buildings(plotData, data):
             ax = axes[c]
 
             # positive (sources/generation)
-            HP = safe_array(plotData, c, n, "HP", "Q_th", time_steps)
-            BOI = safe_array(plotData, c, n, "BOI", "Q_th", time_steps)
-            EH = safe_array(plotData, c, n, "EH", "Q_th", time_steps)
-            STC = safe_array(plotData, c, n, "STC", "Q_th", time_steps)
-            CHP = safe_array(plotData, c, n, "CHP", "Q_th", time_steps)
-            FC = safe_array(plotData, c, n, "FC", "Q_th", time_steps)
-            dch_TES = safe_array(plotData, c, n, "TES", "dch", time_steps)
-            heat_grid = safe_array(plotData, c, n, "heat_grid", "Q_th", time_steps)
+            HP = safe_array(plotData, c, n, "HP", "Q_th", time_steps) / 1000
+            BOI = safe_array(plotData, c, n, "BOI", "Q_th", time_steps) / 1000
+            EH = safe_array(plotData, c, n, "EH", "Q_th", time_steps) / 1000
+            STC = safe_array(plotData, c, n, "STC", "Q_th", time_steps) / 1000
+            CHP = safe_array(plotData, c, n, "CHP", "Q_th", time_steps) / 1000
+            FC = safe_array(plotData, c, n, "FC", "Q_th", time_steps) / 1000
+            dch_TES = safe_array(plotData, c, n, "TES", "dch", time_steps) / 1000
+            heat_grid = safe_array(plotData, c, n, "heat_grid", "Q_th", time_steps) / 1000
 
             # negative (demands/sinks)
-            ch_TES = safe_array(plotData, c, n, "TES", "ch", time_steps)
+            ch_TES = safe_array(plotData, c, n, "TES", "ch", time_steps) / 1000
 
-            dhw = np.array(plotData["resultsOptimization"][c][n]["DHW"]["Q_th"])
-            heating = np.array(plotData["resultsOptimization"][c][n]["Heating"]["Q_th"])
+            dhw = np.array(plotData["resultsOptimization"][c][n]["DHW"]["Q_th"]) / 1000
+            heating = np.array(plotData["resultsOptimization"][c][n]["Heating"]["Q_th"]) / 1000
 
             # Build sources
             sources = [HP, BOI, EH, STC, CHP, FC, dch_TES, heat_grid]
@@ -200,7 +190,7 @@ def th_buildings(plotData, data):
                     all_handles.append(h)
                     all_labels.append(l)
 
-            ax.set_ylabel('Thermal Power [W]')
+            ax.set_ylabel('Thermal Power [kW]')
             ax.set_title(f'Building {n} – Cluster {c} Thermal Power Balance')
             ax.grid(True)
 
@@ -222,21 +212,13 @@ def el_all_buildings(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    # ----- Fixed color map -----
-    color_map = {
-        "Grid": "grey",
-        "PV": "yellow",
-        "CHP": "green",
-        "FC": "purple",
-        "BAT discharge": "blue",
-        "EV discharge": "cyan",
-        "Demand": "red",
-        "EV charge": "orange",
-        "HP": "magenta",
-        "EH": "brown",
-        "BAT charge": "lightblue",
-        "Feed-in": "black"
-    }
+    color_labels = [
+        "Grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
+        "Demand", "EV charge", "HP", "EH", "BAT charge", "Feed-in"
+    ]
+
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
 
     fig, axes = plt.subplots(num_clusters, 1, figsize=(12, 4 * num_clusters), sharex=True)
 
@@ -268,21 +250,21 @@ def el_all_buildings(plotData, data):
 
         # --- Sum over all buildings ---
         for n in range(num_buildings):
-            buy = np.array(plotData["resultsOptimization"][c][n]["res_load"])  # no safe_array: always present
+            buy = np.array(plotData["resultsOptimization"][c][n]["res_load"]) / 1000  # no safe_array: always present
 
-            PV_power = safe_array(plotData, c, n, "PV", "P_el", time_steps)
-            CHP = safe_array(plotData, c, n, "CHP", "P_el", time_steps)
-            FC = safe_array(plotData, c, n, "FC", "P_el", time_steps)
-            dch_BAT = safe_array(plotData, c, n, "BAT", "dch", time_steps)
-            dch_EV = safe_array(plotData, c, n, "EV", "dch", time_steps)
+            PV_power = safe_array(plotData, c, n, "PV", "P_el", time_steps) / 1000
+            CHP = safe_array(plotData, c, n, "CHP", "P_el", time_steps) / 1000
+            FC = safe_array(plotData, c, n, "FC", "P_el", time_steps) / 1000
+            dch_BAT = safe_array(plotData, c, n, "BAT", "dch", time_steps) / 1000
+            dch_EV = safe_array(plotData, c, n, "EV", "dch", time_steps) / 1000
 
-            feed = np.array(plotData["resultsOptimization"][c][n]["res_inj"])  # always present
-            demand = np.array(plotData["resultsOptimization"][c][n]["Demand"]["P_el"])  # always present
+            feed = np.array(plotData["resultsOptimization"][c][n]["res_inj"])  / 1000 # always present
+            demand = np.array(plotData["resultsOptimization"][c][n]["Demand"]["P_el"]) / 1000 # always present
 
-            ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps)
-            HP = safe_array(plotData, c, n, "HP", "P_el", time_steps)
-            EH = safe_array(plotData, c, n, "EH", "P_el", time_steps)
-            ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps)
+            ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps) / 1000
+            HP = safe_array(plotData, c, n, "HP", "P_el", time_steps) / 1000
+            EH = safe_array(plotData, c, n, "EH", "P_el", time_steps) / 1000
+            ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps) / 1000
 
 
         # --- Sum for all buildings ---
@@ -336,7 +318,7 @@ def el_all_buildings(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Electrical Power [W]')
+        ax.set_ylabel('Electrical Power [kW]')
         ax.set_title(f'Cluster {c} - Total Electrical Power Balance (All Buildings)')
         ax.grid(True)
 
@@ -358,19 +340,14 @@ def th_all_buildings(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    color_map = {
-        "Heat Pump": "blue",
-        "Boiler": "red",
-        "Electric Heater": "orange",
-        "Solar Thermal": "yellow",
-        "CHP": "green",
-        "Fuel Cell": "purple",
-        "TES discharge": "black",
-        "TES charge": "brown",
-        "Heating Demand": "darkred",
-        "DHW Demand": "darkorange",
-        "Heat Grid": "pink"
-    }
+    color_labels = [
+        "Heat Pump", "Boiler", "Electric Heater", "Solar Thermal",
+        "CHP", "Fuel Cell", "TES discharge", "TES charge",
+        "Heating Demand", "DHW Demand", "Heat Grid"
+    ]
+
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
 
     fig, axes = plt.subplots(num_clusters, 1, figsize=(12, 4 * num_clusters), sharex=True)
 
@@ -402,19 +379,19 @@ def th_all_buildings(plotData, data):
         # ---- Sum over all buildings ----
         for n in range(num_buildings):
 
-            total_HP += safe_array(plotData, c, n, "HP", "Q_th", time_steps)
-            total_BOI += safe_array(plotData, c, n, "BOI", "Q_th", time_steps)
-            total_EH += safe_array(plotData, c, n, "EH", "Q_th", time_steps)
-            total_STC += safe_array(plotData, c, n, "STC", "Q_th", time_steps)
-            total_CHP += safe_array(plotData, c, n, "CHP", "Q_th", time_steps)
-            total_FC += safe_array(plotData, c, n, "FC", "Q_th", time_steps)
-            total_dch_TES += safe_array(plotData, c, n, "TES", "dch", time_steps)
-            total_heat_grid += safe_array(plotData, c, n, "heat_grid", "Q_th", time_steps)
+            total_HP += safe_array(plotData, c, n, "HP", "Q_th", time_steps) / 1000
+            total_BOI += safe_array(plotData, c, n, "BOI", "Q_th", time_steps) / 1000
+            total_EH += safe_array(plotData, c, n, "EH", "Q_th", time_steps) / 1000
+            total_STC += safe_array(plotData, c, n, "STC", "Q_th", time_steps) / 1000
+            total_CHP += safe_array(plotData, c, n, "CHP", "Q_th", time_steps) / 1000
+            total_FC += safe_array(plotData, c, n, "FC", "Q_th", time_steps) / 1000
+            total_dch_TES += safe_array(plotData, c, n, "TES", "dch", time_steps) / 1000
+            total_heat_grid += safe_array(plotData, c, n, "heat_grid", "Q_th", time_steps) / 1000
 
-            total_ch_TES += safe_array(plotData, c, n, "TES", "ch", time_steps)
+            total_ch_TES += safe_array(plotData, c, n, "TES", "ch", time_steps) / 1000
 
-            total_heating += np.array(plotData["resultsOptimization"][c][n]["Heating"]["Q_th"])  # always exists
-            total_dhw += np.array(plotData["resultsOptimization"][c][n]["DHW"]["Q_th"])  # always exists
+            total_heating += np.array(plotData["resultsOptimization"][c][n]["Heating"]["Q_th"]) / 1000  # always exists
+            total_dhw += np.array(plotData["resultsOptimization"][c][n]["DHW"]["Q_th"]) / 1000  # always exists
 
         # ---- Build sources ----
         sources = [total_HP, total_BOI, total_EH, total_STC,
@@ -456,7 +433,7 @@ def th_all_buildings(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Thermal Power [W]')
+        ax.set_ylabel('Thermal Power [kW]')
         ax.set_title(f'Cluster {c} - Total Thermal Power Balance (All Buildings)')
         ax.grid(True)
 
@@ -478,23 +455,13 @@ def el_energy_hub(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    color_map = {
-        "PV": "yellow",
-        "WT": "green",
-        "WAT": "cyan",
-        "CHP": "orange",
-        "BCHP": "brown",
-        "WCHP": "olive",
-        "FC": "purple",
-        "from_grid": "grey",
-        "BAT discharge": "blue",
-        "HP": "magenta",
-        "EB": "orange",
-        "CC": "red",
-        "ELYZ": "pink",
-        "BAT charge": "lightblue",
-        "to_grid": "black"
-    }
+    color_labels = [
+        "PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid",
+        "BAT discharge", "HP", "EB", "CC", "ELYZ", "BAT charge", "to_grid"
+    ]
+
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
 
     fig, axes = plt.subplots(num_clusters, 1, figsize=(12, 4 * num_clusters), sharex=True)
 
@@ -511,15 +478,15 @@ def el_energy_hub(plotData, data):
 
         # ---- SOURCES ----
 
-        PV = safe_array(plotData, c, "eh_power", "PV", None, time_steps)
-        WT = safe_array(plotData, c, "eh_power", "WT", None, time_steps)
-        WAT = safe_array(plotData, c, "eh_power", "WAT", None, time_steps)
-        CHP = safe_array(plotData, c, "eh_power", "CHP", None, time_steps)
-        BCHP = safe_array(plotData, c, "eh_power", "BCHP", None, time_steps)
-        WCHP = safe_array(plotData, c, "eh_power", "WCHP", None, time_steps)
-        FC = safe_array(plotData, c, "eh_power", "FC", None, time_steps)
-        from_grid = safe_array(plotData, c, "eh_power", "from_grid", None, time_steps)
-        dch_BAT = safe_array(plotData, c, "eh_dch", "BAT", None, time_steps)
+        PV = safe_array(plotData, c, "eh_power", "PV", None, time_steps) / 1000
+        WT = safe_array(plotData, c, "eh_power", "WT", None, time_steps) / 1000
+        WAT = safe_array(plotData, c, "eh_power", "WAT", None, time_steps) / 1000
+        CHP = safe_array(plotData, c, "eh_power", "CHP", None, time_steps) / 1000
+        BCHP = safe_array(plotData, c, "eh_power", "BCHP", None, time_steps) / 1000
+        WCHP = safe_array(plotData, c, "eh_power", "WCHP", None, time_steps) / 1000
+        FC = safe_array(plotData, c, "eh_power", "FC", None, time_steps) / 1000
+        from_grid = safe_array(plotData, c, "eh_power", "from_grid", None, time_steps) / 1000
+        dch_BAT = safe_array(plotData, c, "eh_dch", "BAT", None, time_steps) / 1000
 
         sources = [
             PV, WT, WAT, CHP, BCHP, WCHP,
@@ -530,12 +497,12 @@ def el_energy_hub(plotData, data):
         source_colors = [color_map[label] for label in source_labels]
 
         # ---- SINKS ----
-        HP = safe_array(plotData, c, "eh_power", "HP", None, time_steps)
-        EB = safe_array(plotData, c, "eh_power", "EB",None, time_steps)
-        CC = safe_array(plotData, c, "eh_power", "CC", None, time_steps)
-        ELYZ = safe_array(plotData, c, "eh_power", "ELYZ", None, time_steps)
-        ch_BAT = safe_array(plotData, c, "eh_ch", "BAT", None, time_steps)
-        to_grid = safe_array(plotData, c, "eh_power", "to_grid", None, time_steps)
+        HP = safe_array(plotData, c, "eh_power", "HP", None, time_steps) / 1000
+        EB = safe_array(plotData, c, "eh_power", "EB",None, time_steps) / 1000
+        CC = safe_array(plotData, c, "eh_power", "CC", None, time_steps) / 1000
+        ELYZ = safe_array(plotData, c, "eh_power", "ELYZ", None, time_steps) / 1000
+        ch_BAT = safe_array(plotData, c, "eh_ch", "BAT", None, time_steps) / 1000
+        to_grid = safe_array(plotData, c, "eh_power", "to_grid", None, time_steps) / 1000
 
         sinks = [HP, EB, CC, ELYZ, ch_BAT, to_grid]
         sink_labels = ["HP", "EB", "CC", "ELYZ", "BAT charge", "to_grid"]
@@ -567,7 +534,7 @@ def el_energy_hub(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Electrical Power [W]')
+        ax.set_ylabel('Electrical Power [kW]')
         ax.set_title(f'Cluster {c} - Energy Hub Electrical Power Balance')
         ax.grid(True)
 
@@ -589,26 +556,14 @@ def th_energy_hub(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    color_map = {
-        "STC": "yellow",
-        "HP": "blue",
-        "EB": "orange",
-        "CHP": "green",
-        "BOI": "red",
-        "GHP": "cyan",
-        "BCHP": "brown",
-        "BBOI": "pink",
-        "WCHP": "olive",
-        "WBOI": "purple",
-        "FC": "magenta",
-        "TES discharge": "black",
-        "AC": "lightblue",
-        "TES charge": "brown",
-        "Heating Demand": "darkred",
-        "DHW Demand": "darkorange",
-        "Network Losses": "grey"
+    color_labels = [
+        "STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI",
+        "WCHP", "WBOI", "FC", "TES discharge", "AC", "TES charge",
+        "Heating Demand", "DHW Demand", "Network Losses"
+    ]
 
-    }
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
 
     fig, axes = plt.subplots(num_clusters, 1, figsize=(12, 4 * num_clusters), sharex=True)
 
@@ -624,18 +579,18 @@ def th_energy_hub(plotData, data):
         ax = axes[c]
 
         # ---- SOURCES ----
-        STC = safe_array(plotData, c, "eh_heat", "STC", None, time_steps)
-        HP = safe_array(plotData, c, "eh_heat", "HP", None, time_steps)
-        EB = safe_array(plotData, c, "eh_heat", "EB", None, time_steps)
-        CHP = safe_array(plotData, c, "eh_heat", "CHP", None, time_steps)
-        BOI = safe_array(plotData, c, "eh_heat", "BOI", None, time_steps)
-        GHP = safe_array(plotData, c, "eh_heat", "GHP", None, time_steps)
-        BCHP = safe_array(plotData, c, "eh_heat", "BCHP", None, time_steps)
-        BBOI = safe_array(plotData, c, "eh_heat", "BBOI", None, time_steps)
-        WCHP = safe_array(plotData, c, "eh_heat", "WCHP", None, time_steps)
-        WBOI = safe_array(plotData, c, "eh_heat", "WBOI", None, time_steps)
-        FC = safe_array(plotData, c, "eh_heat", "FC", None, time_steps)
-        dch_TES = safe_array(plotData, c, "eh_dch", "TES", None, time_steps)
+        STC = safe_array(plotData, c, "eh_heat", "STC", None, time_steps) / 1000
+        HP = safe_array(plotData, c, "eh_heat", "HP", None, time_steps) / 1000
+        EB = safe_array(plotData, c, "eh_heat", "EB", None, time_steps) / 1000
+        CHP = safe_array(plotData, c, "eh_heat", "CHP", None, time_steps) / 1000
+        BOI = safe_array(plotData, c, "eh_heat", "BOI", None, time_steps) / 1000
+        GHP = safe_array(plotData, c, "eh_heat", "GHP", None, time_steps) / 1000
+        BCHP = safe_array(plotData, c, "eh_heat", "BCHP", None, time_steps) / 1000
+        BBOI = safe_array(plotData, c, "eh_heat", "BBOI", None, time_steps) / 1000
+        WCHP = safe_array(plotData, c, "eh_heat", "WCHP", None, time_steps) / 1000
+        WBOI = safe_array(plotData, c, "eh_heat", "WBOI", None, time_steps) / 1000
+        FC = safe_array(plotData, c, "eh_heat", "FC", None, time_steps) / 1000
+        dch_TES = safe_array(plotData, c, "eh_dch", "TES", None, time_steps) / 1000
 
         sources = [
             STC, HP, EB, CHP, BOI, GHP,
@@ -646,17 +601,17 @@ def th_energy_hub(plotData, data):
         source_colors = [color_map[label] for label in source_labels]
 
         # ---- SINKS ----
-        AC = safe_array(plotData, c, "eh_heat", "AC", None, time_steps)
-        ch_TES = safe_array(plotData, c, "eh_ch", "TES", None, time_steps)
+        AC = safe_array(plotData, c, "eh_heat", "AC", None, time_steps) / 1000
+        ch_TES = safe_array(plotData, c, "eh_ch", "TES", None, time_steps) / 1000
         # Demand
         total_heating = np.zeros(time_steps)
         total_dhw = np.zeros(time_steps)
         for n in range(num_buildings):
-            total_heating += np.array(plotData["resultsOptimization"][c][n]["Heating"]["Q_th"])
-            total_dhw += np.array(plotData["resultsOptimization"][c][n]["DHW"]["Q_th"])
+            total_heating += np.array(plotData["resultsOptimization"][c][n]["Heating"]["Q_th"]) / 1000
+            total_dhw += np.array(plotData["resultsOptimization"][c][n]["DHW"]["Q_th"]) / 1000
         # NETWORK LOSSES
         if "total_losses_heating_network_cluster" in data.heat_grid_data:
-            losses = np.array(data.heat_grid_data["total_losses_heating_network_cluster"][c]) * 1000
+            losses = np.array(data.heat_grid_data["total_losses_heating_network_cluster"][c])
         else:
             losses = np.zeros(time_steps)
 
@@ -693,7 +648,7 @@ def th_energy_hub(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Thermal Power [W]')
+        ax.set_ylabel('Thermal Power [kW]')
         ax.set_title(f'Cluster {c} - Energy Hub Thermal Power Balance')
         ax.grid(True)
 
@@ -714,11 +669,12 @@ def district(plotData, data):
     time_steps = plotData["time_steps"]
     time = plotData["time"]
 
-    color_map = {
-        "El. Import": "grey",
-        "Gas Import": "brown",
-        "El. Export": "blue"
-    }
+    color_labels = [
+        "El. Import", "Gas Import", "El. Export"
+    ]
+
+    palette = sns.color_palette("tab20", n_colors=len(color_labels))
+    color_map = {label: palette[i] for i, label in enumerate(color_labels)}
 
     fig, axes = plt.subplots(num_clusters, 1, figsize=(12, 4 * num_clusters), sharex=True)
 
@@ -735,15 +691,15 @@ def district(plotData, data):
 
         # ---- SOURCES ----
         # Power and gas drawn from grids
-        P_dem_gcp = np.array(plotData["resultsOptimization"][c]["P_dem_gcp"])  # Grid import
-        P_gas_total = np.array(plotData["resultsOptimization"][c]["P_gas_total"])  # Gas import
+        P_dem_gcp = np.array(plotData["resultsOptimization"][c]["P_dem_gcp"]) / 1000  # Grid import
+        P_gas_total = np.array(plotData["resultsOptimization"][c]["P_gas_total"]) / 1000  # Gas import
 
         sources = [P_dem_gcp, P_gas_total]
         source_labels = ["El. Import", "Gas Import"]
         source_colors = [color_map[label] for label in source_labels]
 
         # ---- SINKS ----
-        P_inj_gcp = np.array(plotData["resultsOptimization"][c]["P_inj_gcp"])  # Grid feed-in
+        P_inj_gcp = np.array(plotData["resultsOptimization"][c]["P_inj_gcp"]) / 1000  # Grid feed-in
 
         sinks = [P_inj_gcp]
         sink_labels = ["El. Export"]
@@ -775,7 +731,7 @@ def district(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Power [W]')
+        ax.set_ylabel('Power [kW]')
         ax.set_title(f'Cluster {c} - District Electrical & Gas Exchange')
         ax.grid(True)
 
