@@ -228,39 +228,55 @@
                                     <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario_name</span> <span class="o">+</span> <span class="s2">&quot;.csv&quot;</span><span class="p">,</span>
                                     <span class="n">header</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s2">&quot;;&quot;</span><span class="p">)</span>
 
-        <span class="c1"># initialize buildings for scenario</span>
-        <span class="k">for</span> <span class="nb">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]:</span>
-            <span class="c1"># create empty dict for observed building</span>
-            <span class="n">building</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># Check for missing values in required columns</span>
+        <span class="n">required_columns</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="s2">&quot;building&quot;</span><span class="p">,</span> <span class="s2">&quot;year&quot;</span><span class="p">,</span> <span class="s2">&quot;retrofit&quot;</span><span class="p">,</span> <span class="s2">&quot;area&quot;</span><span class="p">]</span>
+        <span class="n">missing_columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">required_columns</span> <span class="k">if</span> <span class="n">col</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span><span class="o">.</span><span class="n">columns</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">missing_columns</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[ERROR] Missing required columns in input: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_columns</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-            <span class="c1"># store features of the observed building</span>
-            <span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scenario</span><span class="o">.</span><span class="n">iterrows</span><span class="p">():</span>
+            <span class="c1"># Check for missing or unrealistic values</span>
+            <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">isnull</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;area&quot;</span><span class="p">])</span> <span class="ow">or</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">50</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;[ERROR] Invalid area value at row </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">: &#39;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;area&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39; – must be greater than 50 m².&quot;</span><span class="p">)</span>
 
-            <span class="c1"># append building to district</span>
+            <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">isnull</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">])</span> <span class="ow">or</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">1800</span> <span class="ow">or</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;year&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">2025</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;[ERROR] Unrealistic construction year at row </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">: &#39;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;year&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39; – must be between 1800 and 2025.&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">isnull</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;retrofit&quot;</span><span class="p">])</span> <span class="ow">or</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;retrofit&quot;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;[ERROR] Invalid retrofit value at row </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">: &#39;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;retrofit&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&#39; – expected 0, 1, or 2.&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">pd</span><span class="o">.</span><span class="n">isnull</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;building&quot;</span><span class="p">]):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[ERROR] Missing building type at row </span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Create building dictionary</span>
+            <span class="n">building</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">:</span> <span class="n">row</span><span class="p">}</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">district</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">building</span><span class="p">)</span></div>
 
 
 
 <div class="viewcode-block" id="Datahandler.generateBuildings">
 <a class="viewcode-back" href="../../../districtgenerator.classes.html#districtgenerator.classes.datahandler.Datahandler.generateBuildings">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">generateBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generateBuildings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rng</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Loads building envelope and user data for each building in the district.</span>
 
-<span class="sd">        ----------</span>
+<span class="sd">        For each building defined in the scenario, the following steps are performed:</span>
+<span class="sd">        - The number of floors and floor height are estimated.</span>
+<span class="sd">        - A TEASER building model is created and its physical envelope is defined.</span>
+<span class="sd">        - Design heat loads are calculated.</span>
+
+<span class="sd">    ----------</span>
 
 <span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - building features (dict): Contains building-specific data.</span>
-<span class="sd">            - number_of_floors (int): The number of floors in the building.</span>
-<span class="sd">            - height_of_floors (float): The height of each floor in the building.</span>
-
-<span class="sd">        Returns</span>
-<span class="sd">        ----------</span>
-<span class="sd">            - Creates and assigns building envelope data using the `Envelope` class.</span>
-<span class="sd">            - Generates and assigns user profiles for each building using the `Users` class.</span>
-<span class="sd">            - Computes design heat loads and assigns to each building.</span>
+<span class="sd">    ----------</span>
+<span class="sd">            - rng : Random object, optional</span>
+<span class="sd">                A seeded random number generator instance. If None, Python&#39;s default random is used.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">rg</span> <span class="o">=</span> <span class="n">rng</span> <span class="ow">or</span> <span class="n">rd</span>
 
         <span class="c1"># %% load general building information</span>
         <span class="c1"># contains definitions and parameters that affect all buildings</span>
@@ -289,18 +305,18 @@
             <span class="c1">#   by the selected single-floor area.</span>
 
             <span class="k">if</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;single_family_house&quot;</span><span class="p">:</span>
-                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">62</span><span class="p">,</span> <span class="mi">115</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rg</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">62</span><span class="p">,</span> <span class="mi">115</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
                 <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 1</span>
                 <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
 
             <span class="k">elif</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;terraced_house&quot;</span><span class="p">:</span>
-                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">73</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rg</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">73</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
                 <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 1</span>
                 <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
 
             <span class="k">elif</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;multi_family_house&quot;</span><span class="p">:</span>
                 <span class="c1"># Generate a valid one-floor area and number of floors in one step</span>
-                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">102</span><span class="p">,</span> <span class="mi">971</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rg</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">102</span><span class="p">,</span> <span class="mi">971</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
                 <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 2</span>
                 <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
                 <span class="c1"># Cap the number of floors to a maximum of 8</span>
@@ -308,7 +324,7 @@
                     <span class="n">number_of_floors</span> <span class="o">=</span> <span class="mi">8</span>
 
             <span class="k">elif</span> <span class="n">building_type</span> <span class="o">==</span> <span class="s2">&quot;apartment_block&quot;</span><span class="p">:</span>
-                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">350</span><span class="p">,</span> <span class="mi">540</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
+                <span class="n">one_floor_area</span> <span class="o">=</span> <span class="n">rg</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">350</span><span class="p">,</span> <span class="mi">540</span><span class="p">)</span>  <span class="c1"># Source: TABULA German Building Typology</span>
                 <span class="c1"># Calculate the number of floors, rounding to the nearest integer and ensuring at least 3</span>
                 <span class="n">number_of_floors</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="n">one_floor_area</span><span class="p">))</span>
 
@@ -342,8 +358,14 @@
 
             <span class="c1"># %% create user object</span>
             <span class="c1"># containing number occupants, electricity demand, ...</span>
+            <span class="k">if</span> <span class="n">rng</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">building_seed</span> <span class="o">=</span> <span class="mi">42</span> <span class="o">+</span> <span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+                <span class="n">building_rng</span> <span class="o">=</span> <span class="n">rd</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">building_seed</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">building_rng</span> <span class="o">=</span> <span class="kc">None</span>
+
             <span class="n">building</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Users</span><span class="p">(</span><span class="n">building</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;building&quot;</span><span class="p">],</span>
-                             <span class="n">area</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">])</span>
+                             <span class="n">area</span><span class="o">=</span><span class="n">building</span><span class="p">[</span><span class="s2">&quot;buildingFeatures&quot;</span><span class="p">][</span><span class="s2">&quot;area&quot;</span><span class="p">],</span> <span class="n">rng</span><span class="o">=</span><span class="n">building_rng</span><span class="p">)</span>
 
             <span class="c1"># %% calculate design heat loads</span>
             <span class="c1"># at norm outside temperature</span>
