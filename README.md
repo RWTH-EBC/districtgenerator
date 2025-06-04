@@ -172,7 +172,7 @@ were determined by performing multiple simulation runs per building. Although th
 fixed, internal randomness (especially from the richardsonpy occupancy model) leads to small
 variations in each run. By executing the same setup several times and calculating the mean values,
 we derived stable expected values that represent typical outcomes under stochastic conditions.
-For electricity demand, we used values from an external source: the Stromspiegel (https://www.stromspiegel.de/stromverbrauch-versteh). These statistical values reflect
+For electricity demand, we used values from an external source: the [Stromspiegel](https://www.stromspiegel.de/stromverbrauch-versteh). These statistical values reflect
 typical annual electricity consumption in German households and serve as benchmarks for
 our tests.
 
