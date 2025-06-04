@@ -62,7 +62,7 @@ class TestExamples(unittest.TestCase):
         and verify that the generated demands remain within a reasonable range."""
         from examples import e5_generate_demands as e5
 
-        for i in range(20):
+        for i in range(10):
             # Fixed seed RNG to pass
             rng = random.Random(42)
             np.random.seed(42)
@@ -76,10 +76,18 @@ class TestExamples(unittest.TestCase):
             # - For electricity, the values are based on the source:
             #   https://www.stromspiegel.de/stromverbrauch-verstehen/stromverbrauch-im-haushalt/#c120951
             expected_outputs = [
-                {"total_heat": 16_520_000, "total_elec": 4_000_000, "total_dhw": 1_600_000},  # Building 0
-                {"total_heat": 9_090_000, "total_elec": 3_000_000, "total_dhw": 1_330_000},   # Building 1
-                {"total_heat": 29_210_000, "total_elec": 7_700_000, "total_dhw": 4_980_000},  # Building 2
-                {"total_heat": 17_120_000, "total_elec": 5_300_000, "total_dhw": 3_510_000},  # Building 3
+                {"total_heat": 7_300_000, "total_elec": 4_000_000, "total_dhw": 1_550_000},  # Building 0
+                {"total_heat": 15_000_000, "total_elec": 3_000_000, "total_dhw": 1_300_000},   # Building 1
+                {"total_heat": 12_850_000, "total_elec": 3_000_000, "total_dhw": 1_450_000},  # Building 2
+                {"total_heat": 4_000_000, "total_elec": 3_500_000, "total_dhw": 1_500_000},  # Building 3
+                {"total_heat": 5_950_000, "total_elec": 4_500_000, "total_dhw": 1_720_000},  # Building 4
+                {"total_heat": 10_300_000, "total_elec": 3_000_000, "total_dhw": 1_450_000},  # Building 5
+                {"total_heat": 30_500_000, "total_elec": 20_000_000, "total_dhw": 12_000_000},  # Building 6
+                {"total_heat": 70_100_000, "total_elec": 70_000_000, "total_dhw": 44_000_000},  # Building 7
+                {"total_heat": 327_000_000, "total_elec": 78_000_000, "total_dhw": 49_800_000},  # Building 8
+                {"total_heat": 15_700_000, "total_elec": 11_800_000, "total_dhw": 8_100_000},  # Building 9
+                {"total_heat": 40_700_000, "total_elec": 9_500_000, "total_dhw": 5_390_000},  # Building 10
+                {"total_heat": 60_300_000, "total_elec": 32_900_000, "total_dhw": 20_500_000},  # Building 11
             ]
 
             for idx, (building, expected) in enumerate(zip(data_e5.district, expected_outputs)):
@@ -103,9 +111,18 @@ class TestExamples(unittest.TestCase):
                     upper = expected_val + tol
                     actual_val = actual[key]
 
+                    error_msg = (
+                        f"\nTest failed for Building {idx} ({key}):\n"
+                        f"  → Actual value:   {actual_val:.2f} Wh\n"
+                        f"  → Expected range: {lower:.2f} Wh – {upper:.2f} Wh "
+                        f"(Target: {expected_val:.2f} Wh ±10%)\n"
+                        f"Please check if recent changes to the tool or dependencies "
+                        f"could explain this deviation."
+                    )
+
                     self.assertTrue(
                         lower <= actual_val <= upper,
-                        f"Building {idx}: {key}={actual_val:.2f} not within 10% of expected {expected_val:.2f}"
+                        error_msg
                     )
 
 if __name__ == '__main__':

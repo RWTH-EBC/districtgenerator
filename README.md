@@ -138,17 +138,53 @@ as csv. file for each building in the neighborhood. The output contains:
 All csv files are finally saved in the [demands](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/districtgenerator/results/demands)
 folder. The unit of the demand profiles is watt.
 
-
 ## Running examples for functional testing
 
 Once you have installed the DistrictGenerator, you can check the [examples](docs/EXAMPLES.md) 
-to learn how to use the different components. 
+to learn how to use the different components.
 
-To test the tool's executability, run [test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests)  in the tests folder. 
-This functional testing checks the entire chain of the tool, from data input and 
-initialization to the output of the calculated profiles. It does not correspond to a 
-test of the functional units of the entire process. This  functional testing is based 
-on the examples automatically executed one after another.
+To validate the executability and functionality of the tool, we provide a series of
+automated functional tests located in the tests folder([test_examples.py](https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests)).
+These tests sequentially execute the examples provided in the project and verify
+that all steps—from data initialization to the generation of demand profiles—run without
+errors and return meaningful outputs.
+
+The functional tests are implemented using Python’s built-in unittest framework. Each
+example script is imported and executed, and the returned data structures are checked for 
+correctness. This ensures that all main processing steps of the
+DistrictGenerator pipeline remain intact after modifications.
+
+The tests verify the full workflow by generating demand profiles for a fixed set of 12 buildings.
+The selection of the buildings was made to represent a wide variety of configurations: all major
+building types are included (single-family houses, terraced houses, multi-family houses, and
+apartment blocks), with all three retrofit states (existing, usual, and advanced refurbishment).
+The construction years span from old buildings to new constructions, and the floor areas correspond
+to the “Reference Floor Area” values given by the TABULA archetypes. 
+
+To allow reproducible outputs despite inherent randomness in parts of the modeling(especially
+occupant behavior), fixed seeds are applied to the internal random number generators. However,
+the stochastic occupancy model from the richardsonpy tool—which governs household presence and
+activity—is not externally controllable. As a result, complete determinism is not achievable.
+
+To address the stochastic nature of the demand generation process—particularly due to the randomly
+generated occupancy profiles—the expected values for heating and domestic hot water (DHW) demands
+were determined by performing multiple simulation runs per building. Although the input data remains
+fixed, internal randomness (especially from the richardsonpy occupancy model) leads to small
+variations in each run. By executing the same setup several times and calculating the mean values,
+we derived stable expected values that represent typical outcomes under stochastic conditions.
+For electricity demand, we used values from an external source: the Stromspiegel (https://www.stromspiegel.de/stromverbrauch-versteh). These statistical values reflect
+typical annual electricity consumption in German households and serve as benchmarks for
+our tests.
+
+In the test, the output of each building is compared to its corresponding expected value. A
+tolerance of ±10% is applied. This tolerance is intentionally chosen to be wide enough to account for the remaining
+variability after seeding, yet narrow enough to detect significant deviations in output caused
+by changes to the tool itself or to any of the external packages it depends on.
+
+This approach enables a robust validation of the overall system behavior, ensuring
+that, despite internal stochastic variations, the DistrictGenerator produces consistent and
+plausible outputs. It provides a robust basis for verifying the DistrictGenerator’s
+core capabilities and helps detect unintended changes during further development.
 
 ## How to contribute
 
