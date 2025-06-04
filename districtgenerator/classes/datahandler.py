@@ -794,17 +794,20 @@ class Datahandler:
                           decentral_device_data= self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
+            # to compare areas for pv (gegeben vs berechnet)
             building["capacities"] = bes_obj.designECS(building, self.site)
+            # warum werden die capacities ausgerechnet?
 
             # calculate theoretical PV and STC generation
+            # todo: in der funktion muss erstmal nichts ge#ndert werden, die Input Parameter müssen stimmen
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"],
+                                        area_roof=building["envelope"].A["opaque"]["roof"], # todo: Dachfläche passt zu Datenplattform?
                                         # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[35],
+                                        beta=[35], # todo: real ergänzen
                                         # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
+                                        gamma=[building["buildingFeatures"]["gamma_PV"]], # todo: real ergänzen?
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"],
                                         devices = self.decentral_device_data)

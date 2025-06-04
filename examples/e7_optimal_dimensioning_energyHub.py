@@ -25,7 +25,7 @@ def example7_optiEnergyCentral_EHDO():
     # the district generator. Further information about the technologies to be considered for the dimensioning of
     # the energy central and economic parameters are read in from further .csv and . json. data sources
 
-    data.designCentralDevices(saveGenerationProfiles=True)
+    data.designDecentralDevices(saveGenerationProfiles=True)
     # Within data the results of EHDO are given. For each device the annual generated amount of
     # electricity or heat as well as the nominal power or storage capacity are calculate.
     # Furthermore, ecological and economic indicatoers are calculated.

@@ -498,9 +498,10 @@ class Envelope:
         except KeyError:
             self.A["opaque"]["west"] = 0.0
             self.A["opaque"]["east"] = 0.0
-
+        # todo: sind hier noch andere Werte die ersetzt werden können?
+        # wie werden die Parameter bestimmt? Ein Vergleich ist sinnvoll für die Validierung
         try:
-            self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]
+            self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]  # todo: ersetzen durch Fiware?
         except KeyError:
             self.A["opaque"]["roof"] = 1.2 * prj.buildings[
                 self.id].outer_area[-2]
