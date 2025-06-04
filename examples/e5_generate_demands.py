@@ -12,8 +12,9 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 from districtgenerator.classes import *
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
-def example5_generate_demands():
+def example5_generate_demands(rng=None):
 
     # Initialize District
     data = Datahandler()
@@ -26,7 +27,7 @@ def example5_generate_demands():
     data.initializeBuildings(scenario_name="example")
 
     # Generate a more detailed Building
-    data.generateBuildings()
+    data.generateBuildings(rng=rng)
 
     # Now we generate building specific demand profiles. The computation can take a few minutes,
     # because energy profiles for a hole year are computed. As input we tell the program,
@@ -46,7 +47,9 @@ def example5_generate_demands():
 
     # We can now use the profiles for exemplary analyses like monthly demands or peak loads.
     # We plot the district space heat demand in kWh
-    exemplary_plot(data)
+    # Only show plot if not running under test
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        exemplary_plot(data)
 
     print("The demand profiles are generated and saved in the directory 'districtgenerator/results/demands/'.")
     print("In data.district[0].user for example you find the demand profiles.")

@@ -29,7 +29,7 @@ class Users():
         - heat (array): heat demand for each building.
         - cooling (array): cooling demand for each building.
     """
-    def __init__(self, building, area):
+    def __init__(self, building, area, rng=None):
         """
         Initialize the Users object
         """
@@ -45,6 +45,8 @@ class Users():
         self.elec = None
         self.gains = None
         self.heat = None
+
+        self.rng = rng if rng is not None else rd
 
         self.generate_number_flats(area)
         self.generate_number_occupants()
@@ -91,7 +93,7 @@ class Users():
             probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
             while True:
                 # Choose one consistent flat size for the entire building
-                chosen_area_range = rd.choices(area_categories, weights=probabilities, k=1)[0]
+                chosen_area_range = self.rng.choices(area_categories, weights=probabilities, k=1)[0]
                 chosen_area = (chosen_area_range[0] + chosen_area_range[1]) // 2  # Use the mean area of the selected range
 
                 # Calculate the number of flats using rounding to the nearest integer
@@ -119,8 +121,8 @@ class Users():
             # choose random number of occupants (2-5) for single family houses  (assumption)
 
             # loop over all flats of current single family houses
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
+            for _ in range(self.nb_flats):
+                random_nb = self.rng.random()  # picking random number in [0,1)
                 j = 1  # staring with one (additional) occupant
                 # the random number decides how many occupants are chosen (2-5)
                 while j <= 4 :
@@ -133,8 +135,8 @@ class Users():
             # choose random number of occupants (2-5) for terraced houses  (assumption)
 
             # loop over all flats of current terraced house
-            for j in range(self.nb_flats) :
-                random_nb = rd.random()  # picking random number in [0,1)
+            for _ in range(self.nb_flats) :
+                random_nb = self.rng.random()  # picking random number in [0,1)
                 j = 1  # staring with one (additional) occupant
                 # the random number decides how many occupants are chosen (2-5)
                 while j <= 4 :
@@ -147,8 +149,8 @@ class Users():
             # choose random number of occupants (1-4) for each flat in the multi family house  (assumption)
 
             # loop over all flats of current multi family house
-            for j in range(self.nb_flats) :
-                random_nb = rd.random()  # picking random number in [0,1)
+            for _ in range(self.nb_flats) :
+                random_nb = self.rng.random()  # picking random number in [0,1)
                 k = 1
                 # the random number decides how many occupants are chosen (1-5)
                 while k <= 4 :
@@ -161,8 +163,8 @@ class Users():
             # choose random number of occupants (1-4) for each flat in the apartment block  (assumption)
 
             # loop over all flats of current multi family house
-            for j in range(self.nb_flats):
-                random_nb = rd.random()  # picking random number in [0,1)
+            for _ in range(self.nb_flats):
+                random_nb = self.rng.random()  # picking random number in [0,1)
                 k = 1
                 # the random number decides how many occupants are chosen (1-5)
                 while k <= 4 :
@@ -170,7 +172,6 @@ class Users():
                         self.nb_occ.append(k)
                         break
                     k += 1
-
 
     def generate_annual_el_consumption(self):
         """
@@ -207,19 +208,19 @@ class Users():
         for j in range(self.nb_flats):
             if self.building == "SFH":
                 annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                self.annual_el_demand[j] = self.rng.gauss(annual_el_demand_temp,
                                                          annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
             if self.building == "TH":
                 annual_el_demand_temp = standard_consumption["SFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                self.annual_el_demand[j] = self.rng.gauss(annual_el_demand_temp,
                                                          annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
             if self.building == "MFH":
                 annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                self.annual_el_demand[j] = self.rng.gauss(annual_el_demand_temp,
                                                  annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
             if self.building == "AB":
                 annual_el_demand_temp = standard_consumption["MFH"][self.nb_occ[j]]
-                self.annual_el_demand[j] = rd.gauss(annual_el_demand_temp,
+                self.annual_el_demand[j] = self.rng.gauss(annual_el_demand_temp,
                                                  annual_el_demand_temp * 0.10)  # assumption: standard deviation 10% of mean value
 
 
@@ -241,7 +242,7 @@ class Users():
         """
 
         for j in range(self.nb_flats):
-            random_nb = rd.random()
+            random_nb = self.rng.random()
             self.lighting_index.append(int(random_nb * 100))
 
 
