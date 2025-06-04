@@ -65,7 +65,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="modules.html">Classes and internal functions</a></li>
-<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="EXAMPLES.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="about/index.html">About DistrictGenerator</a></li>
 </ul>
 
@@ -140,7 +140,7 @@ with the flexibility of selecting different variants, given the tool’s rapid r
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="o">-</span><span class="n">e</span> <span class="n">districtgenerator</span>
 </pre></div>
 </div>
-<p>Once you have installed the DistrictGenerator, you can check the <a class="reference internal" href="examples.html"><span class="std std-doc">examples</span></a>
+<p>Once you have installed the DistrictGenerator, you can check the <a class="reference internal" href="EXAMPLES.html"><span class="std std-doc">examples</span></a>
 to learn how to use the different components.</p>
 </section>
 <section id="minimum-manual-required-input-data">
@@ -229,13 +229,44 @@ folder. The unit of the demand profiles is watt.</p>
 </section>
 <section id="running-examples-for-functional-testing">
 <h2>Running examples for functional testing<a class="headerlink" href="#running-examples-for-functional-testing" title="Link to this heading"></a></h2>
-<p>Once you have installed the DistrictGenerator, you can check the <a class="reference internal" href="examples.html"><span class="std std-doc">examples</span></a>
+<p>Once you have installed the DistrictGenerator, you can check the <a class="reference internal" href="EXAMPLES.html"><span class="std std-doc">examples</span></a>
 to learn how to use the different components.</p>
-<p>To test the tool’s executability, run <a class="reference external" href="https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests">test_examples.py</a>  in the tests folder.
-This functional testing checks the entire chain of the tool, from data input and
-initialization to the output of the calculated profiles. It does not correspond to a
-test of the functional units of the entire process. This  functional testing is based
-on the examples automatically executed one after another. </p>
+<p>To validate the executability and functionality of the tool, we provide a series of
+automated functional tests located in the tests folder(<a class="reference external" href="https://github.com/RWTH-EBC/districtgenerator/tree/JOSS_submission/tests">test_examples.py</a>).
+These tests sequentially execute the examples provided in the project and verify
+that all steps—from data initialization to the generation of demand profiles—run without
+errors and return meaningful outputs.</p>
+<p>The functional tests are implemented using Python’s built-in unittest framework. Each
+example script is imported and executed, and the returned data structures are checked for
+correctness. This ensures that all main processing steps of the
+DistrictGenerator pipeline remain intact after modifications.</p>
+<p>The tests verify the full workflow by generating demand profiles for a fixed set of 12 buildings.
+The selection of the buildings was made to represent a wide variety of configurations: all major
+building types are included (single-family houses, terraced houses, multi-family houses, and
+apartment blocks), with all three retrofit states (existing, usual, and advanced refurbishment).
+The construction years span from old buildings to new constructions, and the floor areas correspond
+to the “Reference Floor Area” values given by the TABULA archetypes.</p>
+<p>To allow reproducible outputs despite inherent randomness in parts of the modeling(especially
+occupant behavior), fixed seeds are applied to the internal random number generators. However,
+the stochastic occupancy model from the richardsonpy tool—which governs household presence and
+activity—is not externally controllable. As a result, complete determinism is not achievable.</p>
+<p>To address the stochastic nature of the demand generation process—particularly due to the randomly
+generated occupancy profiles—the expected values for heating and domestic hot water (DHW) demands
+were determined by performing multiple simulation runs per building. Although the input data remains
+fixed, internal randomness (especially from the richardsonpy occupancy model) leads to small
+variations in each run. By executing the same setup several times and calculating the mean values,
+we derived stable expected values that represent typical outcomes under stochastic conditions.
+For electricity demand, we used values from an external source: the <a class="reference external" href="https://www.stromspiegel.de/stromverbrauch-versteh">Stromspiegel</a>. These statistical values reflect
+typical annual electricity consumption in German households and serve as benchmarks for
+our tests.</p>
+<p>In the test, the output of each building is compared to its corresponding expected value. A
+tolerance of ±10% is applied. This tolerance is intentionally chosen to be wide enough to account for the remaining
+variability after seeding, yet narrow enough to detect significant deviations in output caused
+by changes to the tool itself or to any of the external packages it depends on.</p>
+<p>This approach enables a robust validation of the overall system behavior, ensuring
+that, despite internal stochastic variations, the DistrictGenerator produces consistent and
+plausible outputs. It provides a robust basis for verifying the DistrictGenerator’s
+core capabilities and helps detect unintended changes during further development.</p>
 </section>
 <section id="how-to-contribute">
 <h2>How to contribute<a class="headerlink" href="#how-to-contribute" title="Link to this heading"></a></h2>
@@ -252,7 +283,7 @@ a reviewer before merging. Once review is finished, you can merge.</p>
 <li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/digitale-energie-quartiere/~obome/schoelzel-joel/?allou=1">Joel Schölzel</a> (corresponding)</p></li>
 <li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Team6/~scaj/Beckhoelter-Tobias/">Tobias Beckhölter</a></p></li>
 <li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/E-ON-ERC-EBC/Das-Institut/Mitarbeiter/Digitale-Energie-Quartiere/~beoyus/Wueller-Carla/">Carla Wüller</a></p></li>
-<li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/team6/~birwyf/hamze-rawad/">Rawad Hamze</a></p></li>
+<li><p><a class="reference external" href="https://www.ebc.eonerc.rwth-aachen.de/cms/e-on-erc-ebc/das-institut/mitarbeiter/team6/~birwyf/hamze-rawad/?lidx=1">Rawad Hamze</a></p></li>
 </ul>
 </section>
 <section id="alumni">
@@ -283,7 +314,7 @@ Simulation and Environmental Impact of Energy Systems.</p></li>
 <h2>License<a class="headerlink" href="#license" title="Link to this heading"></a></h2>
 <p>The DistrictGenerator is released by RWTH Aachen University, E.ON Energy
 Research Center, Institute for Energy Efficient Buildings and Indoor Climate,
-under the <a class="reference internal" href="about/license.html"><span class="std std-doc">MIT License</span></a>.</p>
+under the <a class="reference internal" href="about/LICENSE.html"><span class="std std-doc">MIT License</span></a>.</p>
 </section>
 <section id="acknowledgements">
 <h2>Acknowledgements<a class="headerlink" href="#acknowledgements" title="Link to this heading"></a></h2>
