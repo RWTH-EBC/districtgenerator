@@ -661,8 +661,10 @@ class Datahandler:
                                   "Heat limit heat load in W"),
         }
         
-        if thick_req:
-            data_dict['thick_req'] = (thick_req, "Insulation thickness required in m (wall, roof, floor)")
+        if thick_req:       
+            data_dict['wall_thick'] = (thick_req[:1], "Insulation thickness required in m (wall)")
+            data_dict['roof_thick'] = (thick_req[1:2], "Insulation thickness required in m (roof)")
+            data_dict['floor_thick'] = (thick_req[2:], "Insulation thickness required in m (floor)")
 
         excel_file = os.path.join(path, name + '.xlsx')
         with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
