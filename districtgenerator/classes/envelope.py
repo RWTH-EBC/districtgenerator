@@ -71,8 +71,6 @@ class Envelope:
         self.loadParams()
         self.loadComponentProperties(prj, u_values, calcThick)
         self.loadAreas(prj)
-        # Todo: enable Code Negar
-        # self.compute_insulation_thickness()
 
     def loadParams(self):
         """
@@ -532,7 +530,6 @@ class Envelope:
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
 
 
-## Code from Negar
     def compute_insulation_thickness(self, target_U_values, insulation_lambda: float = 0.04):
         """
         Calculates existing thickness and required insulation to meet target U-values.
@@ -551,9 +548,6 @@ class Envelope:
         insulation_needed : dict
             Extra insulation to reach target U-values [m]
         """
-        # todo: fix this if needed. This is the code that Negar provided to calculate the insulation thickness
-        # check if the u_value import is correct and the insulation is actually calculated per scenario
-        # technically the calculations should be correct. If any values are not found let me know
         thickness_existing = {}
         insulation_needed = []
 
@@ -572,7 +566,7 @@ class Envelope:
 
             insulation_needed.append(insulation_thickness)
 
-        return insulation_needed # todo: this needs to be in the xlsx under tab -> roof_ins, wall_ins, floor_ins
+        return insulation_needed
 
     def calcHeatLoad(self, site, method="design"):
         """

@@ -482,8 +482,8 @@ class Datahandler:
                 building["user"].nb_main_rooms
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+            building = building.copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
-
 
     def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -662,7 +662,9 @@ class Datahandler:
         }
         
         if thick_req:
-            data_dict['thick_req'] = (thick_req, "Insulation thickness required in m (wall, roof, floor)")
+            data_dict['wall_ins'] = ([thick_req[0]], "Insulation thickness required in m (wall)")
+            data_dict['roof_ins'] = ([thick_req[1]], "Insulation thickness required in m (roof)")
+            data_dict['floor_ins'] = ([thick_req[2]], "Insulation thickness required in m (floor)")
 
         excel_file = os.path.join(path, name + '.xlsx')
         with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
