@@ -795,22 +795,56 @@ class Datahandler:
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
             # to compare areas for pv (gegeben vs berechnet)
-            building["capacities"] = bes_obj.designECS(building, self.site)
+            #building["capacities"] = bes_obj.designECS(building, self.site)
             # warum werden die capacities ausgerechnet?
+            # Das kann man raus kommentieren villeicht nutzt man es nicht mehr?
+
+
+            # Define the path for the new PV values log
+            pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
+
+            pv_row = {
+            "ID": self.scenario["gmlId"][0],
+            }
+
+            # Create a new dictionary for PV values logging
+            pv_row.update({
+                "calculated_area_roof": building["envelope"].A["opaque"]["roof"],  # Calculated value
+                "actual_area_roof": self.scenario["surfaceAreaSuitableForSolarPV"][0],  # Actual value
+                "calculated_beta": 35,  # Calculated value
+                "actual_beta": self.scenario["roofInclination"][0],  # Actual value
+                "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
+                "actual_gamma": self.scenario["cardinalDirection"][0]  # Actual value
+            })
+
+            try:
+                # Attempt to read the existing PV values log
+                df_existing_pv = pd.read_csv(pv_log_path)
+                # Concatenate the new row with the existing DataFrame
+                df_new_pv = pd.concat([df_existing_pv, pd.DataFrame([pv_row])], ignore_index=True)
+            except FileNotFoundError:
+                # If the file does not exist, create a new DataFrame
+                df_new_pv = pd.DataFrame([pv_row])
+
+            # Write the updated DataFrame to the new CSV log
+            df_new_pv.to_csv(pv_log_path, index=False)
 
             # calculate theoretical PV and STC generation
             # todo: in der funktion muss erstmal nichts ge#ndert werden, die Input Parameter müssen stimmen
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"], # todo: Dachfläche passt zu Datenplattform?
+                                        area_roof=self.scenario["surfaceAreaSuitableForSolarPV"][0], # todo: Dachfläche passt zu Datenplattform?
                                         # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[35], # todo: real ergänzen
+                                        beta=[self.scenario["roofInclination"][0]],
                                         # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]], # todo: real ergänzen?
+                                        gamma=[self.scenario["cardinalDirection"][0]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"],
                                         devices = self.decentral_device_data)
+            #   
+            # potentialPV = self.scenario["medianYearlySumEnergyPerM2"][0] * scenario["surfaceAreaSuitableForSolarPV"][0] ??
+            #
 
             # assign real PV generation to building
             building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
