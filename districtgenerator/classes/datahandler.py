@@ -482,7 +482,6 @@ class Datahandler:
                 building["user"].nb_main_rooms
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
-            building = building.copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True):
