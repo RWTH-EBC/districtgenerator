@@ -62,8 +62,7 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None,
-                 calcThick = False):
+                 env_path = None):
         """
         Constructor of Datahandler class.
 
@@ -91,7 +90,7 @@ class Datahandler:
         self.central_device_data = {}
         self.ecoData = {}
         self.counter = {}
-        self.calcThick = calcThick
+        self.calcThick = global_config.flags.calcThick
         self.srcPath = srcPath
         self.filePath = filePath
         self.gurobiConfig = global_config.gurobi,
@@ -539,7 +538,7 @@ class Datahandler:
                  building["user"].car, building["user"].nb_flats,
                  building["user"].nb_occ, building["envelope"].heatload,
                  building["envelope"].bivalent,
-                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
                                                                      os.path.join(self.resultPath, 'demands'))
                 #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
@@ -573,7 +572,7 @@ class Datahandler:
                                             path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"]+'_'+ self.conf_scenario_name,
                                                          path=os.path.join(self.resultPath, 'demands'))
                 building["user"].heat = heat
                 building["user"].cooling = cooling
@@ -799,22 +798,22 @@ class Datahandler:
             # warum werden die capacities ausgerechnet?
             # Das kann man raus kommentieren villeicht nutzt man es nicht mehr?
 
-
             # Define the path for the new PV values log
             pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
 
             pv_row = {
-            "ID": self.scenario["gmlId"][0],
+            "ID": building["buildingFeatures"]["gmlId"],
             }
 
             # Create a new dictionary for PV values logging
             pv_row.update({
                 "calculated_area_roof": building["envelope"].A["opaque"]["roof"],  # Calculated value
-                "actual_area_roof": self.scenario["surfaceAreaSuitableForSolarPV"][0],  # Actual value
+                "actual_area_roof": building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"],  # Actual value
                 "calculated_beta": 35,  # Calculated value
-                "actual_beta": self.scenario["roofInclination"][0],  # Actual value
+                "actual_beta": building["buildingFeatures"]["roofInclination"],  # Actual value
                 "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
-                "actual_gamma": self.scenario["cardinalDirection"][0]  # Actual value
+                "actual_gamma": building["buildingFeatures"]["cardinalDirection"],  # Actual value
+                "roofTroofShapeype": building["buildingFeatures"]["roofShape"]
             })
 
             try:
@@ -834,11 +833,11 @@ class Datahandler:
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        area_roof=self.scenario["surfaceAreaSuitableForSolarPV"][0], # todo: Dachfläche passt zu Datenplattform?
+                                        area_roof=building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"], # todo: Dachfläche passt zu Datenplattform?
                                         # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[self.scenario["roofInclination"][0]],
+                                        beta=[building["buildingFeatures"]["roofInclination"]],
                                         # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[self.scenario["cardinalDirection"][0]],
+                                        gamma=[building["buildingFeatures"]["cardinalDirection"]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"],
                                         devices = self.decentral_device_data)
@@ -859,11 +858,11 @@ class Datahandler:
             # optionally save generation profiles
             if saveGenerationProfiles == True:
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '.csv',
+                           + '/decentralPV_' + building["unique_name"] + '_'+ self.conf_scenario_name + '_' + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                            building["generationPV"],
                            delimiter=',')
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '.csv',
+                           + '/decentralSTC_' + building["unique_name"] + '_'+ self.conf_scenario_name + '_' + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                            building["generationSTC"],
                            delimiter=',')
 

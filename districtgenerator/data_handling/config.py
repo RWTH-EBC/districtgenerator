@@ -170,6 +170,12 @@ class scenarioName(BaseSettings):
         extra="allow" 
     )
 
+class flags(BaseSettings):
+    calcThick: bool = False
+    model_config = SettingsConfigDict(
+        extra="allow" 
+    )
+
 class GlobalConfig(BaseModel):
     location: 'LocationConfig'
     time: 'TimeConfig'
@@ -182,6 +188,7 @@ class GlobalConfig(BaseModel):
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
     scenario_name: scenarioName
+    flags: flags
 
 class Settings(BaseSettings):
     env_file: str = '.env.CONFIG'
@@ -211,7 +218,8 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         ehdo=EHDOConfig(_env_file=env_file),
         decentral=DecentralDeviceConfig(_env_file=env_file),
         central=CentralDeviceConfig(_env_file=env_file),
-        scenario_name = scenarioName(_env_file=env_file)
+        scenario_name = scenarioName(_env_file=env_file), 
+        flags=flags(_env_file=env_file)
     )
 
 if __name__ == "__main__":
