@@ -38,7 +38,7 @@ class DecentralDeviceConfig(BaseSettings):
     PV_gamma: float = 0.003
     PV_eta_inv: float = 0.96
     PV_eta_opt: float = 0.9
-    PV_P_nominal: float = 220.0
+    PV_P_nominal: float = 220.0 # Wp?
     PV_life_time: int = 25
     PV_inv_var: int = 340
     PV_cost_om: float = 0.05

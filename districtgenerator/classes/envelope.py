@@ -36,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None, extra: Optional[list]=None):
+    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None, extra = None, calcThick = False):
         """
         Constructor of Envelope class.
 
@@ -58,6 +58,8 @@ class Envelope:
         self.epsilon = {}
         self.alpha_Sc = {}
 
+        self.thick_req = []
+
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_type = construction_type
@@ -67,7 +69,7 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
-        self.loadComponentProperties(prj, u_values, extra)
+        self.loadComponentProperties(prj, u_values, extra, calcThick)
         self.loadAreas(prj)
         # Todo: enable Code Negar
         # self.compute_insulation_thickness()
@@ -174,7 +176,7 @@ class Envelope:
 
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
-    def loadComponentProperties(self, prj, u_values, extra=None):
+    def loadComponentProperties(self, prj, u_values, calcThick, extra=None):
         """
         Load component-specific material parameters.
 
@@ -460,6 +462,11 @@ class Envelope:
 
             df_new.to_csv(csv_log_path, index=False)
 
+            if calcThick:
+                self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
+            else:
+                self.thick_req = None
+
 
 
     def loadAreas(self, prj):
@@ -493,7 +500,7 @@ class Envelope:
             self.A["opaque"]["east"] = 0.0
 
         try:
-            self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]
+            self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]  # todo: ersetzen durch Fiware?
         except KeyError:
             self.A["opaque"]["roof"] = 1.2 * prj.buildings[
                 self.id].outer_area[-2]
@@ -544,9 +551,6 @@ class Envelope:
         insulation_needed : dict
             Extra insulation to reach target U-values [m]
         """
-        # todo: fix this if needed. This is the code that Negar provided to calculate the insulation thickness
-        # check if the u_value import is correct and the insulation is actually calculated per scenario
-        # technically the calculations should be correct. If any values are not found let me know
         thickness_existing = {}
         insulation_needed = {}
 
@@ -564,7 +568,7 @@ class Envelope:
             insulation_needed[comp] = max(0,
                                           d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
 
-        return insulation_needed # todo: this needs to be in the xlsx under tab -> roof_ins, wall_ins, floor_ins
+        return insulation_needed
 
     def calcHeatLoad(self, site, method="design"):
         """

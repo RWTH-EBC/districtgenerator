@@ -130,6 +130,8 @@ class BES:
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
+                # todo: check if PV is feasible
+                # tatsächliche oder theoretische Fläche kann direkt ausgegeben werden -> vergleich theoretischer mit berechneter Fläche!
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
                               * buildingFeatures["f_PV"] \
                               * buildingFeatures["PV"]
@@ -194,7 +196,8 @@ class CES:
         potentialPV, defaultSTC = \
             sun.calcPVAndSTCProfile(time=time,
                                     site=site,
-                                    area_roof=data.centralDevices["capacities"]["area"]["PV"],
+                                    devices=data.centralDevices, # todo: händisch hinzugefügt
+                                    area_roof=data.centralDevices["capacities"]["area"]["PV"], #todo: gegeben
                                     # In Germany, this is a roof pitch between 30 and 35 degrees
                                     beta=[35],
                                     # surface azimuth angles (Orientation to the south: 0°)
@@ -206,6 +209,7 @@ class CES:
         defaultPV, pontentialSTC = \
             sun.calcPVAndSTCProfile(time=time,
                                     site=site,
+                                    devices=data.centralDevices,  # todo: händisch hinzugefügt
                                     area_roof=data.centralDevices["capacities"]["area"]["STC"],
                                     # In Germany, this is a roof pitch between 30 and 35 degrees
                                     beta=[35],

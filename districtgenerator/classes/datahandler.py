@@ -60,10 +60,9 @@ class Datahandler:
                  scenario_name = "example",
                  resultPath = None,
                  scenario_file_path = None,
-                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))), # changed for use in dg
+                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None
-                 ):
+                 env_path = None):
         """
         Constructor of Datahandler class.
 
@@ -73,6 +72,7 @@ class Datahandler:
         """
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
+        self.conf_scenario_name = global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
             
@@ -90,6 +90,7 @@ class Datahandler:
         self.central_device_data = {}
         self.ecoData = {}
         self.counter = {}
+        self.calcThick = global_config.flags.calcThick
         self.srcPath = srcPath
         self.filePath = filePath
         self.gurobiConfig = global_config.gurobi,
@@ -364,15 +365,11 @@ class Datahandler:
                 building["buildingFeatures"] = self.scenario.loc[id]
                 building["gmlId"] = building["buildingFeatures"]["gmlId"]
 
-                # try
                 if not self.scenario.thermalTransmittanceFacade.empty:
-                    building["buildingFeatures"]["thermalTransmittance"] = (self.scenario.thermalTransmittanceFacade.iloc[id],
+                    self.u_values = (self.scenario.thermalTransmittanceFacade.iloc[id],
                                                         self.scenario.thermalTransmittanceRoof.iloc[id],
                                                         self.scenario.thermalTransmittanceFloor.iloc[id],
                                                         self.scenario.thermalTransmittanceWindow.iloc[id])
-                # except
-                else:
-                    building["buildingFeatures"]["thermalTransmittance"] = None
                 #print(self.scenario)                
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
@@ -458,7 +455,8 @@ class Datahandler:
                                             design_building_data=self.design_building_data,
                                             file_path=self.filePath,
                                             u_values=building["buildingFeatures"]["thermalTransmittance"],
-                                            extra = extra )
+                                            extra = extra,
+                                            calcThick = self.calcThick)
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
@@ -514,7 +512,7 @@ class Datahandler:
                                               path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
-                    self.saveProfiles(name= name if name else building["unique_name"],
+                    self.saveProfiles(name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
                                       elec=building["user"].elec,
                                       dhw= building["user"].dhw,
                                       occ= building["user"].occ,
@@ -525,6 +523,7 @@ class Datahandler:
                                       heatload= building["envelope"].heatload,
                                       bivalent= building["envelope"].bivalent,
                                       heatlimit= building["envelope"].heatlimit,
+                                      thick_req= building["envelope"].thick_req,
                                       path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
@@ -536,7 +535,7 @@ class Datahandler:
                  building["user"].car, building["user"].nb_flats,
                  building["user"].nb_occ, building["envelope"].heatload,
                  building["envelope"].bivalent,
-                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
                                                                      os.path.join(self.resultPath, 'demands'))
                 #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
@@ -565,12 +564,12 @@ class Datahandler:
                     idArray.append(building["gmlId"])
                     self.saveHeatingProfile(heat=building["user"].heat,
                                             cooling=building["user"].cooling,
-                                            name= name if name else building["unique_name"],
+                                            name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
                                             gmlId=idArray,
                                             path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"]+'_'+ self.conf_scenario_name,
                                                          path=os.path.join(self.resultPath, 'demands'))
                 building["user"].heat = heat
                 building["user"].cooling = cooling
@@ -626,7 +625,7 @@ class Datahandler:
             else:
                 print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, path):
+    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, thick_req, path):
         """
         Save profiles to csv.
 
@@ -642,6 +641,7 @@ class Datahandler:
         None.
         """
 
+
         other_data = [nb_flats, str(nb_occ)[1:-1], heatload, bivalent, heatlimit]
 
         data_dict = {
@@ -656,6 +656,9 @@ class Datahandler:
                                   "Bivalent heat load in W, "
                                   "Heat limit heat load in W"),
         }
+
+        if thick_req:
+            data_dict['thick_req'] = (thick_req, "Insulation thickness required in m (wall, roof, floor)")
 
         excel_file = os.path.join(path, name + '.xlsx')
         with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
@@ -787,20 +790,52 @@ class Datahandler:
                           decentral_device_data= self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = bes_obj.designECS(building, self.site)
+
+            # Define the path for the new PV values log
+            pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
+
+            pv_row = {
+            "ID": building["buildingFeatures"]["gmlId"],
+            }
+
+            # Create a new dictionary for PV values logging
+            pv_row.update({
+                "calculated_area_roof": building["envelope"].A["opaque"]["roof"],  # Calculated value
+                "actual_area_roof": building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"],  # Actual value
+                "calculated_beta": 35,  # Calculated value
+                "actual_beta": building["buildingFeatures"]["roofInclination"],  # Actual value
+                "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
+                "actual_gamma": building["buildingFeatures"]["cardinalDirection"],  # Actual value
+                "roofShape": building["buildingFeatures"]["roofShape"]
+            })
+
+            try:
+                # Attempt to read the existing PV values log
+                df_existing_pv = pd.read_csv(pv_log_path)
+                # Concatenate the new row with the existing DataFrame
+                df_new_pv = pd.concat([df_existing_pv, pd.DataFrame([pv_row])], ignore_index=True)
+            except FileNotFoundError:
+                # If the file does not exist, create a new DataFrame
+                df_new_pv = pd.DataFrame([pv_row])
+
+            # Write the updated DataFrame to the new CSV log
+            df_new_pv.to_csv(pv_log_path, index=False)
 
             # calculate theoretical PV and STC generation
             potentialPV, potentialSTC = \
                 sun.calcPVAndSTCProfile(time=self.time,
                                         site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"],
+                                        area_roof=building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"], # todo: Dachfläche passt zu Datenplattform?
                                         # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[35],
+                                        beta=[building["buildingFeatures"]["roofInclination"]],
                                         # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
+                                        gamma=[building["buildingFeatures"]["cardinalDirection"]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"],
                                         devices = self.decentral_device_data)
+            #
+            # potentialPV = self.scenario["medianYearlySumEnergyPerM2"][0] * scenario["surfaceAreaSuitableForSolarPV"][0] ??
+            #
 
             # assign real PV generation to building
             building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
@@ -815,11 +850,11 @@ class Datahandler:
             # optionally save generation profiles
             if saveGenerationProfiles == True:
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '.csv',
+                           + '/decentralPV_' + building["unique_name"] + '_'+ self.conf_scenario_name + '_' + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                            building["generationPV"],
                            delimiter=',')
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '.csv',
+                           + '/decentralSTC_' + building["unique_name"] + '_'+ self.conf_scenario_name + '_' + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                            building["generationSTC"],
                            delimiter=',')
 
