@@ -13,6 +13,7 @@ authors:
     orcid: 0009-0000-5053-3161
     affiliation: 1
   - name: Tobias Beckhölter
+    orcid: 0009-0006-6337-5434
     affiliation: 1
   - name: Carla Wüller
     orcid: 0009-0001-1761-4805
