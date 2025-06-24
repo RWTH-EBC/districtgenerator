@@ -813,7 +813,7 @@ class Datahandler:
                 "actual_beta": building["buildingFeatures"]["roofInclination"],  # Actual value
                 "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
                 "actual_gamma": building["buildingFeatures"]["cardinalDirection"],  # Actual value
-                "roofTroofShapeype": building["buildingFeatures"]["roofShape"]
+                "roofShape": building["buildingFeatures"]["roofShape"]
             })
 
             try:
