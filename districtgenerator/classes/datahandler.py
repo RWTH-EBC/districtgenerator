@@ -456,6 +456,14 @@ class Datahandler:
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
+            building["user"].occ = result["occ"],
+            building["user"].car = result["car"]
+            building["user"].gains = result["gains"]
+            building["user"].nb_flats = result["nb_flats"]
+            building["user"].nb_occ = result["nb_occ"]
+            building["envelope"] = result["envelope"]
+            building["clusteringData"] = result["clusteringData"]
+            building["buildingFeatures"].night_setback = result["night_setback"],
 
         print("Finished generating demands with multiprocessing!")
 
@@ -1165,12 +1173,21 @@ def generate_demands_worker_wrapper(args):
     """
     self_ref, building, calcUserProfiles, saveUserProfiles = args
     self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles)
+
     result = {
         "unique_name": building["unique_name"],
         "elec": building["user"].elec,
         'dhw': building["user"].dhw,
         'cooling': building["user"].cooling,
         'heating': building["user"].heat,
+        'occ': building["user"].occ,
+        'car': building["user"].car,
+        'gains': building["user"].gains,
+        'nb_flats': building["user"].nb_flats,
+        'nb_occ': building["user"].nb_occ,
+        'envelope': building["envelope"],
+        'clusteringData': building["clusteringData"],
+        'night_setback': building["buildingFeatures"].night_setback,
     }
 
     return result
