@@ -71,8 +71,6 @@ class Envelope:
         self.loadParams()
         self.loadComponentProperties(prj, u_values, extra, calcThick)
         self.loadAreas(prj)
-        # Todo: enable Code Negar
-        # self.compute_insulation_thickness()
 
     def loadParams(self):
         """
@@ -532,7 +530,6 @@ class Envelope:
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
 
 
-## Code from Negar
     def compute_insulation_thickness(self, target_U_values, insulation_lambda: float = 0.04):
         """
         Calculates existing thickness and required insulation to meet target U-values.
@@ -552,7 +549,7 @@ class Envelope:
             Extra insulation to reach target U-values [m]
         """
         thickness_existing = {}
-        insulation_needed = {}
+        insulation_needed = []
 
         for comp in ['wall', 'roof', 'floor']:
             R_material = sum(self.d['opaque'][comp] / self.Lambda['opaque'][comp])
@@ -565,8 +562,9 @@ class Envelope:
             U_target = target_U_values[comp]
             R_target = 1 / U_target if U_target > 0 else float('inf')
             d_ins = (R_target - R_total) * insulation_lambda
-            insulation_needed[comp] = max(0,
-                                          d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+            insulation_thickness = max(0, d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+
+            insulation_needed.append(insulation_thickness)
 
         return insulation_needed
 
