@@ -829,7 +829,7 @@ class Datahandler:
                         sun.calcPVAndSTCProfile(time=self.time,
                                                 site=self.site,
                                                 area_roof=roof_areas[i],
-                                                beta=[roof_inclinations[i]],
+                                                beta=[roof_inclinations[i] if roof_inclinations[i] != 0 else 35], # für Flachdach -> slope 35°
                                                 gamma=[cardinal_directions[i]],
                                                 usageFactorPV=building["buildingFeatures"]["f_PV"],
                                                 usageFactorSTC=building["buildingFeatures"]["f_STC"],
@@ -852,7 +852,7 @@ class Datahandler:
                     df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
                 except FileNotFoundError:
                     df_new_pv = pd.DataFrame(pv_rows)
-                df_new_pv.to_csv(pv_log_path, index=False)
+                df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
 
                 # Assign real generation to building
                 building["generationPV"] = total_potentialPV * building["buildingFeatures"]["PV"]
@@ -870,12 +870,12 @@ class Datahandler:
                                    + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                                    + building["buildingFeatures"]["gmlId"].replace(":", "_") + roof_id + '.csv',
                                    potentialPV * building["buildingFeatures"]["PV"],
-                                   delimiter=',')
+                                   delimiter=',',fmt='%.10f')
                         np.savetxt(os.path.join(self.resultPath, 'generation')
                                    + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                                    + building["buildingFeatures"]["gmlId"].replace(":", "_") + roof_id + '.csv',
                                    potentialSTC * building["buildingFeatures"]["STC"],
-                                   delimiter=',')
+                                   delimiter=',',fmt='%.10f')
             else:
                 continue
         #     # Define the path for the new PV values log
