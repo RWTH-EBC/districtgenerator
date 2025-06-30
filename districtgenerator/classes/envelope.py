@@ -69,7 +69,7 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
-        self.loadComponentProperties(prj, u_values, extra, calcThick)
+        self.loadComponentProperties(prj, u_values, calcThick, extra)
         self.loadAreas(prj)
 
     def loadParams(self):
