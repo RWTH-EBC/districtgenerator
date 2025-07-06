@@ -7,7 +7,6 @@ import sys
 import copy
 import datetime
 import numpy as np
-import time
 import openpyxl
 import pandas as pd
 from itertools import count
@@ -301,7 +300,6 @@ class Datahandler:
         filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
-
         # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
 
@@ -360,8 +358,7 @@ class Datahandler:
 
                 # Store features of the observed building
                 building["buildingFeatures"] = self.scenario.loc[id]
-                building["gmlId"] = building["buildingFeatures"]["gmlId"]
-                #print(self.scenario)                
+
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
                 # name is composed of building id, and building type
@@ -419,7 +416,7 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-            print(building["unique_name"])
+
             # convert short names into designation needed for TEASER
             building_type = \
                 bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
@@ -547,12 +544,9 @@ class Datahandler:
                                                     )
 
                 if saveUserProfiles:
-                    idArray = []
-                    idArray.append(building["gmlId"])
                     self.saveHeatingProfile(heat=building["user"].heat,
                                             cooling=building["user"].cooling,
                                             name=building["unique_name"],
-                                            gmlId=idArray,
                                             path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
@@ -649,7 +643,7 @@ class Datahandler:
                 df = pd.DataFrame(data)
                 df.to_excel(writer, sheet_name=sheet_name, index=False, header=header)
 
-    def saveHeatingProfile(self, heat, cooling, gmlId, name, path):
+    def saveHeatingProfile(self, heat, cooling, name, path):
         """
         Save heating demand to csv.
 
@@ -669,8 +663,6 @@ class Datahandler:
         with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
             cooling_df = pd.DataFrame(cooling)
             heating_df = pd.DataFrame(heat)
-            id = pd.DataFrame(gmlId)
-            id.to_excel(writer, sheet_name='id', index=False, header='id')
             cooling_df.to_excel(writer, sheet_name='cooling', index=False, header='Cooling in W')
             heating_df.to_excel(writer, sheet_name='heating', index=False, header='Heating in W')
 
