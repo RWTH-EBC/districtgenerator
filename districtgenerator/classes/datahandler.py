@@ -9,7 +9,6 @@ import datetime
 import multiprocessing
 
 import numpy as np
-import time
 import openpyxl
 import pandas as pd
 import random as rd
@@ -350,7 +349,6 @@ class Datahandler:
         filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
-
         # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
 
@@ -457,7 +455,7 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-            print(building["unique_name"])
+
             # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
@@ -808,7 +806,7 @@ class Datahandler:
             roof_ins_df.to_parquet(roof_ins_file, engine='pyarrow', index=False)
             floor_ins_df.to_parquet(floor_ins_file, engine='pyarrow', index=False)
 
-    def saveHeatingProfile(self, heat, cooling, gmlId, name, path):
+    def saveHeatingProfile(self, heat, cooling, name, path):
         """
         Save heating demand to parquet files in the specified directory.
 

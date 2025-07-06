@@ -543,7 +543,7 @@ class Envelope:
 
     def calcHeatLoad(self, site, night_setback, method="design"):
         """
-        Calculate design (nominal) heat load at norm outside temperature following DIN EN 12831-1 / DIN/TS 12831-1.
+        Calculate design (nominal) heat load at norm outside temperature
 
         Parameters
         ----------
@@ -562,8 +562,7 @@ class Envelope:
         f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
         # Reduction factor
         f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
-        # influence of groundwater neglected [DIN/TS 12831-1, 4.3.1]
-        G_w = 1.0
+        G_w = 1.0  # influence of groundwater neglected
 
         if method == "design":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +

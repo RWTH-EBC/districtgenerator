@@ -747,6 +747,101 @@ class Users:
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
 
+    def saveProfiles(self, unique_name, path):
+        """
+        Save profiles to csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        data_dict = {
+            'elec': (self.elec, "Electricity demand in W"),
+            'dhw': (self.dhw, "Drinking hot water in W"),
+            'occ': (self.occ, "Occupancy of persons"),
+            'gains': (self.gains, "Internal gains in W"),
+            'car': (self.car, "Electricity demand of EV in W")
+        }
+
+        excel_file = os.path.join(path, unique_name + '.xlsx')
+
+        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
+            for sheet_name, (data, header) in data_dict.items():
+                df = pd.DataFrame(data)
+                df.to_excel(writer, sheet_name=sheet_name, index=False, header=False)
+
+
+        '''
+        fields = [name + "_" + str(id), str(sum(self.nb_occ))]
+        with open(path + '/_nb_occupants.csv','a') as f :
+            writer = csv.writer(f)
+            writer.writerow(fields)
+        '''
+
+    def saveHeatingProfile(self, unique_name, path):
+        """
+        Save heating demand to csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, unique_name + '.xlsx')
+        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            cooling_df = pd.DataFrame(self.cooling)
+            heating_df = pd.DataFrame(self.heat)
+            cooling_df.to_excel(writer, sheet_name='cooling', index=False, header=False)
+            heating_df.to_excel(writer, sheet_name='heating', index=False, header=False)
+
+    def loadProfiles(self, unique_name, path):
+        """
+        Load profiles from csv.
+
+        Parameters
+        ----------
+        unique_name : string
+            Unique building name.
+        path : string
+            Results path.
+
+        Returns
+        -------
+        None.
+        """
+
+        excel_file = os.path.join(path, unique_name + '.xlsx')
+        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        def load_sheet_to_numpy(workbook, sheet_name):
+            sheet = workbook[sheet_name]
+            data = []
+            for row in sheet.iter_rows(values_only=True):
+                data.append(row[0])
+            return np.array(data)
+
+        self.elec = load_sheet_to_numpy(workbook, 'elec')
+        self.dhw = load_sheet_to_numpy(workbook, 'dhw')
+        self.occ = load_sheet_to_numpy(workbook, 'occ')
+        self.gains = load_sheet_to_numpy(workbook, 'gains')
+        self.car = load_sheet_to_numpy(workbook, 'car')
+
+        workbook.close()
+
 if __name__ == '__main__':
 
     test = Users(building="SFH",
