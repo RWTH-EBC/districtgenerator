@@ -626,7 +626,7 @@ class Datahandler:
 
     def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, thick_req, path):
         """
-        Save profiles to csv.
+        Save profiles to separate parquet files.
 
         Parameters
         ----------
@@ -640,36 +640,65 @@ class Datahandler:
         None.
         """
 
+        # Create the directory with the specified name
+        directory_path = os.path.join(path, name)
+        os.makedirs(directory_path, exist_ok=True)
 
-        other_data = [nb_flats, str(nb_occ)[1:-1], heatload, bivalent, heatlimit]
+        # Create DataFrames directly from the input variables
+        elec_df = pd.DataFrame(elec, columns=['elec'])
+        dhw_df = pd.DataFrame(dhw, columns=['dhw'])
+        occ_df = pd.DataFrame(occ, columns=['occ'])
+        gains_df = pd.DataFrame(gains, columns=['gains'])
+        car_df = pd.DataFrame(car, columns=['car'])
+        nb_flats_df = pd.DataFrame([nb_flats], columns=['nb_flats'])
+        nb_occ_df = pd.DataFrame([nb_occ], columns=['nb_occ'])
+        heatload_df = pd.DataFrame([heatload], columns=['heatload'])
+        bivalent_df = pd.DataFrame([bivalent], columns=['bivalent'])
+        heatlimit_df = pd.DataFrame([heatlimit], columns=['heatlimit'])
 
-        data_dict = {
-            'elec': (elec, "Electricity demand in W"),
-            'dhw': (dhw, "Drinking hot water in W"),
-            'occ': (occ, "Occupancy of persons"),
-            'gains': (gains, "Internal gains in W"),
-            'car': (car, "Electricity demand of EV in W"),
-            'other': (other_data, "Number of flats , "
-                                  "Number of occupants, "
-                                  "Design heat load in W, "
-                                  "Bivalent heat load in W, "
-                                  "Heat limit heat load in W"),
-        }
-
+        # If thick_req is provided, create DataFrames for insulation
         if thick_req:
-            data_dict['wall_ins'] = ([thick_req[0]], "Insulation thickness required in m (wall)")
-            data_dict['roof_ins'] = ([thick_req[1]], "Insulation thickness required in m (roof)")
-            data_dict['floor_ins'] = ([thick_req[2]], "Insulation thickness required in m (floor)")
+            wall_ins_df = pd.DataFrame([thick_req[0]], columns=['wall_ins'])
+            roof_ins_df = pd.DataFrame([thick_req[1]], columns=['roof_ins'])
+            floor_ins_df = pd.DataFrame([thick_req[2]], columns=['floor_ins'])
 
-        excel_file = os.path.join(path, name + '.xlsx')
-        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
-            for sheet_name, (data, header) in data_dict.items():
-                df = pd.DataFrame(data)
-                df.to_excel(writer, sheet_name=sheet_name, index=False, header=header)
+        # Define file paths for each DataFrame
+        elec_file = os.path.join(directory_path, 'elec.parquet')
+        dhw_file = os.path.join(directory_path, 'dhw.parquet')
+        occ_file = os.path.join(directory_path, 'occ.parquet')
+        gains_file = os.path.join(directory_path, 'gains.parquet')
+        car_file = os.path.join(directory_path, 'car.parquet')
+        nb_flats_file = os.path.join(directory_path, 'nb_flats.parquet')
+        nb_occ_file = os.path.join(directory_path, 'nb_occ.parquet')
+        heatload_file = os.path.join(directory_path, 'heatload.parquet')
+        bivalent_file = os.path.join(directory_path, 'bivalent.parquet')
+        heatlimit_file = os.path.join(directory_path, 'heatlimit.parquet')
+
+        # Save each DataFrame to Parquet, overwriting any existing files
+        elec_df.to_parquet(elec_file, engine='pyarrow', index=False)
+        dhw_df.to_parquet(dhw_file, engine='pyarrow', index=False)
+        occ_df.to_parquet(occ_file, engine='pyarrow', index=False)
+        gains_df.to_parquet(gains_file, engine='pyarrow', index=False)
+        car_df.to_parquet(car_file, engine='pyarrow', index=False)
+        nb_flats_df.to_parquet(nb_flats_file, engine='pyarrow', index=False)
+        nb_occ_df.to_parquet(nb_occ_file, engine='pyarrow', index=False)
+        heatload_df.to_parquet(heatload_file, engine='pyarrow', index=False)
+        bivalent_df.to_parquet(bivalent_file, engine='pyarrow', index=False)
+        heatlimit_df.to_parquet(heatlimit_file, engine='pyarrow', index=False)
+
+        # Save insulation DataFrames if they exist
+        if thick_req:
+            wall_ins_file = os.path.join(directory_path, 'wall_ins.parquet')
+            roof_ins_file = os.path.join(directory_path, 'roof_ins.parquet')
+            floor_ins_file = os.path.join(directory_path, 'floor_ins.parquet')
+
+            wall_ins_df.to_parquet(wall_ins_file, engine='pyarrow', index=False)
+            roof_ins_df.to_parquet(roof_ins_file, engine='pyarrow', index=False)
+            floor_ins_df.to_parquet(floor_ins_file, engine='pyarrow', index=False)
 
     def saveHeatingProfile(self, heat, cooling, gmlId, name, path):
         """
-        Save heating demand to csv.
+        Save heating demand to parquet files in the specified directory.
 
         Parameters
         ----------
@@ -683,18 +712,41 @@ class Datahandler:
         None.
         """
 
-        excel_file = os.path.join(path, name + '.xlsx')
-        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-            cooling_df = pd.DataFrame(cooling)
-            heating_df = pd.DataFrame(heat)
-            id = pd.DataFrame(gmlId)
-            id.to_excel(writer, sheet_name='id', index=False, header='id')
-            cooling_df.to_excel(writer, sheet_name='cooling', index=False, header='Cooling in W')
-            heating_df.to_excel(writer, sheet_name='heating', index=False, header='Heating in W')
+        # Create the directory path
+        directory_path = os.path.join(path, name)
+        os.makedirs(directory_path, exist_ok=True)
+
+        # Create DataFrames
+        cooling_df = pd.DataFrame(cooling, columns=['cooling'])
+        heating_df = pd.DataFrame(heat, columns=['heating'])
+        id_df = pd.DataFrame(gmlId, columns=['gmlId'])
+
+        # Define file paths for each DataFrame
+        cooling_file = os.path.join(directory_path, 'cooling.parquet')
+        heating_file = os.path.join(directory_path, 'heating.parquet')
+        id_file = os.path.join(directory_path, 'id.parquet')
+
+        # Append or create cooling DataFrame
+        if os.path.exists(cooling_file):
+            existing_cooling_df = pd.read_parquet(cooling_file, engine='pyarrow')
+            cooling_df = pd.concat([existing_cooling_df, cooling_df], ignore_index=True)
+        cooling_df.to_parquet(cooling_file, engine='pyarrow', index=False)
+
+        # Append or create heating DataFrame
+        if os.path.exists(heating_file):
+            existing_heating_df = pd.read_parquet(heating_file, engine='pyarrow')
+            heating_df = pd.concat([existing_heating_df, heating_df], ignore_index=True)
+        heating_df.to_parquet(heating_file, engine='pyarrow', index=False)
+
+        # Append or create id DataFrame
+        if os.path.exists(id_file):
+            existing_id_df = pd.read_parquet(id_file, engine='pyarrow')
+            id_df = pd.concat([existing_id_df, id_df], ignore_index=True)
+        id_df.to_parquet(id_file, engine='pyarrow', index=False)
 
     def loadProfiles(self, name, path):
         """
-        Load profiles from csv.
+        Load profiles from parquet files.
 
         Parameters
         ----------
@@ -705,38 +757,34 @@ class Datahandler:
 
         Returns
         -------
-        None.
+        tuple
+            Loaded profile data.
         """
 
-        excel_file = os.path.join(path, name + '.xlsx')
-        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        # Create the directory path
+        directory_path = os.path.join(path, name)
 
-        def load_sheet_to_numpy(workbook, sheet_name):
-            sheet = workbook[sheet_name]
-            data = []
-            for row in sheet.iter_rows(min_row=2, values_only=True):
-                data.append(row[0])
-            return np.array(data)
-
-        elec = load_sheet_to_numpy(workbook, 'elec')
-        dhw = load_sheet_to_numpy(workbook, 'dhw')
-        occ = load_sheet_to_numpy(workbook, 'occ')
-        gains = load_sheet_to_numpy(workbook, 'gains')
-        car = load_sheet_to_numpy(workbook, 'car')
-        other_data = load_sheet_to_numpy(workbook, 'other')
+        # Load each profile from its respective Parquet file
+        elec = pd.read_parquet(os.path.join(directory_path, 'elec.parquet'), engine='pyarrow')['elec'].to_numpy()
+        dhw = pd.read_parquet(os.path.join(directory_path, 'dhw.parquet'), engine='pyarrow')['dhw'].to_numpy()
+        occ = pd.read_parquet(os.path.join(directory_path, 'occ.parquet'), engine='pyarrow')['occ'].to_numpy()
+        gains = pd.read_parquet(os.path.join(directory_path, 'gains.parquet'), engine='pyarrow')['gains'].to_numpy()
+        car = pd.read_parquet(os.path.join(directory_path, 'car.parquet'), engine='pyarrow')['car'].to_numpy()
+        
+        # Load other data from the 'other' file
+        other_data = pd.read_parquet(os.path.join(directory_path, 'nb_flats.parquet'), engine='pyarrow')['nb_flats'].to_numpy()
         nb_flats = int(other_data[0])
-        nb_occ = np.fromstring(other_data[1], dtype=int, sep=',')
-        heatload = float(other_data[2])
-        bivalent = float(other_data[3])
-        heatlimit = float(other_data[4])
-
-        workbook.close()
+        nb_occ = pd.read_parquet(os.path.join(directory_path, 'nb_occ.parquet'), engine='pyarrow')['nb_occ'].to_numpy(dtype=int)
+        heatload = float(pd.read_parquet(os.path.join(directory_path, 'heatload.parquet'), engine='pyarrow')['heatload'].to_numpy()[0])
+        bivalent = float(pd.read_parquet(os.path.join(directory_path, 'bivalent.parquet'), engine='pyarrow')['bivalent'].to_numpy()[0])
+        heatlimit = float(pd.read_parquet(os.path.join(directory_path, 'heatlimit.parquet'), engine='pyarrow')['heatlimit'].to_numpy()[0])
 
         return elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit
 
+
     def loadHeatingProfiles(self, name, path):
         """
-        Load profiles from csv.
+        Load heating profiles from parquet files.
 
         Parameters
         ----------
@@ -747,23 +795,16 @@ class Datahandler:
 
         Returns
         -------
-        None.
+        tuple
+            Loaded heating and cooling data.
         """
 
-        excel_file = os.path.join(path, name + '.xlsx')
-        workbook = openpyxl.load_workbook(excel_file, data_only=True)
+        # Create the directory path
+        directory_path = os.path.join(path, name)
 
-        def load_sheet_to_numpy(workbook, sheet_name):
-            sheet = workbook[sheet_name]
-            data = []
-            for row in sheet.iter_rows(min_row=2, values_only=True):
-                data.append(row[0])
-            return np.array(data)
-
-        heat = load_sheet_to_numpy(workbook, 'heating')
-        cooling = load_sheet_to_numpy(workbook, 'cooling')
-
-        workbook.close()
+        # Load heating and cooling data from their respective Parquet files
+        heat = pd.read_parquet(os.path.join(directory_path, 'heating.parquet'), engine='pyarrow')['heating'].to_numpy()
+        cooling = pd.read_parquet(os.path.join(directory_path, 'cooling.parquet'), engine='pyarrow')['cooling'].to_numpy()
 
         return heat, cooling
 

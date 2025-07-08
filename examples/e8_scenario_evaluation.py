@@ -17,7 +17,7 @@ def example8_scenario_evaluation():
     data.initializeBuildings()
     data.generateEnvironment()
     data.generateBuildings()
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
+    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
     centralEnergySupply = False
     # Sizing of the selected devices
