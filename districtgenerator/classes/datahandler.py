@@ -726,23 +726,15 @@ class Datahandler:
         heating_file = os.path.join(directory_path, 'heating.parquet')
         id_file = os.path.join(directory_path, 'id.parquet')
 
-        # Append or create cooling DataFrame
-        if os.path.exists(cooling_file):
-            existing_cooling_df = pd.read_parquet(cooling_file, engine='pyarrow')
-            cooling_df = pd.concat([existing_cooling_df, cooling_df], ignore_index=True)
+        # Save cooling DataFrame, overwriting any existing file
         cooling_df.to_parquet(cooling_file, engine='pyarrow', index=False)
 
-        # Append or create heating DataFrame
-        if os.path.exists(heating_file):
-            existing_heating_df = pd.read_parquet(heating_file, engine='pyarrow')
-            heating_df = pd.concat([existing_heating_df, heating_df], ignore_index=True)
+        # Save heating DataFrame, overwriting any existing file
         heating_df.to_parquet(heating_file, engine='pyarrow', index=False)
 
-        # Append or create id DataFrame
-        if os.path.exists(id_file):
-            existing_id_df = pd.read_parquet(id_file, engine='pyarrow')
-            id_df = pd.concat([existing_id_df, id_df], ignore_index=True)
+        # Save id DataFrame, overwriting any existing file
         id_df.to_parquet(id_file, engine='pyarrow', index=False)
+
 
     def loadProfiles(self, name, path):
         """
