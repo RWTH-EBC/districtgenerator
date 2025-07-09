@@ -9,11 +9,11 @@ from pathlib import Path
 
 
 class LocationConfig(BaseSettings):
-    timeZone: float = 10 #1
+    timeZone: float = 1 #1
     albedo: float = 0.2
     TRYYear: str = 'TRY2015'
     TRYType: str = 'Jahr'
-    zip: str = '52078'
+    zip: str = '52062'
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] ={"Jahr", "Somm", "Wint"}
@@ -205,7 +205,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         env_file = settings.env_file
 
     os.environ["ENV_FILE"] = env_file
-    print(f'Using config: {os.environ["ENV_FILE"]}')
+    print(f'Using config: {os.environ["ENV_FILE"]}')  # todo: der lädt bei mir keine Configs ein!
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file),
