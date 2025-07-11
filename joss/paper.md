@@ -79,9 +79,6 @@ There are 16 choosable sites, which refer to the representative locations of the
 For every site, the user is able to select between warm, cold and normal TRYs. 
 Moreover, TRYs are available for 2015 and 2045, reflecting either current or future weather conditions.
 
-\setkeys{Gin}{width=.9\linewidth}
-![Usage of external tools and data sources to generate occupancy and demand profiles with the Districtgenerator.](Schema_QG.pdf)
-
 The `Districtgenerator` tool integrates multiple open-source tools and databases. 
 Figure 1 visualizes the dependencies of external tools and data with internal functions.
 The geometry and material properties of the buildings are determined based on the \href{https://github.com/RWTH-EBC/TEASER}{TEASER} Python package [@remmen_teaser_2018] with data from the \href{https://webtool.building-typology.eu}{TABULA WebTool} [@loga_deutsche_2015]. 
@@ -96,6 +93,9 @@ The electricity and occupancy profiles serve as input for a time-resolved intern
 Additionally, the occupancy profiles are needed for domestic hot water profile generation, for which functions from the \href{https://github.com/RWTH-EBC/pyCity}{pyCity} tool [@schiefelbein_automated_2019] are utilized. 
 Finally, the static building data, as well as the time-resolved weather and internal gain data, are included in the space heating profile generation.
 These are computed by means of a 5R1C-substitution model according to @din_en_iso_13790, using the simplified hourly method.
+
+\setkeys{Gin}{width=.9\linewidth}
+![Usage of external tools and data sources to generate occupancy and demand profiles with the Districtgenerator.](Schema_QG.pdf)
 
 All profiles generated can be saved in a customizable format, with CSV files output by default.
 The `Districtgenerator` also provides various plotting functions. 
