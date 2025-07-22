@@ -576,7 +576,7 @@ class Datahandler:
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
-                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
+                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False, generateDemands=True):
         """
         All in one solution for district and demand generation.
 
@@ -610,7 +610,8 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
+        if generateDemands:
+            self.generateDemands(name, calcUserProfiles, saveUserProfiles)
         if designDevs:
             self.designDevicesComplete(saveGenProfiles)
         if clustering:
@@ -800,7 +801,7 @@ class Datahandler:
 
         return heat, cooling
 
-    def designDecentralDevices(self, saveGenerationProfiles=True):
+    def designDecentralDevices(self, saveGenerationProfiles=True, standard=False):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
@@ -824,93 +825,122 @@ class Datahandler:
                           decentral_device_data= self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
+            if not standard:
+                # Parse |-separated strings into lists
+                if not pd.isna(building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"]):
+                    roof_areas = [float(area) for area in
+                                building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"].split("|")]
+                    roof_inclinations = [float(beta) for beta in building["buildingFeatures"]["roofInclination"].split("|")]
+                    cardinal_directions = [float(gamma) for gamma in
+                                        building["buildingFeatures"]["cardinalDirection"].split("|")]
+                    roof_shapes = building["buildingFeatures"]["roofShape"].split("|")
 
-            # Parse |-separated strings into lists
-            if not pd.isna(building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"]):
-                roof_areas = [float(area) for area in
-                              building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"].split("|")]
-                roof_inclinations = [float(beta) for beta in building["buildingFeatures"]["roofInclination"].split("|")]
-                cardinal_directions = [float(gamma) for gamma in
-                                       building["buildingFeatures"]["cardinalDirection"].split("|")]
-                roof_shapes = building["buildingFeatures"]["roofShape"].split("|")
+                    # Initialize total potentials
+                    total_potentialPV = None
+                    total_potentialSTC = None
 
-                # Initialize total potentials
-                total_potentialPV = None
-                total_potentialSTC = None
+                    pv_rows = []
+                    individual_profiles = []
 
-                pv_rows = []
-                individual_profiles = []
+                    pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
 
-                pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
+                    # Calculate and save for each roof surface
+                    for i in range(len(roof_areas)):
+                        # Create PV log entry for this roof
+                        pv_row = {
+                            "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
+                            "calculated_area_roof": building["envelope"].A["opaque"]["roof"],  # Calculated value
+                            "actual_area_roof": roof_areas[i],  # Actual value
+                            "calculated_beta": 35,  # Calculated value
+                            "actual_beta": roof_inclinations[i],  # Actual value
+                            "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
+                            "actual_gamma": cardinal_directions[i],  # Actual value
+                            "roofShape": roof_shapes[i]
+                        }
+                        pv_rows.append(pv_row)
 
-                # Calculate and save for each roof surface
-                for i in range(len(roof_areas)):
-                    # Create PV log entry for this roof
-                    pv_row = {
-                        "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
-                        "calculated_area_roof": building["envelope"].A["opaque"]["roof"],  # Calculated value
-                        "actual_area_roof": roof_areas[i],  # Actual value
-                        "calculated_beta": 35,  # Calculated value
-                        "actual_beta": roof_inclinations[i],  # Actual value
-                        "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
-                        "actual_gamma": cardinal_directions[i],  # Actual value
-                        "roofShape": roof_shapes[i]
-                    }
-                    pv_rows.append(pv_row)
+                        
+                        potentialPV, potentialSTC = \
+                            sun.calcPVAndSTCProfile(time=self.time,
+                                                    site=self.site,
+                                                    area_roof=roof_areas[i],
+                                                    beta=[roof_inclinations[i] if roof_inclinations[i] != 0 else 35], # für Flachdach -> slope 35°
+                                                    gamma=[cardinal_directions[i]],
+                                                    usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                                    usageFactorSTC=building["buildingFeatures"]["f_STC"],
+                                                    devices=self.decentral_device_data)
+                        
+                        # Store individual profiles
+                        individual_profiles.append((potentialPV, potentialSTC))
 
-                    potentialPV, potentialSTC = \
-                        sun.calcPVAndSTCProfile(time=self.time,
-                                                site=self.site,
-                                                area_roof=roof_areas[i],
-                                                beta=[roof_inclinations[i] if roof_inclinations[i] != 0 else 35], # für Flachdach -> slope 35°
-                                                gamma=[cardinal_directions[i]],
-                                                usageFactorPV=building["buildingFeatures"]["f_PV"],
-                                                usageFactorSTC=building["buildingFeatures"]["f_STC"],
-                                                devices=self.decentral_device_data)
+                        # Sum up the potentials for building data
+                        if total_potentialPV is None:
+                            total_potentialPV = potentialPV
+                            total_potentialSTC = potentialSTC
+                        else:
+                            total_potentialPV += potentialPV
+                            total_potentialSTC += potentialSTC
 
-                    # Store individual profiles
-                    individual_profiles.append((potentialPV, potentialSTC))
+                        # Save PV log entries
+                    try:
+                        df_existing_pv = pd.read_csv(pv_log_path)
+                        df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
+                    except FileNotFoundError:
+                        df_new_pv = pd.DataFrame(pv_rows)
+                    df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
 
-                    # Sum up the potentials for building data
-                    if total_potentialPV is None:
-                        total_potentialPV = potentialPV
-                        total_potentialSTC = potentialSTC
-                    else:
-                        total_potentialPV += potentialPV
-                        total_potentialSTC += potentialSTC
+                    # Assign real generation to building
+                    building["generationPV"] = total_potentialPV * building["buildingFeatures"]["PV"]
+                    building["generationSTC"] = total_potentialSTC * building["buildingFeatures"]["STC"]
 
-                    # Save PV log entries
-                try:
-                    df_existing_pv = pd.read_csv(pv_log_path)
-                    df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
-                except FileNotFoundError:
-                    df_new_pv = pd.DataFrame(pv_rows)
-                df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
+                    # clustering data
+                    # building["clusteringData"]["potentialPV"] = total_potentialPV
+                    # building["clusteringData"]["potentialSTC"] = total_potentialSTC
 
-                # Assign real generation to building
-                building["generationPV"] = total_potentialPV * building["buildingFeatures"]["PV"]
-                building["generationSTC"] = total_potentialSTC * building["buildingFeatures"]["STC"]
+                    # Save individual roof profiles using stored profiles
+                    if saveGenerationProfiles:
+                        for i, (potentialPV, potentialSTC) in enumerate(individual_profiles):
+                            roof_id = f"_roof_{i + 1}"
+                            np.savetxt(os.path.join(self.resultPath, 'generation')
+                                    + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                                    + building["buildingFeatures"]["gmlId"].replace(":", "_") + roof_id + '.csv',
+                                    potentialPV * building["buildingFeatures"]["PV"],
+                                    delimiter=',',fmt='%.10f')
+                            np.savetxt(os.path.join(self.resultPath, 'generation')
+                                    + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                                    + building["buildingFeatures"]["gmlId"].replace(":", "_") + roof_id + '.csv',
+                                    potentialSTC * building["buildingFeatures"]["STC"],
+                                    delimiter=',',fmt='%.10f')
+                else:
+                    continue
 
-                # clustering data
-                # building["clusteringData"]["potentialPV"] = total_potentialPV
-                # building["clusteringData"]["potentialSTC"] = total_potentialSTC
+            elif standard:
+                potentialPV, potentialSTC = \
+                    sun.calcPVAndSTCProfile(time=self.time,
+                                            site=self.site,
+                                            area_roof=building["envelope"].A["opaque"]["roof"],
+                                            beta=[35], # In Germany, this is a roof pitch between 30 and 35 degrees
+                                            gamma=[building["buildingFeatures"]["gamma_PV"]],  # surface azimuth angles (Orientation to the south: 0
+                                            usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                            usageFactorSTC=building["buildingFeatures"]["f_STC"],
+                                            devices = self.decentral_device_data)
+                # assign real PV generation to building
+                building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
+                # assign real STC generation to building
+                building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
 
-                # Save individual roof profiles using stored profiles
-                if saveGenerationProfiles:
-                    for i, (potentialPV, potentialSTC) in enumerate(individual_profiles):
-                        roof_id = f"_roof_{i + 1}"
-                        np.savetxt(os.path.join(self.resultPath, 'generation')
-                                   + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
-                                   + building["buildingFeatures"]["gmlId"].replace(":", "_") + roof_id + '.csv',
-                                   potentialPV * building["buildingFeatures"]["PV"],
-                                   delimiter=',',fmt='%.10f')
-                        np.savetxt(os.path.join(self.resultPath, 'generation')
-                                   + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
-                                   + building["buildingFeatures"]["gmlId"].replace(":", "_") + roof_id + '.csv',
-                                   potentialSTC * building["buildingFeatures"]["STC"],
-                                   delimiter=',',fmt='%.10f')
-            else:
-                continue
+                # optionally save generation profiles
+                if saveGenerationProfiles == True:
+                    np.savetxt(os.path.join(self.resultPath, 'generation')
+                            + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                            + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
+                            building["generationPV"],
+                            delimiter=',')
+                    np.savetxt(os.path.join(self.resultPath, 'generation')
+                            + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                            + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
+                            building["generationSTC"],
+                            delimiter=',')
         #     # Define the path for the new PV values log
         #     pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
 #
