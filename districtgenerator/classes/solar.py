@@ -453,8 +453,11 @@ class Sun:
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
 
-    def calcPVAndSTCProfile(self, time, site, area_roof, devices, beta=35, gamma=0, usageFactorPV=0.4,
-                            usageFactorSTC=0.2):
+    def calcPVAndSTCProfile(self, time, site, areas, devices, betas, gammas,
+                            usageFactorPV=0.4, usageFactorSTC=0.2):
+        num_segments = len(areas)
+        assert len(betas) == num_segments and len(gammas) == num_segments, \
+            "areas, betas, and gammas must be the same length"
         """
         Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
 
@@ -489,68 +492,60 @@ class Sun:
         generation_STC : array_like
             Power profiles of STCs. With given weather data as input the unit is [W].
         """
-
-        # get solar irradiance on PV plant surface
-        SunRad = self.getSolarGains(initialTime=0,
-                                    timeDiscretization=time["timeResolution"],
-                                    timeSteps=time["timeSteps"],
-                                    timeZone=site["timeZone"],
-                                    location=site["location"],
-                                    altitude=site["altitude"],
-                                    beta=beta,
-                                    gamma=gamma,
-                                    beamRadiation=site["SunDirect"],
-                                    diffuseRadiation=site["SunDiffuse"],
-                                    albedo=site["albedo"])
-
-        # profile of the ambient temperature
+        time_steps = time["timeSteps"]
         temperatureProfile = site["T_e"]
 
-        #devices = {}
-        #with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
-        #    jsonData = json.load(json_file)
-        #    for subData in jsonData:
-        #        devices[subData["abbreviation"]] = {}
-        #        for subsubData in subData["specifications"]:
-        #            devices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+        # Initialize total generation profiles
+        generation_PV_total = np.zeros(time_steps)
+        generation_STC_total = np.zeros(time_steps)
 
-        # calculate time variant PV efficiency
-        eta_PV = np.zeros(time["timeSteps"])
-        for t in range(time["timeSteps"]):
-            # source of formula:
-            # 'Temperature Dependent Photovoltaic (PV) Efficiency and Its Effect on PV Production in the World
-            #  – A Review' , page 313, formula 5
-            # by Dubey, Swapnil; Sarvaiya, Jatin Narotam; Seshadri, Bharath - 2013
-            eta_PV[t] = devices["PV"]["eta_el_ref"] * \
-                        (
-                            1 - devices["PV"]["gamma"] * \
-                            (
-                                temperatureProfile[t] - devices["PV"]["t_cell_ref"]
-                                + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
-                                * (SunRad[0][t] / devices["PV"]["G_noct"])
-                            )
-                        )
+        for i in range(num_segments):
+            area = areas[i]
+            beta = betas[i]
+            gamma = gammas[i]
 
-        # calculate PV power
-        generation_PV = np.zeros(time["timeSteps"])
-        for t in range(time["timeSteps"]):
-            generation_PV[t] = SunRad[0][t] * eta_PV[t] * usageFactorPV * area_roof
+            # 1. Solar irradiance for this roof segment
+            SunRad = self.getSolarGains(
+                initialTime=0,
+                timeDiscretization=time["timeResolution"],
+                timeSteps=time_steps,
+                timeZone=site["timeZone"],
+                location=site["location"],
+                altitude=site["altitude"],
+                beta=[beta],
+                gamma=[gamma],
+                beamRadiation=site["SunDirect"],
+                diffuseRadiation=site["SunDiffuse"],
+                albedo=site["albedo"]
+            )
 
-        # efficiency of solar thermal collectors (STC)
-        temp_diff = np.zeros_like(temperatureProfile)
-        for t in range(time["timeSteps"]):
-            temp_diff[t] = devices["STC"]["T_flow"] - temperatureProfile[t]
+            G_t = SunRad[0]  # total irradiance on this segment
 
-        eta_STC = np.zeros_like(SunRad[0])
-        eta_STC[SunRad[0] > 0] = (devices["STC"]["zero_loss"]
-                                  - devices["STC"]["first_order"] * temp_diff[SunRad[0] > 0] / SunRad[0][SunRad[0] > 0]
-                                  - devices["STC"]["second_order"] * temp_diff[SunRad[0] > 0] ** 2
-                                  / SunRad[0][SunRad[0] > 0])
-        eta_STC[eta_STC <= 0.01] = 0
+            # 2. PV efficiency (nonlinear, depends on irradiance and temp)
+            eta_PV = np.zeros(time_steps)
+            for t in range(time_steps):
+                eta_PV[t] = devices["PV"]["eta_el_ref"] * (
+                    1 - devices["PV"]["gamma"] * (
+                        temperatureProfile[t] - devices["PV"]["t_cell_ref"]
+                        + (devices["PV"]["t_cell_noct"] - temperatureProfile[t]) * (G_t[t] / devices["PV"]["G_noct"])
+                    )
+                )
 
-        # calculate STC power
-        generation_STC = np.zeros(time["timeSteps"])
-        for t in range(time["timeSteps"]):
-            generation_STC[t] = SunRad[0][t] * eta_STC[t] * usageFactorSTC * area_roof
+            # 3. PV power
+            generation_PV_total += G_t * eta_PV * usageFactorPV * area
 
-        return generation_PV, generation_STC
+            # 4. STC efficiency
+            temp_diff = devices["STC"]["T_flow"] - temperatureProfile
+            eta_STC = np.zeros_like(G_t)
+            valid = G_t > 0
+            eta_STC[valid] = (
+                devices["STC"]["zero_loss"]
+                - devices["STC"]["first_order"] * temp_diff[valid] / G_t[valid]
+                - devices["STC"]["second_order"] * temp_diff[valid] ** 2 / G_t[valid]
+            )
+            eta_STC[eta_STC <= 0.01] = 0
+
+            # 5. STC power
+            generation_STC_total += G_t * eta_STC * usageFactorSTC * area
+
+        return generation_PV_total, generation_STC_total
