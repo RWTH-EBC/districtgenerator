@@ -344,7 +344,7 @@ def run_opti_central(model, data, cluster):
                 model.addConstr(eh_heat[device][t] == 0)
         else:
             for device in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
-                model.addConstr(eh_heat[device][t] <= energyHubData["capacities"]["heat_kW"][device] * 10000) # W
+                model.addConstr(eh_heat[device][t] <= energyHubData["capacities"]["heat_kW"][device] * 1000) # W
             model.addConstr(eh_heat["STC"][t] <= energyHubData["generation"]["STC_cluster"][cluster][t],
                         name="STC_generation_energyHub_" + str(t))
 
@@ -648,8 +648,8 @@ def run_opti_central(model, data, cluster):
 
     # Electricity balance neighborhood (Power balance in Watt)
     for t in time_steps:
-        model.addConstr(residual["feed"][t] + power["from_grid"][t] + eh_power["from_grid"][t]
-                        == residual["power"][t] + power["to_grid"][t] + eh_power["to_grid"][t],
+        model.addConstr(residual["feed"][t] + power["from_grid"][t] + eh_power["to_grid"][t]
+                        == residual["power"][t] + power["to_grid"][t] + eh_power["from_grid"][t],
                         name="Elec_balance_neighborhood"+ str(t))
         #model.addConstr(power["to_grid"][t] == residual["feed"][t])
         model.addConstr(power["from_grid"][t] <= yTrafo[t] * 10000000,     name="Binary1_" + str(t))
