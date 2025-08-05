@@ -584,8 +584,8 @@ def run_optim(data, devs, param, dem, result_dict):
         result_dict["tac"] = int(obj["tac"].X)      # EUR/a
         result_dict["co2"] = int(obj["co2"].X/1000) # t/a
 #
-#        for k in cap.keys():
-#            result_dict[k] = {"cap": round(cap[k].X, 1)}
+        for k in cap.keys():
+            result_dict[k] = {"cap": round(cap[k].X, 1)}
 #
         result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()))
         result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()))
