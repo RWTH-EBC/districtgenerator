@@ -3,18 +3,14 @@
 import json
 import pickle
 import os
-import queue
 import sys
 import copy
 import datetime
-from threading import Thread
-from time import sleep
 import multiprocessing
 
 import numpy as np
 import openpyxl
 import pandas as pd
-from itertools import count
 from teaser.project import Project
 from .envelope import Envelope
 from .solar import Sun
