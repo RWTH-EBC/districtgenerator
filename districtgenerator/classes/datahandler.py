@@ -463,7 +463,9 @@ class Datahandler:
             building["user"].nb_occ = result["nb_occ"]
             building["envelope"] = result["envelope"]
             building["clusteringData"] = result["clusteringData"]
-            building["buildingFeatures"].night_setback = result["night_setback"],
+            building_features = building["buildingFeatures"].copy()
+            building_features["night_setback"] = result["night_setback"]
+            building["buildingFeatures"] = building_features
 
         print("Finished generating demands with multiprocessing!")
 
@@ -1128,7 +1130,7 @@ def generate_demands_worker_wrapper(args):
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
         'clusteringData': building["clusteringData"],
-        'night_setback': building["buildingFeatures"].night_setback,
+        'night_setback': building["buildingFeatures"]["night_setback"].iloc[0] if hasattr(building["buildingFeatures"]["night_setback"], 'iloc') else building["buildingFeatures"]["night_setback"],
     }
 
     return result
