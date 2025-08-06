@@ -652,7 +652,11 @@ class Datahandler:
         gains_df = pd.DataFrame(gains, columns=['gains'])
         car_df = pd.DataFrame(car, columns=['car'])
         nb_flats_df = pd.DataFrame([nb_flats], columns=['nb_flats'])
-        nb_occ_df = pd.DataFrame([nb_occ], columns=['nb_occ'])
+
+        # Sum the values in nb_occ and create a DataFrame
+        total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['nb_occ']) # Create DataFrame with the sum
+
         heatload_df = pd.DataFrame([heatload], columns=['heatload'])
         bivalent_df = pd.DataFrame([bivalent], columns=['bivalent'])
         heatlimit_df = pd.DataFrame([heatlimit], columns=['heatlimit'])
