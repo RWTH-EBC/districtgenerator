@@ -16,3 +16,4 @@ setuptools~=75.8.0
 reportlab~=3.6.13
 pydantic-settings >= 2.2.1
 pydantic >= 2.8.2
+pyarrow

@@ -25,12 +25,6 @@ from districtgenerator.data_handling.config import GlobalConfig, load_global_con
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
-# configs sollten hier abrufbar sein
-#- -> eigene dicts die die jsons abbilden, klassen könnte auch gehen -> sind die langsamer?
-# zwischen step json überspringen -> nur eine config, die kommentiert ist
-# -> braucht man klassen? es sind ja nur variablen
-# in webapp datahandler wird immer neu eingeladen, daher performance wichtig bei einladen
-
 class Datahandler:
     """
     Abstract class for data handling.
@@ -365,11 +359,14 @@ class Datahandler:
                 building["buildingFeatures"] = self.scenario.loc[id]
                 building["gmlId"] = building["buildingFeatures"]["gmlId"]
 
-                if not self.scenario.thermalTransmittanceFacade.empty:
+                if self.scenario.get("thermalTransmittanceFacade") is not None:
                     building["buildingFeatures"]["thermalTransmittance"] = (self.scenario.thermalTransmittanceFacade.iloc[id],
                                                         self.scenario.thermalTransmittanceRoof.iloc[id],
                                                         self.scenario.thermalTransmittanceFloor.iloc[id],
                                                         self.scenario.thermalTransmittanceWindow.iloc[id])
+                else: 
+                    building["buildingFeatures"]["thermalTransmittance"] = None
+                    
                 #print(self.scenario)                
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
@@ -652,7 +649,11 @@ class Datahandler:
         gains_df = pd.DataFrame(gains, columns=['gains'])
         car_df = pd.DataFrame(car, columns=['car'])
         nb_flats_df = pd.DataFrame([nb_flats], columns=['nb_flats'])
-        nb_occ_df = pd.DataFrame([nb_occ], columns=['nb_occ'])
+
+        # Sum the values in nb_occ and create a DataFrame
+        total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['nb_occ']) # Create DataFrame with the sum
+
         heatload_df = pd.DataFrame([heatload], columns=['heatload'])
         bivalent_df = pd.DataFrame([bivalent], columns=['bivalent'])
         heatlimit_df = pd.DataFrame([heatlimit], columns=['heatlimit'])
@@ -887,6 +888,14 @@ class Datahandler:
                             delimiter=',', fmt='%.10f'
                         )
 
+                        np.savetxt(
+                            os.path.join(self.resultPath, 'generation')
+                            + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                            + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
+                            building["generationSTC"] * building["buildingFeatures"]["STC"], 
+                            delimiter=','
+                        )
+
             elif standard:
                 # Standard single-surface calculation
                 potentialPV, potentialSTC = sun.calcPVAndSTCProfile(
@@ -910,78 +919,12 @@ class Datahandler:
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                         building["generationPV"], delimiter=',')
 
-                    #np.savetxt(
-                    #    os.path.join(self.resultPath, 'generation')
-                    #    + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
-                    #    + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                    #    building["generationSTC"], delimiter=',')
+                    np.savetxt(
+                        os.path.join(self.resultPath, 'generation')
+                        + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                        + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
+                        building["generationSTC"], delimiter=',')
 
-        #     # Define the path for the new PV values log
-        #     pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
-#
-        #     pv_row = {
-        #     "ID": building["buildingFeatures"]["gmlId"],
-        #     }
-#
-        #     # Create a new dictionary for PV values logging
-        #     pv_row.update({
-        #         "calculated_area_roof": building["envelope"].A["opaque"]["roof"],  # Calculated value
-        #         "actual_area_roof": building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"],  # Actual value
-        #         "calculated_beta": 35,  # Calculated value
-        #         "actual_beta": building["buildingFeatures"]["roofInclination"],  # Actual value
-        #         "calculated_gamma": building["buildingFeatures"]["gamma_PV"],  # Calculated value
-        #         "actual_gamma": building["buildingFeatures"]["cardinalDirection"],  # Actual value
-        #         "roofShape": building["buildingFeatures"]["roofShape"]
-        #     })
-#
-        #     try:
-        #         # Attempt to read the existing PV values log
-        #         df_existing_pv = pd.read_csv(pv_log_path)
-        #         # Concatenate the new row with the existing DataFrame
-        #         df_new_pv = pd.concat([df_existing_pv, pd.DataFrame([pv_row])], ignore_index=True)
-        #     except FileNotFoundError:
-        #         # If the file does not exist, create a new DataFrame
-        #         df_new_pv = pd.DataFrame([pv_row])
-#
-        #     # Write the updated DataFrame to the new CSV log
-        #     df_new_pv.to_csv(pv_log_path, index=False)
-#
-        #     # calculate theoretical PV and STC generation
-        #     potentialPV, potentialSTC = \
-        #         sun.calcPVAndSTCProfile(time=self.time,
-        #                                 site=self.site,
-        #                                 area_roof=building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"], # todo: Dachfläche passt zu Datenplattform?
-        #                                 # In Germany, this is a roof pitch between 30 and 35 degrees
-        #                                 beta=[building["buildingFeatures"]["roofInclination"]],
-        #                                 # surface azimuth angles (Orientation to the south: 0°)
-        #                                 gamma=[building["buildingFeatures"]["cardinalDirection"]],
-        #                                 usageFactorPV=building["buildingFeatures"]["f_PV"],
-        #                                 usageFactorSTC=building["buildingFeatures"]["f_STC"],
-        #                                 devices = self.decentral_device_data)
-        #     #
-        #     # potentialPV = self.scenario["medianYearlySumEnergyPerM2"][0] * scenario["surfaceAreaSuitableForSolarPV"][0] ??
-        #     #
-#
-        #     # assign real PV generation to building
-        #     building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
-#
-        #     # assign real STC generation to building
-        #     building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
-#
-        #     # clustering data
-        #     building["clusteringData"]["potentialPV"] = potentialPV
-        #     building["clusteringData"]["potentialSTC"] = potentialSTC
-#
-        #     # optionally save generation profiles
-        #     if saveGenerationProfiles == True:
-        #         np.savetxt(os.path.join(self.resultPath, 'generation')
-        #                    + '/decentralPV_' + building["unique_name"] + '_'+ self.conf_scenario_name + '_' + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-        #                    building["generationPV"],
-        #                    delimiter=',')
-        #         np.savetxt(os.path.join(self.resultPath, 'generation')
-        #                    + '/decentralSTC_' + building["unique_name"] + '_'+ self.conf_scenario_name + '_' + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-        #                    building["generationSTC"],
-        #                    delimiter=',')
 
     def designCentralDevices(self, saveGenerationProfiles):
         """
