@@ -6,10 +6,11 @@ import os
 import sys
 import copy
 import datetime
+import multiprocessing
+
 import numpy as np
 import openpyxl
 import pandas as pd
-from itertools import count
 from teaser.project import Project
 from .envelope import Envelope
 from .solar import Sun
@@ -20,6 +21,7 @@ from .plots import DemandPlots
 from .optimizer import Optimizer
 from .KPIs import KPIs
 import districtgenerator.functions.clustering_medoid as cm
+
 
 class Datahandler:
     """
@@ -46,7 +48,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
+    def __init__(self, scenario_name="example", resultPath=None, scenario_file_path=None):
         """
         Constructor of Datahandler class.
 
@@ -208,7 +210,8 @@ class Datahandler:
         self.select_plz_data()
         # load weather data
         # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
+        weatherData = np.loadtxt(
+            os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
             + "/"
             + self.site["TRYYear"] + "_"
             + str(self.site["Location"]) + "_" + str(self.site["TRYType"])
@@ -268,24 +271,26 @@ class Datahandler:
 
         # extract the needed values
         self.site["altitude"] = filtered_data.iloc[0]['Altitude']
-        self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
-        self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
-        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
+        self.site["location"] = [filtered_data.iloc[0]['Latitude'], filtered_data.iloc[0]['Longitude']]
+        self.site["T_ne"] = filtered_data.iloc[0][
+            'T_ne']  # norm outside temperature for calculating the design heat load
+        self.site["T_me"] = filtered_data.iloc[0][
+            'T_me']  # mean annual temperature for calculating the design heat load
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
         sun = Sun(filePath=self.filePath)
         self.site["SunRad"] = sun.getSolarGains(initialTime=0,
-                                        timeDiscretization=self.time["timeResolution"],
-                                        timeSteps=self.time["timeSteps"],
-                                        timeZone=self.site["timeZone"],
-                                        location=self.site["location"],
-                                        altitude=self.site["altitude"],
-                                        beta=[90, 90, 90, 90, 0],
-                                        gamma=[0, 90, 180, 270, 0],
-                                        beamRadiation=self.site["SunDirect"],
-                                        diffuseRadiation=self.site["SunDiffuse"],
-                                        albedo=self.site["albedo"])
+                                                timeDiscretization=self.time["timeResolution"],
+                                                timeSteps=self.time["timeSteps"],
+                                                timeZone=self.site["timeZone"],
+                                                location=self.site["location"],
+                                                altitude=self.site["altitude"],
+                                                beta=[90, 90, 90, 90, 0],
+                                                gamma=[0, 90, 180, 270, 0],
+                                                beamRadiation=self.site["SunDirect"],
+                                                diffuseRadiation=self.site["SunDiffuse"],
+                                                albedo=self.site["albedo"])
 
     def initializeBuildings(self):
         """
@@ -340,10 +345,12 @@ class Datahandler:
                 self.district.append(building)
 
                 # Count number of builidings to predict the approximate calculation time
-                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH':
-                    num_sfh +=1
-                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB':
-                    num_mfh +=1
+                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"][
+                    "building"] == 'TH':
+                    num_sfh += 1
+                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"][
+                    "building"] == 'AB':
+                    num_mfh += 1
             except ValueError as e:
                 # Handle the case where we have a duplicate name
                 print(f"Error: {e}")
@@ -357,7 +364,7 @@ class Datahandler:
                 continue
 
         # Calculate calculation time for the whole district generation
-        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
+        duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print("This calculation will take about " + str(duration) + " .")
 
     def generateBuildings(self):
@@ -420,105 +427,126 @@ class Datahandler:
             # for drinking hot water
             if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_flats
+                                      building["user"].nb_flats
             else:
                 building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_main_rooms
+                                      building["user"].nb_main_rooms
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
         """
-        Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
+        Multiprocessing-Version von generateDemands
+        """
+        cpu_count = multiprocessing.cpu_count()
+        args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
+        # cpu_count = 4
 
-        Parameters
-        ----------
-        calcUserProfiles: bool, optional
+        with multiprocessing.Pool(processes=cpu_count) as pool:
+            results = pool.map(generate_demands_worker_wrapper, args_list)
+
+        for result in results:
+            building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+            building["user"].elec = result["elec"]
+            building["user"].dhw = result["dhw"]
+            building["user"].cooling = result["cooling"]
+            building["user"].heat = result["heating"]
+            building["user"].occ = result["occ"],
+            building["user"].car = result["car"]
+            building["user"].gains = result["gains"]
+            building["user"].nb_flats = result["nb_flats"]
+            building["user"].nb_occ = result["nb_occ"]
+            building["envelope"] = result["envelope"]
+            building["clusteringData"] = result["clusteringData"]
+            building_features = building["buildingFeatures"].copy()
+            building_features["night_setback"] = result["night_setback"]
+            building["buildingFeatures"] = building_features
+
+        print("Finished generating demands with multiprocessing!")
+
+
+    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
+        """
+        :param building:
+        :param calcUserProfiles: bool
             True: calculate new user profiles.
             False: load user profiles from file.
             The default is True.
-        saveUserProfiles: bool, optional
+        :param saveUserProfiles: bool
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-
-        Returns
-        -------
-        None.
         """
+        print(f'starting {building["unique_name"]}')
 
-        for building in self.district:
+        # calculate or load user profiles
+        if calcUserProfiles:
+            building["user"].calcProfiles(site=self.site,
+                                          holidays=self.time["holidays"],
+                                          time_resolution=self.time["timeResolution"],
+                                          time_horizon=self.time["dataLength"],
+                                          building=building,
+                                          path=os.path.join(self.resultPath, 'demands'))
 
-            # calculate or load user profiles
-            if calcUserProfiles:
-                building["user"].calcProfiles(site=self.site,
-                                              holidays=self.time["holidays"],
-                                              time_resolution=self.time["timeResolution"],
-                                              time_horizon=self.time["dataLength"],
-                                              building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+            if saveUserProfiles:
+                self.saveProfiles(name=building["unique_name"],
+                                  elec=building["user"].elec,
+                                  dhw=building["user"].dhw,
+                                  occ=building["user"].occ,
+                                  gains=building["user"].gains,
+                                  car=building["user"].car,
+                                  nb_flats=building["user"].nb_flats,
+                                  nb_occ=building["user"].nb_occ,
+                                  heatload=building["envelope"].heatload,
+                                  bivalent=building["envelope"].bivalent,
+                                  heatlimit=building["envelope"].heatlimit,
+                                  path=os.path.join(self.resultPath, 'demands'))
+                # building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
-                if saveUserProfiles:
-                    self.saveProfiles(name=building["unique_name"],
-                                      elec=building["user"].elec,
-                                      dhw= building["user"].dhw,
-                                      occ= building["user"].occ,
-                                      gains= building["user"].gains,
-                                      car= building["user"].car,
-                                      nb_flats= building["user"].nb_flats,
-                                      nb_occ= building["user"].nb_occ,
-                                      heatload= building["envelope"].heatload,
-                                      bivalent= building["envelope"].bivalent,
-                                      heatlimit= building["envelope"].heatlimit,
-                                      path=os.path.join(self.resultPath, 'demands'))
-                    #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
+            print("Calculate demands of building " + building["unique_name"])
 
-                print("Calculate demands of building " + building["unique_name"])
+        else:
+            (building["user"].elec, building["user"].dhw,
+             building["user"].occ, building["user"].gains,
+             building["user"].car, building["user"].nb_flats,
+             building["user"].nb_occ, building["envelope"].heatload,
+             building["envelope"].bivalent,
+             building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                                                                 os.path.join(self.resultPath, 'demands'))
+            # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+            print("Load demands of building " + building["unique_name"])
 
-            else:
-                (building["user"].elec, building["user"].dhw,
-                 building["user"].occ, building["user"].gains,
-                 building["user"].car, building["user"].nb_flats,
-                 building["user"].nb_occ, building["envelope"].heatload,
-                 building["envelope"].bivalent,
-                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
-                                                                     os.path.join(self.resultPath, 'demands'))
-                #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-                print("Load demands of building " + building["unique_name"])
+        # check if EV exist
+        building["clusteringData"] = {
+            "potentialEV": copy.deepcopy(building["user"].car)
+        }
+        building["user"].car *= building["buildingFeatures"]["EV"]
 
-            # check if EV exist
-            building["clusteringData"] = {
-                "potentialEV": copy.deepcopy(building["user"].car)
-            }
-            building["user"].car *= building["buildingFeatures"]["EV"]
+        building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
 
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+        night_setback = building["buildingFeatures"]["night_setback"]
 
-            night_setback = building["buildingFeatures"]["night_setback"]
+        # calculate or load heating profiles
+        if calcUserProfiles:
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                night_setback=night_setback,
+                                                holidays=self.time["holidays"],
+                                                time_resolution=self.time["timeResolution"]
+                                                )
 
-            # calculate or load heating profiles
-            if calcUserProfiles:
-                building["user"].calcHeatingProfile(site=self.site,
-                                                    envelope=building["envelope"],
-                                                    night_setback=night_setback,
-                                                    holidays=self.time["holidays"],
-                                                    time_resolution=self.time["timeResolution"]
-                                                    )
-
-                if saveUserProfiles:
-                    self.saveHeatingProfile(heat=building["user"].heat,
-                                            cooling=building["user"].cooling,
-                                            name=building["unique_name"],
-                                            path=os.path.join(self.resultPath, 'demands'))
-                    #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-            else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
-                                                         path=os.path.join(self.resultPath, 'demands'))
-                building["user"].heat = heat
-                building["user"].cooling = cooling
-
-        print("Finished generating demands!")
+            if saveUserProfiles:
+                self.saveHeatingProfile(heat=building["user"].heat,
+                                        cooling=building["user"].cooling,
+                                        name=building["unique_name"],
+                                        path=os.path.join(self.resultPath, 'demands'))
+                # building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+        else:
+            heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                                                     path=os.path.join(self.resultPath, 'demands'))
+            building["user"].heat = heat
+            building["user"].cooling = cooling
+        print(f'done {building["unique_name"]}')
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
                                  saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
@@ -725,7 +753,7 @@ class Datahandler:
             # %% create building energy system object
             # get capacities of all possible devices
             bes_obj = BES(physics=self.physics,
-                          decentral_device_data= self.decentral_device_data,
+                          decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
@@ -792,7 +820,6 @@ class Datahandler:
         self.centralDevices["generation"] = {}
         (self.centralDevices["generation"]["PV"], self.centralDevices["generation"]["STC"],
          self.centralDevices["generation"]["Wind"]) = self.centralDevices["ces_obj"].generation(self)
-
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
@@ -903,8 +930,6 @@ class Datahandler:
             inputsClustering.append(adjProfiles["generationCentralPV"])
             inputsClustering.append(adjProfiles["generationCentralSTC"])
 
-
-
         # weights for clustering algorithm indicating the focus onto this profile
         weights = np.ones(len(inputsClustering))
         # higher weight for outdoor temperature (should at least have the same weight as number of buildings)
@@ -919,7 +944,7 @@ class Datahandler:
         # safe clustered profiles of all buildings
         for id in self.scenario["id"]:
             if centralEnergySupply == False:
-                index_house = int(7)    # number of profiles per building
+                index_house = int(7)  # number of profiles per building
             else:
                 index_house = int(4)
             self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
@@ -929,9 +954,9 @@ class Datahandler:
             if centralEnergySupply == False:
                 self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
                 self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
-                                                        * self.district[id]["buildingFeatures"]["PV"]
+                                                            * self.district[id]["buildingFeatures"]["PV"]
                 self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
-                                                         * self.district[id]["buildingFeatures"]["STC"]
+                                                             * self.district[id]["buildingFeatures"]["STC"]
 
         if centralEnergySupply == True:
             self.site["T_e_cluster"] = newProfiles[-4]
@@ -960,7 +985,6 @@ class Datahandler:
         self.clusterWeights = {}
         for c in self.clusters:
             self.clusterWeights[c] = len(self.clusterAssignments[c])
-
 
     def saveDistrict(self):
         """
@@ -1059,7 +1083,6 @@ class Datahandler:
         self.resultsOptimization = []
 
         for cluster in range(self.time["clusterNumber"]):
-
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster)
             results_temp = self.optimizer.run_cen_opti()
@@ -1080,3 +1103,30 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
+
+def generate_demands_worker_wrapper(args):
+    """
+    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
+    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
+    """
+    self_ref, building, calcUserProfiles, saveUserProfiles = args
+    self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles)
+
+    result = {
+        "unique_name": building["unique_name"],
+        "elec": building["user"].elec,
+        'dhw': building["user"].dhw,
+        'cooling': building["user"].cooling,
+        'heating': building["user"].heat,
+        'occ': building["user"].occ,
+        'car': building["user"].car,
+        'gains': building["user"].gains,
+        'nb_flats': building["user"].nb_flats,
+        'nb_occ': building["user"].nb_occ,
+        'envelope': building["envelope"],
+        'clusteringData': building["clusteringData"],
+        'night_setback': building["buildingFeatures"]["night_setback"].iloc[0] if hasattr(building["buildingFeatures"]["night_setback"], 'iloc') else building["buildingFeatures"]["night_setback"],
+    }
+
+    return result
