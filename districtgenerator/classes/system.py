@@ -87,14 +87,17 @@ class BES:
 
             # capacity of boiler (BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
             if k in ("BOI", "FC", "CHP"):
+                # W
                 BES[k] = self.design_load * (buildingFeatures["heater"] == k)
 
             # heat pump (HP) capacity refers to heat load at bivalent temperature
             if k == "HP":
+                # W
                 BES["HP"] = self.bivalent_load * (buildingFeatures["heater"] == k)
 
             # electric heating (EH) exists if HP exists
             if k == "EH":
+                # W
                 BES["EH"] = (self.design_load - self.bivalent_load) * (buildingFeatures["heater"] == "HP")
 
             # thermal energy storage (TES)
@@ -130,8 +133,7 @@ class BES:
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
-                # todo: check if PV is feasible
-                # tatsächliche oder theoretische Fläche kann direkt ausgegeben werden -> vergleich theoretischer mit berechneter Fläche!
+                # todo: change to area of roof of fiware
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
                               * buildingFeatures["f_PV"] \
                               * buildingFeatures["PV"]

@@ -572,16 +572,21 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
-                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False, generateDemands=True):
+    def generateDistrictComplete(self, name = None, generateDemands=True, calcUserProfiles=True, saveUserProfiles=True,
+                                 designDevs=False, saveGenProfiles=True, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
         Parameters
         ----------
 
+        generateDemands:bool, optional
+            True: generate demands for all buildings.
+            False: load demands from file / generation will be skipped.
+        name: string, optional
+            option to set a unique name for the district scenario. Else building["unique_name"] will be used.
         calcUserProfiles: bool, optional
-            True: calculate new user profiles.
+            True: calculate new user profiles. Only if generateDemands is True.
             False: load user profiles from file.
             The default is True.
         saveUserProfiles: bool, optional
@@ -589,11 +594,11 @@ class Datahandler:
             The default is True.
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
+        designDevs: bool, optional
+            Decision if devices will be designed. The default is False.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
-        designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
         clustering: bool, optional
             Decision if profiles will be clustered. The default is False.
         optimization: bool, optional
@@ -802,7 +807,7 @@ class Datahandler:
 
         return heat, cooling
 
-    def designDecentralDevices(self, saveGenerationProfiles=True, standard=False):
+    def designDecentralDevices(self, saveGenerationProfiles=True, pv_standard=True):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
@@ -811,6 +816,10 @@ class Datahandler:
         saveGenerationProfiles : bool, optional
             True: save decentral PV and STC profiles as CSV-file.
             False: don't save decentral PV and STC profiles as CSV-file.
+            The default is True.
+        pv_standard: bool, optional
+            True: use standard PV calculation with one roof surface.
+            False: use detailed PV calculation with multiple roof surfaces / Fiware input data necessary.
             The default is True.
 
         Returns
@@ -826,7 +835,11 @@ class Datahandler:
                         design_building_data=self.design_building_data,
                         file_path=self.filePath)
 
-            if not standard:
+            building["capacities"] = bes_obj.designECS(building, self.site)
+
+            # save the building capacities from here, need to force HP as device, output in
+
+            if not pv_standard:
                 if not pd.isna(building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"]):
 
                     # Parse string inputs to lists
@@ -896,7 +909,7 @@ class Datahandler:
                             delimiter=','
                         )
 
-            elif standard:
+            elif pv_standard:
                 # Standard single-surface calculation
                 potentialPV, potentialSTC = sun.calcPVAndSTCProfile(
                     time=self.time,
