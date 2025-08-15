@@ -1,4 +1,2 @@
-id;gmlId;building;year;construction_type;night_setback;retrofit;area;number_of_floors;elec;height;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
-0;urn:ngsi-ld:Building:52078Buschstrasse1a;SFH;2014;None;1;1;137;2;8997;7.81;BOI;0;0;0;0;35.0;1.0;6000.0;0.4;0.04;0;on_demand
-1;urn:ngsi-ld:Building:52078Buschstrasse1b;SFH;2018;None;1;1;50;1;5755;7.38;BOI;0;0;0;0;35.0;1.0;6000.0;0.4;0.04;0;on_demand
-2;urn:ngsi-ld:Building:52078Buschstrasse1c;SFH;2018;None;1;1;100;2;5791;7.5;BOI;0;0;0;0;35.0;1.0;6000.0;0.4;0.04;0;on_demand
+id;gmlId;building;year;construction_type;night_setback;retrofit;area;number_of_floors;elec;height;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging;thermalTransmittanceFacade;thermalTransmittanceWindow;thermalTransmittanceRoof;thermalTransmittanceFloor;roofShape;cardinalDirection;roofInclination;surfaceAreaSuitableForSolarPV
+0;urn:ngsi-ld:Building:52078Buschstrasse1c;SFH;2018;None;1;1.0;100;2.0;;7.5;BOI;1;1;1;1;35.0;1.0;6000.0;0.4;0.04;0;on_demand;0.17;1.1;0.15;0.17;sloped|sloped;70|246;36.0|38.0;26.0|23.0

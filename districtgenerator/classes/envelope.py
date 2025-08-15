@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import json
+import pandas as pd
 import os
 import numpy as np
+from typing import Optional, Tuple
 
 
 class Envelope:
@@ -34,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None, extra = None, calcThick = False):
         """
         Constructor of Envelope class.
 
@@ -56,6 +58,8 @@ class Envelope:
         self.epsilon = {}
         self.alpha_Sc = {}
 
+        self.thick_req = []
+
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
         self.construction_type = construction_type
@@ -65,7 +69,7 @@ class Envelope:
         self.usage_short = building_params["building"]
         self.file_path = file_path
         self.loadParams()
-        self.loadComponentProperties(prj)
+        self.loadComponentProperties(prj, u_values, calcThick, extra)
         self.loadAreas(prj)
 
     def loadParams(self):
@@ -170,7 +174,7 @@ class Envelope:
 
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
-    def loadComponentProperties(self, prj):
+    def loadComponentProperties(self, prj, u_values, calcThick, extra=None):
         """
         Load component-specific material parameters.
 
@@ -234,6 +238,7 @@ class Envelope:
 
         comp = "wall"
         # WALLS: Materials and U-value
+        # thermalTransmittanceFacade
         for name, elem in element_bind.items():
             if "OuterWall" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -254,6 +259,7 @@ class Envelope:
 
         comp = "roof"
         # ROOF: Materials and U-value
+        # thermalTransmittanceRoof
         for name, elem in element_bind.items():
             if "Rooftop" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -274,6 +280,7 @@ class Envelope:
 
         comp = "floor"
         # FLOOR: Materials and U-value
+        # thermalTransmittanceFloor
         for name, elem in element_bind.items():
             if "GroundFloor" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -294,6 +301,7 @@ class Envelope:
 
         comp = "intWall"
         # INTERNAL WALL: Materials and U-value
+        # We don't have that in the database, solution pending
         for name, elem in element_bind.items():
             if "InnerWall" in name:
                 dummy = min(2015,
@@ -315,6 +323,7 @@ class Envelope:
 
         comp = "ceiling"
         # CEILING: Materials and U-value
+        # thermalTransmittanceCeiling
         for name, elem in element_bind.items():
             if "Ceiling" in name:
                 dummy = min(2015,
@@ -336,6 +345,7 @@ class Envelope:
 
         comp = "intFloor"
         # INTERNAL FLOOR: Materials and U-value
+        # We don't have that in the database, solution pending
         for name, elem in element_bind.items():
             if "Floor" in name:
                 dummy = min(2015,
@@ -356,7 +366,7 @@ class Envelope:
                                                             material_prop[3] * 1000)
 
         comp = "window"
-        # INTERNAL FLOOR: Materials and U-value
+        # WINDOW: Materials and U-value
         for name, elem in element_bind.items():
             if "Window" in name:
                 if elem["building_age_group"][0] <= self.construction_year <= \
@@ -380,12 +390,14 @@ class Envelope:
             self.d_iso["opaque"][x] = sum(self.d["opaque"][x])
         # Compute U and kappa for each component
         for x in self.opaque_ext:
+            # passt das zum U?
             self.kappa["opaque"][x] = self.specificHeatCapacity(
                 self.d["opaque"][x],
                 self.d_iso["opaque"][x],
                 self.rho["opaque"][x],
                 self.cp["opaque"][x]
             )
+
             self.U["opaque"][x] = 1.0 / (self.R_si["opaque"][x]
                                          + sum(self.d["opaque"][x]
                                                / self.Lambda["opaque"][x])
@@ -399,10 +411,61 @@ class Envelope:
                 self.cp["opaque"][x]
             )
 
+        # thermalTransmittanceWindow
         self.U["window"] = min(2.8, (1.0 / (self.R_si["window"]
                                             + sum(self.d["window"]
                                                   / self.Lambda["window"])
                                             + self.R_se["window"])))
+        
+        # Base row info
+        u_row = {
+            "ID": self.id,
+        }
+
+        # Add calculated U-values
+        # for comparison with given U-values
+        u_row.update({
+            "wall_calc": self.U["opaque"]["wall"],
+            "roof_calc": self.U["opaque"]["roof"],
+            "floor_calc": self.U["opaque"]["floor"],
+            "window_calc": self.U["window"],
+            "age": extra[0],
+            "retrofit": extra[1],
+            "id": extra[2],
+            "type": extra[3]
+        })
+
+        # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
+        if u_values:
+            for idx, x in enumerate(['wall', 'roof', 'floor']):
+                self.U["opaque"][x] =  u_values[idx]
+ 
+            self.U["window"] = u_values[3]
+
+            u_row.update({
+                "wall_given": u_values[0],
+                "roof_given": u_values[1],
+                "floor_given": u_values[2],
+                "window_given": u_values[3]
+            })
+
+            # if no u-value analysis needed, comment rest of the code
+            csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
+
+            try:
+                df_existing = pd.read_csv(csv_log_path)
+                df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
+            except FileNotFoundError:
+                df_new = pd.DataFrame([u_row])
+
+            df_new.to_csv(csv_log_path, index=False)
+
+            if calcThick:
+                self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
+            else:
+                self.thick_req = None
+
+
 
     def loadAreas(self, prj):
         """
@@ -435,7 +498,7 @@ class Envelope:
             self.A["opaque"]["east"] = 0.0
 
         try:
-            self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]
+            self.A["opaque"]["roof"] = prj.buildings[self.id].outer_area[-1]  # todo: ersetzen durch Fiware?
         except KeyError:
             self.A["opaque"]["roof"] = 1.2 * prj.buildings[
                 self.id].outer_area[-2]
@@ -465,6 +528,45 @@ class Envelope:
         self.A["window"]["floor"] = 0.0
 
         self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
+
+
+    def compute_insulation_thickness(self, target_U_values, insulation_lambda: float = 0.04):
+        """
+        Calculates existing thickness and required insulation to meet target U-values.
+
+        Parameters
+        ----------
+        target_U_values : dict
+            U-values per component, e.g. {'wall': 0.24, 'roof': 0.24, 'floor': 0.3}
+        insulation_lambda : float
+            Thermal conductivity of insulation [W/mK]
+
+        Returns
+        -------
+        thickness_existing : dict
+            Existing component thicknesses [m]
+        insulation_needed : dict
+            Extra insulation to reach target U-values [m]
+        """
+        thickness_existing = {}
+        insulation_needed = []
+
+        for comp in ['wall', 'roof', 'floor']:
+            R_material = sum(self.d['opaque'][comp] / self.Lambda['opaque'][comp])
+            R_si = self.R_si['opaque'][comp]
+            R_se = self.R_se['opaque'][comp]
+            R_total = R_material + R_si + R_se
+
+            thickness_existing[comp] = sum(self.d['opaque'][comp])
+
+            U_target = target_U_values[comp]
+            R_target = 1 / U_target if U_target > 0 else float('inf')
+            d_ins = (R_target - R_total) * insulation_lambda
+            insulation_thickness = max(0, d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+
+            insulation_needed.append(insulation_thickness)
+
+        return insulation_needed
 
     def calcHeatLoad(self, site, method="design"):
         """
