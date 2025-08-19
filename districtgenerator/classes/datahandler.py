@@ -72,6 +72,7 @@ class Datahandler:
         """
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
+        self.conf_scenario_name = global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
             
@@ -131,6 +132,7 @@ class Datahandler:
         None.
         """
         # %% load scenario file with building information
+        self.scenario = {}
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
 
@@ -300,6 +302,7 @@ class Datahandler:
         filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
+
         # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
 
@@ -465,8 +468,7 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -497,7 +499,7 @@ class Datahandler:
                                               path=os.path.join(self.resultPath, 'demands'))
 
                 if saveUserProfiles:
-                    self.saveProfiles(name=building["unique_name"],
+                    self.saveProfiles(name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
                                       elec=building["user"].elec,
                                       dhw= building["user"].dhw,
                                       occ= building["user"].occ,
@@ -511,7 +513,7 @@ class Datahandler:
                                       path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
-                print("Calculate demands of building " + building["unique_name"])
+                print("Calculate demands of building " + building["unique_name"]+ '_'+ self.conf_scenario_name)
 
             else:
                 (building["user"].elec, building["user"].dhw,
@@ -519,7 +521,7 @@ class Datahandler:
                  building["user"].car, building["user"].nb_flats,
                  building["user"].nb_occ, building["envelope"].heatload,
                  building["envelope"].bivalent,
-                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
                                                                      os.path.join(self.resultPath, 'demands'))
                 #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
                 print("Load demands of building " + building["unique_name"])
@@ -546,19 +548,19 @@ class Datahandler:
                 if saveUserProfiles:
                     self.saveHeatingProfile(heat=building["user"].heat,
                                             cooling=building["user"].cooling,
-                                            name=building["unique_name"],
+                                            name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
                                             path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"]+'_'+ self.conf_scenario_name,
                                                          path=os.path.join(self.resultPath, 'demands'))
                 building["user"].heat = heat
                 building["user"].cooling = cooling
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
-                                 saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
+    def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
+                                 designDevs=False, saveGenProfiles=True, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
 
@@ -574,6 +576,8 @@ class Datahandler:
             The default is True.
         fileName_centralSystems : string, optional
             File name of the CSV-file that will be loaded. The default is "central_devices_test".
+        designDevs: bool, optional
+            Decision if devices will be designed. The default is False.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
@@ -592,7 +596,7 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles)
+        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
         if designDevs:
             self.designDevicesComplete(saveGenProfiles)
         if clustering:
@@ -793,11 +797,11 @@ class Datahandler:
             # optionally save generation profiles
             if saveGenerationProfiles == True:
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '.csv',
+                           + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name +'.csv',
                            building["generationPV"],
                            delimiter=',')
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '.csv',
+                           + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name +'.csv',
                            building["generationSTC"],
                            delimiter=',')
 
