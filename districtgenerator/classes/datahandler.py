@@ -89,7 +89,6 @@ class Datahandler:
         self.buildings_completed = 0
         self.buildings_total = 0
         self.progress_file = os.path.join(self.resultPath, 'progress.json')
-        print(f"progress will be safed in: {self.progress_file}")
 
     def get_progress(self):
         return {
