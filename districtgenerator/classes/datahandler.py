@@ -86,6 +86,27 @@ class Datahandler:
         self.KPIs = None
         self.load_all_data()
 
+        self.buildings_completed = 0
+        self.buildings_total = 0
+        self.progress_file = os.path.join(self.resultPath, 'progress.json')
+
+    def get_progress(self):
+        return {
+            'completed': self.buildings_completed,
+            'total': self.buildings_total,
+            'percentage': (self.buildings_completed / max(self.buildings_total, 1)) * 100,
+        }
+
+    def save_progress(self):
+        if self.progress_file:
+            progress_data = self.get_progress()
+
+            try:
+                with open(self.progress_file, 'w') as f:
+                    json.dump(progress_data, f)
+            except Exception as e:
+                print(f"Couldn't save calculation progress: {e}")
+
     def load_all_data(self):
         """
         General data import from JSON files and transformation into dictionaries.
@@ -435,16 +456,24 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True):
-        """
-        Multiprocessing-Version von generateDemands
-        """
-        cpu_count = multiprocessing.cpu_count()
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
         args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
-        # cpu_count = 4
 
-        with multiprocessing.Pool(processes=cpu_count) as pool:
-            results = pool.map(generate_demands_worker_wrapper, args_list)
+        self.buildings_total = len(self.district)
+        self.buildings_completed = 0
+
+        results = []
+        self.save_progress()
+
+        with multiprocessing.Pool(processes=max_threads) as pool:
+            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
+                self.buildings_completed += 1
+                results.append(result)
+
+                self.save_progress()
+
+                print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
+                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
@@ -463,8 +492,10 @@ class Datahandler:
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
 
-        print("Finished generating demands with multiprocessing!")
+        self.save_progress()
 
+
+        print("Finished generating demands with multiprocessing!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
         """
@@ -503,7 +534,7 @@ class Datahandler:
                                   path=os.path.join(self.resultPath, 'demands'))
                 # building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
-            print("Calculate demands of building " + building["unique_name"])
+            # print("Calculate demands of building " + building["unique_name"])
 
         else:
             (building["user"].elec, building["user"].dhw,
@@ -546,7 +577,7 @@ class Datahandler:
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
-        print(f'done {building["unique_name"]}')
+        # print(f'done {building["unique_name"]}')
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
                                  saveGenProfiles=True, designDevs=False, clustering=False, optimization=False):
@@ -1126,7 +1157,8 @@ def generate_demands_worker_wrapper(args):
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
         'clusteringData': building["clusteringData"],
-        'night_setback': building["buildingFeatures"]["night_setback"].iloc[0] if hasattr(building["buildingFeatures"]["night_setback"], 'iloc') else building["buildingFeatures"]["night_setback"],
+        'night_setback': building["buildingFeatures"]["night_setback"].iloc[0] if hasattr(
+            building["buildingFeatures"]["night_setback"], 'iloc') else building["buildingFeatures"]["night_setback"],
     }
 
     return result
