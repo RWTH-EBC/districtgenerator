@@ -349,6 +349,7 @@ class Datahandler:
         filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
+
         # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
 

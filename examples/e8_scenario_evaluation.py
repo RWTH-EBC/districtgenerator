@@ -36,6 +36,8 @@ def example8_scenario_evaluation():
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
     data.calulateKPIs()
+    # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
+    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
 
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
     data.KPIs.create_certificate(data=data, result_path=data.resultPath)
