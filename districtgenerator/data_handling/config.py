@@ -15,7 +15,7 @@ class LocationConfig(BaseSettings):
 
     Attributes
     ----------
-    Descriptions in Class.
+    Descriptions directly in Class.
 
     """
     timeZone: float = 1         # Shift between the location's time and GMT in hours. CET would be 1.
@@ -46,7 +46,7 @@ class TimeConfig(BaseSettings):
 
     Attributes
     ----------
-    Descriptions in Class.
+    Descriptions directly in Class.
 
     """
     timeResolution: int = 3600  # Required time resolution in seconds. Tip: 3600 refers to an hourly resolution. 900 to a 15min resolution.
@@ -76,7 +76,7 @@ class DesignBuildingConfig(BaseSettings):
 
     Attributes
     ----------
-    Descriptions in Class.
+    Descriptions directly in Class.
 
     """
     T_set_min: float = 20.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
@@ -111,7 +111,7 @@ class EcoConfig(BaseSettings):
 
     Attributes
     ----------
-    Descriptions in Class.
+    Descriptions directly in Class.
 
     """
 
@@ -162,7 +162,7 @@ class GurobiConfig(BaseSettings):
 
     Attributes
     ----------
-    Descriptions in Class.
+    Descriptions directly in Class.
 
     """
     ModelName: str = "Central_Operational_Optimization" # Name of the model
@@ -206,60 +206,60 @@ class EHDOConfig(BaseSettings):
 
     Attributes
     ----------
-    Descriptions in Class.
+    Descriptions directly in Class.
     """
 
     # Electricity configuration
-    enable_supply_el: bool = True
-    enable_feed_in_el: bool = True
-    enable_price_cap_el: bool = False
-    price_cap_el: float = 60
-    enable_cap_limit_el: bool = False
-    cap_limit_el: float = 100000  # in kW
-    enable_supply_limit_el: bool = False
-    supply_limit_el: float = 100000  # in MWh/year
+    enable_supply_el: bool = True           # Enable electricity supply, bool.
+    enable_feed_in_el: bool = True          # Enable feed-in tariff for electricity, bool.
+    enable_price_cap_el: bool = False       # Enable electricity capacity price, bool.
+    price_cap_el: float = 60                # Electricity capacity price in €/kWh.
+    enable_cap_limit_el: bool = False       # Consider capacity of grid connection, bool.
+    cap_limit_el: float = 100000  # in kW   # Capacity of grid connection in kW.
+    enable_supply_limit_el: bool = False    # Enable restriction of electricity demand from grid, bool.
+    supply_limit_el: float = 100000         # Restrict electricity demand from grid in MWh/year
 
     # Gas configuration
-    enable_supply_gas: bool = False
-    enable_price_cap_gas: bool = False
-    price_cap_gas: float = 0.04  # €/kWh
-    enable_feed_in_gas: bool = False
-    revenue_feed_in_gas: float = 0.02  # €/kWh
-    enable_cap_limit_gas: bool = False
-    cap_limit_gas: float = 1000000  # in MWh/year
+    enable_supply_gas: bool = False         # Enable gas supply, bool.
+    enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
+    price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
+    enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
+    revenue_feed_in_gas: float = 0.02       # Revenue for natural gas feed-in €/kWh
+    enable_cap_limit_gas: bool = False      # Restrict gas demand from grid, bool.
+    cap_limit_gas: float = 1000000          # Maximum annual energy drawn from the gas grid in MWh/year
 
     # Biomass configuration
-    enable_supply_biomass: bool = False
-    enable_supply_limit_biomass: bool = False
-    supply_limit_biomass: float = 1000000  # in MWh/year
+    enable_supply_biomass: bool = False         # Restrict available biomass, bool.
+    enable_supply_limit_biomass: bool = False   # Enable limit annual biomass import, bool.
+    supply_limit_biomass: float = 1000000       # Maximum available biomass in MWh/year
 
     # Hydrogen configuration
-    enable_supply_hydrogen: bool = False
-    enable_supply_limit_hydrogen: bool = False
-    supply_limit_hydrogen: float = 1000000  # in MWh/year
+    enable_supply_hydrogen: bool = False        # Restrict available hydrogen, bool.
+    enable_supply_limit_hydrogen: bool = False  # Enable limit annual hydrogen import, bool.
+    supply_limit_hydrogen: float = 1000000      # Maximum available Hydrogen in MWh/year
 
     # Waste configuration
-    enable_supply_waste: bool = False
-    enable_supply_limit_waste: bool = False
-    supply_limit_waste: float = 1000000  # in MWh/year
+    enable_supply_waste: bool = False           # Restrict available waste, bool.
+    enable_supply_limit_waste: bool = False     # Enable limit annual waste import, bool.
+    supply_limit_waste: float = 1000000         # Maximum available waste in MWh/year
 
     # Additional gas supply limit (duplicate naming in JSON template - adjust if needed)
-    supply_limit_gas: float = 1000000  # in MWh/year
-    enable_supply_limit_gas: bool = False
+    supply_limit_gas: float = 1000000       # Maximum available gas in MWh/year
+    enable_supply_limit_gas: bool = False   # Enable limit annual gas import, bool.
 
     # Other options
-    peak_dem_met_conv: bool = True
-    co2_tax: float = 0  # €/t_CO2
-    co2_el_feed_in: float = 0  # kg/kWh
-    co2_gas_feed_in: float = 0  # kg/kWh
-    optim_focus: int = 0  # 0 = cost only; 1 = CO2 only
-    interest_rate: float = 0.05
-    observation_time: int = 20  # years
-    n_clusters: int = 12  # days
+    peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
+    co2_tax: float = 0              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2
+    co2_el_feed_in: float = 0       # CO₂ emission credit for electricity feed-in kg/kWh
+    co2_gas_feed_in: float = 0      # CO₂ emission credit for gas feed-in kg/kWh
+    optim_focus: int = 0            # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
+    interest_rate: float = 0.05     # Interest rate. The interest rate affects the annualization of the investments according to VDI 2067.
+    observation_time: int = 20      # Project lifetime. The project lifetime affects annualization of investments according to VDI 2067 in years
+    n_clusters: int = 12            # Number of design days.
 
     # Helper attributes for unit formatting
-    unit_placeholder: str = " - "  # used for cases where unit is a placeholder
-    unit_dash: str = "-"         # used for cases where unit is a dash
+    unit_placeholder: str = " - "   # used for cases where unit is a placeholder
+    unit_dash: str = "-"            # used for cases where unit is a dash
 
     model_config = SettingsConfigDict(
         extra="allow"

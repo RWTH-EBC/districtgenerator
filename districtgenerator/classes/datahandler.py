@@ -50,7 +50,7 @@ class Datahandler:
     """
 
     def __init__(self,
-                 scenario_name = "example",
+                 scenario_name = None,
                  resultPath = None,
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -59,6 +59,21 @@ class Datahandler:
                  ):
         """
         Constructor of Datahandler class.
+
+        Parameters
+        ----------
+        scenario_name : str, optional
+            Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
+        resultPath : str, optional
+            Path to save results. If None, it defaults to 'srcPath/results'.
+        scenario_file_path : str, optional
+            Path to the scenario file. If None, it defaults to 'filePath/scenarios'.
+        srcPath : str, optional
+            Source path of the district generator. The default is the parent directory of this file.
+        filePath : str, optional
+            Path to the data directory. If None, it defaults to 'srcPath/data'.
+        env_path : str, optional
+            Path to the environment configuration file. If None, it defaults to the global configuration file.
 
         Returns
         -------
@@ -73,7 +88,7 @@ class Datahandler:
         self.site = {}
         self.time = {}
         self.district = []
-        self.scenario_name = scenario_name
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example"
         self.scenario = None
         self.design_building_data = {}
         self.physics = {}
@@ -119,12 +134,31 @@ class Datahandler:
                       eco_config:EcoConfig,
                       central_config:CentralDeviceConfig):
         """
-        General data import from JSON files and transformation into dictionaries.
+        Load all data needed for district generation from configuration files.
 
+        Parameters
+        ----------
+        site_config : LocationConfig
+            Location configuration data.
+        time_config : TimeConfig
+            Time configuration data.
+        design_building_config : DesignBuildingConfig
+            Design building configuration data.
+        physics_config : PhysicsConfig
+            Physics configuration data.
+        decentral_config : DecentralDeviceConfig
+            Decentral device configuration data.
+        ehdo_config : EHDOConfig
+            EHDO model configuration data.
+        eco_config : EcoConfig
+            Economic configuration data.
+        central_config : CentralDeviceConfig
+            Central device configuration data.
         Returns
         -------
         None.
         """
+
         # %% load scenario file with building information
         self.scenario = {}
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
@@ -324,11 +358,6 @@ class Datahandler:
         """
         Fill district with buildings from scenario file.
 
-        Parameters
-        ----------
-        scenario_name: string, optional
-            Name of scenario file to be read. The default is 'example'.
-
         Returns
         -------
         None.
@@ -467,6 +496,8 @@ class Datahandler:
 
         Parameters
         ----------
+        name: string, optional
+            Name of the scenario. If None, the name will be set default.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
@@ -560,6 +591,8 @@ class Datahandler:
         Parameters
         ----------
 
+        name: string, optional
+            Name of the scenario. If None, the name will be set default.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
@@ -567,15 +600,11 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
         designDevs: bool, optional
             Decision if devices will be designed. The default is False.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
-        designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
         clustering: bool, optional
             Decision if profiles will be clustered. The default is False.
         optimization: bool, optional
@@ -609,8 +638,28 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
+        elec : list
+            Hourly electricity demand in W.
+        dhw : list
+            Hourly domestic hot water demand in W.
+        occ : list
+            Hourly occupancy of persons.
+        gains : list
+            Hourly internal gains in W.
+        car : list
+            Hourly electricity demand of EV in W.
+        nb_flats : int
+            Number of flats in the building.
+        nb_occ : list
+            Number of occupants in the building.
+        heatload : float
+            Design heat load in W.
+        bivalent : float
+            Bivalent heat load in W.
+        heatlimit : float
+            Heat limit heat load in W.
         path : string
             Results path.
 
@@ -646,7 +695,11 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        heat: list
+            Hourly heating demand in W.
+        cooling: list
+            Hourly cooling demand in W.
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -847,8 +900,6 @@ class Datahandler:
 
         Parameters
         ----------
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenerationProfiles : bool, optional
             Decision if generation profiles of designed devices will be saved. The default is True.
 

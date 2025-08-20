@@ -26,6 +26,8 @@ class KPIs:
         ----------
         data : Datahandler object
             Datahandler object which contains all relevant information to compute the key performance indicators (KPIs).
+        decentral_config : tuple
+            Tuple containing the decentral configuration parameters.
 
         Returns
         -------
@@ -103,7 +105,7 @@ class KPIs:
         -------
         None.
         """
-
+        # todo: chekc decentralDev
         # initialize lists
         electricityDemand_cluster = []
         electricityGeneration_cluster = []
@@ -415,9 +417,16 @@ class KPIs:
         # central operation costs for one year [€]
         self.operationCosts = round(temp_operationCosts, 2) / 1000
 
-    def calculateCO2emissions(self, data, jsonData):
+    def calculateCO2emissions(self, data, json_data):
         """
         Calculate the CO2 emissions for one year in [kg].
+
+        Parameters
+        ----------
+        data: Datahandler object
+            Datahandler object which contains relevant economic data.
+        json_data : dict
+            Dictionary containing the CO2 emission factors for electricity, gas, and PV.
 
         Returns
         -------
@@ -427,9 +436,9 @@ class KPIs:
         # important for weather conditions
 
         # todo: check
-        CO2_factor_el_grid = jsonData["co2_el_grid"]  # Emi_elec_grid
-        CO2_factor_gas = jsonData["co2_gas"]          # Emi_gas
-        CO2_factor_pv = jsonData["co2_biom"]          # Emi_pv  ??? does not have key co2_pv
+        CO2_factor_el_grid = json_data["co2_el_grid"]  # Emi_elec_grid
+        CO2_factor_gas = json_data["co2_gas"]          # Emi_gas
+        CO2_factor_pv = json_data["co2_biom"]          # Emi_pv  ??? does not have key co2_pv
 
         # change unit from [Wh] to [kWh] and consider time resolution --> in function "calculateEnergyExchangeGCP"
         co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid
@@ -484,6 +493,13 @@ class KPIs:
 
     def calc_total_areas_and_demands(self, data):
         """
+        Calculate total areas and demands of the district.
+
+        Parameters
+        ----------
+        data : Datahandler object
+            Datahandler object which contains all relevant information to compute the key performance indicators (KPIs).
+
         Returns
         -------
         None.

@@ -453,8 +453,8 @@ class Sun:
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
 
-    def calcPVAndSTCProfile(self, time, site, area_roof, beta=35, gamma=0, usageFactorPV=0.4,
-                            usageFactorSTC=0.2, devices=None):
+    def calcPVAndSTCProfile(self, time, site, devices, area_roof, beta=35, gamma=0, usageFactorPV=0.4,
+                            usageFactorSTC=0.2):
         """
         Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
 
@@ -464,6 +464,8 @@ class Sun:
             Time information from the Datahandler class.
         site : dictionary
             Site information from the Datahandler class.
+        devices : dictionary
+            Loads relevant information for the decentral devices in BES.
         area_roof : float
             Area of the building's roof.
         devicesType : string, optional

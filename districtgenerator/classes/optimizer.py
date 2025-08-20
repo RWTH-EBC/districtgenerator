@@ -54,6 +54,8 @@ class Optimizer:
             Datahandler object which contains all relevant information to perform the optimization.
         cluster : integer
             Identifier of the currently regarded cluster.
+        config : tuple
+            List containing the configuration settings for the optimization.
 
         Returns
         -------
@@ -71,6 +73,11 @@ class Optimizer:
     def loadGurobiSettings(self, config):
         """
         Load the optimization settings for the gurobi solver.
+
+        Parameters
+        ----------
+        config : tuple
+            List containing the configuration settings for the optimization.
 
         Returns
         -------
