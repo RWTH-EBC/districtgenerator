@@ -685,7 +685,7 @@ class Profiles:
         with open(os.path.join(srcPath, 'data', 'car_segment.json')) as json_file:
             segments = json.load(json_file)
         segment_names = list(segments.keys())
-        # Source of the proportions: https: // www.kba.de / DE / Statistik / Fahrzeuge / Bestand / Segmente / segmente_node.html
+        # Source of the proportions: https://www.kba.de/DE/Statistik/Fahrzeuge/Bestand/Segmente/segmente_node.html
         segment_names_probs = [segments[name]["proportion"] for name in segment_names]
 
         # Normalize proportions (ensure sum equals 1)
@@ -778,7 +778,8 @@ class Profiles:
                     # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
                     # Table 7
                     if number_of_ev > 0:
-                        prob_car_not_used = (1 - (0.48 / number_of_ev)) ** mobile_person  # 48% People use car during day
+                        prob_car_not_used = (1 - (0.48 / number_of_ev)) ** mobile_person  # 48% is the share of people using a car on a given day
+
 
                         daily_dist = np.random.uniform(*distance_intervals[np.random.choice(len(distance_intervals),
                                                                                             p=distance_probs)]) if np.random.rand() > prob_car_not_used else 0

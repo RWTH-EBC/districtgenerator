@@ -3,6 +3,16 @@ import numpy as np
 import os
 import seaborn as sns
 
+plt.rcParams.update({
+    'font.size': 16,           # Base font size
+    'axes.titlesize': 18,      # Title font
+    'axes.labelsize': 16,      # X and Y axis labels
+    'xtick.labelsize': 14,     # X tick labels
+    'ytick.labelsize': 14,     # Y tick labels
+    'legend.fontsize': 14,     # Legend
+    'figure.titlesize': 18     # Figure title
+})
+
 def el_buildings(plotData, data):
 
     num_clusters = plotData["num_clusters"]
@@ -12,8 +22,8 @@ def el_buildings(plotData, data):
     time = plotData["time"]
 
     color_labels = [
-        "Grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
-        "Demand", "EV charge", "HP", "EH", "BAT charge", "Feed-in"
+        "From grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
+        "Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"
     ]
 
     palette = sns.color_palette("tab20", n_colors=len(color_labels))
@@ -55,12 +65,12 @@ def el_buildings(plotData, data):
 
             # SOURCES
             sources = [buy, PV_power, CHP, FC, dch_BAT, dch_EV]
-            source_labels = ["Grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge"]
+            source_labels = ["From grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge"]
             source_colors = [color_map[label] for label in source_labels]
 
             # SINKS
             sinks = [demand, ch_EV, HP, EH, ch_BAT, feed]
-            sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "Feed-in"]
+            sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"]
             sink_colors = [color_map[label] for label in sink_labels]
 
             # plot everything (even the all‐zero ones) for stacking consistency
@@ -89,20 +99,22 @@ def el_buildings(plotData, data):
                     all_handles.append(h)
                     all_labels.append(l)
 
-            ax.set_ylabel('Electrical Power [kW]')
-            ax.set_title(f'Building {n} – Cluster {c} Electrical Power Balance')
+            ax.set_ylabel('Electrical Power (kW)')
             ax.grid(True)
 
         if all_handles:
-            axes[0].legend(all_handles, all_labels,
-                           loc='upper right', ncol=2)
+            for ax in axes:
+                ax.legend(all_handles, all_labels, loc='upper right', ncol=2)
 
-        axes[-1].set_xlabel('Time steps [h]')
+        for ax in axes:
+            ax.set_xlabel("Time (hours)")
+            ax.tick_params(labelbottom=True)
         plt.tight_layout()
 
         path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'buildings')
         os.makedirs(path, exist_ok=True)
-        fig.savefig(os.path.join(path, f"el_building_{n}.png"), dpi=300)
+#        fig.savefig(os.path.join(path, f"el_building_{n}.png"), dpi=300)
+        fig.savefig(os.path.join(path, f"el_building_{n}.pdf"))
 
 def th_buildings(plotData, data):
     num_clusters = plotData["num_clusters"]
@@ -190,20 +202,22 @@ def th_buildings(plotData, data):
                     all_handles.append(h)
                     all_labels.append(l)
 
-            ax.set_ylabel('Thermal Power [kW]')
-            ax.set_title(f'Building {n} – Cluster {c} Thermal Power Balance')
+            ax.set_ylabel('Thermal Power (kW)')
             ax.grid(True)
 
         if all_handles:
-            axes[0].legend(all_handles, all_labels,
-                           loc='upper right', ncol=2)
+            for ax in axes:
+                ax.legend(all_handles, all_labels, loc='upper right', ncol=2)
 
-        axes[-1].set_xlabel('Time steps [h]')
+        for ax in axes:
+            ax.set_xlabel("Time (hours)")
+            ax.tick_params(labelbottom=True)
         plt.tight_layout()
 
         path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'buildings')
         os.makedirs(path, exist_ok=True)
-        fig.savefig(os.path.join(path, f"th_building_{n}.png"), dpi=300)
+#        fig.savefig(os.path.join(path, f"th_building_{n}.png"), dpi=300)
+        fig.savefig(os.path.join(path, f"th_building_{n}.pdf"))
 
 def el_all_buildings(plotData, data):
     num_clusters = plotData["num_clusters"]
@@ -213,8 +227,8 @@ def el_all_buildings(plotData, data):
     time = plotData["time"]
 
     color_labels = [
-        "Grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
-        "Demand", "EV charge", "HP", "EH", "BAT charge", "Feed-in"
+        "From grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
+        "Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"
     ]
 
     palette = sns.color_palette("tab20", n_colors=len(color_labels))
@@ -284,12 +298,12 @@ def el_all_buildings(plotData, data):
 
         # ---- Build sources ----
         sources = [total_buy, total_PV, total_CHP, total_FC, total_dch_BAT, total_dch_EV]
-        source_labels = ["Grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge"]
+        source_labels = ["From grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge"]
         source_colors = [color_map[label] for label in source_labels]
 
         # ---- Build sinks ----
         sinks = [total_demand, total_ch_EV, total_HP, total_EH, total_ch_BAT, total_feed]
-        sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "Feed-in"]
+        sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"]
         sink_colors = [color_map[label] for label in sink_labels]
 
         # plot everything (even the all‐zero ones) for stacking consistency
@@ -318,20 +332,22 @@ def el_all_buildings(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Electrical Power [kW]')
-        ax.set_title(f'Cluster {c} - Total Electrical Power Balance (All Buildings)')
+        ax.set_ylabel('Electrical Power (kW)')
         ax.grid(True)
 
     if all_handles:
-        axes[0].legend(all_handles, all_labels,
-                       loc='upper right', ncol=2)
+        for ax in axes:
+            ax.legend(all_handles, all_labels, loc='upper right', ncol=2)
 
-    axes[-1].set_xlabel('Time steps [h]')
+    for ax in axes:
+        ax.set_xlabel("Time (hours)")
+        ax.tick_params(labelbottom=True)
     plt.tight_layout()
 
     path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'buildings')
     os.makedirs(path, exist_ok=True)
-    fig.savefig(os.path.join(path, f"el_all_buildings.png"), dpi=300)
+#    fig.savefig(os.path.join(path, f"el_all_buildings.png"), dpi=300)
+    fig.savefig(os.path.join(path, f"el_all_buildings.pdf"))
 
 def th_all_buildings(plotData, data):
     num_clusters = plotData["num_clusters"]
@@ -433,20 +449,22 @@ def th_all_buildings(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Thermal Power [kW]')
-        ax.set_title(f'Cluster {c} - Total Thermal Power Balance (All Buildings)')
+        ax.set_ylabel('Thermal Power (kW)')
         ax.grid(True)
 
     if all_handles:
-        axes[0].legend(all_handles, all_labels,
-                       loc='upper right', ncol=2)
+        for ax in axes:
+            ax.legend(all_handles, all_labels, loc='upper right', ncol=2)
 
-    axes[-1].set_xlabel('Time steps [h]')
+    for ax in axes:
+        ax.set_xlabel("Time (hours)")
+        ax.tick_params(labelbottom=True)
     plt.tight_layout()
 
     path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'buildings')
     os.makedirs(path, exist_ok=True)
-    fig.savefig(os.path.join(path, f"th_all_buildings.png"), dpi=300)
+#    fig.savefig(os.path.join(path, f"th_all_buildings.png"), dpi=300)
+    fig.savefig(os.path.join(path, f"th_all_buildings.pdf"))
 
 def el_energy_hub(plotData, data):
     num_clusters = plotData["num_clusters"]
@@ -457,7 +475,7 @@ def el_energy_hub(plotData, data):
 
     color_labels = [
         "PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid",
-        "BAT discharge", "HP", "EB", "CC", "ELYZ", "BAT charge", "to_grid"
+        "BAT discharge", "HP", "EH", "CC", "ELYZ", "BAT charge", "to_grid"
     ]
 
     palette = sns.color_palette("tab20", n_colors=len(color_labels))
@@ -498,14 +516,14 @@ def el_energy_hub(plotData, data):
 
         # ---- SINKS ----
         HP = safe_array(plotData, c, "eh_power", "HP", None, time_steps) / 1000
-        EB = safe_array(plotData, c, "eh_power", "EB",None, time_steps) / 1000
+        EH = safe_array(plotData, c, "eh_power", "EB",None, time_steps) / 1000
         CC = safe_array(plotData, c, "eh_power", "CC", None, time_steps) / 1000
         ELYZ = safe_array(plotData, c, "eh_power", "ELYZ", None, time_steps) / 1000
         ch_BAT = safe_array(plotData, c, "eh_ch", "BAT", None, time_steps) / 1000
         to_grid = safe_array(plotData, c, "eh_power", "to_grid", None, time_steps) / 1000
 
-        sinks = [HP, EB, CC, ELYZ, ch_BAT, to_grid]
-        sink_labels = ["HP", "EB", "CC", "ELYZ", "BAT charge", "to_grid"]
+        sinks = [HP, EH, CC, ELYZ, ch_BAT, to_grid]
+        sink_labels = ["HP", "EH", "CC", "ELYZ", "BAT charge", "to_grid"]
         sink_colors = [color_map[label] for label in sink_labels]
 
         # plot everything (even the all‐zero ones) for stacking consistency
@@ -534,20 +552,22 @@ def el_energy_hub(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Electrical Power [kW]')
-        ax.set_title(f'Cluster {c} - Energy Hub Electrical Power Balance')
+        ax.set_ylabel('Electrical Power (kW)')
         ax.grid(True)
 
     if all_handles:
-        axes[0].legend(all_handles, all_labels,
-                       loc='upper right', ncol=2)
+        for ax in axes:
+            ax.legend(all_handles, all_labels, loc='upper right', ncol=2)
 
-    axes[-1].set_xlabel('Time steps [h]')
+    for ax in axes:
+        ax.set_xlabel("Time (hours)")
+        ax.tick_params(labelbottom=True)
     plt.tight_layout()
 
     path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'energy_hub')
     os.makedirs(path, exist_ok=True)
-    fig.savefig(os.path.join(path, f"el_energy_hub.png"), dpi=300)
+#    fig.savefig(os.path.join(path, f"el_energy_hub.png"), dpi=300)
+    fig.savefig(os.path.join(path, f"el_energy_hub.pdf"))
 
 def th_energy_hub(plotData, data):
     num_clusters = plotData["num_clusters"]
@@ -557,7 +577,7 @@ def th_energy_hub(plotData, data):
     time = plotData["time"]
 
     color_labels = [
-        "STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI",
+        "STC", "HP", "EH", "CHP", "BOI", "GHP", "BCHP", "BBOI",
         "WCHP", "WBOI", "FC", "TES discharge", "AC", "TES charge",
         "Heating Demand", "DHW Demand", "Network Losses"
     ]
@@ -581,7 +601,7 @@ def th_energy_hub(plotData, data):
         # ---- SOURCES ----
         STC = safe_array(plotData, c, "eh_heat", "STC", None, time_steps) / 1000
         HP = safe_array(plotData, c, "eh_heat", "HP", None, time_steps) / 1000
-        EB = safe_array(plotData, c, "eh_heat", "EB", None, time_steps) / 1000
+        EH = safe_array(plotData, c, "eh_heat", "EB", None, time_steps) / 1000
         CHP = safe_array(plotData, c, "eh_heat", "CHP", None, time_steps) / 1000
         BOI = safe_array(plotData, c, "eh_heat", "BOI", None, time_steps) / 1000
         GHP = safe_array(plotData, c, "eh_heat", "GHP", None, time_steps) / 1000
@@ -593,10 +613,10 @@ def th_energy_hub(plotData, data):
         dch_TES = safe_array(plotData, c, "eh_dch", "TES", None, time_steps) / 1000
 
         sources = [
-            STC, HP, EB, CHP, BOI, GHP,
+            STC, HP, EH, CHP, BOI, GHP,
             BCHP, BBOI, WCHP, WBOI, FC, dch_TES
         ]
-        source_labels = ["STC", "HP", "EB", "CHP", "BOI", "GHP",
+        source_labels = ["STC", "HP", "EH", "CHP", "BOI", "GHP",
                          "BCHP", "BBOI", "WCHP", "WBOI", "FC", "TES discharge"]
         source_colors = [color_map[label] for label in source_labels]
 
@@ -648,20 +668,23 @@ def th_energy_hub(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Thermal Power [kW]')
-        ax.set_title(f'Cluster {c} - Energy Hub Thermal Power Balance')
+        ax.set_ylabel('Thermal Power (kW)')
         ax.grid(True)
 
     if all_handles:
-        axes[0].legend(all_handles, all_labels,
-                       loc='upper right', ncol=2)
+        for ax in axes:
+            ax.legend(all_handles, all_labels, loc='lower left', ncol=2)
 
-    axes[-1].set_xlabel('Time steps [h]')
+    for ax in axes:
+        ax.set_xlabel("Time (hours)")
+        ax.tick_params(labelbottom=True)
     plt.tight_layout()
 
     path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'energy_hub')
     os.makedirs(path, exist_ok=True)
-    fig.savefig(os.path.join(path, f"th_energy_hub.png"), dpi=300)
+#    fig.savefig(os.path.join(path, f"th_energy_hub.png"), dpi=300)
+    fig.savefig(os.path.join(path, f"th_energy_hub.pdf"))
+
 
 def district(plotData, data):
     num_clusters = plotData["num_clusters"]
@@ -731,20 +754,22 @@ def district(plotData, data):
                 all_handles.append(h)
                 all_labels.append(l)
 
-        ax.set_ylabel('Power [kW]')
-        ax.set_title(f'Cluster {c} - District Electrical & Gas Exchange')
+        ax.set_ylabel('Power (kW)')
         ax.grid(True)
 
     if all_handles:
-        axes[0].legend(all_handles, all_labels,
-                       loc='upper right', ncol=2)
+        for ax in axes:
+            ax.legend(all_handles, all_labels, loc='upper right', ncol=2)
 
-    axes[-1].set_xlabel('Time steps [h]')
+    for ax in axes:
+        ax.set_xlabel("Time (hours)")
+        ax.tick_params(labelbottom=True)
     plt.tight_layout()
 
     path = os.path.join(data.resultPath, 'plots', data.scenario_name, 'district')
     os.makedirs(path, exist_ok=True)
-    fig.savefig(os.path.join(path, f"district.png"), dpi=300)
+#    fig.savefig(os.path.join(path, f"district.png"), dpi=300)
+    fig.savefig(os.path.join(path, f"district.pdf"))
 
 def plot_all(data):
     # initialize input data for calculation of KPIs

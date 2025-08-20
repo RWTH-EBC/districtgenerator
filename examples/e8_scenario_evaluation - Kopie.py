@@ -13,7 +13,7 @@ def example8_scenario_evaluation():
 
     # Initialize District
 #    data = Datahandler(scenario_name = "example")
-    data = Datahandler(scenario_name = "Central_HP_f_EV05_intelligent")
+    data = Datahandler(scenario_name = "Central_HP_f_EV0")
 
 
     # We directly generate a complete district.

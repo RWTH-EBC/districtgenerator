@@ -22,7 +22,7 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
-from .plot import plot_all
+from .final_plots1 import plot_all
 
 class Datahandler:
     """
