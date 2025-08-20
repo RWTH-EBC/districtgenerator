@@ -1,236 +1,252 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class CentralDeviceConfig(BaseSettings):
-    # PV parameters
-    PV_feasible: bool = True
-    PV_eta: float = 0.15
-    PV_life_time: int = 25
-    PV_inv_var: int = 1000
-    PV_cost_om: float = 0.02
-    PV_max_area: int = 10000
-    PV_min_area: int = 100
-    PV_G_stc: int = 1
+    """Configuration for central devices in a district energy system.
 
-    # WT parameters
-    WT_feasible: bool = True
-    WT_inv_var: int = 1500
-    WT_life_time: int = 20
-    WT_cost_om: float = 0.015
-    WT_min_cap: int = 100
-    WT_max_cap: int = 3000
-    WT_h_coeff: float = 0.2
-    WT_hub_h: int = 100
-    WT_ref_h: int = 10
-    WT_norm_power: float = 0.85
+    This class defines the default parameters for various central devices such as
+    photovoltaic systems (PV), wind turbines (WT), water turbines (WAT),
+    solar thermal collectors (STC), combined heat and power systems (CHP),
+    boilers (BOI), heat pumps (HP), electric boilers (EB), chillers (CC),
+    and various storage systems like TES, BAT, and GS.
 
-    # WAT parameters
-    WAT_feasible: bool = False
-    WAT_inv_var: int = 2000
-    WAT_life_time: int = 30
-    WAT_cost_om: float = 0.01
-    WAT_min_cap: int = 50
-    WAT_max_cap: int = 2000
-    WAT_potential: int = 50000
+    Each device has parameters such as feasibility, efficiency, lifetime, investment costs,
+    and operational characteristics.
 
-    # STC parameters
-    STC_feasible: bool = False
-    STC_eta: float = 0.7
-    STC_inv_var: int = 800
-    STC_life_time: int = 20
-    STC_cost_om: float = 0.02
-    STC_max_area: int = 5000
-    STC_min_area: int = 10
-    STC_G_stc: int = 1
+    Attributes
+    ----------
+    Descriptions directly in Class.
 
-    # CHP parameters
-    CHP_feasible: bool = False
-    CHP_inv_var: int = 1200
-    CHP_eta_el: float = 0.4
-    CHP_eta_th: float = 0.5
-    CHP_life_time: int = 20
-    CHP_cost_om: float = 0.03
-    CHP_min_cap: int = 50
-    CHP_max_cap: int = 1000
+    """
 
-    # BOI parameters
-    BOI_feasible: bool = False
-    BOI_inv_var: int = 500
-    BOI_eta_th: float = 0.9
-    BOI_life_time: int = 20
-    BOI_cost_om: float = 0.02
-    BOI_min_cap: int = 10
-    BOI_max_cap: int = 500
+    # PV parameters (Photovoltaic System)
+    PV_feasible: bool = True        # Should this be considered for the central optimization.
+    PV_eta: float = 0.15            # Electrical efficiency between 0 and 1.
+    PV_life_time: int = 25          # Maximum life time in years.
+    PV_inv_var: int = 1000          # Investment variable in €/kWp.
+    PV_cost_om: float = 0.02        # Cost of operation and maintenance as a percentage of investment.
+    PV_max_area: int = 10000        # Maximum installation area in square meters.
+    PV_min_area: int = 100          # Minimum installation area in square meters.
+    PV_G_stc: int = 1               # Global horizontal irradiance under STC in kW/m^2.
 
-    # GHP parameters
-    GHP_feasible: bool = False
-    GHP_inv_var: int = 1000
-    GHP_COP: float = 3.5
-    GHP_life_time: int = 20
-    GHP_cost_om: float = 0.02
-    GHP_min_cap: int = 10
-    GHP_max_cap: int = 500
+    # WT parameters (Wind Turbine)
+    WT_feasible: bool = True        # Should this be considered for the central optimization.
+    WT_inv_var: int = 1500          # Investment variable in €/kW.
+    WT_life_time: int = 20          # Maximum life time in years.
+    WT_cost_om: float = 0.015       # Cost of operation and maintenance as a percentage of investment.
+    WT_min_cap: int = 100           # Minimum capacity in kW.
+    WT_max_cap: int = 3000          # Maximum capacity in kW.
+    WT_h_coeff: float = 0.2         # Hellmann exponent for wind speed correction.
+    WT_hub_h: int = 100             # Hub height of the wind turbine in meters.
+    WT_ref_h: int = 10              # Reference height for wind speed data in meters.
+    WT_norm_power: float = 0.85     # Normalized power output.
 
-    # HP parameters
-    HP_feasible: bool = True
-    HP_CCOP_feasible: bool = False
-    HP_ASHP_feasible: bool = False
-    HP_CSV_feasible: bool = True
-    HP_inv_var: int = 800
-    HP_life_time: int = 20
-    HP_cost_om: float = 0.015
-    HP_min_cap: int = 10
-    HP_max_cap: int = 500
-    HP_ASHP_carnot_eff: float = 0.4
-    HP_ASHP_supply_temp: int = 60
-    HP_COP_const: int = 4
+    # WAT parameters (Water Turbine)
+    WAT_feasible: bool = False      # Should this be considered for the central optimization.
+    WAT_inv_var: int = 2000         # Investment variable in €/kW.
+    WAT_life_time: int = 30         # Maximum life time in years.
+    WAT_cost_om: float = 0.01       # Cost of operation and maintenance as a percentage of investment.
+    WAT_min_cap: int = 50           # Minimum capacity in kW.
+    WAT_max_cap: int = 2000         # Maximum capacity in kW.
+    WAT_potential: int = 50000      # Annual energy potential in kWh.
 
-    # EB parameters
-    EB_feasible: bool = True
-    EB_inv_var: int = 600
-    EB_eta_th: float = 0.99
-    EB_life_time: int = 20
-    EB_cost_om: float = 0.01
-    EB_min_cap: int = 10
-    EB_max_cap: int = 300
+    # STC parameters (Solar Thermal Collector)
+    STC_feasible: bool = False      # Should this be considered for the central optimization.
+    STC_eta: float = 0.7            # Thermal efficiency between 0 and 1.
+    STC_inv_var: int = 800          # Investment variable in €/m^2.
+    STC_life_time: int = 20         # Maximum life time in years.
+    STC_cost_om: float = 0.02       # Cost of operation and maintenance as a percentage of investment.
+    STC_max_area: int = 5000        # Maximum installation area in square meters.
+    STC_min_area: int = 10          # Minimum installation area in square meters.
+    STC_G_stc: int = 1              # Global horizontal irradiance under STC in kW/m^2.
 
-    # CC parameters
-    CC_feasible: bool = True
-    CC_inv_var: int = 700
-    CC_COP: float = 3.5
-    CC_life_time: int = 20
-    CC_cost_om: float = 0.02
-    CC_min_cap: int = 10
-    CC_max_cap: int = 500
+    # CHP parameters (Combined Heat and Power)
+    CHP_feasible: bool = False      # Should this be considered for the central optimization.
+    CHP_inv_var: int = 1200         # Investment variable in €/kW.
+    CHP_eta_el: float = 0.4         # Electrical efficiency between 0 and 1.
+    CHP_eta_th: float = 0.5         # Thermal efficiency between 0 and 1.
+    CHP_life_time: int = 20         # Maximum life time in years.
+    CHP_cost_om: float = 0.03       # Cost of operation and maintenance as a percentage of investment.
+    CHP_min_cap: int = 50           # Minimum capacity in kW.
+    CHP_max_cap: int = 1000         # Maximum capacity in kW.
 
-    # AC parameters
-    AC_feasible: bool = False
-    AC_inv_var: int = 1000
-    AC_eta_th: float = 0.75
-    AC_life_time: int = 20
-    AC_cost_om: float = 0.02
-    AC_min_cap: int = 10
-    AC_max_cap: int = 500
+    # BOI parameters (Boiler)
+    BOI_feasible: bool = False      # Should this be considered for the central optimization.
+    BOI_inv_var: int = 500          # Investment variable in €/kW.
+    BOI_eta_th: float = 0.9         # Thermal efficiency between 0 and 1.
+    BOI_life_time: int = 20         # Maximum life time in years.
+    BOI_cost_om: float = 0.02       # Cost of operation and maintenance as a percentage of investment.
+    BOI_min_cap: int = 10           # Minimum capacity in kW.
+    BOI_max_cap: int = 500          # Maximum capacity in kW.
 
-    # BCHP parameters
-    BCHP_feasible: bool = False
-    BCHP_inv_var: int = 1500
-    BCHP_eta_el: float = 0.35
-    BCHP_eta_th: float = 0.55
-    BCHP_life_time: int = 20
-    BCHP_cost_om: float = 0.03
-    BCHP_min_cap: int = 50
-    BCHP_max_cap: int = 1000
+    # GHP parameters (Ground Source Heat Pump)
+    GHP_feasible: bool = False      # Should this be considered for the central optimization.
+    GHP_inv_var: int = 1000         # Investment variable in €/kW.
+    GHP_COP: float = 3.5            # Coefficient of Performance (COP).
+    GHP_life_time: int = 20         # Maximum life time in years.
+    GHP_cost_om: float = 0.02       # Cost of operation and maintenance as a percentage of investment.
+    GHP_min_cap: int = 10           # Minimum capacity in kW.
+    GHP_max_cap: int = 500          # Maximum capacity in kW.
 
-    # BBOI parameters
-    BBOI_feasible: bool = False
-    BBOI_inv_var: int = 600
-    BBOI_eta_th: float = 0.85
-    BBOI_life_time: int = 20
-    BBOI_cost_om: float = 0.02
-    BBOI_min_cap: int = 10
-    BBOI_max_cap: int = 500
+    # HP parameters (Heat Pump)
+    HP_feasible: bool = True        # Should this be considered for the central optimization.
+    HP_CCOP_feasible: bool = False  # Should this be considered for the central optimization (constant COP).
+    HP_ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
+    HP_CSV_feasible: bool = True    # Should this be considered for the central optimization (CSV data).
+    HP_inv_var: int = 800           # Investment variable in €/kW.
+    HP_life_time: int = 20          # Maximum life time in years.
+    HP_cost_om: float = 0.015       # Cost of operation and maintenance as a percentage of investment.
+    HP_min_cap: int = 10            # Minimum capacity in kW.
+    HP_max_cap: int = 500           # Maximum capacity in kW.
+    HP_ASHP_carnot_eff: float = 0.4 # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
+    HP_ASHP_supply_temp: int = 60   # Supply temperature of the Air Source Heat Pump in Celsius.
+    HP_COP_const: int = 4           # Constant Coefficient of Performance (COP).
 
-    # WCHP parameters
-    WCHP_feasible: bool = False
-    WCHP_inv_var: int = 2000
-    WCHP_eta_el: float = 0.3
-    WCHP_eta_th: float = 0.6
-    WCHP_life_time: int = 20
-    WCHP_cost_om: float = 0.03
-    WCHP_min_cap: int = 50
-    WCHP_max_cap: int = 1000
+    # EB parameters (Electric Boiler)
+    EB_feasible: bool = True        # Should this be considered for the central optimization.
+    EB_inv_var: int = 600           # Investment variable in €/kW.
+    EB_eta_th: float = 0.99         # Thermal efficiency between 0 and 1.
+    EB_life_time: int = 20          # Maximum life time in years.
+    EB_cost_om: float = 0.01        # Cost of operation and maintenance as a percentage of investment.
+    EB_min_cap: int = 10            # Minimum capacity in kW.
+    EB_max_cap: int = 300           # Maximum capacity in kW.
 
-    # WBOI parameters
-    WBOI_feasible: bool = False
-    WBOI_inv_var: int = 700
-    WBOI_eta_th: float = 0.8
-    WBOI_life_time: int = 20
-    WBOI_cost_om: float = 0.02
-    WBOI_min_cap: int = 10
-    WBOI_max_cap: int = 500
+    # CC parameters (Chiller)
+    CC_feasible: bool = True        # Should this be considered for the central optimization.
+    CC_inv_var: int = 700           # Investment variable in €/kW.
+    CC_COP: float = 3.5             # Coefficient of Performance (COP).
+    CC_life_time: int = 20          # Maximum life time in years.
+    CC_cost_om: float = 0.02        # Cost of operation and maintenance as a percentage of investment.
+    CC_min_cap: int = 10            # Minimum capacity in kW.
+    CC_max_cap: int = 500           # Maximum capacity in kW.
 
-    # ELYZ parameters
-    ELYZ_feasible: bool = False
-    ELYZ_inv_var: int = 1500
-    ELYZ_eta_el: float = 0.7
-    ELYZ_life_time: int = 20
-    ELYZ_cost_om: float = 0.03
-    ELYZ_min_cap: int = 50
-    ELYZ_max_cap: int = 1000
+    # AC parameters (Air Conditioning)
+    AC_feasible: bool = False       # Should this be considered for the central optimization.
+    AC_inv_var: int = 1000          # Investment variable in €/kW.
+    AC_eta_th: float = 0.75         # Thermal efficiency between 0 and 1.
+    AC_life_time: int = 20          # Maximum life time in years.
+    AC_cost_om: float = 0.02        # Cost of operation and maintenance as a percentage of investment.
+    AC_min_cap: int = 10            # Minimum capacity in kW.
+    AC_max_cap: int = 500           # Maximum capacity in kW.
 
-    # FC parameters
-    FC_feasible: bool = False
-    FC_inv_var: int = 1800
-    FC_eta_el: float = 0.5
-    FC_eta_th: float = 0.4
-    FC_life_time: int = 20
-    FC_cost_om: float = 0.03
-    FC_min_cap: int = 50
-    FC_max_cap: int = 1000
-    FC_enable_heat_diss: bool = True
+    # BCHP parameters (Building Combined Heat and Power)
+    BCHP_feasible: bool = False     # Should this be considered for the central optimization.
+    BCHP_inv_var: int = 1500        # Investment variable in €/kW.
+    BCHP_eta_el: float = 0.35       # Electrical efficiency between 0 and 1.
+    BCHP_eta_th: float = 0.55       # Thermal efficiency between 0 and 1.
+    BCHP_life_time: int = 20        # Maximum life time in years.
+    BCHP_cost_om: float = 0.03      # Cost of operation and maintenance as a percentage of investment.
+    BCHP_min_cap: int = 50          # Minimum capacity in kW.
+    BCHP_max_cap: int = 1000        # Maximum capacity in kW.
 
-    # H2S parameters
-    H2S_feasible: bool = False
-    H2S_inv_var: int = 1200
-    H2S_sto_loss: float = 0.0
-    H2S_life_time: int = 20
-    H2S_cost_om: float = 0.02
-    H2S_min_cap: int = 100
-    H2S_max_cap: int = 5000
+    # BBOI parameters (Biomass Boiler)
+    BBOI_feasible: bool = False     # Should this be considered for the central optimization.
+    BBOI_inv_var: int = 600         # Investment variable in €/kW.
+    BBOI_eta_th: float = 0.85       # Thermal efficiency between 0 and 1.
+    BBOI_life_time: int = 20        # Maximum life time in years.
+    BBOI_cost_om: float = 0.02      # Cost of operation and maintenance as a percentage of investment.
+    BBOI_min_cap: int = 10          # Minimum capacity in kW.
+    BBOI_max_cap: int = 500         # Maximum capacity in kW.
 
-    # SAB parameters
-    SAB_feasible: bool = False
-    SAB_inv_var: int = 2000
-    SAB_eta: float = 0.6
-    SAB_life_time: int = 20
-    SAB_cost_om: float = 0.03
-    SAB_min_cap: int = 50
-    SAB_max_cap: int = 1000
+    # WCHP parameters (Water Combined Heat and Power)
+    WCHP_feasible: bool = False     # Should this be considered for the central optimization.
+    WCHP_inv_var: int = 2000        # Investment variable in €/kW.
+    WCHP_eta_el: float = 0.3        # Electrical efficiency between 0 and 1.
+    WCHP_eta_th: float = 0.6        # Thermal efficiency between 0 and 1.
+    WCHP_life_time: int = 20        # Maximum life time in years.
+    WCHP_cost_om: float = 0.03      # Cost of operation and maintenance as a percentage of investment.
+    WCHP_min_cap: int = 50          # Minimum capacity in kW.
+    WCHP_max_cap: int = 1000        # Maximum capacity in kW.
 
-    # TES parameters
-    TES_feasible: bool = True
-    TES_inv_var: int = 1200
-    TES_sto_loss: float = 0.01
-    TES_life_time: int = 20
-    TES_cost_om: float = 0.01
-    TES_min_vol: int = 100
-    TES_max_vol: int = 5000
-    TES_delta_T: int = 30
-    TES_soc_init: float = 0.5
+    # WBOI parameters (Water Boiler)
+    WBOI_feasible: bool = False     # Should this be considered for the central optimization.
+    WBOI_inv_var: int = 700         # Investment variable in €/kW.
+    WBOI_eta_th: float = 0.8        # Thermal efficiency between 0 and 1.
+    WBOI_life_time: int = 20        # Maximum life time in years.
+    WBOI_cost_om: float = 0.02      # Cost of operation and maintenance as a percentage of investment.
+    WBOI_min_cap: int = 10          # Minimum capacity in kW.
+    WBOI_max_cap: int = 500         # Maximum capacity in kW.
 
-    # CTES parameters
-    CTES_feasible: bool = False
-    CTES_inv_var: int = 1300
-    CTES_sto_loss: float = 0.01
-    CTES_life_time: int = 20
-    CTES_cost_om: float = 0.01
-    CTES_min_vol: int = 100
-    CTES_max_vol: int = 5000
-    CTES_delta_T: int = 30
-    CTES_soc_init: float = 0.5
+    # ELYZ parameters (Electrolyzer)
+    ELYZ_feasible: bool = False     # Should this be considered for the central optimization.
+    ELYZ_inv_var: int = 1500        # Investment variable in €/kW.
+    ELYZ_eta_el: float = 0.7        # Electrical efficiency between 0 and 1.
+    ELYZ_life_time: int = 20        # Maximum life time in years.
+    ELYZ_cost_om: float = 0.03      # Cost of operation and maintenance as a percentage of investment.
+    ELYZ_min_cap: int = 50          # Minimum capacity in kW.
+    ELYZ_max_cap: int = 1000        # Maximum capacity in kW.
 
-    # BAT parameters
-    BAT_feasible: bool = False
-    BAT_inv_var: int = 200
-    BAT_life_time: int = 15
-    BAT_cost_om: float = 0.02
-    BAT_min_cap: int = 10
-    BAT_max_cap: int = 200
-    BAT_sto_loss: float = 0.0
-    BAT_soc_init: float = 0.5
+    # FC parameters (Fuel Cell)
+    FC_feasible: bool = False       # Should this be considered for the central optimization.
+    FC_inv_var: int = 1800          # Investment variable in €/kW.
+    FC_eta_el: float = 0.5          # Electrical efficiency between 0 and 1.
+    FC_eta_th: float = 0.4          # Thermal efficiency between 0 and 1.
+    FC_life_time: int = 20          # Maximum life time in years.
+    FC_cost_om: float = 0.03        # Cost of operation and maintenance as a percentage of investment.
+    FC_min_cap: int = 50            # Minimum capacity in kW.
+    FC_max_cap: int = 1000          # Maximum capacity in kW.
+    FC_enable_heat_diss: bool = True # Enable/disable heat dissipation for the fuel cell.
 
-    # GS parameters
-    GS_feasible: bool = False
-    GS_inv_var: int = 150
-    GS_life_time: int = 20
-    GS_cost_om: float = 0.01
-    GS_min_cap: int = 1000
-    GS_max_cap: int = 10000
-    GS_sto_loss: float = 0.0
-    GS_soc_init: float = 0.5
+    # H2S parameters (Hydrogen Storage)
+    H2S_feasible: bool = False      # Should this be considered for the central optimization.
+    H2S_inv_var: int = 1200         # Investment variable in €/kWh.
+    H2S_sto_loss: float = 0.0       # Storage loss as a fraction.
+    H2S_life_time: int = 20         # Maximum life time in years.
+    H2S_cost_om: float = 0.02       # Cost of operation and maintenance as a percentage of investment.
+    H2S_min_cap: int = 100          # Minimum capacity in kWh.
+    H2S_max_cap: int = 5000         # Maximum capacity in kWh.
+
+    # SAB parameters (Sorption Air Battery)
+    SAB_feasible: bool = False      # Should this be considered for the central optimization.
+    SAB_inv_var: int = 2000         # Investment variable in €/kW.
+    SAB_eta: float = 0.6            # Round-trip efficiency between 0 and 1.
+    SAB_life_time: int = 20         # Maximum life time in years.
+    SAB_cost_om: float = 0.03       # Cost of operation and maintenance as a percentage of investment.
+    SAB_min_cap: int = 50           # Minimum capacity in kW.
+    SAB_max_cap: int = 1000         # Maximum capacity in kW.
+
+    # TES parameters (Thermal Energy Storage)
+    TES_feasible: bool = True       # Should this be considered for the central optimization.
+    TES_inv_var: int = 1200         # Investment variable in €/m^3.
+    TES_sto_loss: float = 0.01      # Storage loss per hour as a fraction.
+    TES_life_time: int = 20         # Maximum life time in years.
+    TES_cost_om: float = 0.01       # Cost of operation and maintenance as a percentage of investment.
+    TES_min_vol: int = 100          # Minimum storage volume in cubic meters.
+    TES_max_vol: int = 5000         # Maximum storage volume in cubic meters.
+    TES_delta_T: int = 30           # Temperature difference between charged and discharged state in Celsius.
+    TES_soc_init: float = 0.5       # Initial state of charge between 0 and 1.
+
+    # CTES parameters (Cold Thermal Energy Storage)
+    CTES_feasible: bool = False     # Should this be considered for the central optimization.
+    CTES_inv_var: int = 1300        # Investment variable in €/m^3.
+    CTES_sto_loss: float = 0.01     # Storage loss per hour as a fraction.
+    CTES_life_time: int = 20        # Maximum life time in years.
+    CTES_cost_om: float = 0.01      # Cost of operation and maintenance as a percentage of investment.
+    CTES_min_vol: int = 100         # Minimum storage volume in cubic meters.
+    CTES_max_vol: int = 5000        # Maximum storage volume in cubic meters.
+    CTES_delta_T: int = 30          # Temperature difference between charged and discharged state in Celsius.
+    CTES_soc_init: float = 0.5      # Initial state of charge between 0 and 1.
+
+    # BAT parameters (Battery Storage)
+    BAT_feasible: bool = False      # Should this be considered for the central optimization.
+    BAT_inv_var: int = 200          # Investment variable in €/kWh.
+    BAT_life_time: int = 15         # Maximum life time in years.
+    BAT_cost_om: float = 0.02       # Cost of operation and maintenance as a percentage of investment.
+    BAT_min_cap: int = 10           # Minimum capacity in kWh.
+    BAT_max_cap: int = 200          # Maximum capacity in kWh.
+    BAT_sto_loss: float = 0.0       # Storage loss as a fraction.
+    BAT_soc_init: float = 0.5       # Initial state of charge between 0 and 1.
+
+    # GS parameters (Gas Storage)
+    GS_feasible: bool = False       # Should this be considered for the central optimization.
+    GS_inv_var: int = 150           # Investment variable in €/kWh.
+    GS_life_time: int = 20          # Maximum life time in years.
+    GS_cost_om: float = 0.01        # Cost of operation and maintenance as a percentage of investment.
+    GS_min_cap: int = 1000          # Minimum capacity in kWh.
+    GS_max_cap: int = 10000         # Maximum capacity in kWh.
+    GS_sto_loss: float = 0.0        # Storage loss as a fraction.
+    GS_soc_init: float = 0.5        # Initial state of charge between 0 and 1.
 
     model_config = SettingsConfigDict(
         env_file= ".centraldeviceconfig",
-        extra="allow" 
+        extra="allow"
     )
-
