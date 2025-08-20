@@ -24,12 +24,6 @@ from districtgenerator.data_handling.config import GlobalConfig, load_global_con
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
-# configs sollten hier abrufbar sein
-#- -> eigene dicts die die jsons abbilden, klassen könnte auch gehen -> sind die langsamer?
-# zwischen step json überspringen -> nur eine config, die kommentiert ist
-# -> braucht man klassen? es sind ja nur variablen
-# in webapp datahandler wird immer neu eingeladen, daher performance wichtig bei einladen
-
 class Datahandler:
     """
     Abstract class for data handling.
@@ -75,7 +69,7 @@ class Datahandler:
         self.conf_scenario_name = global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
-            
+
         self.site = {}
         self.time = {}
         self.district = []
@@ -115,14 +109,14 @@ class Datahandler:
             central_config=global_config.central
         )
 
-        
-    def load_all_data(self, site_config:LocationConfig, 
-                      time_config:TimeConfig, 
-                      design_building_config:DesignBuildingConfig, 
-                      physics_config:PhysicsConfig, 
-                      decentral_config:DecentralDeviceConfig, 
-                      ehdo_config:EHDOConfig, 
-                      eco_config:EcoConfig, 
+
+    def load_all_data(self, site_config:LocationConfig,
+                      time_config:TimeConfig,
+                      design_building_config:DesignBuildingConfig,
+                      physics_config:PhysicsConfig,
+                      decentral_config:DecentralDeviceConfig,
+                      ehdo_config:EHDOConfig,
+                      eco_config:EcoConfig,
                       central_config:CentralDeviceConfig):
         """
         General data import from JSON files and transformation into dictionaries.
@@ -165,7 +159,7 @@ class Datahandler:
         for attribute, value in decentral_config.__dict__.items():
             # Split the attribute into abbreviation and parameter name parts based on the first underscore
             abbr, _, param = attribute.partition("_")
-            
+
             # Initialize the sub-dictionary if needed.
             if abbr not in self.decentral_device_data:
                 self.decentral_device_data[abbr] = {}
@@ -186,7 +180,7 @@ class Datahandler:
         for attribute, value in central_config.__dict__.items():
             # Split the attribute into abbreviation and parameter name parts based on the first underscore
             abbr, _, param = attribute.partition("_")
-            
+
             # Initialize the sub-dictionary if needed.
             if abbr not in self.central_device_data:
                 self.central_device_data[abbr] = {}
@@ -301,7 +295,6 @@ class Datahandler:
         # Load other site-dependent values based on DIN/TS 12831-1:2020-04
         filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
-
 
         # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
@@ -676,7 +669,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -718,7 +711,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.

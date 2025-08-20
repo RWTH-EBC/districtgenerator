@@ -424,14 +424,12 @@ class KPIs:
         None.
         """
 
-        filePath = os.path.join(data.srcPath, 'data')
         # important for weather conditions
-        #with open(os.path.join(filePath, 'eco_data.json')) as json_file:
-        #    jsonData = json.load(json_file)
 
+        # todo: check
         CO2_factor_el_grid = jsonData["co2_el_grid"]  # Emi_elec_grid
-        CO2_factor_gas = jsonData["co2_gas"]      # Emi_gas
-        CO2_factor_pv = jsonData["co2_biom"]       # Emi_pv  ??? does not have key co2_pv
+        CO2_factor_gas = jsonData["co2_gas"]          # Emi_gas
+        CO2_factor_pv = jsonData["co2_biom"]          # Emi_pv  ??? does not have key co2_pv
 
         # change unit from [Wh] to [kWh] and consider time resolution --> in function "calculateEnergyExchangeGCP"
         co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid
@@ -545,7 +543,7 @@ class KPIs:
         self.total_dhw_peak = max(sum_dhw_profile)
         self.total_cooling_peak = max(sum_cool_profile)
 
-    def calculateAllKPIs(self, data, ecoData):
+    def calculateAllKPIs(self, data):
         """
         Calculate all KPIs.
 
