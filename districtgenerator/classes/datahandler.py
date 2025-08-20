@@ -403,32 +403,36 @@ class Datahandler:
 
         # %% create TEASER project
         # create one project for the whole district
-        prj = Project(load_data=True)
+        prj = Project()
         prj.name = self.scenario_name
 
         for building in self.district:
 
             # convert short names into designation needed for TEASER
-            building_type = \
-                bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
-            retrofit_level = \
-                bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+            building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+            retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+
+            if retrofit_level == "tabula_standard":
+                construction_data = 'tabula_de_standard'
+            elif retrofit_level == "tabula_retrofit":
+                construction_data = 'tabula_de_retrofit'
+            elif retrofit_level == "tabula_adv_retrofit":
+                construction_data = 'tabula_de_adv_retrofit'
 
             # add buildings to TEASER project
-            prj.add_residential(method='tabula_de',
-                                usage=building_type,
-                                name="ResidentialBuildingTabula",
+            prj.add_residential(name="ResidentialBuildingTabula",
+                                geometry_data="tabula_de_" + building_type,
+                                construction_data=construction_data,
                                 year_of_construction=building["buildingFeatures"]["year"],
                                 number_of_floors=3,
                                 height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"],
-                                construction_type=retrofit_level)
+                                net_leased_area=building["buildingFeatures"]["area"])
 
             # %% create envelope object
             # containing all physical data of the envelope
             building["envelope"] = Envelope(prj=prj,
                                             building_params=building["buildingFeatures"],
-                                            construction_type=retrofit_level,
+                                            construction_data=construction_data,
                                             physics=self.physics,
                                             design_building_data=self.design_building_data,
                                             file_path=self.filePath)

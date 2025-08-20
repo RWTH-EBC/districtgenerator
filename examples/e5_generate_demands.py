@@ -35,7 +35,7 @@ def example5_generate_demands():
     # The Richardson tool is used to generate stochastic occupancy, internal heat gain and electric load profiles.
     # With an 5R1C thermal building model the space heat profiles and a stochastic model the drinking hot water
     # profiles are calculated.
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+    data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)
 
     ### ===========================================  Output  =========================================== ###
     # The (demand) profiles for electricity demand of appliances and lighting (elec),
