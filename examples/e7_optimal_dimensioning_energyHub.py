@@ -23,12 +23,14 @@ def example7_optiEnergyCentral_EHDO():
     # and economic efficiency.
     # As Input the EHDO needs data of the demands and location (weather), which are given directly from the output of
     # the district generator. Further information about the technologies to be considered for the dimensioning of
-    # the energy central and economic parameters are read in from further .csv and . json. data sources
+    # the energy central and economic parameters are read in from further .csv and from the .env.CONFIG data sources
 
     data.designCentralDevices(saveGenerationProfiles=True)
     # Within data the results of EHDO are given. For each device the annual generated amount of
     # electricity or heat as well as the nominal power or storage capacity are calculate.
-    # Furthermore, ecological and economic indicatoers are calculated.
+    # Furthermore, ecological and economic indicators are calculated.
+
+    # The results are saved in the data/generation folder of the district generator.
 
     print("Congratulations! You generated your energy central for the selected neighborhood!")
 

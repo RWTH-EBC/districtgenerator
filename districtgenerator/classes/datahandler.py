@@ -83,7 +83,6 @@ class Datahandler:
         """
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
-        self.conf_scenario_name = global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
 
@@ -147,14 +146,14 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self, site_config:LocationConfig,
-                      time_config:TimeConfig,
-                      design_building_config:DesignBuildingConfig,
-                      physics_config:PhysicsConfig,
-                      decentral_config:DecentralDeviceConfig,
-                      ehdo_config:EHDOConfig,
-                      eco_config:EcoConfig,
-                      central_config:CentralDeviceConfig):
+    def load_all_data(self, site_config: LocationConfig,
+                      time_config: TimeConfig,
+                      design_building_config: DesignBuildingConfig,
+                      physics_config: PhysicsConfig,
+                      decentral_config: DecentralDeviceConfig,
+                      ehdo_config: EHDOConfig,
+                      eco_config: EcoConfig,
+                      central_config: CentralDeviceConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -272,13 +271,13 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
-                Add new weatherdatafile_location, if you want an individual location: 
-                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
-                Uncomment the following line  
-            """
+            '''  
+            Add new weatherdatafile_location, if you want an individual location: 
+            Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
+            Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
+            Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
+            Uncomment the following line  
+            '''
             # weatherdatafile_location = 507755060854
 
     def generateEnvironment(self):
@@ -408,8 +407,8 @@ class Datahandler:
 
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
-                # name is composed of building id, and building type
-                name = str(id) + "_" + building["buildingFeatures"]["building"]
+                # name is composed of building id,  building type and scenario_name
+                name = str(id) + "_" + building["buildingFeatures"]["building"] + "_" + self.scenario_name
 
                 # Check if the name is already in the district
                 if name in name_pool:
@@ -512,14 +511,12 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
         Parameters
         ----------
-        name: string, optional
-            Name of the scenario. If None, the name will be set default.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
@@ -570,7 +567,6 @@ class Datahandler:
 
         self.save_progress()
 
-
         print("Finished generating demands with multiprocessing!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
@@ -595,22 +591,22 @@ class Datahandler:
                                           building=building,
                                           path=os.path.join(self.resultPath, 'demands'))
 
-         if saveUserProfiles:
-             self.saveProfiles(name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
-                               elec=building["user"].elec,
-                               dhw= building["user"].dhw,
-                               occ= building["user"].occ,
-                               gains= building["user"].gains,
-                               car= building["user"].car,
-                               nb_flats= building["user"].nb_flats,
-                               nb_occ= building["user"].nb_occ,
-                               heatload= building["envelope"].heatload,
-                               bivalent= building["envelope"].bivalent,
-                               heatlimit= building["envelope"].heatlimit,
-                               path=os.path.join(self.resultPath, 'demands'))
-             #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
+        if saveUserProfiles:
+            self.saveProfiles(name= building["unique_name"],
+                              elec=building["user"].elec,
+                              dhw= building["user"].dhw,
+                              occ= building["user"].occ,
+                              gains= building["user"].gains,
+                              car= building["user"].car,
+                              nb_flats= building["user"].nb_flats,
+                              nb_occ= building["user"].nb_occ,
+                              heatload= building["envelope"].heatload,
+                              bivalent= building["envelope"].bivalent,
+                              heatlimit= building["envelope"].heatlimit,
+                              path=os.path.join(self.resultPath, 'demands'))
+            #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
-            # print("Calculate demands of building " + building["unique_name"] + '_'+ self.conf_scenario_name)
+            # print("Calculate demands of building " + building["unique_name"])
 
         else:
             (building["user"].elec, building["user"].dhw,
@@ -618,7 +614,7 @@ class Datahandler:
              building["user"].car, building["user"].nb_flats,
              building["user"].nb_occ, building["envelope"].heatload,
              building["envelope"].bivalent,
-             building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
+             building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'))
             #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             print("Load demands of building " + building["unique_name"])
@@ -645,17 +641,17 @@ class Datahandler:
             if saveUserProfiles:
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
-                                        name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
+                                        name= building["unique_name"],
                                         path=os.path.join(self.resultPath, 'demands'))
                 #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
         else:
-            heat, cooling = self.loadHeatingProfiles(name=building["unique_name"]+'_'+ self.conf_scenario_name,
+            heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
         # print("Finished generating demands!")
 
-    def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
                                  designDevs=False, saveGenProfiles=True, clustering=False, optimization=False):
         """
         All in one solution for district and demand generation.
@@ -663,8 +659,6 @@ class Datahandler:
         Parameters
         ----------
 
-        name: string, optional
-            Name of the scenario. If None, the name will be set default.
         calcUserProfiles: bool, optional
             True: calculate new user profiles.
             False: load user profiles from file.
@@ -673,7 +667,7 @@ class Datahandler:
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
         designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
+            Decision if devices (central / decentral) will be designed. The default is False.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
@@ -690,7 +684,7 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
+        self.generateDemands(calcUserProfiles, saveUserProfiles)
         if designDevs:
             self.designDevicesComplete(saveGenProfiles)
         if clustering:
@@ -915,11 +909,11 @@ class Datahandler:
             # optionally save generation profiles
             if saveGenerationProfiles == True:
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name +'.csv',
+                           + '/decentralPV_' + building["unique_name"] +'.csv',
                            building["generationPV"],
                            delimiter=',')
                 np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name +'.csv',
+                           + '/decentralSTC_' + building["unique_name"] +'.csv',
                            building["generationSTC"],
                            delimiter=',')
 
@@ -1230,9 +1224,9 @@ class Datahandler:
         """
 
         # initialize KPI class
-        self.KPIs = KPIs(self, self.decentral_device_data)
+        self.KPIs = KPIs(self, decentral_config=self.decentral_device_data)
         # calculate KPIs
-        self.KPIs.calculateAllKPIs(self, self.ecoData)
+        self.KPIs.calculateAllKPIs(self)
 
 
 def generate_demands_worker_wrapper(args):

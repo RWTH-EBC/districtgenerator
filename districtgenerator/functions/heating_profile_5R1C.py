@@ -352,6 +352,7 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
                                                  timestep=t)
 
         if building_type in {"SFH", "TH", "MFH", "AB"}:
+            # todo here is heating period, have option to do it also without
             if t_op < T_set and day not in range(135, 259):
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,

@@ -28,7 +28,7 @@ def example5_generate_demands():
     data.generateBuildings()
 
     # Now we generate building specific demand profiles. The computation can take a few minutes,
-    # because energy profiles for a hole year are computed. As input we tell the program,
+    # because energy profiles for a whole year are computed in multiprocessing. As input we tell the program,
     # if we want to calculate and save the demand profiles: If "calcUserProfiles=True", the datahandler
     # generates the profiles and saves them in the directory "results/demands/".
     # Alternatively we can load existing profiles. To do so, we put "calcUserProfiles=False".

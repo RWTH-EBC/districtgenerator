@@ -412,9 +412,9 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         env_file = settings.env_file
 
     script_path = Path(__file__).resolve()
-    project_root = script_path.parent.parent.parent
+    project_root = script_path.parent.parent
 
-    env_file_path = str(project_root / env_file)
+    env_file_path = str(project_root / "data" / env_file)
 
     if not os.path.exists(env_file_path):
         raise FileNotFoundError(

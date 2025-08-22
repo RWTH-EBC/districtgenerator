@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This is the fourth example to add more information the the building models.
+This is the fourth example to add more information to the building models.
 
 If you run the examples with Python console, you can see the output file.
 To do this right-hand click the example.py file (e4_generate_buildings.py).

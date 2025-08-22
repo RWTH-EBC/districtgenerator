@@ -147,7 +147,7 @@ class BES:
         return BES
 
 
-class CES:
+class CES():
     """
     Abstract class for design of the central energy system.
     """
@@ -160,7 +160,6 @@ class CES:
         -------
         None.
         """
-
 
     def designCES(self, data):
         """
@@ -194,6 +193,7 @@ class CES:
         potentialPV, defaultSTC = \
             sun.calcPVAndSTCProfile(time=time,
                                     site=site,
+                                    devices=data.decentral_device_data,
                                     area_roof=data.centralDevices["capacities"]["area"]["PV"],
                                     # In Germany, this is a roof pitch between 30 and 35 degrees
                                     beta=[35],
@@ -206,6 +206,7 @@ class CES:
         defaultPV, pontentialSTC = \
             sun.calcPVAndSTCProfile(time=time,
                                     site=site,
+                                    devices=data.decentral_device_data,
                                     area_roof=data.centralDevices["capacities"]["area"]["STC"],
                                     # In Germany, this is a roof pitch between 30 and 35 degrees
                                     beta=[35],

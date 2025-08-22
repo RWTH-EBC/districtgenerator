@@ -23,7 +23,7 @@ def example3_initialize_buildings():
     data.initializeBuildings()
 
     ### =====================================  Output  ===================================== ###
-    # The district consists of a list of two buildings with id 0 and 1 (see "data.district").
+    # The district consists of a list of four buildings with id 0 to 3 (see "data.district").
     # To every building the building features from example.csv are added.
 
     return data
