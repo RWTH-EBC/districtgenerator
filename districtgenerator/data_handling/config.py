@@ -415,8 +415,20 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         settings = Settings()  # Load settings from the .env file
         env_file = settings.env_file
 
-    os.environ["ENV_FILE"] = env_file
-    print(f'Using config: {os.environ["ENV_FILE"]}')  # todo: der lädt bei mir keine Configs ein!
+    script_path = Path(__file__).resolve()
+    project_root = script_path.parent.parent
+
+    env_file_path = str(project_root / "data" / env_file)
+
+    if not os.path.exists(env_file_path):
+        raise FileNotFoundError(
+            f"Configuration file not found. \n"
+            f"  - Looked for: {env_file_path}\n"
+            f"  - Based on script location: {script_path}"
+        )
+
+    os.environ["ENV_FILE"] = env_file_path
+    print(f'Using config: {os.environ["ENV_FILE"]}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file),

@@ -161,7 +161,7 @@ class BES:
         return BES
 
 
-class CES:
+class CES():
     """
     Abstract class for design of the central energy system.
     """
@@ -174,7 +174,6 @@ class CES:
         -------
         None.
         """
-
 
     def designCES(self, data):
         """

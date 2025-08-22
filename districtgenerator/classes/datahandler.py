@@ -84,7 +84,6 @@ class Datahandler:
         """
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
-        self.conf_scenario_name = global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
             
@@ -253,13 +252,13 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
-                Add new weatherdatafile_location, if you want an individual location: 
-                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
-                Uncomment the following line  
-            """
+            '''  
+            Add new weatherdatafile_location, if you want an individual location: 
+            Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
+            Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
+            Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
+            Uncomment the following line  
+            '''
             # weatherdatafile_location = 507755060854
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
@@ -425,8 +424,8 @@ class Datahandler:
                 #print(self.scenario)
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
-                # name is composed of building id, and building type
-                name = str(id) + "_" + building["buildingFeatures"]["building"]
+                # name is composed of building id,  building type and scenario_name
+                name = str(id) + "_" + building["buildingFeatures"]["building"] + "_" + self.scenario_name
 
                 # Check if the name is already in the district
                 if name in name_pool:
@@ -598,7 +597,6 @@ class Datahandler:
 
         self.save_progress()
 
-
         print("Finished generating demands with multiprocessing!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
@@ -705,7 +703,7 @@ class Datahandler:
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
         designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
+            Decision if devices (central / decentral) will be designed. The default is False.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
@@ -1435,7 +1433,7 @@ class Datahandler:
         """
 
         # initialize KPI class
-        self.KPIs = KPIs(self, self.decentral_device_data)
+        self.KPIs = KPIs(self, decentral_config=self.decentral_device_data)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
 

@@ -26,8 +26,8 @@ class KPIs:
         ----------
         data : Datahandler object
             Datahandler object which contains all relevant information to compute the key performance indicators (KPIs).
-        decentral_config : tuple
-            Tuple containing the decentral configuration parameters.
+        decentral_config : dict
+            Dict containing the decentral configuration parameters.
 
         Returns
         -------
@@ -601,7 +601,7 @@ class KPIs:
         self.calculateEnergyExchangeWithinDistrict(data)
         self.calculateCoverFactors(data)
         self.calculateOperationCosts(data)
-        self.calculateCO2emissions(data, ecoData)
+        self.calculateCO2emissions(data, data.ecoData)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
