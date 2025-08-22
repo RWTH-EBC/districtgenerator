@@ -373,6 +373,7 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
                 q_hc = 0
 
         else:
+            # Non residential buildings
             if (t_op < T_set and
                     day not in range(135, 259) and
                     (day % 7 not in (0, 6) and
