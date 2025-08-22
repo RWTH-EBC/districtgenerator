@@ -1,2 +1,5 @@
-id;gmlId;building;year;construction_type;night_setback;retrofit;area;number_of_floors;elec;height;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
-0;urn:ngsi-ld:Building:52078Buschstrasse1a;SFH;2014;None;1;1;137;2;8997;7.81;BOI;0;0;0;0;35.0;1.0;6000.0;0.4;0.04;0;on_demand
+id;building;year;retrofit;construction_type;night_setback;area;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging
+0;SFH;1960;0;;0;140;HP;0;0;0;0;35;1;6000;0.4;0.4;0;on_demand
+1;MFH;1960;0;;0;300;HP;0;0;0;0;35;1;6000;0.4;0.04;0;on_demand
+2;AB;1960;0;;0;300;BOI;1;0;0;0;35;1;6000;0.6;0.4;0;on_demand
+3;TH;1960;0;;0;300;BOI;1;0;0;0;35;1;6000;0.9;0.04;0;on_demand

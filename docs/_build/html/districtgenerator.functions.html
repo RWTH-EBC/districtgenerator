@@ -1,23 +1,21 @@
+
+
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Internal functions &mdash; DistrictGenerator 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
-  
-        <script src="_static/jquery.js?v=5d32c60e"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
-        <script src="_static/doctools.js?v=888ff710"></script>
-        <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -99,151 +97,180 @@
            <div itemprop="articleBody">
              
   <section id="internal-functions">
-<h1>Internal functions<a class="headerlink" href="#internal-functions" title="Permalink to this heading"></a></h1>
+<h1>Internal functions<a class="headerlink" href="#internal-functions" title="Link to this heading"></a></h1>
 <section id="module-districtgenerator.functions.change_resolution">
-<span id="districtgenerator-functions-change-resolution"></span><h2>districtgenerator.functions.change_resolution<a class="headerlink" href="#module-districtgenerator.functions.change_resolution" title="Permalink to this heading"></a></h2>
+<span id="districtgenerator-functions-change-resolution"></span><h2>districtgenerator.functions.change_resolution<a class="headerlink" href="#module-districtgenerator.functions.change_resolution" title="Link to this heading"></a></h2>
 <p>Script to change resolution of timeseries values with constant
 sampling rate.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="districtgenerator.functions.change_resolution.changeResolution">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.change_resolution.</span></span><span class="sig-name descname"><span class="pre">changeResolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">oldResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">newResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/change_resolution.html#changeResolution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.change_resolution.changeResolution" title="Permalink to this definition"></a></dt>
-<dd><p>Change the temporal resolution of averages that have a constant sampling rate</p>
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.change_resolution.</span></span><span class="sig-name descname"><span class="pre">changeResolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">oldResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">newResolution</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'mean'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/change_resolution.html#changeResolution"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.change_resolution.changeResolution" title="Link to this definition"></a></dt>
+<dd><p>Changes the temporal resolution of a time series with constant sampling intervals.</p>
+<hr class="docutils" />
 <section id="parameters">
-<h3>Parameters<a class="headerlink" href="#parameters" title="Permalink to this heading"></a></h3>
-<dl>
-<dt>values<span class="classifier">array-like</span></dt><dd><p>data points</p>
-</dd>
-<dt>oldResolution<span class="classifier">integer</span></dt><dd><p>temporal resolution of the given values. oldResolution=3600 means
-hourly sampled data</p>
-</dd>
-<dt>newResolution<span class="classifier">integer</span></dt><dd><p>temporal resolution of the given data shall be converted to</p>
-</dd>
-<dt>method<span class="classifier"><code class="docutils literal notranslate"><span class="pre">{&quot;mean&quot;;</span> <span class="pre">&quot;sum&quot;}</span></code>, optional</span></dt><dd><ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code> : compute mean values while resampling (e.g. for power).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">&quot;sum&quot;</span></code>  : compute sum values while resampling (e.g. for energy).</p></li>
+<h3>Parameters<a class="headerlink" href="#parameters" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>values: Array-like, the original time series data to be resampled.</p></li>
+<li><p>oldResolution: Integer, original time step in seconds (e.g. 3600 for hourly data).</p></li>
+<li><p>newResolution: Integer, desired time step in seconds after resampling.</p></li>
+<li><dl class="simple">
+<dt>method: {“mean”, “sum”}, optional. Determines how resampling is handled:</dt><dd><ul>
+<li><p>“mean”: Averages values when increasing time step (e.g. for power).</p></li>
+<li><p>“sum”: Sums values when increasing time step (e.g. for energy). Default is “mean”.</p></li>
 </ul>
 </dd>
 </dl>
+</li>
+</ul>
+</section>
+<section id="returns">
+<h3>Returns<a class="headerlink" href="#returns" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>valuesResampled: Array of resampled values at the new resolution.</p></li>
+</ul>
 </section>
 </dd></dl>
 
 </section>
 <section id="module-districtgenerator.functions.dhw_stochastical">
-<span id="districtgenerator-functions-dhw-stochastical"></span><h2>districtgenerator.functions.dhw_stochastical<a class="headerlink" href="#module-districtgenerator.functions.dhw_stochastical" title="Permalink to this heading"></a></h2>
+<span id="districtgenerator-functions-dhw-stochastical"></span><h2>districtgenerator.functions.dhw_stochastical<a class="headerlink" href="#module-districtgenerator.functions.dhw_stochastical" title="Link to this heading"></a></h2>
 <p>Script to generate domestic hot water demands.
 This script is a copy of dhw_stochastical.py from pyCity.
 <a class="reference external" href="https://github.com/RWTH-EBC/pyCity">https://github.com/RWTH-EBC/pyCity</a></p>
 <dl class="py function">
 <dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.compute_daily_demand">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">compute_daily_demand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probability_profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">average_profile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#compute_daily_demand"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.compute_daily_demand" title="Permalink to this definition"></a></dt>
-<dd><section id="id1">
-<h3>Parameters<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
-<dl class="simple">
-<dt>probability_profiles<span class="classifier">array-like</span></dt><dd><p>Minute-wise sampled probability distribution.
-“Haushaltewd” and “Haushaltewe” in Lion’s thesis.
-This input should also be equivalent to “pwd” and “pwe”, because only 
-one household is taken into account.</p>
-</dd>
-<dt>average_profile<span class="classifier">array-like</span></dt><dd><p>Minute-wise sampled average tap water profiles (in liters per hour).
-“mwwd” and “mwwe” in Lion’s thesis.</p>
-</dd>
-<dt>occupancy<span class="classifier">array-like</span></dt><dd><p>10-Minute-wise sampled occupancy of the considered building/apartment.</p>
-</dd>
-<dt>current_day<span class="classifier">integer</span></dt><dd><p>Current day of the year (January 1st -&gt; 0, February 1st -&gt; 31, …)</p>
-</dd>
-<dt>temperature_difference<span class="classifier">float</span></dt><dd><p>How much does the tap water has to be heated up? Either enter a float
-or an array with the same dimension as probability_profiles.</p>
-</dd>
-</dl>
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">compute_daily_demand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">probability_profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">average_profile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_day</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#compute_daily_demand"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.compute_daily_demand" title="Link to this definition"></a></dt>
+<dd><p>Computes the daily domestic hot water (DHW) usage and corresponding heat demand
+based on occupancy and stochastic probability profiles.</p>
+<hr class="docutils" />
+<section id="id1">
+<h3>Parameters<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>probability_profiles: Dictionary of minute-wise sampled probability distributions
+for different occupancy levels.</p></li>
+<li><p>average_profile: Array of average tap water demand (liters/hour) per minute of the day.</p></li>
+<li><p>occupancy: Array of 10-minute sampled occupancy values for the building/apartment.</p></li>
+<li><p>current_day: Integer representing the current day of the year (0 = Jan 1).</p></li>
+<li><p>temperature_difference: Float or array indicating the temperature rise required [°C]
+(default is 35°C).</p></li>
+</ul>
 </section>
-<section id="returns">
-<h3>Returns<a class="headerlink" href="#returns" title="Permalink to this heading"></a></h3>
-<dl class="simple">
-<dt>water<span class="classifier">array-like</span></dt><dd><p>Tap water volume flow in liters per hour.</p>
-</dd>
-<dt>heat<span class="classifier">array-like</span></dt><dd><p>Resulting minute-wise sampled heat demand in Watt.
-The heat capacity of water is assumed to be 4180 J/(kg.K) and the
-density is assumed to be 980 kg/m3</p>
-</dd>
-</dl>
+<section id="id2">
+<h3>Returns<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>water: Array of minute-wise tap water volume flow in liters/hour.</p></li>
+<li><p>heat: Array of minute-wise heat demand in Watts based on water usage.</p></li>
+</ul>
 </section>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.full_year_computation">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">full_year_computation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_dis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3600</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#full_year_computation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.full_year_computation" title="Permalink to this definition"></a></dt>
-<dd><section id="id2">
-<h3>Parameters<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
-<dl>
-<dt>occupancy<span class="classifier">array-ike</span></dt><dd><p>Full year, 10-minute-wise sampled occupancy profile. All values have
-to be integers.</p>
-</dd>
-<dt>profiles<span class="classifier">dictionary</span></dt><dd><p>All probability distributions. The dictionary has to have the 
-following structure:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Top level: [<cite>wd_mw</cite>, <cite>we_mw</cite>, <cite>wd</cite>, <cite>we</cite>] (strings)</p></li>
-<li><p>Within <cite>we</cite> and <cite>wd</cite>: [<cite>1</cite>, <cite>2</cite>, <cite>3</cite>, <cite>4</cite>, <cite>5</cite>, <cite>6</cite>] (integers)</p></li>
-</ul>
-</div></blockquote>
-</dd>
-<dt>time_dis<span class="classifier">integer</span></dt><dd><p>Time discretization in seconds.</p>
-</dd>
-<dt>initial_day<span class="classifier">integer</span></dt><dd><ul class="simple">
-<li><p>0 : Monday</p></li>
-<li><p>1 : Tuesday</p></li>
-<li><p>2 : Wednesday</p></li>
-<li><p>3 : Thursday</p></li>
-<li><p>4 : Friday</p></li>
-<li><p>5 : Saturday</p></li>
-<li><p>6 : Sunday</p></li>
-</ul>
-</dd>
-<dt>temperature_difference<span class="classifier">float</span></dt><dd><p>How much does the tap water has to be heated up? Either enter a float
-or an array with the same dimension as probability_profiles.</p>
-</dd>
-</dl>
-</section>
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">full_year_computation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">occupancy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">profiles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_dis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3600</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_day</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature_difference</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">35</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#full_year_computation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.full_year_computation" title="Link to this definition"></a></dt>
+<dd><p>Computes a full year of domestic hot water (DHW) usage and heat demand based on occupancy and stochastic profiles.</p>
+<hr class="docutils" />
 <section id="id3">
-<h3>Returns<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
-<dl class="simple">
-<dt>water<span class="classifier">array-like</span></dt><dd><p>Tap water volume flow in liters per hour.</p>
-</dd>
-<dt>heat<span class="classifier">array-like</span></dt><dd><p>Resulting minute-wise sampled heat demand in Watt.
-The heat capacity of water is assumed to be 4180 J/(kg.K) and the
-density is assumed to be 980 kg/m3</p>
-</dd>
-</dl>
+<h3>Parameters<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>occupancy: Array-like, 10-minute sampled occupancy values for the entire year.</p></li>
+<li><p>profiles: Dictionary containing probability and average demand profiles for weekdays (<cite>wd</cite>) and weekends (<cite>we</cite>) by occupancy level.</p></li>
+<li><p>time_dis: Integer, time discretization of the output data in seconds (default is 3600 seconds).</p></li>
+<li><p>initial_day: Integer representing the first day of the year (0 = Monday, 6 = Sunday).</p></li>
+<li><p>temperature_difference: Float or array indicating the temperature rise required [°C] (default is 35°C).</p></li>
+</ul>
+</section>
+<section id="id4">
+<h3>Returns<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>water: Array of tap water flow in liters/hour, resampled to the specified time resolution.</p></li>
+<li><p>heat: Array of heat demand in Watts, resampled to the specified time resolution.</p></li>
+</ul>
 </section>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="districtgenerator.functions.dhw_stochastical.load_profiles">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">load_profiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#load_profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.load_profiles" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.dhw_stochastical.</span></span><span class="sig-name descname"><span class="pre">load_profiles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/dhw_stochastical.html#load_profiles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.dhw_stochastical.load_profiles" title="Link to this definition"></a></dt>
+<dd><p>Loads domestic hot water (DHW) usage profiles from an Excel file and structures them by day type and occupancy level.</p>
+<hr class="docutils" />
+<section id="id5">
+<h3>Parameters<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>filename: Path to the Excel file containing water demand profiles.
+The file must include sheets named for weekday (<cite>wd</cite>) and weekend (<cite>we</cite>) profiles, both average and probability-based.</p></li>
+</ul>
+</section>
+<section id="id6">
+<h3>Returns<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<ul>
+<li><p>profiles: Dictionary containing structured demand profiles.
+Includes:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>‘wd’: Weekday probability profiles by occupancy count.</p></li>
+<li><p>‘we’: Weekend probability profiles by occupancy count.</p></li>
+<li><p>‘wd_mw’ and ‘we_mw’: Average minute-wise water usage profiles for weekdays and weekends.</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+</dd></dl>
 
 </section>
 <section id="module-districtgenerator.functions.heating_profile_5R1C">
-<span id="districtgenerator-functions-heating-profile-5r1c"></span><h2>districtgenerator.functions.heating_profile_5R1C<a class="headerlink" href="#module-districtgenerator.functions.heating_profile_5R1C" title="Permalink to this heading"></a></h2>
+<span id="districtgenerator-functions-heating-profile-5r1c"></span><h2>districtgenerator.functions.heating_profile_5R1C<a class="headerlink" href="#module-districtgenerator.functions.heating_profile_5R1C" title="Link to this heading"></a></h2>
 <p>Script to generate heating and cooling demands sccording to DIN EN ISO 13790.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="districtgenerator.functions.heating_profile_5R1C.calc">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zoneInputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_m_init</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">TCoolingSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">THeatingSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beQuiet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calc" title="Permalink to this definition"></a></dt>
-<dd></dd></dl>
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">zoneInputs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_m_init</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">TCoolingSet</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">THeatingSet</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calc" title="Link to this definition"></a></dt>
+<dd><p>Calculates heating and cooling demand over time based on indoor comfort targets and thermal zone properties.</p>
+<hr class="docutils" />
+<section id="id7">
+<h3>Parameters<a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>zoneParameters: Object containing thermal zone parameters (resistances, capacities, etc.).</p></li>
+<li><p>zoneInputs: Object containing environmental and internal gains (solar radiation, internal heat, etc.).</p></li>
+<li><p>T_m_init: Initial temperature of the thermal mass [°C].</p></li>
+<li><p>TCoolingSet: Array of cooling setpoint temperatures [°C] for each timestep.</p></li>
+<li><p>THeatingSet: Array of heating setpoint temperatures [°C] for each timestep.</p></li>
+</ul>
+</section>
+<section id="id8">
+<h3>Returns<a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Q_H: Array of heating demand per timestep [W].</p></li>
+<li><p>Q_C: Array of cooling demand per timestep [W].</p></li>
+<li><p>T_op: Array of operative temperatures [°C].</p></li>
+<li><p>T_m: Array of thermal mass temperatures [°C].</p></li>
+<li><p>T_i: Array of air temperatures [°C].</p></li>
+<li><p>T_s: Array of surface temperatures [°C].</p></li>
+</ul>
+</section>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="districtgenerator.functions.heating_profile_5R1C.calculate">
-<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calculate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calculate" title="Permalink to this definition"></a></dt>
-<dd><section id="id4">
-<h3>Parameters<a class="headerlink" href="#id4" title="Permalink to this heading"></a></h3>
-<dl class="simple">
-<dt>zoneParameters<span class="classifier">ZoneParameters</span></dt><dd><p>Resistances and capacity</p>
-</dd>
-<dt>zoneInputs<span class="classifier">ZoneInputs</span></dt><dd><p>External inputs (solar, internal gains, set temperatures)</p>
-</dd>
-<dt>T_m_init<span class="classifier">float</span></dt><dd><p>Initial temperature of the thermal mass in degC</p>
-</dd>
-</dl>
+<span class="sig-prename descclassname"><span class="pre">districtgenerator.functions.heating_profile_5R1C.</span></span><span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">zoneParameters</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T_e</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/districtgenerator/functions/heating_profile_5R1C.html#calculate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#districtgenerator.functions.heating_profile_5R1C.calculate" title="Link to this definition"></a></dt>
+<dd><p>Calculates heating or cooling demand based on simplified 5R1C thermal model using DIN EN ISO 13790.</p>
+<hr class="docutils" />
+<section id="id9">
+<h3>Parameters<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>zoneParameters: Object containing thermal zone characteristics such as resistances, capacities, and gains.</p></li>
+<li><p>T_e: Array of external temperatures [°C] for each timestep.</p></li>
+<li><p>dt: Time step duration in hours.</p></li>
+</ul>
+</section>
+<section id="id10">
+<h3>Returns<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Q_HC: Array of heating or cooling power required [W] at each timestep.</p></li>
+<li><p>T_i: Array of air temperatures [°C].</p></li>
+<li><p>T_s: Array of surface temperatures [°C].</p></li>
+<li><p>T_m: Array of thermal mass temperatures [°C].</p></li>
+<li><p>T_op: Array of operative temperatures [°C].</p></li>
+</ul>
 </section>
 </dd></dl>
 

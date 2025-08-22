@@ -367,6 +367,9 @@ class Users:
         None.
         """
 
+        if hasattr(self, 'create_el_wrapper'):
+            self.create_el_wrapper()
+
         irradiation = site["SunTotal"]
         T_e = site["T_e"]
 
@@ -441,6 +444,8 @@ class Users:
         self.cooling = Q_C
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
+
+
 
 if __name__ == '__main__':
 
