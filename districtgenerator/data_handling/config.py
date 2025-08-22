@@ -1,12 +1,38 @@
 from dataclasses import field
 import os
-from typing import ClassVar, Set, Optional
-from pydantic import BaseModel, ValidationError
+from typing import ClassVar, Set, Optional, Annotated
+from pydantic import BaseModel, ValidationError, BeforeValidator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
+from pathlib import Path
 
+### Helper functions ###
+def parse_int_list(value: any) -> list[int]:
+    """
+    Parses a comma-separated string of integers into a list of integers.
+    If the input is already a list, it returns it directly.
 
+    Parameters
+    ----------
+    value : any
+        The input value to parse. It can be a list of integers, a comma-separated string
+        of integers, or an empty string.
+
+    Returns
+    -------
+    list[int]
+        A list of integers parsed from the input value.
+    """
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        if not value:
+            return []
+        return [int(x.strip()) for x in value.split(',')]
+    raise ValueError(f"Cannot parse {type(value)} into a list of integers")
+
+### Configuration Classes ###
 class LocationConfig(BaseSettings):
     """
     LocationConfig class to manage location-related parameters for the district generator.
@@ -55,14 +81,22 @@ class TimeConfig(BaseSettings):
     dataResolution: int = 3600  # Time resolution of input data in seconds. (If you don't change weather data, here is no need to change).
     dataLength: int = 31536000  # Length of input data in seconds. (If you don't change weather data, here is no need to change).
 
-    holidays2015: list = field(default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365],)
-        # Julian day number of the holidays in NRW in 2015.
-    holidays2045: list = field(default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365],)
-        # Julian day number of the holidays in NRW in 2045.
-    initial_day_2015: list = field(default_factory=lambda: [4])
-        # Thursday
-    initial_day_2045: list = field(default_factory=lambda: [6])
-        # Saturday
+    # Julian day number of the holidays in NRW in 2015 as a list.
+    holidays2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365]
+    )
+    # Julian day number of the holidays in NRW in 2045 as a list.
+    holidays2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365]
+    )
+    # Thursday as a list
+    initial_day_2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [4]
+    )
+    # Saturday as a list
+    initial_day_2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [6]
+    )
 
     model_config = SettingsConfigDict(
         extra="allow" 
@@ -86,7 +120,7 @@ class DesignBuildingConfig(BaseSettings):
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
     ventilation_rate: float = 0.5   # Room ventilation rate in 1/h (per hour)
-
+# todo: add to example?
     buildings_short: list = field(default_factory=lambda: ['SFH', 'MFH', 'TH', 'AB'])
         # Abbreviations of the selectable building types.
     buildings_long: list = field(default_factory=lambda: ['single_family_house', 'multi_family_house', 'terraced_house', 'apartment_block'])
@@ -368,6 +402,8 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     ----------
     env_file : Optional[str]
         The path to the environment file. If None, it uses the default from Settings.
+        Place config in the root directory of the districtgenerator package to use ".env.NAME" or use
+        absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
 
     Returns
     -------
@@ -397,10 +433,11 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         flags=flags(_env_file=env_file)
     )
 
+
 if __name__ == "__main__":
     # Example usage Works
     try:
-        config = load_global_config()
-        print(config.location.albedo)
+        config = load_global_config(env_file=".env.CONFIG") # replace with your actual env file path
+        print(config.location.timeZone, config.time.holidays2015, config.scenario_name.scenario_name)
     except ValidationError as e:
         print("Error loading configuration:", e)
