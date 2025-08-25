@@ -16,39 +16,37 @@ generated for each scenario. To do this right-hand click the example.py file
 'Run with Python Console'.
 """
 
-# Import the Datahandler class and the os module for file path operations.
-import os
+from pathlib import Path
 from districtgenerator.classes import Datahandler
 
-def example9_multiple_configs():
+def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
     ### To run this example, you will need to set up a directory with configuration files.
 
-    # 1. Go to the folder 'data'.
-    #
-    # 2. Inside the 'data' folder, place / use your configuration files. For this
-    #    example, you could just reuse both configs '.env.CONFIG.EXAMPLE' and '.env.CONFIG.FREIBURG'
-    #    or create another one, e.g., '.env.CONFIG.GARMISCH'.
-    #
-    # The script will find all files in the 'scenarios' folder that start with
-    # '.env' and process them one by one.
-    #
-    # 3. Make sure the configuration files are named correctly, starting with '.env'.
-    #
-    # You can also place them elsewhere, but you will need to adjust the
-    # 'scenarios_path' variable below to point to the correct directory.
+    # 1. Go to the folder 'districtgenerator/data' (default location).
 
-    # Define the path to the folder containing your scenario configuration files.
-    scenarios_path = "districtgenerator/data"
-    # Find all scenario files in the target folder that start with ".env".
-    # This assumes the scenario files are named like ".env.CONFIG.FREIBURG".
-    scenario_files = [os.path.join(scenarios_path, f) for f in os.listdir(scenarios_path) if f.startswith(".env")]
-    # kann man das relativ machen?
-    # Loop through each scenario file found in the directory.
+    # 2. Inside the 'data' folder, place / use your configuration files. For this
+    #    example, you could reuse both configs '.env.CONFIG.EXAMPLE' and '.env.CONFIG.FREIBURG'
+    #    or create another one, e.g., '.env.CONFIG.SCENARIO1'.
+
+    # The script will find all files in the 'data' folder that start with
+    # '.env' and process them one by one.
+
+    # IMPORTANT: Make sure the configuration files are named correctly, starting with '.env'.
+
+    # You can also place them elsewhere, but you will need to adjust the
+    # 'configs_directory_path' variable below to point to the correct directory.
+
+    all_data = []
+
+    scenario_files = [f for f in configs_dir.iterdir() if f.is_file() and f.name.startswith(".env")]
+
+    print(f"Found {len(scenario_files)} scenario files in {configs_dir}:")
+    for f in scenario_files:
+        print(f" - {f.name}")
+
     for scenario_file in scenario_files:
 
         # Initialize District for the current scenario.
-        # The 'env_path' points to the configuration file for this specific iteration.
-        # The 'scenario_name' ensures that results are saved in a unique directory.
         data = Datahandler(env_path=scenario_file)
 
         # Generate Environment for the District
@@ -63,15 +61,21 @@ def example9_multiple_configs():
         # Generate building-specific demand profiles with the adjusted assumptions
         data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
-    ### ===========================================  Output  =========================================== ###
-    # After running, check your results folder. You will find subdirectories named
-    # after each scenario (e.g., 'FREIBURG', 'GARMISCH'), each containing the
-    # complete set of output files for that specific configuration.
+        all_data.append(data)
 
-    return data
+    ### ===========================================  Output  =========================================== ###
+    # During the run, check the Terminal, it shows the found config files and also indicates which file it is
+    # currently computing.
+    # After running, check your results folder. You will find the demands for each defined scenario.
+
+    return all_data
 
 
 if __name__ == '__main__':
-    # The 'results' variable will be a list containing the final 'data' object
-    # from each scenario run.
-    results = example9_multiple_configs()
+    # This helper code finds the 'data' directory relative to this script's location.
+    # Adjust the path if your directory structure is different.
+    script_path = Path(__file__).resolve()
+    project_root = script_path.parent.parent
+    configs_directory_path = project_root / "districtgenerator" / "data"
+
+    results = example9_multiple_configs(configs_directory_path)
