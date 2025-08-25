@@ -354,13 +354,20 @@ class Users:
         ----------
         site: dict
             Site data, e.g. weather.
+        holidays: list
+            List of holidays.
         time_resolution : integer
             Resolution of time steps of output array in seconds.
         time_horizon : integer
             Time horizon for which a stochastic profile is generated.
+        building : dict
+            Information about the building.
+        path : string
+            Path to save the profiles.
         initial_day : integer, optional
             Day of the week with which the generation starts.
             1-7 for monday-sunday. The default is 1.
+
 
         Returns
         -------
@@ -411,7 +418,7 @@ class Users:
         # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
         # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
 
-    def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
+    def calcHeatingProfile(self, site, envelope, night_setback, calendar, time_resolution):
         """
         Calculate heat demand for each building.
 
@@ -421,24 +428,28 @@ class Users:
             Site data, e.g. weather.
         envelope: object
             Containing all physical data of the envelope.
+        night_setback : integer
+            0: no night setback
+            1: with night setback
+        calendar : dict
+            Information about holidays, initial day of the week, heating period.
         time_resolution : integer
             Resolution of time steps of output array in seconds.
-        Q_HC : float
-            Heating (positive) or cooling (negative) load for the current time
-            step in Watt.
 
         Returns
         -------
-        None.
+        Q_HC : float
+            Heating (positive) or cooling (negative) load for the current time
+            step in Watt.
         """
 
         dt = time_resolution / (60 * 60)
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt,
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, self.building)
         # heating and cooling loads for the current time step in Watt
         self.heat = Q_H
         self.cooling = Q_C

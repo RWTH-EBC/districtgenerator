@@ -68,7 +68,8 @@ class LocationConfig(BaseSettings):
 class TimeConfig(BaseSettings):
     """
     TimeConfig class to manage time-related parameters for the district generator.
-    This class contains parameters related to time resolution, cluster length, and holidays for different years.
+    This class contains parameters related to time resolution, cluster length, and data length
+    used in the district generator.
 
     Attributes
     ----------
@@ -80,23 +81,6 @@ class TimeConfig(BaseSettings):
     clusterNumber: int = 4      # Number of clusters
     dataResolution: int = 3600  # Time resolution of input data in seconds. (If you don't change weather data, here is no need to change).
     dataLength: int = 31536000  # Length of input data in seconds. (If you don't change weather data, here is no need to change).
-
-    # Julian day number of the holidays in NRW in 2015 as a list.
-    holidays2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365]
-    )
-    # Julian day number of the holidays in NRW in 2045 as a list.
-    holidays2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365]
-    )
-    # Thursday as a list
-    initial_day_2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [4]
-    )
-    # Saturday as a list
-    initial_day_2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [6]
-    )
 
     model_config = SettingsConfigDict(
         extra="allow" 
@@ -299,9 +283,46 @@ class EHDOConfig(BaseSettings):
         extra="allow"
     )
 
-class scenarioName(BaseSettings):
+class CalendarConfig(BaseSettings):
     """
-    scenarioName class to manage the scenario name for the district generator.
+    CalenderConfig class to manage calendar-related parameters for the district generator.
+    This class contains parameters related to holidays and initial days for different years.
+
+    Attributes
+    ----------
+    Descriptions directly in Class.
+
+    """
+    # Julian day number of the holidays in NRW in 2015 as a list.
+    holidays2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365]
+    )
+    # Julian day number of the holidays in NRW in 2045 as a list.
+    holidays2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365]
+    )
+    # Thursday as a list
+    initial_day_2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [4]
+    )
+    # Saturday as a list
+    initial_day_2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
+        default_factory=lambda: [6]
+    )
+
+    consider_heating_period: bool = True  # Consider heating period in the clustering (True) or calculate whole year (False)
+
+    # If heating period considered:
+    heating_period_start: int = 259  # Julian day number of the start of the heating period (default: 15th September)
+    heating_period_end: int = 135    # Julian day number of the end of the heating period (default: 15th May)
+
+    model_config = SettingsConfigDict(
+        extra="allow"
+    )
+
+class ScenarioName(BaseSettings):
+    """
+    ScenarioName class to manage the scenario name for the district generator.
 
     Attributes
     ----------
@@ -349,7 +370,9 @@ class GlobalConfig(BaseModel):
         Configuration parameters for decentralized devices in the district.
     central : CentralDeviceConfig
         Configuration parameters for central devices in the district.
-    scenario_name : scenarioName
+    calendar : CalendarConfig
+        Configuration parameters for calendar settings, such as holidays and initial days.
+    scenario_name : ScenarioName
         The name of the scenario being configured, used for identification and output purposes.
 
     """
@@ -363,7 +386,8 @@ class GlobalConfig(BaseModel):
     ehdo: 'EHDOConfig'
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
-    scenario_name: scenarioName
+    calendar: 'CalendarConfig'
+    scenario_name: ScenarioName
 
 class Settings(BaseSettings):
     """
@@ -437,14 +461,15 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         ehdo=EHDOConfig(_env_file=env_file_path),
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
-        scenario_name = scenarioName(_env_file=env_file_path)
+        calendar=CalendarConfig(_env_file=env_file_path),
+        scenario_name = ScenarioName(_env_file=env_file_path)
     )
 
 
 if __name__ == "__main__":
     # Example usage Works
     try:
-        config = load_global_config(env_file=".env.CONFIG") # replace with your actual env file path
-        print(config.location.timeZone, config.time.holidays2015, config.scenario_name.scenario_name)
+        config = load_global_config(env_file=".env.CONFIG.EXAMPLe") # replace with your actual env file path
+        print(config.location.timeZone, config.calendar.holidays2015, config.scenario_name.scenario_name)
     except ValidationError as e:
         print("Error loading configuration:", e)

@@ -21,7 +21,7 @@ from .plots import DemandPlots
 from .optimizer import Optimizer
 from .KPIs import KPIs
 import districtgenerator.functions.clustering_medoid as cm
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
@@ -97,6 +97,7 @@ class Datahandler:
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.calendar = {}
         self.ecoData = {}
         self.counter = {}
         self.srcPath = srcPath
@@ -122,7 +123,8 @@ class Datahandler:
             decentral_config=global_config.decentral,
             ehdo_config=global_config.ehdo,
             eco_config=global_config.eco,
-            central_config=global_config.central
+            central_config=global_config.central,
+            calendar_config=global_config.calendar
         )
 
         self.buildings_completed = 0
@@ -153,7 +155,8 @@ class Datahandler:
                       decentral_config: DecentralDeviceConfig,
                       ehdo_config: EHDOConfig,
                       eco_config: EcoConfig,
-                      central_config: CentralDeviceConfig):
+                      central_config: CentralDeviceConfig,
+                      calendar_config: CalendarConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -175,6 +178,8 @@ class Datahandler:
             Economic configuration data.
         central_config : CentralDeviceConfig
             Central device configuration data.
+        calendar_config : CalendarConfig
+            Calendar configuration data.
         Returns
         -------
         None.
@@ -241,6 +246,12 @@ class Datahandler:
                 self.central_device_data[abbr] = {}
             self.central_device_data[abbr][param] = value
 
+        # load calendar data (used in generateDemands and generateEnvironment)
+        self.calendar = {}
+        for attr, value in calendar_config.__dict__.items():
+            self.calendar[attr] = value
+
+
     def select_plz_data(self):
         """
         Select the closest TRY weather station for the location of the postal code.
@@ -274,8 +285,8 @@ class Datahandler:
             """ 
             Add new weatherdatafile_location, if you want an individual location: 
             Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-            Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-            Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
+            Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\\districtgenerator\\data\\weather\\ 
+            Example: TRY2015_507755060854_Wint.dat has to be stored in '\\districtgenerator\\data\\weather\\TRY_2015_Winter' 
             Uncomment the following line  
             """
             # weatherdatafile_location = 507755060854
@@ -326,9 +337,9 @@ class Datahandler:
 
         # load the holidays
         if self.site["TRYYear"] == "TRY2015":
-            self.time["holidays"] = self.time["holidays2015"]
+            self.calendar["holidays"] = self.calendar["holidays2015"]
         elif self.site["TRYYear"] == "TRY2045":
-            self.time["holidays"] = self.time["holidays2045"]
+            self.calendar["holidays"] = self.calendar["holidays2045"]
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -585,7 +596,7 @@ class Datahandler:
         # calculate or load user profiles
         if calcUserProfiles:
             building["user"].calcProfiles(site=self.site,
-                                          holidays=self.time["holidays"],
+                                          holidays=self.calendar["holidays"],
                                           time_resolution=self.time["timeResolution"],
                                           time_horizon=self.time["dataLength"],
                                           building=building,
@@ -634,7 +645,7 @@ class Datahandler:
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
                                                 night_setback=night_setback,
-                                                holidays=self.time["holidays"],
+                                                calendar=self.calendar,
                                                 time_resolution=self.time["timeResolution"]
                                                 )
 
