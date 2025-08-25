@@ -192,8 +192,7 @@ def _calculateHeat(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     return (Q_HC, T_op, T_m, T_i, T_s)
 
 
-def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
-
+def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
     """
     """
     if building_type in {"SFH", "TH", "MFH", "AB"}:
@@ -205,7 +204,13 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
     T_set_night = zoneParameters.T_set_min_night  # THeatingSet
     T_set_ub = zoneParameters.T_set_max                    # TCoolingSet
     T_set_ub_night = zoneParameters.T_set_max_night  # THeatingSet
-    T_set_free_day = zoneParameters.T_set_min_free_day #THeatingSet during non-working days in a non-residential building
+
+    # Extract dates from calendar
+    heating_period = calendar["consider_heating_period"] # Boolean, if true consider heating_period
+    heating_start = calendar["heating_period_start"] # Day of year (0-364)
+    heating_end = calendar["heating_period_end"] # Day of year (0-364)
+    holidays = calendar["holidays"] # List of tuples for holidays
+
     numberTimesteps = len(T_e)
 
 # Initialize results
@@ -248,14 +253,7 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
                                                  timestep=t)
 
         if building_type in {"SFH", "TH", "MFH", "AB"}:
-            # Check if the current hour is nighttime
-            if hour_of_day in night_hours:
-                current_T_set = T_set_night
-                current_T_set_ub = T_set_ub_night
-            else:
-                current_T_set = T_set
-                current_T_set_ub = T_set_ub
-            if t_op < current_T_set and not cooling_season:
+            if t_op < current_T_set and (not heating_period or day not in range(heating_end, heating_start)):
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
@@ -276,20 +274,10 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
                 q_hc = 0
 
         else:
-            # Check if the current hour is nighttime
-            if hour_of_day in night_hours:
-                if (day % 7 not in (0, 6) and day not in holidays):
-                    current_T_set = T_set_night
-                else:
-                    current_T_set = T_set_free_day
-                current_T_set_ub = T_set_ub_night
-            else:
-                if (day % 7 not in (0, 6) and day not in holidays):
-                    current_T_set = T_set
-                else:
-                    current_T_set = T_set_free_day
-                current_T_set_ub = T_set_ub
-            if (t_op < current_T_set and not cooling_season):
+            if (t_op < current_T_set and
+                    (not heating_period or day not in range(heating_end, heating_start)) and
+                    (day % 7 not in (0, 6) and
+                     day not in holidays)):
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
@@ -327,8 +315,7 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, building_type):
     return (Q_H, Q_C, T_op, T_m, T_i, T_s)
 
 
-def calc(zoneParameters, T_e, holidays, dt, building_type):
-
+def calc(zoneParameters, T_e, calendar, dt, building_type):
     """
     """
     if building_type in {"SFH", "TH", "MFH", "AB"}:
@@ -341,6 +328,12 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
     T_set_free_day = zoneParameters.T_set_min_free_day #THeatingSet during non-working days in a non-residential building
 
     numberTimesteps = len(T_e)
+
+    # Extract dates from calendar
+    heating_period = calendar["consider_heating_period"]  # Boolean, if true consider heating_period
+    heating_start = calendar["heating_period_start"]  # Day of year (0-364)
+    heating_end = calendar["heating_period_end"]  # Day of year (0-364)
+    holidays = calendar["holidays"]  # List of tuples for holidays
 
     # Initialize results
     T_i = np.zeros(numberTimesteps)
@@ -373,10 +366,8 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
                                                  timestep=t)
 
         if building_type in {"SFH", "TH", "MFH", "AB"}:
-            current_T_set = T_set
-            current_T_set_ub = T_set_ub
-            if t_op < current_T_set and not cooling_season:
-                current_T_set = T_set
+            if t_op < T_set and (not heating_period or day not in range(heating_end, heating_start)):
+                # print(f"DEBUG: day = {day}, heating_period = {heating_period}")
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
@@ -397,13 +388,11 @@ def calc(zoneParameters, T_e, holidays, dt, building_type):
                 q_hc = 0
 
         else:
-            if (day % 7 not in (0, 6) and day not in holidays):
-                current_T_set = T_set
-            else:
-                current_T_set = T_set_free_day
-            current_T_set_ub = T_set_ub
-
-            if (t_op < current_T_set and not cooling_season):
+            # Non residential buildings
+            if (t_op < T_set and
+                    (not heating_period or day not in range(heating_end, heating_start)) and
+                    (day % 7 not in (0, 6) and
+                     day not in holidays)):
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
