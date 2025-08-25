@@ -398,7 +398,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     ----------
     env_file : Optional[str]
         The path to the environment file. If None, it uses the default from Settings.
-        Place config in the root directory of the districtgenerator package to use ".env.NAME" or use
+        Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
         absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
 
     Returns
