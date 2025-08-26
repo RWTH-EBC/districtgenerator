@@ -460,7 +460,9 @@ class Datahandler:
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                                     area=building["buildingFeatures"]["area"],
+                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]),
+                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]))
 
             # %% calculate design heat loads
             # at norm outside temperature
@@ -517,8 +519,8 @@ class Datahandler:
                                       occ= building["user"].occ,
                                       gains= building["user"].gains,
                                       car= building["user"].car,
-                                      nb_flats= building["user"].nb_flats,
-                                      nb_occ= building["user"].nb_occ,
+                                      nb_flats= int(building["buildingFeatures"]["nb_flats"]),
+                                      nb_occ= int(building["buildingFeatures"]["nb_occ"]),
                                       heatload= building["envelope"].heatload,
                                       bivalent= building["envelope"].bivalent,
                                       heatlimit= building["envelope"].heatlimit,
@@ -531,8 +533,8 @@ class Datahandler:
             else:
                 (building["user"].elec, building["user"].dhw,
                  building["user"].occ, building["user"].gains,
-                 building["user"].car, building["user"].nb_flats,
-                 building["user"].nb_occ, building["envelope"].heatload,
+                 building["user"].car, building["buildingFeatures"]["nb_flats"],
+                 building["buildingFeatures"]["nb_occ"], building["envelope"].heatload,
                  building["envelope"].bivalent,
                  building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
                                                                      os.path.join(self.resultPath, 'demands'))

@@ -51,7 +51,7 @@ class Users:
         Heat demand for each building.
     """
 
-    def __init__(self, building, area):
+    def __init__(self, building, area, nb_occ, nb_flats):
         """
         Constructor of Users class.
 
@@ -61,7 +61,7 @@ class Users:
         """
 
         self.building = building
-        self.nb_flats = None
+        self.nb_flats = nb_flats
         self.annual_el_demand_per_flat = None
         self.annual_el_demand = None
         self.annual_heat_demand = None
@@ -69,7 +69,7 @@ class Users:
         self.annual_cooling_demand = None
         self.lighting_index = []
         self.el_wrapper = []
-        self.nb_occ = []
+        self.nb_occ = [nb_occ]
         self.occ = None
         self.dhw = None
         self.elec = None
@@ -77,11 +77,36 @@ class Users:
         self.heat = None
         self.cooling = None
 
-        self.generate_number_flats(area)
-        self.generate_number_occupants(area)
+        #self.generate_number_flats(area)
+        #self.generate_number_occupants(area)
+        self.generate_number_occupants_fiware(nb_occ=self.nb_occ, nb_flats=self.nb_flats)
         self.generate_annual_el_consumption()
         self.generate_lighting_index(area)
         self.create_el_wrapper()
+
+    def generate_number_occupants_fiware(self, nb_occ, nb_flats):
+        # nb_occ may be a list like [3.0], take the first element
+        if isinstance(nb_occ, (list, tuple, np.ndarray)):
+            total_occ = int(nb_occ[0])
+        else:
+            total_occ = int(nb_occ)
+
+        # Base number per flat
+        base = total_occ // nb_flats  
+
+        # Remainder to distribute
+        remainder = total_occ % nb_flats  
+
+        # Create the array
+        occ_list = [base + 1 if i < remainder else base for i in range(nb_flats)]
+
+        # Remove flats with 0 occupants
+        self.nb_occ = [x for x in occ_list if x > 0]
+
+        # Adjust number of flats
+        self.nb_flats = len(self.nb_occ)
+
+
 
     def generate_number_flats(self, area):
         """
