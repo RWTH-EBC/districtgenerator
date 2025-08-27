@@ -52,12 +52,16 @@ def example5_generate_demands():
 def exemplary_plot(data):
 
     # Sum heat demand of buildings
-    heat = data.district[0]["user"].heat + data.district[1]["user"].heat
+    heat = data.district[0]["user"].heat
     # Unit conversion [kWh]
     heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
 
+    # Calculate frequency in hours
+    freq_hours = data.time["timeResolution"] / 3600
+    freq_str = f'{freq_hours}H'
+
     # Create a dataframe that contains the timestamps
-    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='15min')
+    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq=freq_str)
     df = pd.DataFrame(heat, index=date_range, columns=['Value'])
 
     # Aggregate the data on a monthly basis (totalled value per month)
@@ -73,5 +77,3 @@ def exemplary_plot(data):
 
 if __name__ == '__main__':
     data = example5_generate_demands()
-
-

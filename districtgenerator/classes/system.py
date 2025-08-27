@@ -4,8 +4,9 @@ import json
 import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
+import districtgenerator.functions.heating_network as heating_network
+
 from .solar import Sun
-import districtgenerator.functions.wind_turbines as wind_turbines
 import numpy as np
 
 
@@ -28,8 +29,9 @@ class BES:
         None.
         """
 
-        self.design_load = None
-        self.bivalent_load = None
+        self.design_load_heating = None
+        self.bivalent_load_heating = None
+        self.design_load_cooling = None
         self.physics = physics
         self.decentral_device_data = decentral_device_data
         self.design_building_data = design_building_data
@@ -68,11 +70,14 @@ class BES:
 
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature
-        self.design_load = building["envelope"].heatload + building["dhwload"]
-        limit_load = building["envelope"].heatlimit
+        self.design_load_heating = building["envelope"].heatload + building["dhwpower"]
+        limit_load_heating = building["envelope"].heatlimit
 
-        self.bivalent_load = self.design_load + (limit_load - self.design_load) / (T_heatlimit - T_design) \
+        self.bivalent_load_heating = self.design_load_heating + (limit_load_heating - self.design_load_heating) / (T_heatlimit - T_design) \
                              * (T_bivalent - T_design)
+
+        # Design load for cooling
+        self.design_load_cooling = max(building["user"].cooling)
 
         BES = {}
 
@@ -102,41 +107,46 @@ class BES:
 
             # thermal energy storage (TES)
             if k == "TES":
-                # f_TES in l per kW design load
-                # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
-                # design refers to DHL
+                # No TES if the system is centralized
                 if buildingFeatures["heater"] == "heat_grid":
                     BES["TES"] = 0
                 else:
+                    # f_TES in l per kW design load
+                    # [Wh = l/kW * kW * g/l * J/(gK) * K / 3600]
+                    # design refers to DHL
                     BES["TES"] = buildingFeatures["f_TES"] \
-                                * self.design_load / 1000 \
-                                * self.physics["rho_water"] \
-                                * self.physics["c_p_water"] \
-                                * self.decentral_device_data["TES"]["T_diff_max"] \
-                                / 3600
+                                    * self.design_load_heating / 1000 \
+                                    * self.physics["rho_water"] \
+                                    * self.physics["c_p_water"] \
+                                    * self.decentral_device_data["TES"]["T_diff_max"] \
+                                    / 3600
 
-                    # battery (BAT)
+            # compression chiller (CC)
+            # A compression chiller is only designed if the building is actively cooled
+            # and not connected to a heat grid (since cooling would then be provided centrally).
+            if k == "CC":
+                BES["CC"] = self.design_load_cooling * buildingFeatures["cooling"] * (1 - BES["heat_grid"])
+
+            # battery (BAT)
             if k == "BAT":
                 # Factor [Wh / W_PV], [Wh = Wh/W * W/m2 * m2]
                 # design refers to buildable roof area (0.4 * area)
                 BES["BAT"] = buildingFeatures["f_BAT"] \
                              * self.decentral_device_data["PV"]["P_nominal"] \
                              * building["envelope"].A["opaque"]["roof"] \
-                             * buildingFeatures["f_PV"] \
-                             * buildingFeatures["BAT"]
+                             * buildingFeatures["f_PV"]
 
             # electric vehicle (EV)
             if k == "EV":
                 # [Wh]
-                BES["EV"] = float(buildingFeatures["EV"] * buildingFeatures["f_EV"])
+                BES["EV"] = float(sum(building["user"].ev_capacity))
 
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
                 # todo: change to area of roof of fiware
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * buildingFeatures["f_PV"] \
-                              * buildingFeatures["PV"]
+                              * buildingFeatures["f_PV"]
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]
@@ -144,9 +154,9 @@ class BES:
             # solar thermal energy (STC)
             if k == "STC":
                 BES["STC"] = {}
+                # f_STC is the fraction of the roof area that is suitable and available for STC installation
                 BES["STC"]["area"] = building["envelope"].A["opaque"]["roof"] \
-                                     * buildingFeatures["f_STC"] \
-                                     * buildingFeatures["STC"]
+                                     * buildingFeatures["f_STC"]
 
         return BES
 
@@ -179,7 +189,10 @@ class CES:
             The capacities of the central devices.
         """
 
-        # Load parameters
+        # Load parameters of the heating network
+        data = heating_network.heating_network(data)
+
+        # Load parameters of the energy hub
         param, devs, dem, result_dict = load_params_central_devices.load_params(data)
 
         # Run optimization
