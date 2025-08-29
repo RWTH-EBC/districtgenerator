@@ -172,6 +172,7 @@ class scenarioName(BaseSettings):
 
 class flags(BaseSettings):
     calcThick: bool = False
+    calcOcc: bool = False
     model_config = SettingsConfigDict(
         extra="allow" 
     )

@@ -51,7 +51,7 @@ class Users:
         Heat demand for each building.
     """
 
-    def __init__(self, building, area, nb_occ, nb_flats):
+    def __init__(self, building, area, nb_occ, nb_flats, calcOcc = True):
         """
         Constructor of Users class.
 
@@ -61,7 +61,6 @@ class Users:
         """
 
         self.building = building
-        self.nb_flats = nb_flats
         self.annual_el_demand_per_flat = None
         self.annual_el_demand = None
         self.annual_heat_demand = None
@@ -69,7 +68,6 @@ class Users:
         self.annual_cooling_demand = None
         self.lighting_index = []
         self.el_wrapper = []
-        self.nb_occ = [nb_occ]
         self.occ = None
         self.dhw = None
         self.elec = None
@@ -77,9 +75,16 @@ class Users:
         self.heat = None
         self.cooling = None
 
-        #self.generate_number_flats(area)
-        #self.generate_number_occupants(area)
-        self.generate_number_occupants_fiware(nb_occ=self.nb_occ, nb_flats=self.nb_flats)
+        if calcOcc:
+            self.nb_occ = []
+            self.nb_flats = None
+            self.generate_number_flats(area)
+            self.generate_number_occupants(area)
+        else:
+            self.nb_occ = [nb_occ]
+            self.nb_flats = nb_flats
+            self.generate_number_occupants_fiware(nb_occ=self.nb_occ, nb_flats=self.nb_flats)
+
         self.generate_annual_el_consumption()
         self.generate_lighting_index(area)
         self.create_el_wrapper()
@@ -91,11 +96,14 @@ class Users:
         else:
             total_occ = int(nb_occ)
 
-        # Base number per flat
-        base = total_occ // nb_flats  
-
-        # Remainder to distribute
-        remainder = total_occ % nb_flats  
+        if nb_flats == 0:
+            base = 0
+            remainder = 0 
+        else:
+            # Base number per flat
+            base = total_occ // nb_flats  
+            # Remainder to distribute
+            remainder = total_occ % nb_flats    
 
         # Create the array
         occ_list = [base + 1 if i < remainder else base for i in range(nb_flats)]

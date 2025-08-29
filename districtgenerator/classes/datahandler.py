@@ -91,6 +91,7 @@ class Datahandler:
         self.ecoData = {}
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
+        self.calcOcc = global_config.flags.calcOcc
         self.srcPath = srcPath
         self.filePath = filePath
         self.gurobiConfig = global_config.gurobi,
@@ -462,7 +463,8 @@ class Datahandler:
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"],
                                      nb_occ=int(building["buildingFeatures"]["nb_occ"]),
-                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]))
+                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]),
+                                     calcOcc = self.calcOcc)
 
             # %% calculate design heat loads
             # at norm outside temperature
