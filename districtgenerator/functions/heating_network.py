@@ -52,7 +52,7 @@ def calc_costs(data):
     - Luis Sánchez-García et al. (2023), "Understanding effective width for district heating," Energy journal.
     """
 
-    FAR = data.heat_grid_data["FAR"]["value"]  # Floor area ratio (German: Geschossflächenzahl)
+    FAR = data.heat_grid_data["FAR"]  # Floor area ratio (German: Geschossflächenzahl)
 
     # Calculate Total Building Floor Area
     total_area = 0
@@ -144,7 +144,7 @@ def calc_costs(data):
     C_substations = 0
     for building in data.district:
         substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
-        substation_costs = substation_capacity * data.heat_grid_data["C_subst"]["value"]
+        substation_costs = substation_capacity * data.heat_grid_data["C_substation"]
         C_substations += substation_costs
 
     # Total Network Costs
@@ -167,14 +167,14 @@ def calculate_thermal_losses(data):
     #%% Losses in the heating network
 
     # get heating network parameters
-    T_hot_heating_network = data.heat_grid_data["T_hot_heating_network"]["value"]
-    T_cold_heating_network = data.heat_grid_data["T_cold_heating_network"]["value"]
+    T_hot_heating_network = data.heat_grid_data["T_hot_heating_network"]
+    T_cold_heating_network = data.heat_grid_data["T_cold_heating_network"]
 
-    D_heating_network = data.heat_grid_data["D_heating_network"]["value"] # Distance between the centerlines of the supply and return pipelines
+    D_heating_network = data.heat_grid_data["D_heating_network"] # Distance between the centerlines of the supply and return pipelines
 
-    k_soil = data.heat_grid_data["k_soil"]["value"]  # W/(m*K),
-    k_is =data.heat_grid_data["k_PUF"]["value"]   # W/(m*K)
-    Z_c =  data.heat_grid_data["grid_depth"]["value"] + 0.069 * k_soil
+    k_soil = data.heat_grid_data["k_soil"]  # W/(m*K),
+    k_is =data.heat_grid_data["k_PUF"]   # W/(m*K)
+    Z_c =  data.heat_grid_data["grid_depth"] + 0.069 * k_soil
     b = np.log((1+(2*Z_c/D_heating_network)**2)**0.5)
 
     Ts_heating_network = (T_hot_heating_network + T_cold_heating_network) / 2
@@ -211,7 +211,7 @@ def calculate_thermal_losses(data):
     losses_heating_network_serv = (losses_hotpipe_heating_network_serv + losses_coldpipe_heating_network_serv) / 1000  # kW
 
     # Losses in the substations
-    losses_substations_heating = data.heat_grid_data["h_loss_subst"]["value"]/100 * data.heat_grid_data["net_heating_demand"]
+    losses_substations_heating = data.heat_grid_data["h_loss_substation"]/100 * data.heat_grid_data["net_heating_demand"]
 
     # total losses in the heating network
     data.heat_grid_data["total_losses_heating_network"] = losses_heating_network_dist + losses_heating_network_serv + losses_substations_heating # kW
@@ -220,12 +220,12 @@ def calculate_thermal_losses(data):
 
     # get cooling network parameters (if a network exists)
     if data.heat_grid_data["net_sum_cooling_demand"] > 0:
-        T_hot_cooling_network = data.heat_grid_data["T_hot_cooling_network"]["value"]
-        T_cold_cooling_network = data.heat_grid_data["T_cold_cooling_network"]["value"]
+        T_hot_cooling_network = data.heat_grid_data["T_hot_cooling_network"]
+        T_cold_cooling_network = data.heat_grid_data["T_cold_cooling_network"]
 
-        D_cooling_network = data.heat_grid_data["D_cooling_network"]["value"] # distance between hot and cold pipe
+        D_cooling_network = data.heat_grid_data["D_cooling_network"] # distance between hot and cold pipe
 
-        Z_c =  data.heat_grid_data["grid_depth"]["value"] + 0.069 * k_soil
+        Z_c =  data.heat_grid_data["grid_depth"] + 0.069 * k_soil
         b = np.log((1+(2*Z_c/D_cooling_network)**2)**0.5)
 
         Ts_cooling_network = (T_hot_cooling_network + T_cold_cooling_network) / 2
@@ -260,7 +260,7 @@ def calculate_thermal_losses(data):
         losses_cooling_network_serv = (losses_hotpipe_cooling_network_serv + losses_coldpipe_cooling_network_serv) / 1000  # kW
 
         # Losses in the substations
-        losses_substations_cooling = data.heat_grid_data["h_loss_subst"]["value"] / 100 * data.heat_grid_data["net_cooling_demand"]
+        losses_substations_cooling = data.heat_grid_data["h_loss_substation"] / 100 * data.heat_grid_data["net_cooling_demand"]
 
     else:
         losses_cooling_network_dist = np.zeros(len(data.heat_grid_data["T_soil"]))
@@ -321,11 +321,11 @@ def calculate_soil_temperature(data, dt):
     # get ground parameters
     omega = 2 * np.pi / 365 # angular frequency
 
-    if data.heat_grid_data["asphaltlayer"]["value"] == 0:  # no asphalt layer, only soil
+    if data.heat_grid_data["asphaltlayer"] == 0:  # no asphalt layer, only soil
         alpha_s = 0.9                                                           #---,       soil surface absorptance Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
         epsilon_s = 0.9                                                         #---,       soil surface emissivity. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
         f = 0.7                                                                 #---,       soil surface evaporation rate. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
-        k_soil = data.heat_grid_data["k_soil"]["value"]                              # W/(m*K),  soil heat conductivity
+        k_soil = data.heat_grid_data["k_soil"]                              # W/(m*K),  soil heat conductivity
         k = k_soil
         c_soil = 2.4e6                                                          # J/(m^3*K),soil volumetric heat capacity. Source: Table 1.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
         delta_s = (2 * (k_soil / c_soil * 3600 * 24) / omega) ** 0.5            # m,  surface damping depth. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020
@@ -335,7 +335,7 @@ def calculate_soil_temperature(data, dt):
         epsilon_s = 0.93                                                        #---,        asphalt surface emissivity. Source: VDI Wärmeatlas
         f =  0.3                                                                #---,        asphalt surface evaporation rate. Source: http://dx.doi.org/10.1016/j.renene.2015.06.020 (assumed like the dry soil)
         k_asph = 0.76                                                           # W/(m*K),   asphalt heat conductivity. Source: VDI Wärmeatlas
-        k_soil = data.heat_grid_data["k_soil"]["value"]                              # W/(m*K),  soil heat conductivity
+        k_soil = data.heat_grid_data["k_soil"]                              # W/(m*K),  soil heat conductivity
         k = k_asph
         c_asph = 2100000                                                        # J/(m^3*K), asphalt volumetric heat capacity. Source: VDI Wärmeatlas
         c_soil = 2.4e6                                                          # J/(m^3*K),soil volumetric heat capacity. Source: Table 1.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
@@ -363,12 +363,12 @@ def calculate_soil_temperature(data, dt):
     Ts_phase = Tair_phase + cmath.phase(z) # phase angle difference between the air and the ground surface temperature
 
     # Calculate soil temperature in grid depth
-    d = data.heat_grid_data["d_asph"]["value"]    # m asphalt layer thickness
-    t = data.heat_grid_data["grid_depth"]["value"] # m installation depth beneath surface
+    d = data.heat_grid_data["d_asphalt"]    # m asphalt layer thickness
+    t = data.heat_grid_data["grid_depth"] # m installation depth beneath surface
     omega = 2 * np.pi / 365 / 24
     time = np.arange(dt, 8760 + dt, dt)  # time array in hours
 
-    if data.heat_grid_data["asphaltlayer"]["value"] == 0:  # no asphalt
+    if data.heat_grid_data["asphaltlayer"] == 0:  # no asphalt
         weather["T_soil"] = Ts_mean - Ts_amp * np.exp(-t / delta_soil) * np.cos(omega * time - Ts_phase - t / delta_soil)
     else:  # with asphalt layaer
         if t > d:  # grid is below asphalt layer
@@ -428,7 +428,7 @@ def calc_annual_investment(data):
     CRF = ((q**observation_time)*interest_rate)/((q**observation_time)-1)
 
     # Get device life time
-    life_time = data.heat_grid_data["life_time"]["value"]
+    life_time = data.heat_grid_data["life_time"]
 
     # Number of required replacements
     n = int(math.floor(observation_time / life_time))
@@ -448,7 +448,7 @@ def calc_annual_investment(data):
 
     data.heat_grid_data["CRF"] = CRF
     data.heat_grid_data["ann_costs"] = data.heat_grid_data["costs"] * data.heat_grid_data["ann_factor"] # €/a
-    data.heat_grid_data["om_costs"] = data.heat_grid_data["C_O&M"]["value"] * data.heat_grid_data["net_sum_heating_demand"]/1000 + data.heat_grid_data["C_O&M"]["value"] * data.heat_grid_data["net_sum_cooling_demand"]/1000 # €/a
+    data.heat_grid_data["om_costs"] = data.heat_grid_data["C_om"] * data.heat_grid_data["net_sum_heating_demand"]/1000 + data.heat_grid_data["C_om"] * data.heat_grid_data["net_sum_cooling_demand"]/1000 # €/a
 
     return data
 

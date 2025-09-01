@@ -429,14 +429,12 @@ class KPIs:
         # central operation costs for one year [€]
         self.operationCosts = round(temp_operationCosts, 0)
 
-    def calculateCO2emissions(self, data, json_data):
+    def calculateCO2emissions(self, json_data):
         """
         Calculate the CO2 emissions for one year in [kg].
 
         Parameters
         ----------
-        data: Datahandler object
-            Datahandler object which contains relevant economic data.
         json_data : dict
             Dictionary containing the CO2 emission factors for electricity, gas, and PV.
 
@@ -446,15 +444,11 @@ class KPIs:
         """
 
         # important for weather conditions
-
-        #         CO2_factor_el_grid = json_data["co2_el_grid"]  # Emi_elec_grid
-        #         CO2_factor_gas = json_data["co2_gas"]
-        CO2_factor_el_grid = next(item["value"] for item in jsonData if item["name"] == "co2_el_grid")  # Emi_elec_grid
-        CO2_factor_gas = next(item["value"] for item in jsonData if item["name"] == "co2_gas")      # Emi_gas
+        CO2_factor_el_grid = json_data["co2_el_grid"]   # Emi_elec_grid
+        CO2_factor_gas = json_data["co2_gas"]           # Emi_gas
 
         co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid / 1000    # in t/a
         co2_gas = self.Gas_year * CO2_factor_gas / 1000                   # in t/a
-
 
         # CO2 emissions for one year
         self.co2emissions = [co2_dem_grid, co2_gas]
@@ -588,7 +582,7 @@ class KPIs:
         self.calculateEnergyExchangeWithinDistrict(data)
         self.calculateCoverFactors(data)
         self.calculateOperationCosts(data)
-        self.calculateCO2emissions(data, data.ecoData)
+        self.calculateCO2emissions(data.ecoData)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)

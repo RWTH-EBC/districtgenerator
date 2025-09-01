@@ -1,7 +1,7 @@
 from dataclasses import field
 import os
-from typing import ClassVar, Set, Optional, Annotated
-from pydantic import BaseModel, ValidationError, BeforeValidator
+from typing import ClassVar, Set, Optional
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
@@ -42,28 +42,38 @@ class LocationConfig(BaseSettings):
     Attributes
     ----------
     Descriptions directly in Class.
-
     """
-    timeZone: float = 1         # Shift between the location's time and GMT in hours. CET would be 1.
-    albedo: float = 0.2         # Ground reflectance. 0 refers to 0% and 1 refers to 100%.
-    TRYYear: str = 'TRY2015'    # Test reference year of DWD. Possible entries are TRY2015 and TRY2045.
-    TRYType: str = 'Jahr'       # Test reference conditions of DWD. Possible entries are Jahr, Somm, Wint.
-    zip: str = '52062'          # Zip code of the location.
+    timeZone: float = 1  # Shift between the location's time and GMT in hours. CET would be 1.
+    albedo: float = 0.2  # Ground reflectance. 0 refers to 0% and 1 refers to 100%.
+    TRYYear: str = 'TRY2015'  # Test reference year of DWD. Possible entries are TRY2015 and TRY2045.
+    TRYType: str = 'Jahr'  # Test reference conditions of DWD. Possible entries are Jahr, Somm, Wint.
+    zip: str = '52062'  # Zip code of the location.
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
-    ALLOWED_TRY_TYPES: ClassVar[Set[str]] ={"Jahr", "Somm", "Wint"}
+    ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
 
     model_config = SettingsConfigDict(
-        extra="allow" 
+        extra="allow"
     )
 
-    def __post_init__(self):
-        if self.TRYYear not in self.ALLOWED_TRY_YEARS:
-            raise ValueError(f"try_year must be one of {self.ALLOWED_TRY_YEARS}, got '{self.TRYYear}'")
-        if self.TRYType not in self.ALLOWED_TRY_TYPES:
-            raise ValueError(f"try_type must be one of {self.ALLOWED_TRY_TYPES}, got '{self.TRYType}'")
-        if not (0.0 <= self.albedo <= 1.0):
+    # This validator checks the 'albedo' field after its value is assigned.
+    @field_validator('albedo')
+    def validate_albedo(cls, v: float) -> float:
+        """Validate that albedo is between 0.0 and 1.0."""
+        if not (0.0 <= v <= 1.0):
             raise ValueError("albedo must be between 0.0 and 1.0.")
+        return v
+
+    @model_validator(mode='after')
+    def check_try_settings(self) -> 'LocationConfig':
+        """Validate TRYYear and TRYType against their allowed values."""
+        if self.TRYYear not in self.ALLOWED_TRY_YEARS:
+            raise ValueError(f"TRYYear must be one of {self.ALLOWED_TRY_YEARS}, got '{self.TRYYear}'")
+
+        if self.TRYType not in self.ALLOWED_TRY_TYPES:
+            raise ValueError(f"TRYType must be one of {self.ALLOWED_TRY_TYPES}, got '{self.TRYType}'")
+
+        return self
 
 class TimeConfig(BaseSettings):
     """
@@ -99,24 +109,36 @@ class DesignBuildingConfig(BaseSettings):
     """
     T_set_min: float = 20.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
     T_set_min_night: float = 18.0   # Required minimum indoor temperature at night (for heating load calculation) in degrees Celsius
+    T_set_min_free_day: float = 16.0 # Minimum required indoor temperature on a non-working day in a non-residential building (for heating load calculations)
     T_set_max: float = 23.0         # Required maximum indoor temperature (for cooling load calculation) in degrees Celsius
     T_set_max_night: float = 28.0   # Required maximum indoor temperature at night (for cooling load calculation) in degrees Celsius
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
     ventilation_rate: float = 0.5   # Room ventilation rate in 1/h (per hour)
-# todo: add to example?
-    buildings_short: list = field(default_factory=lambda: ['SFH', 'MFH', 'TH', 'AB'])
-        # Abbreviations of the selectable building types.
-    buildings_long: list = field(default_factory=lambda: ['single_family_house', 'multi_family_house', 'terraced_house', 'apartment_block'])
-        # Names of the four selectable building types.
+
+    # Abbreviations of the selectable building types.
+    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"])
+    # Names of the four selectable building types.
+    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "multi_family_house+grocery_store", "apartment_block+grocery_store", "multi_family_house+restaurant", "apartment_block+restaurant"])
+    # Abbreviations of the retrofit levels.
     retrofit_short: list = field(default_factory=lambda: [0, 1, 2])
-        # Abbreviations of the retrofit levels.
+    # Names of the retrofit levels.
     retrofit_long: list = field(default_factory=lambda: ['tabula_standard', 'tabula_retrofit', 'tabula_adv_retrofit'])
-        # Names of the retrofit levels.
-    dhwload: list = field(default_factory=lambda: [4662.1, 4662.1, 4662.1, 3999.8])
-        # Maximal power for domestic hot water for each of the four building types (SFH, MFH, TH and AB)
-    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40])
-        # Mean drawoff DHW volume per day for each of the four building types (SFH, MFH, TH and AB). Source: 12831-3/A100 Table NA.4"
+    # Abbreviations of the retrofit levels of the non residential buildings.
+    retrofit_short_non_residential: list = field(default_factory=lambda: [0, 1, 2])
+    # Names of the retrofit levels of the non residential buildings
+    retrofit_long_non_residential: list = field(default_factory=lambda: ["not retrofitted", "partially retrofitted", "completely retrofitted"])
+    # Abbreviations of the construction types of the non residential buildings
+    construction_type_short: list = field(default_factory=lambda: [0, 1, 2])
+    # Names of the construction types of the non residential buildings
+    construction_type_long: list = field(default_factory=lambda: ["Light", "Medium", "Heavy"])
+    # The additional power required by the heating system to meet the domestic hot water demand per square meter in the building types:
+    # SFH, MFH, TH, AB, OB, SC, GS, and RE.
+    # Source: SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik"
+    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24])
+    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE).
+    # Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik for non-residential buildings
+    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8])
 
     model_config = SettingsConfigDict(
         extra="allow" 
@@ -133,14 +155,14 @@ class EcoConfig(BaseSettings):
 
     """
 
-    price_supply_el: float = 0.32       # Electricity price in €/kWh
-    revenue_feed_in_el: float = 0.0811  # Feed-in electricity price in €/kWh
-    price_supply_gas: float = 0.12      # Gas price in €/kWh
+    price_supply_el: float = 0.3969     # Electricity price in €/kWh
+    revenue_feed_in_el: float = 0.0794  # Feed-in electricity price in €/kWh
+    price_supply_gas: float = 0.1236    # Gas price in €/kWh
     price_hydrogen: float = 0.1         # Hydrogen price in €/kWh
     price_waste: float = 0.1            # Waste price in €/kWh
     price_biomass: float = 0.05         # Biomass price in €/kWh
-    co2_el_grid: float = 0.49           # Co2 emissions for electricity import (grid mix) in kg/kWh
-    co2_gas: float = 0.25               # Co2 emissions for burning natural gas in kg/kWh
+    co2_el_grid: float = 0.363          # Co2 emissions for electricity import (grid mix) in kg/kWh
+    co2_gas: float = 0.201              # Co2 emissions for burning natural gas in kg/kWh
     co2_biom: float = 0.35              # Co2 emissions for burning biomass in kg/kWh
     co2_waste: float = 0.0              # Co2 emissions for burning waste in kg/kWh
     co2_hydrogen: float = 0.0           # Co2 emissions for burning hydrogen in kg/kWh
@@ -198,20 +220,44 @@ class GurobiConfig(BaseSettings):
 
 class HeatGridConfig(BaseSettings):
     """
-    HeatGridConfig class to manage the configuration of the heat grid in the district generator.
-    This class contains parameters related to the heat grid, such as flow and return temperatures,
-    temperature differences in heat exchangers, and other relevant settings.
+    Manages the configuration for the district heating network.
+
+    This class defines the default parameters for the physical, thermal, and economic
+    properties of a heating grid. It includes settings for operating temperatures,
+    physical dimensions, material properties, and costs.
 
     Attributes
     ----------
-    todo
+    Descriptions directly in Class.
     """
-    T_hot: float = 332.15           # Flow temperature in Kelvin
-    T_cold: float = 323.15          # Return temperature in Kelvin
-    delta_T_heatTransfer: float = 5 # Temperature difference in heat exchangers (K)
+
+    # District and Network Layout Parameters
+    FAR: float = 1.17                   # Floor area ratio (German: Geschossflächenzahl); Source: Dettmar, J.,et al., 2020. Energetische Stadtraumtypen
+    D_heating_network: float = 1.0      # Distance between the centerlines of supply and return pipelines in meters.
+    D_cooling_network: float = 1.0      # Distance between the centerlines of supply and return pipelines in meters.
+    grid_depth: float = 1.0             # Installation depth of the grid beneath the surface in meters.
+    life_time: int = 40                 # Lifetime of the heating network and its components in years.
+
+    # Thermal Operating Parameters
+    T_hot_heating_network: float = 80.0  # Flow temperature of the heating network in degrees Celsius.
+    T_cold_heating_network: float = 60.0 # Return temperature of the heating network in degrees Celsius.
+    T_hot_cooling_network: float = 12.0  # Flow temperature of the cooling network in degrees Celsius.
+    T_cold_cooling_network: float = 6.0  # Return temperature of the cooling network in degrees Celsius.
+    delta_T_heatTransfer: float = 5.0    # Temperature difference in heat exchangers in Kelvin.
+
+    # Material and Environmental Properties
+    asphaltlayer: int = 1               # Consideration of asphalt layer (1 = yes, 0 = no).
+    d_asphalt: float = 0.18             # Asphalt layer thickness in meters.
+    k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
+    k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
+
+    # Economic and Loss Parameters
+    h_loss_substation: float = 4.5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
+    C_substation: float = 277.79        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
+    C_om: float = 1.44                  # Variable Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
 
     model_config = SettingsConfigDict(
-        extra="allow" 
+        extra="allow"
     )
 
 class EHDOConfig(BaseSettings):
@@ -293,28 +339,15 @@ class CalendarConfig(BaseSettings):
     Descriptions directly in Class.
 
     """
-    # Julian day number of the holidays in NRW in 2015 as a list.
-    holidays2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [1, 93, 96, 121, 134, 145, 155, 275, 305, 358, 359, 360, 365]
-    )
-    # Julian day number of the holidays in NRW in 2045 as a list.
-    holidays2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [1, 97, 100, 121, 138, 149, 159, 276, 305, 358, 359, 360, 365]
-    )
-    # Thursday as a list
-    initial_day_2015: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [4]
-    )
-    # Saturday as a list
-    initial_day_2045: Annotated[list[int], BeforeValidator(parse_int_list)] = field(
-        default_factory=lambda: [6]
-    )
-
-    consider_heating_period: bool = True  # Consider heating period in the clustering (True) or calculate whole year (False)
-
+    consider_heating_period: bool = True    # Consider heating period in the clustering (True) or calculate whole year (False)
+    consider_cooling_period: bool = True    # Consider cooling period in the clustering (True) or calculate whole year (False)
     # If heating period considered:
     heating_period_start: int = 259  # Julian day number of the start of the heating period (default: 15th September)
     heating_period_end: int = 135    # Julian day number of the end of the heating period (default: 15th May)
+    # If cooling period considered:
+    cooling_period_start: int = 105  # Julian day number of the start of the cooling period (default: 15th April)
+    cooling_period_end: int = 273    # Julian day number of the end of the cooling period (default: 1st October)
+
 
     model_config = SettingsConfigDict(
         extra="allow"

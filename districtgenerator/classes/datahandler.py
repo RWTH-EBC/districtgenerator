@@ -62,7 +62,6 @@ class Datahandler:
                  filePath = None,
                  env_path = None
                  ):
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
         """
         Constructor of Datahandler class.
 
@@ -90,13 +89,14 @@ class Datahandler:
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
 
-        self.site = {}
-        self.time = {}
         self.initial_day = None
         self.district = []
         self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example"
         self.scenario = None
         self.total_building_area = None
+        # Config data
+        self.site = {}
+        self.time = {}
         self.design_building_data = {}
         self.physics = {}
         self.decentral_device_data = {}
@@ -105,11 +105,14 @@ class Datahandler:
         self.central_device_data = {}
         self.calendar = {}
         self.ecoData = {}
+        self.heat_grid_data = {}
+        self.pipe_data = {}
+        self.gurobiConfig = global_config.gurobi
+        # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
-        self.gurobiConfig = global_config.gurobi,
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -131,7 +134,8 @@ class Datahandler:
             ehdo_config=global_config.ehdo,
             eco_config=global_config.eco,
             central_config=global_config.central,
-            calendar_config=global_config.calendar
+            calendar_config=global_config.calendar,
+            heat_grid_config=global_config.heatgrid
         )
 
         self.buildings_completed = 0
@@ -163,7 +167,8 @@ class Datahandler:
                       ehdo_config: EHDOConfig,
                       eco_config: EcoConfig,
                       central_config: CentralDeviceConfig,
-                      calendar_config: CalendarConfig):
+                      calendar_config: CalendarConfig,
+                      heat_grid_config: HeatGridConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -187,41 +192,37 @@ class Datahandler:
             Central device configuration data.
         calendar_config : CalendarConfig
             Calendar configuration data.
+        heat_grid_config : HeatGridConfig
+            Heat grid configuration data.
         Returns
         -------
         None.
         """
 
         # %% load scenario file with building information
-        self.scenario = {}
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                     header=0, delimiter=";")
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
-        self.site = {}
         for attr, value in site_config.__dict__.items():
             self.site[attr] = value
 
         # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
-        self.time = {}
         for attr, value in time_config.__dict__.items():
             self.time[attr] = value
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        self.design_building_data = {}
         for attr, value in design_building_config.__dict__.items():
             self.design_building_data[attr] = value
 
         # load building physics data (used in envelope and system BES/CES)
-        self.physics = {}
         for attr, value in physics_config.__dict__.items():
             self.physics[attr] = value
 
         # Load list of possible devices (used in system BES)
-        self.decentral_device_data = {}
         # Iterate over all attributes of the config instance
         for attribute, value in decentral_config.__dict__.items():
             # Split the attribute into abbreviation and parameter name parts based on the first underscore
@@ -232,17 +233,14 @@ class Datahandler:
                 self.decentral_device_data[abbr] = {}
             self.decentral_device_data[abbr][param] = value
 
-        self.params_ehdo_model = {}
         for attr, value in ehdo_config.__dict__.items():
             self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        self.ecoData = {}
         for attr, value in eco_config.__dict__.items():
             self.ecoData[attr] = value
 
         # Load list of possible devices (used in system BES)
-        self.central_device_data = {}
         # Iterate over all attributes of the config instance
         for attribute, value in central_config.__dict__.items():
             # Split the attribute into abbreviation and parameter name parts based on the first underscore
@@ -254,13 +252,11 @@ class Datahandler:
             self.central_device_data[abbr][param] = value
 
         # load calendar data (used in generateDemands and generateEnvironment)
-        self.calendar = {}
         for attr, value in calendar_config.__dict__.items():
             self.calendar[attr] = value
 
-        # todo: change
-        with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
-            self.heat_grid_data = json.load(json_file)
+        for attr, value in heat_grid_config.__dict__.items():
+            self.heat_grid_data[attr] = value
 
         csv_path = os.path.join(self.filePath, 'pipe_specifications.csv')
         self.pipe_data = pd.read_csv(csv_path, sep=";")
@@ -271,8 +267,7 @@ class Datahandler:
 
         Returns
         -------
-        weatherdatafile_location: int
-            Location of the TRY weather station in lambert projection.
+        None.
         """
 
         # Try to find the location of the postal code and matched TRY weather station
@@ -295,13 +290,13 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
-                Add new weatherdatafile_location, if you want an individual location: 
-                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
-                Uncomment the following line  
-            """
+
+            # deprecated?
+            ## Add new weatherdatafile_location, if you want an individual location:
+            ## Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html
+            ## Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '.\districtgenerator\data\weather\
+            ## Example: TRY2015_507755060854_Wint.dat has to be stored in '.\districtgenerator\data\weather\TRY_2015_Winter'
+            ## Uncomment the following line:
             # weatherdatafile_location = 507755060854
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
@@ -318,7 +313,7 @@ class Datahandler:
         """
         try:
             # Initialize the holidays object for the given country, year, and state
-            holidays = hol.CountryHoliday(country_code, years=year, subdiv=state)
+            holidays = hol.country_holidays(country_code, years=year, subdiv=state)
 
             # Get the Julian day for each holiday
             julian_holidays = [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
@@ -336,6 +331,7 @@ class Datahandler:
         None.
         """
         # %% load first day of the year
+        # todo: maybe put in config if more TRY years are added?
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
             self.initial_day = 3 # Thursday
@@ -375,13 +371,10 @@ class Datahandler:
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # load the holidays
-        #todo fix
         if self.site["TRYYear"] == "TRY2015":
-            self.time["holidays"] = self.get_holidays(country_code="DE", year=2015)
-            self.calendar["holidays"] = self.calendar["holidays2015"]
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
-            self.time["holidays"] = self.get_holidays(country_code="DE", year=2045)
-            self.calendar["holidays"] = self.calendar["holidays2045"]
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2045)
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -463,7 +456,7 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{bldg_id}_{row['building']}_{self.scenario_name}"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
@@ -746,13 +739,11 @@ class Datahandler:
         is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
 
         # calculate or load heating profiles
-        # todo check calender
         if calcUserProfiles:
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
                                                 night_setback=night_setback,
                                                 is_cooled=is_cooled,
-                                                holidays=self.time["holidays"],
                                                 calendar=self.calendar,
                                                 time_resolution=self.time["timeResolution"]
                                                 )
@@ -771,7 +762,7 @@ class Datahandler:
         # print(f'done {building["unique_name"]}')
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
-                                 designDevs=False, saveGenProfiles=True, clustering=False, optimization=False):
+                                 designDevs=True, saveGenProfiles=True, optimization=True):
         """
         All in one solution for district and demand generation.
 
@@ -786,12 +777,12 @@ class Datahandler:
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
         designDevs: bool, optional
-            Decision if devices (central / decentral) will be designed. The default is False.
+            Decision if devices (central / decentral) will be designed. The default is True.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
         optimization: bool, optional
-            Decision if the operation costs for each cluster will be optimized. The default is False.
+            Decision if the operation costs for each cluster will be optimized. The default is True.
 
         Returns
         -------
@@ -803,20 +794,20 @@ class Datahandler:
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
 
-        # todo: if designDevs?
         # Todo: make a mix of central and decentral buildings possible
-        if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
-            centralEnergySupply = True
-            self.designDevicesComplete(saveGenerationProfiles=True)
-        else:
-            centralEnergySupply = False
-            self.designDecentralDevices(saveGenerationProfiles=True)
-            self.centralDevices = {}
+        if designDevs:
+            if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
+                centralEnergySupply = True
+                self.designDevicesComplete(saveGenerationProfiles=saveGenProfiles)
+            else:
+                centralEnergySupply = False
+                self.designDecentralDevices(saveGenerationProfiles=saveGenProfiles)
+                self.centralDevices = {}
 
-        # todo if optimization?
-        # Within a clustered time series, data points are aggregated across different time periods
-        # based on the k-medoids method
-        self.clusterProfiles(centralEnergySupply)
+            if optimization:
+                # Within a clustered time series, data points are aggregated across different time periods
+                # based on the k-medoids method
+                self.clusterProfiles(centralEnergySupply)
 
     def saveProfiles(self, name, elec, dhw, occ, gains, carcharging_ondemand, carprofile, ev_capacity, nb_units, nb_occ, heatload, bivalent, heatlimit, path):
         """
@@ -932,7 +923,7 @@ class Datahandler:
                 data.append(row[0])
             return np.array(data)
 
-        building_id = int(name.split('_')[0])
+        building_id = int(name.split('_')[1])
         idx = self.building_dict[building_id]
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
