@@ -35,7 +35,7 @@ def example6_config_file_loading():
     #    test reference year for 2045, adjust the following parameters:
     #    - zip=79100
     #    - TRYYear=TRY2045
-    #    - TRYType=warm
+    #    - TRYType=Somm
 
     # 2. Change the minimum indoor temperature:
     #    To modify the building's thermal properties, locate the T_set_min
@@ -47,7 +47,6 @@ def example6_config_file_loading():
     #    set the timeResolution parameter in seconds:
     #    - timeResolution=10800
     # That is equal to a time resolution of three hours.
-    # Be careful to not delete the coma behind the value! Safe and close the file.
 
     # Initialize District
     data = Datahandler(env_path=".env.CONFIG.FREIBURG")

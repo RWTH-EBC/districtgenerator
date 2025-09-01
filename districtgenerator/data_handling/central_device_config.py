@@ -21,6 +21,8 @@ class CentralDeviceConfig(BaseSettings):
     # PV parameters (Photovoltaic System)
     PV_feasible: bool = True        # Should this be considered for the central optimization.
     PV_eta: float = 0.18            # Electrical efficiency between 0 and 1.
+    PV_beta: float = 35             # Tilt angle of the PV modules in degrees.
+    PV_gamma: int = 0               # Azimuth angle (orientation) of the PV modules in degrees (0=South, -90=East, 90=West).
     PV_life_time: int = 20          # Maximum life time in years.
     PV_inv_var: int = 1300          # Investment variable in €/kWp.
     PV_cost_om: float = 0.02        # Cost of operation and maintenance as a percentage of investment.
@@ -52,6 +54,8 @@ class CentralDeviceConfig(BaseSettings):
     # STC parameters (Solar Thermal Collector)
     STC_feasible: bool = False      # Should this be considered for the central optimization.
     STC_eta: float = 0.45           # Thermal efficiency between 0 and 1.
+    STC_beta: float = 35            # Tilt angle of the solar collectors in degrees.
+    STC_gamma: int = 0              # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     STC_inv_var: int = 702          # Investment variable in €/m^2.
     STC_life_time: int = 20         # Maximum life time in years.
     STC_cost_om: float = 0.02       # Cost of operation and maintenance as a percentage of investment.
@@ -101,6 +105,22 @@ class CentralDeviceConfig(BaseSettings):
     HP_ASHP_supply_temp: int = 60   # Supply temperature of the Air Source Heat Pump in Celsius.
     HP_COP_const: int = 5           # Constant Coefficient of Performance (COP).
 
+    # AirHP parameters (Air Source Heat Pump)
+    AirHP_feasible: bool = True     # Should this be considered for the central optimization.
+    AirHP_life_time: int = 25       # Maximum life time in years.
+    AirHP_inv_var: int = 1500       # Investment variable in €/kWth.
+    AirHP_cost_om: float = 0.025    # Cost of operation and maintenance as a percentage of investment.
+    AirHP_min_cap: int = 0          # Minimum capacity in kWth.
+    AirHP_max_cap: int = 20000      # Maximum capacity in kWth.
+
+    # GroundHP parameters (Ground Source Heat Pump)
+    GroundHP_feasible: bool = False # Should this be considered for the central optimization.
+    GroundHP_life_time: int = 20    # Maximum life time in years.
+    GroundHP_inv_var: int = 1000    # Investment variable in €/kWth.
+    GroundHP_cost_om: float = 0.025 # Cost of operation and maintenance as a percentage of investment.
+    GroundHP_min_cap: int = 0       # Minimum capacity in kWth.
+    GroundHP_max_cap: int = 500     # Maximum capacity in kWth.
+
     # EB parameters (Electric Boiler)
     EB_feasible: bool = True        # Should this be considered for the central optimization.
     EB_inv_var: int = 463           # Investment variable in €/kW.
@@ -118,6 +138,14 @@ class CentralDeviceConfig(BaseSettings):
     CC_cost_om: float = 0.05        # Cost of operation and maintenance as a percentage of investment.
     CC_min_cap: int = 0             # Minimum capacity in kW.
     CC_max_cap: int = 100000        # Maximum capacity in kW.
+
+    # AirCC parameters (Air Cooled Chiller)
+    AirCC_feasible: bool = False    # Should this be considered for the central optimization.
+    AirCC_life_time: int = 20       # Maximum life time in years.
+    AirCC_inv_var: int = 700        # Investment variable in €/kW.
+    AirCC_cost_om: float = 0.02     # Cost of operation and maintenance as a percentage of investment.
+    AirCC_min_cap: int = 0          # Minimum capacity in kW.
+    AirCC_max_cap: int = 500        # Maximum capacity in kW.
 
     # AC parameters (Absorption Chiller)
     AC_feasible: bool = False       # Should this be considered for the central optimization.
@@ -223,30 +251,30 @@ class CentralDeviceConfig(BaseSettings):
     CTES_cost_om: float = 0.01      # Cost of operation and maintenance as a percentage of investment.
     CTES_min_vol: int = 0           # Minimum storage volume in cubic meters.
     CTES_max_vol: int = 100000      # Maximum storage volume in cubic meters.
-    CTES_delta_T: int = 55          # Temperature difference between charged and discharged state in Celsius.
-    CTES_soc_init: float = 0.5      # Initial state of charge between 0 and 1.
+    CTES_delta_T: int = 55          # Temperature difference between charged and discharged state
 
     # BAT parameters (Battery Storage)
-    BAT_feasible: bool = False      # Should this be considered for the central optimization.
-    BAT_inv_var: int = 970          # Investment variable in €/kWh.
-    BAT_life_time: int = 15         # Maximum life time in years.
-    BAT_cost_om: float = 0.01       # Cost of operation and maintenance as a percentage of investment.
-    BAT_min_cap: int = 0            # Minimum capacity in kWh.
-    BAT_max_cap: int = 100000       # Maximum capacity in kWh.
-    BAT_sto_loss: float = 0.0       # Storage loss as a fraction.
-    BAT_soc_init: float = 0.5       # Initial state of charge between 0 and 1.
+    BAT_feasible: bool = False  # Should this be considered for the central optimization.
+    BAT_inv_var: int = 970  # Investment variable in €/kWh.
+    BAT_life_time: int = 15  # Maximum life time in years.
+    BAT_cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
+    BAT_min_cap: int = 0  # Minimum capacity in kWh.
+    BAT_max_cap: int = 100000  # Maximum capacity in kWh.
+    BAT_sto_loss: float = 0.0  # Storage loss as a fraction.
+    BAT_soc_init: float = 0.5  # Initial state of charge between 0 and 1.
 
     # GS parameters (Gas Storage)
-    GS_feasible: bool = False       # Should this be considered for the central optimization.
-    GS_inv_var: int = 150           # Investment variable in €/kWh.
-    GS_life_time: int = 20          # Maximum life time in years.
-    GS_cost_om: float = 0.01        # Cost of operation and maintenance as a percentage of investment.
-    GS_min_cap: int = 0             # Minimum capacity in kWh.
-    GS_max_cap: int = 100000        # Maximum capacity in kWh.
-    GS_sto_loss: float = 0.0        # Storage loss as a fraction.
-    GS_soc_init: float = 0.5        # Initial state of charge between 0 and 1.
+    GS_feasible: bool = False  # Should this be considered for the central optimization.
+    GS_inv_var: int = 150  # Investment variable in €/kWh.
+    GS_life_time: int = 20  # Maximum life time in years.
+    GS_cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
+    GS_min_cap: int = 0  # Minimum capacity in kWh.
+    GS_max_cap: int = 100000  # Maximum capacity in kWh.
+    GS_sto_loss: float = 0.0  # Storage loss as a fraction.
+    GS_soc_init: float = 0.5  # Initial state of charge between 0 and 1.
 
     model_config = SettingsConfigDict(
-        env_file= ".centraldeviceconfig",
+        env_prefix="C_",
+        env_file=".centraldeviceconfig",
         extra="allow"
     )

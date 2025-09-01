@@ -714,7 +714,7 @@ class Users:
                 self.carcharging_ondemand = np.zeros(len(self.occ), dtype=np.float64)
                 self.ev_capacity = [0.0]
 
-    def calcHeatingProfile(self, site, envelope, night_setback, is_cooled, holidays, time_resolution):
+    def calcHeatingProfile(self, site, envelope, night_setback, is_cooled, calendar, time_resolution):
         """
         Calculate heat demand for each building.
 
@@ -731,6 +731,9 @@ class Users:
             Information about holidays, initial day of the week, heating period.
         time_resolution : integer
             Resolution of time steps of output array in seconds.
+
+        Outputs
+        -------
         Q_H : float
             Heating load for the current time step in Watt.
         Q_C : float
@@ -747,7 +750,7 @@ class Users:
             (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, self.building)
 
         # Force cooling to zero if building is not actively cooled
         if is_cooled == 0:
