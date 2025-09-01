@@ -1,0 +1,294 @@
+{
+  "OB": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "not retrofitted": {
+          "u_aw": 1.59,
+          "u_fen": 3.27,
+          "u_d_opak": 0.63,
+          "u_ug": 1.14,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "1979 - 2009": {
+        "not retrofitted": {
+          "u_aw": 0.55,
+          "u_fen": 2.32,
+          "u_d_opak": 0.27,
+          "u_ug": 0.43,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "2010 - 2030": {
+        "not retrofitted": {
+          "u_aw": 0.25,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      }
+    }
+  },
+  "SC": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "not retrofitted": {
+          "u_aw": 1.59,
+          "u_fen": 3.27,
+          "u_d_opak": 0.63,
+          "u_ug": 1.14,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "1979 - 2009": {
+        "not retrofitted": {
+          "u_aw": 0.55,
+          "u_fen": 2.32,
+          "u_d_opak": 0.27,
+          "u_ug": 0.43,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "2010 - 2030": {
+        "not retrofitted": {
+          "u_aw": 0.25,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      }
+    }
+  },
+  "GS": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "not retrofitted": {
+          "u_aw": 1.59,
+          "u_fen": 3.27,
+          "u_d_opak": 0.63,
+          "u_ug": 1.14,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "1979 - 2009": {
+        "not retrofitted": {
+          "u_aw": 0.55,
+          "u_fen": 2.32,
+          "u_d_opak": 0.27,
+          "u_ug": 0.43,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "2010 - 2030": {
+        "not retrofitted": {
+          "u_aw": 0.25,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      }
+    }
+  },
+  "RE": {
+    "building_age_group": {
+      "1860 - 1978": {
+        "not retrofitted": {
+          "u_aw": 1.59,
+          "u_fen": 3.27,
+          "u_d_opak": 0.63,
+          "u_ug": 1.14,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "1979 - 2009": {
+        "not retrofitted": {
+          "u_aw": 0.55,
+          "u_fen": 2.32,
+          "u_d_opak": 0.27,
+          "u_ug": 0.43,
+          "g_gl_fen": 0.78
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.30,
+          "u_d_opak": 0.24,
+          "u_ug": 0.30,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      },
+      "2010 - 2030": {
+        "not retrofitted": {
+          "u_aw": 0.25,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "partially retrofitted": {
+          "u_aw": 0.24,
+          "u_fen": 1.15,
+          "u_d_opak": 0.15,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.47
+        },
+        "completely retrofitted": {
+          "u_aw": 0.20,
+          "u_fen": 0.90,
+          "u_d_opak": 0.14,
+          "u_ug": 0.25,
+          "g_gl_fen": 0.30
+        }
+      }
+    }
+  }
+}
