@@ -24,6 +24,9 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
+from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
+from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 
 
 class Datahandler:
@@ -51,33 +54,65 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
+    def __init__(self,
+                 scenario_name = None,
+                 resultPath = None,
+                 scenario_file_path = None,
+                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 filePath = None,
+                 env_path = None
+                 ):
         """
         Constructor of Datahandler class.
+
+        Parameters
+        ----------
+        scenario_name : str, optional
+            Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
+        resultPath : str, optional
+            Path to save results. If None, it defaults to 'srcPath/results'.
+        scenario_file_path : str, optional
+            Path to the scenario file. If None, it defaults to 'filePath/scenarios'.
+        srcPath : str, optional
+            Source path of the district generator. The default is the parent directory of this file.
+        filePath : str, optional
+            Path to the data directory. If None, it defaults to 'srcPath/data'.
+        env_path : str, optional
+            Path to the environment configuration file. If None, it defaults to the global configuration file.
 
         Returns
         -------
         None.
         """
+        global_config: GlobalConfig = load_global_config(env_file=env_path)
 
-        self.site = {}
-        self.time = {}
+        if filePath is None:
+            filePath = os.path.join(srcPath, 'data')
+
         self.initial_day = None
         self.district = []
-        self.scenario_name = scenario_name
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example"
         self.scenario = None
         self.total_building_area = None
+        # Config data
+        self.site = {}
+        self.time = {}
         self.design_building_data = {}
         self.physics = {}
         self.decentral_device_data = {}
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.calendar = {}
         self.ecoData = {}
+        self.heat_grid_data = {}
+        self.pipe_data = {}
+        self.gurobiConfig = global_config.gurobi
+        # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
-        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.filePath = os.path.join(self.srcPath, 'data')
+        self.srcPath = srcPath
+        self.filePath = filePath
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -90,7 +125,18 @@ class Datahandler:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
         self.KPIs = None
-        self.load_all_data()
+        self.load_all_data(
+            site_config=global_config.location,
+            time_config=global_config.time,
+            design_building_config=global_config.design_building,
+            physics_config=global_config.physics,
+            decentral_config=global_config.decentral,
+            ehdo_config=global_config.ehdo,
+            eco_config=global_config.eco,
+            central_config=global_config.central,
+            calendar_config=global_config.calendar,
+            heat_grid_config=global_config.heatgrid
+        )
 
         self.buildings_completed = 0
         self.buildings_total = 0
@@ -113,75 +159,104 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self):
+    def load_all_data(self, site_config: LocationConfig,
+                      time_config: TimeConfig,
+                      design_building_config: DesignBuildingConfig,
+                      physics_config: PhysicsConfig,
+                      decentral_config: DecentralDeviceConfig,
+                      ehdo_config: EHDOConfig,
+                      eco_config: EcoConfig,
+                      central_config: CentralDeviceConfig,
+                      calendar_config: CalendarConfig,
+                      heat_grid_config: HeatGridConfig):
         """
-        General data import from JSON files and transformation into dictionaries.
+        Load all data needed for district generation from configuration files.
 
+        Parameters
+        ----------
+        site_config : LocationConfig
+            Location configuration data.
+        time_config : TimeConfig
+            Time configuration data.
+        design_building_config : DesignBuildingConfig
+            Design building configuration data.
+        physics_config : PhysicsConfig
+            Physics configuration data.
+        decentral_config : DecentralDeviceConfig
+            Decentral device configuration data.
+        ehdo_config : EHDOConfig
+            EHDO model configuration data.
+        eco_config : EcoConfig
+            Economic configuration data.
+        central_config : CentralDeviceConfig
+            Central device configuration data.
+        calendar_config : CalendarConfig
+            Calendar configuration data.
+        heat_grid_config : HeatGridConfig
+            Heat grid configuration data.
         Returns
         -------
         None.
         """
 
+        # %% load scenario file with building information
+        self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                    header=0, delimiter=";")
+
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
-        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.site[subData["name"]] = subData["value"]
+        for attr, value in site_config.__dict__.items():
+            self.site[attr] = value
 
         # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
-        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.time[subData["name"]] = subData["value"]
-
-        # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";").set_index("id", drop=False))
+        for attr, value in time_config.__dict__.items():
+            self.time[attr] = value
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.design_building_data[subData["name"]] = subData["value"]
+        for attr, value in design_building_config.__dict__.items():
+            self.design_building_data[attr] = value
 
         # load building physics data (used in envelope and system BES/CES)
-        with open(os.path.join(self.filePath, 'physics_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.physics[subData["name"]] = subData["value"]
+        for attr, value in physics_config.__dict__.items():
+            self.physics[attr] = value
 
         # Load list of possible devices (used in system BES)
-        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.decentral_device_data[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+        # Iterate over all attributes of the config instance
+        for attribute, value in decentral_config.__dict__.items():
+            # Split the attribute into abbreviation and parameter name parts based on the first underscore
+            abbr, _, param = attribute.partition("_")
 
-        # import model parameters from json-file (used in system CES)
-        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["name"] != "ref":
-                    self.params_ehdo_model[subData["name"]] = subData["value"]
-                else:
-                    self.params_ehdo_model[subData["name"]] = {}
-                    for subSubData in subData["value"]:
-                        self.params_ehdo_model[subData["name"]][subSubData["name"]] = subSubData["value"]
+            # Initialize the sub-dictionary if needed.
+            if abbr not in self.decentral_device_data:
+                self.decentral_device_data[abbr] = {}
+            self.decentral_device_data[abbr][param] = value
+
+        for attr, value in ehdo_config.__dict__.items():
+            self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.ecoData[subData["name"]] = subData["value"]
+        for attr, value in eco_config.__dict__.items():
+            self.ecoData[attr] = value
 
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
-            self.central_device_data = json.load(json_file)
+        # Load list of possible devices (used in system BES)
+        # Iterate over all attributes of the config instance
+        for attribute, value in central_config.__dict__.items():
+            # Split the attribute into abbreviation and parameter name parts based on the first underscore
+            abbr, _, param = attribute.partition("_")
 
-        with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
-            self.heat_grid_data = json.load(json_file)
+            # Initialize the sub-dictionary if needed.
+            if abbr not in self.central_device_data:
+                self.central_device_data[abbr] = {}
+            self.central_device_data[abbr][param] = value
+
+        # load calendar data (used in generateDemands and generateEnvironment)
+        for attr, value in calendar_config.__dict__.items():
+            self.calendar[attr] = value
+
+        for attr, value in heat_grid_config.__dict__.items():
+            self.heat_grid_data[attr] = value
 
         csv_path = os.path.join(self.filePath, 'pipe_specifications.csv')
         self.pipe_data = pd.read_csv(csv_path, sep=";")
@@ -192,8 +267,7 @@ class Datahandler:
 
         Returns
         -------
-        weatherdatafile_location: int
-            Location of the TRY weather station in lambert projection.
+        None.
         """
 
         # Try to find the location of the postal code and matched TRY weather station
@@ -216,30 +290,36 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
-                Add new weatherdatafile_location, if you want an individual location: 
-                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
-                Uncomment the following line  
-            """
+
+            # deprecated?
+            ## Add new weatherdatafile_location, if you want an individual location:
+            ## Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html
+            ## Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '.\districtgenerator\data\weather\
+            ## Example: TRY2015_507755060854_Wint.dat has to be stored in '.\districtgenerator\data\weather\TRY_2015_Winter'
+            ## Uncomment the following line:
             # weatherdatafile_location = 507755060854
 
     def get_holidays(self, country_code: str, year: int, state: str = None):
         """
         Get the Julian day (day of the year) for holidays in a specific country, year, and state.
 
-        Args:
-            country_code (str): The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-            year (int): The year for which to retrieve holidays.
-            state (str): The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+        Parameters
+        ----------
+            country_code : string
+                The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+            year : integer
+                The year for which to retrieve holidays.
+            state : string
+                The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
 
-        Returns:
-            list: A list of tuples containing the Julian day of the holiday.
+        Returns
+        -------
+            julian_holidays : list
+                A list of tuples containing the Julian day of the holiday.
         """
         try:
             # Initialize the holidays object for the given country, year, and state
-            holidays = hol.CountryHoliday(country_code, years=year, subdiv=state)
+            holidays = hol.country_holidays(country_code, years=year, subdiv=state)
 
             # Get the Julian day for each holiday
             julian_holidays = [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
@@ -257,6 +337,7 @@ class Datahandler:
         None.
         """
         # %% load first day of the year
+        # todo: maybe put in config if more TRY years are added?
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
             self.initial_day = 3 # Thursday
@@ -297,9 +378,9 @@ class Datahandler:
 
         # load the holidays
         if self.site["TRYYear"] == "TRY2015":
-            self.time["holidays"] = self.get_holidays(country_code="DE", year=2015)
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
-            self.time["holidays"] = self.get_holidays(country_code="DE", year=2045)
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2045)
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -325,8 +406,7 @@ class Datahandler:
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
 
         # Load other site-dependent values based on DIN/TS 12831-1:2020-04
-        srcPath = os.path.dirname(os.path.abspath(__file__))
-        filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
+        filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
         # Filter data for the specific zip code
@@ -342,16 +422,16 @@ class Datahandler:
         global sun
         sun = Sun(filePath=self.filePath)
         self.site["SunRad"] = sun.getSolarGains(initialTime=0,
-                                        timeDiscretization=self.time["timeResolution"],
-                                        timeSteps=self.time["timeSteps"],
-                                        timeZone=self.site["timeZone"],
-                                        location=self.site["location"],
-                                        altitude=self.site["altitude"],
-                                        beta=[90, 90, 90, 90, 0],
-                                        gamma=[0, 90, 180, 270, 0],
-                                        beamRadiation=self.site["SunDirect"],
-                                        diffuseRadiation=self.site["SunDiffuse"],
-                                        albedo=self.site["albedo"])
+                                                timeDiscretization=self.time["timeResolution"],
+                                                timeSteps=self.time["timeSteps"],
+                                                timeZone=self.site["timeZone"],
+                                                location=self.site["location"],
+                                                altitude=self.site["altitude"],
+                                                beta=[90, 90, 90, 90, 0],
+                                                gamma=[0, 90, 180, 270, 0],
+                                                beamRadiation=self.site["SunDirect"],
+                                                diffuseRadiation=self.site["SunDiffuse"],
+                                                albedo=self.site["albedo"])
 
     def initializeBuildings(self):
         """
@@ -382,7 +462,7 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{bldg_id}_{row['building']}"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
@@ -546,6 +626,24 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
+        """
+        Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
+
+        Parameters
+        ----------
+        calcUserProfiles: bool, optional
+            True: calculate new user profiles.
+            False: load user profiles from file.
+            The default is True.
+        saveUserProfiles: bool, optional
+            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
+            The default is True.
+
+        Returns
+        -------
+        None.
+        """
+
         args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
 
         self.buildings_total = len(self.district)
@@ -584,7 +682,6 @@ class Datahandler:
 
         self.save_progress()
 
-
         print("Finished generating demands with multiprocessing!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
@@ -603,7 +700,7 @@ class Datahandler:
         # calculate or load user profiles
         if calcUserProfiles:
             building["user"].calcProfiles(site=self.site,
-                                          holidays=self.time["holidays"],
+                                          holidays=self.calendar["holidays"],
                                           time_resolution=self.time["timeResolution"],
                                           time_horizon=self.time["dataLength"],
                                           building_devices_data=self.decentral_device_data,
@@ -653,7 +750,7 @@ class Datahandler:
                                                 envelope=building["envelope"],
                                                 night_setback=night_setback,
                                                 is_cooled=is_cooled,
-                                                holidays=self.time["holidays"],
+                                                calendar=self.calendar,
                                                 time_resolution=self.time["timeResolution"]
                                                 )
 
@@ -670,7 +767,8 @@ class Datahandler:
             building["user"].cooling = cooling
         # print(f'done {building["unique_name"]}')
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
+                                 designDevs=True, saveGenProfiles=True, optimization=True):
         """
         All in one solution for district and demand generation.
 
@@ -684,17 +782,13 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
+        designDevs: bool, optional
+            Decision if devices (central / decentral) will be designed. The default is True.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
-        designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
-        clustering: bool, optional
-            Decision if profiles will be clustered. The default is False.
         optimization: bool, optional
-            Decision if the operation costs for each cluster will be optimized. The default is False.
+            Decision if the operation costs for each cluster will be optimized. The default is True.
 
         Returns
         -------
@@ -707,17 +801,19 @@ class Datahandler:
         self.generateDemands(calcUserProfiles, saveUserProfiles)
 
         # Todo: make a mix of central and decentral buildings possible
-        if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
-            centralEnergySupply = True
-            self.designDevicesComplete(saveGenerationProfiles=True)
-        else:
-            centralEnergySupply = False
-            self.designDecentralDevices(saveGenerationProfiles=True)
-            self.centralDevices = {}
+        if designDevs:
+            if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
+                centralEnergySupply = True
+                self.designDevicesComplete(saveGenerationProfiles=saveGenProfiles)
+            else:
+                centralEnergySupply = False
+                self.designDecentralDevices(saveGenerationProfiles=saveGenProfiles)
+                self.centralDevices = {}
 
-        # Within a clustered time series, data points are aggregated across different time periods
-        # based on the k-medoids method
-        self.clusterProfiles(centralEnergySupply)
+            if optimization:
+                # Within a clustered time series, data points are aggregated across different time periods
+                # based on the k-medoids method
+                self.clusterProfiles(centralEnergySupply)
 
     def saveProfiles(self, name, elec, dhw, occ, gains, carcharging_ondemand, carprofile, ev_capacity, nb_units, nb_occ, heatload, bivalent, heatlimit, path):
         """
@@ -725,8 +821,28 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
+        elec : list
+            Hourly electricity demand in W.
+        dhw : list
+            Hourly domestic hot water demand in W.
+        occ : list
+            Hourly occupancy of persons.
+        gains : list
+            Hourly internal gains in W.
+        car : list
+            Hourly electricity demand of EV in W.
+        nb_flats : int
+            Number of flats in the building.
+        nb_occ : list
+            Number of occupants in the building.
+        heatload : float
+            Design heat load in W.
+        bivalent : float
+            Bivalent heat load in W.
+        heatlimit : float
+            Heat limit heat load in W.
         path : string
             Results path.
 
@@ -766,7 +882,11 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        heat: list
+            Hourly heating demand in W.
+        cooling: list
+            Hourly cooling demand in W.
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -789,7 +909,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -809,7 +929,7 @@ class Datahandler:
                 data.append(row[0])
             return np.array(data)
 
-        building_id = int(name.split('_')[0])
+        building_id = int(name.split('_')[1])
         idx = self.building_dict[building_id]
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
@@ -846,7 +966,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -909,7 +1029,8 @@ class Datahandler:
                                         # surface azimuth angles (Orientation to the south: 0°)
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
                                         usageFactorPV=building["buildingFeatures"]["f_PV"],
-                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                                        usageFactorSTC=building["buildingFeatures"]["f_STC"],
+                                        devices = self.decentral_device_data)
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
@@ -971,8 +1092,6 @@ class Datahandler:
 
         Parameters
         ----------
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenerationProfiles : bool, optional
             Decision if generation profiles of designed devices will be saved. The default is True.
 
@@ -1267,7 +1386,7 @@ class Datahandler:
 
         for cluster in range(self.time["clusterNumber"]):
             # optimize operating costs of the district for current cluster
-            self.optimizer = Optimizer(self, cluster)
+            self.optimizer = Optimizer(self, cluster, self.gurobiConfig)
             results_temp = self.optimizer.run_cen_opti()
 
             # save results as attribute
@@ -1283,7 +1402,7 @@ class Datahandler:
         """
 
         # initialize KPI class
-        self.KPIs = KPIs(self)
+        self.KPIs = KPIs(self, decentral_config=self.decentral_device_data)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
 
@@ -1314,5 +1433,3 @@ def generate_demands_worker_wrapper(args):
     }
 
     return result
-
-

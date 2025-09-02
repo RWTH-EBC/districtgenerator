@@ -147,7 +147,7 @@ def load_params(data):
     param["sigma"] = sigma
 
     heat_grid = {
-        k: heat_grid_data[k]["value"]
+        k: heat_grid_data[k]
         for k in ["T_hot_heating_network", "T_cold_heating_network", "T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
     heat_grid["T_hot_heating_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_hot_heating_network"]
     heat_grid["T_cold_heating_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_heating_network"]
@@ -787,7 +787,8 @@ def get_PVandSTC_power(devs, param, data):
                                     beta=[devs["PV"]["beta"]],
                                     gamma=[devs["PV"]["gamma"]],
                                     usageFactorPV=1,
-                                    usageFactorSTC=0)
+                                    usageFactorSTC=0,
+                                    devices=data.decentral_device_data)
 
     # calculate theoretical STC generation
     _, potentialSTC = sun.calcPVAndSTCProfile(time=time,
@@ -796,7 +797,8 @@ def get_PVandSTC_power(devs, param, data):
                                 beta=[devs["STC"]["beta"]],
                                 gamma=[devs["STC"]["gamma"]],
                                 usageFactorPV=0,
-                                usageFactorSTC=1)
+                                usageFactorSTC=1,
+                                devices=data.decentral_device_data)
 
     # Get the corresponding values for the typedays
     chunk_size = len(param["GHI"][0])

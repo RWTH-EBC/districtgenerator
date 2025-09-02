@@ -22,10 +22,10 @@ def example2_generate_environment():
 
     ### =====================================  Output  ===================================== ###
     # Based on the location of the district the environment includes outside temperatures and
-    # sun radiation. When you open "data.site", you see the "location" is [51.0,6.55], the
-    # "climateZone" 0 and the "altitude" 0. The weather data is taken from a test reference
+    # sun radiation. When you open "data.site", you see the "location" is [51.8,6.09], the
+    # "timeZone" 1 and the "altitude" 211. The weather data is taken from a test reference
     # year database from the DWD. You find the time resolution in "data.time". For this example
-    # it is 900 seconds, which is equal to 15 Minutes.
+    # it is 3600 seconds, which is equal to 60 Minutes.
 
 
     return data
