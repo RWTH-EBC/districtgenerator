@@ -12,7 +12,7 @@ import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 import districtgenerator.functions.heating_profile_5R1C as heating
-
+import pickle
 
 class Users:
     """
@@ -380,25 +380,173 @@ class Users:
             self.gains = np.zeros(int(time_horizon / time_resolution))
             self.car = np.zeros(int(time_horizon / time_resolution))
             self.annual_dhw_demand = 0
+
+            building_id = str(building['buildingFeatures']['id'])
+
+            # n_flats ############################################################
+            profile_path = os.path.join(path, f"n_flats_{building_id}.pkl")
+
+            if "retrofit_0" in str(profile_path):
+
+                with open(profile_path, "wb") as f:
+                    pickle.dump(self.nb_flats, f)
+                print(f"n_flat gespeichert unter: {profile_path}")
+
+            else:
+
+                if "retrofit_1" in str(profile_path):
+                    new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                elif "retrofit_2" in str(profile_path):
+                    new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                # → Laden aktivitätsprofil
+                with open(new_path, "rb") as f:
+                    self.nb_flats = pickle.load(f)
+                print(f"DHW geladen von: {new_path}")
+
             if building['buildingFeatures']['building'] == "AB":
                 unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
             elif building['buildingFeatures']['building'] == "TH":
                 unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
             else:
                 unique_name = building['unique_name']
+
+            # n_occ ############################################################
+            profile_path = os.path.join(path, f"nb_occ_{building_id}.pkl")
+
+            if "retrofit_0" in str(profile_path):
+
+                with open(profile_path, "wb") as f:
+                    pickle.dump(self.nb_occ, f)
+                print(f"n_occ gespeichert unter: {profile_path}")
+
+            else:
+
+                if "retrofit_1" in str(profile_path):
+                    new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                elif "retrofit_2" in str(profile_path):
+                    new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                # → Laden aktivitätsprofil
+                with open(new_path, "rb") as f:
+                    self.nb_occ = pickle.load(f)
+                print(f"n_occ geladen von: {new_path}")
+
             for j in range(self.nb_flats):
+
+                flat_id = f"{building_id}" + f"_{j}"
+
+                # Hier wird die activity überschrieben bei retrofit > 0
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
-                                    building=self.building)
-                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                                    building=self.building,data_path=path,building_id = flat_id)
+
+                # dhw ############################################################
+                profile_path = os.path.join(path, f"dhw_{flat_id}.pkl")
+
+                if "retrofit_0" in str(profile_path):
+
+                    dhw_flat = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+
+                    with open(profile_path, "wb") as f:
+                        pickle.dump(dhw_flat, f)
+                    print(f"DHW-Profil gespeichert unter: {profile_path}")
+
+                else:
+
+                    if "retrofit_1" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                    elif "retrofit_2" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                    # → Laden aktivitätsprofil
+                    with open(new_path, "rb") as f:
+                        dhw_flat = pickle.load(f)
+                    print(f"DHW geladen von: {new_path}")
+
+                self.dhw = self.dhw + dhw_flat
+
                 self.annual_dhw_demand += self.dhw
+
+                # occ ############################################################
                 # Occupancy profile in a flat
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
-                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
+                profile_path = os.path.join(path, f"occ_{flat_id}.pkl")
+
+                if "retrofit_0" in str(profile_path):
+
+                    occ_flat = temp_obj.generate_occupancy_profiles_residential()
+
+                    with open(profile_path, "wb") as f:
+                        pickle.dump(occ_flat, f)
+                    print(f"DHW-Profil gespeichert unter: {profile_path}")
+
+                else:
+
+                    if "retrofit_1" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                    elif "retrofit_2" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                    # → Laden aktivitätsprofil
+                    with open(new_path, "rb") as f:
+                        occ_flat = pickle.load(f)
+                    print(f"OCC geladen von: {new_path}")
+
+                self.occ = self.occ + occ_flat
+
+                # elec ############################################################
+                profile_path = os.path.join(path, f"elec_{flat_id}.pkl")
+
+                if "retrofit_0" in str(path):
+
+                    elec_flat = temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
                                                                                  el_wrapper=self.el_wrapper[j],
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
-                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
+
+                    with open(profile_path, "wb") as f:
+                        pickle.dump(elec_flat, f)
+                    print(f"Elec-Profil gespeichert unter: {profile_path}")
+
+                else:
+
+                    if "retrofit_1" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                    elif "retrofit_2" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                    # → Laden aktivitätsprofil
+                    with open(new_path, "rb") as f:
+                        elec_flat = pickle.load(f)
+                    print(f"Elec geladen von: {new_path}")
+
+                self.elec = self.elec + elec_flat
+                # gains ############################################################
+                profile_path = os.path.join(path, f"gains_{flat_id}.pkl")
+
+                if "retrofit_0" in str(path):
+
+                    gains_flat = temp_obj.generate_gain_profile_residential()
+
+                    with open(profile_path, "wb") as f:
+                        pickle.dump(gains_flat, f)
+                    print(f"Gains-Profil gespeichert unter: {profile_path}")
+
+                else:
+
+                    if "retrofit_1" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                    elif "retrofit_2" in str(profile_path):
+                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                    # → Laden aktivitätsprofil
+                    with open(new_path, "rb") as f:
+                        gains_flat = pickle.load(f)
+                    print(f"gains geladen von: {new_path}")
+
+                self.gains = self.gains + gains_flat  # Gains muss nicht für 0 gespeichert werden, weil abhänging von OCC (s. oben)und licht durch Hülle
+
+            ###########################################
             # currently only one car per building possible
             self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']['f_EV'])
 

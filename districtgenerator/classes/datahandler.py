@@ -46,7 +46,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
+    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None, current_path = None):
         """
         Constructor of Datahandler class.
 
@@ -70,6 +70,7 @@ class Datahandler:
         self.counter = {}
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
+        self.current_path = current_path
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path

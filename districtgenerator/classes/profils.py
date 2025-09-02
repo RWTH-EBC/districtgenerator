@@ -10,6 +10,8 @@ import richardsonpy.classes.occupancy as occ_residential
 import richardsonpy.functions.change_resolution as cr
 import OpenDHW
 import districtgenerator.functions.change_resolution as chres
+from pathlib import Path
+import pickle
 
 class Profiles:
     """
@@ -42,7 +44,16 @@ class Profiles:
         Electric load profile of lighting in W.
     """
 
-    def __init__(self, number_occupants, number_occupants_building, initial_day, nb_days, time_resolution, building):
+    def __init__(self,
+                 number_occupants,
+                 number_occupants_building,
+                 initial_day,
+                 nb_days,
+                 time_resolution,
+                 data_path,
+        building,
+                 building_id
+                 ):
         """
         Constructor of Profiles class.
 
@@ -56,6 +67,9 @@ class Profiles:
         self.initial_day = initial_day
         self.nb_days = nb_days
         self.time_resolution = time_resolution
+
+        self.data_path = data_path
+        self.building_id = building_id
 
         self.building = building
         self.activity_profile = []
@@ -89,8 +103,36 @@ class Profiles:
         """
 
         if self.building in {"SFH", "TH", "MFH", "AB"}:
-            activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
-            self.activity_profile = activity.occupancy
+
+            profile_path = os.path.join(self.data_path , f"activity_profile_{self.building_id}.pkl")
+
+            if "retrofit_0" in str(self.data_path):
+                # → Generieren und speichern
+                activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
+                self.activity_profile = activity.occupancy
+
+                with open(profile_path, "wb") as f:
+                    pickle.dump(self.activity_profile, f)
+                print(f"Aktivitätsprofil gespeichert unter: {profile_path}")
+
+            else:
+
+                if "retrofit_1" in str(self.data_path):
+
+                    new_path = profile_path.replace("retrofit_1", "retrofit_0")
+                elif "retrofit_2" in str(self.data_path):
+                    new_path = profile_path.replace("retrofit_2", "retrofit_0")
+
+                # → Laden aktivitätsprofil
+                with open(new_path, "rb") as f:
+                    self.activity_profile = pickle.load(f)
+                print(f"Aktivitätsprofil geladen von: {new_path}")
+
+            ###########
+            #activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
+
+
+            #self.activity_profile = activity.occupancy
 
     def generate_occupancy_profiles_residential(self):
         """

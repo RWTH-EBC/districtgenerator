@@ -8,10 +8,17 @@ Author-email: joel.schoelzel@eonerc.rwth-aachen.de
 License: MIT License
 Classifier: Programming Language :: Python :: 3
 License-File: LICENSE.md
-Requires-Dist: numpy
-Requires-Dist: pandas
-Requires-Dist: matplotlib
-Requires-Dist: scipy
-Requires-Dist: teaser
+Requires-Dist: numpy>=1.20.1
+Requires-Dist: pandas>=1.2.3
+Requires-Dist: matplotlib>=3.3.4
+Requires-Dist: scipy>=1.6.1
+Requires-Dist: teaser==0.7.7
 Requires-Dist: richardsonpy
 Requires-Dist: pylightxl
+Requires-Dist: gurobipy>=9.5.1
+Requires-Dist: xlsxwriter~=3.2.0
+Requires-Dist: geopy~=2.4.1
+Requires-Dist: pyproj~=3.7.0
+Requires-Dist: openpyxl==3.1.5
+Requires-Dist: seaborn==0.13.2
+Requires-Dist: OpenDHW>=0.2.2
