@@ -85,6 +85,7 @@ class Datahandler:
         self.ecoData = {}
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
+        self.calcOcc = global_config.flags.calcOcc
         self.srcPath = srcPath
         self.filePath = filePath
         self.gurobiConfig = global_config.gurobi,
@@ -364,10 +365,10 @@ class Datahandler:
                                                         self.scenario.thermalTransmittanceRoof.iloc[id],
                                                         self.scenario.thermalTransmittanceFloor.iloc[id],
                                                         self.scenario.thermalTransmittanceWindow.iloc[id])
-                else: 
+                else:
                     building["buildingFeatures"]["thermalTransmittance"] = None
-                    
-                #print(self.scenario)                
+
+                #print(self.scenario)
                 # %% Create unique building name
                 # needed for loading and storing data with unique name
                 # name is composed of building id, and building type
@@ -457,7 +458,10 @@ class Datahandler:
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                                     area=building["buildingFeatures"]["area"],
+                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]),
+                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]),
+                                     calcOcc = self.calcOcc)
 
             # %% calculate design heat loads
             # at norm outside temperature
@@ -514,8 +518,8 @@ class Datahandler:
                                       occ= building["user"].occ,
                                       gains= building["user"].gains,
                                       car= building["user"].car,
-                                      nb_flats= building["user"].nb_flats,
-                                      nb_occ= building["user"].nb_occ,
+                                      nb_flats= int(building["buildingFeatures"]["nb_flats"]),
+                                      nb_occ= int(building["buildingFeatures"]["nb_occ"]),
                                       heatload= building["envelope"].heatload,
                                       bivalent= building["envelope"].bivalent,
                                       heatlimit= building["envelope"].heatlimit,
@@ -528,8 +532,8 @@ class Datahandler:
             else:
                 (building["user"].elec, building["user"].dhw,
                  building["user"].occ, building["user"].gains,
-                 building["user"].car, building["user"].nb_flats,
-                 building["user"].nb_occ, building["envelope"].heatload,
+                 building["user"].car, building["buildingFeatures"]["nb_flats"],
+                 building["buildingFeatures"]["nb_occ"], building["envelope"].heatload,
                  building["envelope"].bivalent,
                  building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
                                                                      os.path.join(self.resultPath, 'demands'))
@@ -656,7 +660,10 @@ class Datahandler:
         nb_flats_df = pd.DataFrame([nb_flats], columns=['nb_flats'])
 
         # Sum the values in nb_occ and create a DataFrame
-        total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        if type(nb_occ) is list:
+            total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        else:
+            total_nb_occ = nb_occ
         nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['nb_occ']) # Create DataFrame with the sum
 
         heatload_df = pd.DataFrame([heatload], columns=['heatload'])
@@ -905,7 +912,7 @@ class Datahandler:
                             os.path.join(self.resultPath, 'generation')
                             + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["generationSTC"] * building["buildingFeatures"]["STC"], 
+                            building["generationSTC"] * building["buildingFeatures"]["STC"],
                             delimiter=','
                         )
 
