@@ -450,7 +450,13 @@ class Envelope:
             })
 
             # if no u-value analysis needed, comment rest of the code
-            csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
+            logs_dir = os.path.join(self.file_path, "logs")
+
+            # Create the logs directory if it does not exist
+            os.makedirs(logs_dir, exist_ok=True)
+
+            # Define the full path to the CSV log file
+            csv_log_path = os.path.join(logs_dir, "u_values_log.csv")
 
             try:
                 df_existing = pd.read_csv(csv_log_path)
