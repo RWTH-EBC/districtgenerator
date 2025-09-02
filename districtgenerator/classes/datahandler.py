@@ -658,7 +658,10 @@ class Datahandler:
         nb_flats_df = pd.DataFrame([nb_flats], columns=['nb_flats'])
 
         # Sum the values in nb_occ and create a DataFrame
-        total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        if type(nb_occ) is list:
+            total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        else:
+            total_nb_occ = nb_occ
         nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['nb_occ']) # Create DataFrame with the sum
 
         heatload_df = pd.DataFrame([heatload], columns=['heatload'])
