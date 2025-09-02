@@ -38,16 +38,12 @@ class LocationConfig(BaseSettings):
     LocationConfig class to manage location-related parameters for the district generator.
     This class contains parameters related to the geographical location, time zone, albedo,
     and TRY (Test Reference Year) data used in the district generator.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
     """
-    timeZone: float = 1  # Shift between the location's time and GMT in hours. CET would be 1.
-    albedo: float = 0.2  # Ground reflectance. 0 refers to 0% and 1 refers to 100%.
-    TRYYear: str = 'TRY2015'  # Test reference year of DWD. Possible entries are TRY2015 and TRY2045.
-    TRYType: str = 'Jahr'  # Test reference conditions of DWD. Possible entries are Jahr, Somm, Wint.
-    zip: str = '52062'  # Zip code of the location.
+    timeZone: float = 1         # Shift between the location's time and GMT in hours. CET would be 1.
+    albedo: float = 0.2         # Ground reflectance. 0 refers to 0% and 1 refers to 100%.
+    TRYYear: str = 'TRY2015'    # Test reference year of DWD. Possible entries are TRY2015 and TRY2045.
+    TRYType: str = 'Jahr'       # Test reference conditions of DWD. Possible entries are Jahr, Somm, Wint.
+    zip: str = '52062'          # Zip code of the location.
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
@@ -56,7 +52,6 @@ class LocationConfig(BaseSettings):
         extra="allow"
     )
 
-    # This validator checks the 'albedo' field after its value is assigned.
     @field_validator('albedo')
     def validate_albedo(cls, v: float) -> float:
         """Validate that albedo is between 0.0 and 1.0."""
@@ -80,11 +75,6 @@ class TimeConfig(BaseSettings):
     TimeConfig class to manage time-related parameters for the district generator.
     This class contains parameters related to time resolution, cluster length, and data length
     used in the district generator.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
-
     """
     timeResolution: int = 3600  # Required time resolution in seconds. Tip: 3600 refers to an hourly resolution. 900 to a 15min resolution.
     clusterLength: int = 604800 # Length of cluster. Tip: 604800 refers to one week. 86400 for one day.
@@ -101,11 +91,6 @@ class DesignBuildingConfig(BaseSettings):
     DesignBuildingConfig class to manage design parameters for all buildings in the district generator.
     This class contains parameters related to building design, such as temperature settings, ventilation rates,
     building types, retrofit options, and domestic hot water (DHW) load.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
-
     """
     T_set_min: float = 20.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
     T_set_min_night: float = 18.0   # Required minimum indoor temperature at night (for heating load calculation) in degrees Celsius
@@ -116,6 +101,7 @@ class DesignBuildingConfig(BaseSettings):
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
     ventilation_rate: float = 0.5   # Room ventilation rate in 1/h (per hour)
 
+    # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
     buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"])
     # Names of the four selectable building types.
@@ -148,11 +134,6 @@ class EcoConfig(BaseSettings):
     """ EcoConfig class to manage economic parameters for the district generator.
     This class contains parameters related to energy prices, CO2 emissions, and other economic factors
     used in the district generator.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
-
     """
 
     price_supply_el: float = 0.3969     # Electricity price in €/kWh
@@ -174,18 +155,6 @@ class EcoConfig(BaseSettings):
 class PhysicsConfig(BaseSettings):
     """
     PhysicsConfig class to manage physical constants and parameters used in the district generator.
-
-    Attributes
-    ----------
-    rho_air : float
-        Density of air in kg/m3. Default is 1.2 kg/m3.
-    c_p_air : float
-        Specific heat capacity of air in J/(kg*K). Default is 1000.0 J/(kg*K).
-    rho_water : float
-        Density of water in kg/m3. Default is 1000.0 kg/m3.
-    c_p_water : float
-        Specific heat capacity of water in J/(kg*K). Default is 4.18 J/(kg*K).
-
     """
     rho_air: float = 1.2        # kg/m3
     c_p_air: float = 1000.0     # J/(kg*K)
@@ -199,11 +168,6 @@ class PhysicsConfig(BaseSettings):
 class GurobiConfig(BaseSettings):
     """
     GurobiConfig class to manage the configuration of the Gurobi optimization solver.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
-
     """
     ModelName: str = "Central_Operational_Optimization" # Name of the model
     TimeLimit: int = 3600                               # The time limit for the optimization in seconds
@@ -225,10 +189,6 @@ class HeatGridConfig(BaseSettings):
     This class defines the default parameters for the physical, thermal, and economic
     properties of a heating grid. It includes settings for operating temperatures,
     physical dimensions, material properties, and costs.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
     """
 
     # District and Network Layout Parameters
@@ -266,11 +226,6 @@ class EHDOConfig(BaseSettings):
     This class contains parameters relevant for the central optimization of energy and heat distribution in the
     district generator. It configures e.g. the use of certain technologies (electricity, gas, biomass, hydrogen, etc.)
     and their respective prices, CO2 emissions, and supply limits.
-
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
     """
 
     # Electricity configuration
@@ -333,11 +288,6 @@ class CalendarConfig(BaseSettings):
     """
     CalenderConfig class to manage calendar-related parameters for the district generator.
     This class contains parameters related to holidays and initial days for different years.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
-
     """
     consider_heating_period: bool = True    # Consider heating period in the clustering (True) or calculate whole year (False)
     consider_cooling_period: bool = True    # Consider cooling period in the clustering (True) or calculate whole year (False)
@@ -356,13 +306,6 @@ class CalendarConfig(BaseSettings):
 class ScenarioName(BaseSettings):
     """
     ScenarioName class to manage the scenario name for the district generator.
-
-    Attributes
-    ----------
-    scenario_name : str
-        The name of the scenario being configured. Default is 'base_scenario'.
-        This can be used to identify the scenario in outputs and logs.
-
     """
     scenario_name: str = 'base_scenario' # default value for scenario name
 
@@ -426,16 +369,6 @@ class Settings(BaseSettings):
     """
     Settings class to manage global configuration parameters.
     This class is used to load configuration parameters from an environment file.
-
-    Attributes
-    ----------
-    env_file : str
-        The path to the environment file containing configuration parameters.
-    env_file_encoding : str
-        The encoding of the environment file, default is 'utf-8'.
-    extra : str
-        Specifies how to handle extra fields not defined in the model, default is 'allow'.
-
     """
     env_file: str = '.env.CONFIG.EXAMPLE'
 
@@ -500,7 +433,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
 
 
 if __name__ == "__main__":
-    # Example usage Works
+    # Example usage
     try:
         config = load_global_config(env_file=".env.CONFIG.EXAMPLe") # replace with your actual env file path
         print(config.location.timeZone, config.calendar.holidays2015, config.scenario_name.scenario_name)

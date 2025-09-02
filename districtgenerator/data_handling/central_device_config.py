@@ -11,11 +11,6 @@ class CentralDeviceConfig(BaseSettings):
 
     Each device has parameters such as feasibility, efficiency, lifetime, investment costs,
     and operational characteristics.
-
-    Attributes
-    ----------
-    Descriptions directly in Class.
-
     """
 
     # PV parameters (Photovoltaic System)
