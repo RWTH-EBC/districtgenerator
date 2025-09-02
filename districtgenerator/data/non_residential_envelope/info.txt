@@ -2,11 +2,11 @@
 
 ### Data Sources
 - **U-values (thermal transmittance)** and **window g-values (solar energy transmittance)** for non-residential buildings are derived from:
-  - IWU Non-Residential Building Typology [Hörner et al., 2022].
-  - Renovation progress data from ENOB [Hörner et al., 2022].
-  - Legal limits for refurbished components from the German Energy Saving Ordinance (EnEV 2016).
-  - KfW 55 standard specifications.
-  - Reference data for window g-values from BBSR [Bagherian et al., 2021].
+  - Envelope areas and baseline U-values from Hörner et al., 2022, https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-DeutschlandIWU Non-Residential Building Typology.
+  - Renovation progress data from Hörner et al., 2022, Stand und Dynamik der energetischen Moderni-sierung von Gebäudehülle und haustechnischen Anlagen im Bestand der Nichtwohngebäude.
+  - Legal U-value limits for refurbished components from the German Energy Saving Ordinance EnEV 2016 (distinguishes zones with T_winter ≥ 19 °C vs. 12 – < 19 °C). and KfW 55 standard specifications.
+  - Heated and non-heated area shares (T_winter threshold 19 °C) from SIA 2024.
+  - Reference data for window g-values from Bagherian et al., 2021, https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2021/bbsr-online-37-2021.html.
 
 ### Retrofit Levels
 Three characteristic retrofit states are distinguished, following the analogy of the TABULA project for residential buildings:
@@ -19,6 +19,7 @@ Three characteristic retrofit states are distinguished, following the analogy of
 2. **EnEV 2016 refurbished (partially retrofitted)**
    - Represents compliance with German EnEV 2016 refurbishment thresholds.
    - If an EnEV 2016 value is higher (worse) than the original, the original value is retained.
+   - Because many non-residential buildings include areas with < 19 °C, we compute weighted average U-values using the heated-area share from SIA 2024.
 
 3. **KfW 55 refurbished (completely retrofitted)**
    - Represents an ambitious refurbishment level consistent with the KfW 55 efficiency house standard.

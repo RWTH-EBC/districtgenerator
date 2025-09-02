@@ -447,14 +447,16 @@ class Envelope:
 
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
-            self.A["opaque"]["south"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area
-            self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[2].area
-            try:
-                self.A["opaque"]["west"] = prj.buildings[self.id].thermal_zones[0].outer_walls[1].area
-                self.A["opaque"]["east"] = prj.buildings[self.id].thermal_zones[0].outer_walls[3].area
-            except KeyError:
-                self.A["opaque"]["west"] = 0.0
+            if not prj.buildings[self.id].type_of_building == "TerracedHouse":
+                self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area
+                self.A["opaque"]["south"] = prj.buildings[self.id].thermal_zones[0].outer_walls[2].area
+                self.A["opaque"]["east"] = prj.buildings[self.id].thermal_zones[0].outer_walls[1].area
+                self.A["opaque"]["west"] = prj.buildings[self.id].thermal_zones[0].outer_walls[3].area
+            else:
+                self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area
+                self.A["opaque"]["south"] = prj.buildings[self.id].thermal_zones[0].outer_walls[1].area
                 self.A["opaque"]["east"] = 0.0
+                self.A["opaque"]["west"] = 0.0
 
             try:
                 self.A["opaque"]["roof"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].rooftops)
@@ -470,14 +472,16 @@ class Envelope:
             self.A["opaque"]["intWall"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].inner_walls)
 
             self.A["window"] = {}
-            self.A["window"]["south"] = prj.buildings[self.id].thermal_zones[0].windows[0].area
-            self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[2].area
-            try:
-                self.A["window"]["west"] = prj.buildings[self.id].thermal_zones[0].windows[1].area
+            if not prj.buildings[self.id].type_of_building == "TerracedHouse":
+                self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[0].area
+                self.A["window"]["south"] = prj.buildings[self.id].thermal_zones[0].windows[2].area
                 self.A["window"]["east"] = prj.buildings[self.id].thermal_zones[0].windows[1].area
-            except KeyError:
-                self.A["window"]["west"] = 0.0
+                self.A["window"]["west"] = prj.buildings[self.id].thermal_zones[0].windows[3].area
+            else:
+                self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[0].area
+                self.A["window"]["south"] =prj.buildings[self.id].thermal_zones[0].windows[1].area
                 self.A["window"]["east"] = 0.0
+                self.A["window"]["west"] = 0.0
 
             self.A["window"]["roof"] = 0.0
             self.A["window"]["floor"] = 0.0
