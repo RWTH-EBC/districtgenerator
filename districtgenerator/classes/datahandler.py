@@ -300,13 +300,19 @@ class Datahandler:
         """
         Get the Julian day (day of the year) for holidays in a specific country, year, and state.
 
-        Args:
-            country_code (str): The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-            year (int): The year for which to retrieve holidays.
-            state (str): The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+        Parameters
+        ----------
+            country_code : string
+                The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+            year : integer
+                The year for which to retrieve holidays.
+            state : string
+                The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
 
-        Returns:
-            list: A list of tuples containing the Julian day of the holiday.
+        Returns
+        -------
+            julian_holidays : list
+                A list of tuples containing the Julian day of the holiday.
         """
         try:
             # Initialize the holidays object for the given country, year, and state

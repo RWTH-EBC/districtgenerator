@@ -12,11 +12,6 @@ class DecentralDeviceConfig(BaseSettings):
 
     Each device has parameters such as efficiency, lifetime, investment costs,
     and operational characteristics.
-
-    Attributes
-    ----------
-    Descriptions are provided inline for each parameter.
-
     """
 
     # CC Parameters (Air-to-Water Compression Chiller)
