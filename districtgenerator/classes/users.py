@@ -73,6 +73,8 @@ class Users:
         None.
         """
 
+        self.srcPath = dict
+        self.SIA_dict = os.path.join(self.srcPath, "data", "SIA2024.xlsx")
         self.building = building
         self.annual_el_demand_per_flat = None
         self.nb_rooms = None
@@ -96,7 +98,7 @@ class Users:
         self.ev_capacity = None
 
         # Initialize SIA class and read data
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA.read_SIA_data(self.SIA_dict)
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
@@ -679,10 +681,11 @@ class Users:
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
+                                    dict = self.SIA_dict,
                                     building=self.building)
                 self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
-                # Occupancy profile in a flat
+                # Occupancy profile in a
                 self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
@@ -690,7 +693,7 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
-                carprofile, on_demand_charging, ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
+                carprofile, on_demand_charging, ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays, srcPath=self.srcPath)
                 self.carprofile = self.carprofile + carprofile # Sum car profiles over all flats in the building
                 self.carcharging_ondemand = self.carcharging_ondemand + on_demand_charging
                 self.ev_capacity += ev_capacity

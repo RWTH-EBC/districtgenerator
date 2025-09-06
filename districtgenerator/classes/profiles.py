@@ -44,7 +44,7 @@ class Profiles:
         Electric load profile of lighting in W.
     """
 
-    def __init__(self, number_occupants, number_occupants_building, initial_day, nb_days, time_resolution, building):
+    def __init__(self, number_occupants, number_occupants_building, initial_day, nb_days, dict, time_resolution, building):
         """
         Constructor of Profiles class.
 
@@ -60,7 +60,7 @@ class Profiles:
         self.time_resolution = time_resolution
 
         # Initialize SIA class and read data
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA.read_SIA_data(dict=dict)
         self.building = building
         if self.building in {"OB", "SC", "GS", "RE"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
             self.building_zones = self.SIA2024[self.building]
@@ -664,7 +664,7 @@ class Profiles:
         return gains_persons, gains_others
 
 
-    def generate_ev_profile(self, building, building_devices_data, holidays):
+    def generate_ev_profile(self, building, building_devices_data, holidays, srcPath):
         """
             Generate daily EV charging demand (distinguishing between workdays and non-workdays) and return an annual load curve.
 
@@ -720,7 +720,6 @@ class Profiles:
 
         # Define Car Segment
         # https://ev-database.org/cheatsheet/range-electric-car
-        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(srcPath, 'data', 'car_segment.json')) as json_file:
             segments = json.load(json_file)
         segment_names = list(segments.keys())

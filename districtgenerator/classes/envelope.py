@@ -59,6 +59,9 @@ class Envelope:
         self.epsilon = {}
         self.alpha_Sc = {}
 
+        self.thick_req = []
+        self.thick_req = []
+
         self.prj = prj
         self.id = building_params["id"]
         self.construction_year = building_params["year"]

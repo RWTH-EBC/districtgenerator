@@ -82,7 +82,7 @@ class Datahandler:
         -------
         None.
         """
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        self.global_config: GlobalConfig = load_global_config(env_file=env_path)
 
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
@@ -108,7 +108,7 @@ class Datahandler:
         self.ecoData = {}
         self.heat_grid_data = {}
         self.pipe_data = {}
-        self.gurobiConfig = global_config.gurobi
+        self.gurobiConfig = self.global_config.gurobi
         # Additional attributes
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
@@ -128,16 +128,16 @@ class Datahandler:
 
         self.KPIs = None
         self.load_all_data(
-            site_config=global_config.location,
-            time_config=global_config.time,
-            design_building_config=global_config.design_building,
-            physics_config=global_config.physics,
-            decentral_config=global_config.decentral,
-            ehdo_config=global_config.ehdo,
-            eco_config=global_config.eco,
-            central_config=global_config.central,
-            calendar_config=global_config.calendar,
-            heat_grid_config=global_config.heatgrid
+            site_config=self.global_config.location,
+            time_config=self.global_config.time,
+            design_building_config=self.global_config.design_building,
+            physics_config=self.global_config.physics,
+            decentral_config=self.global_config.decentral,
+            ehdo_config=self.global_config.ehdo,
+            eco_config=self.global_config.eco,
+            central_config=self.global_config.central,
+            calendar_config=self.global_config.calendar,
+            heat_grid_config=self.global_config.heatgrid
         )
 
         self.buildings_completed = 0
@@ -445,8 +445,8 @@ class Datahandler:
         name_pool = []
         self.building_dict = {}
 
-        # initialize buildings for scenario
-        # loop over all buildings
+        # Initialize buildings for scenario
+        # Loop over all buildings using iterrows
         for bldg_id, row in self.scenario.iterrows():
             bldg_id = int(bldg_id)
             building = {}
@@ -475,17 +475,20 @@ class Datahandler:
 
                 name_pool.append(name)
 
+            # Assign the unique name to the building
             building["unique_name"] = name
+
+            # Append building to district
             self.district.append(building)
             self.building_dict[bldg_id] = len(self.district) - 1
 
-            # Count for time estimate
+            # Count number of buildings to predict the approximate calculation time
             if row["building"] in ("SFH", "TH"):
                 num_sfh += 1
             elif row["building"] in ("MFH", "AB"):
                 num_mfh += 1
 
-        # Rough time estimate
+        # Calculate calculation time for the whole district generation
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print(f"This calculation will take about {duration}.")
 
@@ -584,6 +587,7 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      nb_occ=int(building["buildingFeatures"]["nb_occ"]),
                                      nb_flats=int(building["buildingFeatures"]["nb_flats"]),
+                                     dict= self.srcPath,
                                      calcOcc = self.calcOcc)
 
             night_setback = building["buildingFeatures"]["night_setback"]
@@ -698,7 +702,7 @@ class Datahandler:
 
         night_setback = building["buildingFeatures"]["night_setback"]
 
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+        is_cooled = building["user"].cooling is not None and building["user"].cooling > 0
 
         # calculate or load heating profiles
         if calcUserProfiles:
@@ -852,6 +856,7 @@ class Datahandler:
         heatload_file = os.path.join(directory_path, 'heatload.parquet')
         bivalent_file = os.path.join(directory_path, 'bivalent.parquet')
         heatlimit_file = os.path.join(directory_path, 'heatlimit.parquet')
+        ev_capacity_file = os.path.join(directory_path, 'ev_capacity.parquet')
 
         # Save each DataFrame to Parquet, overwriting any existing files
         elec_df.to_parquet(elec_file, engine='pyarrow', index=False)
@@ -864,6 +869,7 @@ class Datahandler:
         heatload_df.to_parquet(heatload_file, engine='pyarrow', index=False)
         bivalent_df.to_parquet(bivalent_file, engine='pyarrow', index=False)
         heatlimit_df.to_parquet(heatlimit_file, engine='pyarrow', index=False)
+        ev_capacity_df.to_parquet(ev_capacity_file, engine='pyarrow', index=False)
 
         # Save insulation DataFrames if they exist
         if thick_req:
@@ -933,10 +939,9 @@ class Datahandler:
         Returns
         -------
         tuple
-            Loaded profile data.
+            Loaded profile data in the correct order.
         """
 
-        # Create the directory path
         directory_path = os.path.join(path, name)
 
         # Load each profile from its respective Parquet file
@@ -1090,7 +1095,7 @@ class Datahandler:
                 potentialPV, potentialSTC = sun.calcPVAndSTCProfile(
                     time=self.time,
                     site=self.site,
-                    areas=[building["envelope"].A["opaque"]["roof"]]/building["buildingFeatures"]["number_of_floors"],
+                    areas=[building["envelope"].A["opaque"]["roof"]], #/building["buildingFeatures"]["number_of_floors"]], do we require this?
                     betas=[35],
                     gammas=[building["buildingFeatures"]["gamma_PV"]],
                     usageFactorPV=building["buildingFeatures"]["f_PV"],
