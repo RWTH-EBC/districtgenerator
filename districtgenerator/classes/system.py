@@ -92,18 +92,15 @@ class BES:
 
             # capacity of boiler (BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
             if k in ("BOI", "FC", "CHP"):
-                # W
-                BES[k] = self.design_load * (buildingFeatures["heater"] == k)
+                BES[k] = self.design_load_heating * (buildingFeatures["heater"] == k)
 
             # heat pump (HP) capacity refers to heat load at bivalent temperature
             if k == "HP":
-                # W
-                BES["HP"] = self.bivalent_load * (buildingFeatures["heater"] == k)
+                BES["HP"] = self.bivalent_load_heating * (buildingFeatures["heater"] == k)
 
             # electric heating (EH) exists if HP exists
             if k == "EH":
-                # W
-                BES["EH"] = (self.design_load - self.bivalent_load) * (buildingFeatures["heater"] == "HP")
+                BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (buildingFeatures["heater"] == "HP")
 
             # thermal energy storage (TES)
             if k == "TES":
@@ -144,7 +141,7 @@ class BES:
             # photovoltaic (PV)
             if k == "PV":
                 BES["PV"] = {}
-                # todo: change to area of roof of fiware
+                # f_PV is the fraction of the roof area that is suitable and available for PV installation
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
                               * buildingFeatures["f_PV"]
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
@@ -198,42 +195,3 @@ class CES():
         capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)
 
         return capacities_centralDevices
-
-    def generation(self, data):
-
-        filePath = data.filePath
-        time = data.time
-        site = data.site
-        global sun
-        sun = Sun(filePath=filePath)
-        # calculate theoretical PV generation
-        potentialPV, defaultSTC = \
-            sun.calcPVAndSTCProfile(time=time,
-                                    site=site,
-                                    devices=data.centralDevices, # todo: händisch hinzugefügt
-                                    area_roof=data.centralDevices["capacities"]["area"]["PV"], #todo: gegeben
-                                    # In Germany, this is a roof pitch between 30 and 35 degrees
-                                    beta=[35],
-                                    # surface azimuth angles (Orientation to the south: 0°)
-                                    gamma=[0],
-                                    usageFactorPV=1,
-                                    usageFactorSTC=0)
-
-        # calculate theoretical STC generation
-        defaultPV, pontentialSTC = \
-            sun.calcPVAndSTCProfile(time=time,
-                                    site=site,
-                                    devices=data.centralDevices,  # todo: händisch hinzugefügt
-                                    area_roof=data.centralDevices["capacities"]["area"]["STC"],
-                                    # In Germany, this is a roof pitch between 30 and 35 degrees
-                                    beta=[35],
-                                    # surface azimuth angles (Orientation to the south: 0°)
-                                    gamma=[0],
-                                    usageFactorPV=0,
-                                    usageFactorSTC=1)
-
-        potentialWIND = wind_turbines.WT_generation(site["wind_speed"])
-        potentialWIND = (potentialWIND / np.max(potentialWIND)) * (data.centralDevices["capacities"]["power_kW"]["WT"] * 1000)
-
-
-        return (potentialPV, pontentialSTC, potentialWIND)

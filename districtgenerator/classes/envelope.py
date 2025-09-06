@@ -6,6 +6,7 @@ import os
 import numpy as np
 from teaser.project import Project
 from .non_residential import NonResidential
+from typing import Optional, Tuple
 
 
 class Envelope:
@@ -379,10 +380,67 @@ class Envelope:
                     self.cp["opaque"][x]
                 )
 
+            # thermalTransmittanceWindow
             self.U["window"] = min(2.8, (1.0 / (self.R_si["window"]
                                                 + sum(self.d["window"]
-                                                      / self.Lambda["window"])
+                                                    / self.Lambda["window"])
                                                 + self.R_se["window"])))
+            
+            # Base row info
+            u_row = {
+                "ID": self.id,
+            }
+
+            # Add calculated U-values
+            # for comparison with given U-values
+            u_row.update({
+                "wall_calc": self.U["opaque"]["wall"],
+                "roof_calc": self.U["opaque"]["roof"],
+                "floor_calc": self.U["opaque"]["floor"],
+                "window_calc": self.U["window"],
+                "age": extra[0],
+                "retrofit": extra[1],
+                "id": extra[2],
+                "type": extra[3]
+            })
+
+            # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
+            if u_values:
+                for idx, x in enumerate(['wall', 'roof', 'floor']):
+                    self.U["opaque"][x] =  u_values[idx]
+    
+                self.U["window"] = u_values[3]
+
+                u_row.update({
+                    "wall_given": u_values[0],
+                    "roof_given": u_values[1],
+                    "floor_given": u_values[2],
+                    "window_given": u_values[3]
+                })
+
+                # if no u-value analysis needed, comment rest of the code
+                logs_dir = os.path.join(self.file_path, "logs")
+
+                # Create the logs directory if it does not exist
+                os.makedirs(logs_dir, exist_ok=True)
+
+                # Define the full path to the CSV log file
+                csv_log_path = os.path.join(logs_dir, "u_values_log.csv")
+
+                try:
+                    df_existing = pd.read_csv(csv_log_path)
+                    df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
+                except FileNotFoundError:
+                    df_new = pd.DataFrame([u_row])
+
+                df_new.to_csv(csv_log_path, index=False)
+
+                if calcThick:
+                    self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
+                else:
+                    self.thick_req = None
+
+
 
             # Adjust the heating set temperature to account for the occupant behavior
             # This is done to account for:
@@ -543,6 +601,45 @@ class Envelope:
 
         else:
             raise TypeError("The provided project is not a TEASER project or a Non-Residential Building Class object.")
+
+
+    def compute_insulation_thickness(self, target_U_values, insulation_lambda: float = 0.04):
+        """
+        Calculates existing thickness and required insulation to meet target U-values.
+
+        Parameters
+        ----------
+        target_U_values : dict
+            U-values per component, e.g. {'wall': 0.24, 'roof': 0.24, 'floor': 0.3}
+        insulation_lambda : float
+            Thermal conductivity of insulation [W/mK]
+
+        Returns
+        -------
+        thickness_existing : dict
+            Existing component thicknesses [m]
+        insulation_needed : dict
+            Extra insulation to reach target U-values [m]
+        """
+        thickness_existing = {}
+        insulation_needed = []
+
+        for comp in ['wall', 'roof', 'floor']:
+            R_material = sum(self.d['opaque'][comp] / self.Lambda['opaque'][comp])
+            R_si = self.R_si['opaque'][comp]
+            R_se = self.R_se['opaque'][comp]
+            R_total = R_material + R_si + R_se
+
+            thickness_existing[comp] = sum(self.d['opaque'][comp])
+
+            U_target = target_U_values[comp]
+            R_target = 1 / U_target if U_target > 0 else float('inf')
+            d_ins = (R_target - R_total) * insulation_lambda
+            insulation_thickness = max(0, d_ins if d_ins > 0.03 else 0)  # makes sure that the extra insulation is more than 3 cm.
+
+            insulation_needed.append(insulation_thickness)
+
+        return insulation_needed
 
     def calcHeatLoad(self, site, night_setback, method="design"):
         """

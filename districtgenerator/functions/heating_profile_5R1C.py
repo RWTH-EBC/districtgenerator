@@ -234,6 +234,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
     T_set_night = zoneParameters.T_set_min_night  # THeatingSet
     T_set_ub = zoneParameters.T_set_max                    # TCoolingSet
     T_set_ub_night = zoneParameters.T_set_max_night  # THeatingSet
+    T_set_free_day = zoneParameters.T_set_min_free_day #THeatingSet during non-working days in a non-residential building
 
     # Extract dates from calendar
     heating_start = calendar["heating_period_start"] # Day of year (0-364)

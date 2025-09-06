@@ -107,7 +107,7 @@ class KPIs:
         -------
         None.
         """
-        # todo: chekc decentralDev
+
         # initialize lists
         electricityDemand_cluster = []
         electricityGeneration_cluster = []
@@ -443,31 +443,12 @@ class KPIs:
         None.
         """
 
-        filePath = os.path.join(data.srcPath, 'data')
         # important for weather conditions
-        #with open(os.path.join(filePath, 'eco_data.json')) as json_file:
-        #    jsonData = json.load(json_file)
+        CO2_factor_el_grid = json_data["co2_el_grid"]   # Emi_elec_grid
+        CO2_factor_gas = json_data["co2_gas"]           # Emi_gas
 
-        # todo: check
-        CO2_factor_el_grid = json_data["co2_el_grid"]  # Emi_elec_grid
-        CO2_factor_gas = json_data["co2_gas"]          # Emi_gas
-        CO2_factor_pv = json_data["co2_biom"]          # Emi_pv  ??? does not have key co2_pv
-
-        # change unit from [Wh] to [kWh] and consider time resolution --> in function "calculateEnergyExchangeGCP"
-        co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid
-        co2_gas = self.Gas_year * CO2_factor_gas
-
-        # caused CO2 emissions by PV [kg]
-        co2_pv = 0
-        for c in range(len(self.inputData["clusters"])):
-            for id in range(len(self.inputData["district"])):
-                try:
-                    co2_pv += np.sum(self.inputData["district"][id]["generationPV_cluster"][c, :]
-                                 * data.time["timeResolution"] / 3600 / 1000) * CO2_factor_pv \
-                          * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-                except KeyError:
-                    co2_pv += 0
-
+        co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid / 1000    # in t/a
+        co2_gas = self.Gas_year * CO2_factor_gas / 1000                   # in t/a
 
         # CO2 emissions for one year
         self.co2emissions = [co2_dem_grid, co2_gas]
@@ -582,8 +563,10 @@ class KPIs:
         self.total_heat_peak = max(sum_heat_profile)
         self.total_dhw_peak = max(sum_dhw_profile)
         self.total_cooling_peak = max(sum_cool_profile)
+        self.total_EV_peak = max(sum_EV_profile)
 
-    def calculateAllKPIs(self, data, ecoData):
+
+    def calculateAllKPIs(self, data):
         """
         Calculate all KPIs.
 

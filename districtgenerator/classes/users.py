@@ -64,7 +64,25 @@ class Users:
         Heat demand for each building.
     """
 
-    def __init__(self, building, area, nb_occ, nb_flats, calcOcc = True):
+    @property
+    def nb_units(self) -> int:
+        """
+        Unified number of 'units' in the building:
+        - residential: number of flats
+        - non-residential: number of main rooms
+        """
+        if self.building in RES_BUILDINGS:
+            return int(self.nb_flats or 0)
+        return int(self.nb_main_rooms or 0)
+
+    @nb_units.setter
+    def nb_units(self, value: int) -> None:
+        if self.building in RES_BUILDINGS:
+            self.nb_flats = int(value)
+        else:
+            self.nb_main_rooms = int(value)
+
+    def __init__(self, building, area, year_of_construction, retrofit, nb_occ, nb_flats, dict, calcOcc = True):
         """
         Constructor of Users class.
 
@@ -105,15 +123,18 @@ class Users:
         if calcOcc:
             self.nb_occ = []
             self.nb_flats = None
-            self.generate_number_flats(area)
+            self.generate_number_flats_and_rooms(area)
             self.generate_number_occupants(area)
         else:
             self.nb_occ = [nb_occ]
             self.nb_flats = nb_flats
             self.generate_number_occupants_fiware(nb_occ=self.nb_occ, nb_flats=self.nb_flats)
 
-        self.generate_annual_el_consumption()
-        self.generate_lighting_index(area)
+        self.generate_annual_el_consumption_residential()
+        self.generate_annual_app_el_consumption_non_residential(
+            area)  # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
+
+        self.generate_lighting_index(area, year_of_construction, retrofit)
         self.create_el_wrapper()
 
     def generate_number_occupants_fiware(self, nb_occ, nb_flats):
@@ -143,7 +164,7 @@ class Users:
 
 
 
-    def generate_number_flats(self, area):
+    def generate_number_flats_and_rooms(self, area):
         """
         Generate number of flats and main rooms for different building types.
         Possible building types are:
@@ -640,20 +661,13 @@ class Users:
         ----------
         site: dict
             Site data, e.g. weather.
-        holidays: list
-            List of holidays.
         time_resolution : integer
             Resolution of time steps of output array in seconds.
         time_horizon : integer
             Time horizon for which a stochastic profile is generated.
-        building : dict
-            Information about the building.
-        path : string
-            Path to save the profiles.
         initial_day : integer, optional
             Day of the week with which the generation starts.
             1-7 for monday-sunday. The default is 1.
-
 
         Returns
         -------
@@ -728,10 +742,11 @@ class Users:
         envelope: object
             Containing all physical data of the envelope.
         night_setback : integer
-            0: no night setback
-            1: with night setback
+            1 if night setback is activated, 0 if not.
+        is_cooled : integer
+            1 if the building is actively cooled, 0 if not.
         calendar : dict
-            Information about holidays, initial day of the week, heating period.
+            Information about TRY (holidays, heating period, etc.).
         time_resolution : integer
             Resolution of time steps of output array in seconds.
 
@@ -764,101 +779,6 @@ class Users:
         self.cooling = Q_C
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
-
-    def saveProfiles(self, unique_name, path):
-        """
-        Save profiles to csv.
-
-        Parameters
-        ----------
-        unique_name : string
-            Unique building name.
-        path : string
-            Results path.
-
-        Returns
-        -------
-        None.
-        """
-
-        data_dict = {
-            'elec': (self.elec, "Electricity demand in W"),
-            'dhw': (self.dhw, "Drinking hot water in W"),
-            'occ': (self.occ, "Occupancy of persons"),
-            'gains': (self.gains, "Internal gains in W"),
-            'car': (self.car, "Electricity demand of EV in W")
-        }
-
-        excel_file = os.path.join(path, unique_name + '.xlsx')
-
-        with pd.ExcelWriter(excel_file, engine='xlsxwriter') as writer:
-            for sheet_name, (data, header) in data_dict.items():
-                df = pd.DataFrame(data)
-                df.to_excel(writer, sheet_name=sheet_name, index=False, header=False)
-
-
-        '''
-        fields = [name + "_" + str(id), str(sum(self.nb_occ))]
-        with open(path + '/_nb_occupants.csv','a') as f :
-            writer = csv.writer(f)
-            writer.writerow(fields)
-        '''
-
-    def saveHeatingProfile(self, unique_name, path):
-        """
-        Save heating demand to csv.
-
-        Parameters
-        ----------
-        unique_name : string
-            Unique building name.
-        path : string
-            Results path.
-
-        Returns
-        -------
-        None.
-        """
-
-        excel_file = os.path.join(path, unique_name + '.xlsx')
-        with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-            cooling_df = pd.DataFrame(self.cooling)
-            heating_df = pd.DataFrame(self.heat)
-            cooling_df.to_excel(writer, sheet_name='cooling', index=False, header=False)
-            heating_df.to_excel(writer, sheet_name='heating', index=False, header=False)
-
-    def loadProfiles(self, unique_name, path):
-        """
-        Load profiles from csv.
-
-        Parameters
-        ----------
-        unique_name : string
-            Unique building name.
-        path : string
-            Results path.
-
-        Returns
-        -------
-        None.
-        """
-
-        excel_file = os.path.join(path, unique_name + '.xlsx')
-        workbook = openpyxl.load_workbook(excel_file, data_only=True)
-        def load_sheet_to_numpy(workbook, sheet_name):
-            sheet = workbook[sheet_name]
-            data = []
-            for row in sheet.iter_rows(values_only=True):
-                data.append(row[0])
-            return np.array(data)
-
-        self.elec = load_sheet_to_numpy(workbook, 'elec')
-        self.dhw = load_sheet_to_numpy(workbook, 'dhw')
-        self.occ = load_sheet_to_numpy(workbook, 'occ')
-        self.gains = load_sheet_to_numpy(workbook, 'gains')
-        self.car = load_sheet_to_numpy(workbook, 'car')
-
-        workbook.close()
 
 if __name__ == '__main__':
 

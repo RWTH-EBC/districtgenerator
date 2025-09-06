@@ -281,7 +281,7 @@ class EHDOConfig(BaseSettings):
     unit_dash: str = "-"            # used for cases where unit is a dash
 
     model_config = SettingsConfigDict(
-        extra="allow" 
+        extra="allow"
     )
 
 class CalendarConfig(BaseSettings):
@@ -310,7 +310,7 @@ class ScenarioName(BaseSettings):
     scenario_name: str = 'base_scenario' # default value for scenario name
 
     model_config = SettingsConfigDict(
-        extra="allow" 
+        extra="allow"
     )
 
 class flags(BaseSettings):
@@ -365,7 +365,8 @@ class GlobalConfig(BaseModel):
     ehdo: 'EHDOConfig'
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
-    scenario_name: scenarioName
+    calendar: 'CalendarConfig'
+    scenario_name: ScenarioName
     flags: flags
 
 class Settings(BaseSettings):
@@ -420,17 +421,18 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     print(f'Using config: {os.environ["ENV_FILE"]}')
 
     return GlobalConfig(
-        location=LocationConfig(_env_file=env_file),
-        time=TimeConfig(_env_file=env_file),
-        design_building=DesignBuildingConfig(_env_file=env_file),
-        eco=EcoConfig(_env_file=env_file),
-        physics=PhysicsConfig(_env_file=env_file),
-        gurobi=GurobiConfig(_env_file=env_file),
-        heatgrid=HeatGridConfig(_env_file=env_file),
-        ehdo=EHDOConfig(_env_file=env_file),
-        decentral=DecentralDeviceConfig(_env_file=env_file),
-        central=CentralDeviceConfig(_env_file=env_file),
-        scenario_name = scenarioName(_env_file=env_file), 
+        location=LocationConfig(_env_file=env_file_path),
+        time=TimeConfig(_env_file=env_file_path),
+        design_building=DesignBuildingConfig(_env_file=env_file_path),
+        eco=EcoConfig(_env_file=env_file_path),
+        physics=PhysicsConfig(_env_file=env_file_path),
+        gurobi=GurobiConfig(_env_file=env_file_path),
+        heatgrid=HeatGridConfig(_env_file=env_file_path),
+        ehdo=EHDOConfig(_env_file=env_file_path),
+        decentral=DecentralDeviceConfig(_env_file=env_file_path),
+        central=CentralDeviceConfig(_env_file=env_file_path),
+        calendar=CalendarConfig(_env_file=env_file_path),
+        scenario_name = ScenarioName(_env_file=env_file_path),
         flags=flags(_env_file=env_file)
     )
 
