@@ -113,6 +113,7 @@ class Datahandler:
         self.counter = {}
         self.calcThick = self.global_config.flags.calcThick
         self.calcOcc = self.global_config.flags.calcOcc
+        self.calcOccProf = self.global_config.flags.calcOccProf
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
@@ -636,7 +637,8 @@ class Datahandler:
                                      nb_occ=int(building["buildingFeatures"]["nb_occ"]),
                                      nb_flats=int(building["buildingFeatures"]["nb_flats"]),
                                      dict= self.srcPath,
-                                     calcOcc = self.calcOcc)
+                                     calcOcc = self.calcOcc,
+                                     calcOccProf = self.calcOccProf)
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads

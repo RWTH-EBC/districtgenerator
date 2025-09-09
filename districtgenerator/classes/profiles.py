@@ -99,6 +99,9 @@ class Profiles:
             activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
             self.activity_profile = activity.occupancy
 
+    def load_occupancy_profiles_residential(self, prof):
+        self.occ_profile = prof
+
     def generate_occupancy_profiles_residential(self):
         """
         Generate stochastic occupancy profiles for a district for calculating internal gains.

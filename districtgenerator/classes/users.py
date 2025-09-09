@@ -82,7 +82,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, nb_occ, nb_flats, dict, calcOcc = True):
+    def __init__(self, building, area, year_of_construction, retrofit, nb_occ, nb_flats, dict, calcOcc = True, calcOccProf = True):
         """
         Constructor of Users class.
 
@@ -114,6 +114,7 @@ class Users:
         self.carprofile = None
         self.carcharging_ondemand = None
         self.ev_capacity = None
+        self.calcOccProf = calcOccProf
 
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data(self.SIA_dict)
@@ -700,7 +701,17 @@ class Users:
                 self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
                 # Occupancy profile in a
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
+                if self.calcOccProf:
+                    prof = temp_obj.generate_occupancy_profiles_residential()
+                    prof_df = pd.DataFrame(prof, columns=['prof'])
+                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
+                    self.occ = self.occ + prof
+                else: 
+                    prof = pd.read_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow')['prof'].to_numpy()
+                    temp_obj.load_occupancy_profiles_residential(prof)
+                    self.occ = self.occ + prof
+
+
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
                                                                                  el_wrapper=self.el_wrapper[j],
