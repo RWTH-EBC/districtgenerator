@@ -36,6 +36,12 @@
         "description" : "Biomass price."
     },
     {
+        "name": "price_oil",
+        "value": 0.1,
+        "unit": "€/kWh",
+        "description" : "Oil price."
+    },
+    {
         "name": "co2_el_grid",
         "value": 0.363,
         "unit": "kg/kWh",
@@ -64,5 +70,12 @@
         "value": 0,
         "unit": "kg/kWh",
         "description" : "CO2 emissions by burning hydrogen."
+    },
+    {
+        "name": "co2_oil",
+        "value": 0.266,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning oil."
     }
+
 ]

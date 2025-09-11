@@ -107,6 +107,99 @@
   ]
   },
   {
+  "device": "biomass boiler" ,
+  "abbreviation": "BBOI" ,
+  "description": "Biomass boiler." ,
+  "specifications": [
+    {
+      "name": "eta_th" ,
+      "value": 0.90 ,
+      "unit": "-" ,
+      "description": "Thermal efficiency."
+    },
+        {
+      "name": "life_time",
+      "value": 20, 
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 1014,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.06,
+      "unit": "1/year (fraction of inv_var)",
+      "description": ""
+    }
+  ]
+  },
+  {
+  "device": "oil boiler" ,
+  "abbreviation": "OBOI" ,
+  "description": "Oil boiler." ,
+  "specifications": [
+    {
+      "name": "eta_th" ,
+      "value": 0.93 ,
+      "unit": "-" ,
+      "description": "Thermal efficiency."
+    },
+        {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 390,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.036,
+      "unit": "1/year (fraction of inv_var)",
+      "description": ""
+    }
+  ]
+  },
+  {
+  "device": "hydrogen boiler" ,
+  "abbreviation": "H2BOI" ,
+  "description": "Hydrogen boiler." ,
+  "specifications": [
+    {
+      "name": "eta_th" ,
+      "value": 0.994 ,
+      "unit": "-" ,
+      "description": "Thermal efficiency."
+    },
+        {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 390,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.03,
+      "unit": "1/year (fraction of inv_var)",
+      "description": ""
+    }
+  ]
+  },
+  {
   "device": "combined heat and power plant" ,
   "abbreviation": "CHP" ,
   "description": "Gas based combined heat an power plant." ,
@@ -146,7 +239,7 @@
   {
   "device": "fuel cell" ,
   "abbreviation": "FC" ,
-  "description": "Gas based fuel cell." ,
+  "description": "hydrogen based fuel cell." ,
   "specifications": [
     {
       "name": "eta_th",

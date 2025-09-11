@@ -302,6 +302,9 @@ class KPIs:
         for n in range(len(district)):
             capacities[n] = {}
             capacities[n]["BOI"] = district[n]["capacities"]["BOI"] / 1000
+            capacities[n]["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
+            capacities[n]["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
+            capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
@@ -311,10 +314,10 @@ class KPIs:
             capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
 
-        calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        calc_annual_investment = {dev: 0 for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
 
         for n in range(len(district)):
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
+            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
                 try:
                     if counts.get(dev, 0) > 0:
                         calc_annual_investment[dev] += self.calc_annual_cost_device(
@@ -327,7 +330,7 @@ class KPIs:
 
         self.annual_fixed_costs_decentral = sum(
             calc_annual_investment[dev]  # already summed for all districts
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]
+            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]
         )
 
         try:
