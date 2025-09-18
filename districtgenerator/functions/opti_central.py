@@ -113,10 +113,7 @@ def run_opti_central(model, data, cluster):
         for n in range(buildings):
             power_dom[device][n] = {}
             for t in time_steps:
-                if device == 'PV':
-                    # Set to the PV generation value (known, not a variable)
-                    power_dom[device][n][t] = PV_gen[n][t]
-                elif device == 'Demand':
+                if device == 'Demand':
                     # Set to the demand value (known, not a variable)
                     power_dom[device][n][t] = elec_dem[n][t]
                 else:
@@ -740,7 +737,8 @@ def run_opti_central(model, data, cluster):
                         name="Electricity_balance_EnergyHub_" + str(t))
 
         # Cooling balance
-        model.addConstr(eh_cool["AC"][t] + eh_cool["CC"][t] + eh_dch["CTES"][t] == eh_cool["grid"][t] + eh_ch["CTES"][t])
+        model.addConstr(eh_cool["AC"][t] + eh_cool["CC"][t] + eh_dch["CTES"][t] == eh_cool["grid"][t] + eh_ch["CTES"][t], 
+               name="Cooling_balance_EnergyHub_" + str(t))
 
         # Gas balance
         model.addConstr(eh_gas["from_grid"][t] + eh_gas["SAB"][t] + eh_dch["GS"][t] == eh_gas["CHP"][t] + eh_gas["BOI"][t]
