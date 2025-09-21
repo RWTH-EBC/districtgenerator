@@ -1276,7 +1276,7 @@ class KPIs:
                     continue
 
                 # HP special naming
-                if dev == "HP":
+                if dev in ["HP","GHP","BHP","H2HP","OHP"]:
                     if data.central_device_data["AirHP"]["feasible"]:
                         name = "Air-source Heat Pump"
                     elif data.central_device_data["GroundHP"]["feasible"]:
