@@ -1,7 +1,7 @@
 # import of the main classes
 from .datahandler import Datahandler
 # import of subclasses
-from .envelope import Envelope
+from .envelope_new import Envelope
 from .solar import Sun
 from .users import Users
 from .profiles import Profiles

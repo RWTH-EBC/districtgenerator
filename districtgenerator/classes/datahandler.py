@@ -14,7 +14,7 @@ import pandas as pd
 import random as rd
 import holidays as hol
 from teaser.project import Project
-from .envelope import Envelope
+from .envelope_old import Envelope
 from .solar import Sun
 from .users import Users
 from .system import BES
@@ -290,8 +290,8 @@ class Datahandler:
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
         # get weather data of interest
-        [temp_sunDirect, temp_sunDiff, temp_tempe, temp_wind, temp_rhum, temp_pre] = \
-            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8], weatherData[:, 11], weatherData[:, 6]]
+        [temp_sunDirect, temp_sunDiff, temp_tempe, temp_wind, temp_rhum, temp_pre, temp_ssw] = \
+            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8], weatherData[:, 11], weatherData[:, 6], weatherData[:, 9]]
 
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
@@ -300,13 +300,13 @@ class Datahandler:
             self.time["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
             self.time["holidays"] = self.get_holidays(country_code="DE", year=2045)
-
+        self.time["holidays"] = []
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
-        self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+        self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),      # Direct horizontal radiation
                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                            temp_sunDirect)[0:-1]
-        self.site["SunDiffuse"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+        self.site["SunDiffuse"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),     # Diffuse horizontal radiation
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_sunDiff)[0:-1]
         self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
@@ -321,6 +321,9 @@ class Datahandler:
         self.site["pressure"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_pre)[0:-1]
+        self.site["ssw"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                        np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
+                                        1 - np.clip(temp_ssw, 0, 8) / 8.0)[0:-1]
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
 
