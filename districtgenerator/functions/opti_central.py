@@ -309,6 +309,14 @@ def run_opti_central(model, data, cluster):
     from_grid_total_el = model.addVar(vtype="C",name="from_grid_total_el")
     # total power to grid
     to_grid_total_el = model.addVar(vtype="C",name="to_grid_total_el")
+    # total energy from buildings to grid
+    to_grid_total_el_buildings = model.addVar(vtype="C",name="to_grid_total_el_buildings")
+    # total energy from grid to buildings
+    from_grid_total_el_buildings = model.addVar(vtype="C",name="from_grid_total_el_buildings")
+    # total energy from energy hub to grid
+    to_grid_total_el_eh = model.addVar(vtype="C",name="to_grid_total_el_eh")
+    # total energy from grid to energy hub
+    from_grid_total_el_eh = model.addVar(vtype="C",name="from_grid_total_el_eh")
     # total gas amounts taken from grid
     from_grid_total_gas = model.addVar(vtype="C",name="from_grid_total_gas")
     # total hydrogen amounts taken from grid
@@ -745,17 +753,38 @@ def run_opti_central(model, data, cluster):
     model.addConstr(total_biomass_used == dt * sum(eh_biom["import"][t] for t in time_steps) / 1000, name="total_biomass_used")
     # Total waste used (kWh)
     model.addConstr(total_waste_used == dt * sum(eh_waste["import"][t] for t in time_steps) / 1000, name="total_waste_used")
+    # Total electricity feed in from buildings (kWh)
+    model.addConstr(to_grid_total_el_buildings == dt * sum(residual["feed"][t] for t in time_steps) / 1000, name="to_grid_total_el_buildings")
+    # Total electricity demand from buildings (kWh)
+    model.addConstr(from_grid_total_el_buildings == dt * sum(residual["power"][t] for t in time_steps) / 1000, name="from_grid_total_el_buildings")
+    # Total electricity feed in from energy hub (kWh)
+    model.addConstr(to_grid_total_el_eh == dt * sum(eh_power["to_grid"][t] for t in time_steps) / 1000, name="to_grid_total_el_eh")
+    # Total electricity demand from energy hub (kWh)
+    model.addConstr(from_grid_total_el_eh == dt * sum(eh_power["from_grid"][t] for t in time_steps) / 1000, name="from_grid_total_el_eh")
 
     # %% OBJECTIVE FUNCTIONS
     # select the objective function based on input parameters
-    ### Total operational costs
-    model.addConstr(operational_costs == from_grid_total_el * ecoData["price_supply_el"]
-                                            - to_grid_total_el * ecoData["revenue_feed_in_el"]
+
+    # Total operational costs v2 (bilancing each building and the energy hub separately, not the sub-grid as a whole)
+    # TODO hier könnte if model_param_eh.get("cost_variant", 1) == 1: hinzugefügt werden, um die alte Variante zu behalten
+    model.addConstr(operational_costs == from_grid_total_el_buildings * ecoData["price_supply_el"]
+                                            - to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
+                                            + from_grid_total_el_eh * ecoData["price_supply_el_eh"]
+                                            - to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
                                             + from_grid_total_gas * ecoData["price_supply_gas"]
                                             + from_grid_total_hydrogen * ecoData["price_hydrogen"]
                                             + total_biomass_used * ecoData["price_biomass"]
                                             + total_waste_used * ecoData["price_waste"]
-                                            , name="Total_amount_operational_costs")
+                                            , name="Total_amount_operational_costs_v2")
+
+    ### Total operational costs
+    # model.addConstr(operational_costs == from_grid_total_el * ecoData["price_supply_el"]
+    #                                         - to_grid_total_el * ecoData["revenue_feed_in_el"]
+    #                                         + from_grid_total_gas * ecoData["price_supply_gas"]
+    #                                         + from_grid_total_hydrogen * ecoData["price_hydrogen"]
+    #                                         + total_biomass_used * ecoData["price_biomass"]
+    #                                         + total_waste_used * ecoData["price_waste"]
+    #                                         , name="Total_amount_operational_costs")
 
     # Emissions
     model.addConstr(co2_total == from_grid_total_el * ecoData["co2_el_grid"]

@@ -12,6 +12,18 @@
         "description" : "Feed-in electricity price."
     },
     {
+        "name": "price_supply_el_eh",
+        "value": 0.3969,
+        "unit": "€/kWh",
+        "description" : "Electricity price for energy hub."
+    },
+    {
+        "name": "revenue_feed_in_el_eh",
+        "value": 0.0794,
+        "unit": "EUR/kWh",
+        "description" : "Feed-in electricity price for energy hub."
+    },
+    {
         "name": "price_supply_gas",
         "value": 0.1236,
         "unit": "€/kWh",
