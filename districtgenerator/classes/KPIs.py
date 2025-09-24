@@ -293,7 +293,7 @@ class KPIs:
 
         # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
         counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
-        counts["PV"] = scenario['f_PV'].apply(lambda x: 1 if x > 0 else 0).sum()
+        counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum
         counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
         counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
@@ -698,7 +698,8 @@ class KPIs:
                                   building["buildingFeatures"]["EV"],
                                   f_TES,
                                   building["buildingFeatures"]["f_BAT"],
-                                  building["buildingFeatures"]["f_PV"],
+                                  building["buildingFeatures"]["f_PV1"],
+                                  building["buildingFeatures"]["f_PV2"],
                                   building["buildingFeatures"]["f_STC"],
                                   building["buildingFeatures"]["gamma_PV"],
                                   building["buildingFeatures"]["ev_charging"]])
@@ -758,7 +759,8 @@ class KPIs:
         #                 BAT:
         #                 f_TES:
         #                 f_BAT:
-        #                 f_PV:
+        #                 f_PV1:
+        #                 f_PV2:
         #                 f_STC:
         #                 gamma_PV:
         #                 ev_charging:
@@ -1383,7 +1385,7 @@ class KPIs:
         certificate.drawString(85, height - 36 - 6, "Allgemeine Hinweise")
 
         # add information
-        terms = ["Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierter Anlagenbetrieb"]
+        terms = ["<br />Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierter Anlagenbetrieb"]
         details = [
             "<b>Gebäude ID:</b> Gebäudenummer zur Identifizierung<br />"
             "<b>Gebäudetyp:</b> SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, TH = Reihenhaus, AB = Wohnblock, "
@@ -1402,11 +1404,14 @@ class KPIs:
             "<b>EV:</b> Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude<br />"
             "<b>fTES:</b> Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage<br />"
             "<b>fBAT:</b> Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV<br />"
-            "<b>fPV:</b> Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen "
+            "<b>fPV1:</b> Anteil der Fläche von Dachseite 1, die mit Photovoltaik ausgestattet ist. Dachseite 1 "
+            "ist dabei die Seite, für die der Azimutwinkel gammaPV vergegeben wird (Informationen zu Dachflächen "
             "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
+            "<b>fPV2:</b> Anteil der Fläche von Dachseite 2, die mit Photovoltaik ausgestattet ist. Der Azimutwinkel "
+            'von Dachseite 2 wird als 180° zu gammaPV gedreht ("gegenüberliegend") berechnet. <br />'
             "<b>fSTC:</b> Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen "
             "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
-            "<b>gammaPV:</b> Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°<br />"
+            "<b>gammaPV:</b> Azimut = Himmelsausrichtung von Dachseite 1, Ausrichtung nach Süden entspricht 0°<br />"
             "<b>EV Charging:</b> Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als "
             "Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)<br />",
             "Die hier angegebenen Werte basieren auf den rechnerischen Bedarfen auf Nutzerebene. "
@@ -1417,7 +1422,7 @@ class KPIs:
             "<b>Energiebedarfe (MWh):</b> Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der "
             "generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom, Trinkwarmwasser und Elektroautos)<br />"
             "<b>Maximale Leistungen:</b> Maximale Leistungen in kW im Quartier auf Basis der aufsummierten "
-            "Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)<br /><br />",
+            "Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)<br /><br /><br />",
             "Die hier angegebenen Werte wurden nach einer Betriebsoptimierung unter Berücksichtigung aller "
             "definierten Anlagen (Erzeuger wie auch Speicher) im Quartier berechnet.<br />"
             "<b>CO2-äqui. Emissionen:</b> Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten "

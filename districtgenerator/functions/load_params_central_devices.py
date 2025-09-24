@@ -782,21 +782,25 @@ def get_PVandSTC_power(devs, param, data):
     sun = Sun(filePath=filePath)
 
     potentialPV, _ = sun.calcPVAndSTCProfile(time=time,
-                                    site=site,
-                                    area_roof=1,
-                                    beta=[devs["PV"]["beta"]],
-                                    gamma=[devs["PV"]["gamma"]],
-                                    usageFactorPV=1,
-                                    usageFactorSTC=0)
+                                             site=site,
+                                             area_roof=2,
+                                             # set to 2 [m^2] in order to calculate the generation per m^2, since the
+                                             # equation in calcPVAndSTCProfile calculates 0.5 * area_roof * . . .
+                                             beta=[devs["PV"]["beta"]],
+                                             gamma=[devs["PV"]["gamma"]],
+                                             usageFactorPV1=1,
+                                             usageFactorPV2=0,
+                                             usageFactorSTC=0)
 
     # calculate theoretical STC generation
     _, potentialSTC = sun.calcPVAndSTCProfile(time=time,
-                                site=site,
-                                area_roof=1,
-                                beta=[devs["STC"]["beta"]],
-                                gamma=[devs["STC"]["gamma"]],
-                                usageFactorPV=0,
-                                usageFactorSTC=1)
+                                              site=site,
+                                              area_roof=1,
+                                              beta=[devs["STC"]["beta"]],
+                                              gamma=[devs["STC"]["gamma"]],
+                                              usageFactorPV1=0,
+                                              usageFactorPV2=0,
+                                              usageFactorSTC=1)
 
     # Get the corresponding values for the typedays
     chunk_size = len(param["GHI"][0])

@@ -911,7 +911,8 @@ class Datahandler:
                                         beta=[35],
                                         # surface azimuth angles (Orientation to the south: 0°)
                                         gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                        usageFactorPV=building["buildingFeatures"]["f_PV"],
+                                        usageFactorPV1=building["buildingFeatures"]["f_PV1"],
+                                        usageFactorPV2=building["buildingFeatures"]["f_PV2"],
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
             # optionally save generation profiles

@@ -250,8 +250,84 @@
       "value": 0.015,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
+    },
+    {
+      "name": "kappa_inverter",
+      "value": 0.02,
+      "unit": "-",
+      "description": "Correction factor for all inverter losses"
+    },
+    {
+      "name": "kappa_wiring",
+      "value": 0.015,
+      "unit": "-",
+      "description": "Correction factor for wiring losses"
+    },
+    {
+      "name": "kappa_connections",
+      "value": 0.005,
+      "unit": "-",
+      "description": "Correction factor for all losses in connectors"
+    },
+    {
+      "name": "kappa_soiling",
+      "value": 0.02,
+      "unit": "-",
+      "description": "Correction factor for losses due to soiling"
+    },
+    {
+      "name": "kappa_shading",
+      "value": 0.03,
+      "unit": "-",
+      "description": "Correction factor for losses due to shading"
+    },
+    {
+      "name": "kappa_mismatch",
+      "value": 0.02,
+      "unit": "-",
+      "description": "Correction factor for mismatch losses (production deviations between modules)"
+    },
+    {
+      "name": "kappa_NPR",
+      "value": 0.01,
+      "unit": "-",
+      "description": "Correction factor for name plate rating losses (deviation of the power rating from the actual power)"
+    },
+    {
+      "name": "kappa_av",
+      "value": 0.025,
+      "unit": "-",
+      "description": "Correction factor for losses to to non-availability of the system (e.g. maintenance, redispatch, etc.)"
+    },
+    {
+      "name": "kappa_LID",
+      "value": 0.015,
+      "unit": "-",
+      "description": "Correction factor for mismatch losses (production deviations between modules)"
     }
-  ]
+  ],
+  "sources": {
+    "reference condition values": [
+      {
+        "name": "",
+        "url": ""
+      },
+      {
+        "name": "",
+        "url": ""
+      }
+    ],
+    "loss correction factors": [
+      {
+        "name": "Global Solar Atlas",
+        "url": "https://globalsolaratlas.info/support/methodology"
+      },
+      {
+        "name": "NREL PVWatts Manual",
+        "url": "https://docs.nrel.gov/docs/fy14osti/62641.pdf"
+      }
+    ]
+  }
   },
   {
   "device": "solar thermal collector" ,

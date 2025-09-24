@@ -130,8 +130,8 @@ class BES:
                 # design refers to buildable roof area (0.4 * area)
                 BES["BAT"] = buildingFeatures["f_BAT"] \
                              * self.decentral_device_data["PV"]["P_nominal"] \
-                             * building["envelope"].A["opaque"]["roof"] \
-                             * buildingFeatures["f_PV"]
+                             * 0.5 * building["envelope"].A["opaque"]["roof"] \
+                             * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
 
             # electric vehicle (EV)
             if k == "EV":
@@ -142,8 +142,8 @@ class BES:
             if k == "PV":
                 BES["PV"] = {}
                 # f_PV is the fraction of the roof area that is suitable and available for PV installation
-                areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * buildingFeatures["f_PV"]
+                areaPV_temp = 0.5 * building["envelope"].A["opaque"]["roof"] \
+                              * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]
