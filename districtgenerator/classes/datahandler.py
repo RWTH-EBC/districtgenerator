@@ -300,7 +300,6 @@ class Datahandler:
             self.time["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
             self.time["holidays"] = self.get_holidays(country_code="DE", year=2045)
-        self.time["holidays"] = []
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
         self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),      # Direct horizontal radiation
@@ -385,7 +384,7 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{bldg_id}_{row['building']}"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
