@@ -4,5 +4,5 @@ from .datahandler import Datahandler
 from .envelope import Envelope
 from .solar import Sun
 from .users import Users
-from .profils import Profiles
+from .profiles import Profiles
 # import of participants as houses and the aggregator

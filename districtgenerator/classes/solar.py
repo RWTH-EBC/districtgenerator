@@ -467,6 +467,8 @@ class Sun:
             Time information from the Datahandler class.
         site : dictionary
             Site information from the Datahandler class.
+        devices : dictionary
+            Loads relevant information for the decentral devices in BES.
         area_roof : float
             Area of the building's roof.
         devicesType : string, optional

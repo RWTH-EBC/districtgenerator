@@ -9,14 +9,14 @@ import districtgenerator.functions.k_medoids as k_medoids
 def _distances(values, norm=2):
     """
     Compute distance matrix for all data sets (rows of values).
-    
+
     Parameters
     ----------
     values : 2-dimensional array
         Rows represent days and columns values.
     norm : integer, optional
         Compute the distance according to this norm. 2 is the standard Euclidean-norm. The default is 2.
-    
+
     Return
     ------
     d : 2-dimensional array
@@ -40,10 +40,10 @@ def _distances(values, norm=2):
     return d
 
 
-def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None):
+def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None, scalings=None):
     """
     Cluster a set of inputs into clusters by solving a k-medoid problem.
-    
+
     Parameters
     ----------
     inputs : 2-dimensional array
@@ -61,7 +61,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
         Optimality tolerance (0: proven global optimum). The default is 0.0.
     weights : 1-dimensional array, optional
         Weight for each input. If not provided, all inputs are treated equally.
-    
+
     Returns
     -------
     scaled_typ_days : list
@@ -90,6 +90,11 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
         elif not sum(weights) == 1:  # Rescale weights
             weights = np.array(weights) / sum(weights)
 
+    # Default: all profiles are scaled
+    if scalings is None:
+        scalings = [True] * inputs.shape[0]
+    assert len(scalings) == inputs.shape[0], "Length of 'scalings' must match number of input profiles"
+
     # Manipulate inputs
     # Initialize arrays
     inputsTransformed = []
@@ -98,7 +103,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
 
     # Fill and reshape
     # Scaling to values between 0 and 1, thus all inputs shall have the same
-    # weight and will be clustered equally in terms of quality 
+    # weight and will be clustered equally in terms of quality
     for i in range(inputs.shape[0]):
         vals = inputs[i, :]
         if np.max(vals) == np.min(vals):
@@ -120,7 +125,6 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     (y, z, obj) = k_medoids.k_medoids(d, number_clusters, time_limit, mip_gap)
 
     # Section 2.3 and retain typical days
-    nc = np.zeros_like(y)
     typicalClusters = []
 
     # nc contains how many days are there in each cluster
@@ -133,30 +137,30 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
 
     typicalClusters = np.array(typicalClusters)
     nc = np.array(nc, dtype="int")
-    nc_cumsum = np.cumsum(nc) * len_cluster
 
-    # Construct (yearly) load curves
-    # ub = upper bound, lb = lower bound
-    clustered = np.zeros_like(inputs)
-    for i in range(len(nc)):
-        if i == 0:
-            lb = 0
-        else:
-            lb = nc_cumsum[i - 1]
-        ub = nc_cumsum[i]
-
-        for j in range(len(inputsTransformed)):
-            clustered[j, lb:ub] = np.tile(typicalClusters[i][j], nc[i])
 
     # Scaling to preserve original demands
-    sums_inputs = [np.sum(inputs[j, :]) for j in range(inputs.shape[0])]
-    scaled = np.array([nc[day] * typicalClusters[day, :, :]
-                       for day in range(number_clusters)])
-    sums_scaled = [np.sum(scaled[:, j, :]) if not np.sum(scaled[:, j, :]) == 0 else 1
-                   for j in range(inputs.shape[0])]
-    scaling_factors = [sums_inputs[j] / sums_scaled[j]
-                       for j in range(inputs.shape[0])]
-    scaled_typ_clusters = [scaling_factors[j] * typicalClusters[:, j, :]
-                       for j in range(inputs.shape[0])]
+    scaling_factors = np.zeros((inputs.shape[0], number_clusters))
+
+    # Compute scaling factors for each input and cluster
+    clusters = [c for c, value in enumerate(y) if value == 1]
+    for j in range(inputs.shape[0]):  # Loop over different inputs
+        for c in range(number_clusters):  # Loop over clusters
+            if scalings[j]:
+                total_clustered = sum(inputsTransformed[j][:, clusters[c]]) * nc[c]
+                total_input = sum([sum(inputsTransformed[j][:, a]) for a in range(num_periods)] * z[clusters[c], :])
+                scaling_factors[j, c] = total_input / total_clustered if total_clustered > 0 else 1
+            else:
+                scaling_factors[j, c] = 1  # No scaling applied
+
+    # Apply scaling factors
+    scaled_typ_clusters = []
+    for j in range(inputs.shape[0]):  # Loop over input types
+        cluster_data = np.zeros_like(typicalClusters[:, j, :])
+        for c in range(number_clusters):  # Loop over clusters
+            cluster_data[c, :] = scaling_factors[j, c] * typicalClusters[c, j, :]  # Apply scaling factor
+        scaled_typ_clusters.append(cluster_data)  # Append the cluster data to the list
 
     return scaled_typ_clusters, nc, y, z, inputsTransformed
+
+
