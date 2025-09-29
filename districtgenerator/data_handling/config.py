@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 class LocationConfig(BaseSettings):
+
     timeZone: float = 1 #1
     albedo: float = 0.2
     TRYYear: str = 'TRY2015'

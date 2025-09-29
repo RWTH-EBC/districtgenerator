@@ -879,7 +879,7 @@ class Datahandler:
                     for i in range(len(roof_areas)):
                         pv_row = {
                             "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
-                            "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"],
+                            "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"]*building["buildingFeatures"]["f_PV"],
                             "actual_area_roof": roof_areas[i],
                             "calculated_beta": 35,
                             "actual_beta": roof_inclinations[i],
