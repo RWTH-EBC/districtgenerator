@@ -205,7 +205,7 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
+            r"""
                 Add new weatherdatafile_location, if you want an individual location: 
                 Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
                 Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
@@ -458,6 +458,7 @@ class Datahandler:
                                       building["user"].nb_main_rooms
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+            building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
