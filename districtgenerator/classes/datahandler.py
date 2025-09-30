@@ -634,7 +634,7 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]),
+                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]) if not pd.isna(building["buildingFeatures"]["nb_occ"]) else None,
                                      nb_flats=int(building["buildingFeatures"]["nb_flats"]),
                                      dict= self.srcPath,
                                      calcOcc = self.calcOcc,
@@ -838,8 +838,10 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        if generateDemands:
-            self.generateDemands(name, calcUserProfiles, saveUserProfiles)
+
+        # depending on calcUserProfiles either calculate new user profiles or load them from file
+        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
+
         if designDevs:
             if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
                 centralEnergySupply = True
