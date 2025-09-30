@@ -5,6 +5,7 @@ import os, math
 import random as rd
 import numpy as np
 import pandas as pd
+from pathlib import Path
 import openpyxl
 from .profiles import Profiles
 from . import power_simulation_non_residential as wrap_light
@@ -724,7 +725,7 @@ class Users:
                 self.ev_capacity += ev_capacity
 
         else:
-            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
+            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, dict=self.SIA_dict, time_resolution=time_resolution, building=self.building)
             # Occupancy profile in the building
             _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
             self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
@@ -736,7 +737,7 @@ class Users:
 
             # In the case of non-residential buildings, EVs are only for office buildings
             if self.building in {"OB"}:
-                self.carprofile, self.carcharging_ondemand, self.ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
+                self.carprofile, self.carcharging_ondemand, self.ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays, srcPath=Path(path).parent.parent)
             else:
                 self.carprofile = np.zeros(len(self.occ), dtype=np.float64)
                 self.carcharging_ondemand = np.zeros(len(self.occ), dtype=np.float64)

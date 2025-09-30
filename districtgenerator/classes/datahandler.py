@@ -585,7 +585,7 @@ class Datahandler:
                 building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
 
                 # %% create envelope object
-                extra = [building["buildingFeatures"]["year"],building["buildingFeatures"]["retrofit"],building["buildingFeatures"]["gmlId"],building["buildingFeatures"]["building"]]
+                extra = [building["buildingFeatures"]["year"], building["buildingFeatures"]["retrofit"], building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"], building["buildingFeatures"]["building"]]
             # containing all physical data of the envelope
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
@@ -634,8 +634,8 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]) if not pd.isna(building["buildingFeatures"]["nb_occ"]) else None,
-                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]),
+                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]) if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
+                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]) if "nb_flats" in building["buildingFeatures"] else None,
                                      dict= self.srcPath,
                                      calcOcc = self.calcOcc,
                                      calcOccProf = self.calcOccProf)
@@ -787,7 +787,7 @@ class Datahandler:
 
             if saveUserProfiles:
                 idArray = []
-                idArray.append(building["buildingFeatures"]["gmlId"])
+                idArray.append(building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"])
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
                                         name=building["unique_name"],
