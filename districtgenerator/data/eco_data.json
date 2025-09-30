@@ -13,7 +13,7 @@
     },
     {
         "name": "price_supply_el_eh",
-        "value": 0.3969,
+        "value": 0.3141,
         "unit": "€/kWh",
         "description" : "Electricity price for energy hub."
     },
@@ -25,7 +25,13 @@
     },
     {
         "name": "price_supply_gas",
-        "value": 0.1236,
+        "value": 0.1147,
+        "unit": "€/kWh",
+        "description" : "Gas price."
+    },
+    {
+        "name": "price_supply_gas_eh",
+        "value": 0.1027,
         "unit": "€/kWh",
         "description" : "Gas price."
     },

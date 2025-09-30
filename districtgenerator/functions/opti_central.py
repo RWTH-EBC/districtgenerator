@@ -319,6 +319,10 @@ def run_opti_central(model, data, cluster):
     from_grid_total_el_eh = model.addVar(vtype="C",name="from_grid_total_el_eh")
     # total gas amounts taken from grid
     from_grid_total_gas = model.addVar(vtype="C",name="from_grid_total_gas")
+    # total gas amounts taken from grid to buildings
+    from_grid_total_gas_buildings = model.addVar(vtype="C",name="from_grid_total_gas_buildings")
+    # total gas amounts taken from grid to energy hub
+    from_grid_total_gas_eh = model.addVar(vtype="C",name="from_grid_total_gas_eh")
     # total hydrogen amounts taken from grid
     from_grid_total_hydrogen = model.addVar(vtype = "C", name="from_grid_total_hydrogen")
     # total biomass used
@@ -761,6 +765,10 @@ def run_opti_central(model, data, cluster):
     model.addConstr(to_grid_total_el_eh == dt * sum(eh_power["to_grid"][t] for t in time_steps) / 1000, name="to_grid_total_el_eh")
     # Total electricity demand from energy hub (kWh)
     model.addConstr(from_grid_total_el_eh == dt * sum(eh_power["from_grid"][t] for t in time_steps) / 1000, name="from_grid_total_el_eh")
+    # Total gas amount taken from grid to buildings (kWh)
+    model.addConstr(from_grid_total_gas_buildings == dt * sum(gas_dom["BOI"][n][t] + gas_dom["CHP"][n][t] for n in range(buildings) for t in time_steps) / 1000, name="from_grid_total_gas_buildings")
+    # Total gas amount taken from grid to energy hub (kWh)
+    model.addConstr(from_grid_total_gas_eh == dt * sum(eh_gas["from_grid"][t] - eh_gas["to_grid"][t] for t in time_steps) / 1000, name="from_grid_total_gas_eh")
 
     # %% OBJECTIVE FUNCTIONS
     # select the objective function based on input parameters
@@ -771,7 +779,8 @@ def run_opti_central(model, data, cluster):
                                             - to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
                                             + from_grid_total_el_eh * ecoData["price_supply_el_eh"]
                                             - to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
-                                            + from_grid_total_gas * ecoData["price_supply_gas"]
+                                            + from_grid_total_gas_buildings * ecoData["price_supply_gas"]
+                                            + from_grid_total_gas_eh * ecoData["price_supply_gas_eh"]
                                             + from_grid_total_hydrogen * ecoData["price_hydrogen"]
                                             + total_biomass_used * ecoData["price_biomass"]
                                             + total_waste_used * ecoData["price_waste"]
