@@ -811,7 +811,7 @@ class Datahandler:
                 data.append(row[0])
             return np.array(data)
 
-        building_id = int(name.split('_')[0])
+        building_id = int(name.split('_')[-2])
         idx = self.building_dict[building_id]
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
