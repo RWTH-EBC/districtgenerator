@@ -45,7 +45,7 @@
     "G_stc": 1
   },
   "CHP": {
-    "feasible": false,
+    "feasible": true,
     "inv_var": 1200,
     "eta_el": 0.4,
     "eta_th": 0.5,
@@ -55,7 +55,7 @@
     "max_cap": 1000
   },
   "BOI": {
-    "feasible": false,
+    "feasible": true,
     "inv_var": 500,
     "eta_th": 0.9,
     "life_time": 20,
