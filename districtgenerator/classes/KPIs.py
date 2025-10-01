@@ -1136,7 +1136,7 @@ class KPIs:
             certificate.setFont("Helvetica-Bold", 6)
             column_titles = (
             "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung", "Wohnfläche", "Heizung", "EV",
-            "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
+            "fTES", "fBAT", "fPV1", "fPV2", "fSTC", "gammaPV ", "EV Charging")
             for i in range(len(column_titles)):
                 certificate.drawString(54 + table_width * (i / n_columns) + (
                             ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
@@ -1223,7 +1223,7 @@ class KPIs:
                 column_titles = (
                     "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung",
                     "Wohnfläche", "Heizung", "EV",
-                    "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
+                    "fTES", "fBAT", "fPV1", "fPV2", "fSTC", "gammaPV ", "EV Charging")
                 for i in range(len(column_titles)):
                     certificate.drawString(54 + table_width * (i / n_columns) + (
                                 ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
