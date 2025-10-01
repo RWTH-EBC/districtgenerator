@@ -802,17 +802,14 @@ class Datahandler:
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, name = None, generateDemands=True, calcUserProfiles=True, saveUserProfiles=True,
-                                 designDevs=True, saveGenProfiles=True, clustering=False, optimization=True):
+    def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
+                                 designDevs=True, saveGenProfiles=True, optimization=True):
         """
         All in one solution for district and demand generation.
 
         Parameters
         ----------
 
-        generateDemands:bool, optional
-            True: generate demands for all buildings.
-            False: load demands from file / generation will be skipped.
         name: string, optional
             option to set a unique name for the district scenario. Else building["unique_name"] will be used.
         calcUserProfiles: bool, optional
