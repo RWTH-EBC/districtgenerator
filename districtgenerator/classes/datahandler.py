@@ -634,8 +634,8 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     nb_occ=int(building["buildingFeatures"]["nb_occ"]) if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
-                                     nb_flats=int(building["buildingFeatures"]["nb_flats"]) if "nb_flats" in building["buildingFeatures"] else None,
+                                     nb_occ=building["buildingFeatures"]["nb_occ"] if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
+                                     nb_flats=int(float(building["buildingFeatures"]["nb_flats"])) if "nb_flats" in building["buildingFeatures"] else None,
                                      dict= self.srcPath,
                                      calcOcc = self.calcOcc,
                                      calcOccProf = self.calcOccProf)

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import ast
 import statistics
 import os, math
 import random as rd
@@ -128,9 +129,16 @@ class Users:
             self.generate_number_flats_and_rooms(area)
             self.generate_number_occupants(area)
         else:
-            self.nb_occ = [nb_occ]
+
+            nb_occ_string = nb_occ  # Replace this with the correct variable if it's different
+            nb_occ_list = ast.literal_eval(nb_occ_string)
+    
+            # Ensure it's a list
+            if isinstance(nb_occ_list, list):
+                # Optionally, convert all elements to integers (if needed)
+                self.nb_occ = [int(x) for x in nb_occ_list]
+
             self.nb_flats = nb_flats
-            self.generate_number_occupants_fiware(nb_occ=self.nb_occ, nb_flats=self.nb_flats)
 
         self.generate_annual_el_consumption_residential()
         self.generate_annual_app_el_consumption_non_residential(
@@ -138,33 +146,6 @@ class Users:
 
         self.generate_lighting_index(area, year_of_construction, retrofit)
         self.create_el_wrapper()
-
-    def generate_number_occupants_fiware(self, nb_occ, nb_flats):
-        # nb_occ may be a list like [3.0], take the first element
-        if isinstance(nb_occ, (list, tuple, np.ndarray)):
-            total_occ = int(nb_occ[0])
-        else:
-            total_occ = int(nb_occ)
-
-        if nb_flats == 0:
-            base = 0
-            remainder = 0 
-        else:
-            # Base number per flat
-            base = total_occ // nb_flats  
-            # Remainder to distribute
-            remainder = total_occ % nb_flats    
-
-        # Create the array
-        occ_list = [base + 1 if i < remainder else base for i in range(nb_flats)]
-
-        # Remove flats with 0 occupants
-        self.nb_occ = [x for x in occ_list if x > 0]
-
-        # Adjust number of flats
-        self.nb_flats = len(self.nb_occ)
-
-
 
     def generate_number_flats_and_rooms(self, area):
         """
