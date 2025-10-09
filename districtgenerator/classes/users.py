@@ -140,6 +140,10 @@ class Users:
 
             self.nb_flats = nb_flats
 
+            if len(self.nb_occ) != self.nb_flats:
+                print("Error: The length of nb_occ does not match nb_flats. Replaces value with 2 per flat.")
+                self.nb_occ = [2] * self.nb_flats
+
         self.generate_annual_el_consumption_residential()
         self.generate_annual_app_el_consumption_non_residential(
             area)  # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
