@@ -1,6 +1,7 @@
 districtgenerator/results/*
 districtgenerator/data/scenarios/*
 districtgenerator/examples/*
+results/*
 errorfile.txt
 *.bk
 *.log
@@ -20,6 +21,5 @@ districtgenerator/data/weather/*
 *.eggs
 joss/
 
-districtgenerator/
 
 .gitlab-ci.yml

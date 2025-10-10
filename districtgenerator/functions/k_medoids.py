@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import division
-import gurobipy as gp
+import pyomo.environ as pyo
 import numpy as np
+import districtgenerator.functions.solver_config as solver_config
+import time
+import subprocess
+from pathlib import Path
 
 
 # Implementation of the k-medoids problem, as it is applied in
@@ -18,9 +22,13 @@ import numpy as np
 # pp. 506-519
 # Stable URL: http://www.jstor.org/stable/2283635
 
-def k_medoids(distances, number_clusters, timelimit=100, mipgap=0.0001):
+def k_medoids(distances, number_clusters, timelimit=None, mipgap=None):
     """
-    Solve the k-medoid clustering problem.
+    Solves the k-medoids clustering problem using Pyomo.
+
+    The solver configuration is created by the `create_solver` function.
+    The function arguments for 'timelimit' and 'mipgap' can override the settings
+    from the JSON file for a single call. If None is passed, the values from the JSON file are used.
 
     Parameters
     ----------
@@ -29,78 +37,148 @@ def k_medoids(distances, number_clusters, timelimit=100, mipgap=0.0001):
     number_clusters : integer
         Given number of clusters.
     timelimit : integer, optional
-        Maximum time limit for the optimization. The default is 100.
+        Maximum time limit for the optimization in seconds. Overrides the value from the JSON file.
+        Default is None (uses JSON setting).
     mipgap : float, optional
-        Maximal relative gap between lower and upper bound for the solution of the problem. The default is 0.0001.
+        Maximum relative gap between the lower and upper bounds for the solution.
+        Overrides the value from the JSON file. Default is None (uses JSON setting).
 
     Returns
     -------
     r_y : array_like
-        Chosen clusters. 1 for chosen, 0 for not chosen.
+        Selected clusters. 1 for selected, 0 for not selected.
     r_x.T : 2d array
-        Assignments of nodes to clusters. 1 for assigned, 0 for not assigned.
+        Assignment of nodes to clusters. 1 for assigned, 0 for not assigned.
     r_obj : float
-        Objective value in the resulting optimum.
+        Value of the objective function in the found optimum.
     """
+    start_time = time.time()
 
-    # Distances is a symmetrical matrix, extract its length
+    # Build the model
+    model = build_model(distances, number_clusters)
+    model_building_time = time.time() - start_time
+
+    # Solve the model and extract results
+    r_y, r_x_transposed, r_obj = solve_model_and_extract_results(model, timelimit, mipgap)
+    model_solve_time = time.time() - start_time - model_building_time
+
+    # Calculate total time
+    total_time = time.time() - start_time
+
+
+    # Maybe record the times into a log file
+
+    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
+    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
+    # print(f" Total time needed: {total_time:.2f} seconds.")
+
+    return r_y, r_x_transposed, r_obj
+
+
+def build_model(distances, number_clusters):
+    """
+    Build the Pyomo k-medoids optimization model.
+
+    Parameters
+    ----------
+    distances : 2d array
+        Distances between each pair of node points. `distances` is a symmetrical matrix (dissimilarity matrix).
+    number_clusters : integer
+        Given number of clusters.
+
+    Returns
+    -------
+    model : pyo.ConcreteModel
+        The built Pyomo model ready for solving.
+    """
+    # Extract the length of the symmetric distance matrix
     length = distances.shape[0]
 
-    # Create model
-    model = gp.Model("k-Medoids-Problem")
+    # Create a concrete model
+    model = pyo.ConcreteModel(name="k-Medoids-Problem")
 
-    # Create variables
-    x = {}  # Binary variables that are 1 if node i is assigned to cluster j
-    y = {}  # Binary variables that are 1 if node j is chosen as a cluster
-    for j in range(length):
-        y[j] = model.addVar(vtype="B", name="y_" + str(j))
+    # Definition of index sets
+    model.nodes = pyo.RangeSet(0, length - 1)
 
-        for i in range(length):
-            x[i, j] = model.addVar(vtype="B", name="x_" + str(i) + "_" + str(j))
+    # Definition of binary decision variables
+    model.y = pyo.Var(model.nodes, within=pyo.Binary)
+    model.x = pyo.Var(model.nodes, model.nodes, within=pyo.Binary)
 
-    # Update to introduce the variables to the model
-    model.update()
+    # Definition of the objective function (Equation 2.1, page 509, [1])
+    def objective_rule(model):
+        return sum(distances[i, j] * model.x[i, j] for i in model.nodes for j in model.nodes)
 
-    # Set objective - equation 2.1, page 509, [1]
-    obj = gp.quicksum(distances[i, j] * x[i, j]
-                      for i in range(length)
-                      for j in range(length))
-    model.setObjective(obj, gp.GRB.MINIMIZE)
+    model.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
 
-    # s.t.
-    # Assign all nodes to clusters - equation 2.2, page 509, [1]
-    # => x_i cannot be put in more than one group at the same time
-    for i in range(length):
-        model.addConstr(sum(x[i, j] for j in range(length)) == 1)
+    # Definition of constraints
+    model.constraints = pyo.ConstraintList()
 
-    # Maximum number of clusters - equation 2.3, page 509, [1]
-    model.addConstr(sum(y[j] for j in range(length)) == number_clusters)
+    # Each node must be assigned to exactly one cluster (Equation 2.2)
+    for i in model.nodes:
+        model.constraints.add(sum(model.x[i, j] for j in model.nodes) == 1)
 
-    # Prevent assigning without opening a cluster - equation 2.4, page 509, [1]
-    for i in range(length):
-        for j in range(length):
-            model.addConstr(x[i, j] <= y[j])
+    # The exact number of clusters must be selected (Equation 2.3)
+    model.constraints.add(sum(model.y[j] for j in model.nodes) == number_clusters)
 
-    for j in range(length):
-        model.addConstr(x[j, j] >= y[j])
+    # Assignment to node j is only possible if j is a cluster center (Equation 2.4)
+    for i in model.nodes:
+        for j in model.nodes:
+            model.constraints.add(model.x[i, j] <= model.y[j])
 
-    # Sum of main diagonal has to be equal to the number of clusters:
-    model.addConstr(sum(x[j, j] for j in range(length)) == number_clusters)
+    # If j is a cluster center, it must be assigned to itself
+    for j in model.nodes:
+        model.constraints.add(model.x[j, j] >= model.y[j])
 
-    # Set solver parameters
-    model.Params.TimeLimit = timelimit
-    model.Params.MIPGap = mipgap
-    model.Params.OutputFlag = False  # no console printing
+    # The sum of the main diagonal must equal the number of clusters
+    model.constraints.add(sum(model.x[j, j] for j in model.nodes) == number_clusters)
 
+    return model
+
+
+def solve_model_and_extract_results(model, timelimit=None, mipgap=None):
+    """
+    Solve the k-medoids model and extract results.
+
+    Parameters
+    ----------
+    model : pyo.ConcreteModel
+        The Pyomo model to solve.
+    timelimit : integer, optional
+        Maximum time limit for the optimization in seconds. Overrides the value from the JSON file.
+        Default is None (uses JSON setting).
+    mipgap : float, optional
+        Maximum relative gap between the lower and upper bounds for the solution.
+        Overrides the value from the JSON file. Default is None (uses JSON setting).
+
+    Returns
+    -------
+    r_y : array_like
+        Selected clusters. 1 for selected, 0 for not selected.
+    r_x.T : 2d array
+        Assignment of nodes to clusters. 1 for assigned, 0 for not assigned.
+    r_obj : float
+        Value of the objective function in the found optimum.
+    """
+    # Extract length from model
+    length = len(model.nodes)
+    
     # Solve the model
-    model.optimize()
+    solver, specific_options = solver_config.create_solver(timelimit=timelimit, mipgap=mipgap)
+    results = solver.solve(model, tee=True, options=specific_options)
 
-    # Get results
-    r_x = np.array([[x[i, j].X for j in range(length)]
-                    for i in range(length)])
-
-    r_y = np.array([y[j].X for j in range(length)])
-
-    r_obj = model.ObjVal
+    # Check if an optimal solution was found
+    if (results.solver.status == pyo.SolverStatus.ok) and (
+            results.solver.termination_condition == pyo.TerminationCondition.optimal):
+        # Extract the results if the solution is optimal
+        r_x = np.array([[pyo.value(model.x[i, j]) for j in range(length)] for i in range(length)])
+        r_y = np.array([pyo.value(model.y[j]) for j in range(length)])
+        r_obj = pyo.value(model.objective)
+    else:
+        # Fallback if no optimal solution was found
+        print(
+            f"Solver could not find an optimal solution. Status: {results.solver.status}, Termination condition: {results.solver.termination_condition}")
+        r_x = np.zeros((length, length))
+        r_y = np.zeros(length)
+        r_obj = -1
 
     return r_y, r_x.T, r_obj
