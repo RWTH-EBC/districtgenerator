@@ -440,11 +440,11 @@ def build_model(model, data, cluster):
         else:
             return model.eh_power_WT[t] == energyHubData["generation"]["Wind_cluster"][cluster][t] * 1000
 
-    for device in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
+    for device in ["EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
         constraint_rule = create_eh_heat_capacity_constraint(device)
         setattr(model, f"eh_heat_cap_{device}", pyo.Constraint(model.t, rule=constraint_rule))
 
-    for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+    for device in ["WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
         constraint_rule = create_eh_power_capacity_constraint(device)
         setattr(model, f"eh_power_cap_{device}", pyo.Constraint(model.t, rule=constraint_rule))
 
@@ -543,14 +543,16 @@ def build_model(model, data, cluster):
     ################################################################################
 
     def eh_hp_conversion_rule(model, t):
-        return model.eh_heat_HP[t] == model.eh_power_HP[t] * central_device_data["HP"]["COP_const"]
+        COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][cluster][t]
+        return model.eh_heat_HP[t] == model.eh_power_HP[t] * COP_HP_eh
 
     def eh_eb_conversion_rule(model, t):
         return model.eh_heat_EB[t] == model.eh_power_EB[t] * central_device_data["EB"]["eta_th"]
 
     def eh_cc_conversion_rule(model, t):
-        return model.eh_cool_CC[t] == model.eh_power_CC[t] * central_device_data["CC"]["COP"]
-
+        COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][cluster][t]
+        return model.eh_cool_CC[t] == model.eh_power_CC[t] * COP_CC_eh
+    
     def eh_ac_conversion_rule(model, t):
         return model.eh_cool_AC[t] == model.eh_heat_AC[t] * central_device_data["AC"]["eta_th"]
 
