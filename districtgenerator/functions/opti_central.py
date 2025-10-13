@@ -386,7 +386,6 @@ def build_model(model, data, cluster):
         """Factory-function für EH Heat Capacity Constraints"""
         def constraint_rule(model, t):
             if energyHubData == {}:
-                print("No energy hub data provided, setting EH device capacities to 0.")
                 return getattr(model, f"eh_heat_{device_name}")[t] == 0
             else:
                 return getattr(model, f"eh_heat_{device_name}")[t] <= energyHubData["capacities"][device_name]["cap"] * 1000  # kW to W
@@ -396,7 +395,6 @@ def build_model(model, data, cluster):
         """Factory-function für EH Power Capacity Constraints"""
         def constraint_rule(model, t):
             if energyHubData == {}:
-                print("No energy hub data provided, setting EH device capacities to 0.")
                 return getattr(model, f"eh_power_{device_name}")[t] == 0
             else:
                 return getattr(model, f"eh_power_{device_name}")[t] <= energyHubData["capacities"][device_name]["cap"] * 1000  # kW to W
@@ -543,15 +541,22 @@ def build_model(model, data, cluster):
     ################################################################################
 
     def eh_hp_conversion_rule(model, t):
-        COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][cluster][t]
-        return model.eh_heat_HP[t] == model.eh_power_HP[t] * COP_HP_eh
+        if energyHubData == {}:
+            return model.eh_heat_HP[t] == 0
+        else:
+            COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][cluster][t]
+            return model.eh_heat_HP[t] == model.eh_power_HP[t] * COP_HP_eh
+
 
     def eh_eb_conversion_rule(model, t):
         return model.eh_heat_EB[t] == model.eh_power_EB[t] * central_device_data["EB"]["eta_th"]
 
     def eh_cc_conversion_rule(model, t):
-        COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][cluster][t]
-        return model.eh_cool_CC[t] == model.eh_power_CC[t] * COP_CC_eh
+        if energyHubData == {}:
+            return model.eh_cool_CC[t] == 0
+        else:
+            COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][cluster][t]
+            return model.eh_cool_CC[t] == model.eh_power_CC[t] * COP_CC_eh
     
     def eh_ac_conversion_rule(model, t):
         return model.eh_cool_AC[t] == model.eh_heat_AC[t] * central_device_data["AC"]["eta_th"]
@@ -837,7 +842,7 @@ def build_model(model, data, cluster):
             soc_prev = model.soc_dom["TES", n, t - 1]
 
         return model.soc_dom["TES", n, t] == soc_prev * param_dec_devs["TES"]["eta_standby"] ** dt + (
-                    model.ch_dom["TES", n, t] * param_dec_devs["TES"]["eta_ch"] * dt - model.dch_dom["TES", n, t] /
+                    model.ch_dom["TES", n, t] * param_dec_devs["TES"]["eta_ch"] - model.dch_dom["TES", n, t] /
                     param_dec_devs["TES"]["eta_ch"]) * dt
 
     def tes_final_soc_rule(model, n):
