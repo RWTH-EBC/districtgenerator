@@ -422,19 +422,19 @@ def build_model(model, data, cluster):
     
     def eh_stc_generation_rule(model, t):
         if energyHubData == {}:
-            return pyo.Constraint.Skip
+            return model.eh_heat_STC[t] == 0
         else:
             return model.eh_heat_STC[t] <= energyHubData["generation"]["STC_cluster"][cluster][t] * 1000
 
     def eh_pv_generation_rule(model, t):
         if energyHubData == {}:
-            return pyo.Constraint.Skip
+            return model.eh_power_PV[t] == 0
         else:
             return model.eh_power_PV[t] <= energyHubData["generation"]["PV_cluster"][cluster][t] * 1000
 
     def eh_wt_generation_rule(model, t):
         if energyHubData == {}:
-            return pyo.Constraint.Skip
+            return model.eh_power_WT[t] == 0
         else:
             return model.eh_power_WT[t] == energyHubData["generation"]["Wind_cluster"][cluster][t] * 1000
 
@@ -639,13 +639,13 @@ def build_model(model, data, cluster):
         if buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
             return model.power_mode["HP55", n, t] == 0
         else:
-            return pyo.Constraint.Skip
+            return pyo.Constraint.Skip # Maybe problems when both rules are skipped?
 
     def hp_mode_constraint_old_rule(model, n, t):
         if buildingData[n]["envelope"].construction_year < 1995 and buildingData[n]["capacities"]["HP"] > 0:
             return model.power_mode["HP35", n, t] == 0
         else:
-            return pyo.Constraint.Skip
+            return pyo.Constraint.Skip # Maybe problems when both rules are skipped?
 
     # Energy conversion heat pump modus 35
     def hp35_conversion_rule(model, n, t):
@@ -773,7 +773,7 @@ def build_model(model, data, cluster):
             return pyo.Constraint.Skip
 
     def ev_charging_rule(model, n, t):
-        """EV can only charge when parked at the building"""
+        """EV can only charge when parked at the building. If not parked, charging power is 0. Otherwise, no constraint."""
         if buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional"}:
             charging_possible = parking_periods[n][t]
             if not charging_possible:
@@ -784,7 +784,7 @@ def build_model(model, data, cluster):
             return pyo.Constraint.Skip
 
     def ev_bi_directional_discharging_rule(model, n, t):
-        """EV can only discharge when parked at the building"""
+        """EV can only discharge when parked at the building. If not parked, discharging power is 0. Otherwise, no constraint."""
         if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
             discharging_possible = parking_periods[n][t]
             if not discharging_possible:
