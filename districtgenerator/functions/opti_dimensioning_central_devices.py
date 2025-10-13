@@ -168,30 +168,29 @@ def build_model(data, devs, param, dem):
                 continue # Area constraints are handled separately and no capacity constraints are needed
             min_cap = devs[dev].get("min_cap")
             max_cap = devs[dev].get("max_cap")
-            if min_cap is not None: model.cap[dev].setlb(min_cap)
-            if max_cap is not None: model.cap[dev].setub(max_cap)
-    
+            if min_cap is not None: model.constraints.add(model.cap[dev] >= min_cap)
+            if max_cap is not None: model.constraints.add(model.cap[dev] <= max_cap)
+
     # Set area constraints for devices that require area as specified in devs
     for dev in model.area_devs:
         if devs[dev]["feasible"]:
             min_area = devs[dev].get("min_area")
             max_area = devs[dev].get("max_area")
-            if min_area is not None: model.area[dev].setlb(min_area)
-            if max_area is not None: model.area[dev].setub(max_area)
-    
+            if min_area is not None: model.constraints.add(model.area[dev] >= min_area)
+            if max_area is not None: model.constraints.add(model.area[dev] <= max_area)
 
     # Set the capacities of the devices if they are feasible
     for d in model.clusters:
         for t in model.time_steps:
             # Add constraints for the device operation based on the device capacity
             for dev in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]: # Heat devices
-                if devs[dev]["feasible"]: model.constraints.add(model.heat[dev, d, t] <= model.cap[dev])
+                model.constraints.add(model.heat[dev, d, t] <= model.cap[dev])
             for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]: # Power devices
-                if devs[dev]["feasible"]: model.constraints.add(model.power[dev, d, t] <= model.cap[dev])
+                model.constraints.add(model.power[dev, d, t] <= model.cap[dev])
             for dev in ["CC", "AC"]: # Cooling devices
-                if devs[dev]["feasible"]: model.constraints.add(model.cool[dev, d, t] <= model.cap[dev])
+                model.constraints.add(model.cool[dev, d, t] <= model.cap[dev])
             for dev in ["SAB"]: # Gas devices
-                if devs[dev]["feasible"]: model.constraints.add(model.gas[dev, d, t] <= model.cap[dev])
+                model.constraints.add(model.gas[dev, d, t] <= model.cap[dev])
 
             # Limitation of power and gas from and to the grid
             model.constraints.add(model.power["from_grid", d, t] <= model.grid_limit_el)
@@ -353,15 +352,14 @@ def build_model(data, devs, param, dem):
 
     for dev in model.storage_devs:
         for day_y in model.year:
-            for t in model.time_steps:
-                if t > 0:
-                    # Energy balance for storage devices: soc(t) = soc(t-1) * (1 - sto_loss)^dt + charge * dt
-                    soc_prev = model.soc[dev, day_y, t - 1]
-                    model.constraints.add(model.soc[dev, day_y, t] == soc_prev * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[dev, model.sigma[day_y], t] * dt)
+            for t in range(1, len(model.time_steps)):
+                # Energy balance for storage devices: soc(t) = soc(t-1) * (1 - sto_loss)^dt + charge * dt
+                soc_prev = model.soc[dev, day_y, t - 1]
+                model.constraints.add(model.soc[dev, day_y, t] == soc_prev * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[dev, model.sigma[day_y], t] * dt)
             if day_y > 0:
                 # For the first time step of each day, the state of charge is based on the previous day's last time step
                 # Equation: soc(t=0) = soc(t=last) * (1 - sto_loss)^dt + charge * dt
-                soc_prev_day = model.soc[dev, day_y - 1, cluster_horizon - 1]
+                soc_prev_day = model.soc[dev, day_y - 1, len(model.time_steps) - 1]
                 model.constraints.add(model.soc[dev, day_y, 0] == soc_prev_day * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[dev, model.sigma[day_y], 0] * dt)
         
         # For the last time step of the last day, the state of charge is based on the first time step of the first day
@@ -430,7 +428,7 @@ def build_model(data, devs, param, dem):
     # Electricity costs and revenues
     model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el"])
     # Conditional capacity costs for electricity
-    if param.get("enable_price_cap_el", True):
+    if param["enable_price_cap_el"]:
         model.constraints.add(model.cap_costs_el == model.grid_limit_el * param["price_cap_el"])
     else:
         model.constraints.add(model.cap_costs_el == 0)
