@@ -106,21 +106,17 @@ class BES:
                     BES["HP"] = 0
 
 
-            # capacity of boiler (BOI, BBOI, OBOI, H2BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
-            if k in ("BOI", "BBOI", "OBOI","H2BOI", "FC", "CHP"):
+            # Capacity of heating systems that can work both as a primary heating system and as a backup system for hybrid heat pump systems
+            if k in ("BOI", "BBOI", "OBOI","H2BOI", "FC", "CHP", "EH"):
+                # As the primary heating system
                 if buildingFeatures["heater"] == k:
                     BES[k] = self.design_load_heating
+
+                # As the backup system in a hybrid heat pump system
                 elif buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == k:
                     BES[k] = (self.design_load_heating - self.bivalent_load_heating)
                 else:
                     BES[k] = 0
-
-            # electric heating (EH) exists if HP exists
-            if k == "EH":
-                if buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == k:
-                    BES["EH"] = (self.design_load_heating - self.bivalent_load_heating)
-                else:
-                    BES["EH"] = 0
 
             # thermal energy storage (TES)
             if k == "TES":
