@@ -697,6 +697,7 @@ class Datahandler:
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
+            building["gmlId"] = result["id"]
             building["user"].occ = result["occ"]
             building["user"].carcharging_ondemand =  result["carcharging_ondemand"]
             building["user"].carprofile = result["carprofile"]
@@ -765,7 +766,7 @@ class Datahandler:
              building["envelope"].bivalent,
              building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'))
-            (building["user"].heat, building["user"].cooling) = self.loadHeatingProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+            (building["user"].heat, building["user"].cooling, building["gmlId"]) = self.loadHeatingProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             print("Load demands of building " + building["unique_name"])
 
@@ -795,10 +796,11 @@ class Datahandler:
                                         path=os.path.join(self.resultPath, 'demands'))
                 #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+                heat, cooling, id = self.loadHeatingProfiles(name=building["unique_name"],
                                                          path=os.path.join(self.resultPath, 'demands'))
                 building["user"].heat = heat
                 building["user"].cooling = cooling
+                building["gmlId"] = id
 
         print("Finished generating demands!")
 
@@ -1074,8 +1076,9 @@ class Datahandler:
         # Load heating and cooling data from their respective Parquet files
         heat = pd.read_parquet(os.path.join(directory_path, 'heating.parquet'), engine='pyarrow')['heating'].to_numpy()
         cooling = pd.read_parquet(os.path.join(directory_path, 'cooling.parquet'), engine='pyarrow')['cooling'].to_numpy()
+        id = pd.read_parquet(os.path.join(directory_path, 'id.parquet'), engine='pyarrow')['gmlId'].to_numpy()
 
-        return heat, cooling
+        return heat, cooling, id
 
     def designDecentralDevices(self, saveGenerationProfiles=True, pv_standard=True):
         """
@@ -1592,6 +1595,7 @@ def generate_demands_worker_wrapper(args):
         'carprofile': building["user"].carprofile,
         "ev_capacity": building["user"].ev_capacity,
         'gains': building["user"].gains,
+        'id': building["gmlId"],
         "nb_units": building["user"].nb_units,
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
