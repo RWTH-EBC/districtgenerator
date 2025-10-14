@@ -24,6 +24,12 @@
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   },
   {
+    "name": "district_area",
+    "value": 5,
+    "unit": "ha",
+    "description": "Area of the district"
+  },
+  {
     "name": "zip",
     "value": "52064",
     "unit": "-",

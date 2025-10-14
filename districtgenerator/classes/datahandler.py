@@ -706,8 +706,7 @@ class Datahandler:
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
 
-        # Todo: make a mix of central and decentral buildings possible
-        if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
+        if any(building["buildingFeatures"]["heater"] == "heat_grid" for building in self.district):
             centralEnergySupply = True
             self.designDevicesComplete(saveGenerationProfiles=True)
         else:
@@ -818,7 +817,7 @@ class Datahandler:
         gains = load_sheet_to_numpy(workbook, 'Internal Gains')
 
         # EV presence check from scenario row
-        has_ev = int(self.district[idx]["buildingFeatures"]["EV"]) != 0
+        has_ev = self.district[idx]["buildingFeatures"]["EV"] != 0
         if has_ev:
             carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging')
             carprofile = load_sheet_to_numpy(workbook, 'EV_demand')
