@@ -994,7 +994,7 @@ class Datahandler:
         # Create DataFrames
         cooling_df = pd.DataFrame(cooling, columns=['cooling'])
         heating_df = pd.DataFrame(heat, columns=['heating'])
-        id_df = pd.DataFrame(gmlId, columns=['gmlId'])
+        id_df = pd.DataFrame(gmlId, columns=['gmlId'])[0] #todo?
 
         # Define file paths for each DataFrame
         cooling_file = os.path.join(directory_path, 'cooling.parquet')
