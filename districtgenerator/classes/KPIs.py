@@ -307,6 +307,8 @@ class KPIs:
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
+            capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
+            capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
             capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
             capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
             capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
@@ -314,10 +316,10 @@ class KPIs:
             capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
 
-        calc_annual_investment = {dev: 0 for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        calc_annual_investment = {dev: 0 for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]}
 
         for n in range(len(district)):
-            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
+            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]:
                 try:
                     if counts.get(dev, 0) > 0:
                         calc_annual_investment[dev] += self.calc_annual_cost_device(
@@ -330,7 +332,7 @@ class KPIs:
 
         self.annual_fixed_costs_decentral = sum(
             calc_annual_investment[dev]  # already summed for all districts
-            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]
+            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
         )
 
         try:
@@ -397,12 +399,21 @@ class KPIs:
 
         # Total investment costs
         inv = dev["inv_var"] * cap
-        # Annual investment costs
+        # Annualized investment costs
         c_inv= inv * ann_factor
-        # Operation and maintenance costs
-        c_om = dev["cost_om"] * inv
+        
+        c_om = 0 # Operation, maintenance and capacity costs
+
+        if dev.get("cost_om",None) is not None and dev.get("inv_var",0) != 0: # operation and maintenance costs [€/(a*€_invested)]
+            c_om += dev["cost_om"] * inv
+
+        if dev.get("cap_fee",None) is not None : # if a Capacity fee exists [€/(kW*a)]
+            c_om += dev["cap_fee"] * cap        
+            
         # Total annual cost
         c_total = c_inv + c_om
+
+
 
         return c_total
 

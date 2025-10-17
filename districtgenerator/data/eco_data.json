@@ -42,6 +42,12 @@
         "description" : "Oil price."
     },
     {
+        "name": "price_district_heat",
+        "value": 0.07,
+        "unit": "€/kWh",
+        "description" : "District heating price."
+    },
+    {
         "name": "co2_el_grid",
         "value": 0.363,
         "unit": "kg/kWh",
@@ -76,6 +82,12 @@
         "value": 0.266,
         "unit": "kg/kWh",
         "description" : "CO2 emissions by burning oil."
+    },
+    {
+        "name": "co2_district_heat",
+        "value": 0.2,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions for district heating."
     }
 
 ]

@@ -196,7 +196,8 @@ def build_model(model, data, cluster):
     model.biomass_dom = pyo.Var(model.ecs_biomass, model.n, model.t, within=pyo.NonNegativeReals, doc="Biomass to/from domestic devices")
     model.hydrogen_dom = pyo.Var(model.ecs_hydrogen, model.n, model.t, within=pyo.NonNegativeReals, doc="Hydrogen to/from domestic devices")
     model.oil_dom = pyo.Var(model.ecs_oil, model.n, model.t, within=pyo.NonNegativeReals, doc="Oil to/from domestic devices")
-
+    model.dh_heat_supply = pyo.Var(model.n, model.t, within=pyo.NonNegativeReals, doc="Heat supplied by the district heating network to the buildings") # Heat supplied by district heating network
+    
     # Heat pump modi
     model.power_mode = pyo.Var(model.hp_modi, model.n, model.t, within=pyo.NonNegativeReals)
     model.heat_mode = pyo.Var(model.hp_modi, model.n, model.t, within=pyo.NonNegativeReals)
@@ -326,6 +327,7 @@ def build_model(model, data, cluster):
     model.power_biomass_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_oil_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_waste_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
+    model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
     # total energy amounts taken from grid
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
@@ -335,6 +337,7 @@ def build_model(model, data, cluster):
     model.total_biomass_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_waste_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_oil_used = pyo.Var(within=pyo.NonNegativeReals)
+    model.total_district_heat_used = pyo.Var(within=pyo.NonNegativeReals)
 
     # daily peak
     model.daily_peak = pyo.Var(model.days, within=pyo.Reals)
@@ -508,12 +511,18 @@ def build_model(model, data, cluster):
 
     def pv_capacity_rule(model, n, t):  # PV generation below or equal to potential pv generation (Allows curtailment of PV)
         return model.power_dom["PV", n, t] <= PV_gen[n][t]
-
+    
+    # heat from local heat grid
+    def heat_grid_capacity_rule(model, n, t):
+        if buildingData[n]["capacities"]["heat_grid"] == 1: # no limit on the amount of heat taken from local heat grid
+            return pyo.Constraint.Skip
+        else:
+            return model.heat_dom["heat_grid", n, t] == 0 # if no local heat grid connection, no heat can be used
 
     # Aplication of the constraints for each device
 
     # Heat generating devices
-    for device in ["HP", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "FC", "EH"]: # Devices which capacity is defined by thermal capacity
+    for device in ["HP", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "FC", "EH", "DH"]: # Devices which capacity is defined by thermal capacity
         constraint_rule = create_dom_heat_capacity_constraint(device)
         setattr(model, f"heat_cap_{device}", pyo.Constraint(model.n, model.t, rule=constraint_rule))
     
@@ -535,7 +544,7 @@ def build_model(model, data, cluster):
 
     model.stc_cap = pyo.Constraint(model.n, model.t, rule=stc_capacity_rule, doc="Solar thermal collector heat generation limit")
     model.pv_capacity = pyo.Constraint(model.n, model.t, rule=pv_capacity_rule, doc="PV electrical generation limit")    
-
+    model.heat_grid_capacity = pyo.Constraint(model.n, model.t, rule=heat_grid_capacity_rule, doc="Local heat grid capacity constraint")
     ################################################################################
     # Energy Conversion for Energyhub devices
     ################################################################################
@@ -683,7 +692,11 @@ def build_model(model, data, cluster):
     # hydrogen boiler
     def h2boi_conversion_rule(model, n, t):
         return model.heat_dom["H2BOI", n, t] == param_dec_devs["H2BOI"]["eta_th"] * model.hydrogen_dom["H2BOI", n, t]
-
+    
+    # district heating
+    def dh_conversion_rule(model, n, t):
+        return model.heat_dom["DH", n, t] == model.dh_heat_supply[n, t] * param_dec_devs["DH"]["eta_th"]
+            
     # Fuel Cell
     def fc_building_heat_conversion_rule(model, n, t):
         return model.heat_dom["FC", n, t] == param_dec_devs["FC"]["eta_th"] * model.hydrogen_dom["FC", n, t]
@@ -709,10 +722,11 @@ def build_model(model, data, cluster):
     model.bboi_conversion = pyo.Constraint(model.n, model.t, rule=bboi_conversion_rule, doc="Biomass boiler conversion: biomass to heat with thermal efficiency")
     model.oboi_conversion = pyo.Constraint(model.n, model.t, rule=oboi_conversion_rule, doc="Oil boiler conversion: oil to heat with thermal efficiency")
     model.h2boi_conversion = pyo.Constraint(model.n, model.t, rule=h2boi_conversion_rule, doc="Hydrogen boiler conversion: hydrogen to heat with thermal efficiency")
+    model.dh_conversion = pyo.Constraint(model.n, model.t, rule=dh_conversion_rule, doc="District heating conversion: district heat to usable heat with thermal efficiency")
     model.fc_building_heat_conversion = pyo.Constraint(model.n, model.t, rule=fc_building_heat_conversion_rule, doc="Fuel cell thermal conversion: hydrogen to waste heat with thermal efficiency")
     model.fc_building_power_conversion = pyo.Constraint(model.n, model.t, rule=fc_building_power_conversion_rule, doc="Fuel cell electrical conversion: hydrogen to electricity with electrical efficiency")
     model.cc_building_conversion = pyo.Constraint(model.n, model.t, rule=cc_building_conversion_rule, doc="Compression chiller conversion: electricity to cooling with temperature-dependent COP")
-   
+
     ################################################################################
     # %% EV CONSTRAINTS
     ################################################################################
@@ -983,7 +997,8 @@ def build_model(model, data, cluster):
         """Heating demand must be met by heat producing devices and/or heat grid"""
         return (model.heat_dom["CHP", n, t] + model.heat_dom["HP", n, t] + model.heat_dom["BOI", n, t] + model.heat_dom["BBOI", n, t]
                 + model.heat_dom["OBOI", n, t] + model.heat_dom["H2BOI", n, t] + model.heat_dom["EH", n, t] + model.heat_dom["STC", n, t]
-                + model.heat_dom["FC", n, t] + model.dch_dom["TES", n, t] + model.heat_dom["heat_grid", n, t]) == model.heat_dom["Heating_dem", n, t] + model.heat_dom["DHW_dem", n, t] + model.ch_dom["TES", n, t]
+                + model.heat_dom["FC", n, t] + model.dch_dom["TES", n, t] + model.heat_dom["heat_grid", n, t] + model.heat_dom["DH", n, t]
+                ) == model.heat_dom["Heating_dem", n, t] + model.heat_dom["DHW_dem", n, t] + model.ch_dom["TES", n, t]
 
     # Cooling balance
     def cooling_balance_rule(model, n, t):
@@ -1098,11 +1113,15 @@ def build_model(model, data, cluster):
     def neighborhood_waste_balance_rule(model, t):
         return model.power_waste_import[t] == model.eh_waste_import[t]  # Kein Waste-Export
     
+    def neighborhood_district_heat_rule(model, t):
+        return model.power_district_heating_import[t] == sum(model.dh_heat_supply[n, t] for n in model.n)
+    
     model.neighborhood_gas_balance = pyo.Constraint(model.t, rule=neighborhood_gas_balance_rule, doc="Gas_balance_neighborhood")
     model.neighborhood_biomass_balance = pyo.Constraint(model.t, rule=neighborhood_biomass_balance_rule, doc="Biomass_balance_neighborhood")
     model.neighborhood_hydrogen_balance = pyo.Constraint(model.t, rule=neighborhood_hydrogen_balance_rule, doc="Hydrogen_balance_neighborhood")
     model.neighborhood_oil_balance = pyo.Constraint(model.t, rule=neighborhood_oil_balance_rule, doc="Oil_balance_neighborhood")
     model.neighborhood_waste_balance = pyo.Constraint(model.t, rule=neighborhood_waste_balance_rule, doc="Waste_balance_neighborhood")
+    model.neighborhood_district_heat = pyo.Constraint(model.t, rule=neighborhood_district_heat_rule, doc="District_heat_balance_neighborhood")
 
     ################################################################################
     # %% Summation of energy sources
@@ -1129,6 +1148,9 @@ def build_model(model, data, cluster):
     def total_oil_used_rule(model):
         return model.total_oil_used == dt * sum(model.power_oil_import[t] for t in model.t) / 1000
     
+    def total_district_heat_used_rule(model):
+        return model.total_district_heat_used == dt * sum(model.power_district_heating_import[t] for t in model.t) / 1000
+    
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
     model.from_grid_total_el_constraint = pyo.Constraint(rule=from_grid_total_el_rule, doc="from_grid_total_el")
     model.to_grid_total_el_constraint = pyo.Constraint(rule=to_grid_total_el_rule, doc="to_grid_total_el")
@@ -1136,6 +1158,7 @@ def build_model(model, data, cluster):
     model.total_biomass_used_constraint = pyo.Constraint(rule=total_biomass_used_rule, doc="total_biomass_used")
     model.total_waste_used_constraint = pyo.Constraint(rule=total_waste_used_rule, doc="total_waste_used")
     model.total_oil_used_constraint = pyo.Constraint(rule=total_oil_used_rule, doc="total_oil_used")
+    model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
 
     ################################################################################
     # Daily Peak Calculation
@@ -1205,6 +1228,7 @@ def build_model(model, data, cluster):
                 + model.total_biomass_used * ecoData["price_biomass"]
                 + model.total_waste_used * ecoData["price_waste"]
                 + model.total_oil_used * ecoData["price_oil"]
+                + model.total_district_heat_used * ecoData["price_district_heat"]
                 )
 
     # Emissions
@@ -1215,6 +1239,7 @@ def build_model(model, data, cluster):
                 + model.total_biomass_used * ecoData["co2_biom"]
                 + model.total_waste_used * ecoData["co2_waste"]
                 + model.total_oil_used * ecoData["co2_oil"]
+                + model.total_district_heat_used * ecoData["co2_district_heat"]
                 )
 
     # Select objective
@@ -1410,6 +1435,7 @@ def solve_model_and_extract_results(model, data):
     results_dict["total_biomass_used"] = pyo.value(model.total_biomass_used)
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
     results_dict["total_waste_used"] = pyo.value(model.total_waste_used)
+    results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
 
 
     # energy imports and exports per time step in W
@@ -1422,6 +1448,7 @@ def solve_model_and_extract_results(model, data):
     results_dict["P_biomass_total"] = []
     results_dict["P_oil_total"] = []
     results_dict["P_waste_total"] = []
+    results_dict["P_district_heat_total"] = []
 
     for t in time_steps:
         results_dict["P_dem_total"].append(round(pyo.value(model.residual_power[t]), 0))
@@ -1433,6 +1460,7 @@ def solve_model_and_extract_results(model, data):
         results_dict["P_biomass_total"].append(round(pyo.value(model.power_biomass_import[t]), 0))
         results_dict["P_oil_total"].append(round(pyo.value(model.power_oil_import[t]), 0))
         results_dict["P_waste_total"].append(round(pyo.value(model.power_waste_import[t]), 0))
+        results_dict["P_district_heat_total"].append(round(pyo.value(model.power_district_heating_import[t]), 0))
 
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)

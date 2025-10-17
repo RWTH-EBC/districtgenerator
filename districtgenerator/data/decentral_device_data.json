@@ -30,7 +30,6 @@
     }
   ]
   },
-
   {
   "device": "heat pump" ,
   "abbreviation": "HP" ,
@@ -237,6 +236,37 @@
   ]
   },
   {
+  "device": "district heating" ,
+  "abbreviation": "DH" ,
+  "description": "district heating connection point." ,
+  "specifications": [
+    {
+      "name": "eta_th",
+      "value": 1.0,
+      "unit": "-",
+      "description": "Thermal efficiency."
+    },
+    {
+      "name": "life_time",
+      "value": 30,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 0,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cap_fee",
+      "value": 50,
+      "unit": "€/(year*kW)",
+      "description": "price payed for the connection to the district heating network."
+    }
+  ]
+  },
+  {
   "device": "fuel cell" ,
   "abbreviation": "FC" ,
   "description": "hydrogen based fuel cell." ,
@@ -252,6 +282,24 @@
       "value": 0.39 ,
       "unit": "-" ,
       "description": "Electrical efficiency."
+    },
+    {
+      "name": "life_time",
+      "value": 20,
+      "unit": "years",
+      "description": "Maximum life time."
+    },
+    {
+      "name": "inv_var",
+      "value": 390,
+      "unit": "€/kW",
+      "description": ""
+    },
+    {
+      "name": "cost_om",
+      "value": 0.03,
+      "unit": "1/year (fraction of inv_var)",
+      "description": ""
     }
   ]
   },

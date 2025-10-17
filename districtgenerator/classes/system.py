@@ -106,8 +106,8 @@ class BES:
                     BES["HP"] = 0
 
 
-            # Capacity of heating systems that can work both as a primary heating system and as a backup system for hybrid heat pump systems
-            if k in ("BOI", "BBOI", "OBOI","H2BOI", "FC", "CHP", "EH"):
+            # Capacity of heating systems other than heat pumps
+            if k in ("BOI", "BBOI", "OBOI","H2BOI", "FC", "CHP", "EH", "DH"):
                 # As the primary heating system
                 if buildingFeatures["heater"] == k:
                     BES[k] = self.design_load_heating
