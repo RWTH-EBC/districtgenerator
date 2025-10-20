@@ -149,6 +149,7 @@ def calc_costs(data):
 
     # Total Network Costs
     data.heat_grid_data["costs"] = C_heating_network + C_cooling_network + C_substations # €
+    data.heat_grid_data["Wärmeliniendichte"] = linear_heat_density_dist # GJ/(m*a)
 
     return data
 
