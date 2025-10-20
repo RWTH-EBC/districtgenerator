@@ -820,7 +820,7 @@ class Datahandler:
         gains = load_sheet_to_numpy(workbook, 'Internal Gains')
 
         # EV presence check from scenario row
-        has_ev = int(self.district[idx]["buildingFeatures"]["EV"]) != 0
+        has_ev = self.district[idx]["buildingFeatures"]["EV"] != 0
         if has_ev:
             carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging')
             carprofile = load_sheet_to_numpy(workbook, 'EV_demand')

@@ -483,8 +483,8 @@ def run_opti_central(model, data, cluster):
 
             # Compression chiller
             model.addConstr(cool_dom["CC"][n][t] == power_dom["CC"][n][t] * param_dec_devs["CC"]["grade"]
-                            * (273.15 + 5) / (T_e[t] - 5),
-                                name="CC_energybalance_cooling_" + str(n) + "_" + str(t))
+                            * (273.15 + 5) / max(T_e[t] - 5, 0.1), # prevent division by zero
+                            name="CC_energybalance_cooling_" + str(n) + "_" + str(t))
 
             # Electric heater
             model.addConstr(heat_dom["EH"][n][t] == param_dec_devs["EH"]["eta_th"] * power_dom["EH"][n][t],
