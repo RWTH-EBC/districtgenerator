@@ -994,7 +994,7 @@ class Datahandler:
         # Create DataFrames
         cooling_df = pd.DataFrame(cooling, columns=['cooling'])
         heating_df = pd.DataFrame(heat, columns=['heating'])
-        id_df = pd.DataFrame(gmlId, columns=['gmlId'])[0] #todo?
+        id_df = pd.DataFrame(gmlId, columns=['gmlId'])
 
         # Define file paths for each DataFrame
         cooling_file = os.path.join(directory_path, 'cooling.parquet')
@@ -1595,7 +1595,7 @@ def generate_demands_worker_wrapper(args):
         'carprofile': building["user"].carprofile,
         "ev_capacity": building["user"].ev_capacity,
         'gains': building["user"].gains,
-        'id': building["gmlId"],
+        'id': building['buildingFeatures']["gmlId"],
         "nb_units": building["user"].nb_units,
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
