@@ -490,7 +490,6 @@ class Envelope:
             self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)                  # all windows
 
         elif isinstance(prj, NonResidential):
-            # todo: check this correspondigly
             self.V = prj.volume
 
             self.A = {}  # in m2
@@ -517,7 +516,7 @@ class Envelope:
             self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
             # Area of internal floor equals usable area
-            self.A["opaque"]["intFloor"] = self.A["f"]
+            self.A["opaque"]["intFloor"] = self.A["f"] - self.A["opaque"]["floor"]
             # Area of the highest floor equals area of base plate
             self.A["opaque"]["ceiling"] = self.A["opaque"]["floor"]
             # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)

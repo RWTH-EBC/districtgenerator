@@ -25,10 +25,6 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 
-
-
-
-
 def _area_fraction_aw(envelope) -> float:
     Araum = max(float(getattr(envelope, "Araum_tot", 0.0)), 1e-12)
     Aaw   = float(getattr(envelope, "Aaw_tot", 0.0))
@@ -67,8 +63,6 @@ def _radiative_split_weights(envelope) -> float:
     return aw_eff / total
 
 def build_params_from_envelope(envelope, dt_s: float) -> Dict[str, float]:
-    #####################################################################
-    ###################################################################
     """
     Build the solver parameter dict from an Envelope instance.
 
@@ -132,8 +126,6 @@ def build_params_from_envelope(envelope, dt_s: float) -> Dict[str, float]:
 
 def prepare_gains_from_envelope(envelope,
                                 rad_frac: float = 0.60) -> Dict[str, np.ndarray]:
-    ############################################################################################################
-    ############################################################################################################
     """
       Build 7R2C gains time series:
       - Q_il_kon_I : convective to air [W]  (solar + non-solar)
@@ -334,23 +326,19 @@ def _step5_with_setpoint(params, state5, T_ext, theta_eq, gains_t,
     T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw, Q_HC = sol
 
     # Optional clamp
-    if Q_limit is not None:
-        Qc = float(np.clip(Q_HC, -Q_limit, +Q_limit))
-        if abs(Qc - Q_HC) > 1e-9:
-            # Re-solve with Q_HC fixed
-            A3 = A[:5,:5].copy(); b3 = b[:5].copy()
-            # Move Q terms to RHS
-            b3[0] += sigma[2] * Qc
-            b3[1] += sigma[0] * Qc
-            b3[3] += sigma[1] * Qc
-            T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw = np.linalg.solve(A3, b3)
-            Q_HC = Qc
+    if Q_limit is not None and Q_HC > Q_limit:
+        Qc = float(Q_limit)  # cap only the positive (heating) side
+        # Re-solve with Q_HC fixed
+        A3 = A[:5, :5].copy();
+        b3 = b[:5].copy()
+        # Move Q terms to RHS
+        b3[0] += sigma[2] * Qc
+        b3[1] += sigma[0] * Qc
+        b3[3] += sigma[1] * Qc
+        T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw = np.linalg.solve(A3, b3)
+        Q_HC = Qc
 
     return T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw, Q_HC
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 def simulate_7r2c(envelope,
                   T_ext: np.ndarray,
@@ -491,10 +479,7 @@ dict[str, np.ndarray]
                 T_s_iw=T_s_iw, T_m_iw=T_m_iw,
                 T_s_aw=T_s_aw, T_m_aw=T_m_aw)
 
-def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, holidays):
-    ########################################################################
-    ########################################################################
-    """Replicate your old setpoint logic (residential vs non-residential)."""
+def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, holidays, initial_day: int = 0):
     dt_s = dt_h * 3600.0
     steps_per_day = int(round(86400.0 / dt_s))
     T_heat = np.full(n, float(envelope.T_set_min), dtype=float)
@@ -509,13 +494,13 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
                     T_heat[t] = float(getattr(envelope, "T_set_min_night", envelope.T_set_min - 3.0))
                     T_cool[t] = float(getattr(envelope, "T_set_max_night", envelope.T_set_max + 1.0))
     else:
-        # todo: delete non residential and keep it only in 5R1C
         # Non-residential: night 18:00–05:59, weekends/holidays = free day; disable cooling on free days
         holidays = set(holidays or [])
         for t in range(n):
             day = t // steps_per_day  # day index starting at 0
             hod = (t % steps_per_day) * dt_s / 3600.0
-            is_weekend = (day % 7 in (0, 6))
+            weekday = (int(initial_day) + int(day)) % 7  # 0=Mon,...,6=Sun
+            is_weekend = (weekday in (5, 6))
             is_holiday = (day in holidays)
             working_day = (not is_weekend) and (not is_holiday)
 
@@ -531,7 +516,6 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
 
     return T_heat, T_cool
 
-
 def _map_states_for_legacy(envelope, T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw):
     C1IW = float(getattr(envelope, "C1IW", 0.0))
     C1AW = float(getattr(envelope, "C1AW", 0.0))
@@ -544,17 +528,22 @@ def _map_states_for_legacy(envelope, T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw):
     return T_m, T_i, T_s
 
 
-def calc(envelope, T_e, holidays, dt, building_type):
+def calc(envelope, T_e, holidays, dt, initial_day, building_type):
     """
-    Drop-in replacement for old 5R1C calc(...).
     Returns (Q_H, Q_C, T_op, T_m, T_i, T_s).
+
+    Parameters
+    ----------
+    initial_day : int
+        Day-of-week index for the first time step (0=Monday, …, 6=Sunday).
     """
     T_e = np.asarray(T_e, dtype=float)
     n = len(T_e)
-    # Build setpoints like the old logic (no night setback branch)
+    # Build setpoints like the old logic (no night setback branch), honoring initial_day
     T_heat, T_cool = _build_setpoints_arrays(
         envelope=envelope, n=n, dt_h=dt,
-        building_type=building_type, night_setback=False, holidays=holidays
+        building_type=building_type, night_setback=False, holidays=holidays,
+        initial_day=initial_day
     )
     # Use theta_eq
     theta_eq = envelope.theta_eq_tot
@@ -577,17 +566,22 @@ def calc(envelope, T_e, holidays, dt, building_type):
     return (out["Q_H"], out["Q_C"], out["T_op"], T_m, T_i, T_s)
 
 
-def calc_night_setback(envelope, T_e, holidays, dt, building_type):
+def calc_night_setback(envelope, T_e, holidays, dt, initial_day, building_type):
     """
-    Drop-in replacement for old 5R1C calc_night_setback(...).
     Returns (Q_H, Q_C, T_op, T_m, T_i, T_s).
+
+    Parameters
+    ----------
+    initial_day : int
+        Day-of-week index for the first time step (0=Monday, …, 6=Sunday).
     """
     T_e = np.asarray(T_e, dtype=float)
     n = len(T_e)
-    # Build setpoints like the old night-setback logic
+    # Build setpoints like the old night-setback logic, honoring initial_day
     T_heat, T_cool = _build_setpoints_arrays(
         envelope=envelope, n=n, dt_h=dt,
-        building_type=building_type, night_setback=True, holidays=holidays
+        building_type=building_type, night_setback=True, holidays=holidays,
+        initial_day=initial_day
     )
     theta_eq = getattr(envelope, "theta_eq_tot", None)
     out = simulate_7r2c(

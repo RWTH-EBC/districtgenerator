@@ -10,15 +10,15 @@ def heating_network(data):
     timeData = data.time
     dt = timeData["timeResolution"] / timeData["dataResolution"]
 
+    heating = np.zeros(len(data.district[0]["user"].heat))
+    cooling = np.zeros(len(data.district[0]["user"].cooling))
+    dhw = np.zeros(len(data.district[0]["user"].dhw))
+    generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
+
     # LOAD DEMANDS
     for b in range(len(data.district)):
-        if b == 0:
-            heating = data.district[b]["user"].heat / 1000  # kW
-            cooling = data.district[b]["user"].cooling / 1000  # kW
-            dhw = data.district[b]["user"].dhw / 1000  # kW
-            generationSTC = data.district[b]["generationSTC"] / 1000  # kW
-
-        else:
+        # Only buildings connected to the heat grid can be supplied by it
+        if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
             heating += data.district[b]["user"].heat / 1000  # kW
             cooling += data.district[b]["user"].cooling / 1000  # kW
             dhw += data.district[b]["user"].dhw / 1000  # kW
@@ -51,18 +51,20 @@ def calc_costs(data):
     Source:
     - Luis Sánchez-García et al. (2023), "Understanding effective width for district heating," Energy journal.
     """
+    # Total Land Area (AL) in hectares
+    AL = data.site["district_area"]  # unit: ha
 
-    FAR = data.heat_grid_data["FAR"]["value"]  # Floor area ratio (German: Geschossflächenzahl)
+    # Number of buildings connected to the network
+    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
+    number_of_buildings = len(buildings_connected)
 
     # Calculate Total Building Floor Area
-    total_area = 0
-    for building in data.district:
-        total_area += building["buildingFeatures"].area
+    total_building_area = 0 # unit: m²
+    for building in buildings_connected:
+        total_building_area += building["buildingFeatures"].area
 
-    # Calculate Land Area (AL) in hectares
-    AL = total_area / FAR / 10000 # ha
 
-    number_of_buildings = len(data.district)
+    calculated_FAR = total_building_area / (AL * 10000)  # Floor Area Ratio (FAR) (deutsch: Geschossflächenzahl)
 
     # G represents the inequality of building distribution.
     # G = 0 assumes perfectly even distribution of buildings.
@@ -142,7 +144,8 @@ def calc_costs(data):
 
     # Substation Costs
     C_substations = 0
-    for building in data.district:
+
+    for building in buildings_connected:
         substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
         substation_costs = substation_capacity * data.heat_grid_data["C_subst"]["value"]
         C_substations += substation_costs

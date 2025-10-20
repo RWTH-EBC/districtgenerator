@@ -25,13 +25,14 @@
         "name": "enable_cap_limit_el",
         "value": false,
         "unit": "-",
-        "description" : "Consider capacity of grid connection."
+        "description": "Consider a capacity limit on the energy hub’s electrical connection to the local electricity grid."
+
     },
     {
         "name": "cap_limit_el",
         "value": 100000,
         "unit": "kW",
-        "description" : "Capacity of grid connection."
+        "description": "Capacity of the energy hub’s electrical connection to the local electricity grid."
     },
     {
         "name": "enable_supply_limit_el",

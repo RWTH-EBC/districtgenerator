@@ -656,51 +656,51 @@ class Profiles:
         """
         personGain = 70.0  # [Watt]
         lightGain = 0.80
-        appGain = 0.80
+        if self.building == "GS":
+            appGain = 0.25
+        else:
+            appGain = 0.80
 
         gains_persons = self.occ_profile_building * personGain
         gains_others = self.light_load * lightGain + self.app_load * appGain
 
         return gains_persons, gains_others
 
-
     def generate_ev_profile(self, building, building_devices_data, holidays):
         """
-            Generate daily EV charging demand (distinguishing between workdays and non-workdays) and return an annual load curve.
+            Generate daily EV charging demand and ICE fuel consumption profiles (distinguishing between workdays and non-workdays).
 
             Returns
             -------
-            car_loadcurve : np.array
-                EV electricity demand curve (in W) for nb_days * (86400 / time_resolution) timesteps.
-            """
+            all_EV_cars_demand_total : np.array
+                Total EV electricity demand curve (in Wh).
+            on_demand_all_EV_cars_charging : np.array
+                Total EV charging power profile (in W).
+            ev_capacity : list
+                EV battery capacities (Wh).
+            ice_fuel_profile : np.array
+                Fuel consumption of gasoline cars (in liters per timestep).
+        """
 
         if self.building in {"SFH", "TH", "MFH", "AB"}:
             occ_profile = self.occ_profile
         elif self.building in {"OB"}:
             occ_profile = self.occ_profile_building
 
-        # Calculate the number of timesteps per day
         steps_per_day = int(len(occ_profile) / self.nb_days)
         total_steps = int(len(occ_profile))
         dt = self.time_resolution / (60 * 60)
 
-        # All cars demand and charging profiles
-        all_cars_demand_total = np.zeros(total_steps)
-        on_demand_all_cars_charging = np.zeros(total_steps)
-
-        # EV battery capacities
+        # Initialize totals
+        all_EV_cars_demand_total = np.zeros(total_steps)
+        on_demand_all_EV_cars_charging = np.zeros(total_steps)
         ev_capacity = []
+        ice_fuel_profile = np.zeros(total_steps)
 
         # Define the possible total driving distances per day (in km)
         # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
         # Table A A10.2
-        distance_intervals = [(0, 5),  # 0-5 km
-                            (5, 10),
-                            (10, 20),
-                            (20, 30),
-                            (30, 50),
-                            (50, 100),
-                            (100, 200)] #Assumption: No use beyond 200 km
+        distance_intervals = [(0, 5), (5, 10), (10, 20), (20, 30), (30, 50), (50, 100), (100, 200)] # 0-5 km; Assumption: No use beyond 200 km
 
         # Define the corresponding probabilities for each distance
         weekday_distance_probs = np.array([0.08, 0.11, 0.19, 0.14, 0.20, 0.19, 0.06])
@@ -710,11 +710,7 @@ class Profiles:
 
         # Define the possible one-way driving distances to work per day (in km) (not including the return trip)
         # https://www.destatis.de/DE/Themen/Arbeit/Arbeitsmarkt/Erwerbstaetigkeit/Tabellen/pendler1.html
-        distance_work = [(0, 5),  # 0-5 km
-                         (5, 10),
-                         (10, 25),
-                         (25, 50)]
-
+        distance_work = [(0, 5), (5, 10), (10, 25), (25, 50)]       # 0-5 km
         distance_work_probs = np.array([26.6, 21.8, 29.1, 14.1])
         distance_work_probs /= distance_work_probs.sum()
 
@@ -764,20 +760,33 @@ class Profiles:
 
             elif self.building in {"OB"}:
                 # https://www.destatis.de/DE/Themen/Arbeit/Arbeitsmarkt/Erwerbstaetigkeit/Tabellen/pendler1.html
-                nb_ev = int(np.round(ev_ratio * number_of_occupancy * 0.68))  # 68% of people commute to work by car.
+                total_car = int(np.round(number_of_occupancy * 0.68))        # 68% of people commute to work by car.
 
-            return nb_ev
+                nb_ev = int(np.round(ev_ratio * number_of_occupancy * 0.68)) # 68% of people commute to work by car.
 
-        # generate number of EV
-        number_of_ev = generate_nb_ev(max(occ_profile))
+            return nb_ev, total_car
 
+        number_of_ev, total_cars = generate_nb_ev(max(occ_profile))
+        number_of_ice = total_cars - number_of_ev
+        denom = max(total_cars, 1) # avoid zero division if somehow total_cars==0
+
+        # --- Residential Buildings ---
         if self.building in {"SFH", "TH", "MFH", "AB"}:
-            # Randomly select a segment based on probabilities
+
+            # --- EV CARS ---
             for car in range(number_of_ev):
                 segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
                 # Limit random values to within ±1 standard deviation to avoid extreme outliers.
-                consumption_per_km = np.clip(np.random.normal(segment_data["energy_mean"], segment_data["energy_std"]), segment_data["energy_mean"] - segment_data["energy_std"], segment_data["energy_mean"] + segment_data["energy_std"])
-                battery_capacity = float(1000 * np.clip(np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]), segment_data["battery_mean"] - segment_data["battery_std"], segment_data["battery_mean"] + segment_data["battery_std"]))   # Wh
+                consumption_per_km = np.clip(
+                    np.random.normal(segment_data["energy_mean_Wh_per_km"], segment_data["energy_std_Wh_per_km"]),
+                    segment_data["energy_mean_Wh_per_km"] - segment_data["energy_std_Wh_per_km"],
+                    segment_data["energy_mean_Wh_per_km"] + segment_data["energy_std_Wh_per_km"]
+                )
+                battery_capacity = float(1000 * np.clip(
+                    np.random.normal(segment_data["battery_mean_kWh"], segment_data["battery_std_kWh"]),
+                    segment_data["battery_mean_kWh"] - segment_data["battery_std_kWh"],
+                    segment_data["battery_mean_kWh"] + segment_data["battery_std_kWh"]
+                )) # Wh
                 ev_capacity.append(battery_capacity)
 
                 # Initialize the EV's demand profile (in Wh) over the entire simulation period
@@ -816,86 +825,149 @@ class Profiles:
                     # the prob of not using the car
                     # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
                     # Table 7
-                    if number_of_ev > 0:
-                        prob_car_not_used = (1 - (0.48 / number_of_ev)) ** mobile_person  # 48% is the share of people using a car on a given day
+                    prob_car_not_used = (1 - (0.48 / denom)) ** mobile_person # 48% is the share of people using a car on a given day
 
+                    daily_dist = np.random.uniform(*distance_intervals[np.random.choice(len(distance_intervals), p=distance_probs)]) if np.random.rand() > prob_car_not_used else 0
 
-                        daily_dist = np.random.uniform(*distance_intervals[np.random.choice(len(distance_intervals),
-                                                                                            p=distance_probs)]) if np.random.rand() > prob_car_not_used else 0
+                    # Compute daily charging demand (Wh), capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
+                    # The commuting one-way driving distance to work accounts for 21%/2 of the total daily distance.
+                    # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
+                    # Table 8
+                    consumption = min(daily_dist * consumption_per_km * (1 - 0.105), battery_capacity * 0.9)
+                    daily_demand[car_arrive] = consumption
 
-                        # Compute daily charging demand (Wh), capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
-                        # The commuting one-way driving distance to work accounts for 21%/2 of the total daily distance.
-                        # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-ergebnisbericht.pdf?__blob=publicationFile
-                        # Table 8
-                        consumption = min(daily_dist * consumption_per_km * (1 - 0.105), battery_capacity * 0.9)
-                        daily_demand[car_arrive] = consumption
+                    # Add the day's demand to the EV's overall profile.
+                    ev_demand[start_idx:end_idx] += daily_demand
 
-                        # Add the day's demand to the EV's overall profile.
-                        ev_demand[start_idx:end_idx] += daily_demand
+                # charging profile calculation
+                for t in range(total_steps):
+                    if ev_demand[t] > 0:
 
-                    for t in range(total_steps):
-                        if ev_demand[t] > 0:
+                        # On_demand EVs must begin charging immediately after arrival
+                        max_charging_power = battery_capacity * building_devices_data["EV"]["coeff_ch"]
+                        max_energy_per_step = max_charging_power * building_devices_data["EV"]["eta_ch"] * dt
+                        charging_timesteps = ev_demand[t] / max_energy_per_step
 
-                            # On_demand EVs must begin charging immediately after arrival
-                            max_charging_power = battery_capacity * building_devices_data["EV"]["coeff_ch"]
-                            max_energy_per_step = max_charging_power * building_devices_data["EV"]["eta_ch"] * dt
-                            charging_timesteps = ev_demand[t] / max_energy_per_step
+                        if 0 < charging_timesteps <= 1:
+                            # So the EV is charged in just one timestep
+                            ev_charging_profile[t] = ev_demand[t] / (building_devices_data["EV"]["eta_ch"] * dt)
 
-                            if 0 < charging_timesteps <= 1:
-                                # So the EV is charged in just one timestep
-                                ev_charging_profile[t] = ev_demand[t] / (building_devices_data["EV"]["eta_ch"] * dt)
+                        elif charging_timesteps > 1:
+                            # So the EV is charged in more than one timestep
+                            fullpower_charging_timesteps = int(np.floor(charging_timesteps))
 
-                            elif charging_timesteps > 1:
-                                # So the EV is charged in more than one timestep
-                                fullpower_charging_timesteps = int(np.floor(charging_timesteps))
+                            for tt in range(t, min(t + fullpower_charging_timesteps, total_steps)):
+                                ev_charging_profile[tt] = max_charging_power
 
-                                for tt in range(t, min(t + fullpower_charging_timesteps, total_steps)):
-                                    ev_charging_profile[tt] = max_charging_power
-
-                                # Charge the remaining energy (if any) in the next timestep.
-                                remaining_energy = ev_demand[t] - (fullpower_charging_timesteps * max_energy_per_step)
-                                # Convert remaining_energy back into power
-                                ch_power_last_step = remaining_energy / (building_devices_data["EV"]["eta_ch"] * dt)
-                                # The charging power needed in the last timestep
-                                if t + fullpower_charging_timesteps < total_steps:
-                                    ev_charging_profile[t + fullpower_charging_timesteps] = ch_power_last_step
+                            # Charge the remaining energy (if any) in the next timestep.
+                            remaining_energy = ev_demand[t] - (fullpower_charging_timesteps * max_energy_per_step)
+                            # Convert remaining_energy back into power
+                            ch_power_last_step = remaining_energy / (building_devices_data["EV"]["eta_ch"] * dt)
+                            # The charging power needed in the last timestep
+                            if t + fullpower_charging_timesteps < total_steps:
+                                ev_charging_profile[t + fullpower_charging_timesteps] = ch_power_last_step
 
                 # Accumulate the EV's profiles into the total profiles.
-                all_cars_demand_total += ev_demand
-                on_demand_all_cars_charging += ev_charging_profile
+                all_EV_cars_demand_total += ev_demand
+                on_demand_all_EV_cars_charging += ev_charging_profile
 
+            # --- GASOLINE CARS ---
+            for car in range(number_of_ice):
+                segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
+                fuel_consumption_l_per_100km = segment_data["consumption_gasoline_l_per_100km"]
+
+                for day in range(self.nb_days):
+                    if (day + self.initial_day) % 7 in (5, 6) or day + 1 in holidays:
+                        not_working_day = True
+                    else:
+                        not_working_day = False
+
+                    start_idx = day * steps_per_day
+                    end_idx = (day + 1) * steps_per_day
+                    occ_day = occ_profile[start_idx:end_idx]
+                    nobody_home = np.where(occ_day == 0.0)
+                    distance_probs = not_working_day_probs if not_working_day else weekday_distance_probs
+
+                    mobile_person = max(occ_profile) - min(occ_day)
+
+                    try:
+                        car_arrive = nobody_home[0][-1]
+                    except:
+                        car_arrive = steps_per_day - int(steps_per_day / 4)
+
+                    # Random daily distance
+                    # use TOTAL cars (EV+ICE), not EVs only
+                    prob_car_not_used = (1 - (0.48 / denom)) ** mobile_person
+
+                    daily_dist = np.random.uniform(*distance_intervals[np.random.choice(len(distance_intervals), p=distance_probs)]) if np.random.rand() > prob_car_not_used else 0
+
+                    # Fuel consumption in liters
+                    fuel_used_liters = daily_dist * (fuel_consumption_l_per_100km / 100.0)
+
+                    # Store in fuel profile
+                    ice_fuel_profile[start_idx + car_arrive] += fuel_used_liters
+
+        # --- Non-Residential Buildings ---
         elif self.building in {"OB"}:
+
+            # Helper fuction to nudge the arrival time a little each workday so it’s not always the exact first non-zero occupancy index
+            def jitter_after(idx, steps_per_day, max_delay_steps=1):
+                if idx is None:
+                    return None
+                delay = np.random.randint(0, max_delay_steps + 1)  # 0,1,...,max_delay_steps
+                return min(idx + delay, steps_per_day - 1)
 
             # Only the consumption related to commuting is charged in the workplace.
             # Find the first time index where occ_day is not 0 (i.e., the first person arrives at work)
-            for car_OB in range(number_of_ev):
+            for _ in range(number_of_ev):
                 segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
+
                 # Limit random values to within ±1 standard deviation to avoid extreme outliers.
-                consumption_per_km = np.clip(np.random.normal(segment_data["energy_mean"], segment_data["energy_std"]), segment_data["energy_mean"] - segment_data["energy_std"], segment_data["energy_mean"] + segment_data["energy_std"])
-                battery_capacity = float(1000 * np.clip(np.random.normal(segment_data["battery_mean"], segment_data["battery_std"]), segment_data["battery_mean"] - segment_data["battery_std"], segment_data["battery_mean"] + segment_data["battery_std"]))   # Wh
+                consumption_per_km = np.clip(
+                    np.random.normal(segment_data["energy_mean_Wh_per_km"], segment_data["energy_std_Wh_per_km"]),
+                    segment_data["energy_mean_Wh_per_km"] - segment_data["energy_std_Wh_per_km"],
+                    segment_data["energy_mean_Wh_per_km"] + segment_data["energy_std_Wh_per_km"]
+                )
+                battery_capacity = float(1000 * np.clip(
+                    np.random.normal(segment_data["battery_mean_kWh"], segment_data["battery_std_kWh"]),
+                    segment_data["battery_mean_kWh"] - segment_data["battery_std_kWh"],
+                    segment_data["battery_mean_kWh"] + segment_data["battery_std_kWh"]
+                ))  # Wh
                 ev_capacity.append(battery_capacity)
 
                 # Initialize the EV's demand profile (in Wh) over the entire simulation period
                 ev_demand = np.zeros(total_steps)
                 ev_charging_profile = np.zeros(total_steps)
 
-                dist_OB = np.random.uniform(*distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
-                consumption = min(dist_OB * consumption_per_km, battery_capacity * 0.9)  # Wh; Capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
-
                 for day in range(self.nb_days):
                     # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
-                    if (day + self.initial_day) % 7 not in (5, 6) and (day + 1 not in holidays):
-                        # slice occupancy profile for current day
-                        start_idx = day * steps_per_day
-                        end_idx = (day + 1) * steps_per_day
-                        occ_day = occ_profile[start_idx:end_idx]
+                    if (day + self.initial_day) % 7 in (5, 6) or (day + 1) in holidays:
+                        continue
+
+                    # slice occupancy profile for current day
+                    start_idx = day * steps_per_day
+                    end_idx = (day + 1) * steps_per_day
+                    occ_day = occ_profile[start_idx:end_idx]
+
+                    # If the building is empty all day, skip (no commute / no charging at work)
+                    if not np.any(occ_day != 0.0):
+                        continue
+
+                    base_arrival_idx = np.where(occ_day != 0.0)[0][0]
+                    # Add small random arrival-time jitter
+                    arr_idx = jitter_after(base_arrival_idx, steps_per_day, max_delay_steps=2)
+
+                    # One-way commute distance (sampled once per car)
+                    dist_OB = np.random.uniform(
+                        *distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
+
+                    # Energy to recharge at work (cap at 90% SoC window)
+                    consumption = min(dist_OB * consumption_per_km,
+                                      battery_capacity * 0.9)  # Wh; Capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
+
+                    if arr_idx is not None:
                         daily_demand = np.zeros(steps_per_day)
-                        try:
-                            car_arrive = np.where(occ_day != 0.0)[0][0]
-                        except:
-                            car_arrive = None
-                        daily_demand[car_arrive] = consumption
-                        # Add the day's demand to the EV's overall profile.
+                        daily_demand[arr_idx] = consumption
                         ev_demand[start_idx:end_idx] += daily_demand
 
                 for t in range(total_steps):
@@ -926,7 +998,37 @@ class Profiles:
                                 ev_charging_profile[t + fullpower_charging_timesteps] = ch_power_last_step
 
                 # Accumulate the EV's profiles into the total profiles.
-                all_cars_demand_total += ev_demand
-                on_demand_all_cars_charging += ev_charging_profile
+                all_EV_cars_demand_total += ev_demand
+                on_demand_all_EV_cars_charging += ev_charging_profile
 
-        return all_cars_demand_total, on_demand_all_cars_charging, ev_capacity
+            # --- ICE gasoline cars in offices: log one-way fuel at arrival to work ---
+            for _ in range(number_of_ice):
+                segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
+                fuel_consumption_l_per_100km = segment_data["consumption_gasoline_l_per_100km"]
+
+                for day in range(self.nb_days):
+                    # Workdays only
+                    if (day + self.initial_day) % 7 in (5, 6) or (day + 1) in holidays:
+                        continue
+
+                    start_idx = day * steps_per_day
+                    end_idx = (day + 1) * steps_per_day
+                    occ_day = occ_profile[start_idx:end_idx]
+
+                    # skip if building empty that day
+                    if not np.any(occ_day != 0.0):
+                        continue
+
+                    base_arrival_idx = np.where(occ_day != 0.0)[0][0]
+                    arrive_idx = jitter_after(base_arrival_idx, steps_per_day, max_delay_steps=2)
+
+                    # One-way commute distance (sampled once per car)
+                    dist_OB = np.random.uniform(
+                        *distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
+                    fuel_one_way_l = dist_OB * (fuel_consumption_l_per_100km / 100.0)
+
+                    if arrive_idx is not None:
+                        ice_fuel_profile[start_idx + arrive_idx] += fuel_one_way_l
+
+        return all_EV_cars_demand_total, on_demand_all_EV_cars_charging, ev_capacity, ice_fuel_profile
+

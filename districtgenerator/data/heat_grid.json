@@ -1,9 +1,4 @@
 {
-  "FAR": {
-      "value": 1.17,
-      "unit": "Total gross floor area/ Land area",
-      "description": " Floor area ratio (German: Geschossflächenzahl); Source: Dettmar, J.,et al., 2020. Energetische Stadtraumtypen"
-    },
   "T_hot_heating_network": {
     "value": 80,
     "unit": "°C",

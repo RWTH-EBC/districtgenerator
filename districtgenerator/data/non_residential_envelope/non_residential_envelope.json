@@ -40,7 +40,7 @@
    "GS": {
     "building_age_group": {
       "1860 - 1978": {
-        "not retrofitted": { "u_aw": 0.68, "u_fen": 3.70, "u_d_opak": 0.20, "u_ug": 0.29, "g_gl_fen": 0.78 },
+        "not retrofitted": { "u_aw": 1.48, "u_fen": 3.70, "u_d_opak": 0.42, "u_ug": 0.89, "g_gl_fen": 0.78 },
         "partially retrofitted": { "u_aw": 0.27, "u_fen": 1.48, "u_d_opak": 0.20, "u_ug": 0.29, "g_gl_fen": 0.47 },
         "completely retrofitted": { "u_aw": 0.20, "u_fen": 0.90, "u_d_opak": 0.14, "u_ug": 0.25, "g_gl_fen": 0.30 }
       },

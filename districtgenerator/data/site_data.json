@@ -24,9 +24,39 @@
     "description": "Test referece conditions of DWD. Possible entries are Jahr, Somm, Wint."
   },
   {
+    "name": "district_area",
+    "value": 5,
+    "unit": "ha",
+    "description": "Area of the district"
+  },
+  {
     "name": "zip",
     "value": "52064",
     "unit": "-",
     "description": "Zip code of the location."
+  },
+  {
+    "name": "enable_trafoMax_W",
+    "value": false,
+    "unit": "-",
+    "description" : "Consider active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP."
+  },
+  {
+    "name": "trafoMax_W",
+    "value": 500000,
+    "unit": "W",
+    "description": "Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP."
+  },
+  {
+    "name": "enable_buildingMax_W",
+    "value": false,
+    "unit": "-",
+    "description" : "Consider per-building maximum import/export at the building PCC.."
+  },
+  {
+    "name": "buildingMax_W",
+    "value": 50000,
+    "unit": "W",
+    "description": "Per-building maximum import/export at the building PCC."
   }
 ]

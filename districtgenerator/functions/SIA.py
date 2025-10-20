@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
-
+import os
 import pandas as pd
 
 def read_SIA_data():
-
-    data = pd.read_excel('../districtgenerator/data/SIA2024.xlsx', sheet_name='SIA2024', header=1)
+    current_file = os.path.abspath(__file__)
+    districtgenerator_dir = os.path.dirname(os.path.dirname(current_file))
+    sia_xlsx_path = os.path.join(districtgenerator_dir, 'data', 'SIA2024.xlsx')
+    data = pd.read_excel(sia_xlsx_path, sheet_name='SIA2024', header=1)
     df = pd.DataFrame(data, columns=['number', 'Zone_name_GER', 'T_summer', 'T_winter',	'area_room', 'dQ_persons_perA',
                                      't_fullLoad_persons', 'P_vent_perVh', 'P_vent_perA', 'W_per_person',
                                      'Q_domHotWater_perA_year',	'window_wall_ratio', 'wwr_faktor_windowframes',

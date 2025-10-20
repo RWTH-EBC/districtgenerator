@@ -384,7 +384,6 @@ class Envelope:
                             self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
                             self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
-
             comp = "groundfloor"
             # FLOOR: Materials and U-value
             for name, elem in element_bind.items():
@@ -635,7 +634,7 @@ class Envelope:
             self.A["opaque"]["walls"] = sum(self.A["opaque"][d] for d in drct)
 
             # Area of internal floor equals usable area
-            self.A["opaque"]["intFloor"] = self.A["f"]
+            self.A["opaque"]["intFloor"] = self.A["f"] - self.A["opaque"]["groundfloor"]
             # Area of the highest floor equals area of base plate
             self.A["opaque"]["ceiling"] = self.A["opaque"]["groundfloor"]
             # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)

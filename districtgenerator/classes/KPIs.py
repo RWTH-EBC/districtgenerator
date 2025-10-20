@@ -50,6 +50,8 @@ class KPIs:
         self.scf_year = None
         self.annual_fixed_costs_decentral = None
         self.annual_fixed_costs_central = None
+        self.total_ICE_fuel_liters = None
+        self.gasoline_costs = None
         self.totalarea_residential = None
         self.totalarea_non_residential = None
         self.totalheatload = None
@@ -90,6 +92,10 @@ class KPIs:
         self.calculateAutonomy()
         self.calculateCoverFactors(data)
         self.calc_annual_cost_total(data)
+        self.calc_total_areas_and_demands(data)
+        self.calculateOperationCosts(data)
+        self.calculateCO2emissions(data)
+        self.calculateGasolineCosts(data)
 
     def prepareData(self, data):
         """
@@ -293,7 +299,7 @@ class KPIs:
 
         # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
         counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
-        counts["PV"] = scenario['f_PV'].apply(lambda x: 1 if x > 0 else 0).sum()
+        counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
         counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
         counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
@@ -302,8 +308,13 @@ class KPIs:
         for n in range(len(district)):
             capacities[n] = {}
             capacities[n]["BOI"] = district[n]["capacities"]["BOI"] / 1000
+            capacities[n]["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
+            capacities[n]["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
+            capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
+            capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
+            capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
             capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
             capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
             capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
@@ -311,10 +322,10 @@ class KPIs:
             capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
 
-        calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        calc_annual_investment = {dev: 0 for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]}
 
         for n in range(len(district)):
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
+            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]:
                 try:
                     if counts.get(dev, 0) > 0:
                         calc_annual_investment[dev] += self.calc_annual_cost_device(
@@ -327,7 +338,7 @@ class KPIs:
 
         self.annual_fixed_costs_decentral = sum(
             calc_annual_investment[dev]  # already summed for all districts
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]
+            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
         )
 
         try:
@@ -394,10 +405,17 @@ class KPIs:
 
         # Total investment costs
         inv = dev["inv_var"] * cap
-        # Annual investment costs
+        # Annualized investment costs
         c_inv= inv * ann_factor
-        # Operation and maintenance costs
-        c_om = dev["cost_om"] * inv
+
+        c_om = 0 # Operation, maintenance and capacity costs
+
+        if dev.get("cost_om",None) is not None and dev.get("inv_var",0) != 0: # operation and maintenance costs [€/(a*€_invested)]
+            c_om += dev["cost_om"] * inv
+
+        if dev.get("cap_fee",None) is not None : # if a Capacity fee exists [€/(kW*a)]
+            c_om += dev["cap_fee"] * cap
+
         # Total annual cost
         c_total = c_inv + c_om
 
@@ -500,6 +518,7 @@ class KPIs:
         total_electricity_demand = 0
         total_EV_demand = 0
         total_dhw_demand = 0
+        total_ICE_fuel_liters = 0
         sum_electricity_profile = []
         sum_EV_profile = []
         sum_heat_profile = []
@@ -513,8 +532,10 @@ class KPIs:
                 total_number_flats += building["user"].nb_flats
                 for flat in building["user"].nb_occ:
                     total_number_occ += flat
+
             else:
                 total_area_non_residential += building["buildingFeatures"]["area"]
+            total_ICE_fuel_liters += np.sum(building["user"].ice_carprofile)  # liters per timestep summed over year
 
             # sum all building design heat and cooling loads
             total_heat_load += building["envelope"].heatload + building["dhwpower"]  # copied from system.py
@@ -524,14 +545,14 @@ class KPIs:
             total_heating_demand += sum(building["user"].heat)
             total_cooling_demand += sum(building["user"].cooling)
             total_electricity_demand += sum(building["user"].elec)   # w/o EVs and electric-based heaters
-            total_EV_demand += sum(building["user"].carprofile)
+            total_EV_demand += sum(building["user"].EV_carprofile)
             total_dhw_demand += sum(building["user"].dhw)
 
             # sum all building demand profiles
             sum_electricity_profile = [sum(i) for i in zip_longest(
                 sum_electricity_profile, building["user"].elec, fillvalue=0)] # w/o EVs and electric-based heaters
             sum_EV_profile = [sum(i) for i in zip_longest(
-                sum_EV_profile, building["user"].carprofile, fillvalue=0)]
+                sum_EV_profile, building["user"].EV_carprofile, fillvalue=0)]
             sum_heat_profile = [sum(i) for i in zip_longest(
                 sum_heat_profile, building["user"].heat, fillvalue=0)]
             sum_cool_profile = [sum(i) for i in zip_longest(
@@ -555,7 +576,19 @@ class KPIs:
         self.total_dhw_peak = max(sum_dhw_profile)
         self.total_cooling_peak = max(sum_cool_profile)
         self.total_EV_peak = max(sum_EV_profile)
+        self.total_ICE_fuel_liters = float(total_ICE_fuel_liters)
 
+    def calculateGasolineCosts(self, data):
+        """Compute annual gasoline costs (€)"""
+        filePath = os.path.join(data.srcPath, 'data')
+        with open(os.path.join(filePath, 'eco_data.json')) as json_file:
+            jsonData = json.load(json_file)
+        # Fallback to 1.7 if key not present
+        try:
+            price_per_liter = next(item["value"] for item in jsonData if item["name"] == "price_gasoline_liter")
+        except StopIteration:
+            price_per_liter = 1.7
+        self.gasoline_costs = float(self.total_ICE_fuel_liters) * float(price_per_liter)
 
     def calculateAllKPIs(self, data):
         """
@@ -577,6 +610,7 @@ class KPIs:
         self.calculateAutonomy()
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
+        self.calculateGasolineCosts(data)
 
     def create_certificate(self, data, result_path):
         """
@@ -698,7 +732,8 @@ class KPIs:
                                   building["buildingFeatures"]["EV"],
                                   f_TES,
                                   building["buildingFeatures"]["f_BAT"],
-                                  building["buildingFeatures"]["f_PV"],
+                                  building["buildingFeatures"]["f_PV1"],
+                                  building["buildingFeatures"]["f_PV2"],
                                   building["buildingFeatures"]["f_STC"],
                                   building["buildingFeatures"]["gamma_PV"],
                                   building["buildingFeatures"]["ev_charging"]])
@@ -758,7 +793,8 @@ class KPIs:
         #                 BAT:
         #                 f_TES:
         #                 f_BAT:
-        #                 f_PV:
+        #                 f_PV1:
+        #                 f_PV2:
         #                 f_STC:
         #                 gamma_PV:
         #                 ev_charging:
@@ -786,7 +822,8 @@ class KPIs:
         }
         opt_ergebnisse={
                 "CO2-äqui. Emissionen": str(round(sum(self.co2emissions))) + " t/a",
-                "Energiekosten": str(round(self.operationCosts)) + " \u20AC/a",
+                "Energiekosten (ohne ice)": str(round(self.operationCosts)) + " \u20AC/a",
+                "Gasolinekosten": str(round(self.gasoline_costs or 0)) + " \u20AC/a",
                 "Decentral Fixed Costs": str(round(self.annual_fixed_costs_decentral)) + " \u20AC/a",
                 "Central Fixed Costs": str(round(self.annual_fixed_costs_central)) + " \u20AC/a",
                 "Spitzenlast (el.)": str(round(self.peakDemand, 2)) + " kW",
@@ -1134,7 +1171,7 @@ class KPIs:
             certificate.setFont("Helvetica-Bold", 6)
             column_titles = (
             "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung", "Wohnfläche", "Heizung", "EV",
-            "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
+            "fTES", "fBAT", "fPV1", "fPV2", "fSTC", "gammaPV ", "EV Charging")
             for i in range(len(column_titles)):
                 certificate.drawString(54 + table_width * (i / n_columns) + (
                             ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
@@ -1221,7 +1258,7 @@ class KPIs:
                 column_titles = (
                     "Gebäude ID", "Gebäudetyp", "Baujahr", "Sanierung", "Sp-Masse", "N-Absenkung",
                     "Wohnfläche", "Heizung", "EV",
-                    "fTES", "fBAT", "fPV", "fSTC", "gammaPV ", "EV Charging")
+                    "fTES", "fBAT", "fPV1", "fPV2", "fSTC", "gammaPV ", "EV Charging")
                 for i in range(len(column_titles)):
                     certificate.drawString(54 + table_width * (i / n_columns) + (
                                 ((table_width / len(column_titles)) - len(column_titles[i]) * 3.2) / 2), table_top - 11,
@@ -1273,7 +1310,7 @@ class KPIs:
                     continue
 
                 # HP special naming
-                if dev == "HP":
+                if dev in ["HP","GHP","BHP","H2HP","OHP"]:
                     if data.central_device_data["AirHP"]["feasible"]:
                         name = "Air-source Heat Pump"
                     elif data.central_device_data["GroundHP"]["feasible"]:
@@ -1402,11 +1439,14 @@ class KPIs:
             "<b>EV:</b> Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude<br />"
             "<b>fTES:</b> Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage<br />"
             "<b>fBAT:</b> Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV<br />"
-            "<b>fPV:</b> Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen "
+            "<b>fPV1:</b> Anteil der gesamten Dachfläche, der auf Dachseite 1 mit Photovoltaik belegt ist. Dachseite 1 "
+            "ist dabei die Seite, für die der Azimutwinkel gammaPV vergegeben wird (Informationen zu Dachflächen "
             "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
+            "<b>fPV2:</b> Anteil der gesamten Dachfläche, der auf Dachseite 2 mit Photovoltaik belegt ist. Der Azimutwinkel "
+            'von Dachseite 2 wird als 180° zu gammaPV gedreht ("gegenüberliegend") berechnet. <br />'
             "<b>fSTC:</b> Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen "
             "sind den Typgebäuden nach Tabula zu entnehmen)<br />"
-            "<b>gammaPV:</b> Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°<br />"
+            "<b>gammaPV:</b> Azimut = Himmelsausrichtung von Dachseite 1, Ausrichtung nach Süden entspricht 0°<br />"
             "<b>EV Charging:</b> Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als "
             "Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)<br />",
             "Die hier angegebenen Werte basieren auf den rechnerischen Bedarfen auf Nutzerebene. "
@@ -1417,7 +1457,7 @@ class KPIs:
             "<b>Energiebedarfe (MWh):</b> Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der "
             "generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom, Trinkwarmwasser und Elektroautos)<br />"
             "<b>Maximale Leistungen:</b> Maximale Leistungen in kW im Quartier auf Basis der aufsummierten "
-            "Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)<br /><br />",
+            "Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)<br /><br /><br />",
             "Die hier angegebenen Werte wurden nach einer Betriebsoptimierung unter Berücksichtigung aller "
             "definierten Anlagen (Erzeuger wie auch Speicher) im Quartier berechnet.<br />"
             "<b>CO2-äqui. Emissionen:</b> Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten "

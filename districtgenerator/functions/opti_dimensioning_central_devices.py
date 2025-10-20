@@ -1,773 +1,941 @@
 # -*- coding: utf-8 -*-
-
 """
-
 EHDO - ENERGY HUB DESIGN OPTIMIZATION Tool
+Pyomo Version
 
-Developed by:   E.ON Energy Research Center,
-                Institute for Energy Efficient Buildings and Indoor Climate,
-                RWTH Aachen University,
-                Germany
-
-Contact:        Marco Wirtz
-                marco.wirtz@eonerc.rwth-aachen.de
-
+This script is a Pyomo-based translation of the original Gurobi model.
 """
 
-import gurobipy as gp
+import pyomo.environ as pyo
+from pyomo.util.infeasible import log_infeasible_constraints
+import sys
+from io import StringIO
 import numpy as np
 import time
+from datetime import datetime
 import os
-#from optim_app.help_functions import create_excel_file
+import districtgenerator.functions.solver_config as solver_config
 
 
 def run_optim(data, devs, param, dem, result_dict):
+    """
+    Runs the Energy Hub Design Optimization using Pyomo.
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Load model parameters
+    Parameters
+    ----------
+    data : object
+        Contains time series information.
+    devs : dict
+        Contains device-specific parameters and investment data.
+    param : dict
+        Contains economic parameters, prices, and other model settings.
+    dem : dict
+        Contains demand profiles (heat, power, cool).
+    result_dict : dict
+        A dictionary that will be populated with the optimization results.
+
+    Returns
+    -------
+    dict
+        The populated result dictionary, or the original dict if no solution is found.
+    """
     start_time = time.time()
 
-    clusters = range(data.time["clusterNumber"])
+    # Build the model
+    model = build_model(data=data, devs=devs, param=param, dem=dem)
+    model_building_time = time.time() - start_time
+
+    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
+
+    # Solve the model and extract results
+    result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
+                                                  result_dict=result_dict)
+    model_solve_time = time.time() - start_time - model_building_time
+
+    # Total time needed
+    total_time = time.time() - start_time
+
+    # Maybe record the times into a log file
+
+    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
+    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
+    # print(f" Total time needed: {total_time:.2f} seconds.")
+
+    return result_dict
+
+
+def build_model(data, devs, param, dem):
+    model = pyo.ConcreteModel("Energy_Hub_Model")
+
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # 1. Initialize Pyomo Model and Define Sets
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    # Model Parameters
+
     # calculate cluster time horizon
-    clusterHorizon = int((data.time["clusterLength"] / data.time["timeResolution"]))
-    time_steps = range(clusterHorizon)
+    cluster_horizon = int(data.time["clusterLength"] / data.time["timeResolution"])
     dt = data.time["timeResolution"] / data.time["dataResolution"]
-    year = range(52)
+
+    model.clusters = pyo.RangeSet(0, data.time["clusterNumber"] - 1)
+    model.time_steps = pyo.RangeSet(0, cluster_horizon - 1)
+    model.year = pyo.RangeSet(0, 51)  # 52 weeks
 
     # Get sigma function that assigns each time period (day or week) of the year to a design period
-    sigma = param["sigma"]
+    model.sigma = pyo.Param(model.year, initialize=param["sigma"])
 
-    # Create set for devices
-    all_devs = ["PV", "WT", "STC", "WAT",
-                "HP", "EB", "CC", "AC",
-                "CHP", "BOI", "GHP",
-                "BCHP", "BBOI", "WCHP", "WBOI",
-                "ELYZ", "FC", "H2S", "SAB",
-                "TES", "CTES", "BAT", "GS",
-                ]
+    # Create sets for all device types
+    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
+                     "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+                     "CTES", "BAT", "GS"]
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Set up model and create variables
+    gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
+    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
+    heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+    cool_devs_list = ["CC", "AC"]
+    hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
+    biom_devs_list = ["BCHP", "BBOI", "import"]
+    waste_devs_list = ["WCHP", "WBOI", "import"]
+    storage_devs_list = ["TES", "CTES", "BAT", "H2S", "GS"]
+    area_devs_list = ["PV", "STC"]
 
-    # Create a new model
-    model = gp.Model("Energy_hub_model")
+    model.all_devs = pyo.Set(initialize=all_devs_list)
+    model.gas_devs = pyo.Set(initialize=gas_devs_list)
+    model.power_devs = pyo.Set(initialize=power_devs_list)
+    model.heat_devs = pyo.Set(initialize=heat_devs_list)
+    model.cool_devs = pyo.Set(initialize=cool_devs_list)
+    model.hydrogen_devs = pyo.Set(initialize=hydrogen_devs_list)
+    model.biom_devs = pyo.Set(initialize=biom_devs_list)
+    model.waste_devs = pyo.Set(initialize=waste_devs_list)
+    model.storage_devs = pyo.Set(initialize=storage_devs_list)
+    model.area_devs = pyo.Set(initialize=area_devs_list)
 
-    # Device's capacity (i.e. rated power)
-    cap = {}
-    for device in all_devs:
-        cap[device] = model.addVar(vtype="C", name="nominal_capacity_" + str(device))
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # 2. Create Pyomo Variables
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    # Roof area used for PV and solar thermal collector installation
-    area = {}
-    for device in ["PV", "STC"]:
-        area[device] = model.addVar(vtype = "C", name="roof_area_" + str(device))
+    model.cap = pyo.Var(model.all_devs, within=pyo.NonNegativeReals, name="nominal_capacity")
+    model.area = pyo.Var(model.area_devs, within=pyo.NonNegativeReals, name="roof_area")
+    model.gas = pyo.Var(model.gas_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.power = pyo.Var(model.power_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.heat = pyo.Var(model.heat_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.cool = pyo.Var(model.cool_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.hydrogen = pyo.Var(model.hydrogen_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.biom = pyo.Var(model.biom_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.waste = pyo.Var(model.waste_devs, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
+    model.ch = pyo.Var(model.storage_devs, model.clusters, model.time_steps, within=pyo.Reals)
+    model.soc = pyo.Var(model.storage_devs, model.year, model.time_steps, within=pyo.NonNegativeReals)
+    model.inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.c_inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.c_om = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.c_total = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.grid_limit_el = pyo.Var(within=pyo.NonNegativeReals)
+    model.grid_limit_gas = pyo.Var(within=pyo.NonNegativeReals)
+    model.from_el_grid_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.to_el_grid_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.from_gas_grid_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.to_gas_grid_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.biom_import_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.waste_import_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.hydrogen_import_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.rev_feed_in_gas = pyo.Var(within=pyo.NonNegativeReals)
+    model.rev_feed_in_el = pyo.Var(within=pyo.NonNegativeReals)
+    model.supply_costs_el = pyo.Var(within=pyo.NonNegativeReals)
+    model.cap_costs_el = pyo.Var(within=pyo.NonNegativeReals)
+    model.supply_costs_gas = pyo.Var(within=pyo.NonNegativeReals)
+    model.cap_costs_gas = pyo.Var(within=pyo.NonNegativeReals)
+    model.supply_costs_biom = pyo.Var(within=pyo.NonNegativeReals)
+    model.supply_costs_waste = pyo.Var(within=pyo.Reals)
+    model.supply_costs_hydrogen = pyo.Var(within=pyo.NonNegativeReals)
+    model.obj_tac = pyo.Var(within=pyo.Reals)
+    model.obj_co2 = pyo.Var(within=pyo.Reals)
 
-    # Gas flow to/from devices
-    gas = {}
-    for device in ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]:
-        gas[device] = {}
-        for d in clusters:
-            gas[device][d] = {}
-            for t in time_steps:
-                gas[device][d][t] = model.addVar(vtype="C", name="gas_" + device + "_d" + str(d) + "_t" + str(t))
+    ################################################################################
+    # Define maximum Capacity of devices Constraints
+    ################################################################################
+    model.constraints = pyo.ConstraintList()
 
-    # Electric power to/from devices
-    power = {}
-    for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
-        power[device] = {}
-        for d in clusters:
-            power[device][d] = {}
-            for t in time_steps:
-                power[device][d][t] = model.addVar(vtype="C", name="power_" + device + "_d" + str(d) + "_t" + str(t))
+    # Add capacity constraints for all devices as specified in devs
+    for dev in model.all_devs:
+        if not devs[dev]["feasible"]:  # if device is not feasible, set capacity to 0
+            model.constraints.add(model.cap[dev] == 0)
+        else:
+            if dev in model.area_devs:
+                continue  # Area constraints are handled separately and no capacity constraints are needed
+            min_cap = devs[dev].get("min_cap")
+            max_cap = devs[dev].get("max_cap")
+            if min_cap is not None: model.constraints.add(model.cap[dev] >= min_cap)
+            if max_cap is not None: model.constraints.add(model.cap[dev] <= max_cap)
 
-    # Heat to/from devices
-    heat = {}
-    for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
-        heat[device] = {}
-        for d in clusters:
-            heat[device][d] = {}
-            for t in time_steps:
-                heat[device][d][t] = model.addVar(vtype="C", name="heat_" + device + "_d" + str(d) + "_t" + str(t))
+    # Set area constraints for devices that require area as specified in devs
+    for dev in model.area_devs:
+        if devs[dev]["feasible"]:
+            min_area = devs[dev].get("min_area")
+            max_area = devs[dev].get("max_area")
+            if min_area is not None: model.constraints.add(model.area[dev] >= min_area)
+            if max_area is not None: model.constraints.add(model.area[dev] <= max_area)
 
-    # Cooling power to/from devices
-    cool = {}
-    for device in ["CC", "AC"]:
-        cool[device] = {}
-        for d in clusters:
-            cool[device][d] = {}
-            for t in time_steps:
-                cool[device][d][t] = model.addVar(vtype="C", name="cool_" + device + "_d" + str(d) + "_t" + str(t))
+    # Set the capacities of the devices if they are feasible
+    for d in model.clusters:
+        for t in model.time_steps:
+            # Add constraints for the device operation based on the device capacity
+            for dev in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
+                model.constraints.add(model.heat[dev, d, t] <= model.cap[dev])
+            for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:  # Power devices
+                model.constraints.add(model.power[dev, d, t] <= model.cap[dev])
+            for dev in ["CC", "AC"]:  # Cooling devices
+                model.constraints.add(model.cool[dev, d, t] <= model.cap[dev])
+            for dev in ["SAB"]:  # Gas devices
+                model.constraints.add(model.gas[dev, d, t] <= model.cap[dev])
 
-    # Hydrogen to/from devices
-    hydrogen = {}
-    for device in ["ELYZ", "FC", "SAB", "import"]:
-        hydrogen[device] = {}
-        for d in clusters:
-            hydrogen[device][d] = {}
-            for t in time_steps:
-                hydrogen[device][d][t] = model.addVar(vtype="C", name="hydrogen_" + device + "_d" + str(d) + "_t" + str(t))
+            # Limitation of power and gas from and to the grid
+            model.constraints.add(model.power["from_grid", d, t] <= model.grid_limit_el)
+            model.constraints.add(model.power["to_grid", d, t] <= model.grid_limit_el)
+            model.constraints.add(model.gas["from_grid", d, t] <= model.grid_limit_gas)
+            model.constraints.add(model.gas["to_grid", d, t] <= model.grid_limit_gas)
 
-    # Biomass to devices
-    biom = {}
-    for device in ["BCHP", "BBOI", "import"]:
-        biom[device] = {}
-        for d in clusters:
-            biom[device][d] = {}
-            for t in time_steps:
-                biom[device][d][t] = model.addVar(vtype="C", name="biom_" + device + "_d" + str(d) + "_t" + str(t))
-
-    # Waste to devices
-    waste = {}
-    for device in ["WCHP", "WBOI", "import"]:
-        waste[device] = {}
-        for d in clusters:
-            waste[device][d] = {}
-            for t in time_steps:
-                waste[device][d][t] = model.addVar(vtype="C", name="waste_" + device + "_d" + str(d) + "_t" + str(t))
-
-    # Storage variables
-    ch = {}  # Energy flow to charge storage device
-    soc = {} # State of charge
-    for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
-        ch[device] = {}
-        soc[device] = {}
-        for d in clusters:
-            ch[device][d] = {}
-            for t in time_steps:
-                # For charge variable: ch is positive if storage is charged, and negative if storage is discharged
-                ch[device][d][t] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="ch_" + device + "_d" + str(d) + "_t" + str(t))
-        # The SoC is considered for the whole year
-        for time_period in year:
-            soc[device][time_period] = {}
-            for t in time_steps:
-                soc[device][time_period][t] = model.addVar(vtype="C", name="soc_" + device + "_d" + str(time_period) + "_t" + str(t))
-
-    # Variables for annual device costs
-    inv = {}
-    c_inv = {}
-    c_om = {}
-    c_total = {}
-    for device in all_devs:
-        inv[device] = model.addVar(vtype = "C", name="investment_costs_" + device)
-    for device in all_devs:
-        c_inv[device] = model.addVar(vtype = "C", name="annual_investment_costs_" + device)
-    for device in all_devs:
-        c_om[device] = model.addVar(vtype = "C", name="om_costs_" + device)
-    for device in all_devs:
-        c_total[device] = model.addVar(vtype = "C", name="total_annual_costs_" + device)
-
-    # Capacity of grid connections (gas and electricity)
-    grid_limit_el  = model.addVar(vtype = "C", name="grid_limit_el")
-    grid_limit_gas = model.addVar(vtype = "C", name="grid_limit_gas")
-
-    # Total energy amounts taken from grid and fed into grid
-    from_el_grid_total = model.addVar(vtype = "C", name="from_el_grid_total")
-    to_el_grid_total   = model.addVar(vtype = "C", name="to_el_grid_total")
-
-    from_gas_grid_total = model.addVar(vtype = "C", name="from_gas_grid_total")
-    to_gas_grid_total   = model.addVar(vtype = "C", name="to_gas_grid_total")
-
-    biom_import_total     = model.addVar(vtype = "C", name="biom_import_total")
-    waste_import_total    = model.addVar(vtype = "C", name="waste_import_total")
-    hydrogen_import_total = model.addVar(vtype = "C", name="hydrogen_import_total")
-
-    # Total revenue from feed-in
-    rev_feed_in_gas = model.addVar(vtype="C", name="rev_feed_in_gas")
-    rev_feed_in_el  = model.addVar(vtype="C", name="rev_feed_in_el")
-
-    # Electricity/gas/biomass costs
-    supply_costs_el       = model.addVar(vtype = "C", name="supply_costs_el")
-    cap_costs_el          = model.addVar(vtype = "C", name="cap_costs_el")
-    supply_costs_gas      = model.addVar(vtype = "C", name="supply_costs_gas")
-    cap_costs_gas         = model.addVar(vtype = "C", name="cap_costs_gas")
-    supply_costs_biom     = model.addVar(vtype = "C", name="supply_costs_biomass")
-    supply_costs_waste    = model.addVar(vtype = "C", lb=-gp.GRB.INFINITY, name="supply_costs_waste")
-    supply_costs_hydrogen = model.addVar(vtype = "C", name="supply_costs_hydrogen")
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Objective functions
-    obj = {}
-    obj["tac"] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="total_annualized_costs")
-    obj["co2"] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="total_CO2")
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Assign objective function
-    model.update()
-    model.setObjective((1-param["optim_focus"]) * obj["tac"]
-                        + param["optim_focus"]  * obj["co2"], gp.GRB.MINIMIZE)
-
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Add constraints
-
-    #%% Constraints defined by user in GUI
-
-    for device in all_devs:
-        if devs[device]["feasible"] == False:
-            model.addConstr(cap[device] == 0)
-
-
-    #%% CONTINUOUS SIZING OF DEVICES: minimum capacity <= capacity <= maximum capacity
-
-    for device in ["WT", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES", "CTES", "BAT", "GS"]:  # PV/STC is not listed due to min_area/max_area.
-        if devs[device]["feasible"]:
-            model.addConstr(cap[device] >= devs[device]["min_cap"])
-            model.addConstr(cap[device] <= devs[device]["max_cap"])
-
-    for d in clusters:
-        for t in time_steps:
-            for device in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
-                model.addConstr(heat[device][d][t] <= cap[device])
-
-            for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
-                model.addConstr(power[device][d][t] <= cap[device])
-
-            for device in ["CC", "AC"]:
-                model.addConstr(cool[device][d][t] <= cap[device])
-
-            for device in ["SAB"]:
-                model.addConstr(gas[device][d][t] <= cap[device])
-
-            # Limitation of power from and to grid
-            for device in ["from_grid", "to_grid"]:
-                model.addConstr(power[device][d][t] <= grid_limit_el)
-                model.addConstr(gas[device][d][t]   <= grid_limit_gas)
-
-            # PV and STC: minimum area < used roof area <= maximum area
-            for device in ["PV", "STC"]:
-                if devs[device]["feasible"]:
-                    model.addConstr(area[device] >= devs[device]["min_area"])
-                    model.addConstr(area[device] <= devs[device]["max_area"])
-
-            # Correlation between PV area and peak power; cap["PV"] is only needed for calculating investment costs
-            model.addConstr(cap["PV"] == area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
-
-            # Correlation between STC area and peak power; cap["STC"] is only needed for calculating investment costs
-            model.addConstr(cap["STC"] == area["STC"] * devs["STC"]["G_stc"] * devs["STC"]["eta"])
-
+    # Correlation to translate area to capacity for PV and STC
+    model.constraints.add(model.cap["PV"] == model.area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
+    model.constraints.add(model.cap["STC"] == model.area["STC"] * devs["STC"]["G_stc"] * devs["STC"]["eta"])
 
     # state of charge < storage capacity
-    for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
-        for time_period in year:
-            for t in time_steps:
-                model.addConstr(soc[device][time_period][t] <= cap[device])
+    for dev in model.storage_devs:
+        for day_y in model.year:
+            for t in model.time_steps:
+                model.constraints.add(model.soc[dev, day_y, t] <= model.cap[dev])
 
-    #%% INPUT / OUTPUT CONSTRAINTS
+    #################################################################################
+    # Energy Conversion Constraints (Input / Output Relations)
+    #################################################################################
 
-    for d in clusters:
-        for t in time_steps:
+    for d in model.clusters:
+        for t in model.time_steps:
+            # Photovoltaics power limited by clustered norm power
+            model.constraints.add(
+                model.power["PV", d, t] <= devs["PV"]["norm_power_clustered"][d][t] / 1000 * model.area["PV"])
+            # Wind turbine power limited by clustered norm power
+            model.constraints.add(model.power["WT", d, t] <= devs["WT"]["norm_power_clustered"][d][t] * model.cap["WT"])
+            # Hydropower power limited by potential
+            model.constraints.add(model.power["WAT", d, t] <= devs["WAT"]["potential"])
+            # Solar thermal collector heat limited by clustered norm power
+            model.constraints.add(
+                model.heat["STC", d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
+            # Electric heat pump correlation between heat and electric power
+            model.constraints.add(model.heat["HP", d, t] == model.power["HP", d, t] * devs["HP"]["COP"][d][t])
+            # Electric boiler correlation between heat and electric power
+            model.constraints.add(model.heat["EB", d, t] == model.power["EB", d, t] * devs["EB"]["eta_th"])
+            # Compression chiller correlation between cooling and electric power (time-dependent COP)
+            model.constraints.add(model.cool["CC", d, t] == model.power["CC", d, t] * devs["CC"]["COP"][d][t])
+            # Absorption chiller correlation between cooling and heat power
+            model.constraints.add(model.cool["AC", d, t] == model.heat["AC", d, t] * devs["AC"]["eta_th"])
+            # Gas CHP correlation between production of power and heat and gas consumption
+            model.constraints.add(model.power["CHP", d, t] == model.gas["CHP", d, t] * devs["CHP"]["eta_el"])
+            model.constraints.add(model.heat["CHP", d, t] == model.gas["CHP", d, t] * devs["CHP"]["eta_th"])
+            # Gas boiler correlation between heat and gas consumption
+            model.constraints.add(model.heat["BOI", d, t] == model.gas["BOI", d, t] * devs["BOI"]["eta_th"])
+            # Gas heat pump correlation between heat and gas consumption
+            model.constraints.add(model.heat["GHP", d, t] == model.gas["GHP", d, t] * devs["GHP"]["COP"])
+            # Biomass CHP correlation between production of power and heat and biomass consumption
+            model.constraints.add(model.power["BCHP", d, t] == model.biom["BCHP", d, t] * devs["BCHP"]["eta_el"])
+            model.constraints.add(model.heat["BCHP", d, t] == model.biom["BCHP", d, t] * devs["BCHP"]["eta_th"])
+            # Biomass boiler correlation between heat and biomass consumption
+            model.constraints.add(model.heat["BBOI", d, t] == model.biom["BBOI", d, t] * devs["BBOI"]["eta_th"])
+            # Waste CHP correlation between production of power and heat and waste consumption
+            model.constraints.add(model.power["WCHP", d, t] == model.waste["WCHP", d, t] * devs["WCHP"]["eta_el"])
+            model.constraints.add(model.heat["WCHP", d, t] == model.waste["WCHP", d, t] * devs["WCHP"]["eta_th"])
+            # Waste boiler correlation between heat and waste consumption
+            model.constraints.add(model.heat["WBOI", d, t] == model.waste["WBOI", d, t] * devs["WBOI"]["eta_th"])
+            # Electrolyzer correlation between hydrogen production and electric power consumption
+            model.constraints.add(model.hydrogen["ELYZ", d, t] == model.power["ELYZ", d, t] * devs["ELYZ"]["eta_el"])
+            # Fuel cell correlation between hydrogen consumption and electric power production
+            model.constraints.add(model.power["FC", d, t] == model.hydrogen["FC", d, t] * devs["FC"]["eta_el"])
+            if devs["FC"]["enable_heat_diss"]:  # Heat can also be dissipated
+                model.constraints.add(model.heat["FC", d, t] <= model.hydrogen["FC", d, t] * devs["FC"]["eta_th"])
+            else:  # Heat must be used
+                model.constraints.add(model.heat["FC", d, t] == model.hydrogen["FC", d, t] * devs["FC"]["eta_th"])
+            # Sabatier reactor correlation between hydrogen consumption and gas production
+            model.constraints.add(model.gas["SAB", d, t] == model.hydrogen["SAB", d, t] * devs["SAB"]["eta"])
 
-            # Photovoltaics
-            # Correlation between area and peek power is used
-            model.addConstr(power["PV"][d][t] <= devs["PV"]["norm_power_clustered"][d][t]/1000 * area["PV"])
+    ################################################################################
+    # Energy balances
+    ################################################################################
 
-            # Wind turbine
-            model.addConstr(power["WT"][d][t] <= devs["WT"]["norm_power_clustered"][d][t] * cap["WT"])
+    for d in model.clusters:
+        for t in model.time_steps:
+            # Heat supply and demand balance
+            heat_supply = sum(model.heat[dev, d, t] for dev in
+                              ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
+            heat_demand = dem["heat"][d][t] + model.heat["AC", d, t] + model.ch["TES", d, t]
+            model.constraints.add(heat_supply == heat_demand)
 
-            # Hydropower
-            model.addConstr(power["WAT"][d][t] <= devs["WAT"]["potential"])
+            # Electric power supply and demand balance
+            power_supply = sum(
+                model.power[dev, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
+            power_demand = dem["power"][d][t] + sum(
+                model.power[dev, d, t] for dev in ["HP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", d, t]
+            model.constraints.add(power_supply == power_demand)
 
-            # Solar thermal collector
-            model.addConstr(heat["STC"][d][t] <= devs["STC"]["norm_power_clustered"][d][t]/1000 * area["STC"])
+            # Cooling supply and demand balance
+            cool_supply = model.cool["AC", d, t] + model.cool["CC", d, t]
+            cool_demand = dem["cool"][d][t] + model.ch["CTES", d, t]
+            model.constraints.add(cool_supply == cool_demand)
 
-            # Electric heat pump
-            model.addConstr(heat["HP"][d][t] == power["HP"][d][t] * devs["HP"]["COP"][d][t])
+            # Gas supply and demand balance
+            gas_supply = model.gas["from_grid", d, t] + model.gas["SAB", d, t]
+            gas_demand = sum(model.gas[dev, d, t] for dev in ["CHP", "BOI", "GHP", "to_grid"]) + model.ch["GS", d, t]
+            model.constraints.add(gas_supply == gas_demand)
 
-            # Electric boiler
-            model.addConstr(heat["EB"][d][t] == power["EB"][d][t] * devs["EB"]["eta_th"])
+            # Hydrogen supply and demand balance
+            h2_supply = model.hydrogen["ELYZ", d, t] + model.hydrogen["import", d, t]
+            h2_demand = sum(model.hydrogen[dev, d, t] for dev in ["FC", "SAB"]) + model.ch["H2S", d, t]
+            model.constraints.add(h2_supply == h2_demand)
 
-            # Compression chiller
-            model.addConstr(cool["CC"][d][t] == power["CC"][d][t] * devs["CC"]["COP"][d][t])
+            # Biomass supply and demand balance
+            model.constraints.add(model.biom["import", d, t] == model.biom["BCHP", d, t] + model.biom["BBOI", d, t])
 
-            # Absorption chiller
-            model.addConstr(cool["AC"][d][t] == heat["AC"][d][t] * devs["AC"]["eta_th"])
+            # Waste supply and demand balance
+            model.constraints.add(model.waste["import", d, t] == model.waste["WCHP", d, t] + model.waste["WBOI", d, t])
 
-            # Gas CHP
-            model.addConstr(power["CHP"][d][t] == gas["CHP"][d][t] * devs["CHP"]["eta_el"])
-            model.addConstr(heat["CHP"][d][t] == gas["CHP"][d][t] * devs["CHP"]["eta_th"])
+    ################################################################################
+    # Meet peak demands of unclustered demands to ensure the design can handle peak loads
+    ################################################################################
 
-            # Gas boiler
-            model.addConstr(heat["BOI"][d][t] == gas["BOI"][d][t] * devs["BOI"]["eta_th"])
-
-            # Gas heat pump
-            model.addConstr(heat["GHP"][d][t] == gas["GHP"][d][t] * devs["GHP"]["COP"])
-
-            # Biomass CHP
-            model.addConstr(power["BCHP"][d][t] == biom["BCHP"][d][t] * devs["BCHP"]["eta_el"])
-            model.addConstr(heat["BCHP"][d][t] == biom["BCHP"][d][t] * devs["BCHP"]["eta_th"])
-
-            # Biomass boiler
-            model.addConstr(heat["BBOI"][d][t] == biom["BBOI"][d][t] * devs["BBOI"]["eta_th"])
-
-            # Waste CHP
-            model.addConstr(power["WCHP"][d][t] == waste["WCHP"][d][t] * devs["WCHP"]["eta_el"])
-            model.addConstr(heat["WCHP"][d][t] == waste["WCHP"][d][t] * devs["WCHP"]["eta_th"])
-
-            # Waste boiler
-            model.addConstr(heat["WBOI"][d][t] == waste["WBOI"][d][t] * devs["WBOI"]["eta_th"])
-
-            # Electrolyzer
-            model.addConstr(hydrogen["ELYZ"][d][t] == power["ELYZ"][d][t] * devs["ELYZ"]["eta_el"])
-
-            # Fuel cell
-            model.addConstr(power["FC"][d][t] == hydrogen["FC"][d][t] * devs["FC"]["eta_el"])
-            if devs["FC"]["enable_heat_diss"]:   # Heat can also be dissipated
-                model.addConstr(heat["FC"][d][t] <= hydrogen["FC"][d][t] * devs["FC"]["eta_th"])
-            else:   # Heat must be used
-                model.addConstr(heat["FC"][d][t] == hydrogen["FC"][d][t] * devs["FC"]["eta_th"])
-
-            # Sabatier reactor
-            model.addConstr(gas["SAB"][d][t] == hydrogen["SAB"][d][t] * devs["SAB"]["eta"])
-
-    #%% GLOBAL ENERGY BALANCES
-
-    for d in clusters:
-        for t in time_steps:
-
-            # Heating balance
-            model.addConstr(heat["STC"][d][t] + heat["HP"][d][t] + heat["EB"][d][t] + heat["CHP"][d][t] + heat["BOI"][d][t] + heat["GHP"][d][t] + heat["BCHP"][d][t] + heat["BBOI"][d][t]+ heat["WCHP"][d][t] + heat["WBOI"][d][t] + heat["FC"][d][t] == dem["heat"][d][t] + heat["AC"][d][t] + ch["TES"][d][t])
-
-            # Electricity balance
-            model.addConstr(power["PV"][d][t] + power["WT"][d][t] + power["WAT"][d][t] + power["CHP"][d][t] + power["BCHP"][d][t] + power["WCHP"][d][t] + power["FC"][d][t] + power["from_grid"][d][t] == dem["power"][d][t] + power["HP"][d][t] + power["EB"][d][t] + power["CC"][d][t] + power["ELYZ"][d][t] + ch["BAT"][d][t] + power["to_grid"][d][t])
-
-            # Cooling balance
-            model.addConstr(cool["AC"][d][t] + cool["CC"][d][t] == dem["cool"][d][t] + ch["CTES"][d][t])
-
-            # Gas balance
-            model.addConstr(gas["from_grid"][d][t] + gas["SAB"][d][t] == gas["CHP"][d][t] + gas["BOI"][d][t] + gas["GHP"][d][t] + ch["GS"][d][t] + gas["to_grid"][d][t])
-
-            # Hydrogen balance
-            model.addConstr(hydrogen["ELYZ"][d][t] + hydrogen["import"][d][t] == hydrogen["FC"][d][t] + hydrogen["SAB"][d][t] + ch["H2S"][d][t])
-
-            # Biomass balance
-            model.addConstr(biom["import"][d][t] == biom["BCHP"][d][t] + biom["BBOI"][d][t])
-
-            # Waste balance
-            model.addConstr(waste["import"][d][t] == waste["WCHP"][d][t] + waste["WBOI"][d][t])
-
-
-    #%% MEET PEAK DEMANDS OF UNCLUSTERED DEMANDS
-
-    if param["peak_dem_met_conv"] == False:  # only the secured capacities, so without the renewable technologies
-
-        # Heating
-        model.addConstr(cap["HP"] + cap["EB"]
-                      + cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
-                      + cap["BOI"]
-                      + cap["GHP"]
-                      + cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
-                      + cap["BBOI"]
-                      + cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
-                      + cap["WBOI"]
-                      + cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
-                      >= param["peak_heat"])
+    if param["peak_dem_met_conv"] == False:
+        # Heating (conventional - only controllable devices)
+        model.constraints.add(model.cap["HP"] + model.cap["EB"]
+                              + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
+                              + model.cap["BOI"]
+                              + model.cap["GHP"]
+                              + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                              + model.cap["BBOI"]
+                              + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+                              + model.cap["WBOI"]
+                              + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+                              >= param["peak_heat"])
 
         # Cooling
-        model.addConstr(cap["CC"] + cap["AC"] >= param["peak_cool"])
+        model.constraints.add(model.cap["CC"] + model.cap["AC"] >= param["peak_cool"])
 
         # Power
-        model.addConstr(cap["CHP"] + cap["BCHP"] + cap["WCHP"] + cap["FC"] + grid_limit_el >= param["peak_power"])
+        model.constraints.add(
+            model.cap["CHP"] + model.cap["BCHP"] + model.cap["WCHP"] + model.cap["FC"] + model.grid_limit_el >= param[
+                "peak_power"])
 
         # Hydrogen
         if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
-            model.addConstr(cap["ELYZ"] >= param["peak_hydrogen"])
+            model.constraints.add(model.cap["ELYZ"] >= param["peak_hydrogen"])
 
-
-    else:  # With STC, PV, WIND, HYDROPOWER (renewable technologies)
-
-        # Heating
-        model.addConstr(cap["STC"] + cap["HP"] + cap["EB"]
-                      + cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
-                      + cap["BOI"]
-                      + cap["GHP"]
-                      + cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
-                      + cap["BBOI"]
-                      + cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
-                      + cap["WBOI"]
-                      + cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
-                      >= param["peak_heat"])
+    else:  # With STC, PV, WIND, HYDROPOWER (WAT)
+        # Heating (with renewable sources)
+        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["EB"]
+                              + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
+                              + model.cap["BOI"]
+                              + model.cap["GHP"]
+                              + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                              + model.cap["BBOI"]
+                              + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+                              + model.cap["WBOI"]
+                              + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+                              >= param["peak_heat"])
 
         # Cooling
-        model.addConstr(cap["CC"] + cap["AC"] >= param["peak_cool"])
+        model.constraints.add(model.cap["CC"] + model.cap["AC"] >= param["peak_cool"])
 
-        # Power
-        model.addConstr(cap["PV"] + cap["WT"] + cap["WAT"] + cap["CHP"] + cap["BCHP"] + cap["WCHP"] + cap["FC"] + grid_limit_el >= param["peak_power"])
+        # Power (with renewable sources)
+        model.constraints.add(
+            model.cap["PV"] + model.cap["WT"] + model.cap["WAT"] + model.cap["CHP"] + model.cap["BCHP"] + model.cap[
+                "WCHP"] + model.cap["FC"] + model.grid_limit_el >= param["peak_power"])
 
         # Hydrogen
         if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
-            model.addConstr(cap["ELYZ"] >= param["peak_hydrogen"])
+            model.constraints.add(model.cap["ELYZ"] >= param["peak_hydrogen"])
 
+    ################################################################################
+    # Storage devices
+    ################################################################################
 
-    #%% STORAGE DEVICES
+    for dev in model.storage_devs:
+        for day_y in model.year:
+            for t in range(1, len(model.time_steps)):
+                # Energy balance for storage devices: soc(t) = soc(t-1) * (1 - sto_loss)^dt + charge * dt
+                soc_prev = model.soc[dev, day_y, t - 1]
+                model.constraints.add(
+                    model.soc[dev, day_y, t] == soc_prev * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[
+                        dev, model.sigma[day_y], t] * dt)
+            if day_y > 0:
+                # For the first time step of each day, the state of charge is based on the previous day's last time step
+                # Equation: soc(t=0) = soc(t=last) * (1 - sto_loss)^dt + charge * dt
+                soc_prev_day = model.soc[dev, day_y - 1, len(model.time_steps) - 1]
+                model.constraints.add(
+                    model.soc[dev, day_y, 0] == soc_prev_day * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[
+                        dev, model.sigma[day_y], 0] * dt)
 
-    for device in ["TES", "CTES", "BAT", "H2S", "GS"]:
-        for time_period in year:
-            for t in np.arange(1, len(time_steps)):
+        # For the last time step of the last day, the state of charge is based on the first time step of the first day
+        soc_last = model.soc[dev, 51, cluster_horizon - 1]
+        model.constraints.add(model.soc[dev, 0, 0] == soc_last * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[
+            dev, model.sigma[0], 0] * dt)
 
-                # Energy balance: soc(t) = soc(t-1) + charge - discharge
-                model.addConstr(soc[device][time_period][t] == soc[device][time_period][t-1] * (1-devs[device]["sto_loss"]) ** dt + ch[device][sigma[time_period]][t] * dt)
+    ################################################################################
+    # Grid limits
+    ################################################################################
 
-            # Transition between two consecutive time periods
-            if time_period > 0:
-                model.addConstr(soc[device][time_period][0] == soc[device][time_period-1][len(time_steps)-1] * (1-devs[device]["sto_loss"]) ** dt + ch[device][sigma[time_period]][0] * dt)
+    model.constraints.add(model.from_gas_grid_total == dt * sum(
+        model.gas["from_grid", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.to_gas_grid_total == dt * sum(
+        model.gas["to_grid", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.from_el_grid_total == dt * sum(
+        model.power["from_grid", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.to_el_grid_total == dt * sum(
+        model.power["to_grid", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.biom_import_total == dt * sum(
+        model.biom["import", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.waste_import_total == dt * sum(
+        model.waste["import", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.hydrogen_import_total == dt * sum(
+        model.hydrogen["import", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
 
-        # Cyclic year condition
-        model.addConstr(soc[device][0][0] ==  soc[device][len(year)-1][len(time_steps)-1] * (1-devs[device]["sto_loss"]) ** dt + ch[device][sigma[0]][0] * dt)
+    ################################################################################
+    # Supply limitations (User input)
+    ################################################################################
 
+    # Forbid/allow feed-in
+    if not param.get("enable_feed_in_el", True): model.constraints.add(model.to_el_grid_total == 0)
+    if not param.get("enable_feed_in_gas", True): model.constraints.add(model.to_gas_grid_total == 0)
 
-    #%% SUM UP RESULTS
-
-    ### Total energy import/feed-in ###
-    # Total amount of gas taken from and to grid
-    model.addConstr(from_gas_grid_total == dt * sum(sum(gas["from_grid"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-    model.addConstr(to_gas_grid_total   == dt * sum(sum(gas["to_grid"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-
-    # Total electric energy from and to grid
-    model.addConstr(from_el_grid_total == dt * sum(sum(power["from_grid"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-    model.addConstr(to_el_grid_total   == dt * sum(sum(power["to_grid"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-
-    # Total amount of biomass imported
-    model.addConstr(biom_import_total == dt * sum(sum(biom["import"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-
-    # Total amount of waste imported
-    model.addConstr(waste_import_total == dt * sum(sum(waste["import"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-
-    # Total amount of hydrogen imported
-    model.addConstr(hydrogen_import_total == dt * sum(sum(hydrogen["import"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters))
-
-
-    ### Costs ###
-    # Costs/revenues for electricity
-    model.addConstr(supply_costs_el  == from_el_grid_total  * param["price_supply_el"])
-    model.addConstr(cap_costs_el == (grid_limit_el * param["price_cap_el"] if param["enable_price_cap_el"] else 0))
-    model.addConstr(rev_feed_in_el   == to_el_grid_total    * param["revenue_feed_in_el"])
-
-    # Costs/revenues for natural gas
-    model.addConstr(supply_costs_gas == from_gas_grid_total * param["price_supply_gas"])
-    model.addConstr(cap_costs_gas    == grid_limit_gas      * param["price_cap_gas"])
-    model.addConstr(rev_feed_in_gas  == to_gas_grid_total   * param["revenue_feed_in_gas"])
-
-    # Costs for biomass, waste and hydrogen
-    model.addConstr(supply_costs_biom     == biom_import_total     * param["price_biomass"])
-    model.addConstr(supply_costs_waste    == waste_import_total    * param["price_waste"])
-    model.addConstr(supply_costs_hydrogen == hydrogen_import_total * param["price_hydrogen"])
-
-
-    ### Supply limitations ###
-    # Forbid/allow feed-in (user input)
-    if param["enable_feed_in_el"] != True:
-        model.addConstr(to_el_grid_total == 0)
-    if param["enable_feed_in_gas"] != True:
-        model.addConstr(to_gas_grid_total == 0)
-
-    # Limitation of electricity supply (user input)
     if param["enable_supply_el"] != True:
-        model.addConstr(from_el_grid_total == 0)
+        model.constraints.add(model.from_el_grid_total == 0)
     if param["enable_cap_limit_el"] == True:
-        model.addConstr(grid_limit_el <= param["cap_limit_el"])
+        model.constraints.add(model.grid_limit_el <= param["cap_limit_el"])
     if param["enable_supply_limit_el"] == True:
-        model.addConstr(from_el_grid_total <= param["supply_limit_el"])
+        model.constraints.add(model.from_el_grid_total <= param["supply_limit_el"])
 
-    # Limitation of gas supply (user input)
+    # Limitation of gas supply
     if param["enable_supply_gas"] != True:
-        model.addConstr(from_gas_grid_total == 0)
+        model.constraints.add(model.from_gas_grid_total == 0)
     if param["enable_cap_limit_gas"] == True:
-        model.addConstr(grid_limit_gas <= param["cap_limit_gas"])
+        model.constraints.add(model.grid_limit_gas <= param["cap_limit_gas"])
     if param["enable_supply_limit_gas"] == True:
-        model.addConstr(from_gas_grid_total <= param["supply_limit_gas"])
+        model.constraints.add(model.from_gas_grid_total <= param["supply_limit_gas"])
 
-    # Limitation of biomass supply (user input)
+    # Limitation of biomass supply
     if param["enable_supply_biomass"] != True:
-        model.addConstr(biom_import_total == 0)
+        model.constraints.add(model.biom_import_total == 0)
     if param["enable_supply_limit_biomass"] == True:
-        model.addConstr(biom_import_total <= param["supply_limit_biomass"])
+        model.constraints.add(model.biom_import_total <= param["supply_limit_biomass"])
 
-    # Limitation of waste supply (user input)
+    # Limitation of waste supply
     if param["enable_supply_waste"] != True:
-        model.addConstr(waste_import_total == 0)
+        model.constraints.add(model.waste_import_total == 0)
     if param["enable_supply_limit_waste"] == True:
-        model.addConstr(waste_import_total <= param["supply_limit_waste"])
+        model.constraints.add(model.waste_import_total <= param["supply_limit_waste"])
 
-    # Limitation of hydrogen supply (user input)
+    # Limitation of hydrogen supply
     if param["enable_supply_hydrogen"] != True:
-        model.addConstr(hydrogen_import_total == 0)
+        model.constraints.add(model.hydrogen_import_total == 0)
     if param["enable_supply_limit_hydrogen"] == True:
-        model.addConstr(hydrogen_import_total <= param["supply_limit_hydrogen"])
+        model.constraints.add(model.hydrogen_import_total <= param["supply_limit_hydrogen"])
 
+    ################################################################################
+    # Economic constraints
+    ################################################################################
 
-    # Total investment costs for the energy hub
-    for device in all_devs:
-        model.addConstr(inv[device] == devs[device]["inv_var"] * cap[device])
-
-    # Annual investment costs for the energy hub
-    for device in all_devs:
-        model.addConstr(c_inv[device] == inv[device] * devs[device]["ann_factor"])
-
-    # Operation and maintenance costs for the energy hub
-    for device in all_devs:
-        model.addConstr(c_om[device] == devs[device]["cost_om"] * inv[device])
-
-    # Total annual costs for the energy hub
-    for device in all_devs:
-        model.addConstr(c_total[device] == c_inv[device] + c_om[device])
-
-
-    #%% OBJECTIVE FUNCTIONS
-    # Total annualized costs
-    model.addConstr(obj["tac"] == sum(c_total[dev] for dev in all_devs) + data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"] # annualized investments and O&M
-                                + supply_costs_gas + cap_costs_gas # gas costs
-                                + supply_costs_el + cap_costs_el # electricity costs
-                                - rev_feed_in_el - rev_feed_in_gas # revenues
-                                + supply_costs_biom # biomass
-                                + supply_costs_waste # waste
-                                + supply_costs_hydrogen
-                                + (from_gas_grid_total * param["co2_gas"] + biom_import_total * param["co2_biom"] + waste_import_total * param["co2_waste"]) * param["co2_tax"]) # CO2 tax
-
-
-    # Annual CO2 emissions: Implicit emissions by power supply from national grid is penalized, feed-in is ignored
-    model.addConstr(obj["co2"] == from_el_grid_total * param["co2_el_grid"]
-                                      + from_gas_grid_total * param["co2_gas"]
-                                      + biom_import_total * param["co2_biom"]
-                                      + waste_import_total * param["co2_waste"]
-                                      + hydrogen_import_total * param["co2_hydrogen"]
-                                      - to_el_grid_total * param["co2_el_feed_in"]
-                                      - to_gas_grid_total * param["co2_gas_feed_in"])
-
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Set model parameters and execute calculation
-
-    print("Precalculation and model set up done in %f seconds."  % (time.time() - start_time))
-
-    # Set solver parameters
-    model.Params.MIPGap   = 0.02  # ---,   gap for branch-and-bound algorithm
-    # model.Params.method = 2     # ---,   -1: default, 0: primal simplex, 1: dual simplex, 2: barrier, etc.
-
-    # Execute calculation
-    start_time = time.time()
-    model.optimize()
-    print("Optimization done. (%f seconds.)" % (time.time() - start_time))
-
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Check and save results
-
-    # Check if optimal solution was found
-    if model.Status in (3, 4) or model.SolCount == 0:  # "INFEASIBLE" or "INF_OR_UNBD"
-
-        print("Optimization: No feasible solution found.")
-        try:
-            print("Try to calculate IIS.")
-            model.computeIIS()
-            model.write("model.ilp")
-            print("IIS was calculated and saved as model.ilp")
-
-        except:
-            print("Could not calculate IIS.")
-        return {}
-
+    # Electricity costs and revenues
+    model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el"])
+    # Conditional capacity costs for electricity
+    if param["enable_price_cap_el"]:
+        model.constraints.add(model.cap_costs_el == model.grid_limit_el * param["price_cap_el"])
     else:
-        result_dir = "results"
-        if not os.path.exists(result_dir):
-            os.makedirs(result_dir)
+        model.constraints.add(model.cap_costs_el == 0)
+    model.constraints.add(model.rev_feed_in_el == model.to_el_grid_total * param["revenue_feed_in_el"])
 
-        model.write(os.path.join(result_dir, "model.sol"))
-        model.write(os.path.join(result_dir, "model.lp"))
+    # Gas costs and revenues
+    model.constraints.add(model.supply_costs_gas == model.from_gas_grid_total * param["price_supply_gas"])
+    model.constraints.add(model.cap_costs_gas == model.grid_limit_gas * param["price_cap_gas"])
+    model.constraints.add(model.rev_feed_in_gas == model.to_gas_grid_total * param["revenue_feed_in_gas"])
 
-        ##### For further analysis
-        for k in all_devs:
-            result_dict[k] = {}
+    # Biomass, waste, and hydrogen costs
+    model.constraints.add(model.supply_costs_biom == model.biom_import_total * param["price_biomass"])
+    model.constraints.add(model.supply_costs_waste == model.waste_import_total * param["price_waste"])
+    model.constraints.add(model.supply_costs_hydrogen == model.hydrogen_import_total * param["price_hydrogen"])
 
-        result_dict["devs"] = devs
-        result_dict["tac"] = int(obj["tac"].X)      # EUR/a
-        result_dict["co2"] = int(obj["co2"].X/1000) # t/a
+    # Investment and operational costs for each device
+    for dev in model.all_devs:
+        model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+        model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annual investment costs
+        model.constraints.add(
+            model.c_om[dev] == devs[dev]["cost_om"] * model.inv[dev])  # operation and maintenance costs
+        model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annual costs
 
-        for k in cap.keys():
-            result_dict[k] = {"cap": round(cap[k].X, 1)}
+    # CO2 tax term for emissions from gas, biomass, waste
+    co2_tax_term = (model.from_gas_grid_total * param["co2_gas"] + model.biom_import_total * param[
+        "co2_biom"] + model.waste_import_total * param["co2_waste"]) * param["co2_tax"]
 
-        # Add 'from_grid' capacity if the option is enabled
-        if param["enable_cap_limit_el"]:
-            result_dict["from_grid"] = {"cap": param["cap_limit_el"]}
-            result_dict["to_grid"] = {"cap": param["cap_limit_el"]}
+    # Heat grid costs
+    heat_grid_costs = data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"]
+
+    ################################################################################
+    # Define Objective Function
+    ################################################################################
+
+    def objective_rule(model):
+        return (1 - param["optim_focus"]) * model.obj_tac + param["optim_focus"] * model.obj_co2
+
+    model.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
+
+    # Total annual costs
+    model.constraints.add(model.obj_tac == sum(model.c_total[dev] for dev in model.all_devs)
+                          + heat_grid_costs
+                          + model.supply_costs_gas + model.cap_costs_gas
+                          + model.supply_costs_el + model.cap_costs_el
+                          - model.rev_feed_in_el - model.rev_feed_in_gas
+                          + model.supply_costs_biom + model.supply_costs_waste + model.supply_costs_hydrogen
+                          + co2_tax_term)
+
+    # CO2 emissions calculation
+    model.constraints.add(model.obj_co2 == model.from_el_grid_total * param["co2_el_grid"]
+                          + model.from_gas_grid_total * param["co2_gas"]
+                          + model.biom_import_total * param["co2_biom"]
+                          + model.waste_import_total * param["co2_waste"]
+                          + model.hydrogen_import_total * param["co2_hydrogen"]
+                          - model.to_el_grid_total * param["co2_el_feed_in"]
+                          - model.to_gas_grid_total * param["co2_gas_feed_in"])
+
+    return model
+
+
+def solve_model_and_extract_results(data, model, devs, param, result_dict):
+    """
+    Function to capsle solving the Pyomo model and extracting results.
+    """
+    # Folder to save model and results
+    result_dir = "results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
+    lp_filename = os.path.join(result_dir, "ehdo_model.lp")
+    model.write(lp_filename, io_options={"symbolic_solver_labels": True})
+
+    # temporary log-file for the solver
+    solver_log_path = os.path.join(result_dir, "solver_output_ehdo.log")
+    # Path for error file
+    errorfile_path = os.path.join(result_dir, 'errorfile_ehdo.txt')
+
+    ################################################################################
+    # Solve the Model
+    ################################################################################
+
+    solver, solver_options = solver_config.create_solver()
+    solve_start_time = time.time()
+    results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
+    print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+
+    ################################################################################
+    # Check and Save Results
+    ################################################################################
+
+    # Check if solution is optimal, otherwise write an error file to help find errors
+    if results.solver.termination_condition == pyo.TerminationCondition.infeasible:
+        print(f"Model is infeasible for further analysis see {errorfile_path}")
+        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
+        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
+        with open(errorfile_path, 'w') as f:
+            f.write('Error: Model is infeasible\n')
+            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"Model Statistics:\n")
+            f.write(f"  - Variables: {n_vars}\n")
+            f.write(f"  - Constraints: {n_cons}\n\n")
+            f.write(f"  - LP File: {lp_filename}\n\n")
+            try:
+                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
+                    f.write("\nSolver Log:\n")
+                    f.write("-" * 40 + "\n")
+                    f.write(log_file.read())
+                    f.write("-" * 40 + "\n")
+                # Remove temporary solver log file
+                os.remove(solver_log_path)
+            except Exception as e:
+                f.write(f"\nCould not read solver log: {e}\n")
+
+        # IIS-Analysis
+        try:
+            import logging
+            # Create string buffer to capture logging
+            logging_buffer = StringIO()
+
+            # Store original logging handlers
+            root_logger = logging.getLogger()
+            original_handlers = root_logger.handlers[:]
+            original_level = root_logger.level
+
+            # Clear existing handlers temporarily
+            for handler in original_handlers:
+                root_logger.removeHandler(handler)
+
+            # Add string handler to capture only IIS output
+            string_handler = logging.StreamHandler(logging_buffer)
+            string_handler.setLevel(logging.INFO)
+            root_logger.addHandler(string_handler)
+            root_logger.setLevel(logging.INFO)
+
+            # Run IIS analysis - output goes to buffer
+            log_infeasible_constraints(model, log_expression=True, log_variables=True)
+
+            # Get captured content
+            iis_content = logging_buffer.getvalue()
+
+            # Restore logging
+            root_logger.removeHandler(string_handler)
+            for handler in original_handlers:
+                root_logger.addHandler(handler)
+            root_logger.setLevel(original_level)
+
+            # Write to error file
+            with open(errorfile_path, 'a', encoding='utf-8') as f:
+                f.write("INFEASIBLE CONSTRAINTS:\n")
+                f.write("-" * 40 + "\n")
+                if iis_content.strip():
+                    f.write(iis_content)
+                else:
+                    f.write("No IIS details captured\n")
+                f.write("-" * 40 + "\n")
+
+            print(f"Infeasibility analysis saved to {errorfile_path}")
+
+        except Exception as e:
+            # Ensure logging is restored
+            try:
+                if 'original_handlers' in locals():
+                    root_logger.removeHandler(string_handler)
+                    for handler in original_handlers:
+                        if handler not in root_logger.handlers:
+                            root_logger.addHandler(handler)
+                    root_logger.setLevel(original_level)
+            except:
+                pass
+
+            print(f"IIS analysis failed: {e}")
+
+            with open(errorfile_path, 'a') as f:
+                f.write(f"IIS analysis failed: {e}\n")
+
+        return None
+
+    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
+        print("Model is unbounded")
+        with open(errorfile_path, 'w') as f:
+            f.write('Model is unbounded\n')
+        return None
+    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
+        print("Model solved to optimality")
+    else:
+        print(f"Solver status: {results.solver.termination_condition}")
+        with open(errorfile_path, 'w') as f:
+            f.write(f'Solver status: {results.solver.termination_condition}\n')
+        return None
+
+    # Remove temporary solver log file
+    if os.path.exists(solver_log_path):
+        os.remove(solver_log_path)
+
+    # Save all variable values in a solution file:
+    def write_solution_file(model, filename):
+        """
+        Write solution values to a file in a format similar to Gurobi's .sol files
+        """
+        try:
+            with open(filename, 'w') as f:
+                f.write("# Solution file\n")
+                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
+                f.write("# Variable values\n")
+
+                # Write all variable values
+                for var in model.component_objects(pyo.Var, active=True):
+                    if var.is_indexed():
+                        for index in var:
+                            if var[index].value is not None:
+                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
+                    else:
+                        if var.value is not None:
+                            f.write(f"{var.name} {var.value:.6f}\n")
+
+                f.write("# End of solution\n")
+            print(f"Solution written to {filename}")
+
+        except Exception as e:
+            print(f"Warning: Could not write solution file {filename}: {e}")
+        return None
+
+    solution_path = os.path.join(result_dir, 'solution_ehdo_file.txt')
+    write_solution_file(model, solution_path)
+
+    ################################################################################
+    # Post-processing and Result Extraction
+    ################################################################################
+
+    # --- Robust helper functions for safe value queries ---
+    def safe_value(var_container, index):  # Safe value retrieval for indexed variables
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
+
+    def safe_value_single(var):  # Safe value retrieval for single variables
+        try:
+            val = pyo.value(var)
+            return val if val is not None else 0
+        except ValueError:
+            return 0
+
+    # --- Complete and original filling of the result_dict ---
+    result_dict["devs"] = devs
+    result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
+    result_dict["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t/a
+
+    for k in model.all_devs:
+        result_dict[k] = {"cap": round(safe_value(model.cap, k), 1)}
+
+    # Add 'from_grid' and 'to_grid' capacity information if the option is enabled
+    if param.get("enable_cap_limit_el", True):
+        result_dict["from_grid"] = {"cap": param["cap_limit_el"]}
+        result_dict["to_grid"] = {"cap": param["cap_limit_el"]}
+    else:
+        result_dict["from_grid"] = {"cap": float("inf")}
+        result_dict["to_grid"] = {"cap": float("inf")}
+
+    # Investment and operational costs
+    heat_grid_costs = data.heat_grid_data.get("costs", 0)
+    heat_grid_ann_costs = data.heat_grid_data.get("ann_costs", 0)
+    heat_grid_om_costs = data.heat_grid_data.get("om_costs", 0)
+
+    result_dict["total_inv_cost"] = int(sum(safe_value(model.inv, k) for k in model.all_devs) + heat_grid_costs)
+    result_dict["total_ann_inv_cost"] = int(
+        sum(safe_value(model.c_inv, k) for k in model.all_devs) + heat_grid_ann_costs)
+    result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
+
+    # Total energy energy imports and exports
+    result_dict["from_el_grid_total"] = int(safe_value_single(model.from_el_grid_total) / 1000)  # MWh
+    result_dict["to_el_grid_total"] = int(safe_value_single(model.to_el_grid_total) / 1000)  # MWh
+    result_dict["from_gas_grid_total"] = int(safe_value_single(model.from_gas_grid_total) / 1000)  # MWh
+    result_dict["to_gas_grid_total"] = int(safe_value_single(model.to_gas_grid_total) / 1000)  # MWh
+    result_dict["biom_import_total"] = int(safe_value_single(model.biom_import_total) / 1000)  # MWh
+    result_dict["waste_import_total"] = int(safe_value_single(model.waste_import_total) / 1000)  # MWh
+    result_dict["hydrogen_import_total"] = int(safe_value_single(model.hydrogen_import_total) / 1000)  # MWh
+
+    # CO2 emissions breakdown
+    result_dict["co2_onsite_emissions"] = int((safe_value_single(model.from_gas_grid_total) * param["co2_gas"] +
+                                               safe_value_single(model.biom_import_total) * param["co2_biom"] +
+                                               safe_value_single(model.waste_import_total) * param["co2_waste"]) / 1000)
+    result_dict["co2_global_emissions"] = int(result_dict["co2"] / 1000)
+    result_dict["co2_credit_feedin"] = int((safe_value_single(model.to_el_grid_total) * param["co2_el_feed_in"] +
+                                            safe_value_single(model.to_gas_grid_total) * param[
+                                                "co2_gas_feed_in"]) / 1000)
+    result_dict["co2_tax_total"] = int(result_dict["co2_onsite_emissions"] * param["co2_tax"] * 1000)  # EUR
+
+    # Maximum grid flows (electricity and gas)
+    for grid_type in ["from_grid", "to_grid"]:
+        max_el = max(safe_value(model.power, (grid_type, d, t)) for d in model.clusters for t in model.time_steps)
+        result_dict[f"max_el_{grid_type}"] = int(max_el)
+
+        max_gas = max(safe_value(model.gas, (grid_type, d, t)) for d in model.clusters for t in model.time_steps)
+        result_dict[f"max_gas_{grid_type}"] = int(max_gas)
+
+    # Maximum import flows for other resources
+    result_dict["max_biom"] = int(
+        max(safe_value(model.biom, ("import", d, t)) for d in model.clusters for t in model.time_steps))
+    result_dict["max_waste"] = int(
+        max(safe_value(model.waste, ("import", d, t)) for d in model.clusters for t in model.time_steps))
+    result_dict["max_hydrogen"] = int(
+        max(safe_value(model.hydrogen, ("import", d, t)) for d in model.clusters for t in model.time_steps))
+
+    # Energy costs and revenues
+    result_dict["supply_costs_el"] = int(safe_value_single(model.supply_costs_el))
+    result_dict["cap_costs_el"] = int(safe_value_single(model.cap_costs_el))
+    result_dict["total_el_costs"] = result_dict["supply_costs_el"] + result_dict["cap_costs_el"]
+    result_dict["rev_feed_in_el"] = int(safe_value_single(model.rev_feed_in_el))
+
+    result_dict["supply_costs_gas"] = int(safe_value_single(model.supply_costs_gas))
+    result_dict["cap_costs_gas"] = int(safe_value_single(model.cap_costs_gas))
+    result_dict["total_gas_costs"] = result_dict["supply_costs_gas"] + result_dict["cap_costs_gas"]
+    result_dict["rev_feed_in_gas"] = int(safe_value_single(model.rev_feed_in_gas))
+
+    result_dict["supply_costs_biom"] = int(safe_value_single(model.supply_costs_biom))
+    result_dict["supply_costs_waste"] = int(safe_value_single(model.supply_costs_waste))
+    result_dict["supply_costs_hydrogen"] = int(safe_value_single(model.supply_costs_hydrogen))
+
+    # Renewable generation potential (without curtailment)
+    result_dict["PV_generation_uncl"] = [x / 1000 * safe_value(model.area, "PV") for x in
+                                         devs["PV"]["norm_power"]]  # in kW
+    result_dict["WT_generation_uncl"] = [x * safe_value(model.cap, "WT") for x in devs["WT"]["norm_power"]]  # in kW
+    result_dict["STC_generation_uncl"] = [x / 1000 * safe_value(model.area, "STC") for x in
+                                          devs["STC"]["norm_power"]]  # in kW
+
+    # Calculate curtailment for renewable sources
+    dt = data.time["timeResolution"] / data.time["dataResolution"]
+
+    # PV curtailment
+    pv_curtailed = 0
+    for d in model.clusters:
+        for t in model.time_steps:
+            potential = devs["PV"]["norm_power_clustered"][d][t] / 1000 * safe_value(model.area, "PV")
+            actual = safe_value(model.power, ("PV", d, t))
+            pv_curtailed += (potential - actual) * param["cluster_weights"][d]
+    result_dict["PV"]["curtailed"] = int(dt * pv_curtailed)
+
+    # STC curtailment
+    stc_curtailed = 0
+    for d in model.clusters:
+        for t in model.time_steps:
+            potential = devs["STC"]["norm_power_clustered"][d][t] / 1000 * safe_value(model.area, "STC")
+            actual = safe_value(model.heat, ("STC", d, t))
+            stc_curtailed += (potential - actual) * param["cluster_weights"][d]
+    result_dict["STC"]["curtailed"] = int(dt * stc_curtailed)
+
+    # WT curtailment
+    wt_curtailed = 0
+    for d in model.clusters:
+        for t in model.time_steps:
+            potential = devs["WT"]["norm_power_clustered"][d][t] * safe_value(model.cap, "WT")
+            actual = safe_value(model.power, ("WT", d, t))
+            wt_curtailed += (potential - actual) * param["cluster_weights"][d]
+    result_dict["WT"]["curtailed"] = int(dt * wt_curtailed)
+
+    # WAT curtailment
+    wat_curtailed = 0
+    for d in model.clusters:
+        for t in model.time_steps:
+            potential = min(safe_value(model.cap, "WAT"), devs["WAT"]["potential"])
+            actual = safe_value(model.power, ("WAT", d, t))
+            wat_curtailed += (potential - actual) * param["cluster_weights"][d]
+    result_dict["WAT"]["curtailed"] = int(dt * wat_curtailed)
+
+    # Power profiles and maximum power
+    result_dict["power_profile"] = {}
+    result_dict["power_kW"] = {}
+    for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+        profile = []
+        for d in model.clusters:
+            for t in model.time_steps:
+                profile.append(safe_value(model.power, (device, d, t)))
+        result_dict["power_profile"][device] = profile
+        result_dict["power_kW"][device] = int(max(profile)) if profile else 0
+
+    # Heat profiles and maximum heat
+    result_dict["heat_profile"] = {}
+    result_dict["heat_kW"] = {}
+    for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
+        profile = []
+        for d in model.clusters:
+            for t in model.time_steps:
+                profile.append(safe_value(model.heat, (device, d, t)))
+        result_dict["heat_profile"][device] = profile
+        result_dict["heat_kW"][device] = int(max(profile)) if profile else 0
+
+    # Cooling profiles and maximum cooling
+    result_dict["cool_profile"] = {}
+    result_dict["cool_kW"] = {}
+    for device in ["CC", "AC"]:
+        profile = []
+        for d in model.clusters:
+            for t in model.time_steps:
+                profile.append(safe_value(model.cool, (device, d, t)))
+        result_dict["cool_profile"][device] = profile
+        result_dict["cool_kW"][device] = int(max(profile)) if profile else 0
+
+    # Area usage
+    result_dict["area"] = {}
+    for device in ["PV", "STC"]:
+        result_dict["area"][device] = int(safe_value(model.area, device))
+
+    # Calculate annual generation for each device type
+    eps = 0.01
+
+    # Heat generation
+    for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+        gen_kwh = dt * sum(safe_value(model.heat, (k, d, t)) * param["cluster_weights"][d]
+                           for d in model.clusters for t in model.time_steps)
+        result_dict[k]["gen_kWh"] = gen_kwh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+
+    # Cooling generation
+    for k in ["CC", "AC"]:
+        gen_kwh = dt * sum(safe_value(model.cool, (k, d, t)) * param["cluster_weights"][d]
+                           for d in model.clusters for t in model.time_steps)
+        result_dict[k]["gen_kWh"] = gen_kwh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+
+    # Power generation
+    for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
+        gen_kwh = dt * sum(safe_value(model.power, (k, d, t)) * param["cluster_weights"][d]
+                           for d in model.clusters for t in model.time_steps)
+        result_dict[k]["gen_kWh"] = gen_kwh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+
+    # Special: Hydrogen generation for ELYZ
+    h2_gen = dt * sum(safe_value(model.power, ("ELYZ", d, t)) * devs["ELYZ"]["eta_el"] * param["cluster_weights"][d]
+                      for d in model.clusters for t in model.time_steps)
+    result_dict["ELYZ"]["gen_H2"] = int(h2_gen / 1000)  # MWh
+
+    # Gas generation for SAB
+    for k in ["SAB"]:
+        gen_kwh = dt * sum(safe_value(model.gas, (k, d, t)) * param["cluster_weights"][d]
+                           for d in model.clusters for t in model.time_steps)
+        result_dict[k]["gen_kWh"] = gen_kwh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+
+    # Calculate full load hours
+    for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
+              "ELYZ", "FC", "SAB"]:
+        cap_k = safe_value(model.cap, k)
+        if cap_k > eps:
+            result_dict[k]["hrs"] = int(result_dict[k]["gen_kWh"] / cap_k)
         else:
-            result_dict["from_grid"] = {"cap": float("inf")}
-            result_dict["to_grid"] = {"cap": float("inf")}
+            result_dict[k]["hrs"] = 0
 
-        result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()) + data.heat_grid_data["costs"])
-        result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()) + data.heat_grid_data["ann_costs"])
-        result_dict["total_om_cost"]         = int(sum(c_om[k].X  for k in cap.keys()) + data.heat_grid_data["om_costs"])
-        result_dict["from_el_grid_total"]    = int(from_el_grid_total.X / 1000)    # MWh
-        result_dict["to_el_grid_total"]      = int(to_el_grid_total.X / 1000)      # MWh
-        result_dict["from_gas_grid_total"]   = int(from_gas_grid_total.X / 1000)   # MWh
-        result_dict["to_gas_grid_total"]     = int(to_gas_grid_total.X / 1000)     # MWh
-        result_dict["biom_import_total"]     = int(biom_import_total.X / 1000)     # MWh
-        result_dict["waste_import_total"]    = int(waste_import_total.X / 1000)    # MWh
-        result_dict["hydrogen_import_total"] = int(hydrogen_import_total.X / 1000) # MWh
+    # Select technologies that are installed
+    for k in model.all_devs:
+        result_dict[k]["inst"] = safe_value(model.cap, k) > eps
 
-        # CO2 emissions
-        result_dict["co2_onsite_emissions"] = int((from_gas_grid_total.X * param["co2_gas"] + biom_import_total.X * param["co2_biom"] + waste_import_total.X * param["co2_waste"])/1000)
-        result_dict["co2_global_emissions"] = int(result_dict["co2"]/1000)
-        result_dict["co2_credit_feedin"] = int((to_el_grid_total.X * param["co2_el_feed_in"] + to_gas_grid_total.X * param["co2_gas_feed_in"])/1000)
-        result_dict["co2_tax_total"] = int(result_dict["co2_onsite_emissions"] * param["co2_tax"] * 1000)  # EUR, only gas, biomass and waste.
+    # Calculate charge cycles of storages
+    for k in ["TES", "CTES", "BAT", "H2S", "GS"]:
+        cap_k = safe_value(model.cap, k)
+        if cap_k > eps:
+            charge_cycles = dt * sum(abs(safe_value(model.ch, (k, d, t))) / 2 * param["cluster_weights"][d]
+                                     for d in model.clusters for t in model.time_steps)
+            result_dict[k]["chc"] = int(charge_cycles / cap_k)
+        else:
+            result_dict[k]["chc"] = 0
 
-        # Calculate maximum grid flows (electricity and gas)
-        for k in ["from_grid", "to_grid"]:
-            result_dict["max_el_" + k] = 0
-            for d in clusters:
-                for t in time_steps:
-                    if power[k][d][t].X > result_dict["max_el_" + k]:
-                        result_dict["max_el_" + k] = power[k][d][t].X
-            result_dict["max_el_" + k] = int(result_dict["max_el_" + k])
+    # Calculate volume of thermal storages
+    for k in ["TES", "CTES"]:
+        cap_k = safe_value(model.cap, k)
+        if cap_k > eps:
+            result_dict[k]["vol_liter"] = round(
+                cap_k / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600 * 1000, 1)
+        else:
+            result_dict[k]["vol_liter"] = 0
 
-        for k in ["from_grid", "to_grid"]:
-            result_dict["max_gas_" + k] = 0
-            for d in clusters:
-                for t in time_steps:
-                    if gas[k][d][t].X > result_dict["max_gas_" + k]:
-                        result_dict["max_gas_" + k] = gas[k][d][t].X
-            result_dict["max_gas_" + k] = int(result_dict["max_gas_" + k])
+        # Storage state of charge and charging power
+    for dev in model.storage_devs:
+        # Maximum SOC
+        max_soc = max(safe_value(model.soc, (dev, day_y, t)) for day_y in model.year for t in model.time_steps)
+        result_dict[dev]["soc"] = int(max_soc)
 
-        result_dict["max_biom"] = 0
-        for d in clusters:
-            for t in time_steps:
-                if biom["import"][d][t].X > result_dict["max_biom"]:
-                    result_dict["max_biom"] = biom["import"][d][t].X
-        result_dict["max_biom"] = int(result_dict["max_biom"])
+        # Maximum charging power
+        max_ch = max(safe_value(model.ch, (dev, d, t)) for d in model.clusters for t in model.time_steps)
+        result_dict[dev]["ch"] = int(max_ch)
 
-        result_dict["max_waste"] = 0
-        for d in clusters:
-            for t in time_steps:
-                if waste["import"][d][t].X > result_dict["max_waste"]:
-                    result_dict["max_waste"] = waste["import"][d][t].X
-        result_dict["max_waste"] = int(result_dict["max_waste"])
+    # Calculate detailed CO2 emissions by source
+    result_dict["total_co2_el"] = int(safe_value_single(model.from_el_grid_total) * param["co2_el_grid"] / 1000)  # t/a
+    result_dict["total_co2_el_feed_in"] = int(
+        safe_value_single(model.to_el_grid_total) * param["co2_el_feed_in"] / 1000)  # t/a
+    result_dict["total_co2_gas"] = int(safe_value_single(model.from_gas_grid_total) * param["co2_gas"] / 1000)  # t/a
+    result_dict["total_co2_gas_feed_in"] = int(
+        safe_value_single(model.to_gas_grid_total) * param["co2_gas_feed_in"] / 1000)  # t/a
+    result_dict["total_co2_biom"] = int(safe_value_single(model.biom_import_total) * param["co2_biom"] / 1000)  # t/a
+    result_dict["total_co2_waste"] = int(safe_value_single(model.waste_import_total) * param["co2_waste"] / 1000)  # t/a
+    result_dict["total_co2_hydrogen"] = int(
+        safe_value_single(model.hydrogen_import_total) * param["co2_hydrogen"] / 1000)  # t/a
 
-        result_dict["max_hydrogen"] = 0
-        for d in clusters:
-            for t in time_steps:
-                if hydrogen["import"][d][t].X > result_dict["max_hydrogen"]:
-                    result_dict["max_hydrogen"] = hydrogen["import"][d][t].X
-        result_dict["max_hydrogen"] = int(result_dict["max_hydrogen"])
-
-        result_dict["supply_costs_el"] = int(supply_costs_el.X)
-        result_dict["cap_costs_el"] = int(cap_costs_el.X)
-        result_dict["total_el_costs"] = int(supply_costs_el.X + cap_costs_el.X)
-        result_dict["rev_feed_in_el"] = int(rev_feed_in_el.X)
-
-        result_dict["supply_costs_gas"] = int(supply_costs_gas.X)
-        result_dict["cap_costs_gas"] = int(cap_costs_gas.X)
-        result_dict["total_gas_costs"] = int(supply_costs_gas.X + cap_costs_gas.X)
-        result_dict["rev_feed_in_gas"] = int(rev_feed_in_gas.X)
-
-        result_dict["supply_costs_biom"] = int(supply_costs_biom.X)
-        result_dict["supply_costs_waste"] = int(supply_costs_waste.X)
-        result_dict["supply_costs_hydrogen"] = int(supply_costs_hydrogen.X)
-
-        # Prepare time series of renewable generation (without curtailment)
-
-        result_dict["PV_generation_uncl"] = devs["PV"]["norm_power"] / 1000 * area["PV"].X          # in kW
-        result_dict["WT_generation_uncl"] = devs["WT"]["norm_power"] * cap["WT"].X                  # in kW
-        result_dict["STC_generation_uncl"] = devs["STC"]["norm_power"] / 1000 * area["STC"].X       # in kW
-
-        # Prepare time series of renewable curtailment
-        power["PV_curtail"] = {}
-        power["WT_curtail"] = {}
-        power["WAT_curtail"] = {}
-        heat["STC_curtail"] = {}
-        for d in clusters:
-            power["PV_curtail"][d] = {}
-            power["WT_curtail"][d] = {}
-            power["WAT_curtail"][d] = {}
-            heat["STC_curtail"][d] = {}
-            for t in time_steps:
-                power["PV_curtail"][d][t] = devs["PV"]["norm_power_clustered"][d][t]/1000 * area["PV"].X - power["PV"][d][t].X
-                power["WT_curtail"][d][t] = devs["WT"]["norm_power_clustered"][d][t] * cap["WT"].X - power["WT"][d][t].X
-                power["WAT_curtail"][d][t] = np.min([cap["WAT"].X, devs["WAT"]["potential"]]) - power["WAT"][d][t].X
-                heat["STC_curtail"][d][t] = devs["STC"]["norm_power_clustered"][d][t]/1000  * area["STC"].X - heat["STC"][d][t].X
-
-        result_dict["PV"]["curtailed"]  = int(dt * (sum(sum(power["PV_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-        result_dict["STC"]["curtailed"] = int(dt * (sum(sum(heat["STC_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-        result_dict["WT"]["curtailed"]  = int(dt * (sum(sum(power["WT_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-        result_dict["WAT"]["curtailed"] = int(dt * (sum(sum(power["WAT_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-
-        result_dict["power_profile"] = {}
-        result_dict["power_kW"] = {}
-        for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid",
-                       "to_grid"]:
-            result_dict["power_profile"][device] = []
-            for d in clusters:
-                for t in time_steps:
-                    result_dict["power_profile"][device].append(power[device][d][t].X)
-            result_dict["power_kW"][device] = int(max(result_dict["power_profile"][device]))
-
-        # Heat to/from devices
-        result_dict["heat_profile"] = {}
-        result_dict["heat_kW"] = {}
-        for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
-            result_dict["heat_profile"][device] = []
-            for d in clusters:
-                for t in time_steps:
-                    result_dict["heat_profile"][device].append(heat[device][d][t].X)
-            result_dict["heat_kW"][device] = int(max(result_dict["heat_profile"][device]))
-
-        result_dict["area"] = {}
-        for device in ["PV", "STC"]:
-            result_dict["area"][device] = int(area[device].X)
-
-        # Calculate generation
-        eps = 0.01
-        for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(heat[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(heat[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
-
-        for k in ["CC", "AC"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(cool[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(cool[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
-
-        for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(power[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(power[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
-
-        # Calculate hydrogen generation for ELYZ
-        result_dict["ELYZ"]["gen_H2"] = int(dt * sum(sum(power["ELYZ"][d][t].X * devs["ELYZ"]["eta_el"]for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
-
-        for k in ["SAB"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(gas[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(gas[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
-
-        # Calculate full load hours
-        for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "SAB"]:
-            if cap[k].X > eps:
-                result_dict[k]["hrs"] = int(result_dict[k]["gen_kWh"] / cap[k].X)
-            else:
-                result_dict[k]["hrs"] = 0
-
-
-        # Select technologies that are installed (to list only these in results)
-        for k in all_devs:
-            if cap[k].X > eps:
-                result_dict[k]["inst"] = True
-            else:
-                result_dict[k]["inst"] = False
-
-        # Calculate charge cycles of storages
-        for k in ["TES", "CTES", "BAT", "H2S", "GS"]:
-            if cap[k].X > eps:
-                result_dict[k]["chc"] = int(dt * sum(sum(abs(ch[k][d][t].X)/2 for t in time_steps) * param["cluster_weights"][d] for d in clusters) / cap[k].X)
-            else:
-                result_dict[k]["chc"] = 0
-
-        # Calculate volume of thermal storages
-        for k in ["TES", "CTES"]:
-            result_dict[k]["vol_liter"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600 * 1000, 1)
-
-        # Calculate emissions
-        result_dict["total_co2_el"] = int(from_el_grid_total.X * param["co2_el_grid"]/1000) # t/a
-        result_dict["total_co2_el_feed_in"] = int(to_el_grid_total.X * param["co2_el_feed_in"]/1000) # t/a
-        result_dict["total_co2_gas"] = int(from_gas_grid_total.X * param["co2_gas"]/1000) # t/a
-        result_dict["total_co2_gas_feed_in"] = int(to_gas_grid_total.X * param["co2_gas_feed_in"]/1000) # t/a
-        result_dict["total_co2_biom"] = int(biom_import_total.X * param["co2_biom"]/1000) # t/a
-        result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
-        result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
-
-
-        return result_dict
+    return result_dict

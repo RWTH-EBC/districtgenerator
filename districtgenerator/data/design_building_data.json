@@ -1,5 +1,11 @@
 [
   {
+  "name": "thermal_model_type",
+  "value": "5R1C",
+  "unit": "-",
+  "description": "Selectable thermal network model type for dynamic thermal simulation. 5R1C corresponds to the ISO 13790 model, while 7R2C corresponds to the VDI 6007 model."
+  },
+  {
     "name": "T_set_min",
     "value":  21.0,
     "unit": "degree Celsius",
@@ -13,13 +19,13 @@
   },
     {
     "name": "T_set_min_free_day",
-    "value": 16.0,
+    "value": 18.0,
     "unit": "degree Celsius",
     "description": "Minimum required indoor temperature on a non-working day in a non-residential building (for heating load calculations)"
   },
   {
     "name": "T_set_max",
-    "value": 26.0,
+    "value": 24.0,
     "unit": "degree Celsius",
     "description": "Required maximum indoor temperature (for cooling load calculation)"
   },

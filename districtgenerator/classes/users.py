@@ -12,7 +12,8 @@ import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
-import districtgenerator.functions.heating_profile_5R1C as heating
+import districtgenerator.functions._5R1C as heating_5R1C
+import districtgenerator.functions._7R2C as heating_7R2C
 import districtgenerator.functions.SIA as SIA
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
@@ -111,9 +112,10 @@ class Users:
         self.gains = None
         self.heat = None
         self.cooling = None
-        self.carprofile = None
-        self.carcharging_ondemand = None
+        self.EV_carprofile = None
+        self.EV_carcharging_ondemand = None
         self.ev_capacity = None
+        self.ice_carprofile = None
 
         # Initialize SIA class and read data
         self.SIA2024 = SIA.read_SIA_data()
@@ -653,9 +655,10 @@ class Users:
             self.dhw = np.zeros(int(time_horizon / time_resolution))
             self.elec = np.zeros(int(time_horizon / time_resolution))
             self.gains = np.zeros(int(time_horizon / time_resolution))
-            self.carprofile = np.zeros(int(time_horizon / time_resolution))
-            self.carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
+            self.EV_carprofile = np.zeros(int(time_horizon / time_resolution))
+            self.EV_carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
             self.ev_capacity = []
+            self.ice_carprofile = np.zeros(int(time_horizon / time_resolution))
 
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
@@ -671,10 +674,11 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
-                carprofile, on_demand_charging, ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
-                self.carprofile = self.carprofile + carprofile # Sum car profiles over all flats in the building
-                self.carcharging_ondemand = self.carcharging_ondemand + on_demand_charging
+                EV_carprofile, EV_on_demand_charging, ev_capacity, ice_carprofile = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
+                self.EV_carprofile = self.EV_carprofile + EV_carprofile # Sum car profiles over all flats in the building
+                self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + EV_on_demand_charging
                 self.ev_capacity += ev_capacity
+                self.ice_carprofile = self.ice_carprofile + ice_carprofile
 
         else:
             temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
@@ -689,13 +693,14 @@ class Users:
 
             # In the case of non-residential buildings, EVs are only for office buildings
             if self.building in {"OB"}:
-                self.carprofile, self.carcharging_ondemand, self.ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
+                self.EV_carprofile, self.EV_carcharging_ondemand, self.ev_capacity, self.ice_carprofile = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
             else:
-                self.carprofile = np.zeros(len(self.occ), dtype=np.float64)
-                self.carcharging_ondemand = np.zeros(len(self.occ), dtype=np.float64)
+                self.EV_carprofile = np.zeros(len(self.occ), dtype=np.float64)
+                self.EV_carcharging_ondemand = np.zeros(len(self.occ), dtype=np.float64)
                 self.ev_capacity = [0.0]
+                self.ice_carprofile = np.zeros(len(self.occ), dtype=np.float64)
 
-    def calcHeatingProfile(self, site, envelope, night_setback, is_cooled, holidays, time_resolution):
+    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, holidays, time_resolution, initial_day):
         """
         Calculate heat demand for each building.
 
@@ -718,12 +723,20 @@ class Users:
         """
 
         dt = time_resolution / (60 * 60)
+
+        if thermal_model == "5R1C":
+            heating = heating_5R1C
+        elif thermal_model == "7R2C":
+            heating = heating_7R2C
+        else:
+            raise ValueError(f"Unknown thermal_model_type: {thermal_model}")
+
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt,
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt, initial_day,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, initial_day, self.building)
 
         # Force cooling to zero if building is not actively cooled
         if is_cooled == 0:

@@ -12,10 +12,28 @@
         "description" : "Feed-in electricity price."
     },
     {
+        "name": "price_supply_el_eh",
+        "value": 0.3141,
+        "unit": "€/kWh",
+        "description" : "Electricity price for energy hub."
+    },
+    {
+        "name": "revenue_feed_in_el_eh",
+        "value": 0.0794,
+        "unit": "EUR/kWh",
+        "description" : "Feed-in electricity price for energy hub."
+    },
+    {
         "name": "price_supply_gas",
         "value": 0.1236,
         "unit": "€/kWh",
         "description" : "Gas price."
+    },
+    {
+        "name": "price_gasoline_liter",
+        "value": 1.7,
+        "unit": "€/L",
+        "description": "Gasoline price per liter."
     },
     {
         "name": "price_hydrogen",
@@ -34,6 +52,18 @@
         "value": 0.05,
         "unit": "€/kWh",
         "description" : "Biomass price."
+    },
+    {
+        "name": "price_oil",
+        "value": 0.1,
+        "unit": "€/kWh",
+        "description" : "Oil price."
+    },
+    {
+        "name": "price_district_heat",
+        "value": 0.07,
+        "unit": "€/kWh",
+        "description" : "District heating price."
     },
     {
         "name": "co2_el_grid",
@@ -64,5 +94,17 @@
         "value": 0,
         "unit": "kg/kWh",
         "description" : "CO2 emissions by burning hydrogen."
+    },
+    {
+        "name": "co2_oil",
+        "value": 0.266,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions by burning oil."
+    },
+    {
+        "name": "co2_district_heat",
+        "value": 0.2,
+        "unit": "kg/kWh",
+        "description" : "CO2 emissions for district heating."
     }
 ]
