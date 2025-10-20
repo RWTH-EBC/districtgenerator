@@ -17,7 +17,7 @@ from datetime import datetime
 import logging
 
 # Sets of energy conversion systems in the buildings
-ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "heat_grid", "DHW_dem", "Heating_dem", "FC")
+ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "DHW_dem", "Heating_dem", "FC")
 ECS_COOL = ("CC", "heat_grid", "Cooling_dem") #! heat_grid correct? Should this be cooling grid for better understanding?
 ECS_POWER = ("HP", "EH", "CC", "CHP", "PV", "Elec_dem", "FC")  # power consuming/producing devices
 ECS_GAS = ("CHP", "BOI")  # gas consuming devices
