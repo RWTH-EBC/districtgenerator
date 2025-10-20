@@ -15,6 +15,7 @@ from datetime import datetime
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
+from math import ceil
 
 class KPIs:
 
@@ -809,6 +810,8 @@ class KPIs:
                 "Nettofläche GHD gesamt": str(self.totalarea_non_residential) + " m\u00B2",
                 "Standort (PLZ)": str(data.site["zip"]),
                 "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
+                "FAR-Wert": "{:.2g}".format(data.heat_grid_data["FAR"]["value"]),
+                "Wärmeliniendichte": "{:.2g}".format(data.heat_grid_data["Wärmeliniendichte"]),
                 "Quartiersname": str(data.scenario_name)
             }
 
@@ -1083,21 +1086,46 @@ class KPIs:
                                    "m\u00B2")
 
         # fill in the info under the table
+        # certificate.setFont("Helvetica", 12)
+        # struktur_keys = tuple(struktur.keys())
+        # struktur_keys = struktur_keys[4:-1]
+        # struktur_values = tuple(struktur.values())
+        # struktur_values = struktur_values[4:-1]
+        #
+        # i = 0
+        # for item in struktur_keys:
+        #     certificate.drawString(185, table_bottom - 20 - (18 * i), item + ":")
+        #     i = i + 1
+        #
+        # j = 0
+        # for value in struktur_values:
+        #     certificate.drawString(350, table_bottom - 20 - (18 * j), str(value))
+        #     j = j + 1
+
+        # fill in the info under the table
         certificate.setFont("Helvetica", 12)
-        struktur_keys = tuple(struktur.keys())
-        struktur_keys = struktur_keys[4:-1]
-        struktur_values = tuple(struktur.values())
-        struktur_values = struktur_values[4:-1]
+        keys = list(struktur.keys())[4:-1]
+        values = list(struktur.values())[4:-1]
+        x_left = 90
+        x_right = 290
+        value_offset = 140
+        line_height = 18
+        start_y = table_bottom - 20
 
-        i = 0
-        for item in struktur_keys:
-            certificate.drawString(185, table_bottom - 20 - (18 * i), item + ":")
-            i = i + 1
+        rows_per_col = ceil(len(keys) / 2)
 
-        j = 0
-        for value in struktur_values:
-            certificate.drawString(350, table_bottom - 20 - (18 * j), str(value))
-            j = j + 1
+        for r in range(rows_per_col):
+            y = start_y - r * line_height
+            # left column
+            idx_left = r
+            if idx_left < len(keys):
+                certificate.drawString(x_left, y, str(keys[idx_left]) + ":")
+                certificate.drawString(x_left + value_offset, y, str(values[idx_left]))
+            # right column
+            idx_right = r + rows_per_col
+            if idx_right < len(keys):
+                certificate.drawString(x_right, y, str(keys[idx_right]) + ":")
+                certificate.drawString(x_right + value_offset, y, str(values[idx_right]))
 
         # end first page, continue to next page
         certificate.showPage()
