@@ -23,7 +23,7 @@ class DecentralDeviceConfig(BaseSettings):
     # HP parameters (Air Source Heat Pump)
     HP_grade: float = 0.4       # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
     HP_life_time: int = 18      # Maximum life time in years.
-    HP_inv_var: int = 1982      # Variable investment costs in €/kWth.
+    HP_inv_var: int = 1000      # Variable investment costs in €/kWth.
     HP_cost_om: float = 0.02    # Operation and maintenance costs as a fraction of investment costs in 1/year.
 
     # EH parameters (Electric Heater)
@@ -33,8 +33,8 @@ class DecentralDeviceConfig(BaseSettings):
     # BOI parameters (Gas Boiler)
     BOI_eta_th: float = 0.97    # Thermal efficiency.
     BOI_life_time: int = 20     # Maximum life time in years.
-    BOI_inv_var: int = 350      # Variable investment costs in €/kW.
-    BOI_cost_om: float = 0.03   # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    BOI_inv_var: int = 130      # Variable investment costs in €/kW.
+    BOI_cost_om: float = 0.05   # Operation and maintenance costs as a fraction of investment costs in 1/year.
 
     # CHP parameters (Combined Heat and Power)
     # Definition: Gas based combined heat and power plant.
@@ -62,8 +62,8 @@ class DecentralDeviceConfig(BaseSettings):
     PV_eta_opt: float = 0.9         # Optical efficiency.
     PV_P_nominal: float = 220.0     # Reference power per squaremeter, used for Battery sizing, in Watt per squaremeter.
     PV_life_time: int = 25          # Maximum life time in years.
-    PV_inv_var: int = 250           # Variable investment costs in €/m^2.
-    PV_cost_om: float = 0.015       # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    PV_inv_var: int = 340           # Variable investment costs in €/m^2.
+    PV_cost_om: float = 0.05       # Operation and maintenance costs as a fraction of investment costs in 1/year.
 
     # STC parameters (Solar Thermal Collector)
     STC_T_flow: int = 50                    # Flow temperature in degree Celsius.
@@ -75,16 +75,16 @@ class DecentralDeviceConfig(BaseSettings):
     STC_cost_om: float = 0.05               # Operation and maintenance costs as a fraction of total investment costs (percentage).
 
     # TES parameters (Thermal Energy Storage)
-    TES_soc_min: float = 0.0            # Minimum state of charge.
+    TES_soc_min: float = 0.05            # Minimum state of charge.
     TES_soc_max: float = 1.0            # Maximum state of charge.
     TES_eta_standby: float = 0.97       # Standby hourly efficiency (accounts for self-discharge).
     TES_eta_ch: float = 1.0             # Charging and discharging efficiency.
     TES_coeff_ch: float = 10000.0       # Charging and discharging coefficient in Watt per Watthour.
     TES_init: float = 0.5               # Initial state of charge.
     TES_T_diff_max: int = 35            # Maximum temperature difference in degree Celsius.
-    TES_life_time: int = 20             # Maximum life time in years.
-    TES_inv_var: int = 3                # Variable investment costs in €/liter.
-    TES_cost_om: float = 0.005          # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    TES_life_time: int = 15             # Maximum life time in years.
+    TES_inv_var: int = 20                # Variable investment costs in €/liter.
+    TES_cost_om: float = 0.05          # Operation and maintenance costs as a fraction of investment costs in 1/year.
 
     # BAT parameters (Battery Storage)
     BAT_soc_min: float = 0.0        # Minimum state of charge.
@@ -92,7 +92,7 @@ class DecentralDeviceConfig(BaseSettings):
     BAT_eta_standby: float = 0.97   # Standby hourly efficiency (accounts for self-discharge).
     BAT_eta_ch: float = 0.97        # Charging and discharging efficiency.
     BAT_coeff_ch: float = 0.8       # Charging and discharging coefficient in Watt per Watthour.
-    BAT_init: float = 0.5           # Initial state of charge.
+    BAT_init: float = 0.2           # Initial state of charge.
     BAT_life_time: int = 15         # Maximum life time in years.
     BAT_inv_var: int = 850          # Variable investment costs in €/kWh.
     BAT_cost_om: float = 0.05       # Operation and maintenance costs as a fraction of total investment costs (percentage).
@@ -102,11 +102,11 @@ class DecentralDeviceConfig(BaseSettings):
     EV_soc_max: float = 0.95        # Maximum state of charge.
     EV_eta_standby: float = 1.0     # Standby hourly efficiency (accounts for self-discharge).
     EV_eta_ch: float = 0.97         # Charging and discharging efficiency.
-    EV_coeff_ch: float = 0.15       # Charging and discharging coefficient in Watt per Watthour.
-    EV_init: float = 0.9            # Initial state of charge.
+    EV_coeff_ch: float = 1.2       # Charging and discharging coefficient in Watt per Watthour.
+    EV_init: float = 0.2            # Initial state of charge.
     EV_life_time: int = 20          # Maximum life time in years.
-    EV_inv_var: int = 0             # Variable investment costs in €/kWh.
-    EV_cost_om: float = 0.0         # Operation and maintenance costs as a fraction of total investment costs (percentage).
+    EV_inv_var: int = 700             # Variable investment costs in €/kWh.
+    EV_cost_om: float = 0.05         # Operation and maintenance costs as a fraction of total investment costs (percentage).
 
     # Investment data parameters
     inv_data_observation_time: int = 20     # Observation time in years.
