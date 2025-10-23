@@ -1171,7 +1171,8 @@ class Datahandler:
                             + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                             building["generationPV"] * building["buildingFeatures"]["PV"],
-                            delimiter=',', fmt='%.10f'
+                            delimiter=';',
+                            fmt='%.2f'
                         )
 
                         np.savetxt(
@@ -1179,7 +1180,8 @@ class Datahandler:
                             + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                             building["generationSTC"] * building["buildingFeatures"]["STC"],
-                            delimiter=','
+                            delimiter=';',
+                            fmt='%.2f'
                         )
 
             elif pv_standard:
@@ -1203,13 +1205,15 @@ class Datahandler:
                         os.path.join(self.resultPath, 'generation')
                         + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                        building["generationPV"], delimiter=',')
+                        building["generationPV"], delimiter=';',
+                           fmt='%.2f')
 
                     np.savetxt(
                         os.path.join(self.resultPath, 'generation')
                         + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                        building["generationSTC"], delimiter=',')
+                        building["generationSTC"], delimiter=';',
+                           fmt='%.2f')
 
 
     def designCentralDevices(self, saveGenerationProfiles):
@@ -1247,13 +1251,16 @@ class Datahandler:
         if saveGenerationProfiles == True:
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
                        self.centralDevices["generation"]["PV"],
-                       delimiter=',')
+                       delimiter=';',
+                       fmt='%.2f')
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
                        self.centralDevices["generation"]["STC"],
-                       delimiter=',')
+                       delimiter=';',
+                       fmt='%.2f')
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
                        self.centralDevices["generation"]["Wind"],
-                       delimiter=',')
+                       delimiter=';',
+                       fmt='%.2f')
 
     def designDevicesComplete(self, saveGenerationProfiles=True):
         """
