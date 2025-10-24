@@ -129,7 +129,6 @@ class Users:
             self.generate_number_flats_and_rooms(area)
             self.generate_number_occupants(area)
         else:
-
             nb_occ_string = nb_occ  # Replace this with the correct variable if it's different
             nb_occ_list = ast.literal_eval(nb_occ_string)
     
@@ -688,6 +687,11 @@ class Users:
 
                 # Occupancy profile in a
                 if self.calcOccProf:
+                    prof = temp_obj.generate_occupancy_profiles_residential()
+                    prof_df = pd.DataFrame(prof, columns=['prof'])
+                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
+                    self.occ = self.occ + prof
+                elif not os.path.exists(os.path.join(path, 'occ_prof.parquet')):
                     prof = temp_obj.generate_occupancy_profiles_residential()
                     prof_df = pd.DataFrame(prof, columns=['prof'])
                     prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
