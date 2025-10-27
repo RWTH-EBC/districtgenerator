@@ -12,7 +12,7 @@ from districtgenerator.classes import *
 def example8_scenario_evaluation():
 
     # Initialize District
-    data = Datahandler(scenario_name = "parameters_A_buildings_35_30%PV")
+    data = Datahandler(scenario_name = "parameters_A_buildings_35_HP_30%PV")
 
     # We directly generate a complete district.
     data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
