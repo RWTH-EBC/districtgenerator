@@ -1125,20 +1125,16 @@ class Datahandler:
                     roof_inclinations = [beta if beta != 0 else 35 for beta in roof_inclinations]
 
                     # Call calcPVAndSTCProfile once with all roof segments
-                    total_potentialPV, total_potentialSTC = sun.calcPVAndSTCProfile(
+                    building["generationPV"], building["generationSTC"] = sun.calcPVAndSTCProfile(
                         time=self.time,
                         site=self.site,
                         areas=roof_areas,
                         betas=roof_inclinations,
                         gammas=cardinal_directions,
-                        usageFactorPV=building["buildingFeatures"]["f_PV"],
-                        usageFactorSTC=building["buildingFeatures"]["f_STC"],
+                        usageFactorPV=1, #building["buildingFeatures"]["f_PV"], #todo: check because netto area
+                        usageFactorSTC=1, #building["buildingFeatures"]["f_STC"],
                         devices=self.decentral_device_data,
                     )
-
-                    # Assign scaled generation profiles to building
-                    building["generationPV"] = total_potentialPV * building["buildingFeatures"]["PV"]
-                    building["generationSTC"] = total_potentialSTC * building["buildingFeatures"]["STC"]
 
                     # ---- LOGGING ----
                     pv_rows = []
@@ -1170,7 +1166,7 @@ class Datahandler:
                             os.path.join(self.resultPath, 'generation')
                             + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["generationPV"] * building["buildingFeatures"]["PV"],
+                            building["generationPV"],
                             delimiter=';',
                             fmt='%.2f'
                         )
@@ -1179,14 +1175,14 @@ class Datahandler:
                             os.path.join(self.resultPath, 'generation')
                             + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["generationSTC"] * building["buildingFeatures"]["STC"],
+                            building["generationSTC"],
                             delimiter=';',
                             fmt='%.2f'
                         )
 
             elif pv_standard:
                 # Standard single-surface calculation
-                potentialPV, potentialSTC = sun.calcPVAndSTCProfile(
+                building["generationPV"], building["generationSTC"] = sun.calcPVAndSTCProfile(
                     time=self.time,
                     site=self.site,
                     areas=[building["envelope"].A["opaque"]["roof"]], #/building["buildingFeatures"]["number_of_floors"]], do we require this?
@@ -1196,9 +1192,6 @@ class Datahandler:
                     usageFactorSTC=building["buildingFeatures"]["f_STC"],
                     devices=self.decentral_device_data
                 )
-
-                building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
-                building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
 
                 if saveGenerationProfiles:
                     np.savetxt(
