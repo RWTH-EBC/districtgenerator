@@ -812,15 +812,17 @@ def build_model(model, data, cluster):
     ################################################################################
 
     # Identify parking periods where EV can be charged/discharged
-    def identify_ev_parking_periods(buildingData, EV_dem, time_steps, dt) -> dict:
+    def identify_ev_charging_periods(buildingData, EV_dem, time_steps, dt) -> dict:
         """
-        Identify parking periods for each building before model creation
+        Identify charging periods for each building before model creation
 
-        Returns a dictionary with building index as key and a boolean as result if the EV is parked at the building
-        1. For SFH, TH, MFH, AB: parking time is 12 hours
-        2. For other buildings (e.g., offices, commercial): parking time is 10 hours
+        Returns a dictionary with building index as key and a boolean as result if the EV is parked at the building and can be charged/discharged.
+        Vehicle can be charged if parked
+        If vehicle is driving it is not parked and cannot be charged (EV_dem > 0)
+
+        Vehicle is parked for max. 12h in SFH, TH, MFH, AB and max. 10h in other building types #! Maybe remove this and say whenever at home can charge
         """
-        parking_periods = {}
+        charging_periods = {}
 
         for n in range(len(buildingData)):
             parking_time = 12 / dt if buildingData[n]["buildingFeatures"]["building"] in {"SFH", "TH", "MFH",
@@ -828,10 +830,15 @@ def build_model(model, data, cluster):
 
             periods = []
             plug_in_time = None
+            is_driving = False # 
 
             for t in time_steps:
-                if plug_in_time is None and EV_dem[n][t] > 0:
-                    plug_in_time = t  # When the EV demands energy, it must be plugged in. Start of charging period
+                if EV_dem[n][t] > 0: # Car is still driving and demands energy
+                    plug_in_time = None  # Reset plug-in time if EV is driving 
+                    is_driving = True
+                elif is_driving and EV_dem[n][t] == 0: # Car has stopped driving and does not demand energy
+                    plug_in_time = t  
+                    is_driving = False
 
                 if plug_in_time is not None:
                     if t < min(plug_in_time + parking_time, len(time_steps)):
@@ -842,26 +849,25 @@ def build_model(model, data, cluster):
                 else:
                     periods.append(False)
 
-            parking_periods[n] = periods
+            charging_periods[n] = periods
 
-        return parking_periods
+        return charging_periods
 
-    parking_periods = identify_ev_parking_periods(buildingData, EV_dem, time_steps, dt)
-
-    # Computing the maximum allowed charging/discharging power for the EV
-    def _ev_pmax(n):
-        return buildingData[n]["capacities"]["EV"] * param_dec_devs["EV"]["coeff_ch"]
+    charging_periods = identify_ev_charging_periods(buildingData, EV_dem, time_steps, dt)
 
     # Modelling of the EV charging process and storage
     def ev_energy_balance_rule(model, n, t):
-        if t == 0:
-            soc_prev = soc_init["EV"][n]
-        else:
-            soc_prev = model.soc_dom["EV", n, t - 1]
+        if buildingData[n]["buildingFeatures"]["ev_charging"] not in {"on_demand"}:
+            if t == 0:
+                soc_prev = soc_init["EV"][n]
+            else:
+                soc_prev = model.soc_dom["EV", n, t - 1]
 
-        return model.soc_dom["EV", n, t] == soc_prev * param_dec_devs["EV"]["eta_standby"] ** dt + \
-            model.ch_dom["EV", n, t] * param_dec_devs["EV"]["eta_ch"] * dt - \
-            model.dch_dom["EV", n, t] / param_dec_devs["EV"]["eta_ch"] * dt - EV_dem[n][t]
+            return model.soc_dom["EV", n, t] == soc_prev * param_dec_devs["EV"]["eta_standby"] ** dt + \
+                model.ch_dom["EV", n, t] * param_dec_devs["EV"]["eta_ch"] * dt - \
+                model.dch_dom["EV", n, t] / param_dec_devs["EV"]["eta_ch"] * dt - EV_dem[n][t]
+        else: # on-demand EVs do not need an energy balance constraint because they are directly charged the same amount as they consume. Calculation in profiles.py
+            return pyo.Constraint.Skip
 
     def ev_final_soc_rule(model, n):
         """Final SOC of EV needs to be the same as initial SOC"""
@@ -874,7 +880,7 @@ def build_model(model, data, cluster):
     def ev_charging_rule(model, n, t):
         """EV can only charge when parked at the building. If not parked, charging power is 0. Otherwise, no constraint."""
         if buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional"}:
-            charging_possible = parking_periods[n][t]
+            charging_possible = charging_periods[n][t]
             if not charging_possible:
                 return model.ch_dom["EV", n, t] == 0
             else:
@@ -885,7 +891,7 @@ def build_model(model, data, cluster):
     def ev_bi_directional_discharging_rule(model, n, t):
         """EV can only discharge when parked at the building. If not parked, discharging power is 0. Otherwise, no constraint."""
         if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
-            discharging_possible = parking_periods[n][t]
+            discharging_possible = charging_periods[n][t]
             if not discharging_possible:
                 return model.dch_dom["EV", n, t] == 0
             else:
@@ -913,10 +919,10 @@ def build_model(model, data, cluster):
             return pyo.Constraint.Skip
 
     def ev_binary1_rule(model, n, t):
-        return model.dch_dom["EV", n, t] <= model.binary_EV[n, t] * _ev_pmax(n)
+        return model.dch_dom["EV", n, t] <= model.binary_EV[n, t] * buildingData[n]["capacities"]["EV"] * param_dec_devs["EV"]["coeff_ch"]
 
     def ev_binary2_rule(model, n, t):
-        return model.ch_dom["EV", n, t] <= (1 - model.binary_EV[n, t]) * _ev_pmax(n)
+        return model.ch_dom["EV", n, t] <= (1 - model.binary_EV[n, t]) * buildingData[n]["capacities"]["EV"] * param_dec_devs["EV"]["coeff_ch"]
 
     # Constaints for EVs
     model.ev_energy_balance = pyo.Constraint(model.n, model.t, rule=ev_energy_balance_rule)

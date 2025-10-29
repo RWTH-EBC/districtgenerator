@@ -1034,55 +1034,63 @@ class Datahandler:
 
         # calculate cluster time horizon
         initialArrayLenght = (self.time["clusterLength"] / self.time["timeResolution"])
-        lenghtArray = initialArrayLenght
-        while lenghtArray <= len(self.site["T_e"]):
-            lenghtArray += initialArrayLenght
-        lenghtArray = int(lenghtArray - initialArrayLenght)
+        lengthArray = initialArrayLenght
+        while lengthArray <= len(self.site["T_e"]):
+            lengthArray += initialArrayLenght
+        lengthArray = int(lengthArray - initialArrayLenght)
 
         # adjust profiles with calculated array length
         adjProfiles = {}
         # loop over buildings
         for i, b in enumerate(self.district):
             adjProfiles[i] = {}
-            adjProfiles[i]["elec"] = b["user"].elec[0:lenghtArray]
-            adjProfiles[i]["dhw"] = b["user"].dhw[0:lenghtArray]
-            adjProfiles[i]["heat"] = b["user"].heat[0:lenghtArray]
-            adjProfiles[i]["cooling"] = b["user"].cooling[0:lenghtArray]
-            adjProfiles[i]["occ"] = b["user"].occ[0:lenghtArray]
-            adjProfiles[i]["EV_carcharging_ondemand"] = b["user"].EV_carcharging_ondemand[0:lenghtArray]
-            adjProfiles[i]["EV_carprofile"] = b["user"].EV_carprofile[0:lenghtArray]
-            adjProfiles[i]["generationPV"] = b["generationPV"][0:lenghtArray]
-            adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lenghtArray]
+            adjProfiles[i]["elec"] = b["user"].elec[0:lengthArray]
+            adjProfiles[i]["dhw"] = b["user"].dhw[0:lengthArray]
+            adjProfiles[i]["heat"] = b["user"].heat[0:lengthArray]
+            adjProfiles[i]["cooling"] = b["user"].cooling[0:lengthArray]
+            adjProfiles[i]["occ"] = b["user"].occ[0:lengthArray]
+            adjProfiles[i]["EV_carcharging_ondemand"] = b["user"].EV_carcharging_ondemand[0:lengthArray]
+            adjProfiles[i]["EV_carprofile"] = b["user"].EV_carprofile[0:lengthArray]
+            adjProfiles[i]["generationPV"] = b["generationPV"][0:lengthArray]
+            adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lengthArray]
 
         if centralEnergySupply == True:
 
-            adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lenghtArray]
-            adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lenghtArray]
+            adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
+            adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
-                adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lenghtArray]
+                adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
-                adjProfiles["generationCentralWT"] = np.ones(lenghtArray) * sys.float_info.epsilon
+                adjProfiles["generationCentralWT"] = np.ones(lengthArray) * sys.float_info.epsilon
 
             if self.centralDevices["capacities"]["PV"]["cap"] > 0:
-                adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
+                adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lengthArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
-                adjProfiles["generationCentralPV"] = np.ones(lenghtArray) * sys.float_info.epsilon
+                adjProfiles["generationCentralPV"] = np.ones(lengthArray) * sys.float_info.epsilon
 
             if self.centralDevices["capacities"]["STC"]["cap"] > 0:
-                adjProfiles["generationCentralSTC"] = self.centralDevices["generation"]["STC"][0:lenghtArray]
+                adjProfiles["generationCentralSTC"] = self.centralDevices["generation"]["STC"][0:lengthArray]
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
-                adjProfiles["generationCentralSTC"] = np.ones(lenghtArray) * sys.float_info.epsilon
+                adjProfiles["generationCentralSTC"] = np.ones(lengthArray) * sys.float_info.epsilon
 
-        # wind speed and ambient temperature
-        adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
+        # wind speed/solar radiance and ambient temperature
+        adjProfiles["wind_speed"] = self.site["wind_speed"][0:lengthArray]
+        adjProfiles["SunTotal"] = self.site["SunTotal"][0:lengthArray]
+        adjProfiles["T_e"] = self.site["T_e"][0:lengthArray]
+
 
         # Prepare clustering
         # weights for clustering algorithm indicating the focus onto this profile
-        # Scaling flags for each profile (True = scale after clustering, False = preserve values)
+        # The relevant features for clustering are
+        # 1. electricity demand of the buildings (each building with weight 1)
+        # 2. outdoor temperature (weight = number of buildings)
+        # 3. Windspeed (weight = number of buildings) - only if central WT exists
+        # 4. Solar Radiation (weight = number of buildings if central PV or STC exist and + 1 for each building with PV or STC)
+        # The profiles are not scaled currently. If otherwise desired set scalings.append(True) for the relevant profiles.
 
         inputsClustering, weights, scalings = [], [], []
 
@@ -1090,7 +1098,7 @@ class Datahandler:
         for i in range(len(self.district)):
             inputsClustering.append(adjProfiles[i]["elec"])
             weights.append(1)
-            scalings.append(True)
+            scalings.append(False)
 
             inputsClustering.append(adjProfiles[i]["dhw"])
             weights.append(0)
@@ -1117,24 +1125,18 @@ class Datahandler:
             scalings.append(False)  # This profile is not scaled
 
             inputsClustering.append(adjProfiles[i]["generationPV"])
-            weights.append(1)
-            scalings.append(True)
+            weights.append(0)
+            scalings.append(False)
 
             inputsClustering.append(adjProfiles[i]["generationSTC"])
-            weights.append(1)
-            scalings.append(True)
+            weights.append(0)
+            scalings.append(False)
 
-        # Higher weight for outdoor temperature and central generation profiles,
-        # since they each occur only once (unlike the building profiles)
-        # and should therefore receive the same weight as the number of buildings.
 
-        # ambient temperature
-        inputsClustering.append(adjProfiles["T_e"])
-        weights.append(len(self.district))
-        scalings.append(True)
+        # Add central energy supply profiles 
+        index_central = len(inputsClustering) # Index of the first entry of central energy profiles
 
         if centralEnergySupply == True:
-
             # Heating and cooling networks losses
             inputsClustering.append(adjProfiles["losses_heating_network"])
             weights.append(0)
@@ -1146,16 +1148,46 @@ class Datahandler:
 
             # central renewable generation
             inputsClustering.append(adjProfiles["generationCentralWT"])
-            weights.append(len(self.district))
+            weights.append(0)
             scalings.append(False)
 
             inputsClustering.append(adjProfiles["generationCentralPV"])
-            weights.append(len(self.district))
-            scalings.append(True)
+            weights.append(0)
+            scalings.append(False)
 
             inputsClustering.append(adjProfiles["generationCentralSTC"])
-            weights.append(len(self.district))
-            scalings.append(True)
+            weights.append(0)
+            scalings.append(False)
+
+        # Wind speed (only relevant for clustering)
+        inputsClustering.append(adjProfiles["wind_speed"])
+        if centralEnergySupply == True and self.centralDevices["capacities"]["WT"]["cap"] > 0: weights.append(len(self.district))
+        else: weights.append(0)
+        scalings.append(False)
+
+        # Solar radiation (only relevant for clustering)
+        inputsClustering.append(adjProfiles["SunTotal"])
+        # determine weight for solar radiation
+        solar_weight = 0 
+        if centralEnergySupply == True:
+            if (self.centralDevices["capacities"]["PV"]["cap"] > 0 or 
+                self.centralDevices["capacities"]["STC"]["cap"] > 0):
+                solar_weight += len(self.district)
+
+        for i in range(len(self.district)):
+            if (self.district[i]["buildingFeatures"]["f_PV1"] > 0 or
+                self.district[i]["buildingFeatures"]["f_PV2"] > 0 or
+                self.district[i]["buildingFeatures"]["f_STC"] > 0):
+                solar_weight += 1
+                print(f"Building {i} has solar devices")
+
+        weights.append(solar_weight)
+        scalings.append(False)        
+
+        # ambient temperature
+        inputsClustering.append(adjProfiles["T_e"])
+        weights.append(len(self.district))
+        scalings.append(False)
 
         # Perform clustering
         (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
@@ -1178,14 +1210,13 @@ class Datahandler:
             self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
 
         if centralEnergySupply == True:
-            self.site["T_e_cluster"] = newProfiles[-6]
-            self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[-5]
-            self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[-4]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[-3]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[-2]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[-1]
-        else:
-            self.site["T_e_cluster"] = newProfiles[-1]
+            self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
+            self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 2]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 3]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 4]
+
+        self.site["T_e_cluster"] = newProfiles[-1]
 
         # clusters
         self.clusters = []
