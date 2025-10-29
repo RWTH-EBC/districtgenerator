@@ -811,7 +811,7 @@ class KPIs:
                 "Standort (PLZ)": str(data.site["zip"]),
                 "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
                 "FAR-Wert": "{:.2g}".format(data.heat_grid_data["FAR"]["value"]),
-                "Wärmeliniendichte": "{:.2g}".format(data.heat_grid_data["Wärmeliniendichte"]),
+                "Wärmeliniendichte": ("{:.2g}".format(v) if isinstance((v := (data.heat_grid_data.get("Wärmeliniendichte", {}).get("value") if isinstance(data.heat_grid_data.get("Wärmeliniendichte"), dict) else data.heat_grid_data.get("Wärmeliniendichte"))), (int, float)) else ""),
                 "Quartiersname": str(data.scenario_name)
             }
 
