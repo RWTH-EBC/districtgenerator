@@ -1006,9 +1006,8 @@ class Profiles:
                     else: 
                         ev_demand[arr_idx] += consumption
 
-                    # departure time
+                    # Charging only possible while at the office 
                     departure_idx = work_idx[-1] + 1 # Last person leaves work
-
                     for t in range(arr_idx, departure_idx):
                         availability_profile[start_idx + t] = True
 
