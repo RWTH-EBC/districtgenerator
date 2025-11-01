@@ -478,7 +478,7 @@ class Datahandler:
                 building["buildingFeatures"]["thermalTransmittance"] = None
 
             # Create unique building name
-            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
+            name = f"{bldg_id}_{row['building']}"
 
             # Check for duplicate names
             if name in name_pool:
@@ -530,41 +530,16 @@ class Datahandler:
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
-                # Determining the number of floors in a building based on its type.
-                # The method estimates the number of floors by:
-                # - Assigning a range of possible floor areas per level based on building type.
-                # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
-                # - Calculating the total number of floors by dividing the building’s total floor area
-                #   by the selected single-floor area.
+                height = building["buildingFeatures"]["height"] 
+                number_of_floors = building["buildingFeatures"]["number_of_floors"] 
+                number_of_floors_above = building["buildingFeatures"]["nb_floors_above"]
+                height_of_floors = height/number_of_floors_above 
+                if height_of_floors< 2.5:
+                    if building["buildingFeatures"]["year"] < 1960:
+                        height_of_floors = 3.3  # m
+                    elif building["buildingFeatures"]["year"] >= 1960:
+                        height_of_floors = 2.5  # m
 
-                if building_type == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
-                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
-
-                elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
-                    number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
-
-                elif building_type == "multi_family_house":
-                    # Generate a valid one-floor area and number of floors in one step
-                    one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
-                    number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
-                    # Cap the number of floors to a maximum of 8
-                    if number_of_floors > 8:
-                        number_of_floors = 8
-
-                elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
-                    # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
-                    number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
-
-                # Determining the typical floor height based on the building's construction year.
-                # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
-                # (built from 1960 onwards) tend to have lower ceilings.
-                # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
 
                 if building["buildingFeatures"]["year"] < 1960:
                     height_of_floors = 3.3  # m
@@ -637,6 +612,7 @@ class Datahandler:
                                      nb_occ=building["buildingFeatures"]["nb_occ"] if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
                                      nb_flats=int(float(building["buildingFeatures"]["nb_flats"])) if "nb_flats" in building["buildingFeatures"] else None,
                                      dict= self.srcPath,
+                                     scenario_name=self.scenario_name,
                                      calcOcc = self.calcOcc,
                                      calcOccProf = self.calcOccProf)
 
@@ -896,7 +872,7 @@ class Datahandler:
         """
 
         # Create the directory with the specified name
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
         os.makedirs(directory_path, exist_ok=True)
 
         # Create DataFrames directly from the input variables
@@ -988,7 +964,7 @@ class Datahandler:
         """
 
         # Create the directory path
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
         os.makedirs(directory_path, exist_ok=True)
 
         # Create DataFrames
@@ -1028,7 +1004,7 @@ class Datahandler:
             Loaded profile data in the correct order.
         """
 
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
 
         # Hourly profiles
         elec = pd.read_parquet(os.path.join(directory_path, 'elec.parquet'), engine='pyarrow')['elec'].to_numpy()
@@ -1071,7 +1047,7 @@ class Datahandler:
         """
 
         # Create the directory path
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
 
         # Load heating and cooling data from their respective Parquet files
         heat = pd.read_parquet(os.path.join(directory_path, 'heating.parquet'), engine='pyarrow')['heating'].to_numpy()
@@ -1162,8 +1138,10 @@ class Datahandler:
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
                     if saveGenerationProfiles:
+                        base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
+                        os.makedirs(base_directory, exist_ok=True)
                         np.savetxt(
-                            os.path.join(self.resultPath, 'generation')
+                            base_directory
                             + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                             building["generationPV"],
@@ -1172,7 +1150,7 @@ class Datahandler:
                         )
 
                         np.savetxt(
-                            os.path.join(self.resultPath, 'generation')
+                            base_directory
                             + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                             building["generationSTC"],
@@ -1194,15 +1172,17 @@ class Datahandler:
                 )
 
                 if saveGenerationProfiles:
+                    base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
+                    os.makedirs(base_directory, exist_ok=True)
                     np.savetxt(
-                        os.path.join(self.resultPath, 'generation')
+                        base_directory
                         + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                         building["generationPV"], delimiter=';',
                            fmt='%.2f')
 
                     np.savetxt(
-                        os.path.join(self.resultPath, 'generation')
+                        base_directory
                         + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                         building["generationSTC"], delimiter=';',

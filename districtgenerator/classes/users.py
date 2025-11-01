@@ -84,7 +84,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, nb_occ, nb_flats, dict, calcOcc = True, calcOccProf = True):
+    def __init__(self, building, area, year_of_construction, retrofit, nb_occ, nb_flats, dict, scenario_name, calcOcc = True, calcOccProf = True):
         """
         Constructor of Users class.
 
@@ -92,7 +92,7 @@ class Users:
         -------
         None.
         """
-
+        self.scenario_name = scenario_name
         self.srcPath = dict
         self.SIA_dict = os.path.join(self.srcPath, "data", "SIA2024.xlsx")
         self.building = building
@@ -689,12 +689,9 @@ class Users:
                 if self.calcOccProf:
                     prof = temp_obj.generate_occupancy_profiles_residential()
                     prof_df = pd.DataFrame(prof, columns=['prof'])
-                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
-                    self.occ = self.occ + prof
-                elif not os.path.exists(os.path.join(path, 'occ_prof.parquet')):
-                    prof = temp_obj.generate_occupancy_profiles_residential()
-                    prof_df = pd.DataFrame(prof, columns=['prof'])
-                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
+                    directory_path = os.path.join(path, self.scenario_name)
+                    os.makedirs(directory_path, exist_ok=True)
+                    prof_df.to_parquet(os.path.join(directory_path, 'occ_prof.parquet'), engine='pyarrow', index=False)
                     self.occ = self.occ + prof
                 else: 
                     prof = pd.read_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow')['prof'].to_numpy()
