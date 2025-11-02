@@ -25,6 +25,7 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
+from .plots_balances import plot_all
 
 from districtgenerator.functions.heating_network_diameter_pyomo import network_diameter
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
@@ -1336,6 +1337,9 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
+        # Plot everything
+        plot_all(self)
 
     def designNetworkwithNode(self):
         """
