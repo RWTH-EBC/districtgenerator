@@ -25,7 +25,7 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
-
+from .plots_balances import plot_all
 
 class Datahandler:
     """
@@ -1325,6 +1325,9 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
+
+        # Plot everything
+        plot_all(self)
 
 
 def generate_demands_worker_wrapper(args):

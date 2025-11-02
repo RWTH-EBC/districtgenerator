@@ -541,12 +541,7 @@ class Sun:
                     devices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # compute overall correction factor for PV efficiency. Set single factors in decentral_device_data.json!
-        kappa_corr = np.sum([devices["PV"]["kappa_inverter"], devices["PV"]["kappa_wiring"],
-                             devices["PV"]["kappa_connections"], devices["PV"]["kappa_soiling"],
-                             devices["PV"]["kappa_shading"], devices["PV"]["kappa_mismatch"],
-                             devices["PV"]["kappa_NPR"], devices["PV"]["kappa_av"],
-                             devices["PV"]["kappa_LID"]
-                             ])
+        kappa_corr = 0
 
         # calculate time variant PV efficiency
         eta_PV1 = np.zeros(time["timeSteps"])

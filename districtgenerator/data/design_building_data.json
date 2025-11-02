@@ -55,7 +55,7 @@
   },
   {
     "name": "buildings_short",
-    "value": ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"],
+    "value": ["SFH", "MFH", "TH", "AB","OB","SC","GS","RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"],
     "unit": "-",
     "description": "Abbreviations of the selectable building types."
   },

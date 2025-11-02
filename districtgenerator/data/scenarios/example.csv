@@ -1,2 +1,2 @@
 id;building;year;retrofit;construction_type;night_setback;area;heater;cooling;EV;f_TES;f_BAT;f_PV1;f_PV2;f_STC;gamma_PV;ev_charging
-0;OB;1970;0;2;1;1000;HP;0;1;35;0;0.4;0;0;0;intelligent
+0;OB;1970;0;2;1;1000;BOI;0;1;35;0;0.4;0;0;0;bi_directional
