@@ -614,13 +614,15 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                                           (building_width + distance_group_ver_min)), num_group_per_block)
         num_group_per_row_max = min(floor((block_width - 2*house_connection + distance_group_hor_min)/
                                           (group_width + distance_group_hor_min)), num_group_per_block)
+        num_group_per_col_min = ceil(num_group_per_block/num_group_per_row_max)
+        num_group_per_row_min = ceil(num_group_per_block/num_group_per_col_max)
 
         # determine the distance between each group vertically
         distance_group_ver = max(2.5*building_width, distance_group_ver_min)
         # calculate the number of groups vertically
         num_group_per_col_value = floor((block_length - 2 * house_connection + distance_group_ver) /
                                         (building_width + distance_group_ver))
-        num_group_per_col = np.clip(num_group_per_col_value, 1, num_group_per_col_max)
+        num_group_per_col = np.clip(num_group_per_col_value, num_group_per_col_min, num_group_per_col_max)
         # calculate the vertical distance between buildings and horizontal roads
         distance_bl_rd_ver = (block_length - num_group_per_col * building_width -(num_group_per_col - 1) * distance_group_ver) / 2
         # If buildings are too far from the road, increase building density and rerun the model.
@@ -629,7 +631,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
 
         # # calculate the number of groups horizontally
         num_group_per_row_value = ceil(num_group_per_block/num_group_per_col)
-        num_group_per_row = np.clip(num_group_per_row_value, 1, num_group_per_row_max)
+        num_group_per_row = np.clip(num_group_per_row_value, num_group_per_row_min, num_group_per_row_max)
         # calculate the horizontal distance between two groups
         # If two groups are too far from each other, increase building density and rerun the model.
         if num_group_per_row > 1:
