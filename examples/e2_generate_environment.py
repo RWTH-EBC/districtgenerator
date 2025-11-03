@@ -33,5 +33,10 @@ def example2_generate_environment():
 
 if __name__ == '__main__':
     data = example2_generate_environment()
+    print("Location:")
+    print(data.site)
+    print("Time resolution (s):")
+    print(data.time)
+    print("District Information:", data.district)
 
 

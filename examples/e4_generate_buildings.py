@@ -10,6 +10,8 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
+from pprint import pprint
+
 
 def example4_generate_buildings():
     # Initialize District
@@ -40,3 +42,6 @@ def example4_generate_buildings():
 
 if __name__ == '__main__' :
     data = example4_generate_buildings()
+    pprint(users.__dict__)
+
+    
