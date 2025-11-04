@@ -25,7 +25,9 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
-
+from districtgenerator.functions.heating_network_opt import network_optimization
+from districtgenerator.functions.design_network_with_node import run_pipeline_node
+from districtgenerator.functions.design_network_with_road import run_pipeline_road
 
 class Datahandler:
     """
@@ -97,6 +99,8 @@ class Datahandler:
         self.buildings_total = 0
         self.progress_file = os.path.join(self.resultPath, 'progress.json')
 
+        self.pipeline = {}
+
     def get_progress(self):
         return {
             'completed': self.buildings_completed,
@@ -138,7 +142,13 @@ class Datahandler:
                 self.time[subData["name"]] = subData["value"]
 
         # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";").set_index("id", drop=False))
+        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+                                     converters={"position": parse_position}).set_index("id", drop=False))
+
+        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"),
+                  encoding="utf-8") as json_file:
+            jsonData = json.load(json_file)
+            self.site["district_parameters"] = jsonData["parameters"]
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
@@ -1357,6 +1367,95 @@ class Datahandler:
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
 
+    def designNetworkwithNode(self):
+        """
+        Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
+        using Minimum Spanning Tree(MST) algorithm
+
+        Returns
+        -------
+        None.
+        """
+        # get the input data for the optimizer
+        district_type = self.site["district_parameters"]["district_type"]
+
+        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
+            jsonData = json.load(json_file)
+        buildings_info = jsonData["values"]["buildings_info"]
+        transformer_info = jsonData["values"]["transformer_station"]
+
+        run_pipeline_node(district_type, buildings_info, transformer_info)
+
+    def designNetworkwithRoad(self):
+        """
+        Consider road constraints, ensuring all main pipelines are laid beneath roads.
+        using Steiner Tree algorithm
+
+        Returns
+        -------
+        None.
+        """
+        # get the input data for the optimizer
+        district_type = self.site["district_parameters"]["district_type"]
+        building_width = self.site["district_parameters"]["building_width"]
+        house_connection = self.site["district_parameters"]["house_connection"]
+
+        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
+            jsonData = json.load(json_file)
+        buildings_info = jsonData["values"]["buildings_info"]
+        lines_info = jsonData["values"]["lines_info"]
+        transformer_info = jsonData["values"]["transformer_station"]
+
+        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+
+    def generateNetwork(self, topology_option):
+        """
+        Select a method for optimizing the network topology structure and optimize/load file
+
+        Parameters
+        ----------
+        topology_option: string
+            “node”: ignores road constraints,
+            “road”: considers road constraints, ensuring all main pipelines are laid beneath roads.
+        Returns
+        -------
+        None.
+        """
+
+        # design the heating network
+        if topology_option == "node":
+            self.designNetworkwithNode()
+        elif topology_option == "road":
+            self.designNetworkwithRoad()
+
+        # load the file of the heating network topology
+        district_type = self.site["district_parameters"]["district_type"]
+        topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
+
+        with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
+            jsonData = json.load(json_file)
+
+        self.pipeline_nodes = jsonData.get("nodes", {})
+        self.pipeline_topology = jsonData.get("edges", {})
+
+    def optimization_heatingnetwork(self, sliding_temperature=True):
+        """
+        Optimize the diameter of each pipeline segments.
+
+        Parameters
+        ----------
+        sliding_temperature: bool, optional
+            True: Variable-constant operation mode (Heating curve)
+                    controlled within limits depending on the outdoor temperature
+            False: Constant operation mode(The supply and return temperature is set as a constant value.)
+                    3rd: 80°C / 50°C   ;   4th: 55°C / 30°C
+
+        Returns
+        -------
+        None.
+        """
+        network_optimization(self, sliding_temperature)
+
 
 def generate_demands_worker_wrapper(args):
     """
@@ -1386,4 +1485,20 @@ def generate_demands_worker_wrapper(args):
 
     return result
 
-
+def parse_position(val):
+    """
+    The building coordinates read directly from CSV files are often irregular and need correction.
+    For example: ('1','2','.','3',',','4','5','.','6') → (12.3, 45.6)
+    """
+    # If the input is a string like "(12.3,45.6)", parse it into a tuple of floats.
+    if isinstance(val, str):
+        return tuple(float(x.strip()) for x in val.strip("()").split(","))
+    # If the input is a tuple or list of characters like ('1', '2', '.', '3', ',', '4', '5', '.', '6')
+    elif isinstance(val, (tuple, list)):
+        # Step 1: join -> "12.3,45.6"
+        # Step 2: strip and split -> ["12.3", "45.6"]
+        # Step 3: convert to float -> (12.3, 45.6)
+        pos_str = "".join(val)
+        return tuple(float(x.strip()) for x in pos_str.strip("()").split(","))
+    # For other data types, return the value as is.
+    return val

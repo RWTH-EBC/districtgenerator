@@ -25,9 +25,15 @@
     },
     {
         "name": "price_supply_gas",
-        "value": 0.1236,
+        "value": 0.1147,
         "unit": "€/kWh",
         "description" : "Gas price."
+    },
+    {
+        "name": "price_supply_gas_eh",
+        "value": 0.1027,
+        "unit": "€/kWh",
+        "description" : "Gas price for energy hub."
     },
     {
         "name": "price_gasoline_liter",

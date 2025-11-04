@@ -11,7 +11,7 @@
     "unit": "degree Celsius",
     "description": "Required minimum indoor temperature, used only for non-residential buildings"
   },
-    {
+  {
     "name": "T_set_min_night",
     "value":  18.0,
     "unit": "degree Celsius",

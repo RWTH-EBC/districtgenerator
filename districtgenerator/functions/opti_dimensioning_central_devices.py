@@ -440,16 +440,16 @@ def build_model(data, devs, param, dem):
     ################################################################################
 
     # Electricity costs and revenues
-    model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el"])
+    model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el_eh"])
     # Conditional capacity costs for electricity
     if param["enable_price_cap_el"]:
         model.constraints.add(model.cap_costs_el == model.grid_limit_el * param["price_cap_el"])
     else:
         model.constraints.add(model.cap_costs_el == 0)
-    model.constraints.add(model.rev_feed_in_el == model.to_el_grid_total * param["revenue_feed_in_el"])
+    model.constraints.add(model.rev_feed_in_el == model.to_el_grid_total * param["revenue_feed_in_el_eh"])
 
     # Gas costs and revenues
-    model.constraints.add(model.supply_costs_gas == model.from_gas_grid_total * param["price_supply_gas"])
+    model.constraints.add(model.supply_costs_gas == model.from_gas_grid_total * param["price_supply_gas_eh"])
     model.constraints.add(model.cap_costs_gas == model.grid_limit_gas * param["price_cap_gas"])
     model.constraints.add(model.rev_feed_in_gas == model.to_gas_grid_total * param["revenue_feed_in_gas"])
 

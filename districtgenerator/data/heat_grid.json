@@ -78,5 +78,25 @@
   "value": 1.44,
   "unit": "€/MWh_th",
   "description": "Variable O&M costs; Source: Technikkatalog Wärmeplanung 2024"
+  },
+  "fluid":{
+    "c_f": {"value": 4180, "unit": "J/(kg*K)", "description": "fluid specific heat"},
+    "rho_f": {"value": 1000, "unit": "kg/m3", "description": "fluid density"}
+  },
+  "pump": {
+    "eta_pump": {"value": 0.65, "unit": "-", "description": "electric pump efficiency"},
+    "inv_pump": {"value": Z, "unit": "EUR/kW", "description": "specific investment pump"},
+    "price_el_pumps": {"value": 44, "unit": "EUR/MWh", "description": "electricity costs for pump supply used for network design"},
+    "pump_lifetime": {"value": 10, "unit": "years", "description": "pump lifetime(VDI 2067 Umwälzpumpe)"},
+    "cost_om_pump": {"value": 0.03, "unit": "-", "description": "pump O&M share"}
+  },
+  "pipe": {
+    "grid_depth": {"value": 1.0, "unit": "m", "description": "installation depth"},
+    "lambda_PE": {"value": 0.4, "unit": "W/(m*K)", "description": "PE thermal conductivity"},
+    "f_fric": {"value": 0.025, "unit": "-", "description": "friction factor"},
+    "dp_pipe_max": {"value": 300, "unit": "Pa/m", "description": "max pressure gradient"},
+    "dp_pipe_min": {"value": 30, "unit": "Pa/m", "description": "min pressure gradient"},
+    "pipe_lifetime": {"value": 30, "unit": "years", "description": "pipe lifetime"},
+    "cost_om_pipe": {"value": 0.005, "unit": "-", "description": "pipe O&M share"}
   }
 }

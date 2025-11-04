@@ -609,11 +609,19 @@ def load_params(data):
 
     ################################################################
     ### Energy costs ###
-    param["price_supply_el"]    = ecoData["price_supply_el"]
-    param["revenue_feed_in_el"] = ecoData["revenue_feed_in_el"]
+    # --- Electricity ---
+    # Buildings
+    param["price_supply_el_buildings"] = ecoData["price_supply_el"]
+    param["revenue_feed_in_el_buildings"] = ecoData["revenue_feed_in_el"]
+    # Energy Hub
+    param["price_supply_el_eh"] = ecoData["price_supply_el_eh"]
+    param["revenue_feed_in_el_eh"] = ecoData["revenue_feed_in_el_eh"]
+    # --- Natural Gas ---
+    param["price_supply_gas_buildings"] = ecoData["price_supply_gas"]
+    param["price_supply_gas_eh"] = ecoData["price_supply_gas_eh"]
+    # --- Other fuels ---
     param["price_biomass"]      = ecoData["price_biomass"]
     param["price_waste"]        = ecoData["price_waste"]
-    param["price_supply_gas"]   = ecoData["price_supply_gas"]
     param["price_hydrogen"]     = ecoData["price_hydrogen"]
 
     ### Ecological impact ###
