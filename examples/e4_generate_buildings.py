@@ -42,6 +42,6 @@ def example4_generate_buildings():
 
 if __name__ == '__main__' :
     data = example4_generate_buildings()
-    pprint(users.__dict__)
+    pprint(data.__dict__)
 
     
