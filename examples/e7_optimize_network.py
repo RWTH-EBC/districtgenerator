@@ -13,6 +13,20 @@ def example7_optimize_heatingnetwork():
     # The scenario can be first generated with e0_generate_scenario.py
     data = Datahandler(scenario_name="district_F_buildings_30")
 
+    # --- Check if building positions are available and valid ---
+    missing_positions = (
+            "position" not in data.scenario.columns
+            or data.scenario["position"].isnull().any()
+            or any(
+        not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
+        for p in data.scenario["position"]))
+    if missing_positions:
+        raise FileNotFoundError(
+            "The district heating network cannot be optimized because no building positions are defined.\n"
+            "The scenario CSV contains invalid or missing coordinates in the 'position' column.\n"
+            "Please add the scenario geometry first."
+        )
+
     # Generate Environment for the District
     data.generateEnvironment()
 
@@ -25,11 +39,22 @@ def example7_optimize_heatingnetwork():
     # Now we generate building specific demand profiles with the adjusted assumptions
     data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)
 
-    # Then we can initialize the network topology and optimize it
-    data.generateNetwork(topology_option = "road")
-
+    # --- Design decentral devices and pre-cluster data ---
     data.designDecentralDevices(saveGenerationProfiles=True)
     data.clusterProfiles(centralEnergySupply=False)
+
+    # --- Check if the geometry JSON exists ---
+    if "district_parameters" not in data.site:
+        print(
+            "The district geometry JSON ('<scenario_name>.json') was not found.\n"
+            "The district layout (roads) is not defined, only building positions are available.\n"
+            "Switching to topology_option='node' instead of 'road'."
+        )
+        topology_option = "node"
+    else:
+        topology_option = "road"
+
+    data.generateNetwork(topology_option = topology_option)
     # If sliding_temperature=True, the supply and return temperatures are adjusted according to the air temperature;
     # if False, constant supply and return water temperatures are employed.
     data.optimization_heatingnetwork(sliding_temperature=True)

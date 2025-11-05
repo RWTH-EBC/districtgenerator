@@ -25,6 +25,7 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
+import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
@@ -145,10 +146,12 @@ class Datahandler:
         self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                      converters={"position": parse_position}).set_index("id", drop=False))
 
-        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"),
-                  encoding="utf-8") as json_file:
-            jsonData = json.load(json_file)
-            self.site["district_parameters"] = jsonData["parameters"]
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+
+        if os.path.exists(json_path):
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                self.site["district_parameters"] = jsonData["parameters"]
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
@@ -718,6 +721,8 @@ class Datahandler:
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True):
         """
         All in one solution for district and demand generation.
+        Within a clustered time series, data points are aggregated across different time periods
+        based on the k-medoids method.
 
         Parameters
         ----------
@@ -745,23 +750,35 @@ class Datahandler:
         -------
         None.
         """
-
-        self.initializeBuildings()
         self.generateEnvironment()
+        self.initializeBuildings()
         self.generateBuildings()
         self.generateDemands(calcUserProfiles, saveUserProfiles)
+        self.designDecentralDevices(saveGenerationProfiles=True)
 
-        if any(building["buildingFeatures"]["heater"] == "heat_grid" for building in self.district):
-            centralEnergySupply = True
-            self.designDevicesComplete(saveGenerationProfiles=True)
+        # Check if district uses central energy supply (heat grid)
+        has_heat_grid = any(
+            building["buildingFeatures"]["heater"] == "heat_grid"
+            for building in self.district)
+
+        if has_heat_grid:
+            # Verify geometry data (district_parameters)
+            if "district_parameters" not in self.site:
+                print("No district geometry found — running simple heating network design.")
+                heating_network_simple.heating_network(self)
+                self.designCentralDevices(saveGenerationProfiles=True)
+                self.finalizeClusterProfiles()
+            else:
+                print("Generating and optimizing heating network...")
+                self.generateNetwork(topology_option="road")
+                self.prepareClusteringInputs()
+                self.optimization_heatingnetwork(sliding_temperature=True)
+                self.designCentralDevices(saveGenerationProfiles=True)
+                self.finalizeClusterProfiles()
         else:
-            centralEnergySupply = False
-            self.designDecentralDevices(saveGenerationProfiles=True)
+            print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
-
-        # Within a clustered time series, data points are aggregated across different time periods
-        # based on the k-medoids method
-        self.clusterProfiles(centralEnergySupply)
+            self.prepareClusteringInputs()
 
     def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ev_capacity, ice_carprofile, nb_units, nb_occ, heatload, bivalent, heatlimit, path):
         """
@@ -1014,24 +1031,20 @@ class Datahandler:
                        self.centralDevices["generation"]["Wind"],
                        delimiter=',')
 
-    def designDevicesComplete(self, saveGenerationProfiles=True):
+    def prepareClusteringInputs(self):
         """
-        Design decentral and central devices.
-
-        Parameters
-        ----------
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
-        saveGenerationProfiles : bool, optional
-            Decision if generation profiles of designed devices will be saved. The default is True.
-
-        Returns
-        -------
-        None.
+        Prepare and cluster building-level demand and environmental data.
         """
+        print("🔹 Preparing initial clustering (pre-optimization)...")
+        self.clusterProfiles(centralEnergySupply=False)
 
-        self.designDecentralDevices(saveGenerationProfiles)
-        self.designCentralDevices(saveGenerationProfiles)
+    def finalizeClusterProfiles(self):
+        """
+        Perform final clustering including central generation and
+        heating network losses after optimization.
+        """
+        print("🔹 Finalizing clustering (post-optimization)...")
+        self.clusterProfiles(centralEnergySupply=True)
 
     def clusterProfiles(self, centralEnergySupply):
         """

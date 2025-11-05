@@ -85,7 +85,7 @@
   },
   "pump": {
     "eta_pump": {"value": 0.65, "unit": "-", "description": "electric pump efficiency"},
-    "inv_pump": {"value": Z, "unit": "EUR/kW", "description": "specific investment pump"},
+    "inv_pump": {"value": 500, "unit": "EUR/kW", "description": "specific investment pump"},
     "price_el_pumps": {"value": 44, "unit": "EUR/MWh", "description": "electricity costs for pump supply used for network design"},
     "pump_lifetime": {"value": 10, "unit": "years", "description": "pump lifetime(VDI 2067 Umwälzpumpe)"},
     "cost_om_pump": {"value": 0.03, "unit": "-", "description": "pump O&M share"}

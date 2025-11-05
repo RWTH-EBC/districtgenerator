@@ -4,7 +4,6 @@ import json
 import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
-import districtgenerator.functions.heating_network as heating_network
 
 from .solar import Sun
 import numpy as np
@@ -201,9 +200,6 @@ class CES:
         capacities_centralDevices : dictionary
             The capacities of the central devices.
         """
-
-        # Load parameters of the heating network
-        data = heating_network.heating_network(data)
 
         # Load parameters of the energy hub
         param, devs, dem, result_dict = load_params_central_devices.load_params(data)
