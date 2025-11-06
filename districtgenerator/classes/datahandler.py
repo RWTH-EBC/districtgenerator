@@ -7,7 +7,7 @@ import sys
 import copy
 import datetime
 import multiprocessing
-
+import random
 import numpy as np
 import openpyxl
 import pandas as pd
@@ -167,7 +167,7 @@ class Datahandler:
                 self.physics[subData["name"]] = subData["value"]
 
         # Load list of possible devices (used in system BES)
-        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'decentral_device_data.json'), encoding='utf-8') as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.decentral_device_data[subData["abbreviation"]] = {}
@@ -175,7 +175,7 @@ class Datahandler:
                     self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # import model parameters from json-file (used in system CES)
-        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
+        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json'), encoding='utf-8') as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 if subData["name"] != "ref":
@@ -186,15 +186,15 @@ class Datahandler:
                         self.params_ehdo_model[subData["name"]][subSubData["name"]] = subSubData["value"]
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'eco_data.json'), encoding='utf-8') as json_file:
             jsonData = json.load(json_file)
             for subData in jsonData:
                 self.ecoData[subData["name"]] = subData["value"]
 
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
+        with open(os.path.join(self.filePath, 'central_device_data.json'), encoding='utf-8') as json_file:
             self.central_device_data = json.load(json_file)
 
-        with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
+        with open(os.path.join(self.filePath, 'heat_grid.json'), encoding='utf-8') as json_file:
             self.heat_grid_data = json.load(json_file)
 
         csv_path = os.path.join(self.filePath, 'pipe_specifications.csv')
@@ -1390,12 +1390,34 @@ class Datahandler:
         None.
         """
         # get the input data for the optimizer
-        district_type = self.site["district_parameters"]["district_type"]
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
-        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
-            jsonData = json.load(json_file)
-        buildings_info = jsonData["values"]["buildings_info"]
-        transformer_info = jsonData["values"]["transformer_station"]
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                buildings_info = jsonData["values"]["buildings_info"]
+                transformer_info = jsonData["values"]["transformer_station"]
+        else:
+            # if JSON file not found → Extract building coordinates from district data
+            district_type = "unknown"
+            buildings_info = []
+            for building in self.district:
+                pos = building["buildingFeatures"]["position"]
+                building_dict = {"building": building["unique_name"],
+                                 "position": pos}
+                buildings_info.append(building_dict)
+
+            # Randomly choose one building as transformer baseRandomly choose one building as transformer base
+            chosen_building = random.choice(buildings_info)
+            base_pos = chosen_building["position"]
+
+            # Apply small random offset (e.g., ±5 meters)
+            offset_x = random.uniform(-5, 5)
+            offset_y = random.uniform(-5, 5)
+            transformer_info = {
+                "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
+            }
 
         run_pipeline_node(district_type, buildings_info, transformer_info)
 
@@ -1441,10 +1463,16 @@ class Datahandler:
         elif topology_option == "road":
             self.designNetworkwithRoad()
 
-        # load the file of the heating network topology
-        district_type = self.site["district_parameters"]["district_type"]
+        # get topology filename
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+        else:
+            # if JSON file not found
+            district_type = "unknown"
         topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
 
+        # load the file of the heating network topology
         with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
             jsonData = json.load(json_file)
 
