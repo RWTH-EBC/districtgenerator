@@ -7,6 +7,7 @@ import sys
 import copy
 import datetime
 import multiprocessing
+import threading
 
 import numpy as np
 import openpyxl
@@ -25,6 +26,9 @@ from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
+import time
+import warnings
+
 
 
 class Datahandler:
@@ -52,7 +56,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
+    def __init__(self, scenario_name = "example", heat_map_berlin = False, resultPath = None, scenario_file_path = None):
         """
         Constructor of Datahandler class.
 
@@ -66,6 +70,7 @@ class Datahandler:
         self.initial_day = None
         self.district = []
         self.scenario_name = scenario_name
+        self.heat_map_berlin = heat_map_berlin
         self.scenario = None
         self.total_building_area = None
         self.design_building_data = {}
@@ -79,6 +84,7 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.filePath = os.path.join(self.srcPath, 'data')
+        self.prj = None
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -137,9 +143,17 @@ class Datahandler:
             for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
 
-        # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";").set_index("id", drop=False))
-
+        if self.heat_map_berlin:
+            # %% load heat map berlin data
+            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
+            self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + "_dg.csv",
+                                        header=0, delimiter=";")
+        else:
+            # %% load scenario file with building information
+            self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                        header=0, delimiter=";")
+            
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
         with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
@@ -505,6 +519,7 @@ class Datahandler:
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath)
+                self.prj = prj
 
             else:
 
@@ -566,47 +581,56 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
+
+        start_time_demand_generation = time.time()
         args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
 
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
 
-        results = []
         self.save_progress()
 
         with multiprocessing.Pool(processes=max_threads) as pool:
-            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
-                self.buildings_completed += 1
-                results.append(result)
+            for i, (result, duration_building) in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
+                try:
+                    building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+
+                    building["user"].elec = result["elec"]
+                    building["user"].dhw = result["dhw"]
+                    building["user"].cooling = result["cooling"]
+                    building["user"].heat = result["heating"]
+                    building["user"].occ = result["occ"]
+                    building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
+                    building["user"].EV_carprofile = result["EV_carprofile"]
+                    building["user"].ev_capacity = result.get("ev_capacity")
+                    building["user"].ice_carprofile = result["ice_carprofile"]
+                    building["user"].gains = result["gains"]
+                    building["user"].nb_units = result["nb_units"]
+                    building["user"].nb_occ = result["nb_occ"]
+
+
+                    building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
+                    building["envelope"] = result["envelope"]
+                    building_features = building["buildingFeatures"].copy()
+                    building_features["night_setback"] = result["night_setback"]
+                    building["buildingFeatures"] = building_features
+
+                    self.buildings_completed += 1
+
+                except Exception as e:
+                    print(f"Error processing result for building {result.get('unique_name')}: {e}")
+                    self.buildings_completed += 1  # Still count it as completed to avoid stalling
 
                 self.save_progress()
 
                 print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
-                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
+                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}" +
+                      f" (time needed: {duration_building:.2f} seconds)")
 
-        for result in results:
-            building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
-            building["user"].elec = result["elec"]
-            building["user"].dhw = result["dhw"]
-            building["user"].cooling = result["cooling"]
-            building["user"].heat = result["heating"]
-            building["user"].occ = result["occ"]
-            building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
-            building["user"].EV_carprofile = result["EV_carprofile"]
-            building["user"].ev_capacity = result.get("ev_capacity")
-            building["user"].ice_carprofile = result["ice_carprofile"]
-            building["user"].gains = result["gains"]
-            building["user"].nb_units = result["nb_units"]
-            building["user"].nb_occ = result["nb_occ"]
-            building["envelope"] = result["envelope"]
-            building_features = building["buildingFeatures"].copy()
-            building_features["night_setback"] = result["night_setback"]
-            building["buildingFeatures"] = building_features
+        end_time_demand_generation = time.time()
+        total_duration = end_time_demand_generation - start_time_demand_generation
 
-        self.save_progress()
-
-
-        print("Finished generating demands with multiprocessing!")
+        print(f"Finished generating demands with multiprocessing! (Total time: {total_duration:.2f} seconds)")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
         """
@@ -620,6 +644,7 @@ class Datahandler:
             The default is True.
         """
         print(f'starting {building["unique_name"]}')
+        warnings.filterwarnings("ignore", category=FutureWarning)
 
         # calculate or load user profiles
         if calcUserProfiles:
@@ -677,9 +702,9 @@ class Datahandler:
         else:
             raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
 
-        night_setback = building["buildingFeatures"]["night_setback"]
+        night_setback = building["buildingFeatures"].get("night_setback", 0)
 
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+        is_cooled = building["buildingFeatures"].get("cooling", 0) # Indicates whether the building is actively cooled
 
         # calculate or load heating profiles
         if calcUserProfiles:
@@ -703,7 +728,6 @@ class Datahandler:
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
-        # print(f'done {building["unique_name"]}')
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -1054,6 +1078,18 @@ class Datahandler:
             adjProfiles[i]["generationPV"] = b["generationPV"][0:lengthArray]
             adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lengthArray]
 
+            # Individual car profiles
+            adjProfiles[i]["individual_cars"] = []
+
+            for car in b["user"].individual_car_profiles:
+                adj_car = {
+                    "availability_profile": car["availability_profile"][0:lengthArray],
+                    "consumption_profile_wh": car["consumption_profile_wh"][0:lengthArray],
+                    "on_demand_charging_profile_w": car["on_demand_charging_profile_w"][0:lengthArray],
+                    "fuel_profile_l": car["fuel_profile_l"][0:lengthArray]
+                }
+                adjProfiles[i]["individual_cars"].append(adj_car)
+
         if centralEnergySupply == True:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
@@ -1093,7 +1129,6 @@ class Datahandler:
         # The profiles are not scaled currently. If otherwise desired set scalings.append(True) for the relevant profiles.
 
         inputsClustering, weights, scalings = [], [], []
-
         # loop over buildings
         for i in range(len(self.district)):
             inputsClustering.append(adjProfiles[i]["elec"])
@@ -1131,6 +1166,28 @@ class Datahandler:
             inputsClustering.append(adjProfiles[i]["generationSTC"])
             weights.append(0)
             scalings.append(False)
+
+        # Add individual car profiles
+        index_individual_cars_start = len(inputsClustering)
+        for i in range(len(self.district)):
+            for car in adjProfiles[i]["individual_cars"]:
+                # 4 profiles per car
+                
+                inputsClustering.append(car["availability_profile"])
+                weights.append(0) # Vorerst kein Gewicht
+                scalings.append(False)
+                
+                inputsClustering.append(car["consumption_profile_wh"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(car["on_demand_charging_profile_w"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(car["fuel_profile_l"])
+                weights.append(0)
+                scalings.append(False)
 
 
         # Add central energy supply profiles
@@ -1208,6 +1265,31 @@ class Datahandler:
             self.district[i]["user"].EV_carprofile_cluster = newProfiles[index_house * i + 6]
             self.district[i]["generationPV_cluster"] = newProfiles[index_house * i + 7]
             self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
+
+        # Get individual car profiles
+        profile_counter = index_individual_cars_start
+        for i in range(len(self.district)):
+            self.district[i]["user"].individual_car_profiles_cluster = []
+            for car in self.district[i]["user"].individual_car_profiles:
+
+                clustered_car_data = {
+                    # Get important metadata from the original
+                    "car_id": car.get("car_id"), 
+                    "type": car.get("type"),
+                    "location": car.get("location"),
+                    "battery_capacity_wh": car.get("battery_capacity_wh"),
+
+                    # Assign the NEW cluster profiles from newProfiles
+                    "availability_profile_cluster": newProfiles[profile_counter],
+                    "consumption_profile_wh_cluster": newProfiles[profile_counter + 1],
+                    "on_demand_charging_profile_w_cluster": newProfiles[profile_counter + 2],
+                    "fuel_profile_l_cluster": newProfiles[profile_counter + 3]
+                }
+
+                self.district[i]["user"].individual_car_profiles_cluster.append(clustered_car_data)
+                # Increment counter for the next car by 4
+                profile_counter += 4
+
 
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
@@ -1357,33 +1439,252 @@ class Datahandler:
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
 
+    def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path):
+        """
+        Überträgt Daten aus WKB_export Format in Quartier Format
+        """
+
+        
+
+        # Mapping-Funktionen definieren
+        def map_building_type(gebaeudetype):
+            """Mappt Gebäudetypen"""
+            mapping = {
+                'EFH': 'SFH',  # Einfamilienhaus -> Single Family House
+                'RH': 'TH',  # Reihenhaus -> Terraced House
+                'MFH': 'MFH',  # Mehrfamilienhaus -> Multi Family House
+                'GMH': 'MFH'  # Geschosswohnhaus -> Multi Family House
+            }
+            return mapping.get(gebaeudetype, None)
+
+        def map_heater_type(heizsystem):
+            """Mappt Heizungstypen - konsistent mit Dictionary-Ansatz"""
+            if pd.isna(heizsystem):
+                return 'BOI'  # Default
+
+            # Dictionary-Mapping wie beim building_type
+            mapping = {
+                'Gaskessel': 'BOI',
+                'Fernwärme': 'DH',
+                'Blockheizkraftwerk': 'CHP',
+                'Wärmepumpe': 'HP',
+                'Heat Pump': 'HP',
+                'Biomassekessel': 'BBOI',
+                'Ölkessel': 'OBOI',
+                'Wasserstoffkessel': 'H2BOI',
+            }
+
+            return mapping.get(heizsystem, 'BOI')  # Default falls nicht gefunden
+
+        def map_retrofit_status(sanierungszustand):
+            """Mappt Sanierungszustand - auch mit Dictionary"""
+            if pd.isna(sanierungszustand):
+                return 0  # Default
+
+            # Dictionary-Mapping
+            mapping = {
+                'unsaniert': 0,
+                'teilsaniert': 1,
+                'vollsaniert': 2,
+                'saniert': 2  # Falls nur "saniert" ohne "voll" steht
+            }
+
+            return mapping.get(sanierungszustand, None)  # Rückgabe None falls nicht gefunden damit diese Zeile später aussortiert wird
+
+        def safe_convert_area(area_value):
+            """Sicher Flächenwerte konvertieren"""
+            if pd.isna(area_value): return None  # None if area_value is NaN
+                
+            try:
+                # Komma durch Punkt ersetzen für deutsche Zahlenformate
+                if isinstance(area_value, str):
+                    area_value = area_value.replace(',', '.')
+                    area_value = float(area_value)
+                area_value = int(area_value)
+                if area_value > 0: return area_value
+                else: return None
+            except:
+                return None
+
+        def safe_convert_year(year_value):
+
+            if pd.isna(year_value):
+                return None  # Default
+            try:
+                return int(float(year_value))
+            except:
+                return None
+            
+        def check_heat_demand_valid(heat_demand_simulated, heat_demand_measured):
+            """Überprüft, ob beide Energiebedarfe (simuliert und gemessen) gültige Werte haben"""
+            try:
+                simulated = float(heat_demand_simulated)
+                measured = float(heat_demand_measured)
+                if simulated > 0 and measured > 0:
+                    return True
+                else:
+                    return False
+            except:
+                return False
+
+        def check_all_values(row, idx):
+            """Überprüft, ob alle notwendigen Werte vorhanden sind"""
+            # gross_floor_area > 0
+            if safe_convert_area(row.get('gross_floor_area')) == None:
+                print(f"row {idx}: Invalid gross_floor_area: {row.get('gross_floor_area')}")
+                return False
+            # heat_relevance 
+            if row.get('heat_relevance') != 'wärmerelevant':
+                print(f"row {idx}: Invalid heat_relevance: {row.get('heat_relevance')}")
+                return False
+            # building_type_simplified vorhanden
+            if map_building_type(row.get('building_type_simplified')) == None:
+                print(f"Invalid building_type_simplified: {row.get('building_type_simplified')}")
+                return False
+            # construction_year vorhanden
+            if safe_convert_year(row.get('construction_year')) == None:
+                print(f"row {idx}: Invalid construction_year: {row.get('construction_year')}")
+                return False
+            # renovation_state_simulated vorhanden
+            if map_retrofit_status(row.get('renovation_state_simulated')) == None:
+                print(f"row {idx}: Invalid renovation_state_simulated: {row.get('renovation_state_simulated')}")
+                return False
+
+            # for a meaningful comparison, only buldings with a registered heat_demand (simulated and measured) are considered
+            if check_heat_demand_valid(row.get('heat_demand_simulated'), row.get('energy_consumption_sh')) == False:
+                print(f"row {idx}: Invalid heat_demand_simulated or energy_consumption_sh: {row.get('heat_demand_simulated')}, {row.get('energy_consumption_sh')}")
+                return False
+            
+            # Only if all checks are passed return true
+            return True
+
+        # WKB Daten einlesen
+        wkb_data = pd.read_csv(wkb_file_path, encoding='utf-8', delimiter=',', decimal='.', na_values=['NULL', 'null', '', 'nan'])
+
+        # Sort the df by the 'gross_floor_area' key -> Buildings with big areas first to avoid them being last and then not profiting as much as they could from multiprocessing
+        wkb_data['gross_floor_area'] = pd.to_numeric(wkb_data['gross_floor_area'], errors='coerce')
+        wkb_data = wkb_data.sort_values(by='gross_floor_area', ascending=False)
+        
+        # Quartier Dataframe erstellen
+        quartier_data = []
+        wkb_data_for_csv = []
+
+        new_id = 0
+
+        for idx, row in wkb_data.iterrows():
+            # Nur Wohngebäude berücksichtigen
+            if row.get('type_of_use') == 'Wohnhaus' or pd.isna(row.get('type_of_use')):
+                if check_all_values(row, idx):
+                    quartier_row = {
+                        'id': new_id,
+                        'building': map_building_type(row.get('building_type_simplified')),
+                        'year': safe_convert_year(row.get('construction_year')),
+                        'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),  # Standard: nicht saniert
+                        'construction_type': '',  # Leer lassen wie im Original
+                        'night_setback': 0,  # Standard
+                        'area': safe_convert_area(row.get('gross_floor_area')),
+                        'heater': map_heater_type(row.get('heating_system')),
+                        'PV': 0,
+                        'STC': 0,  # Standard
+                        'EV': 0,  # Standard
+                        'BAT': 0,  # Standard
+                        'f_TES': 35,  # Wie im Original
+                        'f_BAT': 0,  # Wie im Original
+                        'f_EV': 0,  # Wie im Original
+                        'f_PV1': 0,  # Wie im Original
+                        'f_PV2': 0,  # Wie im Original
+                        'f_STC': 0,  # Wie im Original
+                        'gamma_PV': 0,  # Wie im Original
+                        'ev_charging': 'on_demand',  # Wie im Original
+                    }
+                    quartier_data.append(quartier_row)
+
+                    # Get the original WKB row for reference
+                    wkb_row = row.to_dict()
+                    wkb_row['id'] = new_id  # Add new_id for reference
+                    wkb_data_for_csv.append(wkb_row)
+                    new_id += 1
+
+        # DataFrame erstellen
+        quartier_df = pd.DataFrame(quartier_data)
+        wkb_df = pd.DataFrame(wkb_data_for_csv)
+
+        # Als CSV speichern
+        quartier_df.to_csv(output_file_path, sep=';', index=False)
+        wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=';', index=False)
+
+        return quartier_df
 
 def generate_demands_worker_wrapper(args):
     """
     Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
+    Startet den Worker und den Monitor Thread für ein Gebäude.
     Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
     """
+    warnings.filterwarnings("ignore", category=FutureWarning) #! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
+
+    start_time_building = time.time()
+    
     self_ref, building, calcUserProfiles, saveUserProfiles = args
-    self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles)
+    building_name = building.get("unique_name")
 
-    result = {
-        "unique_name": building["unique_name"],
-        "elec": building["user"].elec,
-        'dhw': building["user"].dhw,
-        'cooling': building["user"].cooling,
-        'heating': building["user"].heat,
-        'occ': building["user"].occ,
-        'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
-        'EV_carprofile': building["user"].EV_carprofile,
-        "ev_capacity": building["user"].ev_capacity,
-        'ice_carprofile': building["user"].ice_carprofile,
-        'gains': building["user"].gains,
-        "nb_units": building["user"].nb_units,
-        'nb_occ': building["user"].nb_occ,
-        'envelope': building["envelope"],
-        'night_setback': building["buildingFeatures"]["night_setback"],
-    }
+    # Event zum Stoppen des Monitor-Threads
+    stop_event = threading.Event()
 
-    return result
+    timeout_duration = 1800 # 30 minutes to identify long-running threads
+    monitor = threading.Thread(
+        target=monitor_task, 
+        args=(start_time_building, timeout_duration, building_name, stop_event),
+        daemon=True 
+    ) 
+    monitor.start()
 
+    # Starting the demand generation worker
+    try:
+        self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles)
 
+        result = {
+            "unique_name": building["unique_name"],
+            "elec": building["user"].elec,
+            'dhw': building["user"].dhw,
+            'cooling': building["user"].cooling,
+            'heating': building["user"].heat,
+            'occ': building["user"].occ,
+            'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
+            'EV_carprofile': building["user"].EV_carprofile,
+            "ev_capacity": building["user"].ev_capacity,
+            'ice_carprofile': building["user"].ice_carprofile,
+            'gains': building["user"].gains,
+            "nb_units": building["user"].nb_units,
+            'nb_occ': building["user"].nb_occ,
+            'envelope': building["envelope"],
+            'night_setback': building["buildingFeatures"]["night_setback"],
+            'individual_car_profiles': building["user"].individual_car_profiles
+        }
+    finally: 
+        # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
+        stop_event.set()
+        monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
+
+    # Time needed for calculating this building
+    end_time_building = time.time()
+    duration_building = end_time_building - start_time_building
+
+    return result, duration_building
+
+def monitor_task(start_time, timeout_duration, building_name, stop_event):
+    """
+    Monitors the progress of a task and gives a warning if the thread takes longer than the specified timeout duration.
+    """
+
+    # Wait for the specified timeout duration and check if the task is completed. During this time the thread is inactive.
+    # If stop_event is set, the return is True, otherwise False after timeout
+    was_stopped_in_time = stop_event.wait(timeout=timeout_duration)
+
+    if was_stopped_in_time:
+        pass  # Task completed within the timeout duration
+    else:
+        elapsed_time = time.time() - start_time
+        print(f"Warning: The task for building {building_name} is taking longer than expected ({elapsed_time:.2f} seconds).")
+
+    # The monitoring thread ends here

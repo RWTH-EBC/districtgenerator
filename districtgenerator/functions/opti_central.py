@@ -24,7 +24,7 @@ ECS_GAS = ("CHP", "BOI")  # gas consuming devices
 ECS_BIOMASS = ("BBOI",)  # biomass consuming devices
 ECS_HYDROGEN = ("H2BOI", "FC")  # hydrogen consuming devices
 ECS_OIL = ("OBOI",)  # oil consuming devices
-ECS_STORAGE = ("BAT", "TES", "EV")  # battery (BAT), thermal energy storage (TES), electric vehicle (EV)
+ECS_STORAGE = ("BAT", "TES")  # battery (BAT), thermal energy storage (TES)
 HP_MODI = ("HP35", "HP55")  # modi of the HP with different HP supply temperatures in °C
 
 # Create set for energy hub devices
@@ -120,8 +120,6 @@ def build_model(model, data, cluster):
     Q_cooling = {}  # space cooling [W]
     PV_gen = {}  # electricity generation of PV [W]
     STC_heat = {}  # electricity generation of PV [W]
-    EV_dem = {}  # electricity demand electric vehicle (EV) [Wh]
-    EV_charging_ondemand = {}  # charging power electric vehicle (EV) if on-demand [W]
     elec_dem = {}  # electricity demand for appliances and lighting [W]
     occ = {}
 
@@ -135,13 +133,9 @@ def build_model(model, data, cluster):
         try:
             PV_gen[n] = buildingData[n]["generationPV_cluster"][cluster]
             STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
-            EV_dem[n] = buildingData[n]["user"].EV_carprofile_cluster[cluster]
-            EV_charging_ondemand[n] = buildingData[n]["user"].EV_carcharging_ondemand_cluster[cluster]
         except:
             PV_gen[n] = [0] * len(elec_dem[n])
             STC_heat[n] = [0] * len(elec_dem[n])
-            EV_dem[n] = [0] * len(elec_dem[n])
-            EV_charging_ondemand[n] = [0] * len(elec_dem[n])
 
     # INITIAL STATE OF CHARGE OF THE STORAGES (Wh) for all buildings
     soc_init = {}
@@ -149,6 +143,52 @@ def build_model(model, data, cluster):
         soc_init[dev] = {}
         for n in range(nbuildings):
             soc_init[dev][n] = buildingData[n]["capacities"][dev] * param_dec_devs[dev]["init"]  # Wh
+
+    # Extracting the data for each individual evs in the buildings
+    all_individual_evs = []
+    all_individual_ices = []
+    ev_counter = 0
+    ice_counter = 0
+
+    for n in range(nbuildings):
+        building = buildingData[n]
+        charging_type = building["buildingFeatures"]["ev_charging"]
+
+        if hasattr(building["user"], 'individual_car_profiles_cluster'):
+            for car_cluster_profile in building["user"].individual_car_profiles_cluster:
+                if car_cluster_profile["type"] == "EV":
+                    availability_profile = car_cluster_profile["availability_profile_cluster"][cluster]
+                    driving_demand_wh = car_cluster_profile["consumption_profile_wh_cluster"][cluster]
+                    battery_capacity_wh = car_cluster_profile["battery_capacity_wh"]
+                    on_demand_charging_profile = car_cluster_profile["on_demand_charging_profile_w_cluster"][cluster]
+
+                    all_individual_evs.append({
+                        'id': ev_counter,
+                        'building_id': n,
+                        'car_id_str': car_cluster_profile.get("car_id", f"ev_{ev_counter}"),
+                        'charging_type': charging_type,
+                        'availability': availability_profile,
+                        "driving_demand_wh": driving_demand_wh, 
+                        "on_demand_charging_profile": on_demand_charging_profile,
+                        "battery_capacity_wh": battery_capacity_wh,
+                        "max_ch_power": battery_capacity_wh * param_dec_devs["EV"]["coeff_ch"], 
+                        "max_dch_power": battery_capacity_wh * param_dec_devs["EV"]["coeff_ch"]
+                    })
+                    ev_counter += 1
+
+                elif car_cluster_profile["type"] == "ICE":
+                    #TODO: add ICE vehicles if needed in the future -> Needs to be included for emission calculations and Fuel cost. 
+                    pass
+
+    ev_data = {ev['id']: ev for ev in all_individual_evs}
+
+    # initial SOC for each EV
+    soc_init_ev = {
+        ev["id"]: ev["battery_capacity_wh"] * param_dec_devs["EV"]["init"] 
+        for ev in all_individual_evs
+    }
+
+    # TODO: HERE noch einmal überarbeiten
 
     ################################################################################
     # CREATE SETS
@@ -168,6 +208,7 @@ def build_model(model, data, cluster):
     model.ecs_oil = pyo.Set(initialize=ECS_OIL, doc="Oil generating or consuming devices in the buildings")
     model.ecs_storage = pyo.Set(initialize=ECS_STORAGE, doc="Storage devices in the buildings")
     model.hp_modi = pyo.Set(initialize=HP_MODI, doc="Heat pump modi with different supply temperatures for domestic heatpumps")
+    model.EVs = pyo.Set(initialize=ev_data.keys(), doc="Individual electric vehicles in the buildings")
 
     # Energy hub
     model.eh_devs = pyo.Set(initialize=EH_DEVS, doc="Energy hub devices")
@@ -226,7 +267,12 @@ def build_model(model, data, cluster):
     model.binary_HLINE = pyo.Var(model.n, model.t, within=pyo.Binary)
     model.binary_BAT = pyo.Var(model.n, model.t, within=pyo.Binary)
     model.binary_TES = pyo.Var(model.n, model.t, within=pyo.Binary)
-    model.binary_EV = pyo.Var(model.n, model.t, within=pyo.Binary)
+
+    # Electric vehicle variables
+    model.soc_ev = pyo.Var(model.EVs, model.t, within=pyo.NonNegativeReals, doc="State of charge of electric vehicles")
+    model.ch_ev = pyo.Var(model.EVs, model.t, within=pyo.NonNegativeReals, doc="Charging power of electric vehicles")
+    model.dch_ev = pyo.Var(model.EVs, model.t, within=pyo.NonNegativeReals, doc="Discharging power of electric vehicles")
+    model.binary_EV = pyo.Var(model.EVs, model.t, within=pyo.Binary, doc="Binary variable for electric vehicle charging/discharging")
 
     # Residual network demand
     model.residual_power = pyo.Var(model.t, within=pyo.NonNegativeReals,
@@ -808,132 +854,92 @@ def build_model(model, data, cluster):
                                                   doc="Compression chiller conversion: electricity to cooling with temperature-dependent COP")
 
     ################################################################################
-    # %% EV CONSTRAINTS
+    # %% EV CONSTRAINTS #! This Code currently views all EVs connected to a building as one single EV storage device. This is not realistic and should probably be changed. Especially if bidirectional or intelligentcharging is considered.
     ################################################################################
 
-    # Identify parking periods where EV can be charged/discharged
-    def identify_ev_charging_periods(buildingData, EV_dem, time_steps, dt) -> dict:
-        """
-        Identify charging periods for each building before model creation
-
-        Returns a dictionary with building index as key and a boolean as result if the EV is parked at the building and can be charged/discharged.
-        Vehicle can be charged if parked
-        If vehicle is driving it is not parked and cannot be charged (EV_dem > 0)
-
-        Vehicle is parked for max. 12h in SFH, TH, MFH, AB and max. 10h in other building types #! Maybe remove this and say whenever at home can charge
-        """
-        charging_periods = {}
-
-        for n in range(len(buildingData)):
-            parking_time = 12 / dt if buildingData[n]["buildingFeatures"]["building"] in {"SFH", "TH", "MFH",
-                                                                                          "AB"} else 10 / dt
-
-            periods = []
-            plug_in_time = None
-            is_driving = False
-
-            for t in time_steps:
-                if EV_dem[n][t] > 0: # Car is still driving and demands energy
-                    plug_in_time = None  # Reset plug-in time if EV is driving
-                    is_driving = True
-                elif is_driving and EV_dem[n][t] == 0: # Car has stopped driving and does not demand energy
-                    plug_in_time = t
-                    is_driving = False
-
-                if plug_in_time is not None:
-                    if t < min(plug_in_time + parking_time, len(time_steps)):
-                        periods.append(True)  # EV is not longer parked than parking_time so charging possible
-                    else:
-                        plug_in_time = None  # If parking time exceeded, EV is no longer plugged in
-                        periods.append(False)
-                else:
-                    periods.append(False)
-
-            charging_periods[n] = periods
-
-        return charging_periods
-
-    charging_periods = identify_ev_charging_periods(buildingData, EV_dem, time_steps, dt)
-
     # Modelling of the EV charging process and storage
-    def ev_energy_balance_rule(model, n, t):
-        if buildingData[n]["buildingFeatures"]["ev_charging"] not in {"on_demand"}:
-            if t == 0:
-                soc_prev = soc_init["EV"][n]
-            else:
-                soc_prev = model.soc_dom["EV", n, t - 1]
+    def ev_energy_balance_rule(model, ev_id, t):
+        ev = ev_data[ev_id]
+        if ev["charging_type"] == "on_demand":
+            return pyo.Constraint.Skip  # on-demand EVs do not need an energy balance constraint because they are directly charged the same amount as they consume. Calculation in profiles.py
+        if t == 0:
+            soc_prev = soc_init_ev[ev_id]
+        else:
+            soc_prev = model.soc_ev[ev_id, t - 1]
 
-            return model.soc_dom["EV", n, t] == soc_prev * param_dec_devs["EV"]["eta_standby"] ** dt + \
-                model.ch_dom["EV", n, t] * param_dec_devs["EV"]["eta_ch"] * dt - \
-                model.dch_dom["EV", n, t] / param_dec_devs["EV"]["eta_ch"] * dt - EV_dem[n][t]
-        else: # on-demand EVs do not need an energy balance constraint because they are directly charged the same amount as they consume. Calculation in profiles.py
-            return pyo.Constraint.Skip
+        driving_demand = ev["driving_demand_wh"][t]
+        return model.soc_ev[ev_id, t] == soc_prev * param_dec_devs["EV"]["eta_standby"] ** dt + \
+               (model.ch_ev[ev_id, t] * param_dec_devs["EV"]["eta_ch"] - \
+                model.dch_ev[ev_id, t] / param_dec_devs["EV"]["eta_ch"]) * dt - \
+               driving_demand
 
-    def ev_final_soc_rule(model, n):
+    # SOC at end of time horizon needs to be the same as initial SOC
+    def ev_final_soc_rule(model, ev_id):
         """Final SOC of EV needs to be the same as initial SOC"""
-        if buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional"}:
-            return model.soc_dom["EV", n, last_time_step] == soc_init["EV"][n]
-        else:
-            # In the case of on-demand, this constraint is not needed because the car is directly charged the same amount as it consumes
+        if ev_data[ev_id]["charging_type"] == "on_demand":
             return pyo.Constraint.Skip
+        return model.soc_ev[ev_id, last_time_step] == soc_init_ev[ev_id]
+    
+    # SOC limited by max/min soc
+    def ev_soc_max_rule(model, ev_id, t):
+        if ev_data[ev_id]["charging_type"] == "on_demand":
+            return pyo.Constraint.Skip
+        return model.soc_ev[ev_id, t] <= ev_data[ev_id]["battery_capacity_wh"] * param_dec_devs["EV"]["soc_max"]
+    
+    def ev_soc_min_rule(model, ev_id, t):
+        if ev_data[ev_id]["charging_type"] == "on_demand":
+            return pyo.Constraint.Skip
+        return model.soc_ev[ev_id, t] >= ev_data[ev_id]["battery_capacity_wh"] * param_dec_devs["EV"]["soc_min"]
 
-    def ev_charging_rule(model, n, t):
-        """EV can only charge when parked at the building. If not parked, charging power is 0. Otherwise, no constraint."""
-        if buildingData[n]["buildingFeatures"]["ev_charging"] in {"intelligent", "bi_directional"}:
-            charging_possible = charging_periods[n][t]
+    # Charging rules
+
+    def ev_on_demand_charging_rule(model, ev_id, t):
+        ev = ev_data[ev_id]
+        if ev["charging_type"] == "on_demand":
+            return model.ch_ev[ev_id, t] == ev["on_demand_charging_profile"][t]
+        else: 
+            return pyo.Constraint.Skip
+        
+    def ev_charging_rule(model, ev_id, t):
+        ev = ev_data[ev_id]
+        if ev["charging_type"] == "on_demand":
+            return pyo.Constraint.Skip  # on-demand EVs do not have charging constraints
+        else:
+            charging_possible = ev["availability"][t] # True if charging possible, False otherwise
             if not charging_possible:
-                return model.ch_dom["EV", n, t] == 0
+                return model.ch_ev[ev_id, t] == 0
             else:
-                return pyo.Constraint.Skip
+                return model.ch_ev[ev_id, t] <= ev["max_ch_power"]  # Max charging power constraint
+
+    # Discharging rules
+    def ev_discharging_rule(model, ev_id, t):
+        ev = ev_data[ev_id]
+
+        if ev["charging_type"] != "bi_directional":
+            return model.dch_ev[ev_id, t] == 0 # Only bi-directional EVs can discharge
+        is_available = ev["availability"][t]
+        if not is_available:
+            return model.dch_ev[ev_id, t] == 0
         else:
-            return pyo.Constraint.Skip
+            return model.dch_ev[ev_id, t] <= ev["max_dch_power"]  # Max discharging power constraint
+             
+    # Binary rules for preventing simultaneous charging and discharging
+    def ev_binary1_rule(model, ev_id, t):
+        return model.dch_ev[ev_id, t] <= model.binary_EV[ev_id, t] * BIG_M
+    
+    def ev_binary2_rule(model, ev_id, t):
+        return model.ch_ev[ev_id, t] <= (1 - model.binary_EV[ev_id, t]) * BIG_M
 
-    def ev_bi_directional_discharging_rule(model, n, t):
-        """EV can only discharge when parked at the building. If not parked, discharging power is 0. Otherwise, no constraint."""
-        if buildingData[n]["buildingFeatures"]["ev_charging"] == "bi_directional":
-            discharging_possible = charging_periods[n][t]
-            if not discharging_possible:
-                return model.dch_dom["EV", n, t] == 0
-            else:
-                return pyo.Constraint.Skip
-        else:
-            return pyo.Constraint.Skip
-
-    def ev_intelligent_discharge_rule(model, n, t):
-        """intelligent EVs cannot discharge"""
-        if buildingData[n]["buildingFeatures"]["ev_charging"] == "intelligent":
-            return model.dch_dom["EV", n, t] == 0
-        else:
-            return pyo.Constraint.Skip
-
-    def ev_on_demand_ch_rule(model, n, t):
-        if buildingData[n]["buildingFeatures"]["ev_charging"] == "on_demand":
-            return model.ch_dom["EV", n, t] == EV_charging_ondemand[n][t]
-        else:
-            return pyo.Constraint.Skip
-
-    def ev_on_demand_dch_rule(model, n, t):
-        if buildingData[n]["buildingFeatures"]["ev_charging"] == "on_demand":
-            return model.dch_dom["EV", n, t] == 0
-        else:
-            return pyo.Constraint.Skip
-
-    def ev_binary1_rule(model, n, t):
-        return model.dch_dom["EV", n, t] <= model.binary_EV[n, t] * buildingData[n]["capacities"]["EV"] * param_dec_devs["EV"]["coeff_ch"]
-
-    def ev_binary2_rule(model, n, t):
-        return model.ch_dom["EV", n, t] <= (1 - model.binary_EV[n, t]) * buildingData[n]["capacities"]["EV"] * param_dec_devs["EV"]["coeff_ch"]
-
-    # Constaints for EVs
-    model.ev_energy_balance = pyo.Constraint(model.n, model.t, rule=ev_energy_balance_rule)
-    model.ev_final_soc = pyo.Constraint(model.n, rule=ev_final_soc_rule)
-    model.ev_charging = pyo.Constraint(model.n, model.t, rule=ev_charging_rule)
-    model.ev_bi_directional_discharging = pyo.Constraint(model.n, model.t, rule=ev_bi_directional_discharging_rule)
-    model.ev_intelligent_discharging = pyo.Constraint(model.n, model.t, rule=ev_intelligent_discharge_rule)
-    model.ev_on_demand_ch = pyo.Constraint(model.n, model.t, rule=ev_on_demand_ch_rule)
-    model.ev_on_demand_dch = pyo.Constraint(model.n, model.t, rule=ev_on_demand_dch_rule)
-    model.ev_binary1 = pyo.Constraint(model.n, model.t, rule=ev_binary1_rule)
-    model.ev_binary2 = pyo.Constraint(model.n, model.t, rule=ev_binary2_rule)
+    # Constraints for individual EVs
+    model.ev_energy_balance = pyo.Constraint(model.EVs, model.t, rule=ev_energy_balance_rule)
+    model.ev_final_soc = pyo.Constraint(model.EVs, rule=ev_final_soc_rule)
+    model.ev_charging = pyo.Constraint(model.EVs, model.t, rule=ev_charging_rule)
+    model.ev_on_demand_charging = pyo.Constraint(model.EVs, model.t, rule=ev_on_demand_charging_rule)
+    model.ev_discharging = pyo.Constraint(model.EVs, model.t, rule=ev_discharging_rule)
+    model.ev_soc_max = pyo.Constraint(model.EVs, model.t, rule=ev_soc_max_rule)
+    model.ev_soc_min = pyo.Constraint(model.EVs, model.t, rule=ev_soc_min_rule)
+    model.ev_binary1 = pyo.Constraint(model.EVs, model.t, rule=ev_binary1_rule)
+    model.ev_binary2 = pyo.Constraint(model.EVs, model.t, rule=ev_binary2_rule)
 
     ################################################################################
     # %% Building storage balances and constraints #! Here a similar factory function to the energy hub storages might be useful
@@ -1087,11 +1093,15 @@ def build_model(model, data, cluster):
 
     # Electricity balance
     def electricity_balance_rule(model, n, t):
+        """Electricity demand must be met by power producing devices and/or residual load"""
+        # Calculate total charging and discharging for EVs connected to building n
+        total_ev_charge = sum(model.ch_ev[ev_id, t] for ev_id in model.EVs if ev_data[ev_id]["building_id"] == n)
+        total_ev_discharge = sum(model.dch_ev[ev_id, t] for ev_id in model.EVs if ev_data[ev_id]["building_id"] == n)
+
         return (model.res_dom_power[n, t] + model.power_dom["PV", n, t] + model.power_dom["CHP", n, t] + model.power_dom["FC", n, t]
-                + model.dch_dom["BAT", n, t] + model.dch_dom["EV", n, t]
-                == model.power_dom["Elec_dem", n, t] + model.ch_dom["EV", n, t] + model.power_dom["HP", n, t] +
-                model.power_dom[
-                    "EH", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
+                + model.dch_dom["BAT", n, t] + total_ev_discharge
+                == model.power_dom["Elec_dem", n, t] + total_ev_charge + model.power_dom["HP", n, t] +
+                model.power_dom["EH", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
 
     # Heating Balance
     def heating_balance_rule(model, n, t):
