@@ -51,29 +51,6 @@ def example0_generate_scenario():
 
     # Third is a CSV file used for initializing the data handler.
     # f"district_{district_type}_buildings_{len(buildings)}" will be the scenario_name for the initialization of datahandler.
-    # Following parameters of the buildings are provided in the CSV file:
-    # id:               start from 0;
-    # position:         (x,y);
-    # building types:   School(SC), Office(OB), Supermarket(GS), Restaurant(RE),
-    #                   Residential(Single-family house (SFH: total_area<200), multi-family house (MFH: total_area>200),
-    #                               apartment block (AB), terraced house (TH));
-    # year:             can be chosen between 1860 and 2024;
-    # retrofit:         0 (original construction state),
-    #                   1 (Retrofit according to EnEV 2016),
-    #                   2 (Retrofit according to KfW 55);
-    # construction_type: all set at 2;
-    # night_setback;
-    # area:             can be freely selected;
-    # number_of_floors;
-    # heater;
-    # cooling;
-    # EV;
-    # f_TES;
-    # f_BAT;
-    # f_PV;
-    # f_STC;
-    # gamma_PV;
-    # ev_charging
 
 if __name__ == '__main__':
     example0_generate_scenario()

@@ -15,7 +15,18 @@ def example8_scenario_evaluation():
     data = Datahandler(scenario_name = "district_F_buildings_30")
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
+    # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
+    # EHDO is a tool for planning and designing complex energy systems.
+    # Its key feature is the coupling of different sectors (e.g., electricity, heating, cooling).
+    # In the early planning phases of energy supply concepts for neighborhoods,
+    # the tool provides an initial assessment of the optimal system configuration, sizing,
+    # and economic efficiency.
+    # As input, EHDO requires data on energy demands and location (weather),
+    # which are provided directly from the output of the district generator.
+    # Additional information about the technologies to be considered for the dimensioning
+    # of the energy central and the economic parameters are read from additional
+    # .csv and .json data sources.
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option= "node")
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
@@ -34,16 +45,4 @@ def example8_scenario_evaluation():
 if __name__ == '__main__':
     data = example8_scenario_evaluation()
 
-    # As last step we use the EHDO tool to get an optimized energy central for neighborhoods. EHDO is a tool for
-    # planning and designing complex energy systems. The central feature is coupling of different
-    # sectors (e.g. electricity, heating, cooling). In early planning phases of energy supply concepts for
-    # neighborhoods, the tool provides an initial assessment of the optimal system configuration, dimensioning
-    # and economic efficiency.
-    # As Input the EHDO needs data of the demands and location (weather), which are given directly from the output of
-    # the district generator. Further information about the technologies to be considered for the dimensioning of
-    # the energy central and economic parameters are read in from further .csv and . json. data sources
 
-
-    # Within data the results of EHDO are given. For each device the annual generated amount of
-    # electricity or heat as well as the nominal power or storage capacity are calculate.
-    # Furthermore, ecological and economic indicatoers are calculated.

@@ -7,7 +7,7 @@ import sys
 import copy
 import datetime
 import multiprocessing
-
+import random
 import numpy as np
 import openpyxl
 import pandas as pd
@@ -589,6 +589,7 @@ class Datahandler:
 
         with multiprocessing.Pool(processes=max_threads) as pool:
             for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
+
                 self.buildings_completed += 1
                 results.append(result)
 
@@ -611,6 +612,7 @@ class Datahandler:
             building["user"].gains = result["gains"]
             building["user"].nb_units = result["nb_units"]
             building["user"].nb_occ = result["nb_occ"]
+            building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
             building["envelope"] = result["envelope"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
@@ -716,9 +718,8 @@ class Datahandler:
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
-        # print(f'done {building["unique_name"]}')
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road"):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -763,14 +764,22 @@ class Datahandler:
 
         if has_heat_grid:
             # Verify geometry data (district_parameters)
-            if "district_parameters" not in self.site:
+
+            # --- Check if building positions are available and valid ---
+            missing_positions = (
+                    "position" not in self.scenario.columns
+                    or self.scenario["position"].isnull().any()
+                    or any(
+                not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
+                for p in self.scenario["position"]))
+            if missing_positions:
                 print("No district geometry found — running simple heating network design.")
                 heating_network_simple.heating_network(self)
                 self.designCentralDevices(saveGenerationProfiles=True)
                 self.finalizeClusterProfiles()
             else:
                 print("Generating and optimizing heating network...")
-                self.generateNetwork(topology_option="road")
+                self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork(sliding_temperature=True)
                 self.designCentralDevices(saveGenerationProfiles=True)
@@ -1035,7 +1044,7 @@ class Datahandler:
         """
         Prepare and cluster building-level demand and environmental data.
         """
-        print("🔹 Preparing initial clustering (pre-optimization)...")
+        print("Preparing initial clustering (pre-optimization)...")
         self.clusterProfiles(centralEnergySupply=False)
 
     def finalizeClusterProfiles(self):
@@ -1043,7 +1052,7 @@ class Datahandler:
         Perform final clustering including central generation and
         heating network losses after optimization.
         """
-        print("🔹 Finalizing clustering (post-optimization)...")
+        print("Finalizing clustering (post-optimization)...")
         self.clusterProfiles(centralEnergySupply=True)
 
     def clusterProfiles(self, centralEnergySupply):
@@ -1076,6 +1085,18 @@ class Datahandler:
             adjProfiles[i]["EV_carprofile"] = b["user"].EV_carprofile[0:lengthArray]
             adjProfiles[i]["generationPV"] = b["generationPV"][0:lengthArray]
             adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lengthArray]
+
+            # Individual car profiles
+            adjProfiles[i]["individual_cars"] = []
+
+            for car in b["user"].individual_car_profiles:
+                adj_car = {
+                    "availability_profile": car["availability_profile"][0:lengthArray],
+                    "consumption_profile_wh": car["consumption_profile_wh"][0:lengthArray],
+                    "on_demand_charging_profile_w": car["on_demand_charging_profile_w"][0:lengthArray],
+                    "fuel_profile_l": car["fuel_profile_l"][0:lengthArray]
+                }
+                adjProfiles[i]["individual_cars"].append(adj_car)
 
         if centralEnergySupply == True:
 
@@ -1155,6 +1176,28 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
+        # Add individual car profiles
+        index_individual_cars_start = len(inputsClustering)
+        for i in range(len(self.district)):
+            for car in adjProfiles[i]["individual_cars"]:
+                # 4 profiles per car
+
+                inputsClustering.append(car["availability_profile"])
+                weights.append(0) # Vorerst kein Gewicht
+                scalings.append(False)
+
+                inputsClustering.append(car["consumption_profile_wh"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(car["on_demand_charging_profile_w"])
+                weights.append(0)
+                scalings.append(False)
+
+                inputsClustering.append(car["fuel_profile_l"])
+                weights.append(0)
+                scalings.append(False)
+
 
         # Add central energy supply profiles
         index_central = len(inputsClustering) # Index of the first entry of central energy profiles
@@ -1231,6 +1274,31 @@ class Datahandler:
             self.district[i]["user"].EV_carprofile_cluster = newProfiles[index_house * i + 6]
             self.district[i]["generationPV_cluster"] = newProfiles[index_house * i + 7]
             self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
+
+        # Get individual car profiles
+        profile_counter = index_individual_cars_start
+        for i in range(len(self.district)):
+            self.district[i]["user"].individual_car_profiles_cluster = []
+            for car in self.district[i]["user"].individual_car_profiles:
+
+                clustered_car_data = {
+                    # Get important metadata from the original
+                    "car_id": car.get("car_id"),
+                    "type": car.get("type"),
+                    "location": car.get("location"),
+                    "battery_capacity_wh": car.get("battery_capacity_wh"),
+
+                    # Assign the NEW cluster profiles from newProfiles
+                    "availability_profile_cluster": newProfiles[profile_counter],
+                    "consumption_profile_wh_cluster": newProfiles[profile_counter + 1],
+                    "on_demand_charging_profile_w_cluster": newProfiles[profile_counter + 2],
+                    "fuel_profile_l_cluster": newProfiles[profile_counter + 3]
+                }
+
+                self.district[i]["user"].individual_car_profiles_cluster.append(clustered_car_data)
+                # Increment counter for the next car by 4
+                profile_counter += 4
+
 
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
@@ -1380,6 +1448,7 @@ class Datahandler:
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
 
+
     def designNetworkwithNode(self):
         """
         Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
@@ -1390,12 +1459,34 @@ class Datahandler:
         None.
         """
         # get the input data for the optimizer
-        district_type = self.site["district_parameters"]["district_type"]
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
-        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
-            jsonData = json.load(json_file)
-        buildings_info = jsonData["values"]["buildings_info"]
-        transformer_info = jsonData["values"]["transformer_station"]
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                buildings_info = jsonData["values"]["buildings_info"]
+                transformer_info = jsonData["values"]["transformer_station"]
+        else:
+            # if JSON file not found → Extract building coordinates from district data
+            district_type = "unknown"
+            buildings_info = []
+            for building in self.district:
+                pos = building["buildingFeatures"]["position"]
+                building_dict = {"building": building["unique_name"],
+                                 "position": pos}
+                buildings_info.append(building_dict)
+
+            # Randomly choose one building as transformer base
+            chosen_building = random.choice(buildings_info)
+            base_pos = chosen_building["position"]
+
+            # Apply small random offset between choosen building and transformer (e.g., ±5 meters)
+            offset_x = random.uniform(-5, 5)
+            offset_y = random.uniform(-5, 5)
+            transformer_info = {
+                "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
+            }
 
         run_pipeline_node(district_type, buildings_info, transformer_info)
 
@@ -1435,16 +1526,33 @@ class Datahandler:
         None.
         """
 
+        # --- Check if the geometry JSON exists ---
+        if "district_parameters" not in self.site and topology_option == "road":
+            print(
+                "The district geometry JSON ('<scenario_name>.json') was not found.\n"
+                "The district layout (roads) is not defined, only building positions are available.\n"
+                "Switching to topology_option='node' instead of 'road'."
+            )
+            topology_option = "node"
+        else:
+            topology_option = topology_option
+
         # design the heating network
         if topology_option == "node":
             self.designNetworkwithNode()
         elif topology_option == "road":
             self.designNetworkwithRoad()
 
-        # load the file of the heating network topology
-        district_type = self.site["district_parameters"]["district_type"]
+        # get topology filename
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+        else:
+            # if JSON file not found
+            district_type = "unknown"
         topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
 
+        # load the file of the heating network topology
         with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
             jsonData = json.load(json_file)
 
@@ -1494,6 +1602,7 @@ def generate_demands_worker_wrapper(args):
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
         'night_setback': building["buildingFeatures"]["night_setback"],
+        'individual_car_profiles': building["user"].individual_car_profiles
     }
 
     return result
@@ -1508,9 +1617,6 @@ def parse_position(val):
         return tuple(float(x.strip()) for x in val.strip("()").split(","))
     # If the input is a tuple or list of characters like ('1', '2', '.', '3', ',', '4', '5', '.', '6')
     elif isinstance(val, (tuple, list)):
-        # Step 1: join -> "12.3,45.6"
-        # Step 2: strip and split -> ["12.3", "45.6"]
-        # Step 3: convert to float -> (12.3, 45.6)
         pos_str = "".join(val)
         return tuple(float(x.strip()) for x in pos_str.strip("()").split(","))
     # For other data types, return the value as is.
