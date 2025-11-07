@@ -809,11 +809,14 @@ class Datahandler:
                         "type": car.get("type"),
                         "location": car.get("location"),
                         "battery_capacity_wh": car.get("battery_capacity_wh")})
-                
-                EV_demand_individual[f'EV_demand_car_{i}'] = car['consumption_profile_wh']
-                EV_charging_individual[f'EV_charging_car_{i}'] = car['on_demand_charging_profile_w']
-                ICE_fuel_individual[f'ICE_fuel_car_{i}'] = car['fuel_profile_l']
-                Car_availibility_individual[f'Car_availibility_car_{i}'] = car['availability_profile']
+                if car['consumption_profile_wh'] is not None:
+                    EV_demand_individual[f'EV_demand_car_{i}'] = car['consumption_profile_wh'] 
+                if car['on_demand_charging_profile_w'] is not None:
+                    EV_charging_individual[f'EV_charging_car_{i}'] = car['on_demand_charging_profile_w']
+                if car['fuel_profile_l'] is not None:
+                    ICE_fuel_individual[f'ICE_fuel_car_{i}'] = car['fuel_profile_l']
+                if car['availability_profile'] is not None:
+                    Car_availibility_individual[f'Car_availibility_car_{i}'] = car['availability_profile']
 
         # Create Dataframes fot the individual car profiles
         df_car_info = pd.DataFrame(car_info_list)
@@ -936,10 +939,27 @@ class Datahandler:
             battery_capacity_wh = row['battery_capacity_wh']
 
             # Extracts profiles
-            consumption_profile_wh = df_EV_demand[f'EV_demand_car_{i}'].to_numpy()
-            on_demand_charging_profile_w = df_EV_charging[f'EV_charging_car_{i}'].to_numpy()
-            fuel_profile_l = df_ICE_fuel[f'ICE_fuel_car_{i}'].to_numpy()
-            availability_profile = df_Car_avail[f'Car_availibility_car_{i}'].to_numpy()
+            ev_demand_col = f'EV_demand_car_{i}'
+            ev_charge_col = f'EV_charging_car_{i}'
+            ice_fuel_col = f'ICE_fuel_car_{i}'
+            avail_col = f'Car_availibility_car_{i}'
+
+            if ev_demand_col in df_EV_demand.columns:
+                consumption_profile_wh = df_EV_demand[ev_demand_col].to_numpy()
+            else: 
+                consumption_profile_wh = None
+            if ev_charge_col in df_EV_charging.columns:
+                on_demand_charging_profile_w = df_EV_charging[ev_charge_col].to_numpy()
+            else:
+                on_demand_charging_profile_w = None
+            if ice_fuel_col in df_ICE_fuel.columns:
+                fuel_profile_l = df_ICE_fuel[ice_fuel_col].to_numpy()
+            else:
+                fuel_profile_l = None
+            if avail_col in df_Car_avail.columns:
+                availability_profile = df_Car_avail[avail_col].to_numpy()
+            else:
+                availability_profile = None
 
             car_profile = {
                 'car_id': car_id,
@@ -1150,10 +1170,10 @@ class Datahandler:
 
             for car in b["user"].individual_car_profiles:
                 adj_car = {
-                    "availability_profile": car["availability_profile"][0:lengthArray],
-                    "consumption_profile_wh": car["consumption_profile_wh"][0:lengthArray],
-                    "on_demand_charging_profile_w": car["on_demand_charging_profile_w"][0:lengthArray],
-                    "fuel_profile_l": car["fuel_profile_l"][0:lengthArray]
+                    "availability_profile": car["availability_profile"][0:lengthArray] if car["availability_profile"] is not None else None,
+                    "consumption_profile_wh": car["consumption_profile_wh"][0:lengthArray] if car["consumption_profile_wh"] is not None else None,
+                    "on_demand_charging_profile_w": car["on_demand_charging_profile_w"][0:lengthArray] if car["on_demand_charging_profile_w"] is not None else None,
+                    "fuel_profile_l": car["fuel_profile_l"][0:lengthArray] if car["fuel_profile_l"] is not None else None
                 }
                 adjProfiles[i]["individual_cars"].append(adj_car)
 
@@ -1240,21 +1260,25 @@ class Datahandler:
             for car in adjProfiles[i]["individual_cars"]:
                 # 4 profiles per car
                 
-                inputsClustering.append(car["availability_profile"])
-                weights.append(0) # Vorerst kein Gewicht
-                scalings.append(False)
+                if car["availability_profile"] is not None:
+                    inputsClustering.append(car["availability_profile"])
+                    weights.append(0) # Vorerst kein Gewicht
+                    scalings.append(False)
                 
-                inputsClustering.append(car["consumption_profile_wh"])
-                weights.append(0)
-                scalings.append(False)
+                if car["consumption_profile_wh"] is not None:
+                    inputsClustering.append(car["consumption_profile_wh"])
+                    weights.append(0)
+                    scalings.append(False)
 
-                inputsClustering.append(car["on_demand_charging_profile_w"])
-                weights.append(0)
-                scalings.append(False)
+                if car["on_demand_charging_profile_w"] is not None:
+                    inputsClustering.append(car["on_demand_charging_profile_w"])
+                    weights.append(0)
+                    scalings.append(False)
 
-                inputsClustering.append(car["fuel_profile_l"])
-                weights.append(0)
-                scalings.append(False)
+                if car["fuel_profile_l"] is not None:
+                    inputsClustering.append(car["fuel_profile_l"])
+                    weights.append(0)
+                    scalings.append(False)
 
 
         # Add central energy supply profiles
@@ -1337,25 +1361,43 @@ class Datahandler:
         profile_counter = index_individual_cars_start
         for i in range(len(self.district)):
             self.district[i]["user"].individual_car_profiles_cluster = []
-            for car in self.district[i]["user"].individual_car_profiles:
 
+            for car in self.district[i]["user"].individual_car_profiles:
+                profiles_car_counter = 0
                 clustered_car_data = {
                     # Get important metadata from the original
                     "car_id": car.get("car_id"), 
                     "type": car.get("type"),
                     "location": car.get("location"),
                     "battery_capacity_wh": car.get("battery_capacity_wh"),
-
-                    # Assign the NEW cluster profiles from newProfiles
-                    "availability_profile_cluster": newProfiles[profile_counter],
-                    "consumption_profile_wh_cluster": newProfiles[profile_counter + 1],
-                    "on_demand_charging_profile_w_cluster": newProfiles[profile_counter + 2],
-                    "fuel_profile_l_cluster": newProfiles[profile_counter + 3]
                 }
+                if car["availability_profile"] is not None:
+                    clustered_car_data["availability_profile_cluster"] = newProfiles[profile_counter]
+                    profiles_car_counter += 1
+                else: 
+                    clustered_car_data["availability_profile_cluster"] = None
+
+                if car["consumption_profile_wh"] is not None:
+                    clustered_car_data["consumption_profile_wh_cluster"] = newProfiles[profile_counter + profiles_car_counter]
+                    profiles_car_counter += 1
+                else:
+                    clustered_car_data["consumption_profile_wh_cluster"] = None
+
+                if car["on_demand_charging_profile_w"] is not None:
+                    clustered_car_data["on_demand_charging_profile_w_cluster"] = newProfiles[profile_counter + profiles_car_counter]
+                    profiles_car_counter += 1
+                else:
+                    clustered_car_data["on_demand_charging_profile_w_cluster"] = None
+
+                if car["fuel_profile_l"] is not None:
+                    clustered_car_data["fuel_profile_l_cluster"] = newProfiles[profile_counter + profiles_car_counter]
+                    profiles_car_counter += 1
+                else:
+                    clustered_car_data["fuel_profile_l_cluster"] = None
 
                 self.district[i]["user"].individual_car_profiles_cluster.append(clustered_car_data)
                 # Increment counter for the next car by 4
-                profile_counter += 4
+                profile_counter += profiles_car_counter
 
 
         if centralEnergySupply == True:

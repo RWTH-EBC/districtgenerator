@@ -144,42 +144,51 @@ def build_model(model, data, cluster):
         for n in range(nbuildings):
             soc_init[dev][n] = buildingData[n]["capacities"][dev] * param_dec_devs[dev]["init"]  # Wh
 
-    # Extracting the data for each individual evs in the buildings
+    # Extracting the data for each vehicle in the buildings
+    ev_mapping, ice_mapping = _get_vehicle_mapping(buildingData, nbuildings)
     all_individual_evs = []
     all_individual_ices = []
-    ev_counter = 0
-    ice_counter = 0
 
-    for n in range(nbuildings):
-        building = buildingData[n]
-        charging_type = building["buildingFeatures"]["ev_charging"]
+    # EVs 
+    for ev_map in ev_mapping:
+        car_cluster_profile = ev_map["profile_data"]
+        n_ev = ev_map["building_id"]
+        building = buildingData[n_ev]
+        charging_type = building["buildingFeatures"]["ev_charging"] 
+        battery_capacity_wh = car_cluster_profile["battery_capacity_wh"]
 
-        if hasattr(building["user"], 'individual_car_profiles_cluster'):
-            for car_cluster_profile in building["user"].individual_car_profiles_cluster:
-                if car_cluster_profile["type"] == "EV":
-                    availability_profile = car_cluster_profile["availability_profile_cluster"][cluster]
-                    driving_demand_wh = car_cluster_profile["consumption_profile_wh_cluster"][cluster]
-                    battery_capacity_wh = car_cluster_profile["battery_capacity_wh"]
-                    on_demand_charging_profile = car_cluster_profile["on_demand_charging_profile_w_cluster"][cluster]
+        availability_profiles = car_cluster_profile["availability_profile_cluster"]
+        driving_demand_profiles = car_cluster_profile["consumption_profile_wh_cluster"]
+        on_demand_charging_profiles = car_cluster_profile["on_demand_charging_profile_w_cluster"]
 
-                    all_individual_evs.append({
-                        'id': ev_counter,
-                        'building_id': n,
-                        'car_id_str': car_cluster_profile.get("car_id", f"ev_{ev_counter}"),
-                        'charging_type': charging_type,
-                        'availability': availability_profile,
-                        "driving_demand_wh": driving_demand_wh, 
-                        "on_demand_charging_profile": on_demand_charging_profile,
-                        "battery_capacity_wh": battery_capacity_wh,
-                        "max_ch_power": battery_capacity_wh * param_dec_devs["EV"]["coeff_ch"], 
-                        "max_dch_power": battery_capacity_wh * param_dec_devs["EV"]["coeff_ch"]
-                    })
-                    ev_counter += 1
+        # The variables only needs to be initialize if the profil should exist. If an None error occurs,
+        # either the loading process or the clustering process has to be checked.
+        # Or if the profile should not exist, this code has to be adjusted accordingly.
+        if availability_profiles is not None:
+            availability_profile = availability_profiles[cluster]
+        else :
+            availability_profile = None
+        if driving_demand_profiles is not None:
+            driving_demand_wh = driving_demand_profiles[cluster]
+        else:
+            driving_demand_wh = None
+        if on_demand_charging_profiles is not None:
+            on_demand_charging_profile = on_demand_charging_profiles[cluster]
+        else:
+            on_demand_charging_profile = None
 
-                elif car_cluster_profile["type"] == "ICE":
-                    #TODO: add ICE vehicles if needed in the future -> Needs to be included for emission calculations and Fuel cost. 
-                    pass
-
+        all_individual_evs.append({
+            'id': ev_map['id'],
+            'building_id': n_ev,
+            'car_id_str': ev_map['car_id_str'],
+            'charging_type': charging_type,
+            'availability': availability_profile,
+            "driving_demand_wh": driving_demand_wh,
+            "on_demand_charging_profile": on_demand_charging_profile,
+            "battery_capacity_wh": battery_capacity_wh,
+            "max_ch_power": battery_capacity_wh * param_dec_devs["EV"]["coeff_ch"],
+            "max_dch_power": battery_capacity_wh * param_dec_devs["EV"]["coeff_ch"]
+        })
     ev_data = {ev['id']: ev for ev in all_individual_evs}
 
     # initial SOC for each EV
@@ -188,7 +197,18 @@ def build_model(model, data, cluster):
         for ev in all_individual_evs
     }
 
-    # TODO: HERE noch einmal überarbeiten
+    # ICE
+    for ice_map in ice_mapping:
+        all_individual_ices.append({
+            'id': ice_map['id'],
+            'building_id': ice_map['building_id'],
+            'car_id_str': ice_map['car_id_str'],
+            'profile_data': ice_map['profile_data']
+            #TODO: Add all relevant data if needed
+        })
+
+
+    ice_data = {ice['id']: ice for ice in all_individual_ices}
 
     ################################################################################
     # CREATE SETS
@@ -209,6 +229,7 @@ def build_model(model, data, cluster):
     model.ecs_storage = pyo.Set(initialize=ECS_STORAGE, doc="Storage devices in the buildings")
     model.hp_modi = pyo.Set(initialize=HP_MODI, doc="Heat pump modi with different supply temperatures for domestic heatpumps")
     model.EVs = pyo.Set(initialize=ev_data.keys(), doc="Individual electric vehicles in the buildings")
+    model.ICEs = pyo.Set(initialize=ice_data.keys(), doc="Individual internal combustion engine vehicles in the buildings")
 
     # Energy hub
     model.eh_devs = pyo.Set(initialize=EH_DEVS, doc="Energy hub devices")
@@ -1667,12 +1688,12 @@ def solve_model_and_extract_results(model, data):
             results_dict[n]["res_load"].append(round(pyo.value(model.res_dom_power[n, t]), 0))
             results_dict[n]["res_inj"].append(round(pyo.value(model.res_dom_feed[n, t]), 0))
             gas_total = pyo.value(model.gas_dom["BOI", n, t]) + pyo.value(
-                model.gas_dom["CHP", n, t])  # ! This should not be here -> Doubling of Code possible
+                model.gas_dom["CHP", n, t])  # ! This should not be here -> Doubling of Code possible. One combined gas variable would be better
             results_dict[n]["res_gas"].append(round(gas_total, 0))
             results_dict[n]["res_biomass"].append(round(pyo.value(model.biomass_dom["BBOI", n, t]), 0))
             results_dict[n]["res_oil"].append(round(pyo.value(model.oil_dom["OBOI", n, t]), 0))
             hydrogen_total = pyo.value(model.hydrogen_dom["H2BOI", n, t]) + pyo.value(
-                model.hydrogen_dom["FC", n, t])  # ! This should not be here -> Doubling of Code possible
+                model.hydrogen_dom["FC", n, t])  # ! This should not be here -> Doubling of Code possible. One combined hydrogen variable would be better
             results_dict[n]["res_hydrogen"].append(round(hydrogen_total, 0))
 
     # Heat devices
@@ -1720,9 +1741,54 @@ def solve_model_and_extract_results(model, data):
                 results_dict[n][device]["dch"].append(pyo.value(model.dch_dom[device, n, t]))
                 results_dict[n][device]["soc"].append(pyo.value(model.soc_dom[device, n, t]))
 
-    # Electric vehicles
+    # Vehicles
+    buildingData = data.district
+    ev_mapping, ice_mapping = _get_vehicle_mapping(buildingData, nbuildings)
+
+    ev_data = {
+        ev_map['id']: {
+            'building_id': ev_map['building_id'],
+            'car_id_str': ev_map['car_id_str'],
+        }
+        for ev_map in ev_mapping
+    }
+
+    ice_data = {
+        ice_map['id']: {
+            'building_id': ice_map['building_id'],
+            'car_id_str': ice_map['car_id_str'],
+        }
+        for ice_map in ice_mapping
+    }
+
+    ev_ids = model.EVs.value_list
+    ice_ids = model.ICEs.value_list
+
+    # Electric Vehicles
     for n in range(nbuildings):
-        pass #TODO: Needs to be implemented
+        if "EV" not in results_dict[n]:
+            results_dict[n]["EV"] = {}
+
+        # EVs connected to building n
+        evs_in_building = [
+            (ev_id, ev_data[ev_id]["car_id_str"]) for ev_id in ev_ids if ev_data.get(ev_id, {}).get("building_id") == n
+        ]
+
+        
+        # Store profiles for each EV
+        for ev_id, car_id_str in evs_in_building:
+            results_dict[n]["EV"][car_id_str] = {}
+            results_dict[n]["EV"][car_id_str]["ch"] = []
+            results_dict[n]["EV"][car_id_str]["dch"] = []
+            results_dict[n]["EV"][car_id_str]["soc"] = []
+
+            for t in time_steps: # Profiles
+                results_dict[n]["EV"][car_id_str]["ch"].append(round(pyo.value(model.ch_ev[ev_id, t]), 0))
+                results_dict[n]["EV"][car_id_str]["dch"].append(round(pyo.value(model.dch_ev[ev_id, t]), 0))
+                results_dict[n]["EV"][car_id_str]["soc"].append(round(pyo.value(model.soc_ev[ev_id, t]), 0))
+
+    # ICE Vehicles
+    # TODO: Needs to be implemented
 
     results_dict["peaksum"] = pyo.value(model.peaksum)
     results_dict["daily_peak"] = {}
@@ -1730,3 +1796,40 @@ def solve_model_and_extract_results(model, data):
         results_dict["daily_peak"][d] = pyo.value(model.daily_peak[d])
 
     return results_dict
+
+
+
+def _get_vehicle_mapping(buildingData, nbuildings):
+    """
+    Create mapping of individual EVs and ICEs to buildings with unique IDs.
+    """
+    all_individual_evs_map = []
+    all_individual_ices_map = []
+    ev_counter = 0
+    ice_counter = 0
+
+    for n in range(nbuildings):
+        building = buildingData[n]
+        if hasattr(building["user"], 'individual_car_profiles_cluster'):
+            for car_cluster_profile in building["user"].individual_car_profiles_cluster:
+                
+                if car_cluster_profile["type"] == "EV":
+                    all_individual_evs_map.append({
+                        'id': ev_counter,  # Die fortlaufende numerische ID (für EVs)
+                        'building_id': n,   # Das Gebäude, zu dem es gehört
+                        'car_id_str': car_cluster_profile.get("car_id", f"ev_{ev_counter}"),
+                        'profile_data': car_cluster_profile  # Das Roh-Profil für Modelldaten
+                    })
+                    ev_counter += 1
+
+                elif car_cluster_profile["type"] == "ICE":
+                    all_individual_ices_map.append({
+                        'id': ice_counter, # Die fortlaufende numerische ID (für ICEs)
+                        'building_id': n,
+                        'car_id_str': car_cluster_profile.get("car_id", f"ice_{ice_counter}"),
+                        'profile_data': car_cluster_profile
+                    })
+                    ice_counter += 1
+                    
+    return all_individual_evs_map, all_individual_ices_map
+    
