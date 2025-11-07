@@ -854,7 +854,7 @@ def build_model(model, data, cluster):
                                                   doc="Compression chiller conversion: electricity to cooling with temperature-dependent COP")
 
     ################################################################################
-    # %% EV CONSTRAINTS #! This Code currently views all EVs connected to a building as one single EV storage device. This is not realistic and should probably be changed. Especially if bidirectional or intelligentcharging is considered.
+    # %% EV CONSTRAINTS
     ################################################################################
 
     # Modelling of the EV charging process and storage
@@ -892,24 +892,19 @@ def build_model(model, data, cluster):
         return model.soc_ev[ev_id, t] >= ev_data[ev_id]["battery_capacity_wh"] * param_dec_devs["EV"]["soc_min"]
 
     # Charging rules
-
-    def ev_on_demand_charging_rule(model, ev_id, t):
-        ev = ev_data[ev_id]
-        if ev["charging_type"] == "on_demand":
-            return model.ch_ev[ev_id, t] == ev["on_demand_charging_profile"][t]
-        else: 
-            return pyo.Constraint.Skip
-        
     def ev_charging_rule(model, ev_id, t):
         ev = ev_data[ev_id]
         if ev["charging_type"] == "on_demand":
-            return pyo.Constraint.Skip  # on-demand EVs do not have charging constraints
+            return model.ch_ev[ev_id, t] == ev["on_demand_charging_profile"][t]  # on-demand EVs are not allowed to choose their charging power
         else:
-            charging_possible = ev["availability"][t] # True if charging possible, False otherwise
-            if not charging_possible:
-                return model.ch_ev[ev_id, t] == 0
+            if t == last_time_step:
+                return pyo.Constraint.Skip  # Charging not limited in last time step to always allow the final SOC condition to be met
             else:
-                return model.ch_ev[ev_id, t] <= ev["max_ch_power"]  # Max charging power constraint
+                charging_possible = ev["availability"][t] # True if charging possible, False otherwise
+                if not charging_possible:
+                    return model.ch_ev[ev_id, t] == 0
+                else:
+                    return model.ch_ev[ev_id, t] <= ev["max_ch_power"]  # Max charging power constraint
 
     # Discharging rules
     def ev_discharging_rule(model, ev_id, t):
@@ -934,7 +929,6 @@ def build_model(model, data, cluster):
     model.ev_energy_balance = pyo.Constraint(model.EVs, model.t, rule=ev_energy_balance_rule)
     model.ev_final_soc = pyo.Constraint(model.EVs, rule=ev_final_soc_rule)
     model.ev_charging = pyo.Constraint(model.EVs, model.t, rule=ev_charging_rule)
-    model.ev_on_demand_charging = pyo.Constraint(model.EVs, model.t, rule=ev_on_demand_charging_rule)
     model.ev_discharging = pyo.Constraint(model.EVs, model.t, rule=ev_discharging_rule)
     model.ev_soc_max = pyo.Constraint(model.EVs, model.t, rule=ev_soc_max_rule)
     model.ev_soc_min = pyo.Constraint(model.EVs, model.t, rule=ev_soc_min_rule)
@@ -1725,6 +1719,10 @@ def solve_model_and_extract_results(model, data):
                 results_dict[n][device]["ch"].append(pyo.value(model.ch_dom[device, n, t]))
                 results_dict[n][device]["dch"].append(pyo.value(model.dch_dom[device, n, t]))
                 results_dict[n][device]["soc"].append(pyo.value(model.soc_dom[device, n, t]))
+
+    # Electric vehicles
+    for n in range(nbuildings):
+        pass #TODO: Needs to be implemented
 
     results_dict["peaksum"] = pyo.value(model.peaksum)
     results_dict["daily_peak"] = {}

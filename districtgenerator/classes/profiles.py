@@ -666,7 +666,7 @@ class Profiles:
 
         return gains_persons, gains_others
 
-    def generate_car_profile(self, building, building_devices_data, holidays):
+    def generate_car_profile(self, building, building_devices_data, holidays, start_index_car=0):
         """
             Generate daily EV charging demand and ICE fuel consumption profiles (distinguishing between workdays and non-workdays).
 
@@ -876,7 +876,7 @@ class Profiles:
 
                 # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"EV_RES_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx}",
                     "type": "EV",
                     "location": "Residential",
                     "battery_capacity_wh": battery_capacity,
@@ -885,6 +885,7 @@ class Profiles:
                     "on_demand_charging_profile_w": ev_charging_profile,
                     "fuel_profile_l": np.zeros(total_steps)
                 })
+                
 
             # --- GASOLINE CARS ---
             for car_idx in range(number_of_ice):
@@ -943,7 +944,7 @@ class Profiles:
 
                 # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"ICE_RES_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx + number_of_ev}", # continue numbering after EVs
                     "type": "ICE",
                     "location": "Residential",
                     "battery_capacity_wh": 0,
@@ -1037,8 +1038,9 @@ class Profiles:
                 all_EV_cars_demand_total += ev_demand
                 on_demand_all_EV_cars_charging += ev_charging_profile
 
+                # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"EV_OFFICE_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx}",
                     "type": "EV",
                     "location": "Office",
                     "battery_capacity_wh": battery_capacity,
@@ -1089,7 +1091,7 @@ class Profiles:
 
                 # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"ICE_OFFICE_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx + number_of_ev}", # continue numbering after EVs
                     "type": "ICE",
                     "location": "Office",
                     "battery_capacity_wh": 0,
@@ -1100,6 +1102,5 @@ class Profiles:
                 })
 
         ev_capacity = [car["battery_capacity_wh"] for car in individual_car_profiles if car["type"] == "EV"]
-
         return all_EV_cars_demand_total, on_demand_all_EV_cars_charging, ev_capacity, ice_fuel_profile, individual_car_profiles
 
