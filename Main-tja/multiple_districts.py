@@ -30,18 +30,25 @@ def multiple_districts(configs_dir: Path) -> list[Datahandler]:
         data = Datahandler(env_path=scenario_file)
 
         # Generate Environment for the District
-        data.generateEnvironment()
+        #data.generateEnvironment()
 
         # Initialize Buildings to the District
-        data.initializeBuildings()
+        #data.initializeBuildings()
 
         # Generate more detailed Building models
-        data.generateBuildings()
+        #data.generateBuildings()
 
         # Generate building-specific demand profiles with the adjusted assumptions
-        data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+        #data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+
+        # We directly generate a complete district.
+        data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
+
+        # Design central devices for the current district
+        #data.designCentralDevices(saveGenerationProfiles=True)
 
         all_data.append(data)
+
     return all_data
 
   ### ===========================================  Output  =========================================== ###

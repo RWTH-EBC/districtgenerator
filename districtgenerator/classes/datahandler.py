@@ -1078,15 +1078,15 @@ class Datahandler:
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralPV_{self.scenario_name}.csv'),
                        self.centralDevices["generation"]["PV"],
                        delimiter=';',
                        fmt='%.2f')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralSTC_{self.scenario_name}.csv'),
                        self.centralDevices["generation"]["STC"],
                        delimiter=';',
                        fmt='%.2f')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralWind_{self.scenario_name}.csv'),
                        self.centralDevices["generation"]["Wind"],
                        delimiter=';',
                        fmt='%.2f')
