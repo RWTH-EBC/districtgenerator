@@ -22,11 +22,12 @@ def one_district_opt_cent():
     data.generateBuildings()
 
     # Now we generate building specific demand profiles with the adjusted assumptions
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
-
-    # Design central devices for the current district
-    data.designCentralDevices(saveGenerationProfiles=True)
-
+    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)    
+    
+    # Design decentral and central devices for the current district.
+    data.designDevicesComplete(saveGenerationProfiles=True)
+    
+    
     print("Congratulations! You generated your energy central for the selected neighborhood!")
 
     return data

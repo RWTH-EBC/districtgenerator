@@ -572,8 +572,6 @@ def run_optim(data, devs, param, dem, result_dict):
             os.makedirs(result_dir)
 
         model.write(os.path.join(result_dir, f"model_{data.scenario_name}.sol"))
-        #model.write(os.path.join(result_dir, "model.sol"))
-        #model.write(os.path.join(result_dir, "model.lp"))
         model.write(os.path.join(result_dir,  f"model_{data.scenario_name}.lp"))
 
         ##### For further analysis
