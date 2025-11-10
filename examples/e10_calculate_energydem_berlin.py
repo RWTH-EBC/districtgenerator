@@ -17,16 +17,15 @@ srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 plots_dir = os.path.join(srcPath, 'districtgenerator', 'results', 'plots')
 os.makedirs(plots_dir, exist_ok=True)
 
-def example10_comparison_heat_demands():
+def example10_comparison_heat_demands(scenario_name):
     warnings.filterwarnings("ignore", category=FutureWarning)
 
-    scenario_name = "251028_export"
     heat_demands_QG = pd.DataFrame()
 
     # Read in significant data from the xlsx file of the wkb (heated area, number of floors, heat demand kWh/a)
     WKB_data = read_wkb_data(scenario_name= scenario_name) #!-> pd.DataFrame
 
-    n_runs = 1
+    n_runs = 10
     for run in range(n_runs): 
         print(f"\n--- Run {run+1}/{n_runs} ---")
     # Initialize District
@@ -35,10 +34,10 @@ def example10_comparison_heat_demands():
         data.generateEnvironment()
         data.generateBuildings()
     
-        if run == -1:
-            data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)
+        if run == -1: #Currently disabled
+            data.generateDemands(calcUserProfiles=False, saveUserProfiles=False, gen_cars=False)
         else:
-            data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+            data.generateDemands(calcUserProfiles=True, saveUserProfiles=True, gen_cars=False)
     
         # Calculate for each building the total heat demand (kWh/a). Get also floor area, number floors for comparison, Repeat this step 10 Times to get 10 different profiles.
         heat_demands_QG = get_total_heat_demand(data=data, run_number= run, old_df = heat_demands_QG) #!-> pd.DataFrame
@@ -215,12 +214,20 @@ def analyse_data(scenario_name, combined_data= None):
     -------
     None
     """
+    simulated_col = 'heat_demand_simulated'
+    measured_col = 'energy_consumption_sh'
+
+    # Switch between simulated and measured data to define reference column
+    relevant_col = measured_col
+
     if combined_data is None:
         # If no combined data is provided, read it from the CSV file
         file_path = os.path.join(srcPath, 'districtgenerator', 'results', f"processed_data_{scenario_name}.csv")
+        print(file_path)
         combined_data = pd.read_csv(file_path, encoding='utf-8', index_col=0)
 
     print(combined_data.columns)  # Display the first few rows of the DataFrame
+
     # Find all heat demand columns from QG simulation runs
     heat_demand_columns = [col for col in combined_data.columns if 'total_heat_single_kWh_a' in col and 'run_' in col]
 
@@ -231,22 +238,28 @@ def analyse_data(scenario_name, combined_data= None):
         combined_data['cv_total_heat_QG'] = combined_data['std_total_heat_kWh_a_QG'] / combined_data['mean_total_heat_kWh_a_QG']
     
     # Calculate differences between WKB and QG data
-    combined_data['difference_heat_kWh_a_QG'] = combined_data['mean_total_heat_kWh_a_QG'] - combined_data['waermebedarf_sim_kw']
-    combined_data['difference_heat_percent_QG'] = (combined_data['difference_heat_kWh_a_QG'] / combined_data['waermebedarf_sim_kw']) * 100
+    combined_data['difference_heat_kWh_a_QG'] = combined_data['mean_total_heat_kWh_a_QG'] - combined_data[relevant_col]
+    combined_data['difference_heat_percent_QG'] = (combined_data['difference_heat_kWh_a_QG'] / combined_data[relevant_col]) * 100
+
+
 
     # Add here specific analysis and visualizations
     categorical_columns = ['gebaeudetype_einfach', 'baujahr_spectrum', 'iwu_class', 'sanierungszust_sim']
+
     # create_box_plots_category(combined_data=combined_data, scenario_name=scenario_name, columns=categorical_columns)
     # create_simulation_variance_boxplots(combined_data=combined_data, scenario_name=scenario_name, columns=categorical_columns)
     # create_floors_deviation_boxplots(combined_data=combined_data, scenario_name=scenario_name)
     # create_boxplots_difference_bedarf_verbrauch_category(combined_data, categorical_columns)
     # plot_faceted_crosstab_heat_error_stats(combined_data, category1='gebaeudetype_einfach', category2='baujahr_spectrum', facet_category='sanierungszust_sim')
     # plot_faceted_crosstab_bedarf_verbrauch_heatmap(combined_data, category1='gebaeudetype_einfach', category2='baujahr_spectrum', facet_category='sanierungszust_sim')
-    plot_boxplots_by_buildingtype_and_age(combined_data, saniert=False, scenario_name="WKB_export")
-    plot_boxplots_by_buildingtype_and_age(combined_data, saniert=True, scenario_name="WKB_export")
+    plot_boxplots_by_buildingtype_and_age(combined_data, saniert=False, scenario_name=scenario_name)
+    plot_boxplots_by_buildingtype_and_age(combined_data, saniert=True, scenario_name=scenario_name)
 
     return combined_data
 
+# ----------------------------------------
+# Code used for visualizations
+# ----------------------------------------
 
 def create_box_plots_category(combined_data, scenario_name, columns):
     """
@@ -1389,9 +1402,9 @@ def plot_boxplots_by_buildingtype_and_age(
     combined_data,
     saniert=True,
     value_col='difference_heat_percent_QG',
-    gebaeudetyp_col='gebaeudetype_einfach',
-    altersklasse_col='baujahr_spectrum',
-    sanierungs_col='sanierungszust_sim',
+    gebaeudetyp_col='building_type_simplified',
+    baujahr_col='construction_year',
+    sanierungs_col='renovation_state_simulated',
     scenario_name=None
 ):
     """
@@ -1419,19 +1432,43 @@ def plot_boxplots_by_buildingtype_and_age(
     import os
     import numpy as np
 
+
+    altersklassen_qg = [
+        '1860 - 1918',
+        '1919 - 1948',
+        '1949 - 1957',
+        '1958 - 1968',
+        '1969 - 1978',
+        '1979 - 1983',
+        '1984 - 1994',
+        '1995 - 2001',
+        '2002 - 2009',
+        '2010 - 2015',
+        '2016 - 2023',
+    ]
+    
+    bins = [1859, 1918, 1948, 1957, 1968, 1978, 1983, 1994, 2001, 2009, 2015, 2023]
+    gemappte_altersklasse_col = "baujahr_mapped"
+
+    df = combined_data.copy()
+    df[gemappte_altersklasse_col] = pd.cut(df[baujahr_col],
+                                           bins=bins,
+                                           labels=altersklassen_qg,
+                                           right=True,  # z.B. (1859, 1918] -> '1860 - 1918'
+                                           ordered=False)
+
     # Definiere feste Listen für alle zu zeigenden Kategorien
     alle_gebaeudetypen = ['EFH', 'GMH', 'MFH', 'RH']
-    alle_altersklassen = ['1919 - 1948', '1949 - 1978', '1979 - 1990', '1991 - 2000']
 
     # Filter nach teilsaniert/unsaniert
     filter_value = 'teilsaniert' if saniert else 'unsaniert'
-    df = combined_data[combined_data[sanierungs_col] == filter_value]
-    df = df.dropna(subset=[gebaeudetyp_col, altersklasse_col, value_col])
+    df = df[df[sanierungs_col] == filter_value]
+    df = df.dropna(subset=[gebaeudetyp_col, gemappte_altersklasse_col, value_col])
     df = df[np.isfinite(df[value_col])]
 
     print(f"Gefilterte Daten für '{filter_value}': {len(df)} Datenpunkte")
     print(f"Verfügbare Gebäudetypen in Daten: {sorted(df[gebaeudetyp_col].unique())}")
-    print(f"Verfügbare Altersklassen in Daten: {sorted(df[altersklasse_col].unique())}")
+    print(f"Verfügbare Altersklassen in Daten: {sorted(df[gemappte_altersklasse_col].unique())}")
 
     # Subplot-Layout: Feste 2x2 Anordnung für 4 Gebäudetypen
     fig, axes = plt.subplots(2, 2, figsize=(18, 12))
@@ -1447,8 +1484,8 @@ def plot_boxplots_by_buildingtype_and_age(
         counts = []
         
         # Daten für jede der 4 Altersklassen sammeln
-        for altersklasse in alle_altersklassen:
-            vals = subset[subset[altersklasse_col] == altersklasse][value_col].values
+        for altersklasse in altersklassen_qg:
+            vals = subset[subset[gemappte_altersklasse_col] == altersklasse][value_col].values
             if len(vals) > 0:
                 boxplot_data.append(vals)
                 labels.append(str(altersklasse))
@@ -1531,10 +1568,10 @@ def plot_boxplots_by_buildingtype_and_age(
                         fontsize=12, fontweight='bold', pad=15)
         
         # Immer alle 4 Altersklassen auf X-Achse anzeigen
-        ax.set_xticks(range(1, len(alle_altersklassen) + 1))
-        ax.set_xticklabels(alle_altersklassen, rotation=0, fontsize=9)
+        ax.set_xticks(range(1, len(altersklassen_qg) + 1))
+        ax.set_xticklabels(altersklassen_qg, rotation=0, fontsize=9)
         # X-Achse Limits erweitern für mehr Platz an den Rändern
-        ax.set_xlim(0.5, len(alle_altersklassen) + 0.5)
+        ax.set_xlim(0.5, len(altersklassen_qg) + 0.5)
         ax.set_xlabel('Altersklasse (Baujahr)', fontsize=10, labelpad=8)
         ax.set_ylabel('Relative Abweichung (%)', fontsize=10, labelpad=8)
         # Null-Linie hervorheben für bessere Sichtbarkeit
@@ -1543,7 +1580,7 @@ def plot_boxplots_by_buildingtype_and_age(
         ax.tick_params(axis='y', labelsize=9)
         
         # Markiere fehlende Altersklassen
-        for j, (altersklasse, count) in enumerate(zip(alle_altersklassen, counts)):
+        for j, (altersklasse, count) in enumerate(zip(altersklassen_qg, counts)):
             if count == 0:
                 # Berechne die Y-Position basierend auf vorhandenen Statistik-Textboxen
                 if has_data and len(valid_data) > 0:
@@ -1597,6 +1634,7 @@ def plot_boxplots_by_buildingtype_and_age(
 
 
 if __name__ == '__main__':
-    data = example10_comparison_heat_demands()
+    scenario_name = '251028_export'
+    data = example10_comparison_heat_demands(scenario_name=scenario_name)
     # Analyse the data
-    # combined_data= analyse_data(scenario_name="WKB_export")
+    combined_data= analyse_data(scenario_name=scenario_name)
