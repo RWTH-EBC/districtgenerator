@@ -453,7 +453,7 @@ class Sun:
         # Return total radiation on a tilted surface
         return totalRadTiltSurface
 
-    def calcPVAndSTCProfile(self, time, site, area_roof, beta=35, gamma=0, usageFactorPV1=0.4, usageFactorPV2=0,
+    def calcPVAndSTCProfile(self, time, site, area_roof, beta=35, gamma=0, usageFactorPV1=0.15, usageFactorPV2=0.15,
                             usageFactorSTC=0.2):
         """
         Computation of power profiles for photovoltaic (PV) collectors and solar thermal collectors (STC).
@@ -541,7 +541,12 @@ class Sun:
                     devices[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # compute overall correction factor for PV efficiency. Set single factors in decentral_device_data.json!
-        kappa_corr = 0
+        kappa_corr = np.sum([devices["PV"]["kappa_inverter"], devices["PV"]["kappa_wiring"],
+                             devices["PV"]["kappa_connections"], devices["PV"]["kappa_soiling"],
+                             devices["PV"]["kappa_shading"], devices["PV"]["kappa_mismatch"],
+                             devices["PV"]["kappa_NPR"], devices["PV"]["kappa_av"],
+                             devices["PV"]["kappa_LID"]
+                             ])
 
         # calculate time variant PV efficiency
         eta_PV1 = np.zeros(time["timeSteps"])
