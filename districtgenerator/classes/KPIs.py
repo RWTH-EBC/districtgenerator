@@ -845,7 +845,7 @@ class KPIs:
                 "Nettofläche GHD gesamt": str(self.totalarea_non_residential) + " m\u00B2",
                 "Standort (PLZ)": str(data.site["zip"]),
                 "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
-                "FAR-Wert": "{:.2g}".format(data.heat_grid_data["FAR"]["value"]),
+                "FAR-Wert": ("{:.2g}".format(v) if isinstance((v := (data.heat_grid_data.get("FAR", {}).get("value") if isinstance(data.heat_grid_data.get("FAR"), dict) else data.heat_grid_data.get("FAR"))), (int, float)) else ""),
                 "Wärmeliniendichte": ("{:.2g}".format(v) if isinstance((v := (data.heat_grid_data.get("Wärmeliniendichte", {}).get("value") if isinstance(data.heat_grid_data.get("Wärmeliniendichte"), dict) else data.heat_grid_data.get("Wärmeliniendichte"))), (int, float)) else ""),
                 "Quartiersname": str(data.scenario_name)
             }
