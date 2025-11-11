@@ -25,7 +25,7 @@
     },
     {
         "name": "price_supply_gas",
-        "value": 0.1236,
+        "value": 0.1147,
         "unit": "€/kWh",
         "description" : "Gas price."
     },

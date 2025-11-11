@@ -43,19 +43,19 @@
     },
         {
       "name": "life_time",
-      "value": 20,
+      "value": 18,
       "unit": "years",
       "description": "Maximum life time."
     },
     {
       "name": "inv_var",
-      "value": 2920,
+      "value": 1982,
       "unit": "€/kWth",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.015,
+      "value": 0.02,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
