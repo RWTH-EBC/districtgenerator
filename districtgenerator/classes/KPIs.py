@@ -15,6 +15,7 @@ from datetime import datetime
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
+from math import ceil
 
 class KPIs:
 
@@ -299,7 +300,7 @@ class KPIs:
 
         # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
         counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
-        counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
+        counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum
         counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
         counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
@@ -844,6 +845,8 @@ class KPIs:
                 "Nettofläche GHD gesamt": str(self.totalarea_non_residential) + " m\u00B2",
                 "Standort (PLZ)": str(data.site["zip"]),
                 "Testreferenzjahr": str(data.site["TRYYear"])[3:] + " / " + str(data.site["TRYType"]),
+                "FAR-Wert": "{:.2g}".format(data.heat_grid_data["FAR"]["value"]),
+                "Wärmeliniendichte": ("{:.2g}".format(v) if isinstance((v := (data.heat_grid_data.get("Wärmeliniendichte", {}).get("value") if isinstance(data.heat_grid_data.get("Wärmeliniendichte"), dict) else data.heat_grid_data.get("Wärmeliniendichte"))), (int, float)) else ""),
                 "Quartiersname": str(data.scenario_name)
             }
 
@@ -1119,20 +1122,28 @@ class KPIs:
 
         # fill in the info under the table
         certificate.setFont("Helvetica", 12)
-        struktur_keys = tuple(struktur.keys())
-        struktur_keys = struktur_keys[4:-1]
-        struktur_values = tuple(struktur.values())
-        struktur_values = struktur_values[4:-1]
+        keys = list(struktur.keys())[4:-1]
+        values = list(struktur.values())[4:-1]
+        x_left = 90
+        x_right = 290
+        value_offset = 140
+        line_height = 18
+        start_y = table_bottom - 20
 
-        i = 0
-        for item in struktur_keys:
-            certificate.drawString(185, table_bottom - 20 - (18 * i), item + ":")
-            i = i + 1
+        rows_per_col = ceil(len(keys) / 2)
 
-        j = 0
-        for value in struktur_values:
-            certificate.drawString(350, table_bottom - 20 - (18 * j), str(value))
-            j = j + 1
+        for r in range(rows_per_col):
+            y = start_y - r * line_height
+            # left column
+            idx_left = r
+            if idx_left < len(keys):
+                certificate.drawString(x_left, y, str(keys[idx_left]) + ":")
+                certificate.drawString(x_left + value_offset, y, str(values[idx_left]))
+            # right column
+            idx_right = r + rows_per_col
+            if idx_right < len(keys):
+                certificate.drawString(x_right, y, str(keys[idx_right]) + ":")
+                certificate.drawString(x_right + value_offset, y, str(values[idx_right]))
 
         # end first page, continue to next page
         certificate.showPage()
@@ -1420,7 +1431,7 @@ class KPIs:
         certificate.drawString(85, height - 36 - 6, "Allgemeine Hinweise")
 
         # add information
-        terms = ["Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierter Anlagenbetrieb"]
+        terms = ["<br />Bezeichnungen in der Liste der Gebäude", "Energetische Kennwerte", "Optimierter Anlagenbetrieb"]
         details = [
             "<b>Gebäude ID:</b> Gebäudenummer zur Identifizierung<br />"
             "<b>Gebäudetyp:</b> SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, TH = Reihenhaus, AB = Wohnblock, "
