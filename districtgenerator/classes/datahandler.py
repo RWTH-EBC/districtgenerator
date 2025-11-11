@@ -386,7 +386,7 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{bldg_id}_{row['building']}"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
@@ -844,7 +844,7 @@ class Datahandler:
                 data.append(row[0])
             return np.array(data)
 
-        building_id = int(name.split('_')[0])
+        building_id = int(name.split('_')[-2])
         idx = self.building_dict[building_id]
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
@@ -857,13 +857,15 @@ class Datahandler:
         if has_ev:
             EV_carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging')
             EV_carprofile = load_sheet_to_numpy(workbook, 'EV_demand')
-            ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel')
+            # ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel')
+            ice_carprofile = np.zeros(8760)
 
         else:
             shape = elec.shape
             EV_carcharging_ondemand = np.zeros(shape)
             EV_carprofile = np.zeros(shape)
-            ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel')
+            # ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel')
+            ice_carprofile = np.zeros(8760)
 
         sheet = workbook['Building Info']
         other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
