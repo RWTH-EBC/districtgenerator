@@ -56,10 +56,10 @@
   },
   "BOI": {
     "feasible": false,
-    "inv_var": 500,
-    "eta_th": 0.9,
-    "life_time": 20,
-    "cost_om": 0.02,
+    "inv_var": 138,
+    "eta_th": 0.99,
+    "life_time": 25,
+    "cost_om": 0.014,
     "min_cap": 10,
     "max_cap": 500
   },

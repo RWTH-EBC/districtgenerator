@@ -1,13 +1,53 @@
 {
+  "generation":{
+    "value": "4th",
+    "description": "Heating system generation, selected between:\"3rd\", \"4th\" and \"5th\""
+  },
+  "topology_option":{
+    "value": "road",
+    "description": "Whether consider road constraints in pipeline topology optimization, selected between:\"node\" and \"rode\""
+  },
+  "temperature_mode":{
+    "value": "Heating_curve",
+    "description": "selected between:\"Constant\" and \"Heating_curve\"(controlled within limits depending on the outdoor temperature)"
+  },
   "T_hot_heating_network": {
-    "value": 80,
-    "unit": "°C",
-    "description": "flow temperature of heat grid"
+    "Constant": {
+      "3rd": {"value": 80, "unit": "°C", "description": "flow temperature of 3rd generation heat grid"},
+      "4th": {"value": 55, "unit": "°C", "description": "flow temperature of 4th generation heat grid"},
+      "5th": {"value": 18, "unit": "°C", "description": "flow temperature of 5th generation heat grid"}
+    },
+    "Heating_curve": {
+      "max": {
+        "3rd": {"value": 75, "unit": "°C", "description": "flow temperature of 3rd generation heat grid when outdoor temperature is high"},
+        "4th": {"value": 50, "unit": "°C", "description": "flow temperature of 4th generation heat grid when outdoor temperature is high"},
+        "5th": {"value": 18, "unit": "°C", "description": "flow temperature of 5th generation heat grid when outdoor temperature is high"}
+      },
+      "min": {
+        "3rd": {"value": 90, "unit": "°C", "description": "flow temperature of 3rd generation heat grid when outdoor temperature is low"},
+        "4th": {"value": 70, "unit": "°C", "description": "flow temperature of 4th generation heat grid when outdoor temperature is low"},
+        "5th": {"value": 14, "unit": "°C", "description": "flow temperature of 5th generation heat grid when outdoor temperature is low"}
+      }
+    }
   },
   "T_cold_heating_network": {
-    "value": 60,
-    "unit": "°C",
-    "description": "return temperature of heat grid"
+    "Constant": {
+      "3rd": {"value": 50, "unit": "°C", "description": "return temperature of 3rd generation heat grid"},
+      "4th": {"value": 30, "unit": "°C", "description": "return temperature of 4th generation heat grid"},
+      "5th": {"value": 14, "unit": "°C", "description": "return temperature of 5th generation heat grid"}
+    },
+    "Heating_curve": {
+      "max": {
+        "3rd": {"value": 40, "unit": "°C", "description": "return temperature of 3rd generation heat grid when outdoor temperature is high"},
+        "4th": {"value": 30, "unit": "°C", "description": "return temperature of 4th generation heat grid when outdoor temperature is high"},
+        "5th": {"value": 11, "unit": "°C", "description": "return temperature of 5th generation heat grid when outdoor temperature is high"}
+      },
+      "min": {
+        "3rd": {"value": 50, "unit": "°C", "description": "return temperature of 3rd generation heat grid when outdoor temperature is low"},
+        "4th": {"value": 40, "unit": "°C", "description": "return temperature of 4th generation heat grid when outdoor temperature is low"},
+        "5th": {"value": 7, "unit": "°C", "description": "return temperature of 5th generation heat grid when outdoor temperature is low"}
+      }
+    }
   },
   "D_heating_network": {
     "value": 1,
@@ -65,9 +105,9 @@
   "description": "Polyurethane foam heat conductivity. Source: VDI Wärmeatlas"
   },
   "h_loss_subst": {
-  "value": 4.5,
+  "value": 5,
   "unit": "%",
-  "description": "Heat losses at the substation. Source: Technikkatalog Wärmeplanung 2024"
+  "description": "Heat losses at the substation. Source: Technikkatalog-Waermeplanung_Oktober2025"
   },
   "C_subst": {
   "value": 277.79,
@@ -85,14 +125,11 @@
   },
   "pump": {
     "eta_pump": {"value": 0.65, "unit": "-", "description": "electric pump efficiency"},
-    "inv_pump": {"value": 500, "unit": "EUR/kW", "description": "specific investment pump"},
-    "price_el_pumps": {"value": 44, "unit": "EUR/MWh", "description": "electricity costs for pump supply used for network design"},
+    "inv_pump": {"value": 230, "unit": "EUR/kWth", "description": "specific investment pump"},
     "pump_lifetime": {"value": 10, "unit": "years", "description": "pump lifetime(VDI 2067 Umwälzpumpe)"},
     "cost_om_pump": {"value": 0.03, "unit": "-", "description": "pump O&M share"}
   },
   "pipe": {
-    "grid_depth": {"value": 1.0, "unit": "m", "description": "installation depth"},
-    "lambda_PE": {"value": 0.4, "unit": "W/(m*K)", "description": "PE thermal conductivity"},
     "f_fric": {"value": 0.025, "unit": "-", "description": "friction factor"},
     "dp_pipe_max": {"value": 300, "unit": "Pa/m", "description": "max pressure gradient"},
     "dp_pipe_min": {"value": 30, "unit": "Pa/m", "description": "min pressure gradient"},

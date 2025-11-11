@@ -29,6 +29,7 @@ import districtgenerator.functions.heating_network_simple as heating_network_sim
 from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
+from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 
 class Datahandler:
     """
@@ -369,6 +370,10 @@ class Datahandler:
                                         beamRadiation=self.site["SunDirect"],
                                         diffuseRadiation=self.site["SunDiffuse"],
                                         albedo=self.site["albedo"])
+
+        # calculate the soil temperature profile
+        dt = self.time["timeResolution"] / self.time["dataResolution"]
+        calculate_soil_temperature(self, dt)
 
     def initializeBuildings(self):
         """
@@ -1121,11 +1126,11 @@ class Datahandler:
                 # no central STC exists; but array with just zeros leads to problem while clustering
                 adjProfiles["generationCentralSTC"] = np.ones(lengthArray) * sys.float_info.epsilon
 
-        # wind speed, solar radiance and ambient temperature
+        # wind speed, solar radiance, ambient temperature and soil temperature
         adjProfiles["wind_speed"] = self.site["wind_speed"][0:lengthArray]
         adjProfiles["SunTotal"] = self.site["SunTotal"][0:lengthArray]
         adjProfiles["T_e"] = self.site["T_e"][0:lengthArray]
-
+        adjProfiles["T_soil"] = self.heat_grid_data["T_soil"][0:lengthArray]
 
         # Prepare clustering
         # weights for clustering algorithm indicating the focus onto this profile
@@ -1255,6 +1260,11 @@ class Datahandler:
         weights.append(len(self.district))
         scalings.append(False)
 
+        # soil temperature
+        inputsClustering.append(adjProfiles["T_soil"])
+        weights.append(0)
+        scalings.append(False)
+
         # Perform clustering
         (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
                                                              number_clusters=self.time["clusterNumber"],
@@ -1307,7 +1317,8 @@ class Datahandler:
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 3]
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 4]
 
-        self.site["T_e_cluster"] = newProfiles[-1]
+        self.site["T_e_cluster"] = newProfiles[-2]
+        self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
 
         # clusters
         self.clusters = []
@@ -1559,23 +1570,22 @@ class Datahandler:
         self.pipeline_nodes = jsonData.get("nodes", {})
         self.pipeline_topology = jsonData.get("edges", {})
 
-    def optimization_heatingnetwork(self, sliding_temperature=True):
+    def optimization_heatingnetwork(self):
         """
         Optimize the diameter of each pipeline segments.
 
-        Parameters
-        ----------
-        sliding_temperature: bool, optional
-            True: Variable-constant operation mode (Heating curve)
-                    controlled within limits depending on the outdoor temperature
-            False: Constant operation mode(The supply and return temperature is set as a constant value.)
-                    3rd: 80°C / 50°C   ;   4th: 55°C / 30°C
+        The heating system generation and temperature mode is selected in heat_grid.json.
+        Heating system generation: "3rd", "4th" or "5th"
+            Each heating generation corresponds to different supply and return water temperatures.
+        Temperature mode: "Constant" or "Heating_curve"
+            Constant: The supply and return temperature is set as a constant value.
+            Heating_curve(Variable-constant operation mode): controlled within limits depending on the outdoor temperature
 
         Returns
         -------
         None.
         """
-        network_optimization(self, sliding_temperature)
+        network_optimization(self)
 
 
 def generate_demands_worker_wrapper(args):
