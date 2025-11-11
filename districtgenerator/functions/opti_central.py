@@ -362,10 +362,11 @@ def build_model(model, data, cluster):
     # total energy amounts taken from grid
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
-    model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
-    model.from_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
-    model.to_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals)
-    model.from_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals)
+    # Variables needed for realistic cost calculation!
+    # model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
+    # model.from_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
+    # model.to_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals)
+    # model.from_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals)
     model.from_grid_total_gas = pyo.Var(within=pyo.NonNegativeReals)
     model.from_grid_total_hydrogen = pyo.Var(within=pyo.NonNegativeReals)
     model.total_biomass_used = pyo.Var(within=pyo.NonNegativeReals)
@@ -1260,17 +1261,18 @@ def build_model(model, data, cluster):
     def total_district_heat_used_rule(model):
         return model.total_district_heat_used == dt * sum(model.power_district_heating_import[t] for t in model.t) / 1000
 
-    def to_grid_total_el_buildings_rule(model):
-        return model.to_grid_total_el_buildings == dt * sum(model.res_dom_feed[n, t] for n in model.n for t in model.t) / 1000
-
-    def from_grid_total_el_buildings_rule(model):
-        return model.from_grid_total_el_buildings == dt * sum(model.res_dom_power[n, t] for n in model.n for t in model.t) / 1000
-
-    def to_grid_total_el_eh_rule(model):
-        return model.to_grid_total_el_eh == dt * sum(model.eh_power_to_grid[t] for t in model.t) / 1000
-
-    def from_grid_total_el_eh_rule(model):
-        return model.from_grid_total_el_eh == dt * sum(model.eh_power_from_grid[t] for t in model.t) / 1000
+    # rule needed for realistic cost calculation!
+    # def to_grid_total_el_buildings_rule(model):
+    #     return model.to_grid_total_el_buildings == dt * sum(model.res_dom_feed[n, t] for n in model.n for t in model.t) / 1000
+    #
+    # def from_grid_total_el_buildings_rule(model):
+    #     return model.from_grid_total_el_buildings == dt * sum(model.res_dom_power[n, t] for n in model.n for t in model.t) / 1000
+    #
+    # def to_grid_total_el_eh_rule(model):
+    #     return model.to_grid_total_el_eh == dt * sum(model.eh_power_to_grid[t] for t in model.t) / 1000
+    #
+    # def from_grid_total_el_eh_rule(model):
+    #     return model.from_grid_total_el_eh == dt * sum(model.eh_power_from_grid[t] for t in model.t) / 1000
 
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
     model.from_grid_total_el_constraint = pyo.Constraint(rule=from_grid_total_el_rule, doc="from_grid_total_el")
@@ -1279,10 +1281,11 @@ def build_model(model, data, cluster):
     model.total_biomass_used_constraint = pyo.Constraint(rule=total_biomass_used_rule, doc="total_biomass_used")
     model.total_waste_used_constraint = pyo.Constraint(rule=total_waste_used_rule, doc="total_waste_used")
     model.total_oil_used_constraint = pyo.Constraint(rule=total_oil_used_rule, doc="total_oil_used")
-    model.to_grid_total_el_buildings_constraint = pyo.Constraint(rule=to_grid_total_el_buildings_rule, doc="to_grid_total_el_buildings")
-    model.from_grid_total_el_buildings_constraint = pyo.Constraint(rule=from_grid_total_el_buildings_rule, doc="from_grid_total_el_buildings")
-    model.to_grid_total_el_eh_constraint = pyo.Constraint(rule=to_grid_total_el_eh_rule, doc="to_grid_total_el_eh")
-    model.from_grid_total_el_eh_constraint = pyo.Constraint(rule=from_grid_total_el_eh_rule, doc="from_grid_total_el_eh")
+    # equations needed for realistic cost calculation!
+    # model.to_grid_total_el_buildings_constraint = pyo.Constraint(rule=to_grid_total_el_buildings_rule, doc="to_grid_total_el_buildings")
+    # model.from_grid_total_el_buildings_constraint = pyo.Constraint(rule=from_grid_total_el_buildings_rule, doc="from_grid_total_el_buildings")
+    # model.to_grid_total_el_eh_constraint = pyo.Constraint(rule=to_grid_total_el_eh_rule, doc="to_grid_total_el_eh")
+    # model.from_grid_total_el_eh_constraint = pyo.Constraint(rule=from_grid_total_el_eh_rule, doc="from_grid_total_el_eh")
     model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
 
     ################################################################################
@@ -1349,10 +1352,13 @@ def build_model(model, data, cluster):
 
     # Operational costs
     def operational_costs_rule(model):
-        return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
-                - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
-                + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
-                - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
+        return (model.operational_costs == model.from_grid_total_el * ecoData["price_supply_el"]
+                - model.to_grid_total_el * ecoData["revenue_feed_in_el"]
+                # remove 2 summands above, add the 4 following, to ensure realistic cost calculation
+                # +model.from_grid_total_el_buildings * ecoData["price_supply_el"]
+                # -model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
+                # + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
+                # - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
                 + model.total_biomass_used * ecoData["price_biomass"]
