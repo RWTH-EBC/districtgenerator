@@ -272,6 +272,7 @@ class EHDOConfig(BaseSettings):
     co2_el_feed_in: float = 0       # CO₂ emission credit for electricity feed-in kg/kWh
     co2_gas_feed_in: float = 0      # CO₂ emission credit for gas feed-in kg/kWh
     optim_focus: int = 0            # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
+    optim_dimenson: int = 0         # NEW: Optimization dimension. '0' means single-district optimization; '1' means interconnected optimization of several districts.
     interest_rate: float = 0.05     # Interest rate. The interest rate affects the annualization of the investments according to VDI 2067.
     observation_time: int = 20      # Project lifetime. The project lifetime affects annualization of investments according to VDI 2067 in years
     n_clusters: int = 12            # Number of design days.
