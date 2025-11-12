@@ -590,44 +590,42 @@ class Datahandler:
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
 
+        results = [] # Store results from worker processes
+
         self.save_progress()
 
         with multiprocessing.Pool(processes=max_threads) as pool:
             for i, (result, duration_building) in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
-                try:
-                    building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
-
-                    building["user"].elec = result["elec"]
-                    building["user"].dhw = result["dhw"]
-                    building["user"].cooling = result["cooling"]
-                    building["user"].heat = result["heating"]
-                    building["user"].occ = result["occ"]
-                    building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
-                    building["user"].EV_carprofile = result["EV_carprofile"]
-                    building["user"].ev_capacity = result.get("ev_capacity")
-                    building["user"].ice_carprofile = result["ice_carprofile"]
-                    building["user"].gains = result["gains"]
-                    building["user"].nb_units = result["nb_units"]
-                    building["user"].nb_occ = result["nb_occ"]
-
-
-                    building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
-                    building["envelope"] = result["envelope"]
-                    building_features = building["buildingFeatures"].copy()
-                    building_features["night_setback"] = result["night_setback"]
-                    building["buildingFeatures"] = building_features
-
-                    self.buildings_completed += 1
-
-                except Exception as e:
-                    print(f"Error processing result for building {result.get('unique_name')}: {e}")
-                    self.buildings_completed += 1  # Still count it as completed to avoid stalling
+                self.buildings_completed += 1
+                results.append(result) # Don't directly write to self object to ensure thread safety
 
                 self.save_progress()
 
                 print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
                       f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}" +
                       f" (time needed: {duration_building:.2f} seconds)")
+
+        for result in results:
+            building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+            building["user"].elec = result["elec"]
+            building["user"].dhw = result["dhw"]
+            building["user"].cooling = result["cooling"]
+            building["user"].heat = result["heating"]
+            building["user"].occ = result["occ"]
+            building["user"].EV_carcharging_ondemand = result["EV_carcharging_ondemand"]
+            building["user"].EV_carprofile = result["EV_carprofile"]
+            building["user"].ev_capacity = result.get("ev_capacity")
+            building["user"].ice_carprofile = result["ice_carprofile"]
+            building["user"].gains = result["gains"]
+            building["user"].nb_units = result["nb_units"]
+            building["user"].nb_occ = result["nb_occ"]
+            building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
+            building["envelope"] = result["envelope"]
+            building_features = building["buildingFeatures"].copy()
+            building_features["night_setback"] = result["night_setback"]
+            building["buildingFeatures"] = building_features
+
+        self.save_progress()
 
         end_time_demand_generation = time.time()
         total_duration = end_time_demand_generation - start_time_demand_generation
@@ -1729,59 +1727,62 @@ class Datahandler:
 def generate_demands_worker_wrapper(args):
     """
     Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
-    Startet den Worker und den Monitor Thread für ein Gebäude.
+    Startet den Worker und den Monitor-Thread für ein Gebäude.
     Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
     """
-    warnings.filterwarnings("ignore", category=FutureWarning) #! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
-
-    start_time_building = time.time()
-    
-    self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
-    building_name = building.get("unique_name")
-
-    # Event zum Stoppen des Monitor-Threads
-    stop_event = threading.Event()
-
-    timeout_duration = 1800 # 30 minutes to identify long-running threads
-    monitor = threading.Thread(
-        target=monitor_task, 
-        args=(start_time_building, timeout_duration, building_name, stop_event),
-        daemon=True 
-    ) 
-    monitor.start()
-
-    # Starting the demand generation worker
     try:
-        self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars = gen_cars)
+        warnings.filterwarnings("ignore", category=FutureWarning) #! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
+        start_time_building = time.time()
+        
+        self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
+        building_name = building.get("unique_name")
 
-        result = {
-            "unique_name": building["unique_name"],
-            "elec": building["user"].elec,
-            'dhw': building["user"].dhw,
-            'cooling': building["user"].cooling,
-            'heating': building["user"].heat,
-            'occ': building["user"].occ,
-            'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
-            'EV_carprofile': building["user"].EV_carprofile,
-            "ev_capacity": building["user"].ev_capacity,
-            'ice_carprofile': building["user"].ice_carprofile,
-            'gains': building["user"].gains,
-            "nb_units": building["user"].nb_units,
-            'nb_occ': building["user"].nb_occ,
-            'envelope': building["envelope"],
-            'night_setback': building["buildingFeatures"]["night_setback"],
-            'individual_car_profiles': building["user"].individual_car_profiles
-        }
-    finally: 
-        # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
-        stop_event.set()
-        monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
+        # Event zum Stoppen des Monitor-Threads
+        stop_event = threading.Event()
 
-    # Time needed for calculating this building
-    end_time_building = time.time()
-    duration_building = end_time_building - start_time_building
+        timeout_duration = 1800 # 30 minutes to identify long-running threads
+        monitor = threading.Thread(
+            target=monitor_task, 
+            args=(start_time_building, timeout_duration, building_name, stop_event),
+            daemon=True 
+        ) 
+        monitor.start()
 
-    return result, duration_building
+        # Starting the demand generation worker
+        try:
+            self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars = gen_cars)
+
+            result = {
+                "unique_name": building["unique_name"],
+                "elec": building["user"].elec,
+                'dhw': building["user"].dhw,
+                'cooling': building["user"].cooling,
+                'heating': building["user"].heat,
+                'occ': building["user"].occ,
+                'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
+                'EV_carprofile': building["user"].EV_carprofile,
+                "ev_capacity": building["user"].ev_capacity,
+                'ice_carprofile': building["user"].ice_carprofile,
+                'gains': building["user"].gains,
+                "nb_units": building["user"].nb_units,
+                'nb_occ': building["user"].nb_occ,
+                'envelope': building["envelope"],
+                'night_setback': building["buildingFeatures"]["night_setback"],
+                'individual_car_profiles': building["user"].individual_car_profiles
+            }
+        finally: 
+            # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
+            stop_event.set()
+            monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
+
+        # Time needed for calculating this building
+        end_time_building = time.time()
+        duration_building = end_time_building - start_time_building
+
+        return result, duration_building
+    except Exception as e:
+        print(f"Error in generate_demands_worker_wrapper for building {building.get('unique_name')}: {e}")
+        return None, None
 
 def monitor_task(start_time, timeout_duration, building_name, stop_event):
     """
