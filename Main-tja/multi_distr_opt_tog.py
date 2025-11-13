@@ -11,9 +11,9 @@ from districtgenerator.classes import Datahandler
 from pathlib import Path
 from districtgenerator.classes import Datahandler
 
-def multi_distr_opt_tog(configs_dir: Path) -> list[Datahandler]:
+def multi_distr_dem(configs_dir: Path) -> list[Datahandler]:
     ### The first part of this function caluclates the demands of multiple districts. It uses all files ending with .env in the given directory.
-    # Safe all the building-inforamtions in different .env.CONFIG.<name> files in the data folder.
+    # Safe all the building-inforamtions in different .env.CONFIG.<name> files in the data folder to use this function.
 
     all_data = []
 
@@ -40,18 +40,30 @@ def multi_distr_opt_tog(configs_dir: Path) -> list[Datahandler]:
         # Now we generate building specific demand profiles with the adjusted assumptions
         data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
-
         all_data.append(data)
 
     return all_data
+
 
   ### ===========================================  Output  =========================================== ###
     # During the run, check the Terminal, it shows the found config files and also indicates which file it is
     # currently computing.
     # After running, check your results folder. You will find the demands for each defined scenario.
 
-
 # TODO: Add the central device optimization for interconnected districts.
+
+    # Design decentral and central devices for the current district.
+def multi_distr_opt_tog(configs_directory_path): 
+    all_data = multi_distr_dem(configs_directory_path)
+    
+    for data in all_data:
+        # Design decentral and central devices for the current district.
+        data.designDevicesComplete(saveGenerationProfiles=True)
+
+    print("Congratulations! You generated your energy central for the selected neighborhoods!")
+
+    return all_data   
+    
 
 if __name__ == '__main__':
     # This helper code finds the 'data' directory relative to this script's location.
