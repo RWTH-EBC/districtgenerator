@@ -314,18 +314,12 @@ def calc_night_setback(zoneParameters, T_e, holidays, dt, initial_day, building_
 
 
         # Insert results for current time step
-        if building_type == "SC" and (182 <= day <= 215):
-            # School holidays → no heating or cooling
-            Q_H[t] = 0
+        if q_hc >= 0:
+            Q_H[t] = q_hc
             Q_C[t] = 0
-
-        else:
-            if q_hc >= 0:
-                Q_H[t] = q_hc
-                Q_C[t] = 0
-            elif q_hc < 0:
-                Q_C[t] = -1 * q_hc
-                Q_H[t] = 0
+        elif q_hc < 0:
+            Q_C[t] = -1 * q_hc
+            Q_H[t] = 0
         T_m[t] = t_m
         T_i[t] = t_i
         T_s[t] = t_s
@@ -434,17 +428,12 @@ def calc(zoneParameters, T_e, holidays, dt, initial_day, building_type):
                 q_hc = 0
 
         # Insert results for current time step
-        if building_type == "SC" and (182 <= day <= 215):
-            Q_H[t] = 0
+        if q_hc >= 0:
+            Q_H[t] = q_hc
             Q_C[t] = 0
-
-        else:
-            if q_hc >= 0:
-                Q_H[t] = q_hc
-                Q_C[t] = 0
-            elif q_hc < 0:
-                Q_C[t] = -1 * q_hc
-                Q_H[t] = 0
+        elif q_hc < 0:
+            Q_C[t] = -1 * q_hc
+            Q_H[t] = 0
         T_m[t] = t_m
         T_i[t] = t_i
         T_s[t] = t_s

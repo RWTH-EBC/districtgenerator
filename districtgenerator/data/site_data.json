@@ -25,7 +25,7 @@
   },
   {
     "name": "district_area",
-    "value": 5,
+    "value": 1,
     "unit": "ha",
     "description": "Area of the district"
   },

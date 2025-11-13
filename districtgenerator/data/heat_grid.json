@@ -1,7 +1,7 @@
 {
   "generation":{
     "value": "4th",
-    "description": "Heating system generation, selected between:\"3rd\", \"4th\" and \"5th\""
+    "description": "Heating network generation, selected between:\"3rd\", \"4th\" and \"5th\""
   },
   "topology_option":{
     "value": "road",
@@ -13,20 +13,20 @@
   },
   "T_hot_heating_network": {
     "Constant": {
-      "3rd": {"value": 80, "unit": "°C", "description": "flow temperature of 3rd generation heat grid"},
-      "4th": {"value": 55, "unit": "°C", "description": "flow temperature of 4th generation heat grid"},
-      "5th": {"value": 18, "unit": "°C", "description": "flow temperature of 5th generation heat grid"}
+      "3rd": {"value": 80, "unit": "°C", "description": "supply temperature of 3rd generation heat grid"},
+      "4th": {"value": 55, "unit": "°C", "description": "supply temperature of 4th generation heat grid"},
+      "5th": {"value": 18, "unit": "°C", "description": "supply temperature of 5th generation heat grid"}
     },
     "Heating_curve": {
       "max": {
-        "3rd": {"value": 75, "unit": "°C", "description": "flow temperature of 3rd generation heat grid when outdoor temperature is high"},
-        "4th": {"value": 50, "unit": "°C", "description": "flow temperature of 4th generation heat grid when outdoor temperature is high"},
-        "5th": {"value": 18, "unit": "°C", "description": "flow temperature of 5th generation heat grid when outdoor temperature is high"}
+        "3rd": {"value": 75, "unit": "°C", "description": "supply temperature of 3rd generation heat grid when outdoor temperature is high"},
+        "4th": {"value": 50, "unit": "°C", "description": "supply temperature of 4th generation heat grid when outdoor temperature is high"},
+        "5th": {"value": 18, "unit": "°C", "description": "supply temperature of 5th generation heat grid when outdoor temperature is high"}
       },
       "min": {
-        "3rd": {"value": 90, "unit": "°C", "description": "flow temperature of 3rd generation heat grid when outdoor temperature is low"},
-        "4th": {"value": 70, "unit": "°C", "description": "flow temperature of 4th generation heat grid when outdoor temperature is low"},
-        "5th": {"value": 14, "unit": "°C", "description": "flow temperature of 5th generation heat grid when outdoor temperature is low"}
+        "3rd": {"value": 90, "unit": "°C", "description": "supply temperature of 3rd generation heat grid when outdoor temperature is low"},
+        "4th": {"value": 70, "unit": "°C", "description": "supply temperature of 4th generation heat grid when outdoor temperature is low"},
+        "5th": {"value": 14, "unit": "°C", "description": "supply temperature of 5th generation heat grid when outdoor temperature is low"}
       }
     }
   },

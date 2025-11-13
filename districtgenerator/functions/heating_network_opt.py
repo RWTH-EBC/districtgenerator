@@ -404,7 +404,7 @@ def network_optimization(data, sliding_temperature=True):
     # conv_pipe = heat_grid_data["pipe"]["conv_pipe"]["value"]        # 3600W/(m^2 K), convective heat transfer between flowing fluid and the pipe's inner surface
     f_fric = heat_grid_data["pipe"]["f_fric"]["value"]               # 0.025,        pipe friction factor
     dp_pipe_max = heat_grid_data["pipe"]["dp_pipe_max"]["value"]     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)
-    dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]["value"]     # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network)
+    dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]["value"]     # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network https://doi.org/10.1016/j.energy.2024.131970)
 
     # pre-factor for pump power calculation
     prefac = (8 * f_fric) / (rho_f ** 2 * np.pi ** 2 * eta_pump) / 1000
@@ -651,7 +651,7 @@ def network_optimization(data, sliding_temperature=True):
 
     # 6) heat_loss per pipe/week/t
     # ks = sum(pipe_dict[d]['symmetrical heat loss factor'] * z[p,d] for d in candidates)
-    # *2: The fist factor of two accounts for the heat loss of both the supply and return pipes.
+    # *2: The first factor of two accounts for the heat loss of both the supply and return pipes.
     # *2: The second factor of two is in the equation of calculating q_s from DIN EN 13941.
     def heat_loss_rule(model, pipe, week, t):
         ks = pyo.quicksum(pipe_dict[d]["symmetrical heat loss factor"] * model.z[pipe, d] for d in pipe_candidates[pipe])

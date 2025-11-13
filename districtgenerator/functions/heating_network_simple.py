@@ -25,7 +25,7 @@ def heating_network(data):
             generationSTC += data.district[b]["generationSTC"] / 1000  # kW
 
 
-    heat_grid_data["net_heating_demand"] = heating + dhw - generationSTC  # kW
+    heat_grid_data["net_heating_demand"] = np.maximum(heating + dhw - generationSTC, 0)  # kW
     heat_grid_data["net_cooling_demand"] = cooling  # kW
     heat_grid_data["net_sum_heating_demand"] = sum(heat_grid_data["net_heating_demand"]) * dt  # kWh/year
     heat_grid_data["net_sum_cooling_demand"] = sum(heat_grid_data["net_cooling_demand"]) * dt  # kWh/year
@@ -34,6 +34,14 @@ def heating_network(data):
     data = calc_costs(data)
     data = calc_annual_investment(data)
     data = calculate_soil_temperature(data, dt)
+
+#    Assign hot/cold network temperatures
+    T_e = data.site["T_e"]  # outdoor temperature time series
+    T_hot, T_cold = get_heating_network_temperatures(data, T_e)
+
+    data.heat_grid_data["T_hot_heating_network"]["value"] = T_hot
+    data.heat_grid_data["T_cold_heating_network"]["value"] = T_cold
+
     data = calculate_thermal_losses(data)
 
 
@@ -100,7 +108,7 @@ def calc_costs(data):
     chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
     data.heat_grid_data["DN_heating_serv"] = chosen_row_serv["Nominal diameter (DN)"]
     data.heat_grid_data["da_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
-    data.heat_grid_data["di_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
+    data.heat_grid_data["di_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
     data.heat_grid_data["Da_heating_serv"] = chosen_row_serv["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
 
     # Heating Network Installation Cost
@@ -129,7 +137,7 @@ def calc_costs(data):
         chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
         data.heat_grid_data["DN_cooling_serv"] = chosen_row_serv["Nominal diameter (DN)"]
         data.heat_grid_data["da_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
-        data.heat_grid_data["di_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
+        data.heat_grid_data["di_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
         data.heat_grid_data["Da_cooling_serv"] = chosen_row_serv["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
 
         # Cooling Network Installation Cost
@@ -144,6 +152,8 @@ def calc_costs(data):
 
     # Substation Costs
     C_substations = 0
+
+    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
 
     for building in buildings_connected:
         substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
@@ -170,8 +180,8 @@ def calculate_thermal_losses(data):
     #%% Losses in the heating network
 
     # get heating network parameters
-    T_hot_heating_network = data.heat_grid_data["T_hot_heating_network"]["value"]
-    T_cold_heating_network = data.heat_grid_data["T_cold_heating_network"]["value"]
+    T_hot_heating_network = np.array(data.heat_grid_data["T_hot_heating_network"]["value"], dtype=float)
+    T_cold_heating_network = np.array(data.heat_grid_data["T_cold_heating_network"]["value"], dtype=float)
 
     D_heating_network = data.heat_grid_data["D_heating_network"]["value"] # Distance between the centerlines of the supply and return pipelines
 
@@ -455,5 +465,63 @@ def calc_annual_investment(data):
 
     return data
 
+def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
+    """
+    Sliding temperature heating curve (2D version).
+    """
+    T_e = np.array(T_e, dtype=float)
 
+    # Outdoor temp limits
+    T_min, T_max = -10, 15
 
+    # Supply-return ΔT at min and max outdoor temp
+    dT_min = T_supply_min - T_return_min
+    dT_max = T_supply_max - T_return_max
+
+    # Interpolate supply temperature
+    T_supply = np.interp(T_e, [T_min, T_max], [T_supply_min, T_supply_max])
+
+    # Interpolate temperature difference
+    dT = np.interp(T_e, [T_min, T_max], [dT_min, dT_max])
+
+    # Return temperature
+    T_return = T_supply - dT
+
+    return T_supply, T_return
+
+def get_heating_network_temperatures(data, T_e=None):
+    """
+    Reads the correct heating network temperatures from heating_grid.json
+    and returns constant temperatures or time-dependent heating-curve values.
+    """
+    gen = data.heat_grid_data["generation"]["value"]               # "3rd", "4th", "5th"
+    mode = data.heat_grid_data["temperature_mode"]["value"]        # "Constant" or "Heating_curve"
+
+    # --- CONSTANT MODE ---------------------------------------------------------
+    if mode == "Constant":
+        T_hot = data.heat_grid_data["T_hot_heating_network"]["Constant"][gen]["value"]
+        T_cold = data.heat_grid_data["T_cold_heating_network"]["Constant"][gen]["value"]
+        return np.array(T_hot), np.array(T_cold)
+
+    # --- HEATING CURVE MODE ----------------------------------------------------
+    if mode == "Heating_curve":
+        if T_e is None:
+            raise ValueError("T_e must be supplied when temperature_mode = 'Heating_curve'.")
+
+        # Supply temperatures
+        T_supply_min = data.heat_grid_data["T_hot_heating_network"]["Heating_curve"]["min"][gen]["value"]
+        T_supply_max = data.heat_grid_data["T_hot_heating_network"]["Heating_curve"]["max"][gen]["value"]
+
+        # Return temperatures
+        T_return_min = data.heat_grid_data["T_cold_heating_network"]["Heating_curve"]["min"][gen]["value"]
+        T_return_max = data.heat_grid_data["T_cold_heating_network"]["Heating_curve"]["max"][gen]["value"]
+
+        T_supply, T_return = heating_curve(
+            T_e,
+            T_supply_min, T_supply_max,
+            T_return_min, T_return_max
+        )
+
+        return T_supply, T_return
+
+    raise ValueError(f"Unknown temperature_mode: {mode}")

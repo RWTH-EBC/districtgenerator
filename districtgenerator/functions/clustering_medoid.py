@@ -88,7 +88,6 @@ def _compute_scaling_factors(inputsNormalizedTransformed, normTypicalClusters, c
     Compute the scaling factors according to Eq. (12) from
     "Impact of different time series aggregation methods on optimal energy system design" (2018) (Kotzur et al.)
     """
-    print(inputsNormalizedTransformed)
     n_inputs = len(inputsNormalizedTransformed)
     n_clusters = len(clusters)
 

@@ -666,7 +666,7 @@ class Profiles:
 
         return gains_persons, gains_others
 
-    def generate_car_profile(self, building, building_devices_data, holidays):
+    def generate_car_profile(self, building, building_devices_data, holidays, start_index_car=0):
         """
             Generate daily EV charging demand and ICE fuel consumption profiles (distinguishing between workdays and non-workdays).
 
@@ -695,6 +695,9 @@ class Profiles:
         all_EV_cars_demand_total = np.zeros(total_steps)
         on_demand_all_EV_cars_charging = np.zeros(total_steps)
         ice_fuel_profile = np.zeros(total_steps)
+
+        # Determine the charging type for the building
+        charging_type = building["buildingFeatures"]["ev_charging"]
 
         # Profiles consumption_profiles for each car
         individual_car_profiles = []
@@ -895,23 +898,25 @@ class Profiles:
                     # Add the day's demand to the EV's overall profile.
                     ev_demand[start_idx:end_idx] += daily_demand
 
-                # charging profile calculation
-                ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
 
-                # Accumulate the EV's profiles into the total profiles.
                 all_EV_cars_demand_total += ev_demand
-                on_demand_all_EV_cars_charging += ev_charging_profile
+
+                # charging profile calculation
+                if charging_type == "on_demand":
+                    ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
+                    on_demand_all_EV_cars_charging += ev_charging_profile
+                else: ev_charging_profile = None
 
                 # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"EV_RES_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx}",
                     "type": "EV",
                     "location": "Residential",
                     "battery_capacity_wh": battery_capacity,
                     "availability_profile": availability_profile,
                     "consumption_profile_wh": ev_demand,
                     "on_demand_charging_profile_w": ev_charging_profile,
-                    "fuel_profile_l": np.zeros(total_steps)
+                    "fuel_profile_l": None
                 })
 
             # --- GASOLINE CARS ---
@@ -969,13 +974,13 @@ class Profiles:
 
                 # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"ICE_RES_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx + number_of_ev}", # continue numbering after EVs
                     "type": "ICE",
                     "location": "Residential",
                     "battery_capacity_wh": 0,
                     "availability_profile": ice_car_availability,
-                    "consumption_profile_wh": np.zeros(total_steps),
-                    "on_demand_charging_profile_w": np.zeros(total_steps),
+                    "consumption_profile_wh": None,
+                    "on_demand_charging_profile_w": None,
                     "fuel_profile_l": ice_car_fuel_profile
                 })
 
@@ -1056,23 +1061,27 @@ class Profiles:
                         availability_profile[start_idx + t] = True
 
 
-                # charging profile calculation
-                ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
-
-
                 # Accumulate the EV's profiles into the total profiles.
                 all_EV_cars_demand_total += ev_demand
-                on_demand_all_EV_cars_charging += ev_charging_profile
 
+                # charging profile calculation
+                if charging_type == "on_demand":
+                    ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
+                    on_demand_all_EV_cars_charging += ev_charging_profile
+                else:
+                    ev_charging_profile = None
+
+
+                # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"EV_OFFICE_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx}",
                     "type": "EV",
                     "location": "Office",
                     "battery_capacity_wh": battery_capacity,
                     "availability_profile": availability_profile,
                     "consumption_profile_wh": ev_demand,
                     "on_demand_charging_profile_w": ev_charging_profile,
-                    "fuel_profile_l": np.zeros(total_steps)
+                    "fuel_profile_l": None
                 })
 
             # --- ICE gasoline cars in offices: log one-way fuel at arrival to work ---
@@ -1116,17 +1125,16 @@ class Profiles:
 
                 # Save individual car profile
                 individual_car_profiles.append({
-                    "car_id": f"ICE_OFFICE_{car_idx}",
+                    "car_id": f"Car_{start_index_car + car_idx + number_of_ev}", # continue numbering after EVs
                     "type": "ICE",
                     "location": "Office",
                     "battery_capacity_wh": 0,
                     "availability_profile": ice_car_availability,
-                    "consumption_profile_wh": np.zeros(total_steps),
-                    "on_demand_charging_profile_w": np.zeros(total_steps),
+                    "consumption_profile_wh": None,
+                    "on_demand_charging_profile_w": None,
                     "fuel_profile_l": ice_car_fuel_profile
                 })
 
         ev_capacity = [car["battery_capacity_wh"] for car in individual_car_profiles if car["type"] == "EV"]
-
         return all_EV_cars_demand_total, on_demand_all_EV_cars_charging, ev_capacity, ice_fuel_profile, individual_car_profiles
 
