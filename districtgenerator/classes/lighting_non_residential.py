@@ -15,7 +15,7 @@ import csv
 class LightingModelConfiguration():
 
     def __init__(self,
-                 external_irradiance_threshold=[60, 10]):
+                 external_irradiance_threshold=[60, 30]):
         """
         Constructor of lighting class object instance
 
@@ -91,6 +91,12 @@ def run_lighting_simulation(vOccupancyArray, vBulbArray, vIrradianceArray,
 
             # Get the number of current active occupants for this timestep
             iActiveOccupants = vOccupancyArray[iTime]
+
+            # Draw a threshold for this timestep
+            iIrradianceThreshold = max(55,random.gauss(
+                light_mod_config.ext_irr_threshold_mean,
+                light_mod_config.ext_irr_threshold_std_dev
+                ))
 
             # Determine if the bulb switch-on condition is passed
             # ie. Insuffient irradiance and at least one active occupant

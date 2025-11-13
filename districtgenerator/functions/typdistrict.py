@@ -226,7 +226,7 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     # the area calculated based on density would be insufficient to accommodate so many buildings.
     # Therefore, the area is calculated using BCR (the ratio of building footprint to area).
     if district_type == 'I':
-        print(params["wohneinheiten"]["value"])
+        #print(params["wohneinheiten"]["value"])
         area_BCR = num_buildings * building_ground_area / min_BCR
         area = max(area_density, area_BCR)
     else:

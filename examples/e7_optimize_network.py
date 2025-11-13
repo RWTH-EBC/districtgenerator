@@ -11,7 +11,7 @@ def example7_optimize_heatingnetwork():
     # Initialize District
     # Enter the name of the scenario you wish to use in the folder: data/scenarios
     # The scenario can be first generated with e0_generate_scenario.py
-    data = Datahandler(scenario_name="district_F_buildings_30")
+    data = Datahandler(scenario_name="district_C_buildings_5")
 
     # --- Check if building positions are available and valid ---
     missing_positions = (
@@ -52,12 +52,12 @@ def example7_optimize_heatingnetwork():
         )
         topology_option = "node"
     else:
-        topology_option = "road"
+        topology_option = data.heat_grid_data["topology_option"]["value"]
 
     data.generateNetwork(topology_option = topology_option)
     # If sliding_temperature=True, the supply and return temperatures are adjusted according to the air temperature;
     # if False, constant supply and return water temperatures are employed.
-    data.optimization_heatingnetwork(sliding_temperature=True)
+    data.optimization_heatingnetwork()
 
     ### =====================================  Output  ===================================== ###
     # The solution of the Gurobi optimizer (diameters, pump capacity, heat loss and so on)

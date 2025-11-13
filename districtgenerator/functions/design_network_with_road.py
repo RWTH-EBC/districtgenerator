@@ -2,7 +2,7 @@ import copy
 
 import networkx as nx
 from networkx.algorithms.approximation import steiner_tree
-import gurobipy as gp
+import shapely
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
@@ -296,6 +296,37 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
                 heat_network_points.append(start)
             if not point_in_list(end, heat_network_points):
                 heat_network_points.append(end)
+
+        # For district type G and I, the cross node of two diagonal roads should also be added to the graph.
+        if district_type in ["G", "I"]:
+            diagonal_roads = []
+            # get the list of diagonal roads
+            for line in lines_info:
+                start = tuple(line["start"])
+                end = tuple(line["end"])
+                dx = abs(start[0] - end[0])
+                dy = abs(start[1] - end[1])
+                tol = 1e-6
+                if dx > tol and dy > tol:
+                    diagonal_roads.append(shapely.LineString([line["start"], line["end"]]))
+
+            if diagonal_roads:
+                # get the cross node of two diagonal roads
+                intersections = []
+                for i in range(len(diagonal_roads)):
+                    for j in range(i + 1, len(diagonal_roads)):
+                        l1, l2 = diagonal_roads[i], diagonal_roads[j]
+                        if l1.is_valid and l2.is_valid and l1.intersects(l2):
+                            inter_pt = l1.intersection(l2)
+                            # Remove road endpoint nodes
+                            if inter_pt.geom_type == "Point":
+                                endpoints = [
+                                    l1.coords[0], l1.coords[-1],
+                                    l2.coords[0], l2.coords[-1]
+                                ]
+                                if not any(np.allclose(inter_pt.coords[0], ep, atol=1e-6) for ep in endpoints):
+                                    intersections.append(tuple(inter_pt.coords[0]))
+                heat_network_points.extend(intersections)
 
         # %% STEP TWO: add all nodes and possible edges to the graph
         # Create networkx-graph
