@@ -204,7 +204,7 @@ def build_model(model, data, cluster):
             'building_id': ice_map['building_id'],
             'car_id_str': ice_map['car_id_str'],
             'profile_data': ice_map['profile_data']
-            #TODO: Add all relevant data if needed
+            # Add all relevant data if needed
         })
 
 
@@ -1150,7 +1150,7 @@ def build_model(model, data, cluster):
                 == model.eh_heat_to_grid[t] + model.eh_heat_AC[t] + model.eh_ch_TES[t]  # Heat demand
                 )
 
-    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network #! TODO: Combined Heat balance for the neighborhood that includs network losses?
+    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network #! Maybe instead combined Heat balance for the neighborhood that includs network losses?
     def eh_heat_supply_rule(model, t):
         return model.eh_heat_to_grid[t] >= sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
             network_losses_heating[t]
@@ -1773,7 +1773,6 @@ def solve_model_and_extract_results(model, data):
         evs_in_building = [
             (ev_id, ev_data[ev_id]["car_id_str"]) for ev_id in ev_ids if ev_data.get(ev_id, {}).get("building_id") == n
         ]
-
         
         # Store profiles for each EV
         for ev_id, car_id_str in evs_in_building:
@@ -1789,11 +1788,12 @@ def solve_model_and_extract_results(model, data):
             for t in time_steps: # Profiles
                 results_dict[n]["EV"][car_id_str]["ch"].append(round(pyo.value(model.ch_ev[ev_id, t]), 0))
                 results_dict[n]["EV"][car_id_str]["dch"].append(round(pyo.value(model.dch_ev[ev_id, t]), 0))
+
                 if charging_type != 'on_demand':
                     results_dict[n]["EV"][car_id_str]["soc"].append(round(pyo.value(model.soc_ev[ev_id, t]), 0))
 
     # ICE Vehicles
-    # TODO: Needs to be implemented
+    # Not currently implemented
 
     results_dict["peaksum"] = pyo.value(model.peaksum)
     results_dict["daily_peak"] = {}
