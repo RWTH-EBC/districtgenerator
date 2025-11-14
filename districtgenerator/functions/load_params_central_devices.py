@@ -138,12 +138,12 @@ def load_params(data):
     # Get list of days which are used as design days
     param["typedays"] = np.zeros(data.time["clusterNumber"], dtype = np.int32)
     n = 0
-    for d in range(52):
+    for d in range(z.shape[0]):
         if any(z[d]):
             param["typedays"][n] = d
             n += 1
     # Assign each day of the year to its design day
-    sigma = np.zeros(52, dtype = np.int32)
+    sigma = np.zeros(z.shape[0], dtype = np.int32)
     for day in range(len(sigma)):
         d = np.where(z[:,day] == 1 )[0][0]
         sigma[day] = np.where(param["typedays"] == d)[0][0]
