@@ -195,11 +195,11 @@ class CES():
 
         # Destinguish between optimization of a single district and interconnected districts
         # Run optimization
-        if model_param_eh["optim_dimenson"] == 0:
+        if model_param_eh["optim_dimension"] == 0:
             capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)
-        elif model_param_eh["optim_dimenson"] == 1:
+        elif model_param_eh["optim_dimension"] == 1:
             capacities_centralDevices = opti_dimensioning_central_devices_connect.run_optim_connect(data, devs, param, dem, result_dict) #new
         else:
-            raise ValueError("Invalid optim_dimenson value. Must be '0' or '1'.")
+            raise ValueError("Invalid optim_dimension value. Must be '0' or '1'.")
 
         return capacities_centralDevices

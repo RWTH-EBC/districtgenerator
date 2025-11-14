@@ -11,6 +11,8 @@ def one_district_opt_cent():
 
     # Initialize District
     data = Datahandler(env_path=".env.CONFIG.DISTRICT1")
+    model_param_eh = data.params_ehdo_model
+    print(f"\nOptim_dimension of: {data.scenario_name} is {model_param_eh["optim_dimension"]}")
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -22,7 +24,8 @@ def one_district_opt_cent():
     data.generateBuildings()
 
     # Now we generate building specific demand profiles with the adjusted assumptions
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)    
+    # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
+    data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)    
     
     # Design decentral and central devices for the current district.
     data.designDevicesComplete(saveGenerationProfiles=True)
