@@ -1777,15 +1777,20 @@ def solve_model_and_extract_results(model, data):
 
         # Store profiles for each EV
         for ev_id, car_id_str in evs_in_building:
+            ev_profile = next((e for e in ev_mapping if e['id'] == ev_id), None)
+            charging_type = ev_profile.get('charging_type')
+
             results_dict[n]["EV"][car_id_str] = {}
             results_dict[n]["EV"][car_id_str]["ch"] = []
             results_dict[n]["EV"][car_id_str]["dch"] = []
-            results_dict[n]["EV"][car_id_str]["soc"] = []
+            if charging_type != 'on_demand':
+                results_dict[n]["EV"][car_id_str]["soc"] = []
 
             for t in time_steps: # Profiles
                 results_dict[n]["EV"][car_id_str]["ch"].append(round(pyo.value(model.ch_ev[ev_id, t]), 0))
                 results_dict[n]["EV"][car_id_str]["dch"].append(round(pyo.value(model.dch_ev[ev_id, t]), 0))
-                results_dict[n]["EV"][car_id_str]["soc"].append(round(pyo.value(model.soc_ev[ev_id, t]), 0))
+                if charging_type != 'on_demand':
+                    results_dict[n]["EV"][car_id_str]["soc"].append(round(pyo.value(model.soc_ev[ev_id, t]), 0))
 
     # ICE Vehicles
     # TODO: Needs to be implemented
@@ -1818,7 +1823,8 @@ def _get_vehicle_mapping(buildingData, nbuildings):
                         'id': ev_counter,  # Die fortlaufende numerische ID (für EVs)
                         'building_id': n,   # Das Gebäude, zu dem es gehört
                         'car_id_str': car_cluster_profile.get("car_id", f"ev_{ev_counter}"),
-                        'profile_data': car_cluster_profile  # Das Roh-Profil für Modelldaten
+                        'profile_data': car_cluster_profile,  # Das Roh-Profil für Modelldaten
+                        'charging_type': building["buildingFeatures"]["ev_charging"]
                     })
                     ev_counter += 1
 
