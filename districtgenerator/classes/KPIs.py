@@ -322,10 +322,13 @@ class KPIs:
             capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
 
-        calc_annual_investment = {dev: 0 for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]}
+        calc_annual_investment = {}
+        self.annual_fixed_costs_decentral = 0
 
-        for n in range(len(district)):
-            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]:
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+        for dev in devices:
+            calc_annual_investment[dev] = 0
+            for n in range(len(district)):
                 try:
                     if counts.get(dev, 0) > 0:
                         calc_annual_investment[dev] += self.calc_annual_cost_device(
@@ -333,13 +336,9 @@ class KPIs:
                             decentral_device_data["inv_data"],
                             capacities[n][dev])
                     # Else leave as 0
-                except:
-                    pass
-
-        self.annual_fixed_costs_decentral = sum(
-            calc_annual_investment[dev]  # already summed for all districts
-            for dev in ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
-        )
+                except KeyError:
+                    continue
+            self.annual_fixed_costs_decentral += calc_annual_investment[dev]
 
         try:
             self.annual_fixed_costs_central = data.centralDevices["capacities"]["total_ann_inv_cost"] + data.centralDevices["capacities"]["total_om_cost"]

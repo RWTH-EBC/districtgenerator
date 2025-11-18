@@ -812,7 +812,7 @@ def network_optimization(data, sliding_temperature=True):
             dx = 6
         ax.text(mid_x + dx, mid_y + dy, str(idx), fontsize=8, color='black', ha='center', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Labeled by Pipe ID")
+    ax.set_title("Labeled by Pipe ID")
     ax.set_aspect('equal')
 
     plot_filename = f"pipeline_id_{data.scenario_name}.png"
@@ -865,7 +865,7 @@ def network_optimization(data, sliding_temperature=True):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"DN{DN}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Diameter")
+    ax.set_title("Diameter")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -919,7 +919,7 @@ def network_optimization(data, sliding_temperature=True):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"{velocity_max:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Maximum velocity (m/s)")
+    ax.set_title("Maximum velocity (m/s)")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -965,7 +965,7 @@ def network_optimization(data, sliding_temperature=True):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"{pressure_drop_max:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Maximum pressure drop (Pa/m)")
+    ax.set_title("Maximum pressure drop (Pa/m)")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -1018,7 +1018,7 @@ def network_optimization(data, sliding_temperature=True):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"{energy_density:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Energy_density (MWh/m)")
+    ax.set_title("Energy density (MWh/m)")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 

@@ -464,7 +464,7 @@ def scenario_generation():
     # 3 plot the transformer
     if transformer_pos is not None:
         ax.plot(transformer_pos[0], transformer_pos[1], 'ro', markersize=8)
-        ax.text(transformer_pos[0], transformer_pos[1] + 1, 'Transformer', color='red', fontsize=10, ha='center')
+        ax.text(transformer_pos[0], transformer_pos[1] + 1, '', color='red', fontsize=10, ha='center')
 
     # 4 Create Custom Legend
     # 4.1 Infrastructure(Transformer) legend.
@@ -483,14 +483,14 @@ def scenario_generation():
     retrofit_handles = [patches.Patch(facecolor="white", edgecolor="black", hatch=hatch_patterns[level], label=level) for level in hatch_patterns]
 
     all_handles = infra_handles + type_handles + retrofit_handles
-    ax.legend(handles=all_handles, loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=8)
+    ax.legend(handles=all_handles, loc="upper left", bbox_to_anchor=(1.05, 1), fontsize=17)
 
     # 5 Adjust image coordinates and format
-    ax.set_xlabel("Width (meters)", fontsize=14)
-    ax.set_ylabel("Length (meters)", fontsize=14)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.set_xlabel("Width (meters)", fontsize=20)
+    ax.set_ylabel("Length (meters)", fontsize=20)
+    ax.tick_params(axis='both', which='major', labelsize=20)
     ax.set_aspect('equal', adjustable='box')
-    ax.set_title("District layout "+district_type, fontsize=14)
+    ax.set_title("District layout "+district_type, fontsize=20)
     ax.grid(True, linestyle='--', linewidth=0.3)
     plt.tight_layout()
 
@@ -501,9 +501,17 @@ def scenario_generation():
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    plot_filename = os.path.join(save_dir, f"district_layout_{district_type}_buildings_{len(buildings)}.png")
-    # plot_filename = get_unique_filename(plot_filename)
-    plt.savefig(plot_filename, dpi=300)
+    plot_filename_png = os.path.join(
+        save_dir,
+        f"district_layout_{district_type}_buildings_{len(buildings)}.png"
+    )
+    plot_filename_svg = os.path.join(
+        save_dir,
+        f"district_layout_{district_type}_buildings_{len(buildings)}.svg"
+    )
+
+    plt.savefig(plot_filename_png, dpi=300)
+    plt.savefig(plot_filename_svg, format="svg")
 
     plt.show()
     print(f"The number of generated buildings is {len(buildings)}.")

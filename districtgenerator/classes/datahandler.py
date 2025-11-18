@@ -688,7 +688,7 @@ class Datahandler:
              building["envelope"].bivalent,
              building["envelope"].heatlimit,
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
-                                                                 os.path.join(self.resultPath, 'demands'))
+                                                                 os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])
 
         if building.get("thermal_model") == "5R1C":
@@ -899,7 +899,7 @@ class Datahandler:
             cooling_df.to_excel(writer, sheet_name='cooling', index=False, header=['Cooling in W'])
             heating_df.to_excel(writer, sheet_name='heating', index=False, header=['Heating in W'])
 
-    def loadProfiles(self, name, path):
+    def loadProfiles(self, name, path, gen_cars=True):
         """
         Load profiles from csv.
 
@@ -935,61 +935,67 @@ class Datahandler:
         occ = load_sheet_to_numpy(workbook, 'Occupancy')
         gains = load_sheet_to_numpy(workbook, 'Internal Gains')
 
-        EV_carprofile = load_sheet_to_numpy(workbook, 'EV_demand_agg')
-        EV_carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging_agg')
-        ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel_agg')
-
-        # Load individual car profiles
+        # Load car profiles
         individual_car_profiles = []
-        df_car_info = pd.read_excel(excel_file, sheet_name='Car Info')
-        df_EV_demand = pd.read_excel(excel_file, sheet_name='EV_demand_individual')
-        df_EV_charging = pd.read_excel(excel_file, sheet_name='EV_charging_individual')
-        df_ICE_fuel = pd.read_excel(excel_file, sheet_name='ICE_fuel_individual')
-        df_Car_avail = pd.read_excel(excel_file, sheet_name='Car_availibility_individual')
+        if gen_cars: # Only load car profiles if cars are supposed to be generated
+            EV_carprofile = load_sheet_to_numpy(workbook, 'EV_demand_agg')
+            EV_carcharging_ondemand = load_sheet_to_numpy(workbook, 'EV_charging_agg')
+            ice_carprofile = load_sheet_to_numpy(workbook, 'ICE_fuel_agg')
 
-        #reconstruct individual car profiles
-        for i, row in df_car_info.iterrows():
-            # Extract car details
-            car_id = row['car_id']
-            car_type = row['type']
-            location = row['location']
-            battery_capacity_wh = row['battery_capacity_wh']
+            df_car_info = pd.read_excel(excel_file, sheet_name='Car Info')
+            df_EV_demand = pd.read_excel(excel_file, sheet_name='EV_demand_individual')
+            df_EV_charging = pd.read_excel(excel_file, sheet_name='EV_charging_individual')
+            df_ICE_fuel = pd.read_excel(excel_file, sheet_name='ICE_fuel_individual')
+            df_Car_avail = pd.read_excel(excel_file, sheet_name='Car_availibility_individual')
 
-            # Extracts profiles
-            ev_demand_col = f'EV_demand_car_{i}'
-            ev_charge_col = f'EV_charging_car_{i}'
-            ice_fuel_col = f'ICE_fuel_car_{i}'
-            avail_col = f'Car_availibility_car_{i}'
+            #reconstruct individual car profiles
+            for i, row in df_car_info.iterrows():
+                # Extract car details
+                car_id = row['car_id']
+                car_type = row['type']
+                location = row['location']
+                battery_capacity_wh = row['battery_capacity_wh']
 
-            if ev_demand_col in df_EV_demand.columns:
-                consumption_profile_wh = df_EV_demand[ev_demand_col].to_numpy()
-            else:
-                consumption_profile_wh = None
-            if ev_charge_col in df_EV_charging.columns:
-                on_demand_charging_profile_w = df_EV_charging[ev_charge_col].to_numpy()
-            else:
-                on_demand_charging_profile_w = None
-            if ice_fuel_col in df_ICE_fuel.columns:
-                fuel_profile_l = df_ICE_fuel[ice_fuel_col].to_numpy()
-            else:
-                fuel_profile_l = None
-            if avail_col in df_Car_avail.columns:
-                availability_profile = df_Car_avail[avail_col].to_numpy()
-            else:
-                availability_profile = None
+                # Extracts profiles
+                ev_demand_col = f'EV_demand_car_{i}'
+                ev_charge_col = f'EV_charging_car_{i}'
+                ice_fuel_col = f'ICE_fuel_car_{i}'
+                avail_col = f'Car_availibility_car_{i}'
 
-            car_profile = {
-                'car_id': car_id,
-                'type': car_type,
-                'location': location,
-                'battery_capacity_wh': battery_capacity_wh,
-                'consumption_profile_wh': consumption_profile_wh,
-                'on_demand_charging_profile_w': on_demand_charging_profile_w,
-                'fuel_profile_l': fuel_profile_l,
-                'availability_profile': availability_profile
-            }
-            individual_car_profiles.append(car_profile)
+                if ev_demand_col in df_EV_demand.columns:
+                    consumption_profile_wh = df_EV_demand[ev_demand_col].to_numpy()
+                else:
+                    consumption_profile_wh = None
+                if ev_charge_col in df_EV_charging.columns:
+                    on_demand_charging_profile_w = df_EV_charging[ev_charge_col].to_numpy()
+                else:
+                    on_demand_charging_profile_w = None
+                if ice_fuel_col in df_ICE_fuel.columns:
+                    fuel_profile_l = df_ICE_fuel[ice_fuel_col].to_numpy()
+                else:
+                    fuel_profile_l = None
+                if avail_col in df_Car_avail.columns:
+                    availability_profile = df_Car_avail[avail_col].to_numpy()
+                else:
+                    availability_profile = None
 
+                car_profile = {
+                    'car_id': car_id,
+                    'type': car_type,
+                    'location': location,
+                    'battery_capacity_wh': battery_capacity_wh,
+                    'consumption_profile_wh': consumption_profile_wh,
+                    'on_demand_charging_profile_w': on_demand_charging_profile_w,
+                    'fuel_profile_l': fuel_profile_l,
+                    'availability_profile': availability_profile
+                }
+                individual_car_profiles.append(car_profile)
+
+        else:
+            # if no cars are generated, return zero profiles
+            EV_carprofile = np.zeros(int(self.time["dataLength"] / self.time["timeResolution"]))
+            EV_carcharging_ondemand = np.zeros(int(self.time["dataLength"] / self.time["timeResolution"]))
+            ice_carprofile = np.zeros(int(self.time["dataLength"] / self.time["timeResolution"]))
 
         # Load building info
         sheet = workbook['Building Info']
@@ -1341,7 +1347,6 @@ class Datahandler:
                 self.district[i]["buildingFeatures"]["f_PV2"] > 0 or
                 self.district[i]["buildingFeatures"]["f_STC"] > 0):
                 solar_weight += 1
-                print(f"Building {i} has solar devices")
 
         weights.append(solar_weight)
         scalings.append(False)
