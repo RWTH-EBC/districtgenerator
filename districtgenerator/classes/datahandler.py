@@ -199,8 +199,20 @@ class Datahandler:
         with open(os.path.join(self.filePath, 'heat_grid.json'), encoding='utf-8') as json_file:
             self.heat_grid_data = json.load(json_file)
 
-        csv_path = os.path.join(self.filePath, 'pipe_specifications.csv')
-        self.pipe_data = pd.read_csv(csv_path, sep=";")
+        self.pipe_file_path = os.path.join(self.filePath, 'pipe')
+        # select the pipe file based on the generation selection
+        # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
+        if self.heat_grid_data["generation"]["value"] == "3rd":
+            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
+            self.pipe_data = pd.read_csv(csv_path, sep=";")
+        elif self.heat_grid_data["generation"]["value"] == "4th":
+            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
+            self.pipe_data = pd.read_csv(csv_path, sep=";")
+        elif self.heat_grid_data["generation"]["value"] == "5th":
+            # TODO: create pipe data for 5th generation?
+            pass
+        else:
+            print("Please select from the 3rd, 4th, or 5th generation and enter it into heat_grid.json.")
 
     def select_plz_data(self):
         """
@@ -790,7 +802,7 @@ class Datahandler:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
-                self.optimization_heatingnetwork(sliding_temperature=True)
+                self.optimization_heatingnetwork()
                 self.designCentralDevices(saveGenerationProfiles=True)
                 self.finalizeClusterProfiles()
         else:

@@ -8,7 +8,7 @@
     "description": "Whether consider road constraints in pipeline topology optimization, selected between:\"node\" and \"rode\""
   },
   "temperature_mode":{
-    "value": "Heating_curve",
+    "value": "Constant",
     "description": "selected between:\"Constant\" and \"Heating_curve\"(controlled within limits depending on the outdoor temperature)"
   },
   "T_hot_heating_network": {
@@ -114,6 +114,11 @@
   "unit": "€/kW_th",
   "description": "Invest. for the substation; Source: Technikkatalog Wärmeplanung 2024"
   },
+  "lifetime_subst": {
+  "value": 25,
+  "unit": "a",
+  "description": "Lifetime of the substation; Source: Technikkatalog Wärmeplanung 2025"
+  },
   "C_O&M": {
   "value": 1.44,
   "unit": "€/MWh_th",
@@ -121,7 +126,8 @@
   },
   "fluid":{
     "c_f": {"value": 4180, "unit": "J/(kg*K)", "description": "fluid specific heat"},
-    "rho_f": {"value": 1000, "unit": "kg/m3", "description": "fluid density"}
+    "rho_f": {"value": 1000, "unit": "kg/m3", "description": "fluid density"},
+    "nu_f": {"value": 0.66e-6, "unit": "m2/s", "description": "Kinematic viscosity at 40°C"}
   },
   "pump": {
     "eta_pump": {"value": 0.65, "unit": "-", "description": "electric pump efficiency"},
