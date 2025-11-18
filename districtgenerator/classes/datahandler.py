@@ -497,13 +497,20 @@ class Datahandler:
 
         # %% create TEASER project
         # create one project for the whole district
-        prj = Project(load_data=True)
+        prj = Project()
         prj.name = self.scenario_name
 
         for building in self.district:
 
             # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
+
+            if retrofit_level == "tabula_standard":
+                construction_data = 'tabula_de_standard'
+            elif retrofit_level == "tabula_retrofit":
+                construction_data = 'tabula_de_retrofit'
+            elif retrofit_level == "tabula_adv_retrofit":
+                construction_data = 'tabula_de_adv_retrofit'
 
             # add buildings to TEASER project
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
@@ -623,6 +630,7 @@ class Datahandler:
             building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+            building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
