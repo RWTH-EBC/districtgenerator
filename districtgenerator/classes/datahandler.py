@@ -993,7 +993,7 @@ class Datahandler:
 
         return heat, cooling
 
-    def designDecentralDevices(self, saveGenerationProfiles=True):
+    def designDecentralDevices(self, saveGenerationProfiles=True, all_data_connect=None):
         """
         Calculate capacities, generation profiles of renewable energies and EV load profiles for decentral devices.
 
@@ -1045,7 +1045,7 @@ class Datahandler:
                            delimiter=';',
                            fmt='%.2f')
 
-    def designCentralDevices(self, saveGenerationProfiles):
+    def designCentralDevices(self, saveGenerationProfiles, all_data_connect):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
@@ -1068,7 +1068,7 @@ class Datahandler:
         self.centralDevices["ces_obj"] = CES()
 
         # dimensioning of central devices
-        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
+        self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self, all_data_connect)
 
         # calculate theoretical PV, STC and Wind generation
         self.centralDevices["generation"] = {}
@@ -1091,7 +1091,7 @@ class Datahandler:
                        delimiter=';',
                        fmt='%.2f')
 
-    def designDevicesComplete(self, saveGenerationProfiles=True):
+    def designDevicesComplete(self, saveGenerationProfiles=True, all_data_connect=None):
         """
         Design decentral and central devices.
 
@@ -1104,9 +1104,8 @@ class Datahandler:
         -------
         None.
         """
-
-        self.designDecentralDevices(saveGenerationProfiles)
-        self.designCentralDevices(saveGenerationProfiles)
+        self.designDecentralDevices(saveGenerationProfiles, all_data_connect)
+        self.designCentralDevices(saveGenerationProfiles, all_data_connect)
 
     def clusterProfiles(self, centralEnergySupply):
         """

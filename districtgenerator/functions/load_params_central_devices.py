@@ -23,7 +23,7 @@ import sys
 import copy
 from districtgenerator.classes.solar import Sun
 
-def load_params(data):
+def load_params(data, all_data_connect=None):
 
     result_dict = {}
     # import model parameters

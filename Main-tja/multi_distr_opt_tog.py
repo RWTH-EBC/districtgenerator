@@ -78,7 +78,7 @@ def multi_distr_data_safe(configs_directory_path):
             print("Unknown optim_dimension value.")
 
     return all_data_connect  
-    
+
 # TODO: Add the central device optimization for interconnected districts.
 
 def optimize_interconnected_districts(configs_directory_path):
@@ -87,9 +87,18 @@ def optimize_interconnected_districts(configs_directory_path):
     print("Optimizing interconnected districts is not yet implemented.")
     all_data_connect = multi_distr_data_safe(configs_directory_path)
 
-    for i, data in enumerate(all_data_connect):
-        print(f"Scenario Name: {data.scenario_name}")
-        print(f"Site Data: {data.site}")    
+    # Choose one of the datahandler instances to call the designDevicesComplete method
+    datahandler_instance = all_data_connect[0]
+    
+    # Call designDevicesComplete for interconnected districts
+    datahandler_instance.designDevicesComplete(
+        saveGenerationProfiles=True,
+        all_data_connect=all_data_connect
+    )
+
+    # for i, data in enumerate(all_data_connect):
+    #     print(f"Scenario Name: {data.scenario_name}")
+    #     print(f"Site Data: {data.site}")    
 
     return 
 

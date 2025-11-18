@@ -21,7 +21,12 @@ import os
 #from optim_app.help_functions import create_excel_file
 
 
-def run_optim_connect(data, devs, param, dem, result_dict):
+def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
+
+
+    for i, data1 in enumerate(all_data_connect):
+        print(f"Scenario Name: {data1.scenario_name}") 
+        print("Data from all_data_connect in run_optim_connect")
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Load model parameters

@@ -173,7 +173,7 @@ class CES():
         None.
         """
 
-    def designCES(self, data):
+    def designCES(self, data, all_data_connect=None):
         """
         Dimensioning of central devices with EHDO
 
@@ -187,18 +187,18 @@ class CES():
         """
 
         # Load parameters of the heating network
-        data = heating_network.heating_network(data)
+        data = heating_network.heating_network(data, all_data_connect)
         model_param_eh = data.params_ehdo_model
 
         # Load parameters of the energy hub
-        param, devs, dem, result_dict = load_params_central_devices.load_params(data)
+        param, devs, dem, result_dict = load_params_central_devices.load_params(data, all_data_connect=None) #new
 
         # Destinguish between optimization of a single district and interconnected districts
         # Run optimization
         if model_param_eh["optim_dimension"] == 0:
             capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)
         elif model_param_eh["optim_dimension"] == 1:
-            capacities_centralDevices = opti_dimensioning_central_devices_connect.run_optim_connect(data, devs, param, dem, result_dict) #new
+            capacities_centralDevices = opti_dimensioning_central_devices_connect.run_optim_connect(data, devs, param, dem, result_dict, all_data_connect) #new
         else:
             raise ValueError("Invalid optim_dimension value. Must be '0' or '1'.")
 
