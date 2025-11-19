@@ -515,6 +515,33 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     lp_filename = os.path.join(result_dir, "ehdo_model.lp")
     model.write(lp_filename, io_options={"symbolic_solver_labels": True})
 
+    # ======================================================================
+    # PROBLEMGRÖSSE AUSGEBEN - HIER EINFÜGEN
+    # ======================================================================
+    n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
+    n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
+    n_binary = sum(1 for v in model.component_data_objects(pyo.Var, active=True)
+                   if v.is_binary())
+    n_integer = sum(1 for v in model.component_data_objects(pyo.Var, active=True)
+                    if v.is_integer())
+    n_continuous = n_vars - n_binary - n_integer
+
+    print("\n" + "=" * 60)
+    print("PROBLEMGRÖSSE:")
+    print("=" * 60)
+    print(f"  Variablen gesamt:     {n_vars:,}")
+    print(f"    - Kontinuierlich:   {n_continuous:,}")
+    print(f"    - Binär:            {n_binary:,}")
+    print(f"    - Integer:          {n_integer:,}")
+    print(f"  Constraints gesamt:   {n_cons:,}")
+    print("=" * 60 + "\n")
+    # ======================================================================
+
+    # temporary log-file for the solver
+    solver_log_path = os.path.join(result_dir, "solver_output_ehdo.log")
+    # Path for error file
+    errorfile_path = os.path.join(result_dir, 'errorfile_ehdo.txt')
+
     # temporary log-file for the solver
     solver_log_path = os.path.join(result_dir, "solver_output_ehdo.log")
     # Path for error file
