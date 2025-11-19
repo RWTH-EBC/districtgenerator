@@ -1219,18 +1219,8 @@ def calc_f_fric(data, model, param):
         v_max = flow_max / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
         # calculate the Reynolds number
         Re = v_max * d_i / nu_f
-        '''
-        bound = Re * k / d_i
-        if bound < 65:
-            if 2320 < Re < 1e5:
-                f_fric = 0.3164 * Re ** (-0.25)
-            elif 1e5 < Re < 5e6:
-                f_fric = 0.0032 + 0.221 * Re ** (-0.237)
-            else:
-                f_fric = 0.0054 + 0.396 / (Re ** 0.3)
-        elif 65 < bound < 1300:
-            '''
 
+        # f_fric is calculated by friction_factor() using the default Clamond method for turbulent flow.
         pipe_result[pipe]["f_fric"] = fluids.friction.friction_factor(Re=Re, eD=k/d_i)
 
     f_fric = sum(pipe_result[pipe]["f_fric"] for pipe in data.pipeline.keys())/len(data.pipeline.keys())
