@@ -285,6 +285,7 @@ def calc_flow_and_temperature(data):
     heat_loss_substation = np.zeros_like(T_e)
     total_demand_cluster = np.zeros(
         (len(weeks), time_steps))  # Create a 2D array filled with zeros (weeks × time steps)
+    total_demand = np.zeros_like(T_e)
     h_loss_subst = data.heat_grid_data["h_loss_subst"]["value"]  # 5%, Heat losses at the substation
     for building in data.district:
         # read (clustered) demand pofile for each building
@@ -305,6 +306,9 @@ def calc_flow_and_temperature(data):
 
         heating_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
         building["user"].heating_demand = heating_demand  # kW
+        # Sum the heat demand in the network
+        total_demand += heating_demand * (1 + h_loss_subst / 100)  # kW
+        # Sum the heat losses in the substations
         heat_loss_substation += heating_demand * h_loss_subst / 100  # kW
 
         # The volume flow in each building  m³/s
@@ -384,10 +388,11 @@ def calc_flow_and_temperature(data):
     # prepare parameters for the optimization model
     param = {}
     param["total_demand_cluster"] = total_demand_cluster
+    param["total_demand"] = total_demand
+    param["heat_loss_substation"] = heat_loss_substation
     param["T_s"] = T_s
     param["T_s_cluster"] = T_s_cluster
     param["deltaT"] = deltaT
-    param["heat_loss_substation"] = heat_loss_substation
 
     return data, param
 
@@ -633,6 +638,8 @@ def optimization_diameter(data, param, f_fric):
                                                doc="Each pipe picks exactly one diameter")
 
     # 2) Pump power relation per pipe/week/t using auxiliary variables
+    '''
+    # linear method
     # Define a new variable y[p, d, week, t] = pump_pipe[p, week, t] * z[p, d]
     M_p = {p: 1e5 for p in data.pipeline.keys()}  # Big-M bounds
 
@@ -665,6 +672,25 @@ def optimization_diameter(data, param, f_fric):
     model.y_upper_bound = pyo.Constraint(model.pipe_diam, model.week, model.t, rule=y_upper_bound_rule)
     model.y_lower_bound = pyo.Constraint(model.pipe_diam, model.week, model.t, rule=y_lower_bound_rule)
     model.y_le_p = pyo.Constraint(model.pipe_diam, model.week, model.t, rule=y_le_p_rule)
+    '''
+
+    # non-linear method
+    def g_expr_rule(model, pipe):
+        # sum over candidate diameters for pipe p
+        return pyo.quicksum(d5[d] * model.z[pipe, d] for d in pipe_candidates[pipe])
+
+    model.g = pyo.Expression(model.pipe, rule=g_expr_rule, doc="g[p] = sum(d^5 * z[p,d])")
+
+    #    pump_pipe[p,w,t] * g[p] * 1e10 == prefac * length * 2 * (1+0.2) * ((flow)^3) * 1e10
+    def pump_pipe_relation_rule(model, pipe, week, t):
+        i = week_to_i[week]
+        flow_value = data.pipeline[pipe]["flow_cluster"][i, t]
+        lhs = model.pump_pipe[pipe, week, t] * model.g[pipe] * 1e10
+        rhs = prefac * data.pipeline[pipe]["length"] * 2 * (1 + 0.2) * ((flow_value * rho_f) ** 3) * 1e10
+        return lhs == rhs
+
+    model.pump_pipe_relation = pyo.Constraint(model.pipe, model.week, model.t, rule=pump_pipe_relation_rule,
+                                              doc="Pump power vs diameter-flow relation")
 
     # 3) For each path (line) and time, pump_el >= sum of pump_pipe along the path
     def pump_el_ge_path_rule(model, line, week, t):
@@ -1115,18 +1141,23 @@ def output_diameter(data, model, param):
     k_soil = data.heat_grid_data["k_soil"]["value"]
     heat_loss_network = np.zeros_like(T_s)
     # print(type(T_s), type(T_soil), T_s.shape, getattr(T_soil, "shape", None))
+    total_pipe_length = 0
     for pipe_id, pipe in data.pipeline.items():
         DN = pipe["DN"]  # mm
         ks = pipe_dict[DN]["symmetrical heat loss factor"]
         length = pipe["length"]
+        total_pipe_length += length
         # *2: The first factor of two accounts for the heat loss of both the supply and return pipes.
         # *2: The second factor of two is in the equation of calculating q_s from DIN EN 13941.
         pipe["heat_loss_pipe"] = 2 * (T_s - T_soil) * 2 * np.pi * k_soil * ks * length / 1000   # kW
         heat_loss_network += pipe["heat_loss_pipe"]
 
     # calculate and save total heat loss
-    data.heat_grid_data["total_losses_heating_network"] = heat_loss_substation + heat_loss_network
+    heat_loss_network = heat_loss_substation + heat_loss_network
+    data.heat_grid_data["total_losses_heating_network"] = heat_loss_network
+    total_heat_loss_per_m = np.sum(heat_loss_network) / total_pipe_length
     print("Total heat loss in network calculation finished successfully.")
+    print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
 
     # ---------- 7. save pump power(yearly profile) ----------
     # save pump power(yearly profile) in data.heat_grid_data["pump_power"]
@@ -1171,6 +1202,7 @@ def output_diameter(data, model, param):
     print("Total pump power in network calculation finished successfully.")
 
     # ---------- 8. save cost ----------
+    # cost of substation
     buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
     C_substations = 0
     for building in buildings_connected:
@@ -1180,21 +1212,60 @@ def output_diameter(data, model, param):
     substation_lifetime = data.heat_grid_data["lifetime_subst"]["value"]
     substation_ann_factor = calc_annual_factor(data, substation_lifetime)
     substation_ann_costs = C_substations * substation_ann_factor
+    substation_om_costs = len(buildings_connected) * data.heat_grid_data["cost_om_subst"]["value"]
+    print(f"Substations annualized cost: {substation_ann_costs:.2f} €")
+    print(f"Substations O&M cost per year: {substation_om_costs:.2f} €")
 
+    # cost of pipes
     pipes_tac_costs = pyo.value(model.tac["pipes"])
-    pumps_tac_costs = pyo.value(model.tac["pumps"])
-    electricity_costs = pyo.value(model.pump_energy_total) * data.ecoData["price_supply_el_eh"]
+    pipe_ann_factor = data.heat_grid_data["pipe"]["pipe_ann_factor"]
+    cost_om_pipe = data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
+    pipes_om_costs = pipes_tac_costs * cost_om_pipe / (pipe_ann_factor + cost_om_pipe)
+    pipes_ann_costs = pipes_tac_costs - pipes_om_costs
+    print(f"Pipes annualized cost: {pipes_ann_costs:.2f} €")
+    print(f"Pipes O&M cost per year: {pipes_om_costs:.2f} €")
 
-    pipes_om_costs = pipes_tac_costs * data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
-    pumps_om_costs = pumps_tac_costs * data.heat_grid_data["pump"]["cost_om_pump"]["value"]
+    # calculate the capacity of the pump
+    pump_cap = np.max(pump_power)
+    print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
 
-    data.heat_grid_data["om_costs"] = pipes_om_costs + pumps_om_costs
-    data.heat_grid_data["ann_costs"] = pipes_tac_costs + pumps_tac_costs + electricity_costs - data.heat_grid_data["om_costs"] + substation_ann_costs
+    # calculate the investment for the pump
+    total_demand = param["total_demand"]
+    total_heat = total_demand + heat_loss_network
+    pump_cap_th = np.max(total_heat)
+    inv_pump = pump_cap_th * data.heat_grid_data["pump"]["inv_pump"]["value"]
+
+    # cost of pump
+    pump_ann_costs = inv_pump * data.heat_grid_data["pump"]["pump_ann_factor"]
+    pump_om_costs = inv_pump * data.heat_grid_data["pump"]["cost_om_pump"]["value"]
+    print(f"Pump annualized cost: {pump_ann_costs:.2f} €")
+    print(f"Pump O&M cost per year: {pump_om_costs:.2f} €")
+
+    # cost of electricity
+    pump_energy_total = np.sum(pump_power)
+    print(f"The total electricity consumption for the pump is {pump_energy_total:5f}kWh/a.")
+    electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"]
+
+    # calculate the total cost
+    data.heat_grid_data["om_costs"] = pipes_om_costs + pump_om_costs + substation_om_costs
+    data.heat_grid_data["ann_costs"] = pipes_ann_costs + pump_ann_costs + electricity_costs + substation_ann_costs
 
     return data
 
 def calc_f_fric(data, model, param):
+    """
+    Calculate the friction factor based on the optimization results.
 
+    Parameters
+    ----------
+    data: class datahandler
+    model: pyomo optimization model
+    param: dictionary
+
+    Returns
+    -------
+    f_fric: float
+    """
     # 1 calculate the Reynolds number
     # get the optimized diameter for each pipe segment
     pipe_candidates = param["pipe_candidates"]
@@ -1218,7 +1289,7 @@ def calc_f_fric(data, model, param):
         # calculate the maximum velocity
         v_max = flow_max / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
         # calculate the Reynolds number
-        Re = v_max * d_i / nu_f
+        Re = v_max * (d_i / 1000) / nu_f
 
         # f_fric is calculated by friction_factor() using the default Clamond method for turbulent flow.
         pipe_result[pipe]["f_fric"] = fluids.friction.friction_factor(Re=Re, eD=k/d_i)

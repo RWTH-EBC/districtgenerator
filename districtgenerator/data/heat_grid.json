@@ -1,6 +1,6 @@
 {
   "generation":{
-    "value": "4th",
+    "value": "3rd",
     "description": "Heating network generation, selected between:\"3rd\", \"4th\" and \"5th\""
   },
   "topology_option":{
@@ -113,6 +113,11 @@
   "value": 277.79,
   "unit": "€/kW_th",
   "description": "Invest. for the substation; Source: Technikkatalog Wärmeplanung 2024"
+  },
+  "cost_om_subst": {
+  "value": 50,
+  "unit": "€/a",
+  "description": "yearly fixed O&M cost for the substation; Source: Technikkatalog Wärmeplanung 2025"
   },
   "lifetime_subst": {
   "value": 25,
