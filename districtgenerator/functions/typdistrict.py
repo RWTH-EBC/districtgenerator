@@ -292,8 +292,8 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
     n_value = floor(width / spacing_x) + 1
     n = np.clip(n_value, n_min, n_max)
 
-    if district_type == 'E':
-        n = floor(width / spacing_x) + 1
+    # if district_type == 'E':
+    #     n = floor(width / spacing_x) + 1
 
     # adjust the layout and randomly delete the roads
     if switch_i == 1 and district_type == 'I':

@@ -1114,7 +1114,7 @@ def output_diameter(data, model, param):
     T_soil = data.heat_grid_data["T_soil"]
     k_soil = data.heat_grid_data["k_soil"]["value"]
     heat_loss_network = np.zeros_like(T_s)
-    print(type(T_s), type(T_soil), T_s.shape, getattr(T_soil, "shape", None))
+    # print(type(T_s), type(T_soil), T_s.shape, getattr(T_soil, "shape", None))
     for pipe_id, pipe in data.pipeline.items():
         DN = pipe["DN"]  # mm
         ks = pipe_dict[DN]["symmetrical heat loss factor"]
@@ -1141,7 +1141,7 @@ def output_diameter(data, model, param):
         flow = pipe["flow"]  # m3/s
         # *2: The first factor of two accounts for the pump power of both the supply and return pipes.
         # *1.2: The factor of 1.2 accounts for an additional 20% of local losses.(source: Planungshandbuch Fernwärme)
-        pump_power_pipe[pipe_id] = prefac * length * 2 * (1 + 0.2) * ((flow * rho_f) ** 3) / (d_i ** 5)
+        pump_power_pipe[pipe_id] = prefac * length * 2 * (1 + 0.2) * ((flow * rho_f) ** 3) / ((d_i/1000) ** 5)
 
     # Build mapping from oriented node pair to pipe id (assume unique per pair)
     pair_to_pid = {}
@@ -1266,19 +1266,19 @@ def network_optimization(data):
         f_fric_new = calc_f_fric(data, model, param)
 
         # print the current iteration status
-        print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.5f}, f_fric_new = {f_fric_new:.5f}")
+        print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
 
         # Check convergence
         if abs(f_fric_new - f_fric_old) < tol:
             converged = True
-            print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.5f}")
+            print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.6f}")
             break
 
         # Update value for next iteration
         f_fric_old = f_fric_new
 
     if not converged:
-        print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.5f}")
+        print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
 
     param["f_fric"] = f_fric_new
 
