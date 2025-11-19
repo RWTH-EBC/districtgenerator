@@ -505,16 +505,15 @@ class Datahandler:
             # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
-            if retrofit_level == "tabula_standard":
-                construction_data = 'tabula_de_standard'
-            elif retrofit_level == "tabula_retrofit":
-                construction_data = 'tabula_de_retrofit'
-            elif retrofit_level == "tabula_adv_retrofit":
-                construction_data = 'tabula_de_adv_retrofit'
-
             # add buildings to TEASER project
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+                if retrofit_level == "tabula_standard":
+                    construction_data = 'tabula_de_standard'
+                elif retrofit_level == "tabula_retrofit":
+                    construction_data = 'tabula_de_retrofit'
+                elif retrofit_level == "tabula_adv_retrofit":
+                    construction_data = 'tabula_de_adv_retrofit'
 
                 # Determining the number of floors in a building based on its type.
                 # The method estimates the number of floors by:
@@ -557,14 +556,23 @@ class Datahandler:
                 elif building["buildingFeatures"]["year"] >= 1960:
                     height_of_floors = 2.5  # m
 
-                prj.add_residential(method='tabula_de',
-                                    usage=building_type,
-                                    name="ResidentialBuildingTabula",
+                #prj.add_residential(method='tabula_de',
+                #                    usage=building_type,
+                #                    name="ResidentialBuildingTabula",
+                #                    year_of_construction=building["buildingFeatures"]["year"],
+                #                    number_of_floors=number_of_floors,
+                #                    height_of_floors=height_of_floors,
+                #                    net_leased_area=building["buildingFeatures"]["area"],
+                #                    construction_type=retrofit_level)
+
+                # add buildings to TEASER project
+                prj.add_residential(name="ResidentialBuildingTabula",
+                                    geometry_data="tabula_de_" + building_type,
+                                    construction_data=construction_data,
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
-                                    net_leased_area=building["buildingFeatures"]["area"],
-                                    construction_type=retrofit_level)
+                                    net_leased_area=building["buildingFeatures"]["area"])
 
 
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
@@ -572,9 +580,15 @@ class Datahandler:
 
                 # %% create envelope object
                 # containing all physical data of the envelope
+                #building["envelope"] = Envelope(prj=prj,
+                #                                building_params=building["buildingFeatures"],
+                #                                construction_type=retrofit_level,
+                #                                physics=self.physics,
+                #                                design_building_data=self.design_building_data,
+                #                                file_path=self.filePath)
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
-                                                construction_type=retrofit_level,
+                                                construction_data=construction_data,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath)
@@ -606,7 +620,7 @@ class Datahandler:
 
                 building["envelope"] = Envelope(prj=nrb_prj,
                                                 building_params=building["buildingFeatures"],
-                                                construction_type=construction_type,
+                                                construction_data=construction_type,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath)
