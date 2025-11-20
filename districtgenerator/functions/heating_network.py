@@ -4,7 +4,7 @@ import scipy.optimize as opt
 import cmath
 import matplotlib.pyplot as plt
 
-def heating_network(data, all_data_conncect = None):
+def heating_network(data):
 
     heat_grid_data = data.heat_grid_data
     timeData = data.time

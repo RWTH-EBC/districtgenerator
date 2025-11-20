@@ -185,20 +185,26 @@ class CES():
         capacities_centralDevices : dictionary
             The capacities of the central devices.
         """
-
-        # Load parameters of the heating network
-        data = heating_network.heating_network(data, all_data_connect)
+        # Load model parameters
         model_param_eh = data.params_ehdo_model
 
-        # Load parameters of the energy hub
-        param, devs, dem, result_dict = load_params_central_devices.load_params(data, all_data_connect=None) #new
-
         # Destinguish between optimization of a single district and interconnected districts
-        # Run optimization
         if model_param_eh["optim_dimension"] == 0:
+            # Load parameters of the heating network
+            data = heating_network.heating_network(data)
+            # Load parameters of the energy hub
+            param, devs, dem, result_dict = load_params_central_devices.load_params(data)
+            # Run optimization
             capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)
         elif model_param_eh["optim_dimension"] == 1:
-            capacities_centralDevices = opti_dimensioning_central_devices_connect.run_optim_connect(data, devs, param, dem, result_dict, all_data_connect) #new
+            # Load parameters of the heating network for each interconnected district
+            for i in range(len(all_data_connect)):
+                # Call the function heating_network for each interconnected district
+                all_data_connect[i] = heating_network.heating_network(all_data_connect[i])
+            # Load parameters of the energy hub
+            param, devs, dem, result_dict = load_params_central_devices.load_params(data, all_data_connect)
+            # Run optimization 
+            capacities_centralDevices = opti_dimensioning_central_devices_connect.run_optim_connect(data, devs, param, dem, result_dict, all_data_connect) 
         else:
             raise ValueError("Invalid optim_dimension value. Must be '0' or '1'.")
 

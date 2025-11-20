@@ -28,7 +28,7 @@ def one_district_opt_cent():
     data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)    
     
     # Design decentral and central devices for the current district.
-    data.designDevicesComplete(saveGenerationProfiles=True, all_data_connect="All_data_connect_can_be_used_in_run_optim_connect)")
+    data.designDevicesComplete(saveGenerationProfiles=True)
     
     
     print("Congratulations! You generated your energy central for the selected neighborhood!")

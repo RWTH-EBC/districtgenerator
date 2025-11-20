@@ -24,9 +24,9 @@ import os
 def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
 
 
-    for i, data1 in enumerate(all_data_connect):
-        print(f"Scenario Name: {data1.scenario_name}") 
-        print("Data from all_data_connect in run_optim_connect")
+    # for i, data1 in enumerate(all_data_connect):
+    #     print(f"Scenario Name: {data1.scenario_name}") 
+    #     print("Data from all_data_connect in run_optim_connect")
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Load model parameters
@@ -41,6 +41,25 @@ def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
 
     # Get sigma function that assigns each time period (day or week) of the year to a design period
     sigma = param["sigma"]
+    
+    # Creat dictionary for the connection between districts and their devices
+    #all_devs_dict = {}
+
+    # Create list of devices for each district
+    # for data1 in all_data_connect:
+    #     district_name = data1.scenario_name  # Name of the districts
+    #     all_devs_dict[f"all_devs_{district_name}"] = [
+    #         "PV", "WT", "STC", "WAT",
+    #         "HP", "EB", "CC", "AC",
+    #         "CHP", "BOI", "GHP",
+    #         "BCHP", "BBOI", "WCHP", "WBOI",
+    #         "ELYZ", "FC", "H2S", "SAB",
+    #         "TES", "CTES", "BAT", "GS",
+    #     ]
+
+    # Print all devices for each district
+    # for district_name, devices in all_devs.items():
+    #     print(f"{district_name}: {devices}")
 
     # Create set for devices
     all_devs = ["PV", "WT", "STC", "WAT",
@@ -61,6 +80,7 @@ def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
     cap = {}
     for device in all_devs:
         cap[device] = model.addVar(vtype="C", name="nominal_capacity_" + str(device))
+    
 
     # Roof area used for PV and solar thermal collector installation
     area = {}
