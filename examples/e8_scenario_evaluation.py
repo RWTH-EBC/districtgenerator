@@ -12,7 +12,7 @@ from districtgenerator.classes import *
 def example8_scenario_evaluation():
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_C_buildings_5")
+    data = Datahandler(scenario_name = "district_D_buildings_15")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -26,7 +26,10 @@ def example8_scenario_evaluation():
     # Additional information about the technologies to be considered for the dimensioning
     # of the energy central and the economic parameters are read from additional
     # .csv and .json data sources.
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option= "rode")
+
+    topology_option = data.heat_grid_data["topology_option"]["value"]
+
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
