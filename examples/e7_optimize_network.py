@@ -54,9 +54,8 @@ def example7_optimize_heatingnetwork():
     else:
         topology_option = data.heat_grid_data["topology_option"]["value"]
 
-    data.generateNetwork(topology_option=topology_option)
-    # If sliding_temperature=True, the supply and return temperatures are adjusted according to the air temperature;
-    # if False, constant supply and return water temperatures are employed.
+    data.generateNetwork(topology_option = topology_option)
+
     data.optimization_heatingnetwork()
 
     ### =====================================  Output  ===================================== ###

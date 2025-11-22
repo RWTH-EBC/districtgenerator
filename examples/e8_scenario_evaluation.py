@@ -26,7 +26,10 @@ def example8_scenario_evaluation():
     # Additional information about the technologies to be considered for the dimensioning
     # of the energy central and the economic parameters are read from additional
     # .csv and .json data sources.
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option= "road")
+
+    topology_option = data.heat_grid_data["topology_option"]["value"]
+
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

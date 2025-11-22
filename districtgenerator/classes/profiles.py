@@ -902,10 +902,8 @@ class Profiles:
                 all_EV_cars_demand_total += ev_demand
 
                 # charging profile calculation
-                if charging_type == "on_demand":
-                    ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
-                    on_demand_all_EV_cars_charging += ev_charging_profile
-                else: ev_charging_profile = None
+                ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
+                on_demand_all_EV_cars_charging += ev_charging_profile
 
                 # Save individual car profile
                 individual_car_profiles.append({
@@ -1065,11 +1063,8 @@ class Profiles:
                 all_EV_cars_demand_total += ev_demand
 
                 # charging profile calculation
-                if charging_type == "on_demand":
-                    ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
-                    on_demand_all_EV_cars_charging += ev_charging_profile
-                else:
-                    ev_charging_profile = None
+                ev_charging_profile = _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt)
+                on_demand_all_EV_cars_charging += ev_charging_profile
 
 
                 # Save individual car profile

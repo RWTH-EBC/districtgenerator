@@ -661,7 +661,7 @@ class Users:
         self.EV_carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
         self.ev_capacity = [0.0]
         self.ice_carprofile = np.zeros(int(time_horizon / time_resolution))
-        self.individual_cars_profiles = []
+        self.individual_car_profiles = []
 
         # Residential buildings
         if self.building in {"SFH", "TH", "MFH", "AB"}:
@@ -683,7 +683,7 @@ class Users:
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
                 if gen_cars:
                     (EV_carprofile, EV_on_demand_charging, ev_capacity,
-                     ice_carprofile, individual_cars_profiles) = temp_obj.generate_car_profile(
+                     ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
                          building=building,
                          building_devices_data=building_devices_data,
                          holidays=holidays,
@@ -693,8 +693,8 @@ class Users:
                     self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + EV_on_demand_charging
                     self.ev_capacity += ev_capacity
                     self.ice_carprofile = self.ice_carprofile + ice_carprofile
-                    self.individual_car_profiles.extend(individual_cars_profiles)
-                    current_index += len(individual_cars_profiles)  # Update the starting index for the next flat of the building
+                    self.individual_car_profiles.extend(individual_car_profiles)
+                    current_index += len(individual_car_profiles)  # Update the starting index for the next flat of the building
 
         else:
             # Non-residential buildings

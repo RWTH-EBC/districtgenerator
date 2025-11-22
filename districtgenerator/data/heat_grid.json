@@ -5,7 +5,7 @@
   },
   "topology_option":{
     "value": "road",
-    "description": "Whether consider road constraints in pipeline topology optimization, selected between:\"node\" and \"rode\""
+    "description": "Whether consider road constraints in pipeline topology optimization, selected between:\"node\" and \"road\""
   },
   "temperature_mode":{
     "value": "Constant",
@@ -32,7 +32,7 @@
   },
   "T_cold_heating_network": {
     "Constant": {
-      "3rd": {"value": 50, "unit": "°C", "description": "return temperature of 3rd generation heat grid"},
+      "3rd": {"value": 55, "unit": "°C", "description": "return temperature of 3rd generation heat grid"},
       "4th": {"value": 30, "unit": "°C", "description": "return temperature of 4th generation heat grid"},
       "5th": {"value": 14, "unit": "°C", "description": "return temperature of 5th generation heat grid"}
     },
@@ -109,6 +109,16 @@
   "unit": "%",
   "description": "Heat losses at the substation. Source: Technikkatalog-Waermeplanung_Oktober2025"
   },
+  "dp_substation": {
+    "value": 100000,
+    "unit": "Pa",
+    "description": "Pressure drop at the substation"
+  },
+  "dp_energy_hub": {
+    "value": 50000,
+    "unit": "Pa",
+    "description": "Pressure drop at the energy hub"
+  },
   "C_subst": {
   "value": 277.79,
   "unit": "€/kW_th",
@@ -142,7 +152,7 @@
   },
   "pipe": {
     "f_fric": {"value": 0.025, "unit": "-", "description": "friction factor"},
-    "dp_pipe_max": {"value": 300, "unit": "Pa/m", "description": "max pressure gradient"},
+    "dp_pipe_max": {"value": 500, "unit": "Pa/m", "description": "max pressure gradient"},
     "dp_pipe_min": {"value": 30, "unit": "Pa/m", "description": "min pressure gradient"},
     "pipe_lifetime": {"value": 30, "unit": "years", "description": "pipe lifetime"},
     "cost_om_pipe": {"value": 0.005, "unit": "-", "description": "pipe O&M share"}

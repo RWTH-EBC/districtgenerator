@@ -393,6 +393,7 @@ def calc_flow_and_temperature(data):
     param["T_s"] = T_s
     param["T_s_cluster"] = T_s_cluster
     param["deltaT"] = deltaT
+    param["deltaT_cluster"] = deltaT_cluster
 
     return data, param
 
@@ -438,6 +439,7 @@ def optimization_diameter(data, param, f_fric):
     # 2 demand and temperature
     total_demand_cluster = param["total_demand_cluster"]
     T_s_cluster = param["T_s_cluster"]
+    deltaT_cluster = param["deltaT_cluster"]
 
     # 3 fluids parameters
     heat_grid_data = data.heat_grid_data
@@ -448,6 +450,20 @@ def optimization_diameter(data, param, f_fric):
 
     # 5 pump parameters
     eta_pump = heat_grid_data["pump"]["eta_pump"]["value"]        # 0.65,         electric pump efficiency
+
+    # constant pressure drops outside the pipe network
+    dp_substation = heat_grid_data["pump"].get("dp_substation", {}).get("value", 0.0)  # Pa
+    dp_energy_hub = heat_grid_data["pump"].get("dp_energy_hub", {}).get("value", 0.0)  # Pa
+    dp_station_total = dp_substation + dp_energy_hub  # Pa
+
+    # total volume flow at energy hub for each cluster/week/time
+    # total_demand_cluster in kW, c_f in J/(kg*K), rho_f in kg/m³, deltaT_cluster in K
+    # V̇ = Q / (c * ΔT * ρ)
+    Vdot_total_cluster = total_demand_cluster * 1000.0 / (c_f * deltaT_cluster * rho_f)  # m³/s
+
+    # extra pump power (kW) from substations + energy hub
+    # P = V̇ * Δp / (η * 1000)  [kW]
+    P_station_cluster = Vdot_total_cluster * dp_station_total / (eta_pump * 1000.0)
 
     # 6 pipe parameters
     # conv_pipe = heat_grid_data["pipe"]["conv_pipe"]["value"]        # 3600W/(m^2 K), convective heat transfer between flowing fluid and the pipe's inner surface
@@ -637,67 +653,42 @@ def optimization_diameter(data, param, f_fric):
     model.choose_one_diameter = pyo.Constraint(model.pipe, rule=choose_one_diameter_rule,
                                                doc="Each pipe picks exactly one diameter")
 
-    # 2) Pump power relation per pipe/week/t using auxiliary variables
-    '''
-    # linear method
-    # Define a new variable y[p, d, week, t] = pump_pipe[p, week, t] * z[p, d]
-    M_p = {p: 1e5 for p in data.pipeline.keys()}  # Big-M bounds
+    # 2) Pump power relation per pipe/week/t
+    # P_p,w,t = Σ_d [ prefac * L_p * 2*(1+0.2) * (ρ_f * V̇_p,w,t)^3 / D_d^5 ] * z[p,d]
+    # prefac already contains 8*f_fric/(π²*η_pump*ρ_f²)/1000  → kW units
 
-    model.y = pyo.Var(model.pipe_diam, model.week, model.t, within=pyo.NonNegativeReals,
-                      doc="Auxiliary variable y[p,d,w,t] = pump_pipe[p,w,t] * z[p,d]")
-
-    # Core linear relation: sum(d^5 * y[p,d,w,t]) == prefac * length * 2 * 1.2 * (rho_f * flow)^3
-    # *2: The first factor of two accounts for the pump power of both the supply and return pipes.
-    # *1.2: The factor of 1.2 accounts for an additional 20% of local losses.(source: Planungshandbuch Fernwärme)
-    def pump_pipe_relation_linear_rule(model, pipe, week, t):
-        i = week_to_i[week]
-        flow_value = data.pipeline[pipe]["flow_cluster"][i, t]
-        rhs = prefac * data.pipeline[pipe]["length"] * 2 * (1 + 0.2) * ((flow_value * rho_f) ** 3)
-        return sum(d5[d] * model.y[pipe, d, week, t] for d in pipe_candidates[pipe]) == rhs
-
-    model.pump_pipe_relation = pyo.Constraint(model.pipe, model.week, model.t,
-                                              rule=pump_pipe_relation_linear_rule,
-                                              doc="Linearized pump power vs diameter-flow relation")
-
-    # Big-M linking constraints for y = pump_pipe * z
-    def y_upper_bound_rule(model, pipe, d, week, t):
-        return model.y[pipe, d, week, t] <= M_p[pipe] * model.z[pipe, d]
-
-    def y_lower_bound_rule(model, pipe, d, week, t):
-        return model.y[pipe, d, week, t] >= model.pump_pipe[pipe, week, t] - M_p[pipe] * (1 - model.z[pipe, d])
-
-    def y_le_p_rule(model, pipe, d, week, t):
-        return model.y[pipe, d, week, t] <= model.pump_pipe[pipe, week, t]
-
-    model.y_upper_bound = pyo.Constraint(model.pipe_diam, model.week, model.t, rule=y_upper_bound_rule)
-    model.y_lower_bound = pyo.Constraint(model.pipe_diam, model.week, model.t, rule=y_lower_bound_rule)
-    model.y_le_p = pyo.Constraint(model.pipe_diam, model.week, model.t, rule=y_le_p_rule)
-    '''
-
-    # non-linear method
-    def g_expr_rule(model, pipe):
-        # sum over candidate diameters for pipe p
-        return pyo.quicksum(d5[d] * model.z[pipe, d] for d in pipe_candidates[pipe])
-
-    model.g = pyo.Expression(model.pipe, rule=g_expr_rule, doc="g[p] = sum(d^5 * z[p,d])")
-
-    #    pump_pipe[p,w,t] * g[p] * 1e10 == prefac * length * 2 * (1+0.2) * ((flow)^3) * 1e10
     def pump_pipe_relation_rule(model, pipe, week, t):
         i = week_to_i[week]
-        flow_value = data.pipeline[pipe]["flow_cluster"][i, t]
-        lhs = model.pump_pipe[pipe, week, t] * model.g[pipe] * 1e10
-        rhs = prefac * data.pipeline[pipe]["length"] * 2 * (1 + 0.2) * ((flow_value * rho_f) ** 3) * 1e10
-        return lhs == rhs
+        flow_value = data.pipeline[pipe]["flow_cluster"][i, t]  # m³/s
 
-    model.pump_pipe_relation = pyo.Constraint(model.pipe, model.week, model.t, rule=pump_pipe_relation_rule,
-                                              doc="Pump power vs diameter-flow relation")
+        length = data.pipeline[pipe]["length"]  # m
+        m_dot = rho_f * flow_value  # kg/s
+
+        # If flow is exactly zero, RHS will be 0 and pump_pipe will be forced to 0 anyway
+        return model.pump_pipe[pipe, week, t] == sum(
+            prefac * length * 2.0 * (1.0 + 0.2)
+            * (m_dot ** 3)
+            / ((pipe_dict[d]["Inner diameter (pipe) (mm)"] / 1000.0) ** 5)
+            * model.z[pipe, d]
+            for d in pipe_candidates[pipe]
+        )
+
+    model.pump_pipe_relation = pyo.Constraint(
+        model.pipe, model.week, model.t,
+        rule=pump_pipe_relation_rule,
+        doc="Pump power vs diameter-flow relation (kW)"
+    )
 
     # 3) For each path (line) and time, pump_el >= sum of pump_pipe along the path
     def pump_el_ge_path_rule(model, line, week, t):
         nodes = path[line]
         # accumulate pump_pipe for each pipe along the path (orientation a->b)
         expr = sum(model.pump_pipe[pair_to_pid[(nodes[i], nodes[i + 1])], week, t] for i in range(len(nodes) - 1))
-        return model.pump_el[week, t] >= expr
+
+        i = week_to_i[week]
+        extraP = P_station_cluster[i, t]  # kW
+
+        return model.pump_el[week, t] >= expr + extraP
 
     model.pump_el_ge_path = pyo.Constraint(model.lines, model.week, model.t, rule=pump_el_ge_path_rule,
                                            doc="pump_el >= sum of pump_pipe along path")
@@ -835,6 +826,11 @@ def optimization_diameter(data, param, f_fric):
 
     # Solve the model
     solver, solver_options = solver_config.create_solver()
+
+    solver_options["FeasibilityTol"] = 1e-9
+    solver_options["IntFeasTol"] = 1e-9
+    solver_options["NumericFocus"] = 3
+
     results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
 
     return data, model, param
@@ -908,7 +904,7 @@ def output_diameter(data, model, param):
             dx = 6
         ax.text(mid_x + dx, mid_y + dy, str(idx), fontsize=8, color='black', ha='center', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Labeled by Pipe ID")
+    ax.set_title("Labeled by Pipe ID")
     ax.set_aspect('equal')
 
     plot_filename = f"pipeline_id_{data.scenario_name}.png"
@@ -962,7 +958,7 @@ def output_diameter(data, model, param):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"DN{DN}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Diameter")
+    ax.set_title("Diameter")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -1020,7 +1016,7 @@ def output_diameter(data, model, param):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"{velocity_max:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Maximum velocity (m/s)")
+    ax.set_title("Maximum velocity (m/s)")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -1066,7 +1062,7 @@ def output_diameter(data, model, param):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"{pressure_drop_max:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Maximum pressure drop (Pa/m)")
+    ax.set_title("Maximum pressure drop (Pa/m)")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -1120,7 +1116,7 @@ def output_diameter(data, model, param):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"{energy_density:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Pipeline Map - Energy_density (MWh/m)")
+    ax.set_title("Energy density (MWh/m)")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -1172,7 +1168,7 @@ def output_diameter(data, model, param):
         flow = pipe["flow"]  # m3/s
         # *2: The first factor of two accounts for the pump power of both the supply and return pipes.
         # *1.2: The factor of 1.2 accounts for an additional 20% of local losses.(source: Planungshandbuch Fernwärme)
-        pump_power_pipe[pipe_id] = prefac * length * 2 * (1 + 0.2) * ((flow * rho_f) ** 3) / ((d_i/1000) ** 5)
+        pump_power_pipe[pipe_id] = prefac * length * 2 * (1 + 0.2) * ((flow * rho_f) ** 3) / ((d_i / 1000) ** 5)
 
     # Build mapping from oriented node pair to pipe id (assume unique per pair)
     pair_to_pid = {}
@@ -1195,8 +1191,24 @@ def output_diameter(data, model, param):
     # Stack all line pump power arrays into a 2D matrix: (n_lines, n_timesteps)
     pump_matrix = np.array(list(pump_power_line.values()))
 
-    # Take the maximum pump power across all lines for each timestep
-    pump_power = np.max(pump_matrix, axis=0)
+    # Add yearly station + hub pressure-drop component
+    dp_substation = data.heat_grid_data.get("dp_substation", {}).get("value", 0.0)  # Pa
+    dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", {}).get("value", 0.0)  # Pa
+    dp_station_total = dp_substation + dp_energy_hub                                         # Pa
+
+    # Approximate total volume flow at energy hub as sum of flows leaving EH1
+    T_s = param["T_s"]  # only used for shape
+    Vdot_total_profile = np.zeros_like(T_s, dtype=float)
+    for pipe_id, pipe in data.pipeline.items():
+        if pipe["from"] == "EH1":
+            Vdot_total_profile += pipe["flow"]  # m³/s
+
+    # Extra pump power from substations + energy hub
+    # P = V̇ * Δp / (η * 1000)
+    P_station_profile = Vdot_total_profile * dp_station_total / (eta_pump * 1000.0)  # kW
+
+    # Final pump power: pipe friction (worst line) + station/hub component
+    pump_power = np.max(pump_matrix, axis=0) + P_station_profile
 
     data.heat_grid_data["pump_power"] = pump_power
     print("Total pump power in network calculation finished successfully.")
@@ -1206,7 +1218,7 @@ def output_diameter(data, model, param):
     buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
     C_substations = 0
     for building in buildings_connected:
-        substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
+        substation_capacity = building["envelope"].heatload/1000 + building["dhwpower"]/1000  #kW
         substation_costs = substation_capacity * data.heat_grid_data["C_subst"]["value"]
         C_substations += substation_costs
     substation_lifetime = data.heat_grid_data["lifetime_subst"]["value"]
@@ -1247,8 +1259,8 @@ def output_diameter(data, model, param):
     electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"]
 
     # calculate the total cost
-    data.heat_grid_data["om_costs"] = pipes_om_costs + pump_om_costs + substation_om_costs
-    data.heat_grid_data["ann_costs"] = pipes_ann_costs + pump_ann_costs + electricity_costs + substation_ann_costs
+    data.heat_grid_data["om_costs"] = pipes_om_costs + pump_om_costs + substation_om_costs + electricity_costs
+    data.heat_grid_data["ann_costs"] = pipes_ann_costs + pump_ann_costs + substation_ann_costs
 
     return data
 
