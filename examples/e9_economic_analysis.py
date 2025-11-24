@@ -199,11 +199,9 @@ def run_economic_analysis(building_info, calcDemands):
         data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, gen_cars=False)
 
     building = data.district[0]
-    # Change investment data to match the design and bivalent load of the building energy system
-    design_load = building["bes_obj"].design_load_heating # Space heating design load + DHW design load
-    bivalent_load = building["bes_obj"].bivalent_load_heating  # 
 
-    change_device_inv_data(design_load, bivalent_load, building_info['heater'])
+
+    change_device_inv_data(building, building_info['heater'])
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
@@ -290,10 +288,15 @@ def get_economic_indicators(data):
 
     return capex, opex
 
-def change_device_inv_data(design_load, bivalent_load, heater):
+def change_device_inv_data(building, heater):
     """
     Function to change the investment data of devices according to the design load and bivalent load of the building energy system.
     """
+    # Change investment data to match the design and bivalent load of the building energy system
+    design_load = building["bes_obj"].design_load_heating # Space heating design load + DHW design load
+    bivalent_load = building["bes_obj"].bivalent_load_heating  #
+    tes_kWh = building["capacities"]["TES"]/1000  # in kWh
+    f_tes = building["buildingFeatures"]["f_TES"]
 
     def heater_data_mapping(heater, design_load, bivalent_load):
         
@@ -347,6 +350,12 @@ def change_device_inv_data(design_load, bivalent_load, heater):
             80 : {'grade': 0.4, 'life_time': 20, 'inv_var': 1170, 'cost_om': 2030/(80*1170)},
             100 : {'grade': 0.4, 'life_time': 20, 'inv_var': 1080, 'cost_om': 2330/(100*1080)},
         }
+        tes_data = { # Size l not kW, investment per l
+            150 : {'life_time': 20, 'inv_var': 20, 'cost_om': 40/(150*20), 'daily_loss': 1.3},
+            300 : {'life_time': 20, 'inv_var': 13, 'cost_om': 50/(300*13), 'daily_loss': 1.1},
+            500 : {'life_time': 20, 'inv_var': 11, 'cost_om': 70/(500*11), 'daily_loss': 0.9},
+            1000 : {'life_time': 20, 'inv_var': 9, 'cost_om': 120/(1000*9), 'daily_loss': 0.8},
+        }
 
         all_data = {
             'BBOI': bboi_data,
@@ -357,11 +366,11 @@ def change_device_inv_data(design_load, bivalent_load, heater):
             'HP': hp_data,
         }
 
-        def find_optimal_size(device_data, target_load_kw):
+        def find_optimal_size(device_data, target):
             current_distance = float('inf')
             opt_size = None
             for size in sorted(device_data.keys()):
-                distance = abs(size - target_load_kw)
+                distance = abs(size - target)
                 if distance < current_distance:
                     current_distance = distance
                     opt_size = size
@@ -383,6 +392,22 @@ def change_device_inv_data(design_load, bivalent_load, heater):
             device = all_data[heater]
             opt_size = find_optimal_size(device, design_load_kw)
             heater_dict[heater] = device[opt_size]  
+
+
+        # Always change the TES data as well
+        tes_size_l = design_load_kw * f_tes # kw * l/kw
+        opt_tes_size = find_optimal_size(tes_data, tes_size_l)
+
+        # Change eta_standby according to daily loss        
+        tes_data = tes_data[opt_tes_size]
+        daily_loss = tes_data['daily_loss']  # in kWh per day
+        hourly_loss = daily_loss / 24  # in kWh per hour
+        tes_data['eta_standby'] = 1 - (hourly_loss / tes_kWh)  # tes_kWh
+
+        #remove daily_loss from tes_data as it is no longer needed
+        tes_data.pop('daily_loss', None)
+
+        heater_dict['TES'] = tes_data
 
         return heater_dict
     
