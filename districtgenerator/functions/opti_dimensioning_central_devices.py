@@ -582,6 +582,7 @@ def run_optim(data, devs, param, dem, result_dict):
         result_dict["tac"] = int(obj["tac"].X)      # EUR/a
         result_dict["co2"] = int(obj["co2"].X/1000) # t/a
 
+        #Save capacities of devices
         for k in cap.keys():
             result_dict[k] = {"cap": round(cap[k].X, 1)}
 
