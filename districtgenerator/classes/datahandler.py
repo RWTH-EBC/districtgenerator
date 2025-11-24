@@ -1046,12 +1046,11 @@ class Datahandler:
 
             # %% create building energy system object
             # get capacities of all possible devices
-            bes_obj = BES(physics=self.physics,
+            building["bes_obj"] = BES(physics=self.physics,
                           decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = bes_obj.designECS(building, self.site)
-
+            building["capacities"] = building["bes_obj"].designECS(building, self.site)
             # calculate PV and STC generation
             building["generationPV"], building["generationSTC"] = \
                 sun.calcPVAndSTCProfile(time=self.time,
@@ -1696,6 +1695,7 @@ class Datahandler:
                         'night_setback': 0,  # Standard
                         'area': safe_convert_area(row.get('gross_floor_area')),
                         'heater': map_heater_type(row.get('heating_system')),
+                        'cooling': 0,  # Standard
                         'PV': 0,
                         'STC': 0,  # Standard
                         'EV': 0,  # Standard
@@ -1721,18 +1721,28 @@ class Datahandler:
         quartier_df = pd.DataFrame(quartier_data)
         wkb_df = pd.DataFrame(wkb_data_for_csv)
 
+        # Extract Building Model for saving name
+        # open \districtgenerator\data\design_building_data.json and extract the 'value' key from the dict with "name": "thermal_model_type"
+        this_file_path = os.path.dirname(__file__)
+        # The base dir
+        base_dir = os.path.abspath(os.path.join(this_file_path, os.pardir, os.pardir))
+        data_path = os.path.join(base_dir, 'districtgenerator','data', 'design_building_data.json')
+        with open(data_path, 'r', encoding='utf-8') as f:
+            model_data = json.load(f)
+        building_model = next((item["value"] for item in model_data if item["name"] == "thermal_model_type"), '')  
+
         # Als CSV speichern
         num_csv = max(1, (len(quartier_df) + batch_size - 1) // batch_size)  # Berechne Anzahl der benötigten Dateien
         print(f"Total buildings processed: {len(quartier_df)}. Saving in {num_csv} CSV file(s).")
 
         for i in range(num_csv):
             batch_quartier_df = quartier_df.iloc[i*batch_size:(i+1)*batch_size]
-            quartier_batch_path = output_file_path.replace(".csv", f"_{i}.csv")
+            quartier_batch_path = output_file_path.replace(".csv", f"_{building_model}_{i}.csv")
             batch_quartier_df.to_csv(quartier_batch_path, sep=';', index=False)
 
         # all_buildings combined CSV files
         quartier_df.to_csv(output_file_path, sep=';', index=False)
-        wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=';', index=False)
+        wkb_df.to_csv(output_file_path.replace("dg", f"wkb_{building_model}"), sep=';', index=False)
 
         return quartier_df
 

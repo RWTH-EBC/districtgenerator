@@ -5,6 +5,7 @@ We reached the final step, to generate our first district: Generate demand profi
 """
 
 # Import classes of the districtgenerator to be able to use the district generator.
+import json
 from districtgenerator.classes import *
 import pandas as pd
 import os
@@ -13,6 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import warnings
+import time
 
 SRCPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 plots_dir = os.path.join(SRCPATH, 'districtgenerator', 'results', 'plots')
@@ -24,9 +26,18 @@ def example10_comparison_heat_demands(scenario_name):
 
     heat_demands_QG = pd.DataFrame()
 
+    this_file_path = os.path.dirname(__file__)
+    # The base dir
+    base_dir = os.path.abspath(os.path.join(this_file_path, os.pardir))
+    data_path = os.path.join(base_dir, 'districtgenerator','data', 'design_building_data.json')
+    with open(data_path, 'r', encoding='utf-8') as f:
+        model_data = json.load(f)
+    building_model = next((item["value"] for item in model_data if item["name"] == "thermal_model_type"), '')
+    print(f"Using building model: {building_model}")
+
     # The original scenario is split into multiple batched csv files
     scenario_folder = os.path.join(SRCPATH, 'districtgenerator', 'data', 'scenarios')
-    pattern = f"{scenario_name}_dg_*.csv"
+    pattern = f"{scenario_name}_dg_{building_model}_*.csv"
 
     all_former_files = [file_path for file_path in Path(scenario_folder).glob(pattern)]
 
@@ -36,9 +47,6 @@ def example10_comparison_heat_demands(scenario_name):
 
     # Initialize District to generate all necessary batched scenario files and map them to districtgenerator format
     data = Datahandler(scenario_name = scenario_name, heat_map_berlin = True)
-    
-    # Get building model type for later use
-    building_model = data.design_building_data.get("thermal_model_type")
 
     del data # Delete instance to free memory
     
@@ -68,7 +76,7 @@ def example10_comparison_heat_demands(scenario_name):
     
     print("\nSimulation runs completed and results saved to Excel.")
 
-def load_results_excel(scenario_name, building_model="5R1C"):
+def load_results_excel(scenario_name, building_model):
     """
         Loads the results Excel file for the given scenario name.
         The Excel file is expected to be located in the 'results' directory
@@ -136,7 +144,7 @@ def add_demands_to_df(data, data_frames, run_number):
 
     return data_frames
 
-def save_excel(scenario_name, data_frames, building_model="5R1C"):
+def save_excel(scenario_name, data_frames, building_model):
     """
     Saves the dataframes to an Excel file with multiple sheets.
     """
@@ -146,7 +154,7 @@ def save_excel(scenario_name, data_frames, building_model="5R1C"):
             df.to_excel(writer, sheet_name=sheet_name)
     print(f"Data saved to Excel file: {path}")
 
-def read_wkb_data(scenario_name) -> pd.DataFrame:
+def read_wkb_data(scenario_name, building_model) -> pd.DataFrame:
     """
     Read the WKB data from an CSV data file.
     Now reads ALL columns from the CSV file for comprehensive analysis.
@@ -161,7 +169,7 @@ def read_wkb_data(scenario_name) -> pd.DataFrame:
         DataFrame with all available columns from the Excel file.
     """
     
-    filename = f"{scenario_name}_wkb.csv"
+    filename = f"{scenario_name}_wkb_{building_model}.csv"
     file_path = os.path.join(SRCPATH, 'districtgenerator', 'data', 'scenarios', filename)
     
     try:
@@ -182,7 +190,7 @@ def read_wkb_data(scenario_name) -> pd.DataFrame:
         print(f"Error reading CSV file: {e}")
         return pd.DataFrame()
 
-def analyse_data(scenario_name, building_model = "5R1C"):
+def analyse_data(scenario_name, building_model = "5R1C", compare_against = "measured"):
     """
     Analyse the combined data for insights.
     
@@ -198,20 +206,23 @@ def analyse_data(scenario_name, building_model = "5R1C"):
     None
     """    
     # Switch between simulated and measured data to define against which we compare
-    simulated_col = 'heat_demand_simulated'
-    measured_col = 'energy_consumption_sh'
-    relevant_col = measured_col
-
+    if compare_against == "measured":
+        relevant_col = 'energy_consumption_sh'
+    elif compare_against == "simulated":
+        relevant_col = 'heat_demand_simulated'
+    else:
+        raise ValueError("compare_against must be either 'measured' or 'simulated'")
+    
     ###########################################################
     # Load data
     ###########################################################
 
     # Choose against which demand data to compare: space_heating, dhw, total_heat
-    demand_sheet = 'total_heat'
+    demand_sheet = 'space_heating' # WKB Berlin data contains only space heating data
     data_frames = load_results_excel(scenario_name, building_model=building_model)
     data_frame = data_frames[demand_sheet]
     # WKB data
-    WKB_data = read_wkb_data(scenario_name)
+    WKB_data = read_wkb_data(scenario_name, building_model=building_model)
 
     ###########################################################
     # Combine data
@@ -243,8 +254,68 @@ def analyse_data(scenario_name, building_model = "5R1C"):
     combined_data["difference_heat_percent_QG"] = (combined_data['difference_heat_kWh_a_QG'] / combined_data[relevant_col]) * 100
     
     # Add here specific analysis and visualizations
-    plot_boxplots_gmh_mfh_by_age(combined_data, saniert=False, scenario_name=scenario_name)
-    plot_boxplots_gmh_mfh_by_age(combined_data, saniert=True, scenario_name=scenario_name)
+    plot_boxplots_gmh_mfh_by_age(combined_data, saniert=False, scenario_name=scenario_name, name_addition=compare_against, building_model=building_model)
+    time.sleep(1)  # Ensure plots are saved before next ones are created
+    plot_boxplots_gmh_mfh_by_age(combined_data, saniert=True, scenario_name=scenario_name, name_addition=compare_against, building_model=building_model)
+    time.sleep(1)  # Ensure plots are saved before next ones are created
+    plot_specific_subset_scatter(combined_data, scenario_name=scenario_name, name_addition=compare_against, building_model=building_model)
+
+def analyse_wkb_comparison(scenario_name, building_model):
+    """
+    Führt eine separate Analyse nur der WKB-Daten durch.
+    Vergleicht den 'simulierten' mit dem 'gemessenen' Wärmebedarf 
+    aus der WKB-Datei und stellt dies in den Boxplots dar.
+    """
+    print("\n--- Starte interne WKB-Daten-Analyse ---")
+    
+    # 1. Nur WKB-Daten laden
+    WKB_data = read_wkb_data(scenario_name, building_model= building_model)
+    if WKB_data.empty:
+        print("WKB-Daten sind leer. Überspringe internen WKB-Vergleich.")
+        return
+
+    # Spaltennamen definieren
+    wkb_sim_col = 'heat_demand_simulated'
+    wkb_measured_col = 'energy_consumption_sh'
+    
+    # Prüfen, ob die benötigten Spalten vorhanden sind
+    required_cols = [
+        wkb_sim_col, wkb_measured_col, 'construction_year', 
+        'renovation_state_simulated', 'building_type_simplified'
+    ]
+    if not all(col in WKB_data.columns for col in required_cols):
+        print(f"WARNUNG: WKB-Datei fehlen Spalten für den internen Vergleich. Benötigt: {required_cols}")
+        print(f"Vorhanden: {list(WKB_data.columns)}")
+        return
+
+    # 2. Neue Abweichungs-Spalte berechnen
+    # Dies ist die Spalte, die wir plotten wollen
+    value_col_name = 'wkb_internal_diff_percent'
+    WKB_data[value_col_name] = (WKB_data[wkb_sim_col] - WKB_data[wkb_measured_col]) / WKB_data[wkb_measured_col] * 100
+    
+    print(f"Interne WKB-Abweichung berechnet. (Min: {WKB_data[value_col_name].min():.1f}%, Max: {WKB_data[value_col_name].max():.1f}%)")
+
+    # 3. Bestehende Plot-Funktion aufrufen und die neue Spalte übergeben
+    
+    # Name-Addition, um die Plots klar zu benennen
+    name_add = "WKB_internal_comparison"
+
+    plot_boxplots_gmh_mfh_by_age(
+        combined_data=WKB_data,
+        saniert=False,
+        value_col=value_col_name,  # HIER wird die neue Spalte übergeben
+        scenario_name=scenario_name,
+        name_addition=name_add
+    )
+    time.sleep(1) # Kurze Pause
+
+    plot_boxplots_gmh_mfh_by_age(
+        combined_data=WKB_data,
+        saniert=True,
+        value_col=value_col_name,  # HIER wird die neue Spalte übergeben
+        scenario_name=scenario_name,
+        name_addition=name_add
+    )
 
 # ----------------------------------------
 # Code used for visualizations
@@ -252,12 +323,13 @@ def analyse_data(scenario_name, building_model = "5R1C"):
 
 def plot_boxplots_by_buildingtype_and_age(
     combined_data,
+    name_addition="",
     saniert=True,
     value_col='difference_heat_percent_QG',
     gebaeudetyp_col='building_type_simplified',
     baujahr_col='construction_year',
     sanierungs_col='renovation_state_simulated',
-    scenario_name=None
+    scenario_name=None    
 ):
     """
     Erstellt eine Grafik mit Subplots für jeden Gebäudetyp, die den Fehler für jede Altersklasse zeigen.
@@ -476,7 +548,7 @@ def plot_boxplots_by_buildingtype_and_age(
     # Speichern
     plots_dir = os.path.join(SRCPATH, 'districtgenerator', 'results', 'plots')
     os.makedirs(plots_dir, exist_ok=True)
-    fname = f"boxplots_all_buildingtype_age_{'teilsaniert' if saniert else 'unsaniert'}_{scenario_name or 'plot'}.png"
+    fname = f"{building_model}_{'teilsaniert' if saniert else 'unsaniert'}_{scenario_name}_{name_addition}.png"
     file_path = os.path.join(plots_dir, fname)
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
     # plt.show()
@@ -491,7 +563,9 @@ def plot_boxplots_gmh_mfh_by_age(
     baujahr_col='construction_year',
     sanierungs_col='renovation_state_simulated',
     scenario_name=None,
-    SRCPATH="." # Annahme: SRCPATH wird benötigt, Standardwert auf "." gesetzt
+    SRCPATH=".", # Annahme: SRCPATH wird benötigt, Standardwert auf "." gesetzt
+    name_addition="",
+    building_model= ""
 ):
     """
     Erstellt eine Grafik mit Subplots für die Gebäudetypen GMH und MFH, 
@@ -703,7 +777,7 @@ def plot_boxplots_gmh_mfh_by_age(
     os.makedirs(plots_dir, exist_ok=True)
     
     # *** MODIFIKATION: Dateiname angepasst ***
-    fname = f"boxplots_gmh_mfh_age_{'teilsaniert' if saniert else 'unsaniert'}_{scenario_name or 'plot'}.png"
+    fname = f"{building_model}_{'teilsaniert' if saniert else 'unsaniert'}_{scenario_name}_{name_addition}.png"
     
     file_path = os.path.join(plots_dir, fname)
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
@@ -711,9 +785,192 @@ def plot_boxplots_gmh_mfh_by_age(
     plt.close(fig)
     print(f"GMH/MFH Boxplot-Grafik gespeichert: {fname}")
 
+def plot_specific_subset_scatter(
+    combined_data, 
+    scenario_name, 
+    FLAECHEN_COL = 'gross_floor_area', 
+    ETAGEN_COL = 'number_floors', 
+    baujahr_col='construction_year',
+    sanierungs_col='renovation_state_simulated',
+    gebaeudetyp_col='building_type_simplified',
+    name_addition="",
+    building_model=""
+):
+    """
+    Erstellt zwei spezifische Scatter-Plots für das Subset (GMH, 1860-1948)
+    und speichert sie einzeln SOWIE als kombinierte Abbildung.
+    
+    Plots:
+    1. Etagenanzahl vs. Abweichung (einzeln)
+    2. Fläche vs. Abweichung (einzeln)
+    3. Kombinierte Abbildung (Plot 1 und 2 nebeneinander)
+    """
+    
+    # Pfad für die Plots definieren
+    plots_dir = os.path.join(SRCPATH, 'districtgenerator', 'results', 'plots')
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # 1. Sicherstellen, dass die gemappte Altersklasse existiert
+    altersklassen_qg = [
+        '1860 - 1918', '1919 - 1948', '1949 - 1957', '1958 - 1968', '1969 - 1978', 
+        '1979 - 1983', '1984 - 1994', '1995 - 2001', '2002 - 2009', '2010 - 2015', '2016 - 2023'
+    ]
+    bins = [1859, 1918, 1948, 1957, 1968, 1978, 1983, 1994, 2001, 2009, 2015, 2023]
+    gemappte_altersklasse_col = "baujahr_mapped"
+    
+    df = combined_data.copy()
+    if gemappte_altersklasse_col not in df.columns:
+        df[gemappte_altersklasse_col] = pd.cut(
+            df[baujahr_col],
+            bins=bins, labels=altersklassen_qg,
+            right=True, ordered=False
+        )
+    
+    # 2. Das spezifische Subset filtern
+    altersklassen_filter = ['1860 - 1918'] # ['1860 - 1918', '1919 - 1948']
+    gebaeudetyp_filter = 'GMH'
+    
+    df_subset = df[
+        (df[gebaeudetyp_col] == gebaeudetyp_filter) &
+        (df[gemappte_altersklasse_col].isin(altersklassen_filter))
+    ]
+    
+    # Daten für das Plotten bereinigen
+    df_subset = df_subset.dropna(subset=[
+        FLAECHEN_COL, ETAGEN_COL, 'difference_heat_percent_QG', sanierungs_col
+    ])
+    
+    print(f"Daten für spezifisches Subset (GMH, 1860-1948) gefunden: {len(df_subset)} Gebäude")
+    
+    if len(df_subset) < 2: # Brauchen mind. 2 Punkte für einen Plot
+        print("Nicht genügend Daten für die Subset-Plots.")
+        return
+
+    # --- Plot 1: Etagen vs. Abweichung (EINZELN) ---
+    try:
+        g1 = sns.lmplot(
+            data=df_subset,
+            x=ETAGEN_COL,
+            y='difference_heat_percent_QG',
+            hue=sanierungs_col,
+            palette='Set1',
+            height=6,
+            aspect=1.2,
+            scatter_kws={'alpha': 0.6, 's': 20},
+            fit_reg=False 
+        )
+        g1.ax.axhline(0, color='grey', linestyle='--')
+        g1.ax.grid(True, which='both', linestyle='--', alpha=0.3)
+        g1.fig.suptitle(f'Subset (GMH, 1860-1948, n={len(df_subset)}): Abweichung vs. Etagenanzahl', y=1.03)
+        g1.set_xlabels('Etagenanzahl')
+        g1.set_ylabels('Relative Abweichung (%)')
+        
+        plot_path1 = os.path.join(plots_dir, f"scatter_subset_etagen_{scenario_name}_{building_model}_{name_addition}.png")
+        # plt.savefig(plot_path1, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Subset-Plot (Etagen) gespeichert: {plot_path1}")
+
+    except Exception as e:
+        print(f"Fehler beim Plotten (Etagen, einzeln): {e}")
+
+    # --- Plot 2: Fläche vs. Abweichung (EINZELN) ---
+    try:
+        g2 = sns.lmplot(
+            data=df_subset,
+            x=FLAECHEN_COL,
+            y='difference_heat_percent_QG',
+            hue=sanierungs_col,
+            palette='Set1',
+            height=6,
+            aspect=1.2,
+            scatter_kws={'alpha': 0.6, 's': 20},
+            fit_reg=False
+        )
+        g2.ax.axhline(0, color='grey', linestyle='--')
+        g2.ax.grid(True, which='both', linestyle='--', alpha=0.3)
+        g2.fig.suptitle(f'Subset (GMH, 1860-1948, n={len(df_subset)}): Abweichung vs. Fläche', y=1.03)
+        g2.set_xlabels(f'{FLAECHEN_COL} ($m^2$)')
+        g2.set_ylabels('Relative Abweichung (%)')
+
+        plot_path2 = os.path.join(plots_dir, f"scatter_subset_flaeche_{scenario_name}_{building_model}_{name_addition}.png")
+        # plt.savefig(plot_path2, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Subset-Plot (Fläche) gespeichert: {plot_path2}")
+        
+    except Exception as e:
+        print(f"Fehler beim Plotten (Fläche, einzeln): {e}")
+
+    # --- Plot 3: KOMBINIERTE Abbildung (NEU) ---
+    try:
+        # Erstelle eine Figure mit 1 Zeile und 2 Spalten (nebeneinander)
+        fig, axes = plt.subplots(1, 2, figsize=(18, 7)) # Breite Figur
+        
+        # --- Plot A (Etagen) auf der linken Achse ---
+        sns.scatterplot(
+            data=df_subset,
+            x=ETAGEN_COL,
+            y='difference_heat_percent_QG',
+            hue=sanierungs_col,
+            palette='Set1',
+            alpha=0.6,
+            s=20,
+            ax=axes[0]  # Zeichne auf die erste Achse
+        )
+        axes[0].axhline(0, color='grey', linestyle='--')
+        axes[0].grid(True, which='both', linestyle='--', alpha=0.3)
+        axes[0].set_title('Abweichung vs. Etagenanzahl')
+        axes[0].set_xlabel('Etagenanzahl')
+        axes[0].set_ylabel('Relative Abweichung (%)')
+        # Legende von diesem Plot entfernen (wir machen eine gemeinsame)
+        if axes[0].get_legend() is not None:
+            axes[0].get_legend().remove()
+
+        # --- Plot B (Fläche) auf der rechten Achse ---
+        sns.scatterplot(
+            data=df_subset,
+            x=FLAECHEN_COL,
+            y='difference_heat_percent_QG',
+            hue=sanierungs_col,
+            palette='Set1',
+            alpha=0.6,
+            s=20,
+            ax=axes[1]  # Zeichne auf die zweite Achse
+        )
+        axes[1].axhline(0, color='grey', linestyle='--')
+        axes[1].grid(True, which='both', linestyle='--', alpha=0.3)
+        axes[1].set_title('Abweichung vs. Fläche')
+        axes[1].set_xlabel(f'{FLAECHEN_COL} ($m^2$)')
+        axes[1].set_ylabel(None) # Y-Achse nicht wiederholen
+        
+        # --- Gemeinsame Legende ---
+        # Hole Handles und Labels vom zweiten Plot
+        handles, labels = axes[1].get_legend_handles_labels()
+        # Entferne die Legende vom zweiten Plot
+        if axes[1].get_legend() is not None:
+            axes[1].get_legend().remove()
+        # Erstelle EINE Legende für die gesamte Figure
+        fig.legend(handles, labels, title=sanierungs_col, loc='upper right', bbox_to_anchor=(0.98, 0.95))
+
+        # Übergreifender Titel
+        fig.suptitle(f'Subset (GMH, 1860-1948, n={len(df_subset)})', fontsize=16, y=1.03)
+        
+        # Layout anpassen, damit alles passt
+        plt.tight_layout(rect=[0, 0, 0.9, 1]) # Platz für die Legende lassen
+        
+        # Speichern der kombinierten Figure
+        combined_plot_path = os.path.join(plots_dir, f"scatter_subset_combined_{scenario_name}_{building_model}_{name_addition}.png")
+        plt.savefig(combined_plot_path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        print(f"Kombinierten Subset-Plot gespeichert: {combined_plot_path}")
+
+    except Exception as e:
+        print(f"Fehler beim Erstellen des kombinierten Plots: {e}")
 
 if __name__ == '__main__':
     scenario_name = '251028_export'
     # example10_comparison_heat_demands(scenario_name=scenario_name)
     # Analyse the data
-    combined_data= analyse_data(scenario_name=scenario_name, building_model="5R1C") # Alternative: "7R2C"
+    building_model="5R1"
+    combined_data= analyse_data(scenario_name=scenario_name, building_model=building_model, compare_against='measured') # Alternative: "7R2C"
+    combined_data= analyse_data(scenario_name=scenario_name, building_model=building_model, compare_against='simulated') # Alternative: "7R2C"
+    analyse_wkb_comparison(scenario_name=scenario_name, building_model=building_model)

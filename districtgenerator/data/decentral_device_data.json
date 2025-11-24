@@ -1,733 +1,748 @@
 [
-  {
-  "device": "compression chiller" ,
-  "abbreviation": "CC" ,
-  "description": "Air-to-water compression chiller." ,
-  "specifications": [
     {
-      "name": "grade" ,
-      "value": 0.4 ,
-      "unit": "-" ,
-      "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
+        "device": "compression chiller",
+        "abbreviation": "CC",
+        "description": "Air-to-water compression chiller.",
+        "specifications": [
+            {
+                "name": "grade",
+                "value": 0.4,
+                "unit": "-",
+                "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 700,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.02,
+                "unit": "percentage",
+                "description": ""
+            }
+        ]
     },
     {
-      "name": "inv_var",
-      "value": 700,
-      "unit": "€/kW",
-      "description": ""
+        "device": "heat pump",
+        "abbreviation": "HP",
+        "description": "Air-to-water heat pump.",
+        "specifications": [
+            {
+                "name": "grade",
+                "value": 0.4,
+                "unit": "-",
+                "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
+            },
+            {
+                "name": "life_time",
+                "value": 18,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 1982,
+                "unit": "€/kWth",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.01917255297679112,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
     },
     {
-      "name": "cost_om",
-      "value": 0.02,
-      "unit": "percentage",
-      "description": ""
+        "device": "electric heater",
+        "abbreviation": "EH",
+        "description": "Electric heating device for bivalent operation in combination with the heat pump.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 1.0,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 25,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 508,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.00984251968503937,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "gas boiler",
+        "abbreviation": "BOI",
+        "description": "Gas boiler.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 0.99,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 709,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.029619181946403384,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "biomass boiler",
+        "abbreviation": "BBOI",
+        "description": "Biomass boiler.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 0.9,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 1428,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.06022408963585434,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "oil boiler",
+        "abbreviation": "OBOI",
+        "description": "Oil boiler.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 0.92,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 779,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.03465982028241335,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "hydrogen boiler",
+        "abbreviation": "H2BOI",
+        "description": "Hydrogen boiler.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 0.994,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 390,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.03076923076923077,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "combined heat and power plant",
+        "abbreviation": "CHP",
+        "description": "Gas based combined heat an power plant.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 0.62,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "eta_el",
+                "value": 0.3,
+                "unit": "-",
+                "description": "Electrical efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 15,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 3500,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.05,
+                "unit": "percentage",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "district heating",
+        "abbreviation": "DH",
+        "description": "district heating connection point.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 1.0,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 30,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 0,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cap_fee",
+                "value": 50,
+                "unit": "€/(year*kW)",
+                "description": "price payed for the connection to the district heating network."
+            }
+        ]
+    },
+    {
+        "device": "fuel cell",
+        "abbreviation": "FC",
+        "description": "hydrogen based fuel cell.",
+        "specifications": [
+            {
+                "name": "eta_th",
+                "value": 0.53,
+                "unit": "-",
+                "description": "Thermal efficiency."
+            },
+            {
+                "name": "eta_el",
+                "value": 0.39,
+                "unit": "-",
+                "description": "Electrical efficiency."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 390,
+                "unit": "€/kW",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.03,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "photovoltaics",
+        "abbreviation": "PV",
+        "description": "photovoltaics",
+        "specifications": [
+            {
+                "name": "area_real",
+                "value": 1.6,
+                "unit": "squaremeters",
+                "description": "Module area."
+            },
+            {
+                "name": "eta_el_ref",
+                "value": 0.199,
+                "unit": "-",
+                "description": "Electrical efficiency under refernce conditions."
+            },
+            {
+                "name": "t_cell_ref",
+                "value": 25,
+                "unit": "degree Celsius",
+                "description": "Refernce ambient air temperature."
+            },
+            {
+                "name": "G_ref",
+                "value": 1000,
+                "unit": "Watt per squaremeter",
+                "description": "Refernce solar irradiance."
+            },
+            {
+                "name": "t_cell_noct",
+                "value": 44,
+                "unit": "degree Celsius",
+                "description": "Cell temperature under normal test conditions (NOCT)."
+            },
+            {
+                "name": "t_air_noct",
+                "value": 20,
+                "unit": "degree Celsius",
+                "description": "Ambient air temperature under normal test conditions (NOCT)."
+            },
+            {
+                "name": "G_noct",
+                "value": 800,
+                "unit": "Watt per squaremeter",
+                "description": "Irradiance under normal test conditions (NOCT)."
+            },
+            {
+                "name": "gamma",
+                "value": 0.003,
+                "unit": "Percent per Kelvin",
+                "description": "loss coefficient"
+            },
+            {
+                "name": "eta_inv",
+                "value": 0.96,
+                "unit": "-",
+                "description": "Inverter efficiency."
+            },
+            {
+                "name": "eta_opt",
+                "value": 0.9,
+                "unit": "-",
+                "description": "Optical efficiency."
+            },
+            {
+                "name": "P_nominal",
+                "value": 220.0,
+                "unit": "Watt per squaremeter",
+                "description": "Reference power per squaremeter. Used for Battery sizing."
+            },
+            {
+                "name": "life_time",
+                "value": 25,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 250,
+                "unit": "€/m^2",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.015,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            },
+            {
+                "name": "kappa_inverter",
+                "value": 0.02,
+                "unit": "-",
+                "description": "Correction factor for all inverter losses"
+            },
+            {
+                "name": "kappa_wiring",
+                "value": 0.015,
+                "unit": "-",
+                "description": "Correction factor for wiring losses"
+            },
+            {
+                "name": "kappa_connections",
+                "value": 0.005,
+                "unit": "-",
+                "description": "Correction factor for all losses in connectors"
+            },
+            {
+                "name": "kappa_soiling",
+                "value": 0.02,
+                "unit": "-",
+                "description": "Correction factor for losses due to soiling"
+            },
+            {
+                "name": "kappa_shading",
+                "value": 0.03,
+                "unit": "-",
+                "description": "Correction factor for losses due to shading"
+            },
+            {
+                "name": "kappa_mismatch",
+                "value": 0.02,
+                "unit": "-",
+                "description": "Correction factor for mismatch losses (production deviations between modules)"
+            },
+            {
+                "name": "kappa_NPR",
+                "value": 0.01,
+                "unit": "-",
+                "description": "Correction factor for name plate rating losses (deviation of the power rating from the actual power)"
+            },
+            {
+                "name": "kappa_av",
+                "value": 0.025,
+                "unit": "-",
+                "description": "Correction factor for losses to to non-availability of the system (e.g. maintenance, redispatch, etc.)"
+            },
+            {
+                "name": "kappa_LID",
+                "value": 0.015,
+                "unit": "-",
+                "description": "Correction factor for mismatch losses (production deviations between modules)"
+            }
+        ],
+        "sources": {
+            "reference condition values": [
+                {
+                    "name": "",
+                    "url": ""
+                },
+                {
+                    "name": "",
+                    "url": ""
+                }
+            ],
+            "loss correction factors": [
+                {
+                    "name": "Global Solar Atlas",
+                    "url": "https://globalsolaratlas.info/support/methodology"
+                },
+                {
+                    "name": "NREL PVWatts Manual",
+                    "url": "https://docs.nrel.gov/docs/fy14osti/62641.pdf"
+                }
+            ]
+        }
+    },
+    {
+        "device": "solar thermal collector",
+        "abbreviation": "STC",
+        "description": "solar thermal collector",
+        "specifications": [
+            {
+                "name": "T_flow",
+                "value": 50,
+                "unit": "degree celsius",
+                "description": "Flow temperature."
+            },
+            {
+                "name": "zero_loss",
+                "value": 0.786,
+                "unit": "-",
+                "description": "Optical efficiency."
+            },
+            {
+                "name": "first_order",
+                "value": 0.003345,
+                "unit": "Watt per squaremeter per Kelvin",
+                "description": "First order efficiency. Linear thermal losses."
+            },
+            {
+                "name": "second_order",
+                "value": 1.42e-05,
+                "unit": "Watt per squaremeter per Kelvin square",
+                "description": "Second order efficiency. Quadratic thermal losses."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 400,
+                "unit": "€/m^2",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.05,
+                "unit": "percentage",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "thermal energy storage",
+        "abbreviation": "TES",
+        "description": "thermal energy storage",
+        "specifications": [
+            {
+                "name": "soc_min",
+                "value": 0.0,
+                "unit": "-",
+                "description": "Minimum state of charge."
+            },
+            {
+                "name": "soc_max",
+                "value": 1.0,
+                "unit": "-",
+                "description": "Maximum state of charge."
+            },
+            {
+                "name": "eta_standby",
+                "value": 0.97,
+                "unit": "-",
+                "description": "Standby hourly efficiency (to consider the self-discharge)."
+            },
+            {
+                "name": "eta_ch",
+                "value": 1.0,
+                "unit": "-",
+                "description": "Charging and discharging efficiency."
+            },
+            {
+                "name": "coeff_ch",
+                "value": 10000.0,
+                "unit": "Watt per Watthour",
+                "description": "Charging and discharging coefficient (Storage acting as a hydraulic decoupler (hydraulische Weiche))."
+            },
+            {
+                "name": "init",
+                "value": 0.5,
+                "unit": "-",
+                "description": "Initial state of charge."
+            },
+            {
+                "name": "T_diff_max",
+                "value": 35,
+                "unit": "degree Celsius",
+                "description": "Maximum temperature difference. At a temperature difference of 35 degree the upper level temperature is 60 degree and the lower level temperature is 25 degree."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 11,
+                "unit": "€/liter",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.013,
+                "unit": "1/year (fraction of inv_var)",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "battery",
+        "abbreviation": "BAT",
+        "description": "electrical home storage system",
+        "specifications": [
+            {
+                "name": "soc_min",
+                "value": 0.0,
+                "unit": "-",
+                "description": "Minimum state of charge."
+            },
+            {
+                "name": "soc_max",
+                "value": 0.95,
+                "unit": "-",
+                "description": "Maximum state of charge."
+            },
+            {
+                "name": "eta_standby",
+                "value": 0.97,
+                "unit": "-",
+                "description": "Standby hourly efficiency (to consider the self-discharge)."
+            },
+            {
+                "name": "eta_ch",
+                "value": 0.97,
+                "unit": "-",
+                "description": "Charging and discharging efficiency."
+            },
+            {
+                "name": "coeff_ch",
+                "value": 0.8,
+                "unit": "Watt per Watthour",
+                "description": "Charging and discharging coefficient."
+            },
+            {
+                "name": "init",
+                "value": 0.5,
+                "unit": "-",
+                "description": "Initial state of charge."
+            },
+            {
+                "name": "life_time",
+                "value": 15,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 850,
+                "unit": "€/kWh",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0.05,
+                "unit": "percentage",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "electrical vehicle",
+        "abbreviation": "EV",
+        "description": "electrical car",
+        "specifications": [
+            {
+                "name": "soc_min",
+                "value": 0.05,
+                "unit": "-",
+                "description": "Minimum state of charge."
+            },
+            {
+                "name": "soc_max",
+                "value": 0.95,
+                "unit": "-",
+                "description": "Maximum state of charge."
+            },
+            {
+                "name": "eta_standby",
+                "value": 1.0,
+                "unit": "-",
+                "description": "Standby hourly efficiency (to consider the self-discharge)."
+            },
+            {
+                "name": "eta_ch",
+                "value": 0.97,
+                "unit": "-",
+                "description": "Charging and discharging efficiency."
+            },
+            {
+                "name": "coeff_ch",
+                "value": 0.15,
+                "unit": "Watt per Watthour",
+                "description": "Charging and discharging coefficient."
+            },
+            {
+                "name": "init",
+                "value": 0.9,
+                "unit": "-",
+                "description": "Initial state of charge."
+            },
+            {
+                "name": "life_time",
+                "value": 20,
+                "unit": "years",
+                "description": "Maximum life time."
+            },
+            {
+                "name": "inv_var",
+                "value": 0,
+                "unit": "€/kWh",
+                "description": ""
+            },
+            {
+                "name": "cost_om",
+                "value": 0,
+                "unit": "percentage",
+                "description": ""
+            }
+        ]
+    },
+    {
+        "device": "Investment data",
+        "abbreviation": "inv_data",
+        "description": "Investment data of decentral devices",
+        "specifications": [
+            {
+                "name": "observation_time",
+                "value": 20,
+                "unit": "-",
+                "description": "observation time."
+            },
+            {
+                "name": "interest_rate",
+                "value": 0.05,
+                "unit": "-",
+                "description": "interest rate."
+            }
+        ]
     }
-  ]
-  },
-  {
-  "device": "heat pump" ,
-  "abbreviation": "HP" ,
-  "description": "Air-to-water heat pump." ,
-  "specifications": [
-    {
-      "name": "grade" ,
-      "value": 0.4 ,
-      "unit": "-" ,
-      "description": "Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 2920,
-      "unit": "€/kWth",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.015,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "electric heater" ,
-  "abbreviation": "EH" ,
-  "description": "Electric heating device for bivalent operation in combination with the heat pump." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 1.0 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    }
-  ]
-  },
-  {
-  "device": "gas boiler" ,
-  "abbreviation": "BOI" ,
-  "description": "Gas boiler." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 0.99 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 1370,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.0095,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "biomass boiler" ,
-  "abbreviation": "BBOI" ,
-  "description": "Biomass boiler." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 0.90 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 1014,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.06,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "oil boiler" ,
-  "abbreviation": "OBOI" ,
-  "description": "Oil boiler." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 0.93 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 390,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.036,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "hydrogen boiler" ,
-  "abbreviation": "H2BOI" ,
-  "description": "Hydrogen boiler." ,
-  "specifications": [
-    {
-      "name": "eta_th" ,
-      "value": 0.994 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 390,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.03,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "combined heat and power plant" ,
-  "abbreviation": "CHP" ,
-  "description": "Gas based combined heat an power plant." ,
-  "specifications": [
-    {
-      "name": "eta_th",
-      "value": 0.62,
-      "unit": "-",
-      "description": "Thermal efficiency."
-    },
-    {
-      "name": "eta_el" ,
-      "value": 0.30 ,
-      "unit": "-" ,
-      "description": "Electrical efficiency."
-    },
-        {
-      "name": "life_time",
-      "value": 15,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 3500,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "district heating" ,
-  "abbreviation": "DH" ,
-  "description": "district heating connection point." ,
-  "specifications": [
-    {
-      "name": "eta_th",
-      "value": 1.0,
-      "unit": "-",
-      "description": "Thermal efficiency."
-    },
-    {
-      "name": "life_time",
-      "value": 30,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 0,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cap_fee",
-      "value": 50,
-      "unit": "€/(year*kW)",
-      "description": "price payed for the connection to the district heating network."
-    }
-  ]
-  },
-  {
-  "device": "fuel cell" ,
-  "abbreviation": "FC" ,
-  "description": "hydrogen based fuel cell." ,
-  "specifications": [
-    {
-      "name": "eta_th",
-      "value": 0.53,
-      "unit": "-",
-      "description": "Thermal efficiency."
-    },
-    {
-      "name": "eta_el" ,
-      "value": 0.39 ,
-      "unit": "-" ,
-      "description": "Electrical efficiency."
-    },
-    {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 390,
-      "unit": "€/kW",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.03,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "photovoltaics" ,
-  "abbreviation": "PV" ,
-  "description": "photovoltaics" ,
-  "specifications": [
-    {
-      "name": "area_real",
-      "value": 1.6,
-      "unit": "squaremeters",
-      "description": "Module area."
-    },
-    {
-      "name": "eta_el_ref",
-      "value": 0.199,
-      "unit": "-",
-      "description": "Electrical efficiency under refernce conditions."
-    },
-    {
-      "name": "t_cell_ref",
-      "value": 25,
-      "unit": "degree Celsius",
-      "description": "Refernce ambient air temperature."
-    },
-    {
-      "name": "G_ref",
-      "value": 1000,
-      "unit": "Watt per squaremeter",
-      "description": "Refernce solar irradiance."
-    },
-    {
-      "name": "t_cell_noct",
-      "value": 44,
-      "unit": "degree Celsius",
-      "description": "Cell temperature under normal test conditions (NOCT)."
-    },
-    {
-      "name": "t_air_noct",
-      "value": 20,
-      "unit": "degree Celsius",
-      "description": "Ambient air temperature under normal test conditions (NOCT)."
-    },
-    {
-      "name": "G_noct",
-      "value": 800,
-      "unit": "Watt per squaremeter",
-      "description": "Irradiance under normal test conditions (NOCT)."
-    },
-    {
-      "name": "gamma",
-      "value": 0.003,
-      "unit": "Percent per Kelvin",
-      "description": "loss coefficient"
-    },
-    {
-      "name": "eta_inv",
-      "value": 0.96,
-      "unit": "-",
-      "description": "Inverter efficiency."
-    },
-    {
-      "name": "eta_opt",
-      "value": 0.9,
-      "unit": "-",
-      "description": "Optical efficiency."
-    },
-    {
-      "name": "P_nominal",
-      "value": 220.0,
-      "unit": "Watt per squaremeter",
-      "description": "Reference power per squaremeter. Used for Battery sizing."
-    },
-        {
-      "name": "life_time",
-      "value": 25,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 250,
-      "unit": "€/m^2",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.015,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    },
-    {
-      "name": "kappa_inverter",
-      "value": 0.02,
-      "unit": "-",
-      "description": "Correction factor for all inverter losses"
-    },
-    {
-      "name": "kappa_wiring",
-      "value": 0.015,
-      "unit": "-",
-      "description": "Correction factor for wiring losses"
-    },
-    {
-      "name": "kappa_connections",
-      "value": 0.005,
-      "unit": "-",
-      "description": "Correction factor for all losses in connectors"
-    },
-    {
-      "name": "kappa_soiling",
-      "value": 0.02,
-      "unit": "-",
-      "description": "Correction factor for losses due to soiling"
-    },
-    {
-      "name": "kappa_shading",
-      "value": 0.03,
-      "unit": "-",
-      "description": "Correction factor for losses due to shading"
-    },
-    {
-      "name": "kappa_mismatch",
-      "value": 0.02,
-      "unit": "-",
-      "description": "Correction factor for mismatch losses (production deviations between modules)"
-    },
-    {
-      "name": "kappa_NPR",
-      "value": 0.01,
-      "unit": "-",
-      "description": "Correction factor for name plate rating losses (deviation of the power rating from the actual power)"
-    },
-    {
-      "name": "kappa_av",
-      "value": 0.025,
-      "unit": "-",
-      "description": "Correction factor for losses to to non-availability of the system (e.g. maintenance, redispatch, etc.)"
-    },
-    {
-      "name": "kappa_LID",
-      "value": 0.015,
-      "unit": "-",
-      "description": "Correction factor for mismatch losses (production deviations between modules)"
-    }
-  ],
-  "sources": {
-    "reference condition values": [
-      {
-        "name": "",
-        "url": ""
-      },
-      {
-        "name": "",
-        "url": ""
-      }
-    ],
-    "loss correction factors": [
-      {
-        "name": "Global Solar Atlas",
-        "url": "https://globalsolaratlas.info/support/methodology"
-      },
-      {
-        "name": "NREL PVWatts Manual",
-        "url": "https://docs.nrel.gov/docs/fy14osti/62641.pdf"
-      }
-    ]
-  }
-  },
-  {
-  "device": "solar thermal collector" ,
-  "abbreviation": "STC" ,
-  "description": "solar thermal collector" ,
-  "specifications": [
-    {
-      "name": "T_flow",
-      "value": 50,
-      "unit": "degree celsius",
-      "description": "Flow temperature."
-    },
-    {
-      "name": "zero_loss",
-      "value": 0.786,
-      "unit": "-",
-      "description": "Optical efficiency."
-    },
-    {
-      "name": "first_order",
-      "value": 0.003345,
-      "unit": "Watt per squaremeter per Kelvin",
-      "description": "First order efficiency. Linear thermal losses."
-    },
-    {
-      "name": "second_order",
-      "value": 0.0000142,
-      "unit": "Watt per squaremeter per Kelvin square",
-      "description": "Second order efficiency. Quadratic thermal losses."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 400,
-      "unit": "€/m^2",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
-      "description": ""
-    }
-  ]
-  },
-
-    {
-  "device": "thermal energy storage" ,
-  "abbreviation": "TES" ,
-  "description": "thermal energy storage" ,
-  "specifications": [
-    {
-      "name": "soc_min",
-      "value": 0.0,
-      "unit": "-",
-      "description": "Minimum state of charge."
-    },
-    {
-      "name": "soc_max",
-      "value": 1.0,
-      "unit": "-",
-      "description": "Maximum state of charge."
-    },
-    {
-      "name": "eta_standby",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Standby hourly efficiency (to consider the self-discharge)."
-    },
-    {
-      "name": "eta_ch",
-      "value": 1.0,
-      "unit": "-",
-      "description": "Charging and discharging efficiency."
-    },
-    {
-      "name": "coeff_ch",
-      "value": 10000.0,
-      "unit": "Watt per Watthour",
-      "description": "Charging and discharging coefficient (Storage acting as a hydraulic decoupler (hydraulische Weiche))."
-    },
-    {
-      "name": "init",
-      "value": 0.5,
-      "unit": "-",
-      "description": "Initial state of charge."
-    },
-    {
-      "name": "T_diff_max",
-      "value": 35,
-      "unit": "degree Celsius",
-      "description": "Maximum temperature difference. At a temperature difference of 35 degree the upper level temperature is 60 degree and the lower level temperature is 25 degree."
-    },
-    {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 11,
-      "unit": "€/liter",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.013,
-      "unit": "1/year (fraction of inv_var)",
-      "description": ""
-    }
-  ]
-  },
-
-
-  {
-  "device": "battery",
-  "abbreviation": "BAT",
-  "description": "electrical home storage system",
-  "specifications": [
-    {
-      "name": "soc_min",
-      "value": 0.00,
-      "unit": "-",
-      "description": "Minimum state of charge."
-    },
-    {
-      "name": "soc_max",
-      "value": 0.95,
-      "unit": "-",
-      "description": "Maximum state of charge."
-    },
-    {
-      "name": "eta_standby",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Standby hourly efficiency (to consider the self-discharge)."
-    },
-    {
-      "name": "eta_ch",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Charging and discharging efficiency."
-    },
-    {
-      "name": "coeff_ch",
-      "value": 0.8,
-      "unit": "Watt per Watthour",
-      "description": "Charging and discharging coefficient."
-    },
-    {
-      "name": "init",
-      "value": 0.5,
-      "unit": "-",
-      "description": "Initial state of charge."
-    },
-        {
-      "name": "life_time",
-      "value": 15,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 850,
-      "unit": "€/kWh",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0.05,
-      "unit": "percentage",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "electrical vehicle",
-  "abbreviation": "EV",
-  "description": "electrical car",
-  "specifications": [
-    {
-      "name": "soc_min",
-      "value": 0.05,
-      "unit": "-",
-      "description": "Minimum state of charge."
-    },
-    {
-      "name": "soc_max",
-      "value": 0.95,
-      "unit": "-",
-      "description": "Maximum state of charge."
-    },
-    {
-      "name": "eta_standby",
-      "value": 1.0,
-      "unit": "-",
-      "description": "Standby hourly efficiency (to consider the self-discharge)."
-    },
-    {
-      "name": "eta_ch",
-      "value": 0.97,
-      "unit": "-",
-      "description": "Charging and discharging efficiency."
-    },
-        {
-      "name": "coeff_ch",
-      "value": 0.15,
-      "unit": "Watt per Watthour",
-      "description": "Charging and discharging coefficient."
-    },
-    {
-      "name": "init",
-      "value": 0.9,
-      "unit": "-",
-      "description": "Initial state of charge."
-    },
-        {
-      "name": "life_time",
-      "value": 20,
-      "unit": "years",
-      "description": "Maximum life time."
-    },
-    {
-      "name": "inv_var",
-      "value": 0,
-      "unit": "€/kWh",
-      "description": ""
-    },
-    {
-      "name": "cost_om",
-      "value": 0,
-      "unit": "percentage",
-      "description": ""
-    }
-  ]
-  },
-  {
-  "device": "Investment data",
-  "abbreviation": "inv_data",
-  "description": "Investment data of decentral devices",
-  "specifications": [
-    {
-      "name": "observation_time",
-      "value": 20,
-      "unit": "-",
-      "description": "observation time."
-    },
-    {
-      "name": "interest_rate",
-      "value": 0.05,
-      "unit": "-",
-      "description": "interest rate."
-    }
-  ]
-  }
 ]
