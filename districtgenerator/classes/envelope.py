@@ -433,7 +433,8 @@ class Envelope:
                 except FileNotFoundError:
                     df_new = pd.DataFrame([u_row])
 
-                df_new.to_csv(csv_log_path, index=False)
+                # Do not save
+                #df_new.to_csv(csv_log_path, index=False)
 
                 if calcThick:
                     self.thick_req = self.compute_insulation_thickness(self.U['opaque'])

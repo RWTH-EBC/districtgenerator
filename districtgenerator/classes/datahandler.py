@@ -532,8 +532,7 @@ class Datahandler:
 
                 height = building["buildingFeatures"]["height"] 
                 number_of_floors = building["buildingFeatures"]["number_of_floors"] 
-                number_of_floors_above = building["buildingFeatures"]["nb_floors_above"]
-                height_of_floors = height/number_of_floors_above 
+                height_of_floors = height/number_of_floors
                 if height_of_floors< 2.5:
                     if building["buildingFeatures"]["year"] < 1960:
                         height_of_floors = 3.3  # m
@@ -1134,7 +1133,9 @@ class Datahandler:
                         df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
                     except FileNotFoundError:
                         df_new_pv = pd.DataFrame(pv_rows)
-                    df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
+
+                    # do not save log to reduce write operations
+                    #df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
                     if saveGenerationProfiles:
