@@ -27,15 +27,24 @@ def one_district_opt_cent():
 
     # Now we generate building specific demand profiles with the adjusted assumptions
     # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)    
+    data.generateDemands(calcUserProfiles=False, saveUserProfiles=False)    
     
     # Design decentral and central devices for the current district.
-    data.designDevicesComplete(saveGenerationProfiles=True)
+    #data.designDevicesComplete(saveGenerationProfiles=True)
+    data.designDecentralDevices()
+    data.designCentralDevices()
     
     #data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
 
     print("Congratulations! You generated your energy central for the selected neighborhood!")
+
+    # Capacities of the decentral devices in one  district
+    for device, capacity in data.district[0]["capacities"].items():
+        print(f"  {device}: {capacity}")
+    
+    #print(data.district[0]["capacities"].items())
     print("Capacities of the decentral devices in the buildings:")
+    
     for building in data.district:
         if "capacities" in building:
             print(f"Building: {building['unique_name']}")

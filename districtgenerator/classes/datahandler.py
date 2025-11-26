@@ -1045,7 +1045,7 @@ class Datahandler:
                            delimiter=';',
                            fmt='%.2f')
 
-    def designCentralDevices(self, saveGenerationProfiles, all_data_connect):
+    def designCentralDevices(self, saveGenerationProfiles=True, all_data_connect=None):
         """
         Calculate capacities and generation profiles of renewable energies for central devices.
 
