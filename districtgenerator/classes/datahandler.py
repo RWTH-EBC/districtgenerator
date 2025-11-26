@@ -57,7 +57,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
+    def __init__(self, scenario_name = "example", heat_map_berlin = False, resultPath = None, scenario_file_path = None):
         """
         Constructor of Datahandler class.
 
@@ -71,6 +71,8 @@ class Datahandler:
         self.initial_day = None
         self.district = []
         self.scenario_name = scenario_name
+        self.heat_map_berlin = heat_map_berlin
+        self.pv_stc_potential = None
         self.scenario = None
         self.total_building_area = None
         self.design_building_data = {}
@@ -144,9 +146,21 @@ class Datahandler:
             for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
 
-        # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                     converters={"position": parse_position}).set_index("id", drop=False))
+        if self.heat_map_berlin:
+            # %% load heat map berlin data
+            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
+            self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + "_dg.csv",
+                                        header=0, delimiter=";")
+            self.pv_stc_potential = pd.read_csv(
+                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
+                delimiter=';',
+                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+            )
+        else:
+            # %% load scenario file with building information
+            self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                        header=0, delimiter=";")
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -1071,18 +1085,64 @@ class Datahandler:
                           file_path=self.filePath)
             building["capacities"] = bes_obj.designECS(building, self.site)
 
-            # calculate PV and STC generation
-            building["generationPV"], building["generationSTC"] = \
-                sun.calcPVAndSTCProfile(time=self.time,
-                                        site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"],
-                                        # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[35],
-                                        # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                        usageFactorPV1=building["buildingFeatures"]["f_PV1"],
-                                        usageFactorPV2=building["buildingFeatures"]["f_PV2"],
-                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+            if self.heat_map_berlin:
+                # Read PV potentials for the current building from the DataFrame
+                pv_data = self.pv_stc_potential[self.pv_stc_potential["uuid"] == building["buildingFeatures"]["alkis_id"]]
+                # Initialize sums for PV and STC
+                total_pv_generation = None
+                total_stc_generation = None
+
+                # Loop over each PV sub-area for this building
+                for idx, row in pv_data.iterrows():
+                    area = row["modanetto"]  # Area of the sub-surface
+                    roof_type = row["dachtyp"]  # Roof type
+
+                    # Check if roof is flat and adjust tilt and azimuth accordingly
+                    if roof_type == "flach":
+                        tilt = 30  # Flat roofs: 30 degrees tilt
+                        azimuth = 0  # Flat roofs: south orientation (0°)
+                    else:
+                        azimuth = row["richtung"]  # Orientation (gamma)
+                        tilt = row["neigung"]  # Tilt angle (beta)
+
+                    # Calculate PV and STC profiles for this sub-area
+                    pv_profile, stc_profile = sun.calcPVAndSTCProfile(
+                        time=self.time,
+                        site=self.site,
+                        area_roof=area,
+                        beta=[tilt],
+                        gamma=[azimuth],
+                        usageFactorPV1=1,
+                        usageFactorPV2=0,
+                        usageFactorSTC=building["buildingFeatures"]["f_STC"]
+                    )
+
+                    # Sum up the profiles
+                    if total_pv_generation is None:
+                        total_pv_generation = pv_profile
+                        total_stc_generation = stc_profile
+                    else:
+                        total_pv_generation += pv_profile
+                        total_stc_generation += stc_profile
+
+                # Store the summed values
+                building["generationPV"] = total_pv_generation
+                building["generationSTC"] = total_stc_generation
+
+
+            else:
+                # calculate PV and STC generation
+                building["generationPV"], building["generationSTC"] = \
+                    sun.calcPVAndSTCProfile(time=self.time,
+                                            site=self.site,
+                                            area_roof=building["envelope"].A["opaque"]["roof"],
+                                            # In Germany, this is a roof pitch between 30 and 35 degrees
+                                            beta=[35],
+                                            # surface azimuth angles (Orientation to the south: 0°)
+                                            gamma=[building["buildingFeatures"]["gamma_PV"]],
+                                            usageFactorPV1=building["buildingFeatures"]["f_PV1"],
+                                            usageFactorPV2=building["buildingFeatures"]["f_PV2"],
+                                            usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
@@ -1574,6 +1634,199 @@ class Datahandler:
 
         # Plot everything
         plot_all(self)
+
+    def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=100):
+        """
+        Überträgt Daten aus WKB_export Format in Quartier Format und zerlegt diese in so viele Dateien, dass jede Datei max. batch_size Gebäude enthält.
+        """
+
+        # Mapping-Funktionen definieren
+        def map_building_type(gebaeudetype):
+            """Mappt Gebäudetypen"""
+            mapping = {
+                'EFH': 'SFH',  # Einfamilienhaus -> Single Family House
+                'RH': 'TH',  # Reihenhaus -> Terraced House
+                'MFH': 'MFH',  # Mehrfamilienhaus -> Multi Family House
+                'GMH': 'MFH'  # Geschosswohnhaus -> Multi Family House
+            }
+            return mapping.get(gebaeudetype, None)
+
+        def map_heater_type(heizsystem):
+            """Mappt Heizungstypen - konsistent mit Dictionary-Ansatz"""
+            if pd.isna(heizsystem):
+                return 'BOI'  # Default
+
+            # Dictionary-Mapping wie beim building_type
+            mapping = {
+                'Gaskessel': 'BOI',
+                'Fernwärme': 'DH',
+                'Blockheizkraftwerk': 'CHP',
+                'Wärmepumpe': 'HP',
+                'Heat Pump': 'HP',
+                'Biomassekessel': 'BBOI',
+                'Ölkessel': 'OBOI',
+                'Wasserstoffkessel': 'H2BOI',
+            }
+
+            return mapping.get(heizsystem, 'BOI')  # Default falls nicht gefunden
+
+        def map_retrofit_status(sanierungszustand):
+            """Mappt Sanierungszustand - auch mit Dictionary"""
+            if pd.isna(sanierungszustand):
+                return 0  # Default
+
+            # Dictionary-Mapping
+            mapping = {
+                'unsaniert': 0,
+                'teilsaniert': 1,
+                'vollsaniert': 2,
+                'saniert': 2  # Falls nur "saniert" ohne "voll" steht
+            }
+
+            return mapping.get(sanierungszustand,
+                               None)  # Rückgabe None falls nicht gefunden damit diese Zeile später aussortiert wird
+
+        def safe_convert_area(area_value):
+            """Sicher Flächenwerte konvertieren"""
+            if pd.isna(area_value): return None  # None if area_value is NaN
+
+            try:
+                # Komma durch Punkt ersetzen für deutsche Zahlenformate
+                if isinstance(area_value, str):
+                    area_value = area_value.replace(',', '.')
+                    area_value = float(area_value)
+                area_value = int(area_value)
+                if area_value > 0:
+                    return area_value
+                else:
+                    return None
+            except:
+                return None
+
+        def safe_convert_year(year_value):
+
+            if pd.isna(year_value):
+                return None  # Default
+            try:
+                return int(float(year_value))
+            except:
+                return None
+
+        def check_heat_demand_valid(heat_demand_simulated, heat_demand_measured):
+            """Überprüft, ob beide Energiebedarfe (simuliert und gemessen) gültige Werte haben"""
+            try:
+                simulated = float(heat_demand_simulated)
+                measured = float(heat_demand_measured)
+                if simulated > 0 and measured > 0:
+                    return True
+                else:
+                    return False
+            except:
+                return False
+
+        def check_all_values(row, idx):
+            """Überprüft, ob alle notwendigen Werte vorhanden sind"""
+            # gross_floor_area > 0
+            if safe_convert_area(row.get('gross_floor_area')) == None:
+                print(f"row {idx}: Invalid gross_floor_area: {row.get('gross_floor_area')}")
+                return False
+            if safe_convert_area(row.get('gross_floor_area')) > 20000:
+                print(f"row {idx}: Building with too large gross_floor_area: {row.get('gross_floor_area')}")
+                return False
+            # heat_relevance
+            if row.get('heat_relevance') != 'wärmerelevant':
+                print(f"row {idx}: Invalid heat_relevance: {row.get('heat_relevance')}")
+                return False
+            # building_type_simplified vorhanden
+            if map_building_type(row.get('building_type_simplified')) == None:
+                print(f"Invalid building_type_simplified: {row.get('building_type_simplified')}")
+                return False
+            # construction_year vorhanden
+            if safe_convert_year(row.get('construction_year')) == None:
+                print(f"row {idx}: Invalid construction_year: {row.get('construction_year')}")
+                return False
+            # renovation_state_simulated vorhanden
+            if map_retrofit_status(row.get('renovation_state_simulated')) == None:
+                print(f"row {idx}: Invalid renovation_state_simulated: {row.get('renovation_state_simulated')}")
+                return False
+
+            # for a meaningful comparison, only buldings with a registered heat_demand (simulated and measured) are considered
+            if check_heat_demand_valid(row.get('heat_demand_simulated'), row.get('energy_consumption_sh')) == False:
+                print(
+                    f"row {idx}: Invalid heat_demand_simulated or energy_consumption_sh: {row.get('heat_demand_simulated')}, {row.get('energy_consumption_sh')}")
+                return False
+
+            # Only if all checks are passed return true
+            return True
+
+        # WKB Daten einlesen
+        wkb_data = pd.read_csv(wkb_file_path, encoding='utf-8', delimiter=';', decimal='.',
+                               na_values=['NULL', 'null', '', 'nan'])
+
+        # Sort the df by the 'gross_floor_area' key -> Buildings with big areas first to avoid them being last and then not profiting as much as they could from multiprocessing
+        wkb_data['gross_floor_area'] = pd.to_numeric(wkb_data['gross_floor_area'], errors='coerce')
+        wkb_data = wkb_data.sort_values(by='gross_floor_area', ascending=False)
+
+        # Quartier Dataframe erstellen
+        quartier_data = []
+        wkb_data_for_csv = []
+
+        new_id = 0
+
+        for idx, row in wkb_data.iterrows():
+            # Nur Wohngebäude berücksichtigen
+            if row.get('type_of_use') == 'Wohnhaus' or pd.isna(row.get('type_of_use')):
+                if check_all_values(row, idx):
+                    quartier_row = {
+                        'id': new_id,
+                        'alkis_id': row.get('alkis_id'),
+                        'building': map_building_type(row.get('building_type_simplified')),
+                        'year': safe_convert_year(row.get('construction_year')),
+                        'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),
+                        'construction_type': '',
+                        'night_setback': 0,
+                        'area': safe_convert_area(row.get('gross_floor_area')),
+                        'heater': map_heater_type(row.get('heating_system')),
+                        'PV': 0,
+                        'STC': 0,
+                        'EV': 0,
+                        'BAT': 0,
+                        'f_TES': 35,
+                        'f_BAT': 0,
+                        'f_EV': 0,
+                        'f_PV1': 0.4,
+                        'f_PV2': 0,
+                        'f_STC': 0,
+                        'gamma_PV': 0,
+                        'ev_charging': 'on_demand',
+                        'cooling': 0
+                    }
+                    quartier_data.append(quartier_row)
+
+                    # Get the original WKB row for reference
+                    wkb_row = row.to_dict()
+                    wkb_row['id'] = new_id  # Add new_id for reference
+                    wkb_data_for_csv.append(wkb_row)
+                    new_id += 1
+
+        # DataFrame erstellen
+        quartier_df = pd.DataFrame(quartier_data)
+        wkb_df = pd.DataFrame(wkb_data_for_csv)
+
+        # Als CSV speichern
+        num_csv = max(1, (len(quartier_df) + batch_size - 1) // batch_size)  # Berechne Anzahl der benötigten Dateien
+        print(f"Total buildings processed: {len(quartier_df)}. Saving in {num_csv} CSV file(s).")
+
+        for i in range(num_csv):
+            batch_quartier_df = quartier_df.iloc[i * batch_size:(i + 1) * batch_size]
+            quartier_batch_path = output_file_path.replace(".csv", f"_{i}.csv")
+            batch_quartier_df.to_csv(quartier_batch_path, sep=';', index=False)
+
+        # all_buildings combined CSV files
+        quartier_df.to_csv(output_file_path, sep=';', index=False)
+        wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=';', index=False)
+
+        return quartier_df
 
     def designNetworkwithNode(self):
         """
