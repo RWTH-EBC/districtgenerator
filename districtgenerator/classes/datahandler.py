@@ -209,7 +209,8 @@ class Datahandler:
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
         elif self.heat_grid_data["generation"]["value"] == "5th":
-            # TODO: create pipe data for 5th generation?
+            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
+            self.pipe_data = pd.read_csv(csv_path, sep=";")
             pass
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into heat_grid.json.")
