@@ -11,13 +11,16 @@ import pandas as pd
 import os
 import json
 import time
+import contextlib
+from tqdm import tqdm
 
 SRCPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def example9_economic_analysis():
     warnings.filterwarnings("ignore", category=FutureWarning)
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-    n_runs = 10  # Number of runs for averaging
+    n_runs = 1  # Number of runs for averaging
 
     building_types = ['SFH', 'TH', 'MFH', 'AB'] #Building types to analyze, all types: ['SFH', 'TH', 'MFH', 'AB']
 
@@ -66,8 +69,8 @@ def example9_economic_analysis():
         }
         return age_mapping.get(building_age_span, None)
     
-    for b_type in building_types:
-        for b_age in building_ages[b_type]:
+    for b_type in tqdm(building_types, desc="Building Types", position=0):
+        for b_age in tqdm(building_ages[b_type], desc=f"{b_type} Ages", position=1, leave=False):
 
             temp_results_dict = {
                 'design_load': [],
@@ -80,11 +83,10 @@ def example9_economic_analysis():
                 temp_results_dict[heater] = {'CAPEX': [], 'OPEX': []}
             
 
-            for n in range(n_runs):
-                print(f"Running economic analysis for Building Type: {b_type}, Age: {map_building_age(b_age)} - Run {n+1}/{n_runs}")
+            for n in tqdm(range(n_runs), desc="Runs", position=2, leave=False):
+                # print(f"Running economic analysis for Building Type: {b_type}, Age: {map_building_age(b_age)} - Run {n+1}/{n_runs}")
 
-            
-                for i, heater in enumerate(heater_Types):
+                for i, heater in enumerate(tqdm(heater_Types, desc="Heaters", position=3, leave=False)):
                     building_info = {
                         'id': 0,
 
@@ -109,18 +111,18 @@ def example9_economic_analysis():
                         'gamma_PV': 0,  # Wie im Original
                         'ev_charging': 'on_demand',  # Wie im Original
                         }
-
-                    if i == 0: #For the first heater type, save the demands and reuse them for the other heater types for better comparability
-                        capex, opex, design_load, bivalent_load, sh_demand, dhw_demand = run_economic_analysis(building_info, calcDemands=True)
-                        temp_results_dict['design_load'].append(design_load)
-                        temp_results_dict['bivalent_load'].append(bivalent_load)  # Placeholder if needed in future
-                        temp_results_dict['sh_demand'].append(sh_demand)
-                        temp_results_dict['dhw_demand'].append(dhw_demand)
-                    else:
-                        capex, opex, design_load, bivalent_load, sh_demand, dhw_demand = run_economic_analysis(building_info, calcDemands=False)
-                    
-                    temp_results_dict[heater]['CAPEX'].append(capex)
-                    temp_results_dict[heater]['OPEX'].append(opex)
+                    with contextlib.redirect_stdout(open(os.devnull, "w")):
+                        if i == 0: #For the first heater type, save the demands and reuse them for the other heater types for better comparability
+                            capex, opex, design_load, bivalent_load, sh_demand, dhw_demand = run_economic_analysis(building_info, calcDemands=True)
+                            temp_results_dict['design_load'].append(design_load)
+                            temp_results_dict['bivalent_load'].append(bivalent_load)  # Placeholder if needed in future
+                            temp_results_dict['sh_demand'].append(sh_demand)
+                            temp_results_dict['dhw_demand'].append(dhw_demand)
+                        else:
+                            capex, opex, design_load, bivalent_load, sh_demand, dhw_demand = run_economic_analysis(building_info, calcDemands=False)
+                        
+                        temp_results_dict[heater]['CAPEX'].append(capex)
+                        temp_results_dict[heater]['OPEX'].append(opex)
             
             for heater in heater_Types:
                 avg_capex = np.mean(temp_results_dict[heater]['CAPEX'])
@@ -199,8 +201,6 @@ def run_economic_analysis(building_info, calcDemands):
         data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, gen_cars=False)
 
     building = data.district[0]
-
-
     change_device_inv_data(building, building_info['heater'])
 
     # Calculation of the devices' optimal operation
@@ -439,9 +439,6 @@ def change_device_inv_data(building, heater):
     with open(path_decentral_device_data, 'w') as f:
         json.dump(decentral_device_data, f, indent=4)
     print(f"Updated investment data saved to {path_decentral_device_data}")
-    time.sleep(30)  # Small delay to ensure file write completion
-
-                
 
 if __name__ == '__main__':
     example9_economic_analysis()

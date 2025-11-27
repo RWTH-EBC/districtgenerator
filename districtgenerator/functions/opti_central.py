@@ -58,7 +58,7 @@ def run_opti_central(model, data, cluster):
         level=logging.INFO,
         format='%(levelname)s - %(name)s - %(message)s',
         handlers=[
-            logging.StreamHandler(),  # Console output
+            logging.FileHandler('optimization_debug.log'),  # Console output
             # Optional: logging.FileHandler('optimization_debug.log')  # File output
         ]
     )
@@ -1438,7 +1438,7 @@ def solve_model_and_extract_results(model, data):
 
     # Solve the model
     solver, solver_options = solver_config.create_solver()
-    results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
+    results = solver.solve(model, tee=False, logfile=solver_log_path, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file
     term_cond = results.solver.termination_condition

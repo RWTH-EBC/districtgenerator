@@ -28,7 +28,7 @@ from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
 import time
 import warnings
-
+import contextlib
 
 
 class Datahandler:
@@ -580,9 +580,10 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=32, gen_cars=True):
         # Thread count limited by max available CPU Count. More threads than number of cores does usually provide no further benifit but requires more temprorary storage
-        max_threads = min(max_threads, multiprocessing.cpu_count()) 
+        # 1 core should be left free for other processes
+        max_threads = min(max_threads, multiprocessing.cpu_count()-1) 
 
         start_time_demand_generation = time.time()
         args_list = [(self, building, calcUserProfiles, saveUserProfiles, gen_cars) for building in self.district]
@@ -1752,59 +1753,61 @@ def generate_demands_worker_wrapper(args):
     Startet den Worker und den Monitor-Thread für ein Gebäude.
     Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
     """
-    try:
-        warnings.filterwarnings("ignore", category=FutureWarning) #! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
-        start_time_building = time.time()
-        
-        self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
-        building_name = building.get("unique_name")
 
-        # Event zum Stoppen des Monitor-Threads
-        stop_event = threading.Event()
-
-        timeout_duration = 1800 # 30 minutes to identify long-running threads
-        monitor = threading.Thread(
-            target=monitor_task, 
-            args=(start_time_building, timeout_duration, building_name, stop_event),
-            daemon=True 
-        ) 
-        monitor.start()
-
-        # Starting the demand generation worker
+    with contextlib.redirect_stdout(open(os.devnull, "w")):  # Unterdrückt alle Druckausgaben des Workers
         try:
-            self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars = gen_cars)
+            warnings.filterwarnings("ignore", category=FutureWarning) #! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
+            start_time_building = time.time()
+            
+            self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
+            building_name = building.get("unique_name")
 
-            result = {
-                "unique_name": building["unique_name"],
-                "elec": building["user"].elec,
-                'dhw': building["user"].dhw,
-                'cooling': building["user"].cooling,
-                'heating': building["user"].heat,
-                'occ': building["user"].occ,
-                'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
-                'EV_carprofile': building["user"].EV_carprofile,
-                "ev_capacity": building["user"].ev_capacity,
-                'ice_carprofile': building["user"].ice_carprofile,
-                'gains': building["user"].gains,
-                "nb_units": building["user"].nb_units,
-                'nb_occ': building["user"].nb_occ,
-                'envelope': building["envelope"],
-                'night_setback': building["buildingFeatures"]["night_setback"],
-                'individual_car_profiles': building["user"].individual_car_profiles
-            }
-        finally: 
-            # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
-            stop_event.set()
-            monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
+            # Event zum Stoppen des Monitor-Threads
+            stop_event = threading.Event()
 
-        # Time needed for calculating this building
-        end_time_building = time.time()
-        duration_building = end_time_building - start_time_building
+            timeout_duration = 1800 # 30 minutes to identify long-running threads
+            monitor = threading.Thread(
+                target=monitor_task, 
+                args=(start_time_building, timeout_duration, building_name, stop_event),
+                daemon=True 
+            ) 
+            monitor.start()
 
-        return result, duration_building
-    except Exception as e:
-        print(f"Error in generate_demands_worker_wrapper for building {building.get('unique_name')}: {e}")
-        return None, None
+            # Starting the demand generation worker
+            try:
+                self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars = gen_cars)
+
+                result = {
+                    "unique_name": building["unique_name"],
+                    "elec": building["user"].elec,
+                    'dhw': building["user"].dhw,
+                    'cooling': building["user"].cooling,
+                    'heating': building["user"].heat,
+                    'occ': building["user"].occ,
+                    'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
+                    'EV_carprofile': building["user"].EV_carprofile,
+                    "ev_capacity": building["user"].ev_capacity,
+                    'ice_carprofile': building["user"].ice_carprofile,
+                    'gains': building["user"].gains,
+                    "nb_units": building["user"].nb_units,
+                    'nb_occ': building["user"].nb_occ,
+                    'envelope': building["envelope"],
+                    'night_setback': building["buildingFeatures"]["night_setback"],
+                    'individual_car_profiles': building["user"].individual_car_profiles
+                }
+            finally: 
+                # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
+                stop_event.set()
+                monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
+
+            # Time needed for calculating this building
+            end_time_building = time.time()
+            duration_building = end_time_building - start_time_building
+
+            return result, duration_building
+        except Exception as e:
+            print(f"Error in generate_demands_worker_wrapper for building {building.get('unique_name')}: {e}")
+            return None, None
 
 def monitor_task(start_time, timeout_duration, building_name, stop_event):
     """
