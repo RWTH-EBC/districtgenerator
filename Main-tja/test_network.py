@@ -14,7 +14,34 @@ if __name__ == '__main__':
 
     network.initializeDistricts(configs_dir=configs_directory_path, calcUserProfiles=False, saveUserProfiles=False)
     network.optimize_network()
+
+
+    #print(network.interconnected_districts)
     for district in network.interconnected_districts:
-        print(f"District: {district.scenario_name}, CentralDevices: {district.centralDevices}")
+        # Print capacities of central devices
+        if "capacities" in district.centralDevices:
+            capacities = district.centralDevices["capacities"]
+            print(f"\nCapacities of the central devices in the energy hub of: {district.scenario_name}")
+            for device, details in capacities.items():
+                if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
+                    print(f"  {device}: {details['cap']}")
+        else:
+            print(f"No capacities defined in energy hub of: {district.scenario_name}")  
+        #print(f"District: {district.scenario_name}, CentralDevices: {district.centralDevices}")
+
+        # Print parameters form heating_network
         net_heating_demand = district.heat_grid_data.get("net_heating_demand", None)
         print(f"Net heating demand: {net_heating_demand} kW")
+
+    # Print parameters form load params
+    # for district in network.interconnected_districts:
+    #     params = district.centralDevices.get("params", None)
+    #     devs = district.centralDevices.get("devs", None)
+    #     dem = district.centralDevices.get("dem", None)
+    #     result_dict = district.centralDevices.get("result_dict", None)
+
+    #     print(f"District: {district.scenario_name}")
+    #     # print(f"  Params: {params}")
+    #     print(f"  Devices: {devs}")
+    #     # print(f"  Demands: {dem}")
+    #     # print(f"  Result Dict: {result_dict}")    

@@ -20,15 +20,8 @@ import time
 import os
 #from optim_app.help_functions import create_excel_file
 
+def cluster_setup_devices(data,param):
 
-def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
-
-
-    # for i, data1 in enumerate(all_data_connect):
-    #     print(f"Scenario Name: {data1.scenario_name}") 
-    #     print("Data from all_data_connect in run_optim_connect")
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Load model parameters
     start_time = time.time()
 
@@ -42,25 +35,7 @@ def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
     # Get sigma function that assigns each time period (day or week) of the year to a design period
     sigma = param["sigma"]
     
-    # Creat dictionary for the connection between districts and their devices
-    #all_devs_dict = {}
-
-    # Create list of devices for each district
-    # for data1 in all_data_connect:
-    #     district_name = data1.scenario_name  # Name of the districts
-    #     all_devs_dict[f"all_devs_{district_name}"] = [
-    #         "PV", "WT", "STC", "WAT",
-    #         "HP", "EB", "CC", "AC",
-    #         "CHP", "BOI", "GHP",
-    #         "BCHP", "BBOI", "WCHP", "WBOI",
-    #         "ELYZ", "FC", "H2S", "SAB",
-    #         "TES", "CTES", "BAT", "GS",
-    #     ]
-
-    # Print all devices for each district
-    # for district_name, devices in all_devs.items():
-    #     print(f"{district_name}: {devices}")
-
+    #ToDo: Namen überprüfen: Jedes Quartier eindeutig
     # Create set for devices
     all_devs = ["PV", "WT", "STC", "WAT",
                 "HP", "EB", "CC", "AC",
@@ -69,6 +44,20 @@ def run_optim_connect(data, devs, param, dem, result_dict, all_data_connect):
                 "ELYZ", "FC", "H2S", "SAB",
                 "TES", "CTES", "BAT", "GS",
                 ]
+    return start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs
+
+def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
+
+
+    devs=devsCon[0]
+    param=paramCon[0]
+    dem=demCon[0]
+    result_dict=result_dictCon[0]
+    data=dataCon[0]
+
+
+    start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs=cluster_setup_devices(data,param)
+
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Set up model and create variables

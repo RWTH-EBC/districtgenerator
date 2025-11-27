@@ -9,13 +9,12 @@ The skript should enable one optimatization for the interconnected districts.
 # Import the Datahandler class to use the district generator.
 from districtgenerator.classes import Datahandler
 from pathlib import Path
-from districtgenerator.classes import Datahandler
 from pprint import pprint
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
 
 def multi_distr_dem(configs_dir: Path) -> list[Datahandler]:
     ### This function caluclates the demands of multiple districts. It uses all files ending with .env in the given directory.
-    # Yqu should safe all the building-inforamtions in different .env.CONFIG.<name> files in the data folder to use this function.
+    # You should safe all the building-inforamtions in different .env.CONFIG.<name> files in the data folder to use this function.
 
     all_data = []
 

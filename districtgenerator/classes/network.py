@@ -8,6 +8,8 @@ from pathlib import Path
 from .system import CES
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
 import districtgenerator.functions.heating_network as heating_network
+import districtgenerator.functions.load_params_central_devices as load_params_central_devices
+import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
 
 class Network:
     def __init__(self):
@@ -24,6 +26,7 @@ class Network:
         """
         self.district = []
         self.interconnected_districts = []
+
 
         
     
@@ -112,10 +115,48 @@ class Network:
         -------
         None.
         """
-        # Initialize central devices dictionary
+        
         for district in self.interconnected_districts:
+            # Initialize central devices dictionary
             district.centralDevices = {}
+            # Load parameters of the heating network
             district = heating_network.heating_network(data=district)
+            # Load parameters of the energy hub
+            param, devs, dem, result_dict = load_params_central_devices.load_params(district)
+            # Save parameters of the energy hub for each district
+            district.centralDevices["params"] = param
+            district.centralDevices["devs"] = devs
+            district.centralDevices["dem"] = dem
+            district.centralDevices["result_dict"] = result_dict
+            #district.centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(district, devs, param, dem, result_dict)
+
+        # Run central optimization for one district     
+        
+        #self.interconnected_districts[0].centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(self.interconnected_districts[0], devs, param, dem, result_dict)
+        
+        # Prepare combined data for all interconnected districts
+        # Initialize empty dictionary for combined parameters
+        dataCon = self.interconnected_districts
+        paramCon = {}
+        devsCon = {}
+        demCon = {}
+        result_dictCon = {}  
+
+        for district in self.interconnected_districts:
+            # Check if 'params' key exists in centralDevices
+            if "params" in district.centralDevices:
+                # Add the params of each district to the combined dictionary
+                paramCon[district.scenario_name] = district.centralDevices["params"]
+                devsCon[district.scenario_name] = district.centralDevices["devs"]
+                demCon[district.scenario_name] = district.centralDevices["dem"]
+                result_dictCon[district.scenario_name] = district.centralDevices["result_dict"]
+            else:
+                print(f"No 'params' data found for district: {district.scenario_name}")
+
+
+        # Run central optimization for all interconnected districts together
+        self.interconnected_districts.centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon)
+
 
 
          
