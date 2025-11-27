@@ -14,3 +14,7 @@ if __name__ == '__main__':
 
     network.initializeDistricts(configs_dir=configs_directory_path, calcUserProfiles=False, saveUserProfiles=False)
     network.optimize_network()
+    for district in network.interconnected_districts:
+        print(f"District: {district.scenario_name}, CentralDevices: {district.centralDevices}")
+        net_heating_demand = district.heat_grid_data.get("net_heating_demand", None)
+        print(f"Net heating demand: {net_heating_demand} kW")

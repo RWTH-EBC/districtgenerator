@@ -5,7 +5,9 @@
 # Import the Datahandler class to use the district generator.
 from districtgenerator.classes import Datahandler
 from pathlib import Path
+from .system import CES
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
+import districtgenerator.functions.heating_network as heating_network
 
 class Network:
     def __init__(self):
@@ -14,7 +16,7 @@ class Network:
 
         Parameters
         ----------
-        network: List of districts
+        None.
 
         Returns
         -------
@@ -22,6 +24,8 @@ class Network:
         """
         self.district = []
         self.interconnected_districts = []
+
+        
     
     def initializeDistricts(self,configs_dir: Path, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -87,18 +91,34 @@ class Network:
         # design decentral devices for each district
         for data in self.interconnected_districts:
             data.designDecentralDevices()
-            for building in data.district:
-                if "capacities" in building:
-                    print(f"Building: {building['unique_name']}")
-                    print("Capacities:")
-                    for device, capacity in building["capacities"].items():
-                        print(f"  {device}: {capacity}")
-                else:
-                    print(f"Building: {building['unique_name']} has no capacities defined.")
+
+        # Design central devices for interconnected districts together
+        self.designCentralDevsConnected() 
+
+
         
         # for i, data in enumerate(self.interconnected_districts):
         #     print(f"Scenario Name: {data.scenario_name}")
         #     print(f"Site Data: {data.site}") 
+    def designCentralDevsConnected(self):
+        """
+        This function designs the central devices for interconnected districts all togeether in the network.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        None.
+        """
+        # Initialize central devices dictionary
+        for district in self.interconnected_districts:
+            district.centralDevices = {}
+            district = heating_network.heating_network(data=district)
+
+
+         
 
 
 

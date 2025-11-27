@@ -38,6 +38,14 @@ def one_district_opt_cent():
 
     print("Congratulations! You generated your energy central for the selected neighborhood!")
 
+    # Get the result of heating_network
+    net_heating_demand = data.heat_grid_data.get("net_heating_demand", None)
+
+    if net_heating_demand is not None:
+        print(f"Net heating demand: {net_heating_demand} kW")
+    else:
+        print("Net heating demand not calculated.")
+
     # Capacities of the decentral devices in one  district
     for device, capacity in data.district[0]["capacities"].items():
         print(f"  {device}: {capacity}")
@@ -65,35 +73,8 @@ def one_district_opt_cent():
     else:
         print("No capacities defined in energy hub.")  
 
-    #exemplary_plot(data)
 
     return data
-
-def exemplary_plot(data):
-
-    # Sum heat demand of buildings
-    heat = data.district[0]["user"].heat
-    # Unit conversion [kWh]
-    heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
-
-    # Calculate frequency in hours
-    freq_hours = data.time["timeResolution"] / 3600
-    freq_str = f'{freq_hours}H'
-
-    # Create a dataframe that contains the timestamps
-    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq=freq_str)
-    df = pd.DataFrame(heat, index=date_range, columns=['Value'])
-
-    # Aggregate the data on a monthly basis (totalled value per month)
-    monthly_data = df.resample('M').sum()
-
-    # Plot as bar chart
-    plt.figure(figsize=(10, 6))
-    plt.bar(monthly_data.index.strftime('%b'), monthly_data['Value'])
-    plt.ylabel('District space heat demand in kWh')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
 
 if __name__ == '__main__':
     data = one_district_opt_cent()
