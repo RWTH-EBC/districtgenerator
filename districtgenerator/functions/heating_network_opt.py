@@ -5,6 +5,7 @@ from pyomo.util.infeasible import log_infeasible_constraints
 import numpy as np
 import math
 import os
+import json
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -502,7 +503,7 @@ def optimization_diameter(data, param, f_fric):
     data.heat_grid_data["pipe"]["pipe_ann_factor"] = pipe_ann_factor
 
     # pump
-    inv_pump = heat_grid_data["pump"]["inv_pump"]["value"]               # 230EUR/kWth,  specific investment
+    inv_pump = heat_grid_data["pump"]["inv_pump"]["value"]               # 700EUR/kW,    specific investment
     pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]["value"]     # 10a,          pump lifetime (VDI 2067 Umwälzpumpe)
 
     price_el_pumps = data.ecoData["price_supply_el_eh"]    # 0.3141€/kWh,  electricity costs for pump supply used for network design (equals LEC of CHP for 7000 full load hours)
@@ -620,7 +621,6 @@ def optimization_diameter(data, param, f_fric):
 
     # pump design capacity (max of pump power) (kW) - non-negative
     model.pump_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Pump design capacity (kW)")
-    model.pump_cap_th = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Pump design capacity (kW-thermal)")
 
     # total annual pump energy (kWh)
     model.pump_energy_total = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual pump energy (kWh)")
@@ -700,14 +700,6 @@ def optimization_diameter(data, param, f_fric):
     model.pump_capacity_limit = pyo.Constraint(model.week, model.t, rule=pump_cap_rule,
                                                doc="pump_el <= pump_cap for every time / design capacity constraint")
 
-    def pump_cap_thermal_rule(model, week, t):
-        i = week_to_i[week]
-        demand_value = total_demand_cluster[i, t]
-        return demand_value + pyo.quicksum(model.heat_loss_pipe[pipe, week, t] for pipe in model.pipe) <= model.pump_cap_th
-
-    model.pump_capacity_thermal_limit = pyo.Constraint(model.week, model.t, rule=pump_cap_thermal_rule,
-                                               doc="pump_cap_thermal for every time / design capacity constraint")
-
     # 5) pump_energy_total == sum_t sum_week (pump_el[t] * clusterWeight[week])
     def pump_energy_total_rule(model):
         return model.pump_energy_total == sum(sum(model.pump_el[w, t] for t in model.t) * data.clusterWeights[w] for w in model.week)
@@ -760,7 +752,7 @@ def optimization_diameter(data, param, f_fric):
 
     # 2) Pump investment and TAC
     def inv_pump_rule(model):
-        return model.inv["pumps"] == model.pump_cap_th * inv_pump
+        return model.inv["pumps"] == model.pump_cap * inv_pump
 
     model.inv_pump_constr = pyo.Constraint(rule=inv_pump_rule, doc="Pump investment = pump_cap * unit cost")
 
@@ -818,20 +810,27 @@ def optimization_diameter(data, param, f_fric):
     if not os.path.exists(dir_dia):
         os.makedirs(dir_dia)
 
-    lp_filename = os.path.join(dir_dia, "opti_pipe_diameter_model.lp")
+    generation = heat_grid_data["generation"]["value"]
+    topology = heat_grid_data["topology_option"]["value"]
+    temperature_mode = heat_grid_data["temperature_mode"]["value"]
+    result_folder = f"{data.scenario_name}_{generation}_{topology}_{temperature_mode}"
+    dir_result = os.path.join(dir_dia, result_folder)
+    if not os.path.exists(dir_result):
+        os.makedirs(dir_result)
+
+    lp_filename = os.path.join(dir_result, "opti_pipe_diameter_model.lp")
     model.write(lp_filename, io_options={'symbolic_solver_labels': True})
 
     # temporary log-file for the solver
-    solver_log_path = os.path.join(dir_dia, "solver_output.log")
+    solver_log_path = os.path.join(dir_result, "solver_output.log")
 
     # Solve the model
     solver, solver_options = solver_config.create_solver()
 
-    solver_options["FeasibilityTol"] = 1e-9
-    solver_options["IntFeasTol"] = 1e-9
-    solver_options["NumericFocus"] = 3
+    solver_options["primal_feasibility_tolerance"] = 1e-9
+    solver_options["mip_feasibility_tolerance"] = 1e-9
 
-    results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
+    results = solver.solve(model, tee=True, options=solver_options)
 
     return data, model, param
 
@@ -853,6 +852,14 @@ def output_diameter(data, model, param):
     dir_dia = data.resultPath + "\\diameters"
     if not os.path.exists(dir_dia):
         os.makedirs(dir_dia)
+
+    generation = data.heat_grid_data["generation"]["value"]
+    topology = data.heat_grid_data["topology_option"]["value"]
+    temperature_mode = data.heat_grid_data["temperature_mode"]["value"]
+    result_folder = f"{data.scenario_name}_{generation}_{topology}_{temperature_mode}"
+    dir_result = os.path.join(dir_dia, result_folder)
+    if not os.path.exists(dir_result):
+        os.makedirs(dir_result)
 
     # Save all variable values in a solution file:
     def write_solution_file(model, filename):
@@ -883,7 +890,7 @@ def output_diameter(data, model, param):
             print(f"Warning: Could not write solution file {filename}: {e}")
         return None
 
-    solution_file = os.path.join(dir_dia, 'solution_file.txt')
+    solution_file = os.path.join(dir_result, 'solution_file.txt')
     write_solution_file(model, solution_file)
 
     # ---------- 1. plot Pipeline Map - Labeled by Pipe ID ----------
@@ -908,7 +915,7 @@ def output_diameter(data, model, param):
     ax.set_aspect('equal')
 
     plot_filename = f"pipeline_id_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_dia, plot_filename)
+    plot_path = os.path.join(dir_result, plot_filename)
     plt.savefig(plot_path)
     ax.grid(True, linestyle='--', linewidth=0.3)
 
@@ -963,7 +970,7 @@ def output_diameter(data, model, param):
     ax.grid(True, linestyle='--', linewidth=0.3)
 
     plot_filename = f"pipeline_diameter_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_dia, plot_filename)
+    plot_path = os.path.join(dir_result, plot_filename)
     plt.savefig(plot_path)
 
     plt.show()
@@ -1021,7 +1028,7 @@ def output_diameter(data, model, param):
     ax.grid(True, linestyle='--', linewidth=0.3)
 
     plot_filename = f"pipeline_velocity_max_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_dia, plot_filename)
+    plot_path = os.path.join(dir_result, plot_filename)
     plt.savefig(plot_path)
 
     plt.show()
@@ -1067,7 +1074,7 @@ def output_diameter(data, model, param):
     ax.grid(True, linestyle='--', linewidth=0.3)
 
     plot_filename = f"pipeline_pressure_drop_max_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_dia, plot_filename)
+    plot_path = os.path.join(dir_result, plot_filename)
     plt.savefig(plot_path)
 
     plt.show()
@@ -1121,7 +1128,7 @@ def output_diameter(data, model, param):
     ax.grid(True, linestyle='--', linewidth=0.3)
 
     plot_filename = f"pipeline_energy_density_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_dia, plot_filename)
+    plot_path = os.path.join(dir_result, plot_filename)
     plt.savefig(plot_path)
 
     plt.show()
@@ -1149,9 +1156,10 @@ def output_diameter(data, model, param):
         heat_loss_network += pipe["heat_loss_pipe"]
 
     # calculate and save total heat loss
-    heat_loss_network = heat_loss_substation + heat_loss_network
-    data.heat_grid_data["total_losses_heating_network"] = heat_loss_network
-    total_heat_loss_per_m = np.sum(heat_loss_network) / total_pipe_length
+    heat_loss_total = heat_loss_substation + heat_loss_network
+    data.heat_grid_data["total_losses_heating_network"] = heat_loss_total
+    annual_heat_loss = np.sum(heat_loss_total)
+    total_heat_loss_per_m = annual_heat_loss / total_pipe_length
     print("Total heat loss in network calculation finished successfully.")
     print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
 
@@ -1194,7 +1202,7 @@ def output_diameter(data, model, param):
     # Add yearly station + hub pressure-drop component
     dp_substation = data.heat_grid_data.get("dp_substation", {}).get("value", 0.0)  # Pa
     dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", {}).get("value", 0.0)  # Pa
-    dp_station_total = dp_substation + dp_energy_hub                                         # Pa
+    dp_station_total = dp_substation + dp_energy_hub                                # Pa
 
     # Approximate total volume flow at energy hub as sum of flows leaving EH1
     T_s = param["T_s"]  # only used for shape
@@ -1242,10 +1250,7 @@ def output_diameter(data, model, param):
     print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
 
     # calculate the investment for the pump
-    total_demand = param["total_demand"]
-    total_heat = total_demand + heat_loss_network
-    pump_cap_th = np.max(total_heat)
-    inv_pump = pump_cap_th * data.heat_grid_data["pump"]["inv_pump"]["value"]
+    inv_pump = pump_cap * data.heat_grid_data["pump"]["inv_pump"]["value"]
 
     # cost of pump
     pump_ann_costs = inv_pump * data.heat_grid_data["pump"]["pump_ann_factor"]
@@ -1259,8 +1264,10 @@ def output_diameter(data, model, param):
     electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"]
 
     # calculate the total cost
-    data.heat_grid_data["om_costs"] = pipes_om_costs + pump_om_costs + substation_om_costs + electricity_costs
-    data.heat_grid_data["ann_costs"] = pipes_ann_costs + pump_ann_costs + substation_ann_costs
+    network_om_costs = pipes_om_costs + pump_om_costs + substation_om_costs
+    network_ann_costs = pipes_ann_costs + pump_ann_costs + electricity_costs + substation_ann_costs
+    data.heat_grid_data["om_costs"] = network_om_costs
+    data.heat_grid_data["ann_costs"] = network_ann_costs
 
     return data
 

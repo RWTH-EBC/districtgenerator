@@ -104,18 +104,23 @@
   "unit": "W/(m*K)",
   "description": "Polyurethane foam heat conductivity. Source: VDI Wärmeatlas"
   },
+  "k_PE": {
+  "value": 0.4,
+  "unit": "W/(m*K)",
+  "description": "PE heat conductivity. Source: https://www.muovitech.com/productdocs/EN_collector_RC_technical.pdf"
+  },
   "h_loss_subst": {
   "value": 5,
   "unit": "%",
   "description": "Heat losses at the substation. Source: Technikkatalog-Waermeplanung_Oktober2025"
   },
   "dp_substation": {
-    "value": 100000,
+    "value": 75000,
     "unit": "Pa",
-    "description": "Pressure drop at the substation"
+    "description": "Pressure drop at the substation; Source: Leitfaden zur Planung von Fernwärme-Übergabestationen"
   },
   "dp_energy_hub": {
-    "value": 50000,
+    "value": 100000,
     "unit": "Pa",
     "description": "Pressure drop at the energy hub"
   },
@@ -146,7 +151,7 @@
   },
   "pump": {
     "eta_pump": {"value": 0.65, "unit": "-", "description": "electric pump efficiency"},
-    "inv_pump": {"value": 230, "unit": "EUR/kWth", "description": "specific investment pump"},
+    "inv_pump": {"value": 700, "unit": "EUR/kW", "description": "specific investment pump"},
     "pump_lifetime": {"value": 10, "unit": "years", "description": "pump lifetime(VDI 2067 Umwälzpumpe)"},
     "cost_om_pump": {"value": 0.03, "unit": "-", "description": "pump O&M share"}
   },

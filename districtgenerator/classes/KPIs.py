@@ -312,6 +312,7 @@ class KPIs:
             capacities[n]["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
+            capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
             capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
@@ -325,19 +326,19 @@ class KPIs:
         calc_annual_investment = {}
         self.annual_fixed_costs_decentral = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
         for dev in devices:
             calc_annual_investment[dev] = 0
             for n in range(len(district)):
                 try:
-                    if counts.get(dev, 0) > 0:
-                        calc_annual_investment[dev] += self.calc_annual_cost_device(
-                            decentral_device_data[dev],
-                            decentral_device_data["inv_data"],
-                            capacities[n][dev])
-                    # Else leave as 0
+                    calc_annual_investment[dev] += self.calc_annual_cost_device(
+                        decentral_device_data[dev],
+                        decentral_device_data["inv_data"],
+                        capacities[n][dev])
+
                 except KeyError:
                     continue
+            print(f"Annualized investment cost for {dev}: {calc_annual_investment[dev]:.2f} €")
             self.annual_fixed_costs_decentral += calc_annual_investment[dev]
 
         try:

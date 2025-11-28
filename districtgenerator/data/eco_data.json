@@ -1,7 +1,7 @@
 [
     {
         "name": "price_supply_el",
-        "value": 0.3969,
+        "value": 0.30,
         "unit": "€/kWh",
         "description" : "Electricity price."
     },
@@ -13,7 +13,7 @@
     },
     {
         "name": "price_supply_el_eh",
-        "value": 0.3141,
+        "value": 0.30,
         "unit": "€/kWh",
         "description" : "Electricity price for energy hub."
     },
@@ -25,7 +25,7 @@
     },
     {
         "name": "price_supply_gas",
-        "value": 0.1147,
+        "value": 0.127,
         "unit": "€/kWh",
         "description" : "Gas price."
     },
@@ -43,7 +43,7 @@
     },
     {
         "name": "price_hydrogen",
-        "value": 0.1,
+        "value": 0.250,
         "unit": "€/kWh",
         "description" : "Hydrogen price."
     },
@@ -55,13 +55,13 @@
     },
     {
         "name": "price_biomass",
-        "value": 0.05,
+        "value": 0.0698,
         "unit": "€/kWh",
-        "description" : "Biomass price."
+        "description" : "Biomass price (pellets)."
     },
     {
         "name": "price_oil",
-        "value": 0.1,
+        "value": 0.0982,
         "unit": "€/kWh",
         "description" : "Oil price."
     },
@@ -85,21 +85,21 @@
     },
     {
         "name": "co2_biom",
-        "value": 0.35,
+        "value": 0.020,
         "unit": "kg/kWh",
         "description" : "CO2 emissions by burning biomass."
     },
     {
         "name": "co2_waste",
-        "value": 0,
+        "value": 0.020,
         "unit": "kg/kWh",
         "description" : "CO2 emissions by burning waste."
     },
     {
         "name": "co2_hydrogen",
-        "value": 0,
+        "value": 0.0031,
         "unit": "kg/kWh",
-        "description" : "CO2 emissions by burning hydrogen."
+        "description" : "CO2 emissions by burning green hydrogen produced in Germany."
     },
     {
         "name": "co2_oil",

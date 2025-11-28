@@ -8,6 +8,9 @@ import copy
 import datetime
 import multiprocessing
 import random
+import time
+import warnings
+import threading
 import numpy as np
 import openpyxl
 import pandas as pd
@@ -57,7 +60,7 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", resultPath = None, scenario_file_path = None):
+    def __init__(self, scenario_name = "example", heat_map_berlin = False, resultPath = None, scenario_file_path = None):
         """
         Constructor of Datahandler class.
 
@@ -71,6 +74,7 @@ class Datahandler:
         self.initial_day = None
         self.district = []
         self.scenario_name = scenario_name
+        self.heat_map_berlin = heat_map_berlin
         self.scenario = None
         self.total_building_area = None
         self.design_building_data = {}
@@ -144,9 +148,17 @@ class Datahandler:
             for subData in jsonData:
                 self.time[subData["name"]] = subData["value"]
 
-        # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                     converters={"position": parse_position}).set_index("id", drop=False))
+        if self.heat_map_berlin:
+            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
+            # %% load scenario file with building information
+            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
+                                         converters={"position": parse_position}).set_index("id", drop=False))
+
+        else:
+            # %% load scenario file with building information
+            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+                            converters={"position": parse_position}).set_index("id", drop=False))
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -209,7 +221,8 @@ class Datahandler:
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
         elif self.heat_grid_data["generation"]["value"] == "5th":
-            # TODO: create pipe data for 5th generation?
+            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
+            self.pipe_data = pd.read_csv(csv_path, sep=";")
             pass
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into heat_grid.json.")
@@ -1077,12 +1090,11 @@ class Datahandler:
 
             # %% create building energy system object
             # get capacities of all possible devices
-            bes_obj = BES(physics=self.physics,
+            building["bes_obj"] = BES(physics=self.physics,
                           decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = bes_obj.designECS(building, self.site)
-
+            building["capacities"] = building["bes_obj"].designECS(building, self.site)
             # calculate PV and STC generation
             building["generationPV"], building["generationSTC"] = \
                 sun.calcPVAndSTCProfile(time=self.time,
@@ -1714,6 +1726,290 @@ class Datahandler:
         """
         network_optimization(self)
 
+    def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=8):
+        """
+        Überträgt Daten aus WKB_export Format in Quartier Format und zerlegt diese in so viele Dateien, dass jede Datei max. batch_size Gebäude enthält.
+        """
+
+        # Mapping-Funktionen definieren
+        def map_building_type(gebaeudetype):
+            """Mappt Gebäudetypen"""
+            mapping = {
+                'EFH': 'SFH',  # Einfamilienhaus -> Single Family House
+                'RH': 'TH',  # Reihenhaus -> Terraced House
+                'MFH': 'MFH',  # Mehrfamilienhaus -> Multi Family House
+                'GMH': 'MFH'  # Geschosswohnhaus -> Multi Family House
+            }
+            return mapping.get(gebaeudetype, None)
+
+        def map_heater_type(heizsystem):
+            """Mappt Heizungstypen - konsistent mit Dictionary-Ansatz"""
+            if pd.isna(heizsystem):
+                return 'BOI'  # Default
+
+            # Dictionary-Mapping wie beim building_type
+            mapping = {
+                'Gaskessel': 'BOI',
+                'Fernwärme': 'DH',
+                'Blockheizkraftwerk': 'CHP',
+                'Wärmepumpe': 'HP',
+                'Heat Pump': 'HP',
+                'Biomassekessel': 'BBOI',
+                'Ölkessel': 'OBOI',
+                'Wasserstoffkessel': 'H2BOI',
+            }
+
+            return mapping.get(heizsystem, 'BOI')  # Default falls nicht gefunden
+
+        def map_retrofit_status(sanierungszustand):
+            """Mappt Sanierungszustand - auch mit Dictionary"""
+            if pd.isna(sanierungszustand):
+                return 0  # Default
+
+            # Dictionary-Mapping
+            mapping = {
+                'unsaniert': 0,
+                'teilsaniert': 1,
+                'vollsaniert': 2,
+                'saniert': 2  # Falls nur "saniert" ohne "voll" steht
+            }
+
+            return mapping.get(sanierungszustand,
+                               None)  # Rückgabe None falls nicht gefunden damit diese Zeile später aussortiert wird
+
+        def safe_convert_area(area_value):
+            """Sicher Flächenwerte konvertieren"""
+            if pd.isna(area_value): return None  # None if area_value is NaN
+
+            try:
+                # Komma durch Punkt ersetzen für deutsche Zahlenformate
+                if isinstance(area_value, str):
+                    area_value = area_value.replace(',', '.')
+                    area_value = float(area_value)
+                area_value = int(area_value)
+                if area_value > 0:
+                    return area_value
+                else:
+                    return None
+            except:
+                return None
+
+        def safe_convert_year(year_value):
+
+            if pd.isna(year_value):
+                return None  # Default
+            try:
+                return int(float(year_value))
+            except:
+                return None
+
+        def check_heat_demand_valid(heat_demand_simulated, heat_demand_measured):
+            """Überprüft, ob beide Energiebedarfe (simuliert und gemessen) gültige Werte haben"""
+            try:
+                simulated = float(heat_demand_simulated)
+                measured = float(heat_demand_measured)
+                if simulated > 0 and measured > 0:
+                    return True
+                else:
+                    return False
+            except:
+                return False
+
+        def convert_to_local_coordinates(df, x_col="x", y_col="y"):
+            """Convert UTM coordinates to a local coordinate system."""
+            min_x = df[x_col].min()
+            min_y = df[y_col].min()
+            df["x_local"] = df[x_col] - min_x
+            df["y_local"] = df[y_col] - min_y
+            return df
+
+        def check_all_values(row, idx):
+            """Überprüft, ob alle notwendigen Werte vorhanden sind"""
+            # gross_floor_area > 0
+            if safe_convert_area(row.get('gross_floor_area')) == None:
+                print(f"row {idx}: Invalid gross_floor_area: {row.get('gross_floor_area')}")
+                return False
+            if safe_convert_area(row.get('gross_floor_area')) > 20000:
+                print(f"row {idx}: Building with too large gross_floor_area: {row.get('gross_floor_area')}")
+                return False
+            # heat_relevance
+            if row.get('heat_relevance') != 'wärmerelevant':
+                print(f"row {idx}: Invalid heat_relevance: {row.get('heat_relevance')}")
+                return False
+            # building_type_simplified vorhanden
+            if map_building_type(row.get('building_type_simplified')) == None:
+                print(f"Invalid building_type_simplified: {row.get('building_type_simplified')}")
+                return False
+            # construction_year vorhanden
+            if safe_convert_year(row.get('construction_year')) == None:
+                print(f"row {idx}: Invalid construction_year: {row.get('construction_year')}")
+                return False
+            # renovation_state_simulated vorhanden
+            if map_retrofit_status(row.get('renovation_state_simulated')) == None:
+                print(f"row {idx}: Invalid renovation_state_simulated: {row.get('renovation_state_simulated')}")
+                return False
+
+            # for a meaningful comparison, only buldings with a registered heat_demand (simulated and measured) are considered
+            if check_heat_demand_valid(row.get('heat_demand_simulated'), row.get('energy_consumption_sh')) == False:
+                print(
+                    f"row {idx}: Invalid heat_demand_simulated or energy_consumption_sh: {row.get('heat_demand_simulated')}, {row.get('energy_consumption_sh')}")
+                return False
+
+            # Only if all checks are passed return true
+            return True
+
+        # WKB Daten einlesen
+        wkb_data = pd.read_csv(wkb_file_path, encoding='utf-8', delimiter=',', decimal='.',
+                               na_values=['NULL', 'null', '', 'nan'])
+
+        # Make sure x/y are numeric
+        wkb_data["x"] = pd.to_numeric(wkb_data["x"], errors="coerce")
+        wkb_data["y"] = pd.to_numeric(wkb_data["y"], errors="coerce")
+
+        # Convert global EPSG:25833 coords → local coords for our simulation
+        wkb_data = convert_to_local_coordinates(wkb_data, "x", "y")
+
+        # Sort the df by the 'gross_floor_area' key -> Buildings with big areas first to avoid them being last and then not profiting as much as they could from multiprocessing
+        wkb_data['gross_floor_area'] = pd.to_numeric(wkb_data['gross_floor_area'], errors='coerce')
+        wkb_data = wkb_data.sort_values(by='gross_floor_area', ascending=False)
+
+        # Quartier Dataframe erstellen
+        quartier_data = []
+        wkb_data_for_csv = []
+
+        new_id = 0
+
+        for idx, row in wkb_data.iterrows():
+            # Nur Wohngebäude berücksichtigen
+            if row.get('type_of_use') == 'Wohnhaus' or pd.isna(row.get('type_of_use')):
+                if check_all_values(row, idx):
+                    quartier_row = {
+                        'id': new_id,
+                        "position": (row["x_local"], row["y_local"]),
+                        'building': map_building_type(row.get('building_type_simplified')),
+                        'year': safe_convert_year(row.get('construction_year')),
+                        'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),
+                        # Standard: nicht saniert
+                        'construction_type': '',  # Leer lassen wie im Original
+                        'night_setback': 0,  # Standard
+                        'area': safe_convert_area(row.get('gross_floor_area')),
+                        'number_of_floors': row.get('number_floors'),
+                        'heater': map_heater_type(row.get('heating_system')),
+                        'cooling': 0,
+                        'EV': 0,  # Standard
+                        'f_TES': 35,  # Wie im Original
+                        'f_BAT': 0,  # Wie im Original
+                        'f_PV1': 0,  # Wie im Original
+                        'f_PV2': 0,  # Wie im Original
+                        'f_STC': 0,  # Wie im Original
+                        'gamma_PV': 0,  # Wie im Original
+                        'ev_charging': 'on_demand',  # Wie im Original
+                    }
+                    quartier_data.append(quartier_row)
+
+                    # Get the original WKB row for reference
+                    wkb_row = row.to_dict()
+                    wkb_row['id'] = new_id  # Add new_id for reference
+                    wkb_data_for_csv.append(wkb_row)
+                    new_id += 1
+
+        # DataFrame erstellen
+        quartier_df = pd.DataFrame(quartier_data)
+        wkb_df = pd.DataFrame(wkb_data_for_csv)
+
+        # Als CSV speichern
+        num_csv = max(1, (len(quartier_df) + batch_size - 1) // batch_size)  # Berechne Anzahl der benötigten Dateien
+        print(f"Total buildings processed: {len(quartier_df)}. Saving in {num_csv} CSV file(s).")
+
+        for i in range(num_csv):
+            batch_quartier_df = quartier_df.iloc[i * batch_size:(i + 1) * batch_size]
+            quartier_batch_path = output_file_path.replace(".csv", f"_{i}.csv")
+            batch_quartier_df.to_csv(quartier_batch_path, sep=';', index=False)
+
+        # all_buildings combined CSV files
+        quartier_df.to_csv(output_file_path, sep=';', index=False)
+        wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=';', index=False)
+
+        return quartier_df
+
+def generate_demands_worker_wrapper(args):
+    """
+    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
+    Startet den Worker und den Monitor-Thread für ein Gebäude.
+    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
+    """
+    try:
+        warnings.filterwarnings("ignore",
+                                category=FutureWarning)  # ! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
+        start_time_building = time.time()
+
+        self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
+        building_name = building.get("unique_name")
+
+        # Event zum Stoppen des Monitor-Threads
+        stop_event = threading.Event()
+
+        timeout_duration = 1800  # 30 minutes to identify long-running threads
+        monitor = threading.Thread(
+            target=monitor_task,
+            args=(start_time_building, timeout_duration, building_name, stop_event),
+            daemon=True
+        )
+        monitor.start()
+
+        # Starting the demand generation worker
+        try:
+            self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
+
+            result = {
+                "unique_name": building["unique_name"],
+                "elec": building["user"].elec,
+                'dhw': building["user"].dhw,
+                'cooling': building["user"].cooling,
+                'heating': building["user"].heat,
+                'occ': building["user"].occ,
+                'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
+                'EV_carprofile': building["user"].EV_carprofile,
+                "ev_capacity": building["user"].ev_capacity,
+                'ice_carprofile': building["user"].ice_carprofile,
+                'gains': building["user"].gains,
+                "nb_units": building["user"].nb_units,
+                'nb_occ': building["user"].nb_occ,
+                'envelope': building["envelope"],
+                'night_setback': building["buildingFeatures"]["night_setback"],
+                'individual_car_profiles': building["user"].individual_car_profiles
+            }
+        finally:
+            # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
+            stop_event.set()
+            monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
+
+        # Time needed for calculating this building
+        end_time_building = time.time()
+        duration_building = end_time_building - start_time_building
+
+        return result, duration_building
+    except Exception as e:
+        print(f"Error in generate_demands_worker_wrapper for building {building.get('unique_name')}: {e}")
+        return None, None
+
+
+def monitor_task(start_time, timeout_duration, building_name, stop_event):
+    """
+    Monitors the progress of a task and gives a warning if the thread takes longer than the specified timeout duration.
+    """
+
+    # Wait for the specified timeout duration and check if the task is completed. During this time the thread is inactive.
+    # If stop_event is set, the return is True, otherwise False after timeout
+    was_stopped_in_time = stop_event.wait(timeout=timeout_duration)
+
+    if was_stopped_in_time:
+        pass  # Task completed within the timeout duration
+    else:
+        elapsed_time = time.time() - start_time
+        print(f"Runtime Warning: The task for building {building_name} is already taking {elapsed_time:.2f} seconds.")
+
+    # The monitoring thread ends here
 
 def generate_demands_worker_wrapper(args):
     """
@@ -1758,3 +2054,4 @@ def parse_position(val):
         return tuple(float(x.strip()) for x in pos_str.strip("()").split(","))
     # For other data types, return the value as is.
     return val
+

@@ -12,7 +12,7 @@ from districtgenerator.classes import *
 def example8_scenario_evaluation():
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_D_buildings_15")
+    data = Datahandler(scenario_name = "251028_export_dg_32")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
