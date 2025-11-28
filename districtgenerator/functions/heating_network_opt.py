@@ -1269,6 +1269,81 @@ def output_diameter(data, model, param):
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
 
+    # save energy and costs to a json-file
+    results = {
+        "f_fric": {
+            "value": float(f_fric),
+            "unit": "-",
+            "description": "Darcy friction factor used in the hydraulic calculation"
+        },
+        "total_pipe_length": {
+            "value": float(total_pipe_length),
+            "unit": "m",
+            "description": "Sum of all pipe segments in the network"
+        },
+        "pump_capacity": {
+            "value": float(pump_cap),
+            "unit": "kW",
+            "description": "Required pump power for the designed heating network"
+        },
+        "pump_electricity_consumption": {
+            "value": float(pump_energy_total),
+            "unit": "kWh",
+            "description": "Total annual electricity consumption for the pump"
+        },
+        "annual_heat_loss": {
+            "value": float(annual_heat_loss),
+            "unit": "kWh",
+            "description": "Annual heat loss (including pipelines and substations)"
+        },
+        "substation_ann_costs": {
+            "value": float(substation_ann_costs),
+            "unit": "€",
+            "description": "Annualized investment for the substations"
+        },
+        "substation_om_costs": {
+            "value": float(substation_om_costs),
+            "unit": "€",
+            "description": "O&M cost for the substations"
+        },
+        "pump_ann_costs": {
+            "value": float(pump_ann_costs),
+            "unit": "€",
+            "description": "Annualized investment for the pump"
+        },
+        "pump_om_costs": {
+            "value": float(pump_om_costs),
+            "unit": "€",
+            "description": "O&M cost for the pump"
+        },
+        "pipes_ann_costs": {
+            "value": float(pipes_ann_costs),
+            "unit": "€",
+            "description": "Annualized investment for the pipes"
+        },
+        "pipes_om_costs": {
+            "value": float(pipes_om_costs),
+            "unit": "€",
+            "description": "O&M cost for the pipes"
+        },
+        "network_ann_costs": {
+            "value": float(network_ann_costs),
+            "unit": "€",
+            "description": "Total annualized investment for the heating network"
+        },
+        "network_om_costs": {
+            "value": float(network_om_costs),
+            "unit": "€",
+            "description": "Total O&M cost for the heating network"
+        }
+    }
+
+    json_path = os.path.join(dir_result, "parameters_outputs.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=4, ensure_ascii=False)
+
+    print("Saved JSON to:", json_path)
+
     return data
 
 def calc_f_fric(data, model, param):

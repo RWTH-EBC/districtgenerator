@@ -43,19 +43,19 @@
     },
         {
       "name": "life_time",
-      "value": 18,
+      "value": 20,
       "unit": "years",
       "description": "Maximum life time."
     },
     {
       "name": "inv_var",
-      "value": 1982,
+      "value": 1950,
       "unit": "€/kWth",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.019,
+      "value": 0.02,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
@@ -80,13 +80,13 @@
       },
       {
           "name": "inv_var",
-          "value": 508,
+          "value": 620,
           "unit": "€/kW",
           "description": ""
       },
       {
           "name": "cost_om",
-          "value": 0.00984251968503937,
+          "value": 0.0096,
           "unit": "1/year (fraction of inv_var)",
           "description": ""
           }
@@ -111,13 +111,13 @@
     },
     {
       "name": "inv_var",
-      "value": 709,
+      "value": 420,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.029619181946403384,
+      "value": 0.031,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
@@ -126,7 +126,7 @@
   {
   "device": "biomass boiler" ,
   "abbreviation": "BBOI" ,
-  "description": "Biomass boiler." ,
+  "description": "Biomass boiler (pellets)." ,
   "specifications": [
     {
       "name": "eta_th" ,
@@ -142,13 +142,13 @@
     },
     {
       "name": "inv_var",
-      "value": 1428,
+      "value": 2200,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.06,
+      "value": 0.0095,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }

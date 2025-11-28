@@ -1,6 +1,9 @@
 districtgenerator/results/*
 districtgenerator/data/scenarios/*
 districtgenerator/examples/*
+districtgenerator/examples/results/*
+districtgenerator/examples/results/results/*
+
 errorfile.txt
 *.bk
 *.log

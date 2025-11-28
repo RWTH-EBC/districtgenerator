@@ -1,6 +1,6 @@
 {
   "generation":{
-    "value": "3rd",
+    "value": "4rd",
     "description": "Heating network generation, selected between:\"3rd\", \"4th\" and \"5th\""
   },
   "topology_option":{
@@ -157,7 +157,7 @@
   },
   "pipe": {
     "f_fric": {"value": 0.025, "unit": "-", "description": "friction factor"},
-    "dp_pipe_max": {"value": 500, "unit": "Pa/m", "description": "max pressure gradient"},
+    "dp_pipe_max": {"value": 400, "unit": "Pa/m", "description": "max pressure gradient"},
     "dp_pipe_min": {"value": 30, "unit": "Pa/m", "description": "min pressure gradient"},
     "pipe_lifetime": {"value": 30, "unit": "years", "description": "pipe lifetime"},
     "cost_om_pipe": {"value": 0.005, "unit": "-", "description": "pipe O&M share"}

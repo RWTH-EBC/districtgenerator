@@ -77,9 +77,9 @@
     "CCOP_feasible": true,
     "ASHP_feasible": false,
     "CSV_feasible": false,
-    "inv_var": 800,
+    "inv_var": 1110,
     "life_time": 20,
-    "cost_om": 0.015,
+    "cost_om": 0.033,
     "min_cap": 0,
     "max_cap": 500,
     "ASHP_carnot_eff": 0.4,
@@ -88,8 +88,8 @@
   "AirHP": {
     "feasible": true,
     "life_time": 25,
-    "inv_var": 1500,
-    "cost_om": 0.025,
+    "inv_var": 1110,
+    "cost_om": 0.033,
     "min_cap": 0,
     "max_cap": 20000,
     "units": {
@@ -111,7 +111,7 @@
   "EB": {
     "feasible": true,
     "life_time": 25,
-    "inv_var": 400,
+    "inv_var": 32.73,
     "eta_th": 0.99,
     "cost_om": 0.01,
     "min_cap": 0,
@@ -152,7 +152,7 @@
   },
   "BCHP": {
     "feasible": false,
-    "inv_var": 1500,
+    "inv_var": 1140,
     "eta_el": 0.35,
     "eta_th": 0.55,
     "life_time": 20,
@@ -162,7 +162,7 @@
   },
   "BBOI": {
     "feasible": false,
-    "inv_var": 600,
+    "inv_var": 570,
     "eta_th": 0.85,
     "life_time": 20,
     "cost_om": 0.02,
