@@ -140,9 +140,10 @@ class KPIs:
         # loop over cluster
         for c in range(len(self.inputData["clusters"])):
             # loop over buildings
-            for id in data.scenario["id"]:
-                self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][id]["res_load"])
-                self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
+            for bldg_id in data.scenario["id"]:
+                idx = data.building_dict[int(bldg_id)]
+                self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][idx]["res_load"])
+                self.sum_res_inj[c, :] += np.array(self.inputData["resultsOptimization"][c][idx]["res_inj"])
 
         ### for central energy unit
 
@@ -260,9 +261,10 @@ class KPIs:
                 a = 0
                 b = 0
                 # sum of all buildings for each timestep
-                for id in data.scenario["id"]:
-                    a += self.inputData["resultsOptimization"][c][id]["res_load"][t] # res_load is the residual load of the building, meaning the net electricity needed for the building after accounting for all the consumers and producers in the building, including its PV, CHP...
-                    b += self.inputData["resultsOptimization"][c][id]["res_inj"][t]  # res_inj is the residual feed from the building, meaning the net electricity fed to the electrical grid from the building after accounting for all internal electricity usage in the building
+                for bldg_id in data.scenario["id"]:
+                    idx = data.building_dict[int(bldg_id)]
+                    a += self.inputData["resultsOptimization"][c][idx]["res_load"][t]
+                    b += self.inputData["resultsOptimization"][c][idx]["res_inj"][t]
                 # At the same time step t, either res_load or res_inj should be 0.
                 # However, a and b could both be greater than 0 at the same time step t,
                 # since they represent the sums of all the buildings.
@@ -338,7 +340,6 @@ class KPIs:
 
                 except KeyError:
                     continue
-            print(f"Annualized investment cost for {dev}: {calc_annual_investment[dev]:.2f} €")
             self.annual_fixed_costs_decentral += calc_annual_investment[dev]
 
         try:
