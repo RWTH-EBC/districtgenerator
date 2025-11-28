@@ -75,6 +75,7 @@ class Datahandler:
         self.district = []
         self.scenario_name = scenario_name
         self.heat_map_berlin = heat_map_berlin
+        self.pv_stc_potential = None
         self.scenario = None
         self.total_building_area = None
         self.design_building_data = {}
@@ -149,16 +150,21 @@ class Datahandler:
                 self.time[subData["name"]] = subData["value"]
 
         if self.heat_map_berlin:
+            # %% load heat map berlin data
             self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                             self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
-            # %% load scenario file with building information
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
                                          converters={"position": parse_position}).set_index("id", drop=False))
-
+            self.pv_stc_potential = pd.read_csv(
+                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
+                delimiter=';',
+                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+            )
         else:
             # %% load scenario file with building information
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                            converters={"position": parse_position}).set_index("id", drop=False))
+                                         converters={"position": parse_position}).set_index("id", drop=False))
+
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -1095,18 +1101,65 @@ class Datahandler:
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
             building["capacities"] = building["bes_obj"].designECS(building, self.site)
-            # calculate PV and STC generation
-            building["generationPV"], building["generationSTC"] = \
-                sun.calcPVAndSTCProfile(time=self.time,
-                                        site=self.site,
-                                        area_roof=building["envelope"].A["opaque"]["roof"],
-                                        # In Germany, this is a roof pitch between 30 and 35 degrees
-                                        beta=[35],
-                                        # surface azimuth angles (Orientation to the south: 0°)
-                                        gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                        usageFactorPV1=building["buildingFeatures"]["f_PV1"],
-                                        usageFactorPV2=building["buildingFeatures"]["f_PV2"],
-                                        usageFactorSTC=building["buildingFeatures"]["f_STC"])
+
+            if self.heat_map_berlin:
+                # Read PV potentials for the current building from the DataFrame
+                pv_data = self.pv_stc_potential[self.pv_stc_potential["uuid"] == building["buildingFeatures"]["alkis_id"]]
+                # Initialize sums for PV and STC
+                total_pv_generation = None
+                total_stc_generation = None
+
+                # Loop over each PV sub-area for this building
+                for idx, row in pv_data.iterrows():
+                    area = row["modanetto"]  # Area of the sub-surface
+                    roof_type = row["dachtyp"]  # Roof type
+
+                    # Check if roof is flat and adjust tilt and azimuth accordingly
+                    if roof_type == "flach":
+                        tilt = 30  # Flat roofs: 30 degrees tilt
+                        azimuth = 0  # Flat roofs: south orientation (0°)
+                    else:
+                        azimuth = row["richtung"]  # Orientation (gamma)
+                        tilt = row["neigung"]  # Tilt angle (beta)
+
+                    # Calculate PV and STC profiles for this sub-area
+                    pv_profile, stc_profile = sun.calcPVAndSTCProfile(
+                        time=self.time,
+                        site=self.site,
+                        area_roof=area,
+                        beta=[tilt],
+                        gamma=[azimuth],
+                        usageFactorPV1=1,
+                        usageFactorPV2=0,
+                        usageFactorSTC=building["buildingFeatures"]["f_STC"]
+                    )
+
+                    # Sum up the profiles
+                    if total_pv_generation is None:
+                        total_pv_generation = pv_profile
+                        total_stc_generation = stc_profile
+                    else:
+                        total_pv_generation += pv_profile
+                        total_stc_generation += stc_profile
+
+                # Store the summed values
+                building["generationPV"] = total_pv_generation
+                building["generationSTC"] = total_stc_generation
+
+
+            else:
+                # calculate PV and STC generation
+                building["generationPV"], building["generationSTC"] = \
+                    sun.calcPVAndSTCProfile(time=self.time,
+                                            site=self.site,
+                                            area_roof=building["envelope"].A["opaque"]["roof"],
+                                            # In Germany, this is a roof pitch between 30 and 35 degrees
+                                            beta=[35],
+                                            # surface azimuth angles (Orientation to the south: 0°)
+                                            gamma=[building["buildingFeatures"]["gamma_PV"]],
+                                            usageFactorPV1=building["buildingFeatures"]["f_PV1"],
+                                            usageFactorPV2=building["buildingFeatures"]["f_PV2"],
+                                            usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
@@ -1599,133 +1652,6 @@ class Datahandler:
         # Plot everything
         plot_all(self)
 
-    def designNetworkwithNode(self):
-        """
-        Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
-        using Minimum Spanning Tree(MST) algorithm
-
-        Returns
-        -------
-        None.
-        """
-        # get the input data for the optimizer
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-
-        if os.path.exists(json_path):
-            district_type = self.site["district_parameters"]["district_type"]
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                buildings_info = jsonData["values"]["buildings_info"]
-                transformer_info = jsonData["values"]["transformer_station"]
-        else:
-            # if JSON file not found → Extract building coordinates from district data
-            district_type = "unknown"
-            buildings_info = []
-            for building in self.district:
-                pos = building["buildingFeatures"]["position"]
-                building_dict = {"building": building["unique_name"],
-                                 "position": pos}
-                buildings_info.append(building_dict)
-
-            # Randomly choose one building as transformer base
-            chosen_building = random.choice(buildings_info)
-            base_pos = chosen_building["position"]
-
-            # Apply small random offset between choosen building and transformer (e.g., ±5 meters)
-            offset_x = random.uniform(-5, 5)
-            offset_y = random.uniform(-5, 5)
-            transformer_info = {
-                "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
-            }
-
-        run_pipeline_node(district_type, buildings_info, transformer_info)
-
-    def designNetworkwithRoad(self):
-        """
-        Consider road constraints, ensuring all main pipelines are laid beneath roads.
-        using Steiner Tree algorithm
-
-        Returns
-        -------
-        None.
-        """
-        # get the input data for the optimizer
-        district_type = self.site["district_parameters"]["district_type"]
-        building_width = self.site["district_parameters"]["building_width"]
-        house_connection = self.site["district_parameters"]["house_connection"]
-
-        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
-            jsonData = json.load(json_file)
-        buildings_info = jsonData["values"]["buildings_info"]
-        lines_info = jsonData["values"]["lines_info"]
-        transformer_info = jsonData["values"]["transformer_station"]
-
-        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
-
-    def generateNetwork(self, topology_option):
-        """
-        Select a method for optimizing the network topology structure and optimize/load file
-
-        Parameters
-        ----------
-        topology_option: string
-            “node”: ignores road constraints,
-            “road”: considers road constraints, ensuring all main pipelines are laid beneath roads.
-        Returns
-        -------
-        None.
-        """
-
-        # --- Check if the geometry JSON exists ---
-        if "district_parameters" not in self.site and topology_option == "road":
-            print(
-                "The district geometry JSON ('<scenario_name>.json') was not found.\n"
-                "The district layout (roads) is not defined, only building positions are available.\n"
-                "Switching to topology_option='node' instead of 'road'."
-            )
-            topology_option = "node"
-        else:
-            topology_option = topology_option
-
-        # design the heating network
-        if topology_option == "node":
-            self.designNetworkwithNode()
-        elif topology_option == "road":
-            self.designNetworkwithRoad()
-
-        # get topology filename
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-        if os.path.exists(json_path):
-            district_type = self.site["district_parameters"]["district_type"]
-        else:
-            # if JSON file not found
-            district_type = "unknown"
-        topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
-
-        # load the file of the heating network topology
-        with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
-            jsonData = json.load(json_file)
-
-        self.pipeline_nodes = jsonData.get("nodes", {})
-        self.pipeline_topology = jsonData.get("edges", {})
-
-    def optimization_heatingnetwork(self):
-        """
-        Optimize the diameter of each pipeline segments.
-
-        The heating system generation and temperature mode is selected in heat_grid.json.
-        Heating system generation: "3rd", "4th" or "5th"
-            Each heating generation corresponds to different supply and return water temperatures.
-        Temperature mode: "Constant" or "Heating_curve"
-            Constant: The supply and return temperature is set as a constant value.
-            Heating_curve(Variable-constant operation mode): controlled within limits depending on the outdoor temperature
-
-        Returns
-        -------
-        None.
-        """
-        network_optimization(self)
-
     def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=8):
         """
         Überträgt Daten aus WKB_export Format in Quartier Format und zerlegt diese in so viele Dateien, dass jede Datei max. batch_size Gebäude enthält.
@@ -1885,6 +1811,7 @@ class Datahandler:
                 if check_all_values(row, idx):
                     quartier_row = {
                         'id': new_id,
+                        'alkis_id': row.get('alkis_id'),
                         "position": (row["x_local"], row["y_local"]),
                         'building': map_building_type(row.get('building_type_simplified')),
                         'year': safe_convert_year(row.get('construction_year')),
@@ -1931,6 +1858,132 @@ class Datahandler:
         wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=';', index=False)
 
         return quartier_df
+    def designNetworkwithNode(self):
+        """
+        Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
+        using Minimum Spanning Tree(MST) algorithm
+
+        Returns
+        -------
+        None.
+        """
+        # get the input data for the optimizer
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                buildings_info = jsonData["values"]["buildings_info"]
+                transformer_info = jsonData["values"]["transformer_station"]
+        else:
+            # if JSON file not found → Extract building coordinates from district data
+            district_type = "unknown"
+            buildings_info = []
+            for building in self.district:
+                pos = building["buildingFeatures"]["position"]
+                building_dict = {"building": building["unique_name"],
+                                 "position": pos}
+                buildings_info.append(building_dict)
+
+            # Randomly choose one building as transformer base
+            chosen_building = random.choice(buildings_info)
+            base_pos = chosen_building["position"]
+
+            # Apply small random offset between choosen building and transformer (e.g., ±5 meters)
+            offset_x = random.uniform(-5, 5)
+            offset_y = random.uniform(-5, 5)
+            transformer_info = {
+                "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
+            }
+
+        run_pipeline_node(district_type, buildings_info, transformer_info)
+
+    def designNetworkwithRoad(self):
+        """
+        Consider road constraints, ensuring all main pipelines are laid beneath roads.
+        using Steiner Tree algorithm
+
+        Returns
+        -------
+        None.
+        """
+        # get the input data for the optimizer
+        district_type = self.site["district_parameters"]["district_type"]
+        building_width = self.site["district_parameters"]["building_width"]
+        house_connection = self.site["district_parameters"]["house_connection"]
+
+        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
+            jsonData = json.load(json_file)
+        buildings_info = jsonData["values"]["buildings_info"]
+        lines_info = jsonData["values"]["lines_info"]
+        transformer_info = jsonData["values"]["transformer_station"]
+
+        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+
+    def generateNetwork(self, topology_option):
+        """
+        Select a method for optimizing the network topology structure and optimize/load file
+
+        Parameters
+        ----------
+        topology_option: string
+            “node”: ignores road constraints,
+            “road”: considers road constraints, ensuring all main pipelines are laid beneath roads.
+        Returns
+        -------
+        None.
+        """
+
+        # --- Check if the geometry JSON exists ---
+        if "district_parameters" not in self.site and topology_option == "road":
+            print(
+                "The district geometry JSON ('<scenario_name>.json') was not found.\n"
+                "The district layout (roads) is not defined, only building positions are available.\n"
+                "Switching to topology_option='node' instead of 'road'."
+            )
+            topology_option = "node"
+        else:
+            topology_option = topology_option
+
+        # design the heating network
+        if topology_option == "node":
+            self.designNetworkwithNode()
+        elif topology_option == "road":
+            self.designNetworkwithRoad()
+
+        # get topology filename
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+        else:
+            # if JSON file not found
+            district_type = "unknown"
+        topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
+
+        # load the file of the heating network topology
+        with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
+            jsonData = json.load(json_file)
+
+        self.pipeline_nodes = jsonData.get("nodes", {})
+        self.pipeline_topology = jsonData.get("edges", {})
+
+    def optimization_heatingnetwork(self):
+        """
+        Optimize the diameter of each pipeline segments.
+
+        The heating system generation and temperature mode is selected in heat_grid.json.
+        Heating system generation: "3rd", "4th" or "5th"
+            Each heating generation corresponds to different supply and return water temperatures.
+        Temperature mode: "Constant" or "Heating_curve"
+            Constant: The supply and return temperature is set as a constant value.
+            Heating_curve(Variable-constant operation mode): controlled within limits depending on the outdoor temperature
+
+        Returns
+        -------
+        None.
+        """
+        network_optimization(self)
 
 def generate_demands_worker_wrapper(args):
     """
@@ -2054,4 +2107,3 @@ def parse_position(val):
         return tuple(float(x.strip()) for x in pos_str.strip("()").split(","))
     # For other data types, return the value as is.
     return val
-
