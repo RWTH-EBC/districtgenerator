@@ -140,9 +140,10 @@ class KPIs:
         # loop over cluster
         for c in range(len(self.inputData["clusters"])):
             # loop over buildings
-            for id in data.scenario["id"]:
-                self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][id]["res_load"])
-                self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
+            for bldg_id in data.scenario["id"]:
+                idx = data.building_dict[int(bldg_id)]
+                self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][idx]["res_load"])
+                self.sum_res_inj[c, :] += np.array(self.inputData["resultsOptimization"][c][idx]["res_inj"])
 
         ### for central energy unit
 
@@ -260,9 +261,10 @@ class KPIs:
                 a = 0
                 b = 0
                 # sum of all buildings for each timestep
-                for id in data.scenario["id"]:
-                    a += self.inputData["resultsOptimization"][c][id]["res_load"][t] # res_load is the residual load of the building, meaning the net electricity needed for the building after accounting for all the consumers and producers in the building, including its PV, CHP...
-                    b += self.inputData["resultsOptimization"][c][id]["res_inj"][t]  # res_inj is the residual feed from the building, meaning the net electricity fed to the electrical grid from the building after accounting for all internal electricity usage in the building
+                for bldg_id in data.scenario["id"]:
+                    idx = data.building_dict[int(bldg_id)]
+                    a += self.inputData["resultsOptimization"][c][idx]["res_load"][t]
+                    b += self.inputData["resultsOptimization"][c][idx]["res_inj"][t]
                 # At the same time step t, either res_load or res_inj should be 0.
                 # However, a and b could both be greater than 0 at the same time step t,
                 # since they represent the sums of all the buildings.
@@ -312,6 +314,7 @@ class KPIs:
             capacities[n]["H2BOI"] = district[n]["capacities"]["H2BOI"] / 1000
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
+            capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
             capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
@@ -325,17 +328,16 @@ class KPIs:
         calc_annual_investment = {}
         self.annual_fixed_costs_decentral = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
         for dev in devices:
             calc_annual_investment[dev] = 0
             for n in range(len(district)):
                 try:
-                    if counts.get(dev, 0) > 0:
-                        calc_annual_investment[dev] += self.calc_annual_cost_device(
-                            decentral_device_data[dev],
-                            decentral_device_data["inv_data"],
-                            capacities[n][dev])
-                    # Else leave as 0
+                    calc_annual_investment[dev] += self.calc_annual_cost_device(
+                        decentral_device_data[dev],
+                        decentral_device_data["inv_data"],
+                        capacities[n][dev])
+
                 except KeyError:
                     continue
             self.annual_fixed_costs_decentral += calc_annual_investment[dev]

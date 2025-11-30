@@ -209,7 +209,8 @@ class Datahandler:
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
         elif self.heat_grid_data["generation"]["value"] == "5th":
-            # TODO: create pipe data for 5th generation?
+            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
+            self.pipe_data = pd.read_csv(csv_path, sep=";")
             pass
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into heat_grid.json.")
@@ -1077,11 +1078,11 @@ class Datahandler:
 
             # %% create building energy system object
             # get capacities of all possible devices
-            bes_obj = BES(physics=self.physics,
+            building["bes_obj"] = BES(physics=self.physics,
                           decentral_device_data=self.decentral_device_data,
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
-            building["capacities"] = bes_obj.designECS(building, self.site)
+            building["capacities"] = building["bes_obj"].designECS(building, self.site)
 
             # calculate PV and STC generation
             building["generationPV"], building["generationSTC"] = \
