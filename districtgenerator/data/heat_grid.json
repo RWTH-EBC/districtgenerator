@@ -1,6 +1,6 @@
 {
   "generation":{
-    "value": "4rd",
+    "value": "4th",
     "description": "Heating network generation, selected between:\"3rd\", \"4th\" and \"5th\""
   },
   "topology_option":{
