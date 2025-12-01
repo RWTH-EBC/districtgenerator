@@ -20,6 +20,168 @@ import time
 import os
 #from optim_app.help_functions import create_excel_file
 
+def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
+
+    # Load data for one district
+    devs=devsCon[list(devsCon.keys())[0]]
+    param=paramCon[list(paramCon.keys())[0]]
+    dem=demCon[list(demCon.keys())[0]]
+    result_dict=result_dictCon[list(result_dictCon.keys())[0]]
+    data=dataCon[0]
+
+    cluster_results = {}  # Initialize a dictionary to store the results
+
+    for district in dataCon:
+        # Get the scenario_name of the district
+        scenario_name = district.scenario_name
+
+        # Retrieve the corresponding param data from paramCon
+        if scenario_name in paramCon:
+            param = paramCon[scenario_name]
+
+            # Call cluster_setup_devices and store the results
+            start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs = cluster_setup_devices(district, param)
+
+            # Save the results in the dictionary
+            cluster_results[scenario_name] = {
+                "start_time": start_time,
+                "clusters": clusters,
+                "clusterHorizon": clusterHorizon,
+                "time_steps": time_steps,
+                "dt": dt,
+                "year": year,
+                "sigma": sigma,
+                "all_devs": all_devs,
+            }
+        else:
+            print(f"No 'param' data found for district: {scenario_name}")
+    for district in dataCon:
+        scenario_name = district.scenario_name
+        print(f"Cluster_results of {scenario_name} are: {cluster_results[scenario_name]}")
+    #print(f"Cluster_results of {list(cluster_results.keys())[0]} are: {cluster_results[list(cluster_results.keys())[0]]}")
+    #start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs=cluster_setup_devices(data,param)
+
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Set up model and create variables
+
+    # Create a new model
+    model = gp.Model("Energy_hub_model")
+
+    # for district in dataCon:
+    #     # Get the scenario_name of the district
+    #     scenario_name = district.scenario_name
+
+    #     # Call add_variables to add variables to the model
+    
+
+    variables = add_variables(model, all_devs, clusters, time_steps, year)
+
+  
+
+    # Extract variables from the dictionary
+    cap = variables["cap"]
+    area = variables["area"]
+    gas = variables["gas"]
+    power = variables["power"]
+    heat = variables["heat"]
+    cool = variables["cool"]
+    hydrogen = variables["hydrogen"]
+    biom = variables["biom"]
+    waste = variables["waste"]
+    ch = variables["ch"]
+    soc = variables["soc"]
+    grid_limit_el = variables["grid_limit_el"]
+    grid_limit_gas = variables["grid_limit_gas"]
+    from_el_grid_total = variables["from_el_grid_total"]
+    to_el_grid_total = variables["to_el_grid_total"]
+    from_gas_grid_total = variables["from_gas_grid_total"]
+    to_gas_grid_total = variables["to_gas_grid_total"]
+    biom_import_total = variables["biom_import_total"]
+    waste_import_total = variables["waste_import_total"]
+    hydrogen_import_total = variables["hydrogen_import_total"]
+    rev_feed_in_gas = variables["rev_feed_in_gas"]
+    rev_feed_in_el = variables["rev_feed_in_el"]
+    supply_costs_el = variables["supply_costs_el"]
+    cap_costs_el = variables["cap_costs_el"]
+    supply_costs_gas = variables["supply_costs_gas"]
+    cap_costs_gas = variables["cap_costs_gas"]
+    supply_costs_biom = variables["supply_costs_biom"]
+    supply_costs_waste = variables["supply_costs_waste"]
+    supply_costs_hydrogen = variables["supply_costs_hydrogen"]
+    inv = variables["inv"]
+    c_inv = variables["c_inv"]
+    c_om = variables["c_om"]
+    c_total = variables["c_total"]
+
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Objective functions
+    obj = {}
+    obj["tac"] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="total_annualized_costs")
+    obj["co2"] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="total_CO2")
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Assign objective function
+    model.update()
+    model.setObjective((1-param["optim_focus"]) * obj["tac"]
+                        + param["optim_focus"]  * obj["co2"], gp.GRB.MINIMIZE)
+
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    # Call add_constraints to add constraints to the model
+    add_constraints(
+        model, all_devs, devs, cap, clusters, time_steps, 
+        heat, power, cool, gas, area, biom, waste, hydrogen, 
+        ch, soc, dem, param, dt, year, sigma, grid_limit_el, grid_limit_gas,
+        from_gas_grid_total, to_gas_grid_total,from_el_grid_total, to_el_grid_total, 
+        biom_import_total, waste_import_total, hydrogen_import_total, supply_costs_el,
+        cap_costs_el, rev_feed_in_el, supply_costs_gas, cap_costs_gas,rev_feed_in_gas, 
+        supply_costs_biom, supply_costs_waste, supply_costs_hydrogen, inv, c_inv, c_om, c_total, obj, data
+    )    
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Set model parameters and execute calculation
+
+    print("Precalculation and model set up done in %f seconds."  % (time.time() - start_time))
+
+    # Set solver parameters
+    model.Params.MIPGap   = 0.02  # ---,   gap for branch-and-bound algorithm
+    # model.Params.method = 2     # ---,   -1: default, 0: primal simplex, 1: dual simplex, 2: barrier, etc.
+
+    # Execute calculation
+    start_time = time.time()
+    model.optimize()
+    print("Optimization done. (%f seconds.)" % (time.time() - start_time))
+
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+    # Check and save results
+
+    # Check if optimal solution was found
+    if model.Status in (3, 4) or model.SolCount == 0:  # "INFEASIBLE" or "INF_OR_UNBD"
+
+        print("Optimization: No feasible solution found.")
+        try:
+            print("Try to calculate IIS.")
+            model.computeIIS()
+            model.write("model.ilp")
+            print("IIS was calculated and saved as model.ilp")
+
+        except:
+            print("Could not calculate IIS.")
+        return {}
+
+    else:
+        result_dict= save_results(model, result_dict, inv,c_inv,c_om, all_devs, devs, cap, power, gas, 
+                           biom, waste, from_el_grid_total, to_el_grid_total, from_gas_grid_total, 
+                           to_gas_grid_total, biom_import_total, waste_import_total, hydrogen_import_total, obj, 
+                           data, param, clusters, time_steps, hydrogen,supply_costs_el,cap_costs_el,rev_feed_in_el,
+                           supply_costs_gas,cap_costs_gas,rev_feed_in_gas,supply_costs_biom,supply_costs_waste,
+                           supply_costs_hydrogen, area, heat, dt, cool, ch)
+        return result_dict
+
 def cluster_setup_devices(data,param):
 
     # Load model parameters
@@ -46,26 +208,8 @@ def cluster_setup_devices(data,param):
                 ]
     return start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs
 
-def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
-
-
-    devs=devsCon[0]
-    param=paramCon[0]
-    dem=demCon[0]
-    result_dict=result_dictCon[0]
-    data=dataCon[0]
-
-
-    start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs=cluster_setup_devices(data,param)
-
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Set up model and create variables
-
-    # Create a new model
-    model = gp.Model("Energy_hub_model")
-
-    # Device's capacity (i.e. rated power)
+def add_variables(model, all_devs, clusters, time_steps, year):
+        # Device's capacity (i.e. rated power)
     cap = {}
     for device in all_devs:
         cap[device] = model.addVar(vtype="C", name="nominal_capacity_" + str(device))
@@ -198,21 +342,55 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     supply_costs_waste    = model.addVar(vtype = "C", lb=-gp.GRB.INFINITY, name="supply_costs_waste")
     supply_costs_hydrogen = model.addVar(vtype = "C", name="supply_costs_hydrogen")
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Objective functions
-    obj = {}
-    obj["tac"] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="total_annualized_costs")
-    obj["co2"] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="total_CO2")
+    # Return all variables as a dictionary
+    variables = {
+        "cap": cap,
+        "area": area,
+        "gas": gas,
+        "power": power,
+        "heat": heat,
+        "cool": cool,
+        "hydrogen": hydrogen,
+        "biom": biom,
+        "waste": waste,
+        "ch": ch,
+        "soc": soc,
+        "grid_limit_el": grid_limit_el,
+        "grid_limit_gas": grid_limit_gas,
+        "from_el_grid_total": from_el_grid_total,
+        "to_el_grid_total": to_el_grid_total,
+        "from_gas_grid_total": from_gas_grid_total,
+        "to_gas_grid_total": to_gas_grid_total,
+        "biom_import_total": biom_import_total,
+        "waste_import_total": waste_import_total,
+        "hydrogen_import_total": hydrogen_import_total,
+        "rev_feed_in_gas": rev_feed_in_gas,
+        "rev_feed_in_el": rev_feed_in_el,
+        "supply_costs_el": supply_costs_el,
+        "cap_costs_el": cap_costs_el,
+        "supply_costs_gas": supply_costs_gas,
+        "cap_costs_gas": cap_costs_gas,
+        "supply_costs_biom": supply_costs_biom,
+        "supply_costs_waste": supply_costs_waste,
+        "supply_costs_hydrogen": supply_costs_hydrogen,
+        "inv": inv,
+        "c_inv": c_inv,
+        "c_om": c_om,
+        "c_total": c_total,
+        
+    }
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Assign objective function
-    model.update()
-    model.setObjective((1-param["optim_focus"]) * obj["tac"]
-                        + param["optim_focus"]  * obj["co2"], gp.GRB.MINIMIZE)
+    return variables
 
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Add constraints
+def add_constraints(
+        model, all_devs, devs, cap, clusters, time_steps, 
+        heat, power, cool, gas, area, biom, waste, hydrogen, 
+        ch, soc, dem, param, dt, year, sigma, grid_limit_el, grid_limit_gas,
+        from_gas_grid_total, to_gas_grid_total,from_el_grid_total, to_el_grid_total, 
+        biom_import_total, waste_import_total, hydrogen_import_total, supply_costs_el,
+        cap_costs_el, rev_feed_in_el, supply_costs_gas, cap_costs_gas,rev_feed_in_gas, 
+        supply_costs_biom, supply_costs_waste, supply_costs_hydrogen, inv, c_inv, c_om, c_total, obj, data):
+       # Add constraints
 
     #%% Constraints defined by user in GUI
 
@@ -548,39 +726,15 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
                                       - to_gas_grid_total * param["co2_gas_feed_in"])
 
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Set model parameters and execute calculation
 
-    print("Precalculation and model set up done in %f seconds."  % (time.time() - start_time))
-
-    # Set solver parameters
-    model.Params.MIPGap   = 0.02  # ---,   gap for branch-and-bound algorithm
-    # model.Params.method = 2     # ---,   -1: default, 0: primal simplex, 1: dual simplex, 2: barrier, etc.
-
-    # Execute calculation
-    start_time = time.time()
-    model.optimize()
-    print("Optimization done. (%f seconds.)" % (time.time() - start_time))
-
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Check and save results
-
-    # Check if optimal solution was found
-    if model.Status in (3, 4) or model.SolCount == 0:  # "INFEASIBLE" or "INF_OR_UNBD"
-
-        print("Optimization: No feasible solution found.")
-        try:
-            print("Try to calculate IIS.")
-            model.computeIIS()
-            model.write("model.ilp")
-            print("IIS was calculated and saved as model.ilp")
-
-        except:
-            print("Could not calculate IIS.")
-        return {}
-
-    else:
+def save_results(model, result_dict, inv,c_inv,c_om, all_devs, devs, cap, power, gas, 
+                           biom, waste, from_el_grid_total, to_el_grid_total, from_gas_grid_total, 
+                           to_gas_grid_total, biom_import_total, waste_import_total, hydrogen_import_total, obj, 
+                           data, param, clusters, time_steps, hydrogen,supply_costs_el,cap_costs_el,rev_feed_in_el,
+                           supply_costs_gas,cap_costs_gas,rev_feed_in_gas,supply_costs_biom,supply_costs_waste,
+                           supply_costs_hydrogen, area, heat, dt, cool, ch):
+        
+       # Check and save results
         result_dir = "results"
         if not os.path.exists(result_dir):
             os.makedirs(result_dir)
@@ -606,6 +760,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         else:
             result_dict["from_grid"] = {"cap": float("inf")}
             result_dict["to_grid"] = {"cap": float("inf")}
+            
 
         result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()) + data.heat_grid_data["costs"])
         result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()) + data.heat_grid_data["ann_costs"])
@@ -677,7 +832,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         result_dict["supply_costs_hydrogen"] = int(supply_costs_hydrogen.X)
 
         # Prepare time series of renewable generation (without curtailment)
-
+        
         result_dict["PV_generation_uncl"] = devs["PV"]["norm_power"] / 1000 * area["PV"].X          # in kW
         result_dict["WT_generation_uncl"] = devs["WT"]["norm_power"] * cap["WT"].X                  # in kW
         result_dict["STC_generation_uncl"] = devs["STC"]["norm_power"] / 1000 * area["STC"].X       # in kW
@@ -782,6 +937,5 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         result_dict["total_co2_biom"] = int(biom_import_total.X * param["co2_biom"]/1000) # t/a
         result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
         result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
-
 
         return result_dict

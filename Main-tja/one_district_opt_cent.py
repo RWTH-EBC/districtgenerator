@@ -31,8 +31,14 @@ def one_district_opt_cent():
     
     # Design decentral and central devices for the current district.
     #data.designDevicesComplete(saveGenerationProfiles=True)
-    data.designDecentralDevices()
-    data.designCentralDevices()
+    if data.district[0]["buildingFeatures"]["heater"] == "heat_grid":
+        centralEnergySupply = True
+        data.designDecentralDevices()
+        data.designCentralDevices()
+    else:
+        centralEnergySupply = False
+        data.designDecentralDevices()
+        data.centralDevices = {}
     
     #data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
 
