@@ -1600,21 +1600,24 @@ class Datahandler:
         # get the input data for the optimizer
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
-        if os.path.exists(json_path):
-            district_type = self.site["district_parameters"]["district_type"]
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                buildings_info = jsonData["values"]["buildings_info"]
-                transformer_info = jsonData["values"]["transformer_station"]
-        else:
-            # if JSON file not found → Extract building coordinates from district data
-            district_type = "unknown"
-            buildings_info = []
-            for building in self.district:
+        # only get the position of buildings connected to the heat grid
+        buildings_info = []
+        for building in self.district:
+            if building["buildingFeatures"]["heater"] == "heat_grid":
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"building": building["unique_name"],
                                  "position": pos}
                 buildings_info.append(building_dict)
+
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                # buildings_info = jsonData["values"]["buildings_info"]
+                transformer_info = jsonData["values"]["transformer_station"]
+        else:
+            # if JSON file not found → Extract building coordinates from district data
+            district_type = "unknown"
 
             # Randomly choose one building as transformer base
             chosen_building = random.choice(buildings_info)
@@ -1643,9 +1646,21 @@ class Datahandler:
         building_width = self.site["district_parameters"]["building_width"]
         house_connection = self.site["district_parameters"]["house_connection"]
 
+        # only get the position of buildings connected to the heat grid
+        buildings_info = []
+        i = 0
+        for building in self.district:
+            if building["buildingFeatures"]["heater"] == "heat_grid":
+                pos = building["buildingFeatures"]["position"]
+                building_dict = {"id": i,
+                                 "building": building["unique_name"],
+                                 "position": pos}
+                buildings_info.append(building_dict)
+                i += 1
+
         with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
-        buildings_info = jsonData["values"]["buildings_info"]
+        # buildings_info = jsonData["values"]["buildings_info"]
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["transformer_station"]
 
@@ -1689,7 +1704,11 @@ class Datahandler:
         else:
             # if JSON file not found
             district_type = "unknown"
-        topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
+        connected_building_count = sum(
+            1 for building in self.district
+            if building["buildingFeatures"]["heater"] == "heat_grid"
+        )
+        topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
 
         # load the file of the heating network topology
         with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:

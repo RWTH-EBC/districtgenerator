@@ -14,6 +14,8 @@ import numpy as np
 import time
 from datetime import datetime
 import os
+import matplotlib.pyplot as plt
+import textwrap
 import districtgenerator.functions.solver_config as solver_config
 
 
@@ -714,7 +716,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         sum(safe_value(model.c_inv, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
 
-    # Total energy energy imports and exports
+    # Total energy imports and exports
     result_dict["from_el_grid_total"] = int(safe_value_single(model.from_el_grid_total) / 1000)  # MWh
     result_dict["to_el_grid_total"] = int(safe_value_single(model.to_el_grid_total) / 1000)  # MWh
     result_dict["from_gas_grid_total"] = int(safe_value_single(model.from_gas_grid_total) / 1000)  # MWh
@@ -937,5 +939,66 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["total_co2_waste"] = int(safe_value_single(model.waste_import_total) * param["co2_waste"] / 1000)  # t/a
     result_dict["total_co2_hydrogen"] = int(
         safe_value_single(model.hydrogen_import_total) * param["co2_hydrogen"] / 1000)  # t/a
+
+    # draw stacked plot of system costs
+    # Extract non-zero ann/o&m costs of devices
+    plot_data = []  # list of (label, value)
+
+    for dev in model.all_devs:
+        ann = safe_value(model.c_inv, dev)
+        om = safe_value(model.c_om, dev)
+
+        if ann == 0 and om == 0:
+            continue  # skip unused devices
+
+        # append ann then o&m costs
+        plot_data.append((f"Annualized investment for the {dev}", ann))
+        plot_data.append((f"Operation and maintenance cost for the {dev}", om))
+
+    # Add heat grid
+    plot_data.append(("Annualized investment for Heat Grid", heat_grid_ann_costs))
+    plot_data.append(("Operation and maintenance cost for Heat Grid", heat_grid_om_costs))
+
+    # --- Prepare stacked values ---
+    labels = [item[0] for item in plot_data]
+    values = [item[1] for item in plot_data]
+
+    cmap = plt.get_cmap("tab20")  # 20 distinct colors
+    colors = [cmap(i) for i in range(len(labels))]
+
+    fig, ax = plt.subplots(figsize=(10, 14))
+
+    x = [0]  # only ONE bar
+    bottom = 0
+
+    # plot each pair layer
+    for label, val, col in zip(labels, values, colors):
+        ax.bar(x, val, bottom=bottom, color=col, label=label, width=0.6)
+        bottom += val
+
+    # Automatic line wrapping
+    wrapped_labels = ['\n'.join(textwrap.wrap(lbl, 20)) for lbl in labels]
+
+    # X-axis cleanup
+    ax.set_ylabel("Annual Costs [EUR/a]")
+    ax.set_title("Annual Cost Stacked Chart")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{data.scenario_name}"])
+    ax.legend(
+        wrapped_labels,
+        bbox_to_anchor=(1.05, 1),
+        loc="upper left",
+        labelspacing=0.7,  # control vertical spacing
+        handletextpad=0.5,
+        borderpad=0.6
+    )
+
+    plt.tight_layout()
+
+    plot_filename = f"system_cost_stack_{data.scenario_name}.png"
+    plot_path = os.path.join(data.resultPath, plot_filename)
+    plt.savefig(plot_path)
+
+    plt.show()
 
     return result_dict
