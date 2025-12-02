@@ -231,8 +231,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
     house_connection: float
     buildings_info: list
         list of building informations, each building is a dictionary with following keys:
-            "id", "type", "position", "calculated_building_area",
-            "number_of_floors", "construction_year", "retrofit_level"
+            "id", "type", "position"
     lines_info: list
         list of lines informations, each line is a dictionary with following keys:
             "id", "start"(tuple, coordinate of the start point),

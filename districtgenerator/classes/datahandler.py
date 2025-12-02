@@ -8,6 +8,7 @@ import copy
 import datetime
 import multiprocessing
 import random
+import math
 import numpy as np
 import openpyxl
 import pandas as pd
@@ -1621,8 +1622,13 @@ class Datahandler:
             base_pos = chosen_building["position"]
 
             # Apply small random offset between choosen building and transformer (e.g., ±5 meters)
-            offset_x = random.uniform(-5, 5)
-            offset_y = random.uniform(-5, 5)
+            min_dist = 5  # minimum 5 meters away
+            max_dist = 10  # minimum 5 meters away
+            distance = random.uniform(min_dist, max_dist)
+            angle = random.uniform(0, 2 * math.pi)
+
+            offset_x = distance * math.cos(angle)
+            offset_y = distance * math.sin(angle)
             transformer_info = {
                 "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
             }

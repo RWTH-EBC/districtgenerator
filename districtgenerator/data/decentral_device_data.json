@@ -272,13 +272,13 @@
     },
     {
       "name": "inv_var",
-      "value": 0,
+      "value": 60.93,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cap_fee",
-      "value": 50,
+      "value": 0,
       "unit": "€/(year*kW)",
       "description": "price payed for the connection to the district heating network."
     }

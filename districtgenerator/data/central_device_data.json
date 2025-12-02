@@ -16,7 +16,7 @@
     "inv_var": 1500,
     "life_time": 20,
     "cost_om": 0.015,
-    "min_cap": 100,
+    "min_cap": 0,
     "max_cap": 3000,
     "h_coeff": 0.2,
     "hub_h": 100,
@@ -28,7 +28,7 @@
     "inv_var": 2000,
     "life_time": 30,
     "cost_om": 0.01,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 2000,
     "potential": 50000
   },
@@ -45,22 +45,22 @@
     "G_stc": 1
   },
   "CHP": {
-    "feasible": false,
+    "feasible": true,
     "inv_var": 1200,
     "eta_el": 0.4,
     "eta_th": 0.5,
     "life_time": 20,
     "cost_om": 0.03,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 1000
   },
   "BOI": {
-    "feasible": false,
+    "feasible": true,
     "inv_var": 138,
     "eta_th": 0.99,
     "life_time": 25,
     "cost_om": 0.014,
-    "min_cap": 10,
+    "min_cap": 0,
     "max_cap": 500
   },
   "GHP": {
@@ -69,7 +69,7 @@
     "COP": 3.5,
     "life_time": 20,
     "cost_om": 0.02,
-    "min_cap": 10,
+    "min_cap": 0,
     "max_cap": 500
   },
   "HP": {
@@ -147,7 +147,7 @@
     "eta_th": 0.75,
     "life_time": 20,
     "cost_om": 0.02,
-    "min_cap": 10,
+    "min_cap": 0,
     "max_cap": 500
   },
   "BCHP": {
@@ -157,7 +157,7 @@
     "eta_th": 0.55,
     "life_time": 20,
     "cost_om": 0.03,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 1000
   },
   "BBOI": {
@@ -166,7 +166,7 @@
     "eta_th": 0.85,
     "life_time": 20,
     "cost_om": 0.02,
-    "min_cap": 10,
+    "min_cap": 0,
     "max_cap": 500
   },
   "WCHP": {
@@ -176,7 +176,7 @@
     "eta_th": 0.6,
     "life_time": 20,
     "cost_om": 0.03,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 1000
   },
   "WBOI": {
@@ -185,7 +185,7 @@
     "eta_th": 0.8,
     "life_time": 20,
     "cost_om": 0.02,
-    "min_cap": 10,
+    "min_cap": 0,
     "max_cap": 500
   },
   "ELYZ": {
@@ -194,7 +194,7 @@
     "eta_el": 0.7,
     "life_time": 20,
     "cost_om": 0.03,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 1000
   },
   "FC": {
@@ -204,7 +204,7 @@
     "eta_th": 0.4,
     "life_time": 20,
     "cost_om": 0.03,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 1000,
     "enable_heat_diss": true
   },
@@ -223,7 +223,7 @@
     "eta": 0.6,
     "life_time": 20,
     "cost_om": 0.03,
-    "min_cap": 50,
+    "min_cap": 0,
     "max_cap": 1000
   },
   "TES": {

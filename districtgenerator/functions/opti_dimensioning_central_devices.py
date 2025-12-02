@@ -714,7 +714,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         sum(safe_value(model.c_inv, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
 
-    # Total energy energy imports and exports
+    # Total energy imports and exports
     result_dict["from_el_grid_total"] = int(safe_value_single(model.from_el_grid_total) / 1000)  # MWh
     result_dict["to_el_grid_total"] = int(safe_value_single(model.to_el_grid_total) / 1000)  # MWh
     result_dict["from_gas_grid_total"] = int(safe_value_single(model.from_gas_grid_total) / 1000)  # MWh
