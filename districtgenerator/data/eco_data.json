@@ -67,7 +67,7 @@
     },
     {
         "name": "price_district_heat",
-        "value": 0.20,
+        "value": 0.1367,
         "unit": "€/kWh",
         "description" : "District heating price."
     },

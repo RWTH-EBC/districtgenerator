@@ -914,9 +914,9 @@ def output_diameter(data, model, param):
     ax.set_title("Labeled by Pipe ID")
     ax.set_aspect('equal')
 
-    plot_filename = f"pipeline_id_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_result, plot_filename)
-    plt.savefig(plot_path)
+    base = os.path.join(dir_result, f"pipeline_id_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
     ax.grid(True, linestyle='--', linewidth=0.3)
 
     plt.show()
@@ -969,9 +969,9 @@ def output_diameter(data, model, param):
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
-    plot_filename = f"pipeline_diameter_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_result, plot_filename)
-    plt.savefig(plot_path)
+    base = os.path.join(dir_result, f"pipeline_diameter_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
 
     plt.show()
 
@@ -1027,9 +1027,9 @@ def output_diameter(data, model, param):
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
-    plot_filename = f"pipeline_velocity_max_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_result, plot_filename)
-    plt.savefig(plot_path)
+    base = os.path.join(dir_result, f"pipeline_velocity_max_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
 
     plt.show()
 
@@ -1073,9 +1073,9 @@ def output_diameter(data, model, param):
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
-    plot_filename = f"pipeline_pressure_drop_max_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_result, plot_filename)
-    plt.savefig(plot_path)
+    base = os.path.join(dir_result, f"pipeline_pressure_drop_max_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
 
     plt.show()
 
@@ -1127,9 +1127,9 @@ def output_diameter(data, model, param):
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
 
-    plot_filename = f"pipeline_energy_density_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_result, plot_filename)
-    plt.savefig(plot_path)
+    base = os.path.join(dir_result, f"pipeline_energy_density_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
 
     plt.show()
 
