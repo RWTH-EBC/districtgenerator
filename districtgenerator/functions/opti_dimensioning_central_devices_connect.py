@@ -76,16 +76,24 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     # Create a new model
     model = gp.Model("Energy_hub_model")
 
-    # for district in dataCon:
-    #     # Get the scenario_name of the district
-    #     scenario_name = district.scenario_name
-
-    #     # Call add_variables to add variables to the model
+    # Create variables for each district and store them in a dictionary
+    # Works only for one district so far
+    # TODO: Change for several districts
+    variablesCon = {}
+    for district in dataCon:
+        # Get the scenario_name of the district
+        scenario_name = district.scenario_name
+        # Retrieve the corresponding devs data from all_devsCon
+        if scenario_name in all_devsCon:
+            all_devs = all_devsCon[scenario_name]
+            # Call add_variables to add variables to the model
+            variables = add_variables_per_district(district, model, all_devs, clusters, time_steps, year)
+            variablesCon[scenario_name] = variables
 
     # Quick initialization of one district for test reasons
     # TODO: Change for several districts
-    district = dataCon[0]
-    variables = add_variables_per_district(district, model, all_devs, clusters, time_steps, year)
+    # district = dataCon[0]
+    # variables = add_variables_per_district(district, model, all_devs, clusters, time_steps, year)
 
 
     # Extract variables from the dictionary
@@ -231,8 +239,9 @@ def cluster_setup_devices(data,param):
 
     # Get sigma function that assigns each time period (day or week) of the year to a design period
     sigma = param["sigma"]
+
+    #TODO: Move the above part to the main function and call only once for all districts
     
-    #ToDo: Namen überprüfen: Jedes Quartier eindeutig
     # Create set for devices
     all_devs = ["PV", "WT", "STC", "WAT",
                 "HP", "EB", "CC", "AC",
@@ -428,6 +437,7 @@ def add_constraints_per_district(
        # Add constraints
 
     #%% Constraints defined by user in GUI
+    #
 
     for device in all_devs:
         if devs[device]["feasible"] == False:
