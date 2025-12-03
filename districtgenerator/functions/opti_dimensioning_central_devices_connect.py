@@ -22,7 +22,8 @@ import os
 
 def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
 
-    # Load data for one district
+    # Load data for one district for test reasons
+    # ToDo: Change for several districts
     devs=devsCon[list(devsCon.keys())[0]]
     param=paramCon[list(paramCon.keys())[0]]
     dem=demCon[list(demCon.keys())[0]]
@@ -31,6 +32,15 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
 
     cluster_results = {}  # Initialize a dictionary to store the results
 
+    # Initialize the dictionaries to store cluster setup results for each district
+    start_timeCon = {}
+    clustersCon = {} 
+    time_stepsCon = {} 
+    dtCon = {} 
+    yearCon = {} 
+    sigmaCon = {}  
+    all_devsCon = {}
+
     for district in dataCon:
         # Get the scenario_name of the district
         scenario_name = district.scenario_name
@@ -38,28 +48,26 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         # Retrieve the corresponding param data from paramCon
         if scenario_name in paramCon:
             param = paramCon[scenario_name]
-
             # Call cluster_setup_devices and store the results
-            start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs = cluster_setup_devices(district, param)
-
-            # Save the results in the dictionary
-            cluster_results[scenario_name] = {
-                "start_time": start_time,
-                "clusters": clusters,
-                "clusterHorizon": clusterHorizon,
-                "time_steps": time_steps,
-                "dt": dt,
-                "year": year,
-                "sigma": sigma,
-                "all_devs": all_devs,
-            }
+            start_timeCon[scenario_name], clustersCon[scenario_name], time_stepsCon[scenario_name], dtCon[scenario_name], yearCon[scenario_name], sigmaCon[scenario_name], all_devsCon[scenario_name] = cluster_setup_devices(district, param)
         else:
             print(f"No 'param' data found for district: {scenario_name}")
+
     for district in dataCon:
         scenario_name = district.scenario_name
-        print(f"Cluster_results of {scenario_name} are: {cluster_results[scenario_name]}")
-    #print(f"Cluster_results of {list(cluster_results.keys())[0]} are: {cluster_results[list(cluster_results.keys())[0]]}")
-    #start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs=cluster_setup_devices(data,param)
+        print(f"Cluster_results of {scenario_name} are: {start_timeCon[scenario_name]}")
+
+
+
+    # Print scenario_name for test reasons
+    print(f"Scenario name for optimization: {dataCon[0].scenario_name}")
+    start_time = start_timeCon[dataCon[0].scenario_name]
+    clusters = clustersCon[dataCon[0].scenario_name]
+    time_steps = time_stepsCon[dataCon[0].scenario_name]
+    dt = dtCon[dataCon[0].scenario_name]
+    year = yearCon[dataCon[0].scenario_name]
+    sigma = sigmaCon[dataCon[0].scenario_name]
+    all_devs = all_devsCon[dataCon[0].scenario_name]
 
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -206,7 +214,7 @@ def cluster_setup_devices(data,param):
                 "ELYZ", "FC", "H2S", "SAB",
                 "TES", "CTES", "BAT", "GS",
                 ]
-    return start_time, clusters, clusterHorizon, time_steps, dt, year, sigma, all_devs
+    return start_time, clusters, time_steps, dt, year, sigma, all_devs
 
 def add_variables(model, all_devs, clusters, time_steps, year):
         # Device's capacity (i.e. rated power)
