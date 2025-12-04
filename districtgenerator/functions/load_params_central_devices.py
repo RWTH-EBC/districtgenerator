@@ -123,11 +123,12 @@ def load_params(data):
     print("Cluster design days...")
     start = time.time()
     (clustered_series, nc, y, z, inputsTransformed) = clustering.cluster(inputs,
-                                     data.time["clusterNumber"],
-                                     len_cluster=int(clusterHorizon),
-                                     norm = 2,
-                                     mip_gap = 0.02,
-                                    scalings=scalings)
+                                    data.time["clusterNumber"],
+                                    len_cluster=int(clusterHorizon),
+                                    norm = 2,
+                                    mip_gap = 0.02,
+                                    scalings=scalings, 
+                                    pyomo_config=data.pyomo_config)
 
     print("Design clustering finished. (" + str(time.time()-start) + ")\n")
 

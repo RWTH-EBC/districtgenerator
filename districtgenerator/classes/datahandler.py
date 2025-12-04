@@ -18,6 +18,7 @@ import pandas as pd
 import random as rd
 import holidays as hol
 from teaser.project import Project
+
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
 from .solar import Sun
@@ -25,15 +26,18 @@ from .users import Users
 from .system import BES
 from .system import CES
 from .plots import DemandPlots
-from .optimizer import Optimizer
 from .KPIs import KPIs
 from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
+from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig
+from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
+from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
 from .plots_balances import plot_all
 
 class Datahandler:
@@ -61,35 +65,73 @@ class Datahandler:
         File path.
     """
 
-    def __init__(self, scenario_name = "example", heat_map_berlin = False, resultPath = None, scenario_file_path = None):
+    def __init__(self,
+                 scenario_name = None,
+                 resultPath = None,
+                 scenario_file_path = None,
+                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 filePath = None,
+                 env_path = None,
+                 heat_map_berlin = False
+                 ):
         """
         Constructor of Datahandler class.
+
+        Parameters
+        ----------
+        scenario_name : str, optional
+            Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
+        resultPath : str, optional
+            Path to save results. If None, it defaults to 'srcPath/results'.
+        scenario_file_path : str, optional
+            Path to the scenario file. If None, it defaults to 'filePath/scenarios'.
+        srcPath : str, optional
+            Source path of the district generator. The default is the parent directory of this file.
+        filePath : str, optional
+            Path to the data directory. If None, it defaults to 'srcPath/data'.
+        env_path : str, optional
+            Path to the environment configuration file. If None, it defaults to the global configuration file.
+        heat_map_berlin : bool, optional
+            Whether the data is given in the heat map berlin format. The default is False.
 
         Returns
         -------
         None.
         """
 
-        self.site = {}
-        self.time = {}
+        global_config: GlobalConfig = load_global_config(env_file=env_path)
+
+        if filePath is None: 
+            filePath = os.path.join(srcPath, 'data')
+        
         self.initial_day = None
         self.district = []
         self.scenario_name = scenario_name
-        self.heat_map_berlin = heat_map_berlin
-        self.pv_stc_potential = None
         self.scenario = None
         self.total_building_area = None
+
+        # Config Data
+        self.site = {}
+        self.time = {}
         self.design_building_data = {}
         self.physics = {}
         self.decentral_device_data = {}
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.calendar = {} #! This is new; check if everywhere correctly integrated
         self.ecoData = {}
+        self.heat_grid_data = {}
+        self.pipe_data = None
+        self.pyomo_config = global_config.pyomo #! This needs to be integrated in the solver creation process
+
+        # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
-        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.filePath = os.path.join(self.srcPath, 'data')
+        self.srcPath = srcPath
+        self.filePath = filePath
+        self.heat_map_berlin = heat_map_berlin
+        self.pv_stc_potential = None
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -102,7 +144,18 @@ class Datahandler:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
         self.KPIs = None
-        self.load_all_data()
+        self.load_all_data( #! This function needs to be adapted to the new config structure
+            site_config=global_config.location,
+            time_config=global_config.time,
+            design_building_config=global_config.design_building,
+            physics_config=global_config.physics,
+            decentral_config=global_config.decentral,
+            ehdo_config=global_config.ehdo,
+            eco_config=global_config.eco,
+            central_config=global_config.central,
+            calendar_config=global_config.calendar,
+            heat_grid_config=global_config.heatgrid
+        )
 
         self.buildings_completed = 0
         self.buildings_total = 0
@@ -127,31 +180,49 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self):
+    def load_all_data(self, site_config: LocationConfig,
+                      time_config: TimeConfig,
+                      design_building_config: DesignBuildingConfig,
+                      physics_config: PhysicsConfig,
+                      decentral_config: DecentralDeviceConfig,
+                      ehdo_config: EHDOConfig,
+                      eco_config: EcoConfig,
+                      central_config: CentralDeviceConfig,
+                      calendar_config: CalendarConfig,
+                      heat_grid_config: HeatGridConfig):
         """
-        General data import from JSON files and transformation into dictionaries.
+        Load all data needed for district generation from configuration files.
 
+        Parameters
+        ----------
+        site_config : LocationConfig
+            Location configuration data.
+        time_config : TimeConfig
+            Time configuration data.
+        design_building_config : DesignBuildingConfig
+            Design building configuration data.
+        physics_config : PhysicsConfig
+            Physics configuration data.
+        decentral_config : DecentralDeviceConfig
+            Decentral device configuration data.
+        ehdo_config : EHDOConfig
+            EHDO model configuration data.
+        eco_config : EcoConfig
+            Economic configuration data.
+        central_config : CentralDeviceConfig
+            Central device configuration data.
+        calendar_config : CalendarConfig
+            Calendar configuration data.
+        heat_grid_config : HeatGridConfig
+            Heat grid configuration data.
         Returns
         -------
         None.
         """
 
-        # %% load information about of the site under consideration (used in generateEnvironment)
-        # important for weather conditions
-        with open(os.path.join(self.filePath, 'site_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.site[subData["name"]] = subData["value"]
-
-        # %% load time information and requirements (used in generateEnvironment)
-        # needed for data conversion into the right time format
-        with open(os.path.join(self.filePath, 'time_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.time[subData["name"]] = subData["value"]
-
-        if self.heat_map_berlin:
-            # %% load heat map berlin data
+        # %% load scenario file with building information
+        if self.heat_map_berlin: 
+            # %% load heat map berlin formatted scenario file
             self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                             self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
@@ -162,62 +233,70 @@ class Datahandler:
                 usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
             )
         else:
-            # %% load scenario file with building information
+            # %% load normal formatted scenario file
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                          converters={"position": parse_position}).set_index("id", drop=False))
+            
+        # %% load information about of the site under consideration (used in generateEnvironment)
+        # important for weather conditions
+        for attr, value in site_config.__dict__.items():
+            self.site[attr] = value
 
-
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-
-        if os.path.exists(json_path):
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                self.site["district_parameters"] = jsonData["parameters"]
+        # %% load time information and requirements (used in generateEnvironment)
+        # needed for data conversion into the right time format
+        for attr, value in time_config.__dict__.items():
+            self.time[attr] = value
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        with open(os.path.join(self.filePath, 'design_building_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.design_building_data[subData["name"]] = subData["value"]
+        for attr, value in design_building_config.__dict__.items():
+            self.design_building_data[attr] = value
 
         # load building physics data (used in envelope and system BES/CES)
-        with open(os.path.join(self.filePath, 'physics_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.physics[subData["name"]] = subData["value"]
+        for attr, value in physics_config.__dict__.items():
+            self.physics[attr] = value
 
         # Load list of possible devices (used in system BES)
-        with open(os.path.join(self.filePath, 'decentral_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.decentral_device_data[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    self.decentral_device_data[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
+        # Iterate over all attributes of the config instance
+        for attribute, value in decentral_config.__dict__.items():
+            # Split the attribute into abbreviation and parameter name parts based on the first underscore
+            abbr, _, param = attribute.partition("_")
 
-        # import model parameters from json-file (used in system CES)
-        with open(os.path.join(self.filePath, 'model_parameters_EHDO.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                if subData["name"] != "ref":
-                    self.params_ehdo_model[subData["name"]] = subData["value"]
-                else:
-                    self.params_ehdo_model[subData["name"]] = {}
-                    for subSubData in subData["value"]:
-                        self.params_ehdo_model[subData["name"]][subSubData["name"]] = subSubData["value"]
+            # Initialize the sub-dictionary if needed.
+            if abbr not in self.decentral_device_data:
+                self.decentral_device_data[abbr] = {}
+            self.decentral_device_data[abbr][param] = value
+
+        for attr, value in ehdo_config.__dict__.items():
+            self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        with open(os.path.join(self.filePath, 'eco_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                self.ecoData[subData["name"]] = subData["value"]
+        for attr, value in eco_config.__dict__.items():
+            self.ecoData[attr] = value
 
-        with open(os.path.join(self.filePath, 'central_device_data.json')) as json_file:
-            self.central_device_data = json.load(json_file)
+        # Load list of possible devices (used in system BES)
+        # Iterate over all attributes of the config instance
+        for attribute, value in central_config.__dict__.items():
+            # Split the attribute into abbreviation and parameter name parts based on the first underscore
+            abbr, _, param = attribute.partition("_")
+
+            # Initialize the sub-dictionary if needed.
+            if abbr not in self.central_device_data:
+                self.central_device_data[abbr] = {}
+            self.central_device_data[abbr][param] = value
+
+        # load calendar data (used in generateDemands and generateEnvironment)
+        for attr, value in calendar_config.__dict__.items():
+            self.calendar[attr] = value
+
+        for attr, value in heat_grid_config.__dict__.items():
+            self.heat_grid_data[attr] = value
+
+        #! Das hier überarbeiten, damit es in die neue Struktur passt?
 
         with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
             self.heat_grid_data = json.load(json_file)
-
+            
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
         # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
@@ -234,14 +313,14 @@ class Datahandler:
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into heat_grid.json.")
 
+
     def select_plz_data(self):
         """
         Select the closest TRY weather station for the location of the postal code.
 
         Returns
         -------
-        weatherdatafile_location: int
-            Location of the TRY weather station in lambert projection.
+        None.
         """
 
         # Try to find the location of the postal code and matched TRY weather station
@@ -277,17 +356,23 @@ class Datahandler:
         """
         Get the Julian day (day of the year) for holidays in a specific country, year, and state.
 
-        Args:
-            country_code (str): The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
-            year (int): The year for which to retrieve holidays.
-            state (str): The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+        Parameters
+        ----------
+            country_code : string
+                The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+            year : integer
+                The year for which to retrieve holidays.
+            state : string
+                The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
 
-        Returns:
-            list: A list of tuples containing the Julian day of the holiday.
+        Returns
+        -------
+            julian_holidays : list
+                A list of tuples containing the Julian day of the holiday.
         """
         try:
             # Initialize the holidays object for the given country, year, and state
-            holidays = hol.CountryHoliday(country_code, years=year, subdiv=state)
+            holidays = hol.country_holidays(country_code, years=year, subdiv=state)
 
             # Get the Julian day for each holiday
             julian_holidays = [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
@@ -345,9 +430,10 @@ class Datahandler:
 
         # load the holidays
         if self.site["TRYYear"] == "TRY2015":
-            self.time["holidays"] = self.get_holidays(country_code="DE", year=2015)
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
-            self.time["holidays"] = self.get_holidays(country_code="DE", year=2045)
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2045)
+
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -677,11 +763,12 @@ class Datahandler:
             The default is True.
         """
         print(f'starting {building["unique_name"]}')
+        warnings.filterwarnings("ignore", category=FutureWarning)
 
         # calculate or load user profiles
         if calcUserProfiles:
             building["user"].calcProfiles(site=self.site,
-                                          holidays=self.time["holidays"],
+                                          holidays=self.calendar["holidays"],
                                           time_resolution=self.time["timeResolution"],
                                           time_horizon=self.time["dataLength"],
                                           building_devices_data=self.decentral_device_data,
@@ -744,7 +831,7 @@ class Datahandler:
                                                 thermal_model=building["thermal_model"],
                                                 night_setback=night_setback,
                                                 is_cooled=is_cooled,
-                                                holidays=self.time["holidays"],
+                                                holidays=self.calendar["holidays"],
                                                 time_resolution=self.time["timeResolution"],
                                                 initial_day=self.initial_day)
 
@@ -1444,7 +1531,8 @@ class Datahandler:
                                                              number_clusters=self.time["clusterNumber"],
                                                              len_cluster=int(initialArrayLenght),
                                                              weights=weights,
-                                                             scalings=scalings)
+                                                             scalings=scalings,
+                                                             pyomo_config=self.pyomo_config)
 
         # safe clustered profiles of all buildings
         for i in range(len(self.district)):
@@ -1630,8 +1718,7 @@ class Datahandler:
 
         for cluster in range(self.time["clusterNumber"]):
             # optimize operating costs of the district for current cluster
-            self.optimizer = Optimizer(self, cluster)
-            results_temp = self.optimizer.run_cen_opti()
+            results_temp = opti_central.run_opti_central(data = self, cluster =cluster)
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)

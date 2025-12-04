@@ -22,7 +22,7 @@ from pathlib import Path
 # pp. 506-519
 # Stable URL: http://www.jstor.org/stable/2283635
 
-def k_medoids(distances, number_clusters, timelimit=None, mipgap=None):
+def k_medoids(distances, number_clusters, timelimit=None, mipgap=None, pyomo_config=None):
     """
     Solves the k-medoids clustering problem using Pyomo.
 
@@ -55,11 +55,12 @@ def k_medoids(distances, number_clusters, timelimit=None, mipgap=None):
     start_time = time.time()
 
     # Build the model
-    model = build_model(distances, number_clusters)
+    model = pyo.ConcreteModel(name="k-Medoids-Problem")
+    build_model(model, distances, number_clusters)
     model_building_time = time.time() - start_time
 
     # Solve the model and extract results
-    r_y, r_x_transposed, r_obj = solve_model_and_extract_results(model, timelimit, mipgap)
+    r_y, r_x_transposed, r_obj = solve_model_and_extract_results(model, timelimit, mipgap, pyomo_config=pyomo_config)
     model_solve_time = time.time() - start_time - model_building_time
 
     # Calculate total time
@@ -75,7 +76,7 @@ def k_medoids(distances, number_clusters, timelimit=None, mipgap=None):
     return r_y, r_x_transposed, r_obj
 
 
-def build_model(distances, number_clusters):
+def build_model(model, distances, number_clusters):
     """
     Build the Pyomo k-medoids optimization model.
 
@@ -93,9 +94,6 @@ def build_model(distances, number_clusters):
     """
     # Extract the length of the symmetric distance matrix
     length = distances.shape[0]
-
-    # Create a concrete model
-    model = pyo.ConcreteModel(name="k-Medoids-Problem")
 
     # Definition of index sets
     model.nodes = pyo.RangeSet(0, length - 1)
@@ -135,7 +133,7 @@ def build_model(distances, number_clusters):
     return model
 
 
-def solve_model_and_extract_results(model, timelimit=None, mipgap=None):
+def solve_model_and_extract_results(model, timelimit=None, mipgap=None, pyomo_config=None):
     """
     Solve the k-medoids model and extract results.
 
@@ -163,7 +161,7 @@ def solve_model_and_extract_results(model, timelimit=None, mipgap=None):
     length = len(model.nodes)
 
     # Solve the model
-    solver, specific_options = solver_config.create_solver(timelimit=timelimit, mipgap=mipgap)
+    solver, specific_options = solver_config.create_solver(pyomo_config = pyomo_config, timelimit=timelimit, mipgap=mipgap)
     results = solver.solve(model, tee=False, options=specific_options)
 
     # Check if an optimal solution was found

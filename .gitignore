@@ -21,6 +21,8 @@ districtgenerator/data/weather/*
 *.egg-info/
 *.egg/
 *.eggs
+districtgenerator.egg-info/*
+
 joss/
 
 districtgenerator/

@@ -825,7 +825,7 @@ def optimization_diameter(data, param, f_fric):
     solver_log_path = os.path.join(dir_result, "solver_output.log")
 
     # Solve the model
-    solver, solver_options = solver_config.create_solver()
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config)
 
     solver_options["primal_feasibility_tolerance"] = 1e-9
     solver_options["mip_feasibility_tolerance"] = 1e-9

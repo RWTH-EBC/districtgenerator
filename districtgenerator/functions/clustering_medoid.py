@@ -194,7 +194,7 @@ def _rescale_profiles(normTypicalClusters, inputs, inputsNormalizedTransformed, 
     return scaled_typ_clusters
 
 
-def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None, scalings=None):
+def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_gap=0.0, weights=None, scalings=None, pyomo_config=None):
     """
     Cluster a set of inputs into clusters by solving a k-medoid problem.
 
@@ -215,6 +215,10 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
         Optimality tolerance (0: proven global optimum). The default is 0.0.
     weights : 1-dimensional array, optional
         Weight for each input. If not provided, all inputs are treated equally.
+    scalings : list of booleans, optional
+        List indicating whether each input should be scaled to preserve energy demands.
+    pyomo_config : PyomoConfig, optional
+        PyomoConfig instance containing solver settings passed down. if None the settings are directly loaded from the config file with the standard values.
 
     Returns
     -------
@@ -310,7 +314,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     d = _distances(L, norm)
 
     # Execute optimization model
-    y, z, obj = k_medoids.k_medoids(d, number_clusters, time_limit, mip_gap)
+    y, z, obj = k_medoids.k_medoids(d, number_clusters, time_limit, mip_gap, pyomo_config=pyomo_config)
 
     # Get chosen Medoids
     clusters = [c for c, value in enumerate(y) if value == 1]

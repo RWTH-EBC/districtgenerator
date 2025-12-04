@@ -49,7 +49,7 @@ EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
 
-def run_opti_central(model, data, cluster):
+def run_opti_central(data, cluster):
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
     """
@@ -65,6 +65,7 @@ def run_opti_central(model, data, cluster):
 
     start_time = time.time()
     # build the model
+    model = pyo.ConcreteModel(name="Device_Operation_Optimization")
     build_model(model, data, cluster)
     model_building_time = time.time() - start_time
     # solve the model and extract results
@@ -1437,7 +1438,7 @@ def solve_model_and_extract_results(model, data):
     errorfile_path = os.path.join(result_dir, "errorfile_opti_central.txt")
 
     # Solve the model
-    solver, solver_options = solver_config.create_solver()
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config,)
     results = solver.solve(model, tee=False, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file
