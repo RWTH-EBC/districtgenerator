@@ -1240,6 +1240,7 @@ class Datahandler:
                 building["generationPV"], building["generationSTC"] = \
                     sun.calcPVAndSTCProfile(time=self.time,
                                             site=self.site,
+                                            devices=self.decentral_device_data,
                                             area_roof=building["envelope"].A["opaque"]["roof"],
                                             # In Germany, this is a roof pitch between 30 and 35 degrees
                                             beta=[35],
@@ -1723,7 +1724,7 @@ class Datahandler:
             # save results as attribute
             self.resultsOptimization.append(results_temp)
 
-    def calulateKPIs(self):
+    def calculateKPIs(self):
         """
         Calculate key performance indicators (KPIs).
 

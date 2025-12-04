@@ -3,7 +3,6 @@
 import sys
 import numpy as np
 import os
-import json
 import math
 import reportlab
 from reportlab.pdfgen import canvas
@@ -119,13 +118,6 @@ class KPIs:
         lossesBattery_cumulated_cluster = []
         # Load data of decentral devices (to calculate battery losses)
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        decentralDev = {}
-        with open(os.path.join(srcPath, 'data', 'decentral_device_data.json')) as json_file:
-            jsonData = json.load(json_file)
-            for subData in jsonData:
-                decentralDev[subData["abbreviation"]] = {}
-                for subsubData in subData["specifications"]:
-                    decentralDev[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # summed el. load of all buildings , [number of time periods, time steps within periods]
         self.sum_res_load = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
@@ -205,22 +197,49 @@ class KPIs:
         W_inj_GCP = np.zeros(len(data.clusters))
         # Electricity [kWh] covered by the superordinated grid
         W_dem_GCP = np.zeros(len(data.clusters))
+    
+        # Fuel consumption [kWh]
         Gas = np.zeros(len(data.clusters))
+        Biomass = np.zeros(len(data.clusters))
+        Waste = np.zeros(len(data.clusters))
+        Hydrogen = np.zeros(len(data.clusters))
+        Oil = np.zeros(len(data.clusters))
+        
+        # District heat consumption [kWh]
+        DistrictHeat = np.zeros(len(data.clusters))
 
         # electricity feed into and covered by superordinated grid for one year [kWh]
         self.W_inj_GCP_year = 0
         self.W_dem_GCP_year = 0
         self.Gas_year = 0
+        self.Biomass_year = 0
+        self.Waste_year = 0
+        self.Hydrogen_year = 0
+        self.Oil_year = 0
+        self.DistrictHeat_year = 0
+
         # loop over cluster
         for c in range(len(self.inputData["clusters"])):
             W_dem_GCP[c] = sum(self.inputData["resultsOptimization"][c]["P_dem_gcp"]) \
-                                     * data.time["timeResolution"] / 3600 / 1000
+                                     * data.time["timeResolution"] / 3600 / 1000 # from Ws to kWh
             W_inj_GCP[c] = sum(self.inputData["resultsOptimization"][c]["P_inj_gcp"]) \
                                      * data.time["timeResolution"] / 3600 / 1000
             Gas[c] = sum(self.inputData["resultsOptimization"][c]["P_gas_total"]) * data.time["timeResolution"] / 3600 / 1000
+            Biomass[c] = sum(self.inputData["resultsOptimization"][c]["P_biomass_total"]) * data.time["timeResolution"] / 3600 / 1000
+            Waste[c] = sum(self.inputData["resultsOptimization"][c]["P_waste_total"]) * data.time["timeResolution"] / 3600 / 1000
+            Hydrogen[c] = sum(self.inputData["resultsOptimization"][c]["P_hydrogen_total"]) * data.time["timeResolution"] / 3600 / 1000
+            Oil[c] = sum(self.inputData["resultsOptimization"][c]["P_oil_total"]) * data.time["timeResolution"] / 3600 / 1000
+            DistrictHeat[c] = sum(self.inputData["resultsOptimization"][c]["P_district_heat_total"]) * data.time["timeResolution"] / 3600 / 1000
+            
+            
             self.W_dem_GCP_year += W_dem_GCP[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
             self.W_inj_GCP_year += W_inj_GCP[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
             self.Gas_year += Gas[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.Biomass_year += Biomass[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.Waste_year += Waste[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.Hydrogen_year += Hydrogen[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.Oil_year += Oil[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            self.DistrictHeat_year += DistrictHeat[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
 
     def calculateEnergyExchangeWithinDistrict(self, data):
 
@@ -454,21 +473,29 @@ class KPIs:
         -------
         None.
         """
+        ecoData = data.ecoData
 
-        filePath = os.path.join(data.srcPath, 'data')
-        # important for weather conditions
-        with open(os.path.join(filePath, 'eco_data.json')) as json_file:
-            jsonData = json.load(json_file)
-
-        CO2_factor_el_grid = next(item["value"] for item in jsonData if item["name"] == "co2_el_grid")  # Emi_elec_grid
-        CO2_factor_gas = next(item["value"] for item in jsonData if item["name"] == "co2_gas")      # Emi_gas
+        # CO2 factors [kg/kWh]
+        CO2_factor_el_grid = ecoData["co2_el_grid"]   # Emi_elec_grid
+        CO2_factor_gas = ecoData["co2_gas"]           # Emi_gas
+        CO2_factor_biomass = ecoData["co2_biom"]   # Emi_biomass 
+        CO2_factor_waste = ecoData["co2_waste"]   # Emi_waste
+        CO2_factor_hydrogen = ecoData["co2_hydrogen"]   # Emi_hydrogen
+        CO2_factor_oil = ecoData["co2_oil"]           # Emi_oil
+        CO2_factor_district_heat = ecoData["co2_district_heat"]   # Emi_district_heat
+        
 
         co2_dem_grid = self.W_dem_GCP_year * CO2_factor_el_grid / 1000    # in t/a
         co2_gas = self.Gas_year * CO2_factor_gas / 1000                   # in t/a
+        co2_biom = self.Biomass_year * CO2_factor_biomass / 1000         # in t/a
+        co2_waste = self.Waste_year * CO2_factor_waste / 1000             # in t/a
+        co2_hydrogen = self.Hydrogen_year * CO2_factor_hydrogen / 1000       # in t/a
+        co2_oil = self.Oil_year * CO2_factor_oil / 1000                       # in t/a
+        co2_district_heat = self.DistrictHeat_year * CO2_factor_district_heat / 1000   # in t/a
 
 
         # CO2 emissions for one year
-        self.co2emissions = [co2_dem_grid, co2_gas]
+        self.co2emissions = [co2_dem_grid, co2_gas, co2_biom, co2_waste, co2_hydrogen, co2_oil, co2_district_heat]
 
     def calculateAutonomy(self):
         """
@@ -581,14 +608,7 @@ class KPIs:
 
     def calculateGasolineCosts(self, data):
         """Compute annual gasoline costs (€)"""
-        filePath = os.path.join(data.srcPath, 'data')
-        with open(os.path.join(filePath, 'eco_data.json')) as json_file:
-            jsonData = json.load(json_file)
-        # Fallback to 1.7 if key not present
-        try:
-            price_per_liter = next(item["value"] for item in jsonData if item["name"] == "price_gasoline_liter")
-        except StopIteration:
-            price_per_liter = 1.7
+        price_per_liter = data.ecoData["price_gasoline_liter"]  # €/liter
         self.gasoline_costs = float(self.total_ICE_fuel_liters) * float(price_per_liter)
 
     def calculateAllKPIs(self, data):

@@ -822,6 +822,7 @@ def get_PVandSTC_power(devs, param, data):
 
     potentialPV, _ = sun.calcPVAndSTCProfile(time=time,
                                              site=site,
+                                             devices=data.decentral_device_data,
                                              area_roof=1,
                                              beta=[devs["PV"]["beta"]],
                                              gamma=[devs["PV"]["gamma"]],
@@ -832,6 +833,7 @@ def get_PVandSTC_power(devs, param, data):
     # calculate theoretical STC generation
     _, potentialSTC = sun.calcPVAndSTCProfile(time=time,
                                               site=site,
+                                              devices=data.decentral_device_data,
                                               area_roof=1,
                                               beta=[devs["STC"]["beta"]],
                                               gamma=[devs["STC"]["gamma"]],

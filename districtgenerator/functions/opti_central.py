@@ -1525,6 +1525,23 @@ def solve_model_and_extract_results(model, data):
 
             with open(errorfile_path, 'a') as f:
                 f.write(f"IIS analysis failed: {e}\n")
+        
+        # Using Gurobi to compute a better IIS if Gurobi is available
+        import gurobipy as gp
+        gurobi_available = True
+        try: _ = gp.Env.getEnv()
+        except: gurobi_available = False
+
+        if gurobi_available:
+            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
+            m = gp.read("debug_model.lp")
+            m.optimize()
+            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                m.computeIIS()
+                m.write("debug_model.ilp")
+                print("IIS written to debug_model.ilp")
+                raise Exception("Model is infeasible, see errorfile for details.")
+            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
 
         return None
 
