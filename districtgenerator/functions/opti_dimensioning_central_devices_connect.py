@@ -25,50 +25,41 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     # Load data for one district for test reasons
     # TODO: Change for several districts
     devs=devsCon[list(devsCon.keys())[0]]
-    param=paramCon[list(paramCon.keys())[0]]
     dem=demCon[list(demCon.keys())[0]]
-    result_dict=result_dictCon[list(result_dictCon.keys())[0]]
-    data=dataCon[0]
 
+    
      #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Initialize variables for cluster_setup_devices, call that funciton and store results
+    # Cluster days and time horizon
 
-    # Initialize the dictionaries to store cluster setup results for each district
-    start_timeCon = {}
-    clustersCon = {} 
-    time_stepsCon = {} 
-    dtCon = {} 
-    yearCon = {} 
-    sigmaCon = {}  
+    # Load data for one district for test reasons
+    data=dataCon[0]
+    param=paramCon[list(paramCon.keys())[0]] 
+    # Load model parameters
+    start_time = time.time()
+
+    clusters = range(data.time["clusterNumber"])
+    # calculate cluster time horizon
+    clusterHorizon = int((data.time["clusterLength"] / data.time["timeResolution"]))
+    time_steps = range(clusterHorizon)
+    dt = data.time["timeResolution"] / data.time["dataResolution"]
+    year = range(52)
+
+    # Get sigma function that assigns each time period (day or week) of the year to a design period
+    sigma = param["sigma"]
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Initialize all all_devs to store all_devs for each district 
     all_devsCon = {}
 
     for district in dataCon:
         # Get the scenario_name of the district
         scenario_name = district.scenario_name
-
-        # Retrieve the corresponding param data from paramCon
-        if scenario_name in paramCon:
-            param = paramCon[scenario_name]
-            # Call cluster_setup_devices and store the results
-            start_timeCon[scenario_name], clustersCon[scenario_name], time_stepsCon[scenario_name], dtCon[scenario_name], yearCon[scenario_name], sigmaCon[scenario_name], all_devsCon[scenario_name] = cluster_setup_devices(district, param)
-        else:
-            print(f"No 'param' data found for district: {scenario_name}")
-
-    for district in dataCon:
-        scenario_name = district.scenario_name
-        print(f"Cluster_results of {scenario_name} are: {clustersCon[scenario_name]}")
+        # Call setup_devices and store the results
+        all_devsCon[scenario_name] = setup_devices()
 
     # Print scenario_name for test reasons
     # TODO: Change for several districts
     print(f"Scenario name for optimization: {dataCon[0].scenario_name}")
-    start_time = start_timeCon[dataCon[0].scenario_name]
-    clusters = clustersCon[dataCon[0].scenario_name]
-    time_steps = time_stepsCon[dataCon[0].scenario_name]
-    dt = dtCon[dataCon[0].scenario_name]
-    year = yearCon[dataCon[0].scenario_name]
-    sigma = sigmaCon[dataCon[0].scenario_name]
-    all_devs = all_devsCon[dataCon[0].scenario_name]
-
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Set up model and create variables
@@ -83,53 +74,16 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     for district in dataCon:
         # Get the scenario_name of the district
         scenario_name = district.scenario_name
-        # Retrieve the corresponding devs data from all_devsCon
+        # Retrieve the corresponding all_devs data from all_devsCon
         if scenario_name in all_devsCon:
             all_devs = all_devsCon[scenario_name]
             # Call add_variables to add variables to the model
+            variables={}
             variables = add_variables_per_district(district, model, all_devs, clusters, time_steps, year)
             variablesCon[scenario_name] = variables
 
-    # Quick initialization of one district for test reasons
-    # TODO: Change for several districts
-    # district = dataCon[0]
-    # variables = add_variables_per_district(district, model, all_devs, clusters, time_steps, year)
-
-
-    # Extract variables from the dictionary
-    cap = variables["cap"]
-    area = variables["area"]
-    gas = variables["gas"]
-    power = variables["power"]
-    heat = variables["heat"]
-    cool = variables["cool"]
-    hydrogen = variables["hydrogen"]
-    biom = variables["biom"]
-    waste = variables["waste"]
-    ch = variables["ch"]
-    soc = variables["soc"]
-    grid_limit_el = variables["grid_limit_el"]
-    grid_limit_gas = variables["grid_limit_gas"]
-    from_el_grid_total = variables["from_el_grid_total"]
-    to_el_grid_total = variables["to_el_grid_total"]
-    from_gas_grid_total = variables["from_gas_grid_total"]
-    to_gas_grid_total = variables["to_gas_grid_total"]
-    biom_import_total = variables["biom_import_total"]
-    waste_import_total = variables["waste_import_total"]
-    hydrogen_import_total = variables["hydrogen_import_total"]
-    rev_feed_in_gas = variables["rev_feed_in_gas"]
-    rev_feed_in_el = variables["rev_feed_in_el"]
-    supply_costs_el = variables["supply_costs_el"]
-    cap_costs_el = variables["cap_costs_el"]
-    supply_costs_gas = variables["supply_costs_gas"]
-    cap_costs_gas = variables["cap_costs_gas"]
-    supply_costs_biom = variables["supply_costs_biom"]
-    supply_costs_waste = variables["supply_costs_waste"]
-    supply_costs_hydrogen = variables["supply_costs_hydrogen"]
-    inv = variables["inv"]
-    c_inv = variables["c_inv"]
-    c_om = variables["c_om"]
-    c_total = variables["c_total"]
+    # Print cap variable for test reasons
+    print(f"Cap of variablesCon are: {variablesCon[dataCon[0].scenario_name]["cap"]}")
 
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -146,39 +100,153 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
 
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Add constraints for each district
+    for district in dataCon:
+        # Get the scenario_name of the district
+        scenario_name = district.scenario_name
+        # Retrieve the corresponding variables for all districts
+        all_devs = all_devsCon[scenario_name]
+        devs = devsCon[scenario_name]
 
-    # Call add_constraints to add constraints to the model
-    add_constraints_per_district(
-        model, all_devs, devs, cap, clusters, time_steps, 
-        heat, power, cool, gas, area, biom, waste, hydrogen, 
-        ch, soc, dem, param, dt, year, sigma, grid_limit_el, grid_limit_gas,
-        from_gas_grid_total, to_gas_grid_total,from_el_grid_total, to_el_grid_total, 
-        biom_import_total, waste_import_total, hydrogen_import_total, supply_costs_el,
-        cap_costs_el, rev_feed_in_el, supply_costs_gas, cap_costs_gas,rev_feed_in_gas, 
-        supply_costs_biom, supply_costs_waste, supply_costs_hydrogen, inv, c_inv, c_om, c_total, obj, data
-    )    
+        cap = variablesCon[scenario_name]["cap"]
+
+        heat = variablesCon[scenario_name]["heat"]
+        power = variablesCon[scenario_name]["power"]
+        cool = variablesCon[scenario_name]["cool"]
+        gas = variablesCon[scenario_name]["gas"]
+        area = variablesCon[scenario_name]["area"]
+        biom = variablesCon[scenario_name]["biom"]
+        waste = variablesCon[scenario_name]["waste"]
+        hydrogen = variablesCon[scenario_name]["hydrogen"]
+        ch = variablesCon[scenario_name]["ch"]
+        soc = variablesCon[scenario_name]["soc"]
+        dem = demCon[scenario_name]
+        param = paramCon[scenario_name]
+        grid_limit_el = variablesCon[scenario_name]["grid_limit_el"]
+        grid_limit_gas = variablesCon[scenario_name]["grid_limit_gas"]
+        from_gas_grid_total = variablesCon[scenario_name]["from_gas_grid_total"]
+        to_gas_grid_total = variablesCon[scenario_name]["to_gas_grid_total"]
+        from_el_grid_total = variablesCon[scenario_name]["from_el_grid_total"]
+        to_el_grid_total = variablesCon[scenario_name]["to_el_grid_total"]
+        biom_import_total = variablesCon[scenario_name]["biom_import_total"]
+        waste_import_total = variablesCon[scenario_name]["waste_import_total"]
+        hydrogen_import_total = variablesCon[scenario_name]["hydrogen_import_total"]
+        supply_costs_el = variablesCon[scenario_name]["supply_costs_el"]
+        cap_costs_el = variablesCon[scenario_name]["cap_costs_el"]
+        rev_feed_in_el = variablesCon[scenario_name]["rev_feed_in_el"]
+        supply_costs_gas = variablesCon[scenario_name]["supply_costs_gas"]
+        cap_costs_gas = variablesCon[scenario_name]["cap_costs_gas"]
+        rev_feed_in_gas = variablesCon[scenario_name]["rev_feed_in_gas"]
+        supply_costs_biom = variablesCon[scenario_name]["supply_costs_biom"]
+        supply_costs_waste = variablesCon[scenario_name]["supply_costs_waste"]
+        supply_costs_hydrogen = variablesCon[scenario_name]["supply_costs_hydrogen"]
+        inv = variablesCon[scenario_name]["inv"]
+        c_inv = variablesCon[scenario_name]["c_inv"]
+        c_om = variablesCon[scenario_name]["c_om"]
+        c_total = variablesCon[scenario_name]["c_total"]
+
+        # Call add_constraints to add constraints to the model
+        add_constraints_per_district(
+            model, all_devs, devs, cap, clusters, time_steps,
+            heat, power, cool, gas, area, biom, waste, hydrogen, ch, soc,
+            dem, param, dt, year, sigma,grid_limit_el, grid_limit_gas,
+            from_gas_grid_total, to_gas_grid_total,from_el_grid_total, to_el_grid_total,
+            biom_import_total, waste_import_total, hydrogen_import_total, supply_costs_el,
+            cap_costs_el, rev_feed_in_el, supply_costs_gas, cap_costs_gas,rev_feed_in_gas, 
+            supply_costs_biom, supply_costs_waste, supply_costs_hydrogen, inv, c_inv, c_om, c_total
+            )
+        
+        # Print cap variable for test reasons
+        print(f"Cap of variablesCon afer add_constr are: {variablesCon[dataCon[0].scenario_name]["cap"]}")
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     #%% DIFINE VARIBALES FOR OBJECTIVE FUNCTIONS
-    # Total annualized costs
-    model.addConstr(obj["tac"] == sum(c_total[dev] for dev in all_devs) + data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"] # annualized investments and O&M
-                                + supply_costs_gas + cap_costs_gas # gas costs
-                                + supply_costs_el + cap_costs_el # electricity costs
-                                - rev_feed_in_el - rev_feed_in_gas # revenues
-                                + supply_costs_biom # biomass
-                                + supply_costs_waste # waste
-                                + supply_costs_hydrogen
-                                + (from_gas_grid_total * param["co2_gas"] + biom_import_total * param["co2_biom"] + waste_import_total * param["co2_waste"]) * param["co2_tax"]) # CO2 tax
+    #TODO: Change for several districts
+    all_devs = all_devsCon[dataCon[0].scenario_name]
+    tac_sum_total = 0
+    co2_sum_total = 0
+
+    for district in dataCon:
+        # Get the scenario_name of the district
+        scenario_name = district.scenario_name
+        # Retrieve the corresponding variables for all districts
+        c_total = variablesCon[scenario_name]["c_total"]
+        all_devs = all_devsCon[scenario_name]
+        data = district
+        supply_costs_gas = variablesCon[scenario_name]["supply_costs_gas"]
+        cap_costs_gas = variablesCon[scenario_name]["cap_costs_gas"]
+        supply_costs_el = variablesCon[scenario_name]["supply_costs_el"]
+        cap_costs_el = variablesCon[scenario_name]["cap_costs_el"]
+        rev_feed_in_el = variablesCon[scenario_name]["rev_feed_in_el"]
+        rev_feed_in_gas = variablesCon[scenario_name]["rev_feed_in_gas"]
+        supply_costs_biom = variablesCon[scenario_name]["supply_costs_biom"]
+        supply_costs_waste = variablesCon[scenario_name]["supply_costs_waste"]
+        supply_costs_hydrogen = variablesCon[scenario_name]["supply_costs_hydrogen"]
+        from_gas_grid_total = variablesCon[scenario_name]["from_gas_grid_total"]
+        param = paramCon[scenario_name]
+        biom_import_total = variablesCon[scenario_name]["biom_import_total"]
+        waste_import_total = variablesCon[scenario_name]["waste_import_total"]
+        from_el_grid_total = variablesCon[scenario_name]["from_el_grid_total"]
+        hydrogen_import_total = variablesCon[scenario_name]["hydrogen_import_total"]
+        to_el_grid_total = variablesCon[scenario_name]["to_el_grid_total"]
+        to_gas_grid_total = variablesCon[scenario_name]["to_gas_grid_total"]
+        # Total annualized costs per district
+
+        tac_sum_distr = (
+            sum(c_total[dev] for dev in all_devs) + data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"] # annualized investments and O&M
+            + supply_costs_gas + cap_costs_gas # gas costs
+            + supply_costs_el + cap_costs_el # electricity costs
+            - rev_feed_in_el - rev_feed_in_gas # revenues
+            + supply_costs_biom # biomass
+            + supply_costs_waste # waste
+            + supply_costs_hydrogen
+            + (
+                from_gas_grid_total * param["co2_gas"] 
+                + biom_import_total * param["co2_biom"] 
+                + waste_import_total * param["co2_waste"]) * param["co2_tax"] # CO2 tax
+        )  
+        # Sum up total annualized costs for all districts
+        tac_sum_total += tac_sum_distr
+
+        # Annual CO2 emissions: Implicit emissions by power supply from national grid is penalized, feed-in is ignored
+        co2_sum_distr = (
+            from_el_grid_total * param["co2_el_grid"]
+            + from_gas_grid_total * param["co2_gas"]
+            + biom_import_total * param["co2_biom"]
+            + waste_import_total * param["co2_waste"]
+            + hydrogen_import_total * param["co2_hydrogen"]
+            - to_el_grid_total * param["co2_el_feed_in"]
+            - to_gas_grid_total * param["co2_gas_feed_in"])
+        
+        # Sum up total CO2 emissions for all districts
+        co2_sum_total += co2_sum_distr
+
+    # Total annualized costs for all districts as contraint to obj variable
+    model.addConstr(obj["tac"] == tac_sum_total)
+    # Total CO2 emissions for all districts as constraint to obj variable
+    model.addConstr(obj["co2"] == co2_sum_total)
 
 
-    # Annual CO2 emissions: Implicit emissions by power supply from national grid is penalized, feed-in is ignored
-    model.addConstr(obj["co2"] == from_el_grid_total * param["co2_el_grid"]
-                                      + from_gas_grid_total * param["co2_gas"]
-                                      + biom_import_total * param["co2_biom"]
-                                      + waste_import_total * param["co2_waste"]
-                                      + hydrogen_import_total * param["co2_hydrogen"]
-                                      - to_el_grid_total * param["co2_el_feed_in"]
-                                      - to_gas_grid_total * param["co2_gas_feed_in"])
+    # # Total annualized costs for one district: Old code
+    # model.addConstr(obj["tac"] == sum(c_total[dev] for dev in all_devs) + data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"] # annualized investments and O&M
+    #                             + supply_costs_gas + cap_costs_gas # gas costs
+    #                             + supply_costs_el + cap_costs_el # electricity costs
+    #                             - rev_feed_in_el - rev_feed_in_gas # revenues
+    #                             + supply_costs_biom # biomass
+    #                             + supply_costs_waste # waste
+    #                             + supply_costs_hydrogen
+    #                             + (from_gas_grid_total * param["co2_gas"] + biom_import_total * param["co2_biom"] + waste_import_total * param["co2_waste"]) * param["co2_tax"]) # CO2 tax
+
+
+    # # Annual CO2 emissions: Implicit emissions by power supply from national grid is penalized, feed-in is ignored
+    # model.addConstr(obj["co2"] == from_el_grid_total * param["co2_el_grid"]
+    #                                   + from_gas_grid_total * param["co2_gas"]
+    #                                   + biom_import_total * param["co2_biom"]
+    #                                   + waste_import_total * param["co2_waste"]
+    #                                   + hydrogen_import_total * param["co2_hydrogen"]
+    #                                   - to_el_grid_total * param["co2_el_feed_in"]
+    #                                   - to_gas_grid_total * param["co2_gas_feed_in"])
+    
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Set model parameters and execute calculation
 
@@ -197,6 +265,9 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Check and save results
 
+    #TODO: Change for several districts!!!!
+    result_dict=result_dictCon[list(result_dictCon.keys())[0]]
+
     # Check if optimal solution was found
     if model.Status in (3, 4) or model.SolCount == 0:  # "INFEASIBLE" or "INF_OR_UNBD"
 
@@ -212,37 +283,78 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         return {}
 
     else:
-        # Check and save results
+        # Save results
         result_dir = "results"
         if not os.path.exists(result_dir):
             os.makedirs(result_dir)
 
-        result_dict= save_results(result_dir, model, result_dict, inv,c_inv,c_om, all_devs, devs, cap, power, gas, 
-                           biom, waste, from_el_grid_total, to_el_grid_total, from_gas_grid_total, 
-                           to_gas_grid_total, biom_import_total, waste_import_total, hydrogen_import_total, obj, 
-                           data, param, clusters, time_steps, hydrogen,supply_costs_el,cap_costs_el,rev_feed_in_el,
-                           supply_costs_gas,cap_costs_gas,rev_feed_in_gas,supply_costs_biom,supply_costs_waste,
-                           supply_costs_hydrogen, area, heat, dt, cool, ch)
-        return result_dict
+        # Save results after optimization
+        model.write(os.path.join(result_dir, "model.sol"))
+        model.write(os.path.join(result_dir,  "model.lp"))
 
-def cluster_setup_devices(data,param):
+        # Process results for the whole network and store them in result_dictCon
+        result_dictCon["network"] = {}
+        result_dictCon["network"]["tac"] = int(obj["tac"].X)      # EUR/a 
+        result_dictCon["network"]["co2"] = int(obj["co2"].X/1000) # t/a
 
-    # Load model parameters
-    start_time = time.time()
+        # Process results for each district and store them in result_dictCon
+        for district in dataCon:
+            # Get the scenario_name of the district
+            scenario_name = district.scenario_name
+            # Retrieve the corresponding variables for all districts
+            result_dict = result_dictCon[scenario_name]
+            inv = variablesCon[scenario_name]["inv"]
+            c_inv = variablesCon[scenario_name]["c_inv"]
+            c_om = variablesCon[scenario_name]["c_om"]
+            all_devs = all_devsCon[scenario_name]
+            devs = devsCon[scenario_name]
+            cap = variablesCon[scenario_name]["cap"]
+            power = variablesCon[scenario_name]["power"]
+            gas = variablesCon[scenario_name]["gas"]
+            biom = variablesCon[scenario_name]["biom"]
+            waste = variablesCon[scenario_name]["waste"]
+            from_el_grid_total = variablesCon[scenario_name]["from_el_grid_total"]
+            to_el_grid_total = variablesCon[scenario_name]["to_el_grid_total"]
+            from_gas_grid_total = variablesCon[scenario_name]["from_gas_grid_total"]
+            to_gas_grid_total = variablesCon[scenario_name]["to_gas_grid_total"]
+            biom_import_total = variablesCon[scenario_name]["biom_import_total"]
+            waste_import_total = variablesCon[scenario_name]["waste_import_total"]
+            hydrogen_import_total = variablesCon[scenario_name]["hydrogen_import_total"]
+            data = district
+            param = paramCon[scenario_name]
+            hydrogen = variablesCon[scenario_name]["hydrogen"]
+            supply_costs_el = variablesCon[scenario_name]["supply_costs_el"]
+            cap_costs_el = variablesCon[scenario_name]["cap_costs_el"]
+            rev_feed_in_el = variablesCon[scenario_name]["rev_feed_in_el"]
+            supply_costs_gas = variablesCon[scenario_name]["supply_costs_gas"]
+            cap_costs_gas = variablesCon[scenario_name]["cap_costs_gas"]
+            rev_feed_in_gas = variablesCon[scenario_name]["rev_feed_in_gas"]
+            supply_costs_biom = variablesCon[scenario_name]["supply_costs_biom"]
+            supply_costs_waste = variablesCon[scenario_name]["supply_costs_waste"]
+            supply_costs_hydrogen = variablesCon[scenario_name]["supply_costs_hydrogen"]
+            area = variablesCon[scenario_name]["area"]
+            heat = variablesCon[scenario_name]["heat"]
+            cool = variablesCon[scenario_name]["cool"]
+            ch = variablesCon[scenario_name]["ch"]
 
-    clusters = range(data.time["clusterNumber"])
-    # calculate cluster time horizon
-    clusterHorizon = int((data.time["clusterLength"] / data.time["timeResolution"]))
-    time_steps = range(clusterHorizon)
-    dt = data.time["timeResolution"] / data.time["dataResolution"]
-    year = range(52)
+            # Print result_dict for test reasons
+            print(f"Result dict before processing: {result_dict}")
 
-    # Get sigma function that assigns each time period (day or week) of the year to a design period
-    sigma = param["sigma"]
+            result_dict = process_results_per_district(result_dict, inv, c_inv, c_om, all_devs, devs, cap, power, gas, 
+                            biom, waste, from_el_grid_total, to_el_grid_total, from_gas_grid_total, 
+                            to_gas_grid_total, biom_import_total, waste_import_total, hydrogen_import_total, obj, 
+                            data, param, clusters, time_steps, hydrogen, supply_costs_el,cap_costs_el,rev_feed_in_el,
+                            supply_costs_gas,cap_costs_gas,rev_feed_in_gas,supply_costs_biom,supply_costs_waste,
+                            supply_costs_hydrogen, area, heat, dt, cool, ch)
+            
+            
+            result_dictCon[scenario_name] = result_dict
+        
+        return result_dictCon
 
-    #TODO: Move the above part to the main function and call only once for all districts
-    
-    # Create set for devices
+def setup_devices():
+   
+    # Create set of devices
     all_devs = ["PV", "WT", "STC", "WAT",
                 "HP", "EB", "CC", "AC",
                 "CHP", "BOI", "GHP",
@@ -250,19 +362,19 @@ def cluster_setup_devices(data,param):
                 "ELYZ", "FC", "H2S", "SAB",
                 "TES", "CTES", "BAT", "GS",
                 ]
-    return start_time, clusters, time_steps, dt, year, sigma, all_devs
+    return all_devs
 
 def add_variables_per_district(district, model, all_devs, clusters, time_steps, year):
     # Device's capacity (i.e. rated power)
     cap = {}
     for device in all_devs:
-        cap[device] = model.addVar(vtype="C", name="nominal_capacity_" + str(device) + str(district.scenario_name))
+        cap[device] = model.addVar(vtype="C", name="nominal_capacity_" + str(device) + "_" + str(district.scenario_name))
     
 
     # Roof area used for PV and solar thermal collector installation
     area = {}
     for device in ["PV", "STC"]:
-        area[device] = model.addVar(vtype = "C", name="roof_area_" + str(device) + str(district.scenario_name))
+        area[device] = model.addVar(vtype = "C", name="roof_area_" + str(device) + "_" + str(district.scenario_name))
 
     # Gas flow to/from devices
     gas = {}
@@ -271,7 +383,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             gas[device][d] = {}
             for t in time_steps:
-                gas[device][d][t] = model.addVar(vtype="C", name="gas_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                gas[device][d][t] = model.addVar(vtype="C", name="gas_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Electric power to/from devices
     power = {}
@@ -280,7 +392,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             power[device][d] = {}
             for t in time_steps:
-                power[device][d][t] = model.addVar(vtype="C", name="power_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                power[device][d][t] = model.addVar(vtype="C", name="power_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Heat to/from devices
     heat = {}
@@ -289,7 +401,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             heat[device][d] = {}
             for t in time_steps:
-                heat[device][d][t] = model.addVar(vtype="C", name="heat_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                heat[device][d][t] = model.addVar(vtype="C", name="heat_" + device + "_d" + str(d) + "_t" + str(t) + "_" + str(district.scenario_name))
 
     # Cooling power to/from devices
     cool = {}
@@ -298,7 +410,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             cool[device][d] = {}
             for t in time_steps:
-                cool[device][d][t] = model.addVar(vtype="C", name="cool_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                cool[device][d][t] = model.addVar(vtype="C", name="cool_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Hydrogen to/from devices
     hydrogen = {}
@@ -307,7 +419,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             hydrogen[device][d] = {}
             for t in time_steps:
-                hydrogen[device][d][t] = model.addVar(vtype="C", name="hydrogen_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                hydrogen[device][d][t] = model.addVar(vtype="C", name="hydrogen_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Biomass to devices
     biom = {}
@@ -316,7 +428,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             biom[device][d] = {}
             for t in time_steps:
-                biom[device][d][t] = model.addVar(vtype="C", name="biom_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                biom[device][d][t] = model.addVar(vtype="C", name="biom_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Waste to devices
     waste = {}
@@ -325,7 +437,7 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
         for d in clusters:
             waste[device][d] = {}
             for t in time_steps:
-                waste[device][d][t] = model.addVar(vtype="C", name="waste_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                waste[device][d][t] = model.addVar(vtype="C", name="waste_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Storage variables
     ch = {}  # Energy flow to charge storage device
@@ -337,12 +449,12 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
             ch[device][d] = {}
             for t in time_steps:
                 # For charge variable: ch is positive if storage is charged, and negative if storage is discharged
-                ch[device][d][t] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="ch_" + device + "_d" + str(d) + "_t" + str(t)+ str(district.scenario_name))
+                ch[device][d][t] = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="ch_" + device + "_d" + str(d) + "_t" + str(t)+ "_" + str(district.scenario_name))
         # The SoC is considered for the whole year
         for time_period in year:
             soc[device][time_period] = {}
             for t in time_steps:
-                soc[device][time_period][t] = model.addVar(vtype="C", name="soc_" + device + "_d" + str(time_period) + "_t" + str(t)+ str(district.scenario_name))
+                soc[device][time_period][t] = model.addVar(vtype="C", name="soc_" + device + "_d" + str(time_period) + "_t" + str(t)+ "_" + str(district.scenario_name))
 
     # Variables for annual device costs
     inv = {}
@@ -350,41 +462,41 @@ def add_variables_per_district(district, model, all_devs, clusters, time_steps, 
     c_om = {}
     c_total = {}
     for device in all_devs:
-        inv[device] = model.addVar(vtype = "C", name="investment_costs_" + device+ str(district.scenario_name))
+        inv[device] = model.addVar(vtype = "C", name="investment_costs_" + device+ "_" + str(district.scenario_name))
     for device in all_devs:
-        c_inv[device] = model.addVar(vtype = "C", name="annual_investment_costs_" + device+ str(district.scenario_name))
+        c_inv[device] = model.addVar(vtype = "C", name="annual_investment_costs_" + device+ "_" + str(district.scenario_name))
     for device in all_devs:
-        c_om[device] = model.addVar(vtype = "C", name="om_costs_" + device+ str(district.scenario_name))
+        c_om[device] = model.addVar(vtype = "C", name="om_costs_" + device+ "_" + str(district.scenario_name))
     for device in all_devs:
-        c_total[device] = model.addVar(vtype = "C", name="total_annual_costs_" + device+ str(district.scenario_name))
+        c_total[device] = model.addVar(vtype = "C", name="total_annual_costs_" + device+ "_" + str(district.scenario_name))
 
     # Capacity of grid connections (gas and electricity)
-    grid_limit_el  = model.addVar(vtype = "C", name="grid_limit_el"+ str(district.scenario_name))
-    grid_limit_gas = model.addVar(vtype = "C", name="grid_limit_gas"+ str(district.scenario_name))
+    grid_limit_el  = model.addVar(vtype = "C", name="grid_limit_el"+ "_" + str(district.scenario_name))
+    grid_limit_gas = model.addVar(vtype = "C", name="grid_limit_gas"+ "_" + str(district.scenario_name))
 
     # Total energy amounts taken from grid and fed into grid
-    from_el_grid_total = model.addVar(vtype = "C", name="from_el_grid_total"+ str(district.scenario_name))
-    to_el_grid_total   = model.addVar(vtype = "C", name="to_el_grid_total"+ str(district.scenario_name))
+    from_el_grid_total = model.addVar(vtype = "C", name="from_el_grid_total"+ "_" + str(district.scenario_name))
+    to_el_grid_total   = model.addVar(vtype = "C", name="to_el_grid_total"+ "_" + str(district.scenario_name))
 
-    from_gas_grid_total = model.addVar(vtype = "C", name="from_gas_grid_total"+ str(district.scenario_name))
-    to_gas_grid_total   = model.addVar(vtype = "C", name="to_gas_grid_total"+ str(district.scenario_name))
+    from_gas_grid_total = model.addVar(vtype = "C", name="from_gas_grid_total"+ "_" + str(district.scenario_name))
+    to_gas_grid_total   = model.addVar(vtype = "C", name="to_gas_grid_total"+ "_" + str(district.scenario_name))
 
-    biom_import_total     = model.addVar(vtype = "C", name="biom_import_total"+ str(district.scenario_name))
-    waste_import_total    = model.addVar(vtype = "C", name="waste_import_total"+ str(district.scenario_name))
-    hydrogen_import_total = model.addVar(vtype = "C", name="hydrogen_import_total"+ str(district.scenario_name))
+    biom_import_total     = model.addVar(vtype = "C", name="biom_import_total"+ "_" + str(district.scenario_name))
+    waste_import_total    = model.addVar(vtype = "C", name="waste_import_total"+ "_" + str(district.scenario_name))
+    hydrogen_import_total = model.addVar(vtype = "C", name="hydrogen_import_total"+ "_" + str(district.scenario_name))
 
     # Total revenue from feed-in
-    rev_feed_in_gas = model.addVar(vtype="C", name="rev_feed_in_gas"+ str(district.scenario_name))
-    rev_feed_in_el  = model.addVar(vtype="C", name="rev_feed_in_el"+ str(district.scenario_name))
+    rev_feed_in_gas = model.addVar(vtype="C", name="rev_feed_in_gas"+ "_" + str(district.scenario_name))
+    rev_feed_in_el  = model.addVar(vtype="C", name="rev_feed_in_el"+ "_" + str(district.scenario_name))
 
     # Electricity/gas/biomass costs
-    supply_costs_el       = model.addVar(vtype = "C", name="supply_costs_el"+ str(district.scenario_name))
-    cap_costs_el          = model.addVar(vtype = "C", name="cap_costs_el"+ str(district.scenario_name))
-    supply_costs_gas      = model.addVar(vtype = "C", name="supply_costs_gas"+ str(district.scenario_name))
-    cap_costs_gas         = model.addVar(vtype = "C", name="cap_costs_gas"+ str(district.scenario_name))
-    supply_costs_biom     = model.addVar(vtype = "C", name="supply_costs_biomass"+ str(district.scenario_name))
-    supply_costs_waste    = model.addVar(vtype = "C", lb=-gp.GRB.INFINITY, name="supply_costs_waste"+ str(district.scenario_name))
-    supply_costs_hydrogen = model.addVar(vtype = "C", name="supply_costs_hydrogen"+ str(district.scenario_name))
+    supply_costs_el       = model.addVar(vtype = "C", name="supply_costs_el"+ "_" + str(district.scenario_name))
+    cap_costs_el          = model.addVar(vtype = "C", name="cap_costs_el"+ "_" + str(district.scenario_name))
+    supply_costs_gas      = model.addVar(vtype = "C", name="supply_costs_gas"+ "_" + str(district.scenario_name))
+    cap_costs_gas         = model.addVar(vtype = "C", name="cap_costs_gas"+ "_" + str(district.scenario_name))
+    supply_costs_biom     = model.addVar(vtype = "C", name="supply_costs_biomass"+ "_" + str(district.scenario_name))
+    supply_costs_waste    = model.addVar(vtype = "C", lb=-gp.GRB.INFINITY, name="supply_costs_waste"+ "_" + str(district.scenario_name))
+    supply_costs_hydrogen = model.addVar(vtype = "C", name="supply_costs_hydrogen"+ "_" + str(district.scenario_name))
 
     # Return all variables as a dictionary
     variables = {
@@ -433,7 +545,7 @@ def add_constraints_per_district(
         from_gas_grid_total, to_gas_grid_total,from_el_grid_total, to_el_grid_total, 
         biom_import_total, waste_import_total, hydrogen_import_total, supply_costs_el,
         cap_costs_el, rev_feed_in_el, supply_costs_gas, cap_costs_gas,rev_feed_in_gas, 
-        supply_costs_biom, supply_costs_waste, supply_costs_hydrogen, inv, c_inv, c_om, c_total, obj, data):
+        supply_costs_biom, supply_costs_waste, supply_costs_hydrogen, inv, c_inv, c_om, c_total):
        # Add constraints
 
     #%% Constraints defined by user in GUI
@@ -749,28 +861,22 @@ def add_constraints_per_district(
         model.addConstr(c_total[device] == c_inv[device] + c_om[device])
 
 
-
-
-
-
-def save_results(result_dir, model, result_dict, inv,c_inv,c_om, all_devs, devs, cap, power, gas, 
+def process_results_per_district(result_dict, inv,c_inv,c_om, all_devs, devs, cap, power, gas, 
                            biom, waste, from_el_grid_total, to_el_grid_total, from_gas_grid_total, 
                            to_gas_grid_total, biom_import_total, waste_import_total, hydrogen_import_total, obj, 
                            data, param, clusters, time_steps, hydrogen,supply_costs_el,cap_costs_el,rev_feed_in_el,
                            supply_costs_gas,cap_costs_gas,rev_feed_in_gas,supply_costs_biom,supply_costs_waste,
                            supply_costs_hydrogen, area, heat, dt, cool, ch):
         
-        # Save results after optimization
-        model.write(os.path.join(result_dir, f"model_{data.scenario_name}.sol"))
-        model.write(os.path.join(result_dir,  f"model_{data.scenario_name}.lp"))
-
         ##### For further analysis
         for k in all_devs:
             result_dict[k] = {}
 
         result_dict["devs"] = devs
-        result_dict["tac"] = int(obj["tac"].X)      # EUR/a
-        result_dict["co2"] = int(obj["co2"].X/1000) # t/a
+
+        # Moved to run_optim_connect()
+        # result_dict["tac"] = int(obj["tac"].X)      # EUR/a 
+        # result_dict["co2"] = int(obj["co2"].X/1000) # t/a
 
         for k in cap.keys():
             result_dict[k] = {"cap": round(cap[k].X, 1)}
@@ -797,7 +903,7 @@ def save_results(result_dir, model, result_dict, inv,c_inv,c_om, all_devs, devs,
 
         # CO2 emissions
         result_dict["co2_onsite_emissions"] = int((from_gas_grid_total.X * param["co2_gas"] + biom_import_total.X * param["co2_biom"] + waste_import_total.X * param["co2_waste"])/1000)
-        result_dict["co2_global_emissions"] = int(result_dict["co2"]/1000)
+        #result_dict["co2_global_emissions"] = int(result_dict["co2"]/1000)  # Moved to run_optim_connect()
         result_dict["co2_credit_feedin"] = int((to_el_grid_total.X * param["co2_el_feed_in"] + to_gas_grid_total.X * param["co2_gas_feed_in"])/1000)
         result_dict["co2_tax_total"] = int(result_dict["co2_onsite_emissions"] * param["co2_tax"] * 1000)  # EUR, only gas, biomass and waste.
 

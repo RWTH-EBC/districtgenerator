@@ -169,10 +169,21 @@ class Network:
         #paramtest = paramCon[list(paramCon.keys())[0]]
         #print(f"Param test: {paramtest}")
 
-        # Run central optimization for one interconnected district
+        # Run central optimization for the interconnected districts
         # All parameters for all districts are passed to the optimization function
-        self.interconnected_districts[0].centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon)
-
+        result_dictCon = opti_dimensioning_central_devices_connect.run_optim_connect(
+            dataCon, devsCon, paramCon, demCon, result_dictCon
+            )
+        # Assign results to each district
+        for district in self.interconnected_districts:
+            scenario_name = district.scenario_name
+            if scenario_name in result_dictCon:
+                district.centralDevices["capacities"] = result_dictCon[scenario_name]
+            else:
+                print(f"No results found for district: {scenario_name}")
+        
+        #self.interconnected_districts[0].centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon)
+        
 
 
          
