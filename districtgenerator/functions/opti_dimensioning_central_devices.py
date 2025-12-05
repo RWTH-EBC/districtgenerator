@@ -18,6 +18,7 @@ import gurobipy as gp
 import numpy as np
 import time
 import os
+import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
 #from optim_app.help_functions import create_excel_file
 
 
@@ -770,5 +771,6 @@ def run_optim(data, devs, param, dem, result_dict):
         result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
         result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
 
-
+        opti_dimensioning_central_devices_connect.save_results_csv(result_dict, data.scenario_name, result_dir, all_devs)
+        
         return result_dict

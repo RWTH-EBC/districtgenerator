@@ -298,6 +298,24 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         result_dictCon["network"]["tac"] = int(obj["tac"].X)      # EUR/a 
         result_dictCon["network"]["co2"] = int(obj["co2"].X/1000) # t/a
 
+        # Define the output file path
+        csv_file_path = os.path.join(result_dir, "network_results.csv")
+
+        # Prepare the data to be written to the CSV file
+        data_to_save = [
+            ["Variable", "Value"],  # Header row
+            ["tac_total", result_dictCon.get("network", "").get("tac","")],  # Total annualized costs
+            ["co2_total", result_dictCon.get("network", "").get("co2","")]  # Total CO2 emissions
+   
+        ]
+
+        # Write the data to the CSV file
+        with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file, delimiter=";")
+            writer.writerows(data_to_save)
+
+        print(f"Results saved to {csv_file_path}")
+
         # Process results for each district and store them in result_dictCon
         for district in dataCon:
             # Get the scenario_name of the district
@@ -1139,16 +1157,12 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
         ["max_hydrogen", result_dict.get("max_hydrogen", "")], # Maximum hydrogen import
         [],  # Empty row for separation
         ["Areas PV and STC", "Value"],  # Header row generation parameters
-        ["PV", result_dict.get("area", {}).get("PV", 0)],  # Area for PV
-        ["STC", result_dict.get("area", {}).get("STC", 0)],  # Area for STC
+        ["PV", result_dict.get("area", {}).get("PV", "")],  # Area for PV
+        ["STC", result_dict.get("area", {}).get("STC", "")],  # Area for STC
         [], #  Empty row for separation
         ["volumes of thermal storages", "Value"],  # Header row for storage volumes
-        ["TES", result_dict.get("TES", {}).get("vol_liter", 0)],  # Volume of TES in liters
-        ["CTES", result_dict.get("CTES", {}).get("vol_liter", 0)],  # Volume of CTES in liters
-
-        # # Calculate volume of thermal storages
-        # for k in ["TES", "CTES"]:
-        #     result_dict[k]["vol_liter"] 
+        ["TES", result_dict.get("TES", {}).get("vol_liter", "")],  # Volume of TES in liters
+        ["CTES", result_dict.get("CTES", {}).get("vol_liter", "")],  # Volume of CTES in liters
         ["", ""],  # Empty row for separation
         ["Device-capacity", "Value"],  # Header row for device capacities
 
@@ -1156,7 +1170,7 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
     # Add devices to the CSV file if they are installed
     for device in all_devs:
         if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed
-            capacity = result_dict.get(device, {}).get("cap", 0)  # Get the capacity of the device
+            capacity = result_dict.get(device, {}).get("cap", "")  # Get the capacity of the device
             data_to_save.append([device, capacity])  # Add the device name to the CSV file
 
     # Write the data to the CSV file
