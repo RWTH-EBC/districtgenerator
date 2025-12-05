@@ -12,6 +12,76 @@ import matplotlib.colors as mcolors
 import districtgenerator.functions.solver_config as solver_config
 import fluids
 import textwrap
+from scipy.interpolate import interp1d
+# from districtgenerator.functions.load_params_central_devices import calc_COP
+
+def network_optimization(data):
+    """
+    Optimize pipe diameter and iterate on friction factor
+
+    Parameters
+    ----------
+    data: class datahandler
+
+    Returns
+    -------
+    data: class datahandler
+    """
+    # calculate flow and temperature and prepare for the optimization
+    data, param = calc_temperature(data)
+
+    # set result path
+    dir_dia = data.resultPath + "\\network"
+    if not os.path.exists(dir_dia):
+        os.makedirs(dir_dia)
+
+    generation = data.heat_grid_data["generation"]["value"]
+    topology = data.heat_grid_data["topology_option"]["value"]
+    temperature_mode = data.heat_grid_data["temperature_mode"]["value"]
+    result_folder = f"{data.scenario_name}_{generation}_{topology}_{temperature_mode}"
+    dir_result = os.path.join(dir_dia, result_folder)
+    if not os.path.exists(dir_result):
+        os.makedirs(dir_result)
+
+    param["dir_result"] = dir_result
+
+    data.pipeline = {}
+    file_path = os.path.join(dir_result, "pipe_preprocess.json")
+    data, param = calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, save_path=file_path)
+
+    # get the initial friction factor
+    f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
+    f_fric_old = f_fric_new
+
+    # Set maximum iteration count
+    max_iter = 30
+    tol = 5e-4
+    converged = False
+    for i in range(max_iter):
+        # run the optimization
+        data, model, param = optimization_diameter(data, param, f_fric_new)
+        f_fric_new = calc_f_fric(data, model, param)
+
+        # print the current iteration status
+        print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
+
+        # Check convergence
+        if abs(f_fric_new - f_fric_old) < tol:
+            converged = True
+            print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.6f}")
+            break
+
+        # Update value for next iteration
+        f_fric_old = f_fric_new
+
+    if not converged:
+        print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
+
+    param["f_fric"] = f_fric_new
+
+    output_diameter(data, model, param)
+
+    return data
 
 def to_jsonable(obj):
     if isinstance(obj, np.ndarray):
@@ -293,6 +363,68 @@ def extract_longest_branches(edges, root="EH1"):
     result = {f"line{i + 1}": path for i, path in enumerate(filtered)}
     return result
 
+# Heat pump COP, part 2: Generalized COP estimation of heat pump processes
+# DOI: 10.18462/iir.gl.2018.1386
+# Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+def calc_COP(devs_param, temperatures):
+    """
+    calculate COP of Heat Pump
+    (Modified version of calc_COP from load_params_central_devices.py)
+
+    Parameters
+    ----------
+    devs_param: dict
+        parameters of the heat pump
+    temperatures: lst
+        temperatures of the heat source and heat sink ([t_c_in, dt_c, t_h_in, dt_h])
+
+    Returns
+    -------
+    COP: np.array
+        COP array of same shape as input temperature
+    """
+    # get temperature parameters
+    t_c_in = temperatures[0]
+    dt_c = temperatures[1]
+    t_h_in = temperatures[2]
+    dt_h = temperatures[3]
+
+    # device parameters
+    dt_pp_cond = devs_param["dT_pinch_cond"]  # pinch point temperature difference in the condenser
+    dt_pp_evap = devs_param["dT_pinch_evap"]  # pinch point temperature difference in the evaporator
+
+    eta_is = devs_param["eta_compr"]  # isentropic compression efficiency
+    f_Q = devs_param["heatloss_compr"]  # heat loss rate during compression
+
+    # Entropic mean temperautures (or Logarithmic mean temperatures)
+    t_h_s = dt_h / np.log((t_h_in + dt_h) / t_h_in)
+    t_c_s = dt_c / np.log(t_c_in / (t_c_in - dt_c))
+
+    # Prevent numeric issues
+    t_h_s = np.where(t_h_s == t_c_s, t_h_s + 1e-5, t_h_s)
+
+    # Lorentz-COP
+    COP_Lor = t_h_s / (t_h_s - t_c_s)
+
+    # linear model equations; Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+    dt_r_H = 0.2 * (t_h_in + dt_h - (
+                t_c_in - dt_c) + (dt_pp_cond + dt_pp_evap)) + 0.2 * dt_h + 0.016  # mean entropic heat difference in condenser deducting dt_pp and assuming an ammonia heat pump
+    w_is = 0.0014 * (t_h_in + dt_h - (
+                t_c_in - dt_c) + (dt_pp_cond + dt_pp_evap)) - 0.0015 * dt_h + 0.039  # ratio of isentropic expansion work to isentropic compression work and assuming an ammonia heat pump
+
+    # help values
+    num = 1 + (dt_r_H + dt_pp_cond) / t_h_s
+    denom = 1 + (dt_r_H + 0.5 * dt_c + (dt_pp_cond + dt_pp_evap)) / (t_h_s - t_c_s)
+
+    # COP
+    COP = COP_Lor * num / denom * eta_is * (1 - w_is) + 1 - eta_is - f_Q
+
+    # limit COP's
+    COP_max = devs_param["COP_max"]
+    COP = np.clip(COP, 0, COP_max)
+
+    return COP
+
 def calc_temperature(data):
     """
     Calculate the supply and return temperature and the flow rate in each pipe segment
@@ -389,6 +521,8 @@ def calc_temperature(data):
     param["T_s_cluster"] = T_s_cluster
     param["deltaT"] = deltaT
     param["deltaT_cluster"] = deltaT_cluster
+    param["T_return"] = T_return
+    param["T_return_cluster"] = T_return_cluster
     param["heat_loss_substation"] = heat_loss_substation
     return data, param
 
@@ -602,7 +736,7 @@ def optimization_diameter(data, param, f_fric):
     D_heating_network = data.heat_grid_data["D_heating_network"]["value"]  # 1m
 
     # 7 econimic factor
-    # pipe
+    # 1) pipe
     # inv_earth_work = heat_grid_data["pipe"]["inv_earth_work"]["value"]  # 250EUR/m,  preparation costs for pipe installation
     # inv_pipe = heat_grid_data["pipe"]["inv_pipe"]["value"]              # 1146.71EUR/(m^2*m), price for PE pipe without insulation per diameter^2 and m pipe length
     pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]["value"]     # 30a,          pipe lifetime (VDI 2067)
@@ -612,7 +746,7 @@ def optimization_diameter(data, param, f_fric):
     pipe_ann_factor = calc_annual_factor(data, pipe_lifetime)
     data.heat_grid_data["pipe"]["pipe_ann_factor"] = pipe_ann_factor
 
-    # pump
+    # 2) pump
     inv_pump = heat_grid_data["pump"]["inv_pump"]["value"]               # 700EUR/kW,    specific investment
     pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]["value"]     # 10a,          pump lifetime (VDI 2067 Umwälzpumpe)
 
@@ -623,29 +757,38 @@ def optimization_diameter(data, param, f_fric):
     pump_ann_factor = calc_annual_factor(data, pump_lifetime)
     data.heat_grid_data["pump"]["pump_ann_factor"] = pump_ann_factor
 
-    # heat loss
-    '''
-    p_gas = data.ecoData["price_supply_gas_eh"]                         # 0.1236€/kWh,  Gas price.
-    eta_boiler = data.central_device_data["BOI"]["eta_th"]              # 0.99,         Thermal efficiency, source: Technikkatalog-Waermeplanung_Oktober2025.xlsx (Tabelle 20)
-    p_co2 = data.params_ehdo_model["co2_tax"]                           # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
-    EF = data.ecoData["co2_gas"]                                        # 0.201kg/kWh,  CO2 emissions by burning natural gas.
-    inv_boiler = data.central_device_data["BOI"]["inv_var"]             # 138€/kW,      source: Technikkatalog-Waermeplanung_Oktober2025.xlsx (Tabelle 20)
-    cost_om_boiler = data.central_device_data["BOI"]["cost_om"]         # 0.02,         1/year (fraction of inv_var) source: VDI2067
-    boiler_lifetime = data.central_device_data["BOI"]["life_time"]      # 25a,          Maximum lifetime. source: Technikkatalog-Waermeplanung_Oktober2025.xlsx (Tabelle 20)
-    boiler_ann_factor = calc_annual_factor(data, boiler_lifetime)
-    heat_loss_prefac = p_gas / eta_boiler + p_co2 * EF                  # €/kWh,  total unit cost of producing heat to cover network heat losses.
-    '''
-    # TODO: check the economic data for HP
-    inv_HP = data.central_device_data["HP"]["inv_var"]                  # 800€/kW,      source:
-    cost_om_HP = data.central_device_data["HP"]["cost_om"]              # 0.015,        1/year (fraction of inv_var)
-    HP_lifetime = data.central_device_data["HP"]["life_time"]           # 20a,          Maximum lifetime. source:
+    # 3) heat loss
+    inv_HP = data.central_device_data["AirHP"]["inv_var"]               # 1500€/kW,      source:
+    cost_om_HP = data.central_device_data["AirHP"]["cost_om"]           # 0.025,        1/year (fraction of inv_var), source: VDI2067
+    HP_lifetime = data.central_device_data["AirHP"]["life_time"]        # 25a,          Maximum lifetime. source:
     HP_ann_factor = calc_annual_factor(data, HP_lifetime)
     param["HP_ann_factor"] = HP_ann_factor
 
-    COP_HP = data.central_device_data["HP"]["COP_const"]                # 4             heat output divided by electricity input (heat pump efficiency)
+    # Calculate heat pump COPs
+    devs_param = {
+        "feasible": True,
+        "dT_evap": 10,                  # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "dT_cond": deltaT_cluster,      # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
+        "dT_pinch_cond": 2,             # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
+        "dT_pinch_evap": 5,             # K,    temperature difference between both fluids in the evaporator at pinch point
+        "eta_compr": 0.8,               # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+        "heatloss_compr": 0.3,          # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "COP_max": 7,                   # ---,  maximum heat pump COP
+    }
+    # Temperatures
+    t_c_in = data.site["T_e_cluster"] + 273.15   # heat source inlet (Air)
+    dt_c = devs_param["dT_evap"]                 # heat source temperature difference
+    t_h_in = param["T_return_cluster"] + 273.15  # heat sink (Network fluid) inlet temperature
+    dt_h = devs_param["dT_cond"]
+    # call the calculation function
+    COP_HP = calc_COP(devs_param, [t_c_in, dt_c, t_h_in, dt_h])
+
+    # calculate the price for co2 of the electrity from grid
     p_co2 = data.params_ehdo_model["co2_tax"]                           # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
     EF = data.ecoData["co2_el_grid"]                                    # 0.363kg/kWh,  CO2 emissions for electricity import (grid mix)
-    heat_loss_prefac = price_el_pumps / COP_HP + p_co2 * EF             # €/kWh,  total unit cost of producing heat to cover network heat losses.
+
+    # calculate the total unit cost of producing heat of AirHP
+    heat_loss_prefac = (price_el_pumps + p_co2 * EF) / COP_HP           # €/kWh,  total unit cost of producing heat to cover network heat losses.
 
     # 8 norm diameter
     pipe_dict = data.pipe_data.set_index("Nominal diameter (DN)").to_dict(orient="index")
@@ -755,8 +898,9 @@ def optimization_diameter(data, param, f_fric):
     # Additional heat pump capacity (kW) required to compensate network heat losses
     model.HP_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Additional heat pump capacity (kW) to cover heat losses")
 
-    # total annual heat loss (kWh)
+    # total annual heat loss (kWh) and energy cost
     model.heat_loss_total = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual heat loss (kWh)")
+    model.heat_loss_energy_cost = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual heat loss energy cost (EUR)")
 
     # total annualized network cost (EUR)
     model.tac_network = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0,
@@ -803,27 +947,6 @@ def optimization_diameter(data, param, f_fric):
         rule=pump_pipe_relation_rule,
         doc="Pump power vs diameter-flow relation (kW)"
     )
-    
-    '''
-    # nonlinear method
-    # Auxiliary expression: g[p] = sum(d^5 * z[p,d])
-    def g_expr_rule(model, pipe):
-        # sum over candidate diameters for pipe p
-        return pyo.quicksum(d5[d] * model.z[pipe, d] for d in pipe_candidates[pipe])
-
-    model.g = pyo.Expression(model.pipe, rule=g_expr_rule, doc="g[p] = sum(d^5 * z[p,d])")
-
-    #    pump_pipe[p,w,t] * g[p] * 1e10 == prefac * length * 2 * (1+0.2) * ((flow)^3) * 1e10
-    def pump_pipe_relation_rule(model, pipe, week, t):
-        i = week_to_i[week]
-        flow_value = data.pipeline[pipe]["flow_cluster"][i, t]
-        lhs = model.pump_pipe[pipe, week, t] * model.g[pipe] * 1e10
-        rhs = prefac * data.pipeline[pipe]["length"] * 2 * (1 + 0.2) * ((flow_value * rho_f) ** 3) * 1e10
-        return lhs == rhs
-
-    model.pump_pipe_relation = pyo.Constraint(model.pipe, model.week, model.t, rule=pump_pipe_relation_rule,
-                                              doc="Pump power vs diameter-flow relation")
-    '''
 
     # 3) For each path (line) and time, pump_el >= sum of pump_pipe along the path
     def pump_el_ge_path_rule(model, line, week, t):
@@ -896,6 +1019,19 @@ def optimization_diameter(data, param, f_fric):
 
     model.tac_heatpump_constr = pyo.Constraint(rule=tac_heatpump_rule, doc="TAC for additional heatpump capacity")
 
+    def heatpump_energy_cost_rule(model):
+        return model.heat_loss_energy_cost == pyo.quicksum(
+            model.heat_loss_pipe[pipe, week, t] *
+            heat_loss_prefac[week_to_i[week], t] *
+            data.clusterWeights[week]
+            for pipe in model.pipe
+            for week in model.week
+            for t in model.t
+        )
+
+    model.heat_pump_energy_cost_constr = pyo.Constraint(rule=heatpump_energy_cost_rule,
+                                                  doc="Additional heat pump energy cost for covering total pipe heat losses")
+
     # 2) Pump investment and TAC
     def inv_pump_rule(model):
         return model.inv["pumps"] == model.pump_cap * inv_pump
@@ -939,7 +1075,7 @@ def optimization_diameter(data, param, f_fric):
         # tac_network == tac_pipes + tac_pumps + tac_HP + pump_energy_total*price_el_pumps + heat_loss_total*heat_loss_prefac
         return model.tac_network == (model.tac["pipes"] + model.tac["pumps"] + model.tac["HP"]
                                      + model.pump_energy_total * price_el_pumps
-                                     + model.heat_loss_total * heat_loss_prefac)
+                                     + model.heat_loss_energy_cost)
 
     model.tac_network_constr = pyo.Constraint(rule=tac_network_rule,
                                               doc="Link tac_network to components")
@@ -1156,6 +1292,7 @@ def output_diameter(data, model, param):
         flow_max = pipe["flow_max"]  # m3/s
         DN = pipe["DN"]  # mm
         d_i = pipe_dict[DN]["Inner diameter (pipe) (mm)"]  # mm
+        pipe["d_i"] = d_i
         # length = pipe["length"]             # m
         pipe["velocity_max"] = flow_max / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
         pipe["pressure_drop_max"] = f_fric * 8 * rho_f * flow_max ** 2 / (np.pi ** 2 * (d_i / 1000) ** 5)  # Pa/m
@@ -1358,7 +1495,7 @@ def output_diameter(data, model, param):
 
     # calculate zeta for local pressure drop
     hydraulic_features = identify_junction_and_bends(data)
-    data, zeta = compute_zeta_values(data, hydraulic_features)
+    data, zeta = compute_zeta_values(data, param, hydraulic_features)
 
     # save local hydraulic loss data
     export_data = {
@@ -1487,10 +1624,28 @@ def output_diameter(data, model, param):
     # calculate capacity
     cap_HP = np.max(heat_loss_total)
     # calculate investment, o&m cost and electricity cost
-    HP_inv_costs = cap_HP * data.central_device_data["HP"]["inv_var"]
+    HP_inv_costs = cap_HP * data.central_device_data["AirHP"]["inv_var"]
     HP_ann_costs = HP_inv_costs * param["HP_ann_factor"]
-    HP_om_costs = HP_inv_costs * data.central_device_data["HP"]["cost_om"]
-    HP_electricity_costs = annual_heat_loss / data.central_device_data["HP"]["COP_const"] * data.ecoData["price_supply_el_eh"]
+    HP_om_costs = HP_inv_costs * data.central_device_data["AirHP"]["cost_om"]
+    # calculate yearly COP profile and the eletricity cost for the HP
+    devs_param = {
+        "feasible": True,
+        "dT_evap": 10,      # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "dT_cond": deltaT,  # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
+        "dT_pinch_cond": 2, # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
+        "dT_pinch_evap": 5, # K,    temperature difference between both fluids in the evaporator at pinch point
+        "eta_compr": 0.8,   # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+        "heatloss_compr": 0.3, # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "COP_max": 7,       # ---,  maximum heat pump COP
+    }
+    # Temperatures
+    t_c_in = data.site["T_e"] + 273.15  # heat source inlet (Air)
+    dt_c = devs_param["dT_evap"]  # heat source temperature difference
+    t_h_in = param["T_return"] + 273.15  # heat sink (Network fluid) inlet temperature
+    dt_h = devs_param["dT_cond"]
+    # call the calculation function
+    COP_HP = calc_COP(devs_param, [t_c_in, dt_c, t_h_in, dt_h])
+    HP_electricity_costs = np.sum(heat_loss_total / COP_HP) * data.ecoData["price_supply_el_eh"]
 
     # ---------- 9. plot cost in stacked bar chart ----------
     costs = {
@@ -1668,74 +1823,6 @@ def calc_f_fric(data, model, param):
 
     return f_fric
 
-def network_optimization(data):
-    """
-    Optimize pipe diameter and iterate on friction factor
-
-    Parameters
-    ----------
-    data: class datahandler
-
-    Returns
-    -------
-    data: class datahandler
-    """
-    # calculate flow and temperature and prepare for the optimization
-    data, param = calc_temperature(data)
-
-    # set result path
-    dir_dia = data.resultPath + "\\network"
-    if not os.path.exists(dir_dia):
-        os.makedirs(dir_dia)
-
-    generation = data.heat_grid_data["generation"]["value"]
-    topology = data.heat_grid_data["topology_option"]["value"]
-    temperature_mode = data.heat_grid_data["temperature_mode"]["value"]
-    result_folder = f"{data.scenario_name}_{generation}_{topology}_{temperature_mode}"
-    dir_result = os.path.join(dir_dia, result_folder)
-    if not os.path.exists(dir_result):
-        os.makedirs(dir_result)
-
-    param["dir_result"] = dir_result
-
-    data.pipeline = {}
-    file_path = os.path.join(dir_result, "pipe_preprocess.json")
-    data, param = calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, save_path=file_path)
-
-    # get the initial friction factor
-    f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
-    f_fric_old = f_fric_new
-
-    # Set maximum iteration count
-    max_iter = 30
-    tol = 5e-4
-    converged = False
-    for i in range(max_iter):
-        # run the optimization
-        data, model, param = optimization_diameter(data, param, f_fric_new)
-        f_fric_new = calc_f_fric(data, model, param)
-
-        # print the current iteration status
-        print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
-
-        # Check convergence
-        if abs(f_fric_new - f_fric_old) < tol:
-            converged = True
-            print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.6f}")
-            break
-
-        # Update value for next iteration
-        f_fric_old = f_fric_new
-
-    if not converged:
-        print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
-
-    param["f_fric"] = f_fric_new
-
-    output_diameter(data, model, param)
-
-    return data
-
 def identify_junction_and_bends(data, tol=1e-6):
     """
     Identify pipe junction type , bends, and diameter changes.
@@ -1880,25 +1967,27 @@ def identify_junction_and_bends(data, tol=1e-6):
     return {
         "node_type": node_type,
         "incoming_pipes": incoming_pipes,
+        "outgoing_pipes": outgoing_pipes,
         "pipe_angle": pipe_angle,
         "diameter_change": diameter_change
     }
 
-def compute_zeta_values(data, hydraulic_features, angle_branch_threshold=10):
+def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=10):
     """
     Compute ζ (local resistance) for each pipe based on:
     - bends
-    - tees
-    - crosses
+    - tees / crosses
     - diameter changes
+    all parameters from Book Technische Strömungslehre
 
     Parameters
     ----------
-    data : object
+    data: object
         Your data class containing pipeline and nodes.
-    hydraulic_features : dict
+    param: dict
+    hydraulic_features: dict
         Output from identify_junction_and_bends().
-    angle_branch_threshold : float
+    angle_branch_threshold: float
         Angle (deg) above which a pipe is considered a 'branch' in tee/cross.
 
     Returns
@@ -1909,16 +1998,23 @@ def compute_zeta_values(data, hydraulic_features, angle_branch_threshold=10):
 
     node_type = hydraulic_features["node_type"]
     incoming_pipes = hydraulic_features["incoming_pipes"]
+    outgoing_pipes = hydraulic_features["outgoing_pipes"]
     pipe_angle = hydraulic_features["pipe_angle"]
     diameter_change = hydraulic_features["diameter_change"]
 
     zeta = {}
 
     pipes = data.pipeline
+    pipe_dict = param["pipe_dict"]
 
     for pid, pipe in pipes.items():
         node = pipe["from"]  # ζ defined at outgoing pipe
         ntype = node_type[node]
+        f_fric = param["f_fric"]
+        d = pipes[pid]["d_i"]       # mm
+        DN = pipes[pid]["DN"]
+        da = pipe_dict[DN]["Outer diameter (pipe) (mm)"]   # mm
+        R = da * 500                # mm, source: kingspan-logstor-design-manual-single-pipes-specifications-en-eur.pdf
 
         # ----------------------------
         # 1) Straight-through
@@ -1931,15 +2027,25 @@ def compute_zeta_values(data, hydraulic_features, angle_branch_threshold=10):
         # ----------------------------
         elif ntype == "bend":
             ang = pipe_angle.get(pid, 0.0)
-            # TODO: check zeta
-            zeta_total = 0.21 * (ang / 90)
+            K1 = -0.000041 * ang**2 + 0.0146 * ang + 0.05      # Bild 4.140 (Polynomial Fitting)
+            K2 = 0.21 / (R/d) ** 0.5                           # Bild 4.141 (for sharp bend) / 4.143 (for smooth bend)
+            K3 = 1                                      # (h=b for round tube) Bild 4.142 (for sharp bend) / 4.144 (for smooth bend)
+            zeta_U = K1 * K2 * K3                       # Gl. 4.184b
+            zeta_R = 0.0175 * f_fric * R/d * ang        # Gl. 4.185a
+            zeta_total = 2 * (zeta_U + zeta_R)          # *2 for supply and return
 
         # ----------------------------
-        # 3) Tee junction
+        # 3) Tee or Cross junction
         # ----------------------------
-        elif ntype == "tee":
+        elif ntype in ("tee", "cross"):
+            # the supply zeta is for the Vertrennung, and the return zeta is for the Vereinigung
             # child angle at this node
             ang = pipe_angle.get(pid, 0.0)
+
+            pid_up = incoming_pipes[node][0]
+            flow_child = sum(pipe["flow"])
+            flow_up = sum(pipes[pid_up]["flow"])
+            flow_ratio = np.clip(flow_child / flow_up, 0, 1)
 
             if ang is None:
                 zeta_total = 0.0
@@ -1947,31 +2053,67 @@ def compute_zeta_values(data, hydraulic_features, angle_branch_threshold=10):
                 # branch vs run direction
                 if ang > angle_branch_threshold:
                     # branch line
-                    # TODO: check zeta
-                    zeta_total = 1.1
+
+                    # prepare the zeta value for certain flow ratio at three typical angles 45°, 60°, 90°
+                    zeta_45_supply = 1.018 * flow_ratio ** 2 - 1.482 * flow_ratio + 0.933    # Bild 4.150 (Polynomial Fitting)
+                    zeta_60_supply = 1.098 * flow_ratio ** 2 - 1.334 * flow_ratio + 1        # Bild 4.150 (Polynomial Fitting)
+                    zeta_90_supply = 0.920 * flow_ratio ** 2 - 0.611 * flow_ratio + 0.995    # Bild 4.150 (Polynomial Fitting)
+                    zeta_45_return = - 1.333 * flow_ratio ** 2 + 2.509 * flow_ratio - 0.846  # Bild 4.150 (Polynomial Fitting)
+                    zeta_60_return = - 1.576 * flow_ratio ** 2 + 3.097 * flow_ratio - 0.883  # Bild 4.150 (Polynomial Fitting)
+                    zeta_90_return = - 1.313 * flow_ratio ** 2 + 3.193 * flow_ratio - 0.995  # Bild 4.150 (Polynomial Fitting)
+
+                    # angle interpolation
+                    angles = np.array([45.0, 60.0, 90.0])
+                    zeta_supply_values = np.array([zeta_45_supply, zeta_60_supply, zeta_90_supply])
+                    zeta_return_values = np.array([zeta_45_return, zeta_60_return, zeta_90_return])
+                    # generate the linear interpolation function
+                    f_supply = interp1d(angles, zeta_supply_values, kind="linear", fill_value='extrapolate')
+                    f_return = interp1d(angles, zeta_return_values, kind="linear", fill_value='extrapolate')
+                    # if edge handling needed?
+                    if ang < 45:
+                        ang_eff = 45
+                    elif ang > 90:
+                        ang_eff = 90
+                    else:
+                        ang_eff = ang
+                    zeta_supply = f_supply(ang_eff)
+                    zeta_return = f_return(ang_eff)
+                    zeta_total = zeta_supply + zeta_return
                 else:
                     # straight-through
-                    # TODO: check zeta
-                    zeta_total = 0.2
+                    flow_ratio = 1 - flow_ratio
+                    zeta_supply = 1.0045 * flow_ratio ** 2 - 0.6116 * flow_ratio + 0.0925  # Bild 4.150 (Polynomial Fitting)
+
+                    # prepare the zeta value for certain flow ratio at three typical angles 45°,60°, 90°
+                    zeta_45_return = - 1.852 * flow_ratio ** 2 + 1.118 * flow_ratio - 0.056  # Bild 4.150 (Polynomial Fitting)
+                    zeta_60_return = - 1.250 * flow_ratio ** 2 + 0.911 * flow_ratio + 0.144  # Bild 4.150 (Polynomial Fitting)
+                    zeta_90_return = 0.031 * flow_ratio ** 2 + 0.486 * flow_ratio + 0.079    # Bild 4.150 (Polynomial Fitting)
+
+                    # angle interpolation
+                    angles = np.array([45.0, 60.0, 90.0])
+                    zeta_return_values = np.array([zeta_45_return, zeta_60_return, zeta_90_return])
+                    # generate the linear interpolation function
+                    f_return = interp1d(angles, zeta_return_values, kind="linear", fill_value='extrapolate')
+
+                    # get the angle of the Abzweig (branch) pipe
+                    pids = outgoing_pipes[node]
+                    branch_pids = [p for p in pids if p != pid]
+                    branch_angles = [pipe_angle[p] for p in branch_pids]
+                    ang_a = max(branch_angles)
+
+                    # if edge handling needed?
+                    if ang_a < 45:
+                        ang_eff = 45
+                    elif ang_a > 90:
+                        ang_eff = 90
+                    else:
+                        ang_eff = ang_a
+                    zeta_return = f_return(ang_eff)
+
+                    zeta_total = zeta_supply + zeta_return
 
         # ----------------------------
-        # 4) Cross junction
-        # ----------------------------
-        elif ntype == "cross":
-            ang = pipe_angle.get(pid, 0.0)
-
-            if ang is None:
-                zeta_total = 0.0
-            else:
-                if ang > angle_branch_threshold:
-                    # TODO: check zeta
-                    zeta_total = 1.5  # branch flow
-                else:
-                    # TODO: check zeta
-                    zeta_total = 0.3  # through direction
-
-        # ----------------------------
-        # 5) Source / End node
+        # 4) Source / End node
         # ----------------------------
         elif ntype in ("source", "end"):
             zeta_total = 0.0
@@ -1981,24 +2123,38 @@ def compute_zeta_values(data, hydraulic_features, angle_branch_threshold=10):
             zeta_total = 0.0
 
         # ----------------------------
-        # 6) Add diameter change ζ (if any)
+        # 5) Add diameter change ζ (if any)
         # ----------------------------
         if diameter_change.get(pid, False):
-            d_child = pipes[pid]["DN"]
+            d_child = pipes[pid]["d_i"]
             # find upstream pipe id
             # only one incoming pipe exists in a tree structure
             # try to find it
             pid_up = incoming_pipes[node][0]
-            d_up = pipes[pid_up]["DN"]
+            d_up = pipes[pid_up]["d_i"]
 
-            if d_up != d_child:
-                d_small = min(d_up, d_child)
-                d_large = max(d_up, d_child)
-                zeta_dia_change = (1 - (d_small / d_large) ** 2) ** 2
-                zeta_total += zeta_dia_change
+            if d_up > d_child:
+                # pipe contraction in supply pipes
+                area_ratio = (d_child / d_up) ** 2
+                kontraktionszahl = 0.49 * area_ratio ** 2 - 0.12 * area_ratio + 0.624           # Bild 4.128 (Polynomial Fitting)
+                zeta_dia_change_supply = 1.5 * ((1-kontraktionszahl)/kontraktionszahl) ** 2     # Gl. 4.179
+                # pipe expansion in return pipes
+                zeta_dia_change_return = (1 - (d_child / d_up) ** 2) ** 2                       # Tabelle 4.19 Bezug auf Eintrittsquerschnitt
+            elif d_up < d_child:
+                # pipe expansion in supply pipes
+                zeta_dia_change_supply = ((d_child / d_up) ** 2 - 1) ** 2                       # Tabelle 4.19 Bezug auf Austrittsquerschnitt
+                # pipe contraction in return pipes
+                area_ratio = (d_up / d_child) ** 2
+                kontraktionszahl = 0.49 * area_ratio ** 2 - 0.12 * area_ratio + 0.624           # Bild 4.128 (Polynomial Fitting)
+                zeta_dia_change_up = 1.5 * ((1-1/kontraktionszahl) * kontraktionszahl) ** 2     # Gl. 4.179
+                factor = (pipes[pid_up]["velocity_max"] / pipes[pid]["velocity_max"]) ** 2
+                zeta_dia_change_return = zeta_dia_change_up * factor
+
+            zeta_dia_change = zeta_dia_change_supply + zeta_dia_change_return
+            zeta_total += zeta_dia_change
 
         # store back to result
         zeta[pid] = zeta_total
-        data.pipeline[pid]["zeta"] = zeta_total  # 写回 data
+        data.pipeline[pid]["zeta"] = zeta_total
 
     return data, zeta
