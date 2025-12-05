@@ -174,6 +174,7 @@ class Network:
         result_dictCon = opti_dimensioning_central_devices_connect.run_optim_connect(
             dataCon, devsCon, paramCon, demCon, result_dictCon
             )
+        
         # Assign results to each district
         for district in self.interconnected_districts:
             scenario_name = district.scenario_name
