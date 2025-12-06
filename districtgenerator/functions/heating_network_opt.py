@@ -27,7 +27,7 @@ def network_optimization(data):
     -------
     data: class datahandler
     """
-    # calculate flow and temperature and prepare for the optimization
+    # calculate supply and return temperature
     data, param = calc_temperature(data)
 
     # set result path
@@ -43,13 +43,19 @@ def network_optimization(data):
     if not os.path.exists(dir_result):
         os.makedirs(dir_result)
 
+    # save result path in param
     param["dir_result"] = dir_result
 
+    # calculate the flow (heat loss is first neglected in calculating flow)
+    # initialize the attribute to store pipeline information
     data.pipeline = {}
+    # define the save path for the pipeline information (only for check the differences across various stages)
     file_path = os.path.join(dir_result, "pipe_preprocess.json")
     data, param = calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, save_path=file_path)
 
     # get the initial friction factor
+    # The friction factor is determined iteratively because it is tightly coupled with pipe diameter and flow velocity,
+    # which would otherwise introduce nonlinear constraints to the optimization.
     f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
     f_fric_old = f_fric_new
 
@@ -60,6 +66,8 @@ def network_optimization(data):
     for i in range(max_iter):
         # run the optimization
         data, model, param = optimization_diameter(data, param, f_fric_new)
+
+        # calculate the friction factor with the optimized result
         f_fric_new = calc_f_fric(data, model, param)
 
         # print the current iteration status
@@ -77,8 +85,26 @@ def network_optimization(data):
     if not converged:
         print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
 
+    # save the final converged friction factor
     param["f_fric"] = f_fric_new
 
+    # get the optimized diameter for each pipe segment
+    pipe_candidates = param["pipe_candidates"]
+    for pipe in data.pipeline.keys():
+        for d in pipe_candidates[pipe]:
+            if pyo.value(model.z[pipe, d]) > 0.5:
+                data.pipeline[pipe]["DN"] = d
+                break  # Once the selected pipe diameter is found, exit the loop.
+
+    # calculate the heat loss with optimized result
+    data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
+
+    # consider the heat loss to calculate flow and run the optimization for the last time
+    file_path = os.path.join(dir_result, "pipe_before_last_opt.json")
+    data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
+    data, model, param = optimization_diameter(data, param, f_fric_new)
+
+    # output and process the results
     output_diameter(data, model, param)
 
     return data
@@ -1107,6 +1133,47 @@ def optimization_diameter(data, param, f_fric):
 
     return data, model, param
 
+def calc_heat_loss_pipe(data, param):
+    pipe_dict = param["pipe_dict"]
+
+    # calculate heat loss in network
+    T_s = param["T_s"]
+    T_soil = data.heat_grid_data["T_soil"]
+    k_soil = data.heat_grid_data["k_soil"]["value"]
+
+    heat_loss_pipe = {}
+    heat_loss_pipe_cluster = {}
+    for pipe_id, pipe in data.pipeline.items():
+        DN = pipe["DN"]  # mm
+        ks = pipe_dict[DN]["symmetrical heat loss factor"]
+        length = pipe["length"]
+
+        # *2: The first factor of two accounts for the heat loss of both the supply and return pipes.
+        # *2: The second factor of two is in the equation of calculating q_s from DIN EN 13941.
+        pipe["heat_loss_pipe"] = 2 * (T_s - T_soil) * 2 * np.pi * k_soil * ks * length / 1000  # kW
+
+        # prepare heat_loss_pipe for recalculate the flow
+        # shape like: key = (parent, child), value = ndarray of heat loss on this pipe.
+        parent = pipe["from"]
+        child = pipe["to"]
+        heat_loss_pipe[(parent, child)] = pipe["heat_loss_pipe"]
+
+        # get cluster array
+        # list of clustered typical weeks
+        weeks = data.clusters
+        # how many timesteps are there in a typical week
+        time_steps = int(data.time["clusterLength"] / data.time["timeResolution"])
+
+        cluster_array = np.zeros((len(weeks), time_steps))
+        for i, week_id in enumerate(weeks):
+            # find the start and end timestep of the week in the yearly profile
+            start = week_id * time_steps
+            end = start + time_steps
+            cluster_array[i, :] = pipe["heat_loss_pipe"][start:end]
+        heat_loss_pipe_cluster[(parent, child)] = cluster_array
+
+    return data, heat_loss_pipe, heat_loss_pipe_cluster
+
 def output_diameter(data, model, param):
     """
     Output the optimization solution file and plot solutions
@@ -1164,37 +1231,22 @@ def output_diameter(data, model, param):
                 data.pipeline[pipe]["DN"] = d
                 break  # Once the selected pipe diameter is found, exit the loop.
 
-    pipe_dict = param["pipe_dict"]
-
     # calculate heat loss
     # save heat loss(yearly profile) in data.heat_grid_data["total_losses_heating_network"]
     # load heat loss in substation
     heat_loss_substation = param["heat_loss_substation"]
 
-    # calculate heat loss in network
-    T_s = param["T_s"]
-    T_soil = data.heat_grid_data["T_soil"]
-    k_soil = data.heat_grid_data["k_soil"]["value"]
-    heat_loss_network = np.zeros_like(T_s)
-    # print(type(T_s), type(T_soil), T_s.shape, getattr(T_soil, "shape", None))
+    # calculate heat loss in every pipe segment
+    data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
+
+    # sum the heat loss in the network and calculate the heat loss density
+    heat_loss_network = np.zeros_like(heat_loss_substation)
     total_pipe_length = 0
-    heat_loss_pipe = {}
     for pipe_id, pipe in data.pipeline.items():
-        DN = pipe["DN"]  # mm
-        ks = pipe_dict[DN]["symmetrical heat loss factor"]
         length = pipe["length"]
         total_pipe_length += length
-        # *2: The first factor of two accounts for the heat loss of both the supply and return pipes.
-        # *2: The second factor of two is in the equation of calculating q_s from DIN EN 13941.
-        pipe["heat_loss_pipe"] = 2 * (T_s - T_soil) * 2 * np.pi * k_soil * ks * length / 1000  # kW
         pipe["heat_loss_density"] = np.sum(pipe["heat_loss_pipe"]) / 1000 / length  # MWh/m
         heat_loss_network += pipe["heat_loss_pipe"]
-
-        # prepare heat_loss_pipe for recalculate the flow
-        # shape like: key = (parent, child), value = ndarray of heat loss on this pipe.
-        parent = pipe["from"]
-        child = pipe["to"]
-        heat_loss_pipe[(parent, child)] = pipe["heat_loss_pipe"]
 
     # calculate and save total heat loss
     heat_loss_total = heat_loss_substation + heat_loss_network
@@ -1538,7 +1590,7 @@ def output_diameter(data, model, param):
     pump_power_line = {}
     for line, nodes in path.items():
         # Initialize pump power array for this line
-        pump = np.zeros_like(T_s)
+        pump = np.zeros_like(heat_loss_substation)
         # Sum up pump power along all pipeline segments in this line
         for i in range(len(nodes) - 1):
             a, b = nodes[i], nodes[i + 1]
