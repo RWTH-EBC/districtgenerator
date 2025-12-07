@@ -11,6 +11,10 @@
     "value": "Heating_curve",
     "description": "selected between:\"Constant\" and \"Heating_curve\"(controlled within limits depending on the outdoor temperature)"
   },
+  "heuristic": {
+    "value": false,
+    "description": "Selected between: true (heuristic method) and false (optimization method)"
+  },
   "T_hot_heating_network": {
     "Constant": {
       "3rd": {"value": 80, "unit": "°C", "description": "supply temperature of 3rd generation heat grid"},

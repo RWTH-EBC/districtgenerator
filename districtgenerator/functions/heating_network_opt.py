@@ -27,8 +27,9 @@ def network_optimization(data):
     -------
     data: class datahandler
     """
+    # ---------- 1. prepare parameters for the optimization ----------
     # calculate supply and return temperature
-    data, param = calc_temperature(data)
+    data, param = load_parameter(data)
 
     # set result path
     dir_dia = data.resultPath + "\\network"
@@ -53,9 +54,13 @@ def network_optimization(data):
     file_path = os.path.join(dir_result, "pipe_preprocess.json")
     data, param = calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, save_path=file_path)
 
-    # get the initial friction factor
+    # ---------- 2. optimize or calculate the pipe diameter ----------
+    # decide whether to optimize or calculate the diameter (can be changed in heat_grid.json)
+    heuristic = data.heat_grid_data["heuristic"]["value"]
+
     # The friction factor is determined iteratively because it is tightly coupled with pipe diameter and flow velocity,
     # which would otherwise introduce nonlinear constraints to the optimization.
+    # get the initial friction factor
     f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
     f_fric_old = f_fric_new
 
@@ -64,11 +69,15 @@ def network_optimization(data):
     tol = 5e-4
     converged = False
     for i in range(max_iter):
-        # run the optimization
-        data, model, param = optimization_diameter(data, param, f_fric_new)
+        if heuristic == False:
+            # run the optimization
+            data, model, param = optimization_diameter(data, param, f_fric_new)
+        else:
+            # calculate the diameter of each pipeline segments based on the maximum permitted pressure drop
+            data, param = calc_diameter(data, param, f_fric_new)
 
-        # calculate the friction factor with the optimized result
-        f_fric_new = calc_f_fric(data, model, param)
+        # calculate the friction factor with the result
+        f_fric_new = calc_f_fric(data, param)
 
         # print the current iteration status
         print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
@@ -88,24 +97,26 @@ def network_optimization(data):
     # save the final converged friction factor
     param["f_fric"] = f_fric_new
 
-    # get the optimized diameter for each pipe segment
-    pipe_candidates = param["pipe_candidates"]
-    for pipe in data.pipeline.keys():
-        for d in pipe_candidates[pipe]:
-            if pyo.value(model.z[pipe, d]) > 0.5:
-                data.pipeline[pipe]["DN"] = d
-                break  # Once the selected pipe diameter is found, exit the loop.
-
-    # calculate the heat loss with optimized result
+    # ---------- 3. consider the heat loss to calculate flow for the recalculation of diameter ----------
+    # calculate the heat loss in grid with optimized result
     data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
 
-    # consider the heat loss to calculate flow and run the optimization for the last time
+    # recalculate the flow with the heat loss
     file_path = os.path.join(dir_result, "pipe_before_last_opt.json")
     data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
-    data, model, param = optimization_diameter(data, param, f_fric_new)
+
+    # run the optimization/calculation for the last time
+    if heuristic == False:
+        # run the optimization
+        data, model, param = optimization_diameter(data, param, f_fric_new)
+        solution_file = os.path.join(dir_result, 'solution_file.txt')
+        write_solution_file(model, solution_file)
+    else:
+        # calculate the diameter of each pipeline segments based on the maximum permitted pressure drop
+        data, param = calc_diameter(data, param, f_fric_new)
 
     # output and process the results
-    output_diameter(data, model, param)
+    output_diameter(data, param)
 
     return data
 
@@ -451,7 +462,7 @@ def calc_COP(devs_param, temperatures):
 
     return COP
 
-def calc_temperature(data):
+def load_parameter(data):
     """
     Calculate the supply and return temperature and the flow rate in each pipe segment
 
@@ -541,6 +552,62 @@ def calc_temperature(data):
             # Sum the heat losses in the substations
             heat_loss_substation += heating_demand * h_loss_subst / 100  # kW
 
+    # 4 norm diameter
+    pipe_dict = data.pipe_data.set_index("Nominal diameter (DN)").to_dict(orient="index")
+    # To read data(eg. outer diameter) from pipes of different diameters, use pipe_dict[20][“outer diameter”]
+
+    # 5 heat loss parameters
+    # coefficient of thermal conductivity
+    k_soil = heat_grid_data["k_soil"]["value"]  # 1.52 W/(m*K),     Soil thermal conductivity, corresponding to λ_s in EN 13941
+    k_pipe = heat_grid_data["k_PUF"]["value"]  # 0.03 W/(m*K),    Thermal conductivity of pipe insulation materials, corresponding to λ_i in EN 13941.
+
+    # corrected value of depth
+    # so that the surface transition insulance Ro at the soil surface is included
+    Z_c = heat_grid_data["grid_depth"]["value"] + 0.069 * k_soil
+
+    # Distance between the centerlines of the supply and return pipelines
+    D_heating_network = data.heat_grid_data["D_heating_network"]["value"]  # 1m
+
+    # symmetrical and (a) antisymmetrical heat loss factors
+    # Heat Interference Correction Factor Between Pipes (Heat Transfer Between Supply and Return Water)
+    b = np.log((1 + (2 * Z_c / D_heating_network) ** 2) ** 0.5)
+    for DN, pipe in pipe_dict.items():
+        da = pipe["Outer diameter (pipe) (mm)"]
+        Da = pipe["Outer diameter (case) (mm)"]
+        # The soil thermal resistance term depends on the burial depth Zc
+        # and the outer diameter Da of the pipe plus insulation layer.
+        a = np.log(4 * Z_c / (Da / 1000))
+        # The thermal resistance component of the insulation layer depends on the outer diameter Da of the pipe plus
+        # insulation layer and the outer diameter da of the steel pipe.
+        beta = k_soil / k_pipe * np.log(Da / da)
+        # ks / ka：symmetrical and (a) antisymmetrical heat loss factors according to zero-order multipole formula
+        ks_heating_network = (a + beta + b) ** -1
+        # ka_heating_network = (a + beta - b) ** -1
+        pipe["symmetrical heat loss factor"] = ks_heating_network
+        # pipe["antisymmetrical heat loss factor"] = ka_heating_network
+
+    # 6 network topology
+    # Extract all the branches from the topology (from root node to terminal node)
+    network = data.pipeline_topology
+    path = extract_longest_branches(network)
+
+    # 7 calcaulate the ann_factor
+    # pipe
+    pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]["value"]  # 30a,          pipe lifetime (VDI 2067)
+    # calculate the Annualization Factor and add to datahandler
+    pipe_ann_factor = calc_annual_factor(data, pipe_lifetime)
+    data.heat_grid_data["pipe"]["pipe_ann_factor"] = pipe_ann_factor
+
+    # pump
+    pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]["value"]  # 10a,          pump lifetime (VDI 2067 Umwälzpumpe)
+    # calculate the Annualization Factor and add to datahandler
+    pump_ann_factor = calc_annual_factor(data, pump_lifetime)
+    data.heat_grid_data["pump"]["pump_ann_factor"] = pump_ann_factor
+
+    # HP
+    HP_lifetime = data.central_device_data["AirHP"]["life_time"]      # 25a,          Maximum lifetime. source:
+    HP_ann_factor = calc_annual_factor(data, HP_lifetime)
+
     # prepare parameters for the optimization model
     param = {}
     param["T_s"] = T_s
@@ -550,6 +617,10 @@ def calc_temperature(data):
     param["T_return"] = T_return
     param["T_return_cluster"] = T_return_cluster
     param["heat_loss_substation"] = heat_loss_substation
+    param["pipe_dict"] = pipe_dict
+    param["path"] = path
+    param["HP_ann_factor"] = HP_ann_factor
+
     return data, param
 
 def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, save_path=None):
@@ -758,37 +829,22 @@ def optimization_diameter(data, param, f_fric):
         # To avoid an unrealistically narrow or zero design range, enforce at least a 20 mm gap.
         pipe["d_max"] = max(d_max_calc, d_min_calc + 20)
 
-    # Distance between the centerlines of the supply and return pipelines
-    D_heating_network = data.heat_grid_data["D_heating_network"]["value"]  # 1m
-
     # 7 econimic factor
     # 1) pipe
-    # inv_earth_work = heat_grid_data["pipe"]["inv_earth_work"]["value"]  # 250EUR/m,  preparation costs for pipe installation
-    # inv_pipe = heat_grid_data["pipe"]["inv_pipe"]["value"]              # 1146.71EUR/(m^2*m), price for PE pipe without insulation per diameter^2 and m pipe length
-    pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]["value"]     # 30a,          pipe lifetime (VDI 2067)
     cost_om_pipe = heat_grid_data["pipe"]["cost_om_pipe"]["value"]       # 0.005         pipe operation and maintenance costs as share of investment (VDI 2067)
+    pipe_ann_factor = heat_grid_data["pipe"]["pipe_ann_factor"]     # Annualization Factor
 
-    # calculate the Annualization Factor and add to datahandler
-    pipe_ann_factor = calc_annual_factor(data, pipe_lifetime)
-    data.heat_grid_data["pipe"]["pipe_ann_factor"] = pipe_ann_factor
 
     # 2) pump
     inv_pump = heat_grid_data["pump"]["inv_pump"]["value"]               # 700EUR/kW,    specific investment
-    pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]["value"]     # 10a,          pump lifetime (VDI 2067 Umwälzpumpe)
-
     price_el_pumps = data.ecoData["price_supply_el_eh"]    # 0.3141€/kWh,  electricity costs for pump supply used for network design (equals LEC of CHP for 7000 full load hours)
     cost_om_pump = heat_grid_data["pump"]["cost_om_pump"]["value"]       # 0.03          cost share for operation & maintenance
-
-    # calculate the Annualization Factor and add to datahandler
-    pump_ann_factor = calc_annual_factor(data, pump_lifetime)
-    data.heat_grid_data["pump"]["pump_ann_factor"] = pump_ann_factor
+    pump_ann_factor = heat_grid_data["pump"]["pump_ann_factor"]     # Annualization Factor
 
     # 3) heat loss
     inv_HP = data.central_device_data["AirHP"]["inv_var"]               # 1500€/kW,      source:
     cost_om_HP = data.central_device_data["AirHP"]["cost_om"]           # 0.025,        1/year (fraction of inv_var), source: VDI2067
-    HP_lifetime = data.central_device_data["AirHP"]["life_time"]        # 25a,          Maximum lifetime. source:
-    HP_ann_factor = calc_annual_factor(data, HP_lifetime)
-    param["HP_ann_factor"] = HP_ann_factor
+    HP_ann_factor = param["HP_ann_factor"]
 
     # Calculate heat pump COPs
     devs_param = {
@@ -816,15 +872,8 @@ def optimization_diameter(data, param, f_fric):
     # calculate the total unit cost of producing heat of AirHP
     heat_loss_prefac = (price_el_pumps + p_co2 * EF) / COP_HP           # €/kWh,  total unit cost of producing heat to cover network heat losses.
 
-    # 8 norm diameter
-    pipe_dict = data.pipe_data.set_index("Nominal diameter (DN)").to_dict(orient="index")
-    # To read data(eg. outer diameter) from pipes of different diameters, use pipe_dict[20][“outer diameter”]
-
-    # precompute: d5: diameter^5 in m^5
-    # the diameter here should use the inner diameter of the pipe
-    d5 = {d: (pipe_dict[d]["Inner diameter (pipe) (mm)"] / 1000.0) ** 5 for d in pipe_dict.keys()}  # mm -> m and ^5
-
-    # get possible norm diameter options for each pipe segment
+    # 8 get possible norm diameter options for each pipe segment
+    pipe_dict = param["pipe_dict"]
     pipe_candidates = {}
     for pipe_id, pipe in data.pipeline.items():
         d_max = pipe["d_max"]
@@ -843,37 +892,10 @@ def optimization_diameter(data, param, f_fric):
 
     # coefficient of thermal conductivity
     k_soil = heat_grid_data["k_soil"]["value"]  # 1.52 W/(m*K),     Soil thermal conductivity, corresponding to λ_s in EN 13941
-    k_pipe = heat_grid_data["k_PUF"]["value"]   # 0.03 W/(m*K),    Thermal conductivity of pipe insulation materials, corresponding to λ_i in EN 13941.
-
-    # corrected value of depth
-    # so that the surface transition insulance Ro at the soil surface is included
-    Z_c = heat_grid_data["grid_depth"]["value"] + 0.069 * k_soil
-
-    # symmetrical and (a) antisymmetrical heat loss factors
-    # Heat Interference Correction Factor Between Pipes (Heat Transfer Between Supply and Return Water)
-    b = np.log((1 + (2 * Z_c / D_heating_network) ** 2) ** 0.5)
-    for DN, pipe in pipe_dict.items():
-        da = pipe["Outer diameter (pipe) (mm)"]
-        Da = pipe["Outer diameter (case) (mm)"]
-        # The soil thermal resistance term depends on the burial depth Zc
-        # and the outer diameter Da of the pipe plus insulation layer.
-        a = np.log(4 * Z_c / (Da / 1000))
-        # The thermal resistance component of the insulation layer depends on the outer diameter Da of the pipe plus
-        # insulation layer and the outer diameter da of the steel pipe.
-        beta = k_soil / k_pipe * np.log(Da/da)
-        # ks / ka：symmetrical and (a) antisymmetrical heat loss factors according to zero-order multipole formula
-        ks_heating_network = (a + beta + b) ** -1
-        # ka_heating_network = (a + beta - b) ** -1
-        pipe["symmetrical heat loss factor"] = ks_heating_network
-        # pipe["antisymmetrical heat loss factor"] = ka_heating_network
-
-    param["pipe_dict"] = pipe_dict
 
     # 10 network topology
     # Extract all the branches from the topology (from root node to terminal node)
-    network = data.pipeline_topology
-    path = extract_longest_branches(network)
-    param["path"] = path
+    path = param["path"]
 
     # Build pair_to_pid mapping: oriented node pair -> pipe id (same as your Gurobi code)
     pair_to_pid = {}
@@ -1131,7 +1153,76 @@ def optimization_diameter(data, param, f_fric):
 
     results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
 
+    # get the optimized diameter for each pipe segment
+    pipe_candidates = param["pipe_candidates"]
+    for pipe in data.pipeline.keys():
+        for d in pipe_candidates[pipe]:
+            if pyo.value(model.z[pipe, d]) > 0.5:
+                data.pipeline[pipe]["DN"] = d
+                break  # Once the selected pipe diameter is found, exit the loop.
+
     return data, model, param
+
+def calc_diameter(data, param, f_fric):
+    """
+    Calculate the diameter of each pipeline segments based on the maximum permitted pressure drop.
+
+    The method for calculating pressure drop is based on a Darcy–Weisbach-derived formulation.
+
+    Parameters
+    ----------
+    data: class datahandler
+    f_fric: float
+        friction factor of pipeline, Iteration parameter
+
+    Returns
+    -------
+    data: class datahandler
+    """
+    # load fluids parameters
+    heat_grid_data = data.heat_grid_data
+    rho_f = heat_grid_data["fluid"]["rho_f"]["value"]  # 1000kg/m^3,   fluid density
+
+    # load feasible pipe pressure gradient range
+    dp_pipe_max = heat_grid_data["pipe"]["dp_pipe_max"]["value"]     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)
+    dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]["value"]     # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network https://doi.org/10.1016/j.energy.2024.131970)
+
+    # Calculate minimum inner pipe diameters [mm] due to limitation of pipe friction
+    for pipe_id, pipe in data.pipeline.items():
+        # The allowable diameter range calculated based on the friction pressure loss formula(Darcy-Weisbach equation)
+        # The minimum pipe diameter is determined by the maximum specific friction of 300 Pa/m.
+        d_min_calc = ((8 * pipe["flow_max"] ** 2 * f_fric * rho_f) / (np.pi ** 2 * dp_pipe_max)) ** 0.2 * 1000  # mm
+        pipe["d_min"] = d_min_calc
+        # The maximum pipe diameter is determined by the minimum specific friction of 30 Pa/m.
+        d_max_calc = ((8 * pipe["flow_max"] ** 2 * f_fric * rho_f) / (np.pi ** 2 * dp_pipe_min)) ** 0.2 * 1000  # mm
+        # Ensure d_max is meaningfully larger than d_min:
+        # For very low flow rates, d_max_calc can be almost equal to d_min_calc (numerically too close).
+        # To avoid an unrealistically narrow or zero design range, enforce at least a 20 mm gap.
+        pipe["d_max"] = max(d_max_calc, d_min_calc + 20)
+
+    # load norm diameter
+    pipe_dict = param["pipe_dict"]
+
+    # get possible norm diameter options for each pipe segment
+    for pipe_id, pipe in data.pipeline.items():
+        d_min = pipe["d_min"]
+        d_max = pipe["d_max"]
+
+        # find all feasible DN
+        candidates = [
+            DN for DN, vals in pipe_dict.items()
+            if vals["Inner diameter (pipe) (mm)"] >= d_min and vals["Inner diameter (pipe) (mm)"] <= d_max
+        ]
+
+        if candidates:
+            # select the smallest diameter
+            best_DN = min(
+                candidates,
+                key=lambda DN: pipe_dict[DN]["Inner diameter (pipe) (mm)"]
+            )
+            pipe["DN"] = best_DN
+
+    return data, param
 
 def calc_heat_loss_pipe(data, param):
     pipe_dict = param["pipe_dict"]
@@ -1174,7 +1265,35 @@ def calc_heat_loss_pipe(data, param):
 
     return data, heat_loss_pipe, heat_loss_pipe_cluster
 
-def output_diameter(data, model, param):
+def write_solution_file(model, filename):
+    """
+    Write solution values to a file in a format similar to Gurobi's .sol files
+    """
+    try:
+        with open(filename, 'w') as f:
+            f.write("# Solution file\n")
+            f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"# Objective value: {pyo.value(model.objective)}\n")
+            f.write("# Variable values\n")
+
+            # Write all variable values
+            for var in model.component_objects(pyo.Var, active=True):
+                if var.is_indexed():
+                    for index in var:
+                        if var[index].value is not None:
+                            f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
+                else:
+                    if var.value is not None:
+                        f.write(f"{var.name} {var.value:.6f}\n")
+
+            f.write("# End of solution\n")
+        print(f"Solution written to {filename}")
+
+    except Exception as e:
+        print(f"Warning: Could not write solution file {filename}: {e}")
+    return None
+
+def output_diameter(data, param):
     """
     Output the optimization solution file and plot solutions
 
@@ -1190,46 +1309,6 @@ def output_diameter(data, model, param):
     """
     # Folder to save model and results
     dir_result = param["dir_result"]
-
-    # Save all variable values in a solution file:
-    def write_solution_file(model, filename):
-        """
-        Write solution values to a file in a format similar to Gurobi's .sol files
-        """
-        try:
-            with open(filename, 'w') as f:
-                f.write("# Solution file\n")
-                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
-                f.write("# Variable values\n")
-
-                # Write all variable values
-                for var in model.component_objects(pyo.Var, active=True):
-                    if var.is_indexed():
-                        for index in var:
-                            if var[index].value is not None:
-                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
-                    else:
-                        if var.value is not None:
-                            f.write(f"{var.name} {var.value:.6f}\n")
-
-                f.write("# End of solution\n")
-            print(f"Solution written to {filename}")
-
-        except Exception as e:
-            print(f"Warning: Could not write solution file {filename}: {e}")
-        return None
-
-    solution_file = os.path.join(dir_result, 'solution_file.txt')
-    write_solution_file(model, solution_file)
-
-    # get the optimized diameter for each pipe segment
-    pipe_candidates = param["pipe_candidates"]
-    for pipe in data.pipeline.keys():
-        for d in pipe_candidates[pipe]:
-            if pyo.value(model.z[pipe, d]) > 0.5:
-                data.pipeline[pipe]["DN"] = d
-                break  # Once the selected pipe diameter is found, exit the loop.
 
     # calculate heat loss
     # save heat loss(yearly profile) in data.heat_grid_data["total_losses_heating_network"]
@@ -1251,8 +1330,8 @@ def output_diameter(data, model, param):
     # calculate and save total heat loss
     heat_loss_total = heat_loss_substation + heat_loss_network
     data.heat_grid_data["total_losses_heating_network"] = heat_loss_total
-    annual_heat_loss = np.sum(heat_loss_total)
-    total_heat_loss_per_m = annual_heat_loss / total_pipe_length
+    annual_heat_loss = np.sum(heat_loss_total)                      # kWh
+    total_heat_loss_per_m = annual_heat_loss / total_pipe_length    # kWh/m
     print("Total heat loss in network calculation finished successfully.")
     print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
 
@@ -1640,11 +1719,17 @@ def output_diameter(data, model, param):
     print(f"Substations O&M cost per year: {substation_om_costs:.2f} €")
 
     # cost of pipes
-    pipes_tac_costs = pyo.value(model.tac["pipes"])
+    inv_pipes = 0
+    inv_construction = 0
+    for pipe in data.pipeline.keys():
+        # load diameters for each pipe
+        DN = data.pipeline[pipe]["DN"]
+        inv_pipes += DN * param["pipe_dict"][DN]["Pipe Cost (€/m)"] * 2     # *2 for supply and return
+        inv_construction += DN * param["pipe_dict"][DN]["Construction Cost (€/m)"]
+    # calculate the cost for the pipes
     pipe_ann_factor = data.heat_grid_data["pipe"]["pipe_ann_factor"]
-    cost_om_pipe = data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
-    pipes_om_costs = pipes_tac_costs * cost_om_pipe / (pipe_ann_factor + cost_om_pipe)
-    pipes_ann_costs = pipes_tac_costs - pipes_om_costs
+    pipes_ann_costs = (inv_pipes + inv_construction) * pipe_ann_factor
+    pipes_om_costs = inv_pipes * data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
     print(f"Pipes annualized cost: {pipes_ann_costs:.2f} €")
     print(f"Pipes O&M cost per year: {pipes_om_costs:.2f} €")
 
@@ -1829,7 +1914,7 @@ def output_diameter(data, model, param):
 
     return data
 
-def calc_f_fric(data, model, param):
+def calc_f_fric(data, param):
     """
     Calculate the friction factor based on the optimization results.
 
@@ -1844,22 +1929,12 @@ def calc_f_fric(data, model, param):
     f_fric: float
     """
     # 1 calculate the Reynolds number
-    # get the optimized diameter for each pipe segment
-    pipe_candidates = param["pipe_candidates"]
-    pipe_result = {}
-    for pipe in data.pipeline.keys():
-        pipe_result[pipe] = {}
-        for d in pipe_candidates[pipe]:
-            if pyo.value(model.z[pipe, d]) > 0.5:
-                pipe_result[pipe]["DN"] = d
-                break  # Once the selected pipe diameter is found, exit the loop.
-
     pipe_dict = param["pipe_dict"]
     nu_f = data.heat_grid_data["fluid"]["nu_f"]["value"]    # m2/s
 
-    for pipe in data.pipeline.keys():
-        flow_max = data.pipeline[pipe]["flow_max"]  # m3/s
-        DN = pipe_result[pipe]["DN"]  # mm
+    for pid, pipe in data.pipeline.items():
+        flow_max = pipe["flow_max"]  # m3/s
+        DN = pipe["DN"]  # mm
         d_i = pipe_dict[DN]["Inner diameter (pipe) (mm)"]  # mm
         k = pipe_dict[DN]["Roughness (mm)"]  # mm
 
@@ -1869,9 +1944,9 @@ def calc_f_fric(data, model, param):
         Re = v_max * (d_i / 1000) / nu_f
 
         # f_fric is calculated by friction_factor() using the default Clamond method for turbulent flow.
-        pipe_result[pipe]["f_fric"] = fluids.friction.friction_factor(Re=Re, eD=k/d_i)
+        pipe["f_fric"] = fluids.friction.friction_factor(Re=Re, eD=k/d_i)
 
-    f_fric = sum(pipe_result[pipe]["f_fric"] for pipe in data.pipeline.keys())/len(data.pipeline.keys())
+    f_fric = sum(data.pipeline[pipe]["f_fric"] for pipe in data.pipeline.keys())/len(data.pipeline.keys())
 
     return f_fric
 
