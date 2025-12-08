@@ -1184,7 +1184,7 @@ def calc_diameter(data, param, f_fric):
     rho_f = heat_grid_data["fluid"]["rho_f"]["value"]  # 1000kg/m^3,   fluid density
 
     # load feasible pipe pressure gradient range
-    dp_pipe_max = heat_grid_data["pipe"]["dp_pipe_max"]["value"]     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)
+    dp_pipe_max = 300     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)
     dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]["value"]     # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network https://doi.org/10.1016/j.energy.2024.131970)
 
     # Calculate minimum inner pipe diameters [mm] due to limitation of pipe friction
