@@ -1337,7 +1337,7 @@ def output_diameter(data, param):
 
     # recalculate the flow distribution with heat loss
     file_path = os.path.join(dir_result, "pipe_postprocess.json")
-    data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=None, save_path=file_path)
+    data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
 
     # ---------- 1. plot Pipeline Map - Labeled by Pipe ID ----------
     fig, ax = plt.subplots(figsize=(10, 8))
