@@ -15,7 +15,7 @@ class ElectricityProfile(object):
     ElectricityProfile class
     """
 
-    def __init__(self, lightbulbs):
+    def __init__(self, lightbulbs, building):
         """
         This class loads all input data
         
@@ -27,7 +27,7 @@ class ElectricityProfile(object):
 
 
         # Create lighting configuration
-        self.lighting_config = lighting_model.LightingModelConfiguration()
+        self.lighting_config = lighting_model.LightingModelConfiguration(building)
         self.lightbulbs = lightbulbs
 
     def _get_leap_year(self, leap_year=False):

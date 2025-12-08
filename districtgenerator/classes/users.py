@@ -452,6 +452,8 @@ class Users:
     def generate_annual_app_el_consumption_non_residential(self, area, ventilation=0):             # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
 
         if self.building not in {"SFH","TH","MFH","AB"}:
+            if self.building == "SC":
+                ventilation = 1
             for number, data in self.SIA2024.items():
                 zone_name = data.get('Zone_name_GER')
                 if zone_name:
@@ -619,7 +621,7 @@ class Users:
             lights = self.bulbs_power
 
             #  Create wrapper object only for lighting
-            self.el_wrapper.append(wrap_light.ElectricityProfile(lights))
+            self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
 
     def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
         """
