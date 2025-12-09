@@ -1,0 +1,47 @@
+## Information
+
+### Data Sources
+- **U-values (thermal transmittance)** and **window g-values (solar energy transmittance)** for non-residential buildings are derived from:
+  - Envelope areas and baseline U-values from Hörner et al., 2022, https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-DeutschlandIWU Non-Residential Building Typology.
+  - Renovation progress data from Hörner et al., 2022, Stand und Dynamik der energetischen Moderni-sierung von Gebäudehülle und haustechnischen Anlagen im Bestand der Nichtwohngebäude.
+  - Legal U-value limits for refurbished components from the German Energy Saving Ordinance EnEV 2016 (distinguishes zones with T_winter ≥ 19 °C vs. 12 – < 19 °C). and KfW 55 standard specifications.
+  - Heated and non-heated area shares (T_winter threshold 19 °C) from SIA 2024.
+  - Reference data for window g-values from Bagherian et al., 2021, https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2021/bbsr-online-37-2021.html.
+
+### Retrofit Levels
+Three characteristic retrofit states are distinguished, following the analogy of the TABULA project for residential buildings:
+
+1. **Not retrofitted**
+   - U-values represent the original (unrenovated) building envelope.
+   - For buildings constructed **before 2010**, IWU mean values are corrected using renovation progress data.
+   - For **buildings after 2010**, IWU means are applied directly (new construction, assumed unrenovated).
+
+2. **EnEV 2016 refurbished (partially retrofitted)**
+   - Represents compliance with German EnEV 2016 refurbishment thresholds.
+   - If an EnEV 2016 value is higher (worse) than the original, the original value is retained.
+   - Because many non-residential buildings include areas with < 19 °C, we compute weighted average U-values using the heated-area share from SIA 2024.
+
+3. **KfW 55 refurbished (completely retrofitted)**
+   - Represents an ambitious refurbishment level consistent with the KfW 55 efficiency house standard.
+
+### Parameter Definitions
+| German Description                                      | Key        | Unit    | Explanation in English                                       |
+|---------------------------------------------------------|------------|---------|--------------------------------------------------------------|
+| U-Wert Außenwand                                        | u_aw       | [W/m²K] | U-value of the external wall                                |
+| U-Wert Fenster                                          | u_fen      | [W/m²K] | U-value of the windows                                      |
+| U-Wert Dach                                             | u_d_opak   | [W/m²K] | U-value of the opaque parts of the roof/top-floor           |
+| U-Wert der unteren Gebäudeabschlusses                   | u_ug       | [W/m²K] | U-value of the basement ceiling / lower building closure    |
+| g-Wert Fenster                                          | g_gl_fen   | [-]     | Total solar energy transmittance (g-value) of the windows   |
+
+### Envelope Surface Ratios
+Surface areas of envelope components are taken from the IWU Non-Residential Building Typology.
+As window placement data is unavailable, window areas are assumed to be evenly distributed.
+
+| German Description                                                                 | Key   | Unit   | Explanation in English |
+|------------------------------------------------------------------------------------|-------|--------|-------------------------|
+| Verhältnis der Außenwandfläche zur Netto-Raumfläche                                | ow1   | [m²/m²] | Ratio of exterior wall area to net floor area |
+| Verhältnis der Fensterfläche zur Netto-Raumfläche                                  | win1  | [m²/m²] | Ratio of window area to net floor area |
+| Verhältnis der wärmeübertragenden Fläche des opaken oberen Gebäudeabschlusses zur Netto-Raumfläche | rt1 | [m²/m²] | Ratio of roof/top-floor heat-transmitting area to net floor area |
+| Verhältnis der wärmeübertragenden Fläche des unteren Gebäudeabschlusses zur Netto-Raumfläche | gf1 | [m²/m²] | Ratio of basement/floor heat-transmitting area to net floor area |
+
+

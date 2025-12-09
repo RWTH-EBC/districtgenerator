@@ -35,11 +35,12 @@ def example8_scenario_evaluation():
     data.optimizationClusters()
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
-    webtool = {}
     data.calulateKPIs()
+    # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
+    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
 
-    # TODO: erzeuge Energieausweis
-
+    # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
+    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
 
@@ -48,5 +49,4 @@ def example8_scenario_evaluation():
 
 if __name__ == '__main__':
     data = example8_scenario_evaluation()
-
 

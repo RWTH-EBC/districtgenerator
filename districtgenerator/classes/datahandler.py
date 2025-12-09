@@ -6,11 +6,13 @@ import os
 import sys
 import copy
 import datetime
+import multiprocessing
+
 import numpy as np
-import time
 import openpyxl
 import pandas as pd
-from itertools import count
+import random as rd
+import holidays as hol
 from teaser.project import Project
 from .envelope import Envelope
 from .solar import Sun
@@ -20,10 +22,12 @@ from .system import CES
 from .plots import DemandPlots
 from .optimizer import Optimizer
 from .KPIs import KPIs
+from .non_residential import NonResidential
 import districtgenerator.functions.clustering_medoid as cm
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
 from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
 from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
+
 
 class Datahandler:
     """
@@ -51,7 +55,7 @@ class Datahandler:
     """
 
     def __init__(self,
-                 scenario_name = "example",
+                 scenario_name = None,
                  resultPath = None,
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -60,34 +64,59 @@ class Datahandler:
         """
         Constructor of Datahandler class.
 
+        Parameters
+        ----------
+        scenario_name : str, optional
+            Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
+        resultPath : str, optional
+            Path to save results. If None, it defaults to 'srcPath/results'.
+        scenario_file_path : str, optional
+            Path to the scenario file. If None, it defaults to 'filePath/scenarios'.
+        srcPath : str, optional
+            Source path of the district generator. The default is the parent directory of this file.
+        filePath : str, optional
+            Path to the data directory. If None, it defaults to 'srcPath/data'.
+        env_path : str, optional
+            Path to the environment configuration file. If None, it defaults to the global configuration file.
+
         Returns
         -------
         None.
         """
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        self.global_config: GlobalConfig = load_global_config(env_file=env_path)
 
-        self.conf_scenario_name = global_config.scenario_name.scenario_name
+        self.conf_scenario_name = self.global_config.scenario_name.scenario_name
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
-            
-        self.site = {}
-        self.time = {}
+
+        self.initial_day = None
         self.district = []
         self.u_values = ()
-        self.scenario_name = scenario_name
+        self.scenario_name = scenario_name or self.global_config.scenario_name.scenario_name or "example"
         self.scenario = None
+        self.total_building_area = None
+        # Config data
+        self.site = {}
+        self.time = {}
         self.design_building_data = {}
         self.physics = {}
         self.decentral_device_data = {}
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
+        self.calendar = {}
         self.ecoData = {}
+        self.heat_grid_data = {}
+        self.pipe_data = {}
+        self.gurobiConfig = self.global_config.gurobi
+        # Additional attributes
         self.counter = {}
-        self.calcThick = global_config.flags.calcThick
+        self.calcThick = self.global_config.flags.calcThick
+        self.calcOcc = self.global_config.flags.calcOcc
+        self.calcOccProf = self.global_config.flags.calcOccProf
+        self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
-        self.gurobiConfig = global_config.gurobi,
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -101,32 +130,79 @@ class Datahandler:
 
         self.KPIs = None
         self.load_all_data(
-            site_config=global_config.location,
-            time_config=global_config.time,
-            design_building_config=global_config.design_building,
-            physics_config=global_config.physics,
-            decentral_config=global_config.decentral,
-            ehdo_config=global_config.ehdo,
-            eco_config=global_config.eco,
-            central_config=global_config.central
+            site_config=self.global_config.location,
+            time_config=self.global_config.time,
+            design_building_config=self.global_config.design_building,
+            physics_config=self.global_config.physics,
+            decentral_config=self.global_config.decentral,
+            ehdo_config=self.global_config.ehdo,
+            eco_config=self.global_config.eco,
+            central_config=self.global_config.central,
+            calendar_config=self.global_config.calendar,
+            heat_grid_config=self.global_config.heatgrid
         )
 
-        
-    def load_all_data(self, site_config:LocationConfig, 
-                      time_config:TimeConfig, 
-                      design_building_config:DesignBuildingConfig, 
-                      physics_config:PhysicsConfig, 
-                      decentral_config:DecentralDeviceConfig, 
-                      ehdo_config:EHDOConfig, 
-                      eco_config:EcoConfig, 
-                      central_config:CentralDeviceConfig):
-        """
-        General data import from JSON files and transformation into dictionaries.
+        self.buildings_completed = 0
+        self.buildings_total = 0
+        self.progress_file = os.path.join(self.resultPath, 'progress.json')
 
+    def get_progress(self):
+        return {
+            'completed': self.buildings_completed,
+            'total': self.buildings_total,
+            'percentage': (self.buildings_completed / max(self.buildings_total, 1)) * 100,
+        }
+
+    def save_progress(self):
+        if self.progress_file:
+            progress_data = self.get_progress()
+
+            try:
+                with open(self.progress_file, 'w') as f:
+                    json.dump(progress_data, f)
+            except Exception as e:
+                print(f"Couldn't save calculation progress: {e}")
+
+    def load_all_data(self, site_config: LocationConfig,
+                      time_config: TimeConfig,
+                      design_building_config: DesignBuildingConfig,
+                      physics_config: PhysicsConfig,
+                      decentral_config: DecentralDeviceConfig,
+                      ehdo_config: EHDOConfig,
+                      eco_config: EcoConfig,
+                      central_config: CentralDeviceConfig,
+                      calendar_config: CalendarConfig,
+                      heat_grid_config: HeatGridConfig):
+        """
+        Load all data needed for district generation from configuration files.
+
+        Parameters
+        ----------
+        site_config : LocationConfig
+            Location configuration data.
+        time_config : TimeConfig
+            Time configuration data.
+        design_building_config : DesignBuildingConfig
+            Design building configuration data.
+        physics_config : PhysicsConfig
+            Physics configuration data.
+        decentral_config : DecentralDeviceConfig
+            Decentral device configuration data.
+        ehdo_config : EHDOConfig
+            EHDO model configuration data.
+        eco_config : EcoConfig
+            Economic configuration data.
+        central_config : CentralDeviceConfig
+            Central device configuration data.
+        calendar_config : CalendarConfig
+            Calendar configuration data.
+        heat_grid_config : HeatGridConfig
+            Heat grid configuration data.
         Returns
         -------
         None.
         """
+
         # %% load scenario file with building information
         self.scenario = {}
         self.scenario = pd.read_csv(self.scenario_file_path + "/" + self.scenario_name + ".csv",
@@ -134,59 +210,61 @@ class Datahandler:
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
-        self.site = {}
         for attr, value in site_config.__dict__.items():
             self.site[attr] = value
 
         # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
-        self.time = {}
         for attr, value in time_config.__dict__.items():
             self.time[attr] = value
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        self.design_building_data = {}
         for attr, value in design_building_config.__dict__.items():
             self.design_building_data[attr] = value
 
         # load building physics data (used in envelope and system BES/CES)
-        self.physics = {}
         for attr, value in physics_config.__dict__.items():
             self.physics[attr] = value
 
         # Load list of possible devices (used in system BES)
-        self.decentral_device_data = {}
         # Iterate over all attributes of the config instance
         for attribute, value in decentral_config.__dict__.items():
             # Split the attribute into abbreviation and parameter name parts based on the first underscore
             abbr, _, param = attribute.partition("_")
-            
+
             # Initialize the sub-dictionary if needed.
             if abbr not in self.decentral_device_data:
                 self.decentral_device_data[abbr] = {}
             self.decentral_device_data[abbr][param] = value
 
-        self.params_ehdo_model = {}
         for attr, value in ehdo_config.__dict__.items():
             self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        self.ecoData = {}
         for attr, value in eco_config.__dict__.items():
             self.ecoData[attr] = value
 
         # Load list of possible devices (used in system BES)
-        self.central_device_data = {}
         # Iterate over all attributes of the config instance
         for attribute, value in central_config.__dict__.items():
             # Split the attribute into abbreviation and parameter name parts based on the first underscore
             abbr, _, param = attribute.partition("_")
-            
+
             # Initialize the sub-dictionary if needed.
             if abbr not in self.central_device_data:
                 self.central_device_data[abbr] = {}
             self.central_device_data[abbr][param] = value
+
+        # load calendar data (used in generateDemands and generateEnvironment)
+        for attr, value in calendar_config.__dict__.items():
+            self.calendar[attr] = value
+
+        for attr, value in heat_grid_config.__dict__.items():
+            self.heat_grid_data[attr] = value
+
+        csv_path = os.path.join(self.filePath, 'pipe_specifications.csv')
+        self.pipe_data = pd.read_csv(csv_path, sep=";")
 
     def select_plz_data(self):
         """
@@ -194,8 +272,7 @@ class Datahandler:
 
         Returns
         -------
-        weatherdatafile_location: int
-            Location of the TRY weather station in lambert projection.
+        None.
         """
 
         # Try to find the location of the postal code and matched TRY weather station
@@ -218,14 +295,43 @@ class Datahandler:
             print("Postal code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
-            """  
-                Add new weatherdatafile_location, if you want an individual location: 
-                Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html 
-                Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '\districtgenerator\data\weather\ 
-                Example: TRY2015_507755060854_Wint.dat has to be stored in '\districtgenerator\data\weather\TRY_2015_Winter' 
-                Uncomment the following line  
-            """
+
+            # deprecated?
+            ## Add new weatherdatafile_location, if you want an individual location:
+            ## Files can be found here: https://www.dwd.de/DE/leistungen/testreferenzjahre/testreferenzjahre.html
+            ## Every file has to be stored in the folder reffering to the correct Year and season in the subfolders of '.\districtgenerator\data\weather\
+            ## Example: TRY2015_507755060854_Wint.dat has to be stored in '.\districtgenerator\data\weather\TRY_2015_Winter'
+            ## Uncomment the following line:
             # weatherdatafile_location = 507755060854
+
+    def get_holidays(self, country_code: str, year: int, state: str = None):
+        """
+        Get the Julian day (day of the year) for holidays in a specific country, year, and state.
+
+        Parameters
+        ----------
+            country_code : string
+                The country's ISO 3166-1 alpha-2 code (e.g., 'DE' for Germany).
+            year : integer
+                The year for which to retrieve holidays.
+            state : string
+                The state or region subdivision code (e.g., 'NW' for North Rhine-Westphalia in Germany).
+
+        Returns
+        -------
+            julian_holidays : list
+                A list of tuples containing the Julian day of the holiday.
+        """
+        try:
+            # Initialize the holidays object for the given country, year, and state
+            holidays = hol.country_holidays(country_code, years=year, subdiv=state)
+
+            # Get the Julian day for each holiday
+            julian_holidays = [holiday_date.timetuple().tm_yday for holiday_date in holidays.keys()]
+
+            return julian_holidays
+        except KeyError:
+            return f"Invalid country or state code '{country_code}', '{state}'. Please provide valid codes."
 
     def generateEnvironment(self):
         """
@@ -236,10 +342,14 @@ class Datahandler:
         None.
         """
         # %% load first day of the year
+        # todo: maybe put in config if more TRY years are added?
         if self.site["TRYYear"] == "TRY2015":
             first_row = 35
+            self.initial_day = 3 # Thursday
         elif self.site["TRYYear"] == "TRY2045":
             first_row = 37
+            self.initial_day = 6 # Sunday
+
 
         self.select_plz_data()
         # load weather data
@@ -266,16 +376,16 @@ class Datahandler:
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
         # get weather data of interest
-        [temp_sunDirect, temp_sunDiff, temp_temp, temp_wind] = \
-            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8]]
+        [temp_sunDirect, temp_sunDiff, temp_tempe, temp_wind, temp_rhum, temp_pre] = \
+            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8], weatherData[:, 11], weatherData[:, 6]]
 
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
 
         # load the holidays
         if self.site["TRYYear"] == "TRY2015":
-            self.time["holidays"] = self.time["holidays2015"]
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2015)
         elif self.site["TRYYear"] == "TRY2045":
-            self.time["holidays"] = self.time["holidays2045"]
+            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2045)
 
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
@@ -287,17 +397,22 @@ class Datahandler:
                                             temp_sunDiff)[0:-1]
         self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                      np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                     temp_temp)[0:-1]
+                                     temp_tempe)[0:-1]
         self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
                                             np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
                                             temp_wind)[0:-1]
+        self.site["r_humidity"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
+                                            temp_rhum)[0:-1]
+        self.site["pressure"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
+                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
+                                            temp_pre)[0:-1]
 
-        self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]
+        self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
 
         # Load other site-dependent values based on DIN/TS 12831-1:2020-04
         filePath = os.path.join(self.filePath, 'site_data.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
-
 
         # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
@@ -312,16 +427,16 @@ class Datahandler:
         global sun
         sun = Sun(filePath=self.filePath)
         self.site["SunRad"] = sun.getSolarGains(initialTime=0,
-                                        timeDiscretization=self.time["timeResolution"],
-                                        timeSteps=self.time["timeSteps"],
-                                        timeZone=self.site["timeZone"],
-                                        location=self.site["location"],
-                                        altitude=self.site["altitude"],
-                                        beta=[90, 90, 90, 90, 0],
-                                        gamma=[0, 90, 180, 270, 0],
-                                        beamRadiation=self.site["SunDirect"],
-                                        diffuseRadiation=self.site["SunDiffuse"],
-                                        albedo=self.site["albedo"])
+                                                timeDiscretization=self.time["timeResolution"],
+                                                timeSteps=self.time["timeSteps"],
+                                                timeZone=self.site["timeZone"],
+                                                location=self.site["location"],
+                                                altitude=self.site["altitude"],
+                                                beta=[90, 90, 90, 90, 0],
+                                                gamma=[0, 90, 180, 270, 0],
+                                                beamRadiation=self.site["SunDirect"],
+                                                diffuseRadiation=self.site["SunDiffuse"],
+                                                albedo=self.site["albedo"])
 
     def initializeBuildings(self):
         """
@@ -340,71 +455,53 @@ class Datahandler:
         num_sfh = 0
         num_mfh = 0
         name_pool = []
+        self.building_dict = {}
 
-        # initialize buildings for scenario
-        # loop over all buildings
-        for id in self.scenario["id"]:
-            try:
-                # Check if ID is a number
-                try:
-                    # Try to convert id to float to check if it's numeric
-                    float(id)
-                except (ValueError, TypeError):
-                    raise ValueError(f"Building ID '{id}' is not a number")
+        # Initialize buildings for scenario
+        # Loop over all buildings using iterrows
+        for bldg_id, row in self.scenario.iterrows():
+            bldg_id = int(bldg_id)
+            building = {}
 
-                # Create empty dict for observed building
-                building = {}
+            # Store features of the observed building
+            building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
 
-                # Store features of the observed building
-                building["buildingFeatures"] = self.scenario.loc[id]
-                building["gmlId"] = building["buildingFeatures"]["gmlId"]
+            # Add thermal transmittance if available
+            if "thermalTransmittanceFacade" in self.scenario.columns:
+                building["buildingFeatures"]["thermalTransmittance"] = (
+                    row["thermalTransmittanceFacade"],
+                    row["thermalTransmittanceRoof"],
+                    row["thermalTransmittanceFloor"],
+                    row["thermalTransmittanceWindow"]
+                )
+            else:
+                building["buildingFeatures"]["thermalTransmittance"] = None
 
-                if self.scenario.get("thermalTransmittanceFacade") is not None:
-                    building["buildingFeatures"]["thermalTransmittance"] = (self.scenario.thermalTransmittanceFacade.iloc[id],
-                                                        self.scenario.thermalTransmittanceRoof.iloc[id],
-                                                        self.scenario.thermalTransmittanceFloor.iloc[id],
-                                                        self.scenario.thermalTransmittanceWindow.iloc[id])
-                else: 
-                    building["buildingFeatures"]["thermalTransmittance"] = None
-                    
-                #print(self.scenario)                
-                # %% Create unique building name
-                # needed for loading and storing data with unique name
-                # name is composed of building id, and building type
-                name = str(id) + "_" + building["buildingFeatures"]["building"]
+            # Create unique building name
+            name = f"{bldg_id}_{row['building']}"
 
-                # Check if the name is already in the district
-                if name in name_pool:
-                    raise ValueError(f"Building name '{name}' is not unique. ID collision detected.")
-
-                name_pool.append(name)
-
-                # Assign the unique name to the building
-                building["unique_name"] = name
-
-                # Append building to district
-                self.district.append(building)
-
-                # Count number of builidings to predict the approximate calculation time
-                if building["buildingFeatures"]["building"] == 'SFH' or building["buildingFeatures"]["building"] == 'TH':
-                    num_sfh +=1
-                elif building["buildingFeatures"]["building"] == 'MFH' or building["buildingFeatures"]["building"] == 'AB':
-                    num_mfh +=1
-            except ValueError as e:
-                # Handle the case where we have a duplicate name
-                print(f"Error: {e}")
-                print(f"The building ID must be a unique number to ensure proper identification and data tracking.")
-                print(f"Building with ID {id} will be skipped and not added to the district")
+            # Check for duplicate names
+            if name in name_pool:
+                print(f"Duplicate name: {name}, skipping")
                 continue
-            except Exception as e:
-                # Handle any other unexpected errors
-                print(f"Unexpected error processing building ID {id}: {e}")
-                print(f"Building with ID {id} will be skipped and not added to the district.")
-                continue
+            name_pool.append(name)
+
+            # Assign the unique name to the building
+            building["unique_name"] = name
+
+            # Append building to district
+            self.district.append(building)
+            self.building_dict[bldg_id] = len(self.district) - 1
+
+            # Count number of buildings to predict the approximate calculation time
+            if row["building"] in ("SFH", "TH"):
+                num_sfh += 1
+            elif row["building"] in ("MFH", "AB"):
+                num_mfh += 1
 
         # Calculate calculation time for the whole district generation
-        duration += datetime.timedelta(seconds= 3 * num_sfh + 12 * num_mfh)
-        print("This calculation will take about " + str(duration) + " .")
+        duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
+        print(f"This calculation will take about {duration}.")
 
     def generateBuildings(self):
         """
@@ -425,59 +522,114 @@ class Datahandler:
         prj.name = self.scenario_name
 
         for building in self.district:
-            print(building["unique_name"])
+
             # convert short names into designation needed for TEASER
-            building_type = \
-                bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
-            retrofit_level = \
-                bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+            building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
             # add buildings to TEASER project
-            prj.add_residential(method='tabula_de',
-                                usage=building_type,
-                                name="ResidentialBuildingTabula",
-                                year_of_construction=building["buildingFeatures"]["year"],
-                                number_of_floors=3,
-                                height_of_floors=3.125,
-                                net_leased_area=building["buildingFeatures"]["area"],
-                                construction_type=retrofit_level)
+            if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
+                retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
 
-            # %% create envelope object
-            extra = [building["buildingFeatures"]["year"],building["buildingFeatures"]["retrofit"],building["buildingFeatures"]["gmlId"],building["buildingFeatures"]["building"]]
+                height = building["buildingFeatures"]["height"] 
+                number_of_floors = building["buildingFeatures"]["number_of_floors"] 
+                height_of_floors = height/number_of_floors
+                if height_of_floors< 2.5:
+                    if building["buildingFeatures"]["year"] < 1960:
+                        height_of_floors = 3.3  # m
+                    elif building["buildingFeatures"]["year"] >= 1960:
+                        height_of_floors = 2.5  # m
+
+
+                if building["buildingFeatures"]["year"] < 1960:
+                    height_of_floors = 3.3  # m
+                elif building["buildingFeatures"]["year"] >= 1960:
+                    height_of_floors = 2.5  # m
+
+                prj.add_residential(method='tabula_de',
+                                    usage=building_type,
+                                    name="ResidentialBuildingTabula",
+                                    year_of_construction=building["buildingFeatures"]["year"],
+                                    number_of_floors=number_of_floors,
+                                    height_of_floors=height_of_floors,
+                                    net_leased_area=building["buildingFeatures"]["area"],
+                                    construction_type=retrofit_level)
+
+
+                building["buildingFeatures"] = building["buildingFeatures"].copy()
+                building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
+
+                # %% create envelope object
+                extra = [building["buildingFeatures"]["year"], building["buildingFeatures"]["retrofit"], building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"], building["buildingFeatures"]["building"]]
             # containing all physical data of the envelope
-            building["envelope"] = Envelope(prj=prj,
-                                            building_params=building["buildingFeatures"],
-                                            construction_type=retrofit_level,
-                                            physics=self.physics,
-                                            design_building_data=self.design_building_data,
-                                            file_path=self.filePath,
-                                            u_values=building["buildingFeatures"]["thermalTransmittance"],
-                                            extra = extra,
-                                            calcThick = self.calcThick)
+                building["envelope"] = Envelope(prj=prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=retrofit_level,
+                                                physics=self.physics,
+                                                design_building_data=self.design_building_data,
+                                                file_path=self.filePath,
+                                                u_values=building["buildingFeatures"]["thermalTransmittance"],
+                                                extra = extra,
+                                                calcThick = self.calcThick)
+            else:
+
+                retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
+                construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
+
+                if building["buildingFeatures"]["year"] < 1960:
+                    height_of_floors = 3.3  # m
+                elif building["buildingFeatures"]["year"] >= 1960:
+                    height_of_floors = 2.5  # m
+
+                nrb_prj = NonResidential(
+                        usage=building["buildingFeatures"]["building"],
+                        name="NonResidentialBuilding",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        height_of_floors=height_of_floors,
+                        net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
+                        total_building_area=(                                          # Total net leased area of building
+                            building["buildingFeatures"]["area"] if self.total_building_area is None
+                            else self.total_building_area),
+                        construction_type=construction_type,
+                        retrofit_level=retrofit_level)
+
+                # %% create envelope object
+                # containing all physical data of the envelope
+
+                building["envelope"] = Envelope(prj=nrb_prj,
+                                                building_params=building["buildingFeatures"],
+                                                construction_type=construction_type,
+                                                physics=self.physics,
+                                                design_building_data=self.design_building_data,
+                                                file_path=self.filePath)
+
             # %% create user object
             # containing number occupants, electricity demand,...
             building["user"] = Users(building=building["buildingFeatures"]["building"],
-                                     area=building["buildingFeatures"]["area"])
+                                     area=building["buildingFeatures"]["area"],
+                                     year_of_construction=building["buildingFeatures"]["year"],
+                                     retrofit=building["buildingFeatures"]["retrofit"],
+                                     nb_occ=building["buildingFeatures"]["nb_occ"] if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
+                                     nb_flats=int(float(building["buildingFeatures"]["nb_flats"])) if "nb_flats" in building["buildingFeatures"] else None,
+                                     dict= self.srcPath,
+                                     scenario_name=self.scenario_name,
+                                     calcOcc = self.calcOcc,
+                                     calcOccProf = self.calcOccProf)
 
+            night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads
             # at norm outside temperature
-            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design")
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design", night_setback = night_setback)
             # at bivalent temperature
-            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent")
+            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent", night_setback = night_setback)
             # at heating limit temperature
-            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit")
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit", night_setback = night_setback)
             # for drinking hot water
-            if building["user"].building in {"SFH", "MFH", "TH", "AB"}:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_flats
-            else:
-                building["dhwload"] = bldgs["dhwload"][bldgs["buildings_short"].index(building["user"].building)] * \
-                building["user"].nb_main_rooms
+            building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True,  max_threads=8):
         """
         Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -496,93 +648,145 @@ class Datahandler:
         None.
         """
 
-        for building in self.district:
+        args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
 
-            # calculate or load user profiles
-            if calcUserProfiles:
-                building["user"].calcProfiles(site=self.site,
-                                              holidays=self.time["holidays"],
-                                              time_resolution=self.time["timeResolution"],
-                                              time_horizon=self.time["dataLength"],
-                                              building=building,
-                                              path=os.path.join(self.resultPath, 'demands'))
+        self.buildings_total = len(self.district)
+        self.buildings_completed = 0
 
-                if saveUserProfiles:
-                    self.saveProfiles(name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
-                                      elec=building["user"].elec,
-                                      dhw= building["user"].dhw,
-                                      occ= building["user"].occ,
-                                      gains= building["user"].gains,
-                                      car= building["user"].car,
-                                      nb_flats= building["user"].nb_flats,
-                                      nb_occ= building["user"].nb_occ,
-                                      heatload= building["envelope"].heatload,
-                                      bivalent= building["envelope"].bivalent,
-                                      heatlimit= building["envelope"].heatlimit,
-                                      thick_req= building["envelope"].thick_req,
-                                      path=os.path.join(self.resultPath, 'demands'))
+        results = []
+        self.save_progress()
+
+        with multiprocessing.Pool(processes=max_threads) as pool:
+            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
+                self.buildings_completed += 1
+                results.append(result)
+
+                self.save_progress()
+
+                print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
+                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
+
+        for result in results:
+            building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+            building["user"].elec = result["elec"]
+            building["user"].dhw = result["dhw"]
+            building["user"].cooling = result["cooling"]
+            building["user"].heat = result["heating"]
+            building["gmlId"] = result["id"]
+            building["user"].occ = result["occ"]
+            building["user"].carcharging_ondemand =  result["carcharging_ondemand"]
+            building["user"].carprofile = result["carprofile"]
+            building["user"].ev_capacity = result.get("ev_capacity")
+            building["user"].gains = result["gains"]
+            building["user"].nb_units = result["nb_units"]
+            building["user"].nb_occ = result["nb_occ"]
+            building["envelope"] = result["envelope"]
+            building_features = building["buildingFeatures"].copy()
+            building_features["night_setback"] = result["night_setback"]
+            building["buildingFeatures"] = building_features
+
+        self.save_progress()
+
+        print("Finished generating demands with multiprocessing!")
+
+    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
+        """
+        :param building:
+        :param calcUserProfiles: bool
+            True: calculate new user profiles.
+            False: load user profiles from file.
+            The default is True.
+        :param saveUserProfiles: bool
+            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
+            The default is True.
+        """
+        print(f'starting {building["unique_name"]}')
+
+        # calculate or load user profiles
+        if calcUserProfiles:
+            building["user"].calcProfiles(site=self.site,
+                                          holidays=self.calendar["holidays"],
+                                          time_resolution=self.time["timeResolution"],
+                                          time_horizon=self.time["dataLength"],
+                                          building_devices_data=self.decentral_device_data,
+                                          building=building,
+                                          path=os.path.join(self.resultPath, 'demands'),
+                                          initial_day = self.initial_day)
+
+            if saveUserProfiles:
+                self.saveProfiles(name=building["unique_name"],
+                                    elec=building["user"].elec,
+                                    dhw= building["user"].dhw,
+                                    occ= building["user"].occ,
+                                    gains= building["user"].gains,
+                                    carcharging_ondemand=building["user"].carcharging_ondemand,
+                                    carprofile=building["user"].carprofile,                                  
+                                    nb_units= building["user"].nb_units,
+                                    nb_occ= building["user"].nb_occ,
+                                    ev_capacity=building["user"].ev_capacity or [0],
+                                    heatload= building["envelope"].heatload,
+                                    bivalent= building["envelope"].bivalent,
+                                    heatlimit= building["envelope"].heatlimit,
+                                    thick_req= building["envelope"].thick_req,
+                                    path=os.path.join(self.resultPath, 'demands'))
                     #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
-                print("Calculate demands of building " + building["unique_name"])
+            # print("Calculate demands of building " + building["unique_name"])
 
+        else:
+            (building["user"].elec, building["user"].dhw,
+             building["user"].occ, building["user"].gains,
+             building["user"].carcharging_ondemand, building["user"].carprofile, building["user"].nb_flats, building["user"].nb_main_rooms,
+             building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
+             building["envelope"].bivalent,
+             building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
+                                                                 os.path.join(self.resultPath, 'demands'))
+            (building["user"].heat, building["user"].cooling, building["gmlId"]) = self.loadHeatingProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+            # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+            print("Load demands of building " + building["unique_name"])
+
+        building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+
+        night_setback = building["buildingFeatures"]["night_setback"]
+
+        is_cooled = building["user"].cooling is not None and building["user"].cooling > 0
+
+        # calculate or load heating profiles
+        if calcUserProfiles:
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                night_setback=night_setback,
+                                                is_cooled=is_cooled,
+                                                calendar=self.calendar,
+                                                time_resolution=self.time["timeResolution"]
+                                                )
+
+            if saveUserProfiles:
+                idArray = []
+                idArray.append(building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"])
+                self.saveHeatingProfile(heat=building["user"].heat,
+                                        cooling=building["user"].cooling,
+                                        name=building["unique_name"],
+                                        gmlId=idArray,
+                                        path=os.path.join(self.resultPath, 'demands'))
+                #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
-                (building["user"].elec, building["user"].dhw,
-                 building["user"].occ, building["user"].gains,
-                 building["user"].car, building["user"].nb_flats,
-                 building["user"].nb_occ, building["envelope"].heatload,
-                 building["envelope"].bivalent,
-                 building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"] +'_'+ self.conf_scenario_name,
-                                                                     os.path.join(self.resultPath, 'demands'))
-                #building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-                print("Load demands of building " + building["unique_name"])
-
-            # check if EV exist
-            building["clusteringData"] = {
-                "potentialEV": copy.deepcopy(building["user"].car)
-            }
-            building["user"].car *= building["buildingFeatures"]["EV"]
-
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-
-            night_setback = building["buildingFeatures"]["night_setback"]
-
-            # calculate or load heating profiles
-            if calcUserProfiles:
-                building["user"].calcHeatingProfile(site=self.site,
-                                                    envelope=building["envelope"],
-                                                    night_setback=night_setback,
-                                                    holidays=self.time["holidays"],
-                                                    time_resolution=self.time["timeResolution"]
-                                                    )
-
-                if saveUserProfiles:
-                    idArray = []
-                    idArray.append(building["gmlId"])
-                    self.saveHeatingProfile(heat=building["user"].heat,
-                                            cooling=building["user"].cooling,
-                                            name= name if name else building["unique_name"] +'_'+ self.conf_scenario_name,
-                                            gmlId=idArray,
-                                            path=os.path.join(self.resultPath, 'demands'))
-                    #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-            else:
-                heat, cooling = self.loadHeatingProfiles(name=building["unique_name"]+'_'+ self.conf_scenario_name,
+                heat, cooling, id = self.loadHeatingProfiles(name=building["unique_name"],
                                                          path=os.path.join(self.resultPath, 'demands'))
                 building["user"].heat = heat
                 building["user"].cooling = cooling
+                building["gmlId"] = id
 
         print("Finished generating demands!")
 
-    def generateDistrictComplete(self, name = None, generateDemands=True, calcUserProfiles=True, saveUserProfiles=True,
-                                 designDevs=False, saveGenProfiles=True, clustering=False, optimization=False):
+    def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
+                                 designDevs=True, saveGenProfiles=True, optimization=True):
         """
         All in one solution for district and demand generation.
 
         Parameters
         ----------
 
-        generateDemands:bool, optional
-            True: generate demands for all buildings.
-            False: load demands from file / generation will be skipped.
         name: string, optional
             option to set a unique name for the district scenario. Else building["unique_name"] will be used.
         calcUserProfiles: bool, optional
@@ -592,17 +796,13 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
         designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
+            Decision if devices (central / decentral) will be designed. The default is True.
         saveGenProfiles: bool, optional
             Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
             The default is True.
-        clustering: bool, optional
-            Decision if profiles will be clustered. The default is False.
         optimization: bool, optional
-            Decision if the operation costs for each cluster will be optimized. The default is False.
+            Decision if the operation costs for each cluster will be optimized. The default is True.
 
         Returns
         -------
@@ -612,28 +812,56 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
-        if designDevs:
-            self.designDevicesComplete(saveGenProfiles)
-        if clustering:
-            if designDevs:
-                self.clusterProfiles()
-            else:
-                print("Clustering is not possible without the design of energy conversion devices!")
-        if optimization:
-            if designDevs and clustering:
-                self.optimizationClusters()
-            else:
-                print("Optimization is not possible without clustering and the design of energy conversion devices!")
 
-    def saveProfiles(self, name, elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit, thick_req, path):
+        # depending on calcUserProfiles either calculate new user profiles or load them from file
+        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
+
+        if designDevs:
+            if self.district[0]["buildingFeatures"]["heater"] == "heat_grid":
+                centralEnergySupply = True
+                self.designDevicesComplete(saveGenerationProfiles=saveGenProfiles)
+            else:
+                centralEnergySupply = False
+                self.designDecentralDevices(saveGenerationProfiles=saveGenProfiles)
+                self.centralDevices = {}
+
+            if optimization:
+                # Within a clustered time series, data points are aggregated across different time periods
+                # based on the k-medoids method
+                self.clusterProfiles(centralEnergySupply)
+
+    def saveProfiles(self, name, elec, dhw, occ, gains, carcharging_ondemand, carprofile, ev_capacity, nb_units, nb_occ, heatload, bivalent, heatlimit, thick_req, path):
         """
         Save profiles to separate parquet files.
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
+        elec : list
+            Hourly electricity demand in W.
+        dhw : list
+            Hourly domestic hot water demand in W.
+        occ : list
+            Hourly occupancy of persons.
+        gains : list
+            Hourly internal gains in W.
+        carcharging_ondemand : list
+            Hourly electricity demand of EV in W.
+        carprofile : list
+            Hourly energy demand of EV in Wh.
+        nb_units : int
+            Number of flats in the building.
+        nb_occ : list
+            Number of occupants in the building.
+        heatload : float
+            Design heat load in W.
+        bivalent : float
+            Bivalent heat load in W.
+        heatlimit : float
+            Heat limit heat load in W.
+        thick_req : list, optional
+            Insulation thickness requirements for walls, roof, and floor.
         path : string
             Results path.
 
@@ -643,7 +871,7 @@ class Datahandler:
         """
 
         # Create the directory with the specified name
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
         os.makedirs(directory_path, exist_ok=True)
 
         # Create DataFrames directly from the input variables
@@ -651,46 +879,58 @@ class Datahandler:
         dhw_df = pd.DataFrame(dhw, columns=['dhw'])
         occ_df = pd.DataFrame(occ, columns=['occ'])
         gains_df = pd.DataFrame(gains, columns=['gains'])
-        car_df = pd.DataFrame(car, columns=['car'])
-        nb_flats_df = pd.DataFrame([nb_flats], columns=['nb_flats'])
+        carcharging_ondemand_df = pd.DataFrame(carcharging_ondemand, columns=['car'])
+        carprofile_df = pd.DataFrame(carprofile, columns=['Electric Vehicle Energy Demand (Wh)'])
 
         # Sum the values in nb_occ and create a DataFrame
-        total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
-        nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['nb_occ']) # Create DataFrame with the sum
+        if isinstance(nb_occ, list):
+            total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
+        else:
+            total_nb_occ = nb_occ
+        nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['occ'])
 
+        # Create DataFrames for building info
+        nb_flats_df = pd.DataFrame([nb_units], columns=['Number of Flats or Main Rooms'])
         heatload_df = pd.DataFrame([heatload], columns=['heatload'])
         bivalent_df = pd.DataFrame([bivalent], columns=['bivalent'])
-        heatlimit_df = pd.DataFrame([heatlimit], columns=['heatlimit'])
+        heatlimit_df = pd.DataFrame([heatlimit], columns=['Heat Limit Heat Load (W)'])
+        #print(ev_capacity)
+        ev_capacity_df = pd.DataFrame(ev_capacity, columns=['EV Capacity (Wh)'])
+
 
         # If thick_req is provided, create DataFrames for insulation
         if thick_req:
-            wall_ins_df = pd.DataFrame([thick_req[0]], columns=['wall_ins'])
-            roof_ins_df = pd.DataFrame([thick_req[1]], columns=['roof_ins'])
-            floor_ins_df = pd.DataFrame([thick_req[2]], columns=['floor_ins'])
+            wall_ins_df = pd.DataFrame([thick_req[0]], columns=['Wall Insulation Thickness'])
+            roof_ins_df = pd.DataFrame([thick_req[1]], columns=['Roof Insulation Thickness'])
+            floor_ins_df = pd.DataFrame([thick_req[2]], columns=['Floor Insulation Thickness'])
 
         # Define file paths for each DataFrame
         elec_file = os.path.join(directory_path, 'elec.parquet')
         dhw_file = os.path.join(directory_path, 'dhw.parquet')
         occ_file = os.path.join(directory_path, 'occ.parquet')
         gains_file = os.path.join(directory_path, 'gains.parquet')
-        car_file = os.path.join(directory_path, 'car.parquet')
+        carcharging_file = os.path.join(directory_path, 'carcharging.parquet')
+        carprofile_file = os.path.join(directory_path, 'carprofile.parquet')
         nb_flats_file = os.path.join(directory_path, 'nb_flats.parquet')
         nb_occ_file = os.path.join(directory_path, 'nb_occ.parquet')
         heatload_file = os.path.join(directory_path, 'heatload.parquet')
         bivalent_file = os.path.join(directory_path, 'bivalent.parquet')
         heatlimit_file = os.path.join(directory_path, 'heatlimit.parquet')
+        ev_capacity_file = os.path.join(directory_path, 'ev_capacity.parquet')
 
         # Save each DataFrame to Parquet, overwriting any existing files
         elec_df.to_parquet(elec_file, engine='pyarrow', index=False)
         dhw_df.to_parquet(dhw_file, engine='pyarrow', index=False)
         occ_df.to_parquet(occ_file, engine='pyarrow', index=False)
         gains_df.to_parquet(gains_file, engine='pyarrow', index=False)
-        car_df.to_parquet(car_file, engine='pyarrow', index=False)
+        carcharging_ondemand_df.to_parquet(carcharging_file, engine='pyarrow', index=False)
+        carprofile_df.to_parquet(carprofile_file, engine='pyarrow', index=False)
         nb_flats_df.to_parquet(nb_flats_file, engine='pyarrow', index=False)
         nb_occ_df.to_parquet(nb_occ_file, engine='pyarrow', index=False)
         heatload_df.to_parquet(heatload_file, engine='pyarrow', index=False)
         bivalent_df.to_parquet(bivalent_file, engine='pyarrow', index=False)
         heatlimit_df.to_parquet(heatlimit_file, engine='pyarrow', index=False)
+        ev_capacity_df.to_parquet(ev_capacity_file, engine='pyarrow', index=False)
 
         # Save insulation DataFrames if they exist
         if thick_req:
@@ -708,7 +948,11 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        heat: list
+            Hourly heating demand in W.
+        cooling: list
+            Hourly cooling demand in W.
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -719,7 +963,7 @@ class Datahandler:
         """
 
         # Create the directory path
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
         os.makedirs(directory_path, exist_ok=True)
 
         # Create DataFrames
@@ -748,7 +992,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -756,28 +1000,32 @@ class Datahandler:
         Returns
         -------
         tuple
-            Loaded profile data.
+            Loaded profile data in the correct order.
         """
 
-        # Create the directory path
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
 
-        # Load each profile from its respective Parquet file
+        # Hourly profiles
         elec = pd.read_parquet(os.path.join(directory_path, 'elec.parquet'), engine='pyarrow')['elec'].to_numpy()
         dhw = pd.read_parquet(os.path.join(directory_path, 'dhw.parquet'), engine='pyarrow')['dhw'].to_numpy()
         occ = pd.read_parquet(os.path.join(directory_path, 'occ.parquet'), engine='pyarrow')['occ'].to_numpy()
         gains = pd.read_parquet(os.path.join(directory_path, 'gains.parquet'), engine='pyarrow')['gains'].to_numpy()
-        car = pd.read_parquet(os.path.join(directory_path, 'car.parquet'), engine='pyarrow')['car'].to_numpy()
-        
-        # Load other data from the 'other' file
-        other_data = pd.read_parquet(os.path.join(directory_path, 'nb_flats.parquet'), engine='pyarrow')['nb_flats'].to_numpy()
-        nb_flats = int(other_data[0])
-        nb_occ = pd.read_parquet(os.path.join(directory_path, 'nb_occ.parquet'), engine='pyarrow')['nb_occ'].to_numpy(dtype=int)
-        heatload = float(pd.read_parquet(os.path.join(directory_path, 'heatload.parquet'), engine='pyarrow')['heatload'].to_numpy()[0])
-        bivalent = float(pd.read_parquet(os.path.join(directory_path, 'bivalent.parquet'), engine='pyarrow')['bivalent'].to_numpy()[0])
-        heatlimit = float(pd.read_parquet(os.path.join(directory_path, 'heatlimit.parquet'), engine='pyarrow')['heatlimit'].to_numpy()[0])
+        carcharging_ondemand = pd.read_parquet(os.path.join(directory_path, 'carcharging.parquet'), engine='pyarrow')['car'].to_numpy()
+        carprofile = pd.read_parquet(os.path.join(directory_path, 'carprofile.parquet'), engine='pyarrow')['Electric Vehicle Energy Demand (Wh)'].to_numpy()
 
-        return elec, dhw, occ, gains, car, nb_flats, nb_occ, heatload, bivalent, heatlimit
+        # Building info
+        nb_flats = int(pd.read_parquet(os.path.join(directory_path, 'nb_flats.parquet'), engine='pyarrow')['Number of Flats or Main Rooms'][0])
+        nb_occ = int(pd.read_parquet(os.path.join(directory_path, 'nb_occ.parquet'), engine='pyarrow')['occ'][0])
+        ev_capacity = pd.read_parquet(os.path.join(directory_path, 'ev_capacity.parquet'), engine='pyarrow')['EV Capacity (Wh)'].to_numpy()
+
+        # Envelope data
+        heatload = float(pd.read_parquet(os.path.join(directory_path, 'heatload.parquet'), engine='pyarrow')['heatload'][0])
+        bivalent = float(pd.read_parquet(os.path.join(directory_path, 'bivalent.parquet'), engine='pyarrow')['bivalent'][0])
+        heatlimit = float(pd.read_parquet(os.path.join(directory_path, 'heatlimit.parquet'), engine='pyarrow')['Heat Limit Heat Load (W)'][0])
+
+        return elec, dhw, occ, gains, carcharging_ondemand, carprofile, nb_flats, nb_flats, nb_occ, ev_capacity, heatload, bivalent, heatlimit
+
+
 
 
     def loadHeatingProfiles(self, name, path):
@@ -786,7 +1034,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -798,13 +1046,14 @@ class Datahandler:
         """
 
         # Create the directory path
-        directory_path = os.path.join(path, name)
+        directory_path = os.path.join(path, self.scenario_name, name)
 
         # Load heating and cooling data from their respective Parquet files
         heat = pd.read_parquet(os.path.join(directory_path, 'heating.parquet'), engine='pyarrow')['heating'].to_numpy()
         cooling = pd.read_parquet(os.path.join(directory_path, 'cooling.parquet'), engine='pyarrow')['cooling'].to_numpy()
+        id = pd.read_parquet(os.path.join(directory_path, 'id.parquet'), engine='pyarrow')['gmlId'].to_numpy()
 
-        return heat, cooling
+        return heat, cooling, id
 
     def designDecentralDevices(self, saveGenerationProfiles=True, pv_standard=True):
         """
@@ -851,27 +1100,23 @@ class Datahandler:
                     roof_inclinations = [beta if beta != 0 else 35 for beta in roof_inclinations]
 
                     # Call calcPVAndSTCProfile once with all roof segments
-                    total_potentialPV, total_potentialSTC = sun.calcPVAndSTCProfile(
+                    building["generationPV"], building["generationSTC"] = sun.calcPVAndSTCProfile(
                         time=self.time,
                         site=self.site,
                         areas=roof_areas,
                         betas=roof_inclinations,
                         gammas=cardinal_directions,
-                        usageFactorPV=building["buildingFeatures"]["f_PV"],
-                        usageFactorSTC=building["buildingFeatures"]["f_STC"],
+                        usageFactorPV=1, #building["buildingFeatures"]["f_PV"], #todo: check because netto area
+                        usageFactorSTC=1, #building["buildingFeatures"]["f_STC"],
                         devices=self.decentral_device_data,
                     )
-
-                    # Assign scaled generation profiles to building
-                    building["generationPV"] = total_potentialPV * building["buildingFeatures"]["PV"]
-                    building["generationSTC"] = total_potentialSTC * building["buildingFeatures"]["STC"]
 
                     # ---- LOGGING ----
                     pv_rows = []
                     for i in range(len(roof_areas)):
                         pv_row = {
                             "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
-                            "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"],
+                            "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"]*building["buildingFeatures"]["f_PV"],
                             "actual_area_roof": roof_areas[i],
                             "calculated_beta": 35,
                             "actual_beta": roof_inclinations[i],
@@ -888,32 +1133,38 @@ class Datahandler:
                         df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
                     except FileNotFoundError:
                         df_new_pv = pd.DataFrame(pv_rows)
-                    df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
+
+                    # do not save log to reduce write operations
+                    #df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
                     if saveGenerationProfiles:
+                        base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
+                        os.makedirs(base_directory, exist_ok=True)
                         np.savetxt(
-                            os.path.join(self.resultPath, 'generation')
+                            base_directory
                             + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["generationPV"] * building["buildingFeatures"]["PV"],
-                            delimiter=',', fmt='%.10f'
+                            building["generationPV"],
+                            delimiter=';',
+                            fmt='%.2f'
                         )
 
                         np.savetxt(
-                            os.path.join(self.resultPath, 'generation')
+                            base_directory
                             + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                            building["generationSTC"] * building["buildingFeatures"]["STC"], 
-                            delimiter=','
+                            building["generationSTC"],
+                            delimiter=';',
+                            fmt='%.2f'
                         )
 
             elif pv_standard:
                 # Standard single-surface calculation
-                potentialPV, potentialSTC = sun.calcPVAndSTCProfile(
+                building["generationPV"], building["generationSTC"] = sun.calcPVAndSTCProfile(
                     time=self.time,
                     site=self.site,
-                    areas=[building["envelope"].A["opaque"]["roof"]]/building["buildingFeatures"]["number_of_floors"],
+                    areas=[building["envelope"].A["opaque"]["roof"]], #/building["buildingFeatures"]["number_of_floors"]], do we require this?
                     betas=[35],
                     gammas=[building["buildingFeatures"]["gamma_PV"]],
                     usageFactorPV=building["buildingFeatures"]["f_PV"],
@@ -921,21 +1172,22 @@ class Datahandler:
                     devices=self.decentral_device_data
                 )
 
-                building["generationPV"] = potentialPV * building["buildingFeatures"]["PV"]
-                building["generationSTC"] = potentialSTC * building["buildingFeatures"]["STC"]
-
                 if saveGenerationProfiles:
+                    base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
+                    os.makedirs(base_directory, exist_ok=True)
                     np.savetxt(
-                        os.path.join(self.resultPath, 'generation')
+                        base_directory
                         + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                        building["generationPV"], delimiter=',')
+                        building["generationPV"], delimiter=';',
+                           fmt='%.2f')
 
                     np.savetxt(
-                        os.path.join(self.resultPath, 'generation')
+                        base_directory
                         + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
-                        building["generationSTC"], delimiter=',')
+                        building["generationSTC"], delimiter=';',
+                           fmt='%.2f')
 
 
     def designCentralDevices(self, saveGenerationProfiles):
@@ -965,21 +1217,24 @@ class Datahandler:
 
         # calculate theoretical PV, STC and Wind generation
         self.centralDevices["generation"] = {}
-        (self.centralDevices["generation"]["PV"], self.centralDevices["generation"]["STC"],
-         self.centralDevices["generation"]["Wind"]) = self.centralDevices["ces_obj"].generation(self)
-
+        self.centralDevices["generation"]["PV"] = self.centralDevices["capacities"]["PV_generation_uncl"]
+        self.centralDevices["generation"]["STC"] = self.centralDevices["capacities"]["STC_generation_uncl"]
+        self.centralDevices["generation"]["Wind"] = self.centralDevices["capacities"]["WT_generation_uncl"]
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
                        self.centralDevices["generation"]["PV"],
-                       delimiter=',')
+                       delimiter=';',
+                       fmt='%.2f')
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
                        self.centralDevices["generation"]["STC"],
-                       delimiter=',')
+                       delimiter=';',
+                       fmt='%.2f')
             np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
                        self.centralDevices["generation"]["Wind"],
-                       delimiter=',')
+                       delimiter=';',
+                       fmt='%.2f')
 
     def designDevicesComplete(self, saveGenerationProfiles=True):
         """
@@ -987,8 +1242,6 @@ class Datahandler:
 
         Parameters
         ----------
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
         saveGenerationProfiles : bool, optional
             Decision if generation profiles of designed devices will be saved. The default is True.
 
@@ -1014,102 +1267,150 @@ class Datahandler:
         lenghtArray = initialArrayLenght
         while lenghtArray <= len(self.site["T_e"]):
             lenghtArray += initialArrayLenght
-        lenghtArray -= initialArrayLenght
-        lenghtArray = int(lenghtArray)
+        lenghtArray = int(lenghtArray - initialArrayLenght)
 
         # adjust profiles with calculated array length
         adjProfiles = {}
         # loop over buildings
-        for id in self.scenario["id"]:
-            adjProfiles[id] = {}
-            adjProfiles[id]["elec"] = self.district[id]["user"].elec[0:lenghtArray]
-            adjProfiles[id]["dhw"] = self.district[id]["user"].dhw[0:lenghtArray]
-            adjProfiles[id]["heat"] = self.district[id]["user"].heat[0:lenghtArray]
-            adjProfiles[id]["cooling"] = self.district[id]["user"].cooling[0:lenghtArray]
-        if centralEnergySupply == False:
-            for id in self.scenario["id"]:
-                adjProfiles[id]["car"] = self.district[id]["user"].car[0:lenghtArray]
-                adjProfiles[id]["generationPV"] = self.district[id]["generationPV"][0:lenghtArray]
-                adjProfiles[id]["generationSTC"] = self.district[id]["generationSTC"][0:lenghtArray]
+        for i, b in enumerate(self.district):
+            adjProfiles[i] = {}
+            adjProfiles[i]["elec"] = b["user"].elec[0:lenghtArray]
+            adjProfiles[i]["dhw"] = b["user"].dhw[0:lenghtArray]
+            adjProfiles[i]["heat"] = b["user"].heat[0:lenghtArray]
+            adjProfiles[i]["cooling"] = b["user"].cooling[0:lenghtArray]
+            adjProfiles[i]["occ"] = b["user"].occ[0:lenghtArray]
+            adjProfiles[i]["carcharging_ondemand"] = b["user"].carcharging_ondemand[0:lenghtArray]
+            adjProfiles[i]["carprofile"] = b["user"].carprofile[0:lenghtArray]
+            adjProfiles[i]["generationPV"] = b["generationPV"][0:lenghtArray]
+            adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lenghtArray]
 
         if centralEnergySupply == True:
-            if self.centralDevices["capacities"]["power_kW"]["WT"] > 0:
-                existence_centralWT = 1
+
+            adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lenghtArray]
+            adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lenghtArray]
+
+            if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lenghtArray]
             else:
                 # no central WT exists; but array with just zeros leads to problem while clustering
-                existence_centralWT = 0
                 adjProfiles["generationCentralWT"] = np.ones(lenghtArray) * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["power_kW"]["PV"] > 0:
-                existence_centralPV = 1
+
+            if self.centralDevices["capacities"]["PV"]["cap"] > 0:
                 adjProfiles["generationCentralPV"] = self.centralDevices["generation"]["PV"][0:lenghtArray]
             else:
                 # no central PV exists; but array with just zeros leads to problem while clustering
-                existence_centralPV = 0
                 adjProfiles["generationCentralPV"] = np.ones(lenghtArray) * sys.float_info.epsilon
-            if self.centralDevices["capacities"]["heat_kW"]["STC"] > 0:
-                existence_centralSTC = 1
+
+            if self.centralDevices["capacities"]["STC"]["cap"] > 0:
                 adjProfiles["generationCentralSTC"] = self.centralDevices["generation"]["STC"][0:lenghtArray]
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
-                existence_centralSTC = 0
                 adjProfiles["generationCentralSTC"] = np.ones(lenghtArray) * sys.float_info.epsilon
 
         # wind speed and ambient temperature
         adjProfiles["T_e"] = self.site["T_e"][0:lenghtArray]
 
         # Prepare clustering
-        inputsClustering = []
+        # weights for clustering algorithm indicating the focus onto this profile
+        # Scaling flags for each profile (True = scale after clustering, False = preserve values)
+
+        inputsClustering, weights, scalings = [], [], []
+
         # loop over buildings
-        for id in self.scenario["id"]:
-            inputsClustering.append(adjProfiles[id]["elec"])
-            inputsClustering.append(adjProfiles[id]["dhw"])
-            inputsClustering.append(adjProfiles[id]["heat"])
-            inputsClustering.append(adjProfiles[id]["cooling"])
-            if centralEnergySupply == False:
-                inputsClustering.append(adjProfiles[id]["car"])
-                inputsClustering.append(adjProfiles[id]["generationPV"])
-                inputsClustering.append(adjProfiles[id]["generationSTC"])
+        for i in range(len(self.district)):
+            inputsClustering.append(adjProfiles[i]["elec"])
+            weights.append(1)
+            scalings.append(True)
+
+            inputsClustering.append(adjProfiles[i]["dhw"])
+            weights.append(1)
+            scalings.append(True)
+
+            inputsClustering.append(adjProfiles[i]["heat"])
+            weights.append(1)
+            scalings.append(True)
+
+            inputsClustering.append(adjProfiles[i]["cooling"])
+            weights.append(1)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles[i]["occ"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles[i]["carcharging_ondemand"])
+            weights.append(0)      # This profile is not used at all for clustering
+            scalings.append(False)  # This profile is not scaled
+
+            inputsClustering.append(adjProfiles[i]["carprofile"])
+            weights.append(0)      # This profile is not used at all for clustering
+            scalings.append(False)  # This profile is not scaled
+
+            inputsClustering.append(adjProfiles[i]["generationPV"])
+            weights.append(1)
+            scalings.append(True)
+
+            inputsClustering.append(adjProfiles[i]["generationSTC"])
+            weights.append(1)
+            scalings.append(True)
+
+        # Higher weight for outdoor temperature and central generation profiles,
+        # since they each occur only once (unlike the building profiles)
+        # and should therefore receive the same weight as the number of buildings.
+
         # ambient temperature
         inputsClustering.append(adjProfiles["T_e"])
+        weights.append(len(self.district))
+        scalings.append(True)
+
         if centralEnergySupply == True:
+
+            # Heating and cooling networks losses
+            inputsClustering.append(adjProfiles["losses_heating_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["losses_cooling_network"])
+            weights.append(0)
+            scalings.append(False)
+
             # central renewable generation
             inputsClustering.append(adjProfiles["generationCentralWT"])
+            weights.append(len(self.district))
+            scalings.append(True)
+
             inputsClustering.append(adjProfiles["generationCentralPV"])
+            weights.append(len(self.district))
+            scalings.append(True)
+
             inputsClustering.append(adjProfiles["generationCentralSTC"])
-
-
-
-        # weights for clustering algorithm indicating the focus onto this profile
-        weights = np.ones(len(inputsClustering))
-        # higher weight for outdoor temperature (should at least have the same weight as number of buildings)
-        weights[-1] = len(self.scenario["id"])
+            weights.append(len(self.district))
+            scalings.append(True)
 
         # Perform clustering
         (newProfiles, nc, y, z, transfProfiles) = cm.cluster(np.array(inputsClustering),
                                                              number_clusters=self.time["clusterNumber"],
                                                              len_cluster=int(initialArrayLenght),
-                                                             weights=weights)
+                                                             weights=weights,
+                                                             scalings=scalings)
 
         # safe clustered profiles of all buildings
-        for id in self.scenario["id"]:
-            if centralEnergySupply == False:
-                index_house = int(7)    # number of profiles per building
-            else:
-                index_house = int(4)
-            self.district[id]["user"].elec_cluster = newProfiles[index_house * id]
-            self.district[id]["user"].dhw_cluster = newProfiles[index_house * id + 1]
-            self.district[id]["user"].heat_cluster = newProfiles[index_house * id + 2]
-            self.district[id]["user"].cooling_cluster = newProfiles[index_house * id + 3]
-            if centralEnergySupply == False:
-                self.district[id]["user"].car_cluster = newProfiles[index_house * id + 4] * self.scenario.loc[id]["EV"]
-                self.district[id]["generationPV_cluster"] = newProfiles[index_house * id + 5] \
-                                                        * self.district[id]["buildingFeatures"]["PV"]
-                self.district[id]["generationSTC_cluster"] = newProfiles[index_house * id + 6] \
-                                                         * self.district[id]["buildingFeatures"]["STC"]
+        for i in range(len(self.district)):
+            index_house = int(9)    # number of profiles per building
+            self.district[i]["user"].elec_cluster = newProfiles[index_house * i]
+            self.district[i]["user"].dhw_cluster = newProfiles[index_house * i + 1]
+            self.district[i]["user"].heat_cluster = newProfiles[index_house * i + 2]
+            self.district[i]["user"].cooling_cluster = newProfiles[index_house * i + 3]
+            self.district[i]["user"].occ_cluster = newProfiles[index_house * i + 4]
+            self.district[i]["user"].carcharging_ondemand_cluster = newProfiles[index_house * i + 5]
+            self.district[i]["user"].carprofile_cluster = newProfiles[index_house * i + 6]
+            self.district[i]["generationPV_cluster"] = newProfiles[index_house * i + 7]
+            self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
 
         if centralEnergySupply == True:
-            self.site["T_e_cluster"] = newProfiles[-4]
+            self.site["T_e_cluster"] = newProfiles[-6]
+            self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[-5]
+            self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[-4]
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[-3]
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[-2]
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[-1]
@@ -1234,7 +1535,6 @@ class Datahandler:
         self.resultsOptimization = []
 
         for cluster in range(self.time["clusterNumber"]):
-
             # optimize operating costs of the district for current cluster
             self.optimizer = Optimizer(self, cluster, self.gurobiConfig)
             results_temp = self.optimizer.run_cen_opti()
@@ -1252,6 +1552,35 @@ class Datahandler:
         """
 
         # initialize KPI class
-        self.KPIs = KPIs(self, self.decentral_device_data)
+        self.KPIs = KPIs(self, decentral_config=self.decentral_device_data)
         # calculate KPIs
-        self.KPIs.calculateAllKPIs(self, self.ecoData)
+        self.KPIs.calculateAllKPIs(self)
+
+
+def generate_demands_worker_wrapper(args):
+    """
+    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
+    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
+    """
+    self_ref, building, calcUserProfiles, saveUserProfiles = args
+    self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles)
+
+    result = {
+        "unique_name": building["unique_name"],
+        "elec": building["user"].elec,
+        'dhw': building["user"].dhw,
+        'cooling': building["user"].cooling,
+        'heating': building["user"].heat,
+        'occ': building["user"].occ,
+        'carcharging_ondemand': building["user"].carcharging_ondemand,
+        'carprofile': building["user"].carprofile,
+        "ev_capacity": building["user"].ev_capacity,
+        'gains': building["user"].gains,
+        'id': building['buildingFeatures']["gmlId"],
+        "nb_units": building["user"].nb_units,
+        'nb_occ': building["user"].nb_occ,
+        'envelope': building["envelope"],
+        'night_setback': building["buildingFeatures"]["night_setback"],
+    }
+
+    return result

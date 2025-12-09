@@ -1,2 +1,12 @@
-id;gmlId;building;year;construction_type;night_setback;retrofit;area;number_of_floors;elec;height;heater;PV;STC;EV;BAT;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging;thermalTransmittanceFacade;thermalTransmittanceWindow;thermalTransmittanceRoof;thermalTransmittanceFloor;roofShape;cardinalDirection;roofInclination;surfaceAreaSuitableForSolarPV
-0;urn:ngsi-ld:Building:52078Buschstrasse1c;SFH;2018;None;1;1.0;100;2.0;;7.5;BOI;1;1;1;1;35.0;1.0;6000.0;0.4;0.04;0;on_demand;0.17;1.1;0.15;0.17;sloped|sloped;70|246;36.0|38.0;26.0|23.0
+id;building;year;retrofit;construction_type;night_setback;area;heater;cooling;EV;f_TES;f_BAT;f_PV;f_STC;gamma_PV;ev_charging
+0;OB;1970;0;2;0;273;heat_grid;0;0;35;0;0;0;0;on_demand
+1;OB;1970;1;2;0;273;heat_grid;0;0;35;0;0;0;0;on_demand
+2;OB;1970;2;2;0;273;heat_grid;0;0;35;0;0;0;0;on_demand
+3;SFH;1970;0;2;0;273;heat_grid;0;0;35;0;0;0;0;on_demand
+4;SFH;1970;1;2;0;273;heat_grid;0;0;35;0;0;0;0;on_demand
+5;SFH;1970;2;2;0;273;heat_grid;0;0;35;0;0;0;0;on_demand
+
+
+
+
+
