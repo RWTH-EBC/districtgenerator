@@ -612,8 +612,7 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        if generateDemands:
-            self.generateDemands(name, calcUserProfiles, saveUserProfiles)
+        self.generateDemands(name, calcUserProfiles, saveUserProfiles)
         if designDevs:
             self.designDevicesComplete(saveGenProfiles)
         if clustering:

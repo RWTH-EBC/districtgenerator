@@ -1,518 +1,671 @@
+# opti_decentral.py — revised
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created 26.02.2024
-@author: Joel Schölzel
+Decentralized operational optimization for a building district.
+Created: 2024-02-26, revised: 2025-09-29
+Author: Joel Schölzel
 """
-import os, json
-import gurobipy as gp
 import time
+import gurobipy as gp
 
-def run_opti_decentral(model, data, cluster):
+def _get_Te_series(siteData, cluster_idx, T_len):
+    """
+    Robust extractor for ambient temperature [°C] over the cluster horizon.
+    Tries several common keys and both dict/attribute styles.
+    Falls back to 0°C if nothing found.
+    """
+    possible = [
+        "T_e_cluster", "Te_cluster", "Ta_cluster", "ambient_temperature_cluster",
+        "T_e", "Te", "Ta", "ambient_temperature", "outdoor_temperature",
+        "weather_Te_cluster", "weather_Te"
+    ]
+
+    def _take(val):
+        # Accept dict-of-clusters or a flat sequence; trim/pad to T_len
+        import collections
+        if isinstance(val, dict):
+            if cluster_idx in val:
+                seq = list(val[cluster_idx])
+            else:
+                # take any first key if cluster index missing
+                try:
+                    first_key = next(iter(val))
+                    seq = list(val[first_key])
+                except StopIteration:
+                    return None
+        else:
+            seq = list(val)
+        if len(seq) >= T_len:
+            return seq[:T_len]
+        # pad with last value if too short
+        pad_val = seq[-1] if len(seq) else 0.0
+        return seq + [pad_val] * (T_len - len(seq))
+
+    # dict access
+    if isinstance(siteData, dict):
+        for k in possible:
+            if k in siteData:
+                got = _take(siteData[k])
+                if got is not None:
+                    return got
+    # attribute access
+    for k in possible:
+        if hasattr(siteData, k):
+            got = _take(getattr(siteData, k))
+            if got is not None:
+                return got
+
+    print("[warn] No ambient temperature found in data.site → using 0°C fallback.")
+    return [0.0] * T_len
 
 
+def _cop_safe(Te, Ts, grade, min_delta=3.0, cop_min=1.0, cop_max=8.0):
+    """
+    Compute a numerically safe COP coefficient for linear constraints:
+    COP = grade * (273.15 + Ts) / max(min_delta, Ts - Te), then clamp.
+    """
+    delta = max(min_delta, Ts - Te)
+    cop = grade * (273.15 + Ts) / delta
+    return max(cop_min, min(cop, cop_max))
+
+def run_opti_decentral(model, data, cluster: int):
+    """
+    Min-cost / min-CO2 operation of decentralized devices with optional heat sharing.
+    Expects 'data' to provide: time, ecoData, site, decentral_device_data, params_ehdo_model, district.
+    Optionally: data.heat_link_cap (nb x nb) in W, otherwise no heat links.
+    """
+
+    # ---------------------------
+    # Unpack data & basic sizes
+    # ---------------------------
     timeData = data.time
     ecoData = data.ecoData
     siteData = data.site
     param_dec_devs = data.decentral_device_data
-    model_param_eh = data.params_ehdo_model
+    model_param = data.params_ehdo_model
     buildingData = data.district
 
-    now = time.time()
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Setting up the model
-    # number of buildings in neighborhood
     nb = len(buildingData)
     time_steps = range(int(timeData["clusterLength"] / timeData["timeResolution"]))
-    dt = timeData["timeResolution"] / timeData["dataResolution"]
+    dt = timeData["timeResolution"] / timeData["dataResolution"]  # factor for Wh integration
     last_time_step = len(time_steps) - 1
 
-    T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
-    Q_DHW = {}      # DHW (domestic hot water) demand [W]
-    Q_heating = {}  # space heating [W]
-    PV_gen = {}     # electricity generation of PV [W]
-    STC_heat = {}   # heat generation of SolarThermal [W]
-    elec_dem = {}   # electricity demand for appliances and lighting [W]
-    occ = {}
+    # optional heat link capacities (W). If not provided: all zeros (no links)
+    heat_link_cap = getattr(data, "heat_link_cap", None)
+    if heat_link_cap is None:
+        heat_link_cap = [[0.0 if i != j else 0.0 for j in range(nb)] for i in range(nb)]
+
+    # ---------------------------
+    # Profiles & exogenous series
+    # ---------------------------
+    #T_e = siteData["T_e_cluster"][cluster]   # list of °C
+    T_len = int(timeData["clusterLength"] / timeData["timeResolution"])
+    T_e = _get_Te_series(siteData, cluster, T_len)  # list[float] length == T_len
+    Q_DHW, Q_heating, PV_gen, STC_heat, elec_dem = {}, {}, {}, {}, {}
+
     for n in range(nb):
-        Q_DHW[n] = buildingData[n]["user"].dhw_cluster[cluster]
+        Q_DHW[n]     = buildingData[n]["user"].dhw_cluster[cluster]
         Q_heating[n] = buildingData[n]["user"].heat_cluster[cluster]
-        elec_dem[n] = buildingData[n]["user"].elec_cluster[cluster]
-        occ[n] = buildingData[n]["user"].occ[:len(elec_dem[n])]
-        try:
-            PV_gen[n] = buildingData[n]["generationPV_cluster"][cluster]
-            STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
-        except:
-            PV_gen[n] = [0] * len(elec_dem[n])
-            STC_heat[n] = [0] * len(elec_dem[n])
+        elec_dem[n]  = buildingData[n]["user"].elec_cluster[cluster]
+        # optional gens:
+        PV_gen[n]  = buildingData[n].get("generationPV_cluster", {}).get(cluster, [0.0]*len(elec_dem[n]))
+        STC_heat[n]= buildingData[n].get("generationSTC_cluster", {}).get(cluster, [0.0]*len(elec_dem[n]))
 
-
-    # %% Sets of energy conversion systems
-    # heat generation devices (heat pump (HP), electric heating (EH),
-    # solar thermal collector (STC))
-    ecs_heat = ("HP", "EH", "STC") # heat producing devices
-    ecs_power = ("HP", "EH", "PV")  # power consuming/producing devices 
-    ecs_storage = ("TES", "BAT")  # storage systems
-    hp_modi = ("HP35", "HP55")  # HP operation modes
-
-    try:
-        a = buildingData[0]["capacities"]
-    except KeyError:
-        for n in range(nb):
-            buildingData[n]["capacities"] = {}
-            buildingData[n]["capacities"]["PV"] = {}
-            buildingData[n]["capacities"]["STC"] = {}
-            for dev in ["HP", "EH", "BAT", "TES"]:
-                buildingData[n]["capacities"][dev] = 0
-            buildingData[n]["capacities"]["PV"]["area"] = 0
-            buildingData[n]["capacities"]["STC"]["area"] = 0
-
-    # %% TECHNICAL PARAMETERS
-    soc_nom = {}
-    soc_nom["TES"] = {}
-    soc_nom["BAT"] = {}
-    soc_init = {}
-    soc_init["BAT"] = {}
-    soc_init["TES"] = {}
+    # ensure capacities exist
     for n in range(nb):
-        # Define nominal SOC_nom according to capacities
-        soc_nom["TES"][n] = buildingData[n]["capacities"]["TES"]
-        soc_nom["BAT"][n] = buildingData[n]["capacities"]["BAT"]
-        # Initial state of charge
-        soc_init["TES"][n] = soc_nom["TES"][n] * 0.5  # Wh
-        soc_init["BAT"][n] = soc_nom["BAT"][n] * 0.5  # Wh
+        buildingData[n].setdefault("capacities", {})
+        caps = buildingData[n]["capacities"]
+        caps.setdefault("PV", {"area": 0.0})
+        caps.setdefault("STC", {"area": 0.0})
+        for dev in ["HP", "EH", "BAT", "TES"]:
+            caps.setdefault(dev, 0.0)
 
-        # %% TECHNICAL CONSTRAINTS
+    # ---------------------------
+    # Sets / devices
+    # ---------------------------
+    ecs_heat = ("HP", "EH", "STC")     # heat-producing paths
+    ecs_power = ("HP", "EH")           # electric consumers (PV handled exogenously via PV_gen)
+    ecs_storage = ("TES", "BAT")
+    hp_modi = ("HP35", "HP55")
 
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # CREATE VARIABLES
-
-    # %% OPERATIONAL BUILDING VARIABLES
-    #   NOTE: Subscript "dom" = "domestic"
-    # Electrical power to/from electricity-based domestic devices
-    power_dom = {}
-    for device in ecs_power:
-        power_dom[device] = {}
-        for n in range(nb):
-            power_dom[device][n] = {}
-            for t in time_steps:
-                power_dom[device][n][t] = model.addVar(vtype="C",name="power_" + device + "_n" + str(n) + "_t" + str(t))
-
-    # Heat to/from devices
-    heat_dom = {}
-    for device in ecs_heat:
-        heat_dom[device] = {}
-        for n in range(nb):
-            heat_dom[device][n] = {}
-            for t in time_steps:
-                heat_dom[device][n][t] = model.addVar(vtype="C",name="heat_" + device + "_n" + str(n) + "_t" + str(t))
-
-    power_mode= {}
-    for device in hp_modi:
-        power_mode[device] = {}
-        for n in range(nb):
-            power_mode[device][n] = {}
-            for t in time_steps:
-                power_mode[device][n][t] = model.addVar(vtype="C",name="power_mode_" + device + "_n" + str(n) + "_t" + str(t))
-
-    # Heat to/from devices
-    heat_mode = {}
-    for device in hp_modi:
-        heat_mode[device] = {}
-        for n in range(nb):
-            heat_mode[device][n] = {}
-            for t in time_steps:
-                heat_mode[device][n][t] = model.addVar(vtype="C",name="heat_mode_" + device + "_n" + str(n) + "_t" + str(t))
-
-    # Heat to/from devices
-    dhw_dom = {}
-    for device in ["EH"]:
-        dhw_dom[device] = {}
-        for n in range(nb):
-            dhw_dom[device][n] = {}
-            for t in time_steps:
-                dhw_dom[device][n][t] = model.addVar(vtype="C",name="heat_" + device + "_n" + str(n) + "_t" + str(t))
-
-    # Heat transfer between buildings
-    heat_connection = {}
-    for i in range(nb):
-        heat_connection[i] = {}
-        for j in range(nb):
-            if i != j:  # no self-connections
-                heat_connection[i][j] = {}
-                for t in time_steps:
-                    heat_connection[i][j][t] = model.addVar(
-                        vtype="C",
-                        name=f"heat_conn_n{i}_n{j}_t{t}"
-                    )
-    # Binary decision for possible connection existence (investment variable)
-    connection_exists = {}
-    for i in range(nb):
-        connection_exists[i] = {}
-        for j in range(nb):
-            if i != j:
-                connection_exists[i][j] = model.addVar(
-                    vtype="B",  # binary: 1 if pipe installed
-                    name=f"conn_exists_n{i}_n{j}"
-                )
-
-    # Storage variables
-    soc_dom = {}  # State of charge
-    ch_dom = {}
-    dch_dom = {}
-    for device in ecs_storage:
-        soc_dom[device] = {}  # Energy (kWh)
-        ch_dom[device] = {}  # Power(kW)
-        dch_dom[device] = {}  # Power (kW)
-        for n in range(nb):
-            soc_dom[device][n] = {}
-            ch_dom[device][n] = {}
-            dch_dom[device][n] = {}
-            for t in time_steps:
-                soc_dom[device][n][t] = model.addVar(vtype="C",name="soc_" + device + "_n" + str(n) + "_t" + str(t))
-                ch_dom[device][n][t] = model.addVar(vtype="C",name="ch_dom_" + device + "_n" + str(n) + "_t" + str(t))
-                dch_dom[device][n][t] = model.addVar(vtype="C",name="dch_dom_" + device + "_n" + str(n) + "_t" + str(t))
-
-    # Residual building demands (in kW)  [Sum for each building of all devices]
-    res_dom = {}
-    res_dom["power"] = {}
-    res_dom["feed"] = {}
+    # ---------------------------
+    # Initial SoCs (Wh)
+    # ---------------------------
+    soc_nom = {"TES": {}, "BAT": {}}
+    soc_init = {"TES": {}, "BAT": {}}
     for n in range(nb):
-        # Electricity demand
-        res_dom["power"][n] = {}
-        res_dom["feed"][n] = {}
-        for t in time_steps:
-            res_dom["power"][n][t] = model.addVar(vtype="C",name="residual_power_n" + str(n) + "_t" + str(t))
-            res_dom["feed"][n][t] = model.addVar(vtype="C",name="residual_feed_n" + str(n) + "_t" + str(t))
+        soc_nom["TES"][n]  = buildingData[n]["capacities"]["TES"]
+        soc_nom["BAT"][n]  = buildingData[n]["capacities"]["BAT"]
+        soc_init["TES"][n] = 0.5 * soc_nom["TES"][n]
+        soc_init["BAT"][n] = 0.5 * soc_nom["BAT"][n]
 
-    # binary variable for each house to avoid simuultaneous feed-in and purchase of electric energy
-    binary = {}
-    for device in ["HLINE","BAT"]:
-        binary[device] = {}
-        for n in range(nb):
-            binary[device][n] = {}
-            for t in time_steps:
-                binary[device][n][t] = model.addVar(vtype=gp.GRB.BINARY, name="factor_binary_" + device + "_n" + str(n) + "_t" + str(t))
+    # ---------------------------
+    # Variables
+    # ---------------------------
+    # Electric power of devices
+    power_dom = {dev: {n: {t: model.addVar(vtype="C",
+                                           name=f"power_{dev}_n{n}_t{t}") 
+                           for t in time_steps}
+                       for n in range(nb)}
+                 for dev in ecs_power}
 
-    # Residual network demand
-    residual = {}
-    residual["power"] = {}  # Residual network electricity demand
-    residual["feed"] = {}  # Residual feed in
-    for t in time_steps:
-        residual["power"][t] = model.addVar(vtype="C",name="P_dem_total_" + str(t))
-        residual["feed"][t] = model.addVar(vtype="C",name="P_inj_total_" + str(t))
+    # Heat output of devices
+    heat_dom = {dev: {n: {t: model.addVar(vtype="C",
+                                          name=f"heat_{dev}_n{n}_t{t}")
+                          for t in time_steps}
+                      for n in range(nb)}
+                for dev in ecs_heat}
 
-    # activation variable for trafo load
-    yTrafo = model.addVars(time_steps,vtype="B",name="yTrafo_" + str(t))
+    # HP modes
+    power_mode = {m: {n: {t: model.addVar(vtype="C",
+                                          name=f"power_mode_{m}_n{n}_t{t}")
+                          for t in time_steps}
+                      for n in range(nb)}
+                  for m in hp_modi}
+    heat_mode  = {m: {n: {t: model.addVar(vtype="C",
+                                          name=f"heat_mode_{m}_n{n}_t{t}")
+                          for t in time_steps}
+                      for n in range(nb)}
+                  for m in hp_modi}
 
+    # DHW via EH split (falls du das getrennt brauchst)
+    dhw_dom = {"EH": {n: {t: model.addVar(vtype="C",
+                                          name=f"dhw_EH_n{n}_t{t}")
+                          for t in time_steps}
+                      for n in range(nb)}}
 
-    # %% BALANCING UNIT VARIABLES
+    # Directed heat flows between buildings (i→j)
+    heat_connection = {i: {j: {t: model.addVar(vtype="C",
+                                               name=f"heat_conn_n{i}_n{j}_t{t}")
+                               for t in time_steps}
+                           for j in range(nb) if j != i}
+                       for i in range(nb)}
+    # Net heat import per building
+    net_heat_import = {n: {t: model.addVar(vtype="C",
+                                           lb=-gp.GRB.INFINITY,
+                                           name=f"net_heat_import_n{n}_t{t}")
+                           for t in time_steps}
+                       for n in range(nb)}
 
-    # Electrical power to/from grid at GNP
-    # TODO: rename
-    power = {}
-    power["from_grid"] = {}
-    power["to_grid"] = {}
-    for t in time_steps:
-        power["from_grid"][t] = model.addVar(vtype="C",lb=0,name="P_dem_gcp_" + str(t))
-        power["to_grid"][t] = model.addVar(vtype="C", lb=0, name="P_inj_gcp_" + str(t))
+    # Storage vars
+    soc_dom = {dev: {n: {t: model.addVar(vtype="C",
+                                         name=f"soc_{dev}_n{n}_t{t}")
+                         for t in time_steps}
+                     for n in range(nb)}
+               for dev in ecs_storage}
+    ch_dom  = {dev: {n: {t: model.addVar(vtype="C",
+                                         name=f"ch_{dev}_n{n}_t{t}")
+                         for t in time_steps}
+                     for n in range(nb)}
+               for dev in ecs_storage}
+    dch_dom = {dev: {n: {t: model.addVar(vtype="C",
+                                         name=f"dch_{dev}_n{n}_t{t}")
+                         for t in time_steps}
+                     for n in range(nb)}
+               for dev in ecs_storage}
 
-    # total energy amounts taken from grid
-    from_grid_total_el = model.addVar(vtype="C",name="from_grid_total_el")
-    # total power to grid
-    to_grid_total_el = model.addVar(vtype="C",name="to_grid_total_el")
+    # Residuals per building
+    res_dom = {"power": {n: {t: model.addVar(vtype="C",
+                                             name=f"residual_power_n{n}_t{t}")
+                             for t in time_steps}
+                         for n in range(nb)},
+               "feed":  {n: {t: model.addVar(vtype="C",
+                                             name=f"residual_feed_n{n}_t{t}")
+                             for t in time_steps}
+                         for n in range(nb)}}
 
-    # daily peak
-    days = [0,1,2,3,4,5,6]
-    daily_peak = {}
-    for d in days:
-        daily_peak[d] = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="peak_network_load")
-    peaksum = model.addVar(vtype="c",lb=-gp.GRB.INFINITY,name="sum_peak_daily_network_load")
+    # Binary: either import or feed at building level
+    binary = {"HLINE": {n: {t: model.addVar(vtype=gp.GRB.BINARY,
+                                            name=f"bin_HLINE_n{n}_t{t}")
+                            for t in time_steps}
+                        for n in range(nb)},
+              "BAT":   {n: {t: model.addVar(vtype=gp.GRB.BINARY,
+                                            name=f"bin_BAT_n{n}_t{t}")
+                            for t in time_steps}
+                        for n in range(nb)}}
 
-    # Total operational costs
-    operational_costs = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="Cost_total")
-    # Total gross CO2 emissions
-    co2_total = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="Emission_total")
+    # Residual neighborhood totals
+    residual = {"power": {t: model.addVar(vtype="C",
+                                          name=f"P_dem_total_{t}")
+                          for t in time_steps},
+                "feed":  {t: model.addVar(vtype="C",
+                                          name=f"P_inj_total_{t}")
+                          for t in time_steps}}
 
-    # Objective function
-    obj = model.addVar(vtype="C",lb=-gp.GRB.INFINITY,name="obj")
+    # Grid exchange at PCC/GCP
+    power = {"from_grid": {t: model.addVar(vtype="C", lb=0.0,
+                                           name=f"P_dem_gcp_{t}")
+                           for t in time_steps},
+             "to_grid":   {t: model.addVar(vtype="C", lb=0.0,
+                                           name=f"P_inj_gcp_{t}")
+                           for t in time_steps}}
 
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # DEFINE OBJECTIVE FUNCTION
+    # Trafostellung (kein gleichzeitiges Beziehen/Einspeisen am GCP)
+    yTrafo = model.addVars(time_steps, vtype="B", name="yTrafo")
+
+    # Aggregierte Größen
+    from_grid_total_el = model.addVar(vtype="C", name="from_grid_total_el")
+    to_grid_total_el   = model.addVar(vtype="C", name="to_grid_total_el")
+    daily_peak = {d: model.addVar(vtype="C", lb=-gp.GRB.INFINITY,
+                                  name=f"peak_network_load_d{d}")
+                  for d in range(7)}
+    peaksum = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="sum_peak_daily_network_load")
+
+    operational_costs = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="Cost_total")
+    co2_total         = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="Emission_total")
+    obj               = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="obj")
+
+    # ---------------------------
+    # Objective
+    # ---------------------------
     model.update()
-    model.setObjective(obj)
-    model.ModelSense = gp.GRB.MINIMIZE
+    model.setObjective(obj, gp.GRB.MINIMIZE)
 
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # ADD CONSTRAINTS
+    # ---------------------------
+    # Constraints
+    # ---------------------------
 
-    # Device generation <= device capacity
+    # Device capacity limits
     for n in range(nb):
         for t in time_steps:
-            for device in ["HP"]:
-                model.addConstr(heat_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_heat_cap_" + str(n))
+            model.addConstr(heat_dom["HP"][n][t] <= buildingData[n]["capacities"]["HP"],
+                            name=f"HP_heat_cap_{n}_{t}")
+            model.addConstr(power_dom["EH"][n][t] <= buildingData[n]["capacities"]["EH"],
+                            name=f"EH_el_cap_{n}_{t}")
+            model.addConstr(heat_dom["STC"][n][t] <= STC_heat[n][t],
+                            name=f"STC_heat_avail_{n}_{t}")
 
-    for n in range(nb):
-        for t in time_steps:
-            for device in ["EH"]:
-                model.addConstr(power_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_heat_cap_" + str(n))
+            # HP mode split
+            model.addConstr(heat_dom["HP"][n][t] ==
+                            heat_mode["HP35"][n][t] + heat_mode["HP55"][n][t],
+                            name=f"HP_heat_split_{n}_{t}")
+            model.addConstr(power_dom["HP"][n][t] ==
+                            power_mode["HP35"][n][t] + power_mode["HP55"][n][t],
+                            name=f"HP_power_split_{n}_{t}")
 
-    for n in range(nb):
-        for t in time_steps:
-            model.addConstr(heat_dom["STC"][n][t] <= STC_heat[n][t], name=str("STC") + "_heat_cap_" + str(n) + str(t))
-
-
-    for n in range(nb):
-        for t in time_steps:
-            # Energy balance heat pump
-            model.addConstr(heat_dom["HP"][n][t] == heat_mode["HP35"][n][t] + heat_mode["HP55"][n][t],
-                name="Conversion_heat_" + str(n) + "_" + str(t))
-
-            model.addConstr(power_dom["HP"][n][t] == power_mode["HP35"][n][t] + power_mode["HP55"][n][t],
-                name="Conversion_power_" + str(n) + "_" + str(t))
-
-            # heat generation of heat pump for each modus
+            # Mode eligibility by construction year
             if buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
-                # HP can only run in HP35 mode if building is new enough
-                model.addConstr(power_mode["HP55"][n][t] == 0,
-                                name="Activity_mode_" + str(n) + "_" + str(t))
+                model.addConstr(power_mode["HP55"][n][t] == 0, name=f"HP_mode_only35_{n}_{t}")
             elif buildingData[n]["envelope"].construction_year < 1995 and buildingData[n]["capacities"]["HP"] > 0:
-                model.addConstr(power_mode["HP35"][n][t] == 0,
-                                name="Activity_mode_" + str(n) + "_" + str(t))
+                model.addConstr(power_mode["HP35"][n][t] == 0, name=f"HP_mode_only55_{n}_{t}")
 
-            # Energy conversion heat pump modus 35
-            model.addConstr(heat_mode["HP35"][n][t] == power_mode["HP35"][n][t] * param_dec_devs["HP"]["grade"]
-                            * (273.15 + 35) / (35 - T_e[t]),
-                            name="Conversion_HP35_" + str(n) + "_" + str(t))
-            # Energy conversion heat pump modus 55
-            model.addConstr(heat_mode["HP55"][n][t] == power_mode["HP55"][n][t] * param_dec_devs["HP"]["grade"]
-                            * (273.15 + 55) / (55 - T_e[t]),
-                            name="Conversion_HP55_" + str(n) + "_" + str(t))
+            # HP conversion (simple Carnot-like)
+            # Replace inside the time-step loop where HP conversions are set:
+            cop35 = _cop_safe(Te=T_e[t], Ts=35.0, grade=param_dec_devs["HP"]["grade"])
+            cop55 = _cop_safe(Te=T_e[t], Ts=55.0, grade=param_dec_devs["HP"]["grade"])
 
+            model.addConstr(
+                heat_mode["HP35"][n][t] == power_mode["HP35"][n][t] * cop35,
+                name=f"Conv_HP35_{n}_{t}"
+            )
+            model.addConstr(
+                heat_mode["HP55"][n][t] == power_mode["HP55"][n][t] * cop55,
+                name=f"Conv_HP55_{n}_{t}"
+)
 
-            # Electric heater
+            # Electric heater split
             model.addConstr(heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] == power_dom["EH"][n][t],
-                                name="EH_heat_power_dhw_balance_" + str(n) + "_" + str(t))
+                            name=f"EH_heat_power_dhw_balance_{n}_{t}")
 
-    # min and max storage level, charging and discharging
+    # Storage limits & efficiencies
+    BIGM = 1e7
     for n in range(nb):
-        for device in ecs_storage:
+        for t in time_steps:
+            # Charge/discharge power caps
+            for dev in ecs_storage:
+                cap = buildingData[n]["capacities"][dev]
+                model.addConstr(ch_dom[dev][n][t]  <= cap * param_dec_devs[dev]["coeff_ch"],
+                                name=f"max_ch_{dev}_{n}_{t}")
+                model.addConstr(dch_dom[dev][n][t] <= cap * param_dec_devs[dev]["coeff_ch"],
+                                name=f"max_dch_{dev}_{n}_{t}")
+                # SOC bounds
+                model.addConstr(soc_dom[dev][n][t] <= param_dec_devs[dev]["soc_max"] * cap,
+                                name=f"soc_max_{dev}_{n}_{t}")
+                model.addConstr(soc_dom[dev][n][t] >= param_dec_devs[dev]["soc_min"] * cap,
+                                name=f"soc_min_{dev}_{n}_{t}")
+
+            # TES energy balance (all heat goes to TES; demand bedient aus TES + heat import)
+            if t == 0:
+                soc_prev_tes = soc_init["TES"][n]
+            else:
+                soc_prev_tes = soc_dom["TES"][n][t-1]
+
+            model.addConstr(
+                soc_dom["TES"][n][t] ==
+                soc_prev_tes * param_dec_devs["TES"]["eta_standby"]
+                + (ch_dom["TES"][n][t] * param_dec_devs["TES"]["eta_ch"]
+                   - dch_dom["TES"][n][t] / param_dec_devs["TES"]["eta_ch"]) * dt,
+                name=f"TES_balance_{n}_{t}"
+            )
+
+            # All available heat is charged to TES
+            model.addConstr(
+                ch_dom["TES"][n][t] ==
+                heat_dom["HP"][n][t] + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
+                name=f"TES_charging_{n}_{t}"
+            )
+
+            # BAT energy balance
+            if t == 0:
+                soc_prev_bat = soc_init["BAT"][n]
+            else:
+                soc_prev_bat = soc_dom["BAT"][n][t-1]
+
+            model.addConstr(
+                soc_dom["BAT"][n][t] ==
+                soc_prev_bat * param_dec_devs["BAT"]["eta_standby"]
+                + (ch_dom["BAT"][n][t] * param_dec_devs["BAT"]["eta_ch"]
+                   - dch_dom["BAT"][n][t] / param_dec_devs["BAT"]["eta_ch"]) * dt,
+                name=f"BAT_balance_{n}_{t}"
+            )
+
+            # No simultaneous charge & discharge for BAT
+            model.addConstr(dch_dom["BAT"][n][t] <= binary["BAT"][n][t] * BIGM, name=f"BAT_bin1_{n}_{t}")
+            model.addConstr(ch_dom["BAT"][n][t]  <= (1 - binary["BAT"][n][t]) * BIGM, name=f"BAT_bin2_{n}_{t}")
+
+    # Net heat import definition & heat link capacities
+    for i in range(nb):
+        for t in time_steps:
+            inflow  = gp.quicksum(heat_connection[j][i][t] for j in range(nb) if j != i)
+            outflow = gp.quicksum(heat_connection[i][j][t] for j in range(nb) if j != i)
+            model.addConstr(net_heat_import[i][t] == inflow - outflow, name=f"net_heat_n{i}_t{t}")
+
+        for j in range(nb):
+            if i == j: 
+                continue
             for t in time_steps:
-                if device == "TES":
-                    model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                    name="max_ch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
-                    model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                    name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
-                else:
-                    model.addConstr(ch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                    name="max_ch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
-                    model.addConstr(dch_dom[device][n][t] <= buildingData[n]["capacities"][device] * param_dec_devs[device]["coeff_ch"],
-                                    name="max_dch_cap_" + str(device) + "_" + str(n) + "_" + str(t))
+                model.addConstr(heat_connection[i][j][t] <= heat_link_cap[i][j],
+                                name=f"heat_link_cap_{i}_{j}_{t}")
 
-                model.addConstr(soc_dom[device][n][t] <= param_dec_devs[device]["soc_max"] * buildingData[n]["capacities"][device],
-                                name="max_soc_bat_" + str(device) + "_" + str(n) + "_" + str(t))
-                model.addConstr(soc_dom[device][n][t] >= param_dec_devs[device]["soc_min"] * buildingData[n]["capacities"][device],
-                                name="max_soc_bat_" + str(device) + "_" + str(n) + "_" + str(t))
-
-    # %% DOMESTIC FLEXIBILITIES
-
-    # SOC coupled over all times steps (Energy amount balance, kWh)
-    for n in range(nb):
-        # Energy balance energy storages
-        for t in time_steps:
-            device = "TES"
-            if t == 0:
-                    soc_prev = soc_init[device][n]
-            else:
-                    soc_prev = soc_dom[device][n][t - 1]
-
-            model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"]
-                                                     + (ch_dom[device][n][t]  * param_dec_devs[device]["eta_ch"]
-                                                     - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"])*dt,
-                            name= str(device) + "_storage_balance_" + str(n) + "_" + str(t))
-
-            if t == last_time_step:
-                model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
-                                name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
-
-            model.addConstr(ch_dom[device][n][t] == heat_dom["HP"][n][t] 
-                            + heat_dom["EH"][n][t] + dhw_dom["EH"][n][t] + heat_dom["STC"][n][t],
-                            name="Heat_charging_" + str(n) + "_" + str(t))
-            model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == Q_DHW[n][t] + Q_heating[n][t],
-                            name="Heat_discharging_" + str(n) + "_" + str(t))
-
-            device = "BAT"
-            if t == 0:
-                soc_prev = soc_init[device][n]
-            else:
-                soc_prev = soc_dom[device][n][t - 1]
-
-            model.addConstr(soc_dom[device][n][t] == soc_prev * param_dec_devs[device]["eta_standby"]
-                            + (ch_dom[device][n][t] * param_dec_devs[device]["eta_ch"]
-                            - dch_dom[device][n][t] / param_dec_devs[device]["eta_ch"])*dt,
-                            name=str(device) + "_storage_balance_" + str(n) + "_" + str(t))
-
-            if t == last_time_step:
-                model.addConstr(soc_dom[device][n][t] == soc_init[device][n],
-                                name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
-
-            model.addConstr(dch_dom[device][n][t] <= binary[device][n][t] * 10000000,
-                            name="Binary1_bat_" + str(n) + "_" + str(t))
-            model.addConstr(ch_dom[device][n][t] <= (1 - binary[device][n][t]) * 10000000,
-                            name="Binary2_bat_" + str(n) + "_" + str(t))
-
+    # Residual per-building: either import or feed electricity
     for n in range(nb):
         for t in time_steps:
-            model.addConstr(res_dom["power"][n][t] <= binary["HLINE"][n][t] * 10000000,
-                            name="Binary1_" + str(n) + "_" + str(t))
-            model.addConstr(res_dom["feed"][n][t] <= (1 - binary["HLINE"][n][t]) * 10000000,
-                            name="Binary2_" + str(n) + "_" + str(t))
+            model.addConstr(res_dom["power"][n][t] <= binary["HLINE"][n][t] * BIGM, name=f"HLINE_bin1_{n}_{t}")
+            model.addConstr(res_dom["feed"][n][t]  <= (1 - binary["HLINE"][n][t]) * BIGM, name=f"HLINE_bin2_{n}_{t}")
 
-    # Residual loads
+    # Building electricity balance
+    for n in range(nb):
+        for t in time_steps:
+            model.addConstr(
+                res_dom["power"][n][t] + PV_gen[n][t] + dch_dom["BAT"][n][t]
+                == elec_dem[n][t] + power_dom["HP"][n][t] + power_dom["EH"][n][t]
+                   + ch_dom["BAT"][n][t] + res_dom["feed"][n][t],
+                name=f"Elec_balance_n{n}_t{t}"
+            )
+            # Feed-in cannot exceed local PV + battery discharge
+            model.addConstr(
+                res_dom["feed"][n][t] <= PV_gen[n][t] + dch_dom["BAT"][n][t],
+                name=f"Feed_cap_n{n}_t{t}"
+            )
+
+    # District electricity balance (GCP)
     for t in time_steps:
-        # Residual network electricity demand (Power balance in Watt)
-        model.addConstr(residual["power"][t] == sum(res_dom["power"][n][t] for n in range(nb)), name="res_power"+ str(t))
-        model.addConstr(residual["feed"][t] == sum(res_dom["feed"][n][t] for n in range(nb)), name="res_feed"+ str(t))
+        model.addConstr(residual["power"][t] == gp.quicksum(res_dom["power"][n][t] for n in range(nb)),
+                        name=f"res_power_{t}")
+        model.addConstr(residual["feed"][t]  == gp.quicksum(res_dom["feed"][n][t]  for n in range(nb)),
+                        name=f"res_feed_{t}")
 
-    # %% BUILDINGS ENERGY BALANCES (Power balance, kW)
-    # Electricity balance
+        model.addConstr(power["from_grid"][t] + residual["feed"][t] ==
+                        residual["power"][t] + power["to_grid"][t],
+                        name=f"Elec_balance_district_{t}")
+
+        model.addConstr(power["from_grid"][t] <= yTrafo[t] * BIGM, name=f"Trafo_bin1_{t}")
+        model.addConstr(power["to_grid"][t]   <= (1 - yTrafo[t]) * BIGM, name=f"Trafo_bin2_{t}")
+
+    # Heat demand covering (per building): from TES and heat net import
     for n in range(nb):
         for t in time_steps:
-            model.addConstr(res_dom["power"][n][t] + PV_gen[n][t]
-                            + dch_dom["BAT"][n][t]
-                            == elec_dem[n][t]
-                            + power_dom["HP"][n][t] + power_dom["EH"][n][t]
-                            + ch_dom["BAT"][n][t] + res_dom["feed"][n][t],
-                            name="Electricity_balance_" + str(n) + "_" + str(t))
-            model.addConstr(res_dom["feed"][n][t] <= power_dom["PV"][n][t] + dch_dom["BAT"][n][t], # + dch_dom["EV"][n][t],
-                            name="Feed-in_max_" + str(n) + "_" + str(t))
-       
-        
-    # Electricity balance neighborhood (Power balance in Watt)
-    for t in time_steps:
-        model.addConstr(residual["feed"][t] + power["from_grid"][t]
-                        == residual["power"][t] + power["to_grid"][t],
-                        name="Elec_balance_neighborhood"+ str(t))
-        #model.addConstr(power["to_grid"][t] == residual["feed"][t])
-        model.addConstr(power["from_grid"][t] <= yTrafo[t] * 10000000,     name="Binary1_" + str(t))
-        model.addConstr(power["to_grid"][t] <= (1 - yTrafo[t]) * 10000000, name="Binary2_" + str(t))
+            model.addConstr(
+                dch_dom["TES"][n][t] + net_heat_import[n][t] == Q_DHW[n][t] + Q_heating[n][t],
+                name=f"Heat_demand_cover_{n}_{t}"
+            )
+
+    # Aggregations
+    model.addConstr(from_grid_total_el == dt * gp.quicksum(power["from_grid"][t] for t in time_steps),
+                    name="from_grid_total_el_def")
+    model.addConstr(to_grid_total_el   == dt * gp.quicksum(power["to_grid"][t]   for t in time_steps),
+                    name="to_grid_total_el_def")
+
+    # Peaks per day (robust for arbitrary cluster lengths)
+    import math
+    steps_per_day = max(1, int(round(24 / timeData["timeResolution"])))
+    num_steps = len(list(time_steps))
+    num_days = max(1, math.ceil(num_steps / steps_per_day))
+
+    daily_peak = {d: model.addVar(vtype="C", lb=-gp.GRB.INFINITY,
+                                name=f"peak_network_load_d{d}")
+                for d in range(num_days)}
+    peaksum = model.addVar(vtype="C", lb=-gp.GRB.INFINITY, name="sum_peak_daily_network_load")
+
+    for d in range(num_days):
+        start = d * steps_per_day
+        end   = min((d + 1) * steps_per_day, num_steps)
+        idxs  = list(range(start, end))
+        model.addConstr(daily_peak[d] == gp.max_([power["from_grid"][t] for t in idxs]),
+                        name=f"daily_peak_{d}")
+
+    model.addConstr(peaksum == gp.quicksum(daily_peak[d] for d in range(num_days)),
+                    name="peaksum_def")
 
 
-    # %% Summation of energy sources
-    # Total electricity amount taken from grid (Wh)
-    model.addConstr(from_grid_total_el == dt * sum(power["from_grid"][t] for t in time_steps), name="from_grid_total_el")
-    # Total electricity feed-in (Wh)
-    model.addConstr(to_grid_total_el == dt * sum(power["to_grid"][t] for t in time_steps), name="to_grid_total_el")
+    # Objective selection
+    model.addConstr(
+        operational_costs == from_grid_total_el * ecoData["price_supply_el"]
+                            - to_grid_total_el   * ecoData["revenue_feed_in_el"],
+        name="Cost_total_def"
+    )
+    model.addConstr(
+        co2_total == from_grid_total_el * ecoData["co2_el_grid"],
+        name="Emission_total_def"
+    )
 
+    if model_param["optim_focus"] == 0:
+        model.addConstr(obj == operational_costs + 1.0 * peaksum, name="obj_costs")
+    else:
+        model.addConstr(obj == co2_total + 1.0 * peaksum, name="obj_co2")
 
-    # %% OBJECTIVE FUNCTIONS
-    # select the objective function based on input parameters
-    ### Total operational costs
-    model.addConstr(operational_costs == from_grid_total_el * ecoData["price_supply_el"]
-                                            - to_grid_total_el * ecoData["revenue_feed_in_el"]
-                                            , name="Total_amount_operational_costs")
-
-    # Emissions
-    model.addConstr(co2_total == from_grid_total_el * ecoData["co2_el_grid"]
-                                    , name="Total_amount_emissions")
-
-
-    # daily peaks
-    for d in days:
-        model.addConstr(daily_peak[d] == gp.max_(power["from_grid"][t] for t in range(d * int(24/dt), d * int(24/dt) + int(24/dt))))
-    model.addConstr(peaksum == sum(daily_peak[d] for d in days))
-
-    # Set objective
-    if model_param_eh["optim_focus"] == 0:
-        model.addConstr(obj == operational_costs + peaksum * 1)
-    elif model_param_eh["optim_focus"] == 1:
-        model.addConstr(obj == co2_total + peaksum * 1)
-
-
-    # Carry out optimization
+    # ---------------------------
+    # Solve
+    # ---------------------------
+    t0 = time.time()
     model.optimize()
+    runtime = time.time() - t0
+    print("\n********************************************")
+    print(f"Model run time: {runtime:.2f} s")
+    print("********************************************\n")
 
-    later = time.time()
-    difference = later - now
-    print("********************************************")
-    print("Model run time was " + str(difference) + " seconds")
-    print("********************************************")
-
-    if model.status == gp.GRB.Status.INFEASIBLE or model.status == gp.GRB.Status.INF_OR_UNBD:
-        print(model.status)
+    if model.status in (gp.GRB.Status.INFEASIBLE, gp.GRB.Status.INF_OR_UNBD):
         model.computeIIS()
-        f = open('errorfile.txt','w')
-        f.write('\nThe following constraint(s) cannot be satisfied:\n')
-        for c in model.getConstrs():
-            if c.IISConstr:
-                f.write('%s' % c.constrName)
-                f.write('\n')
-        f.close()
+        with open('errorfile.txt', 'w', encoding='utf-8') as f:
+            f.write('The following constraint(s) cannot be satisfied:\n')
+            for c in model.getConstrs():
+                if c.IISConstr:
+                    f.write(f'{c.constrName}\n')
 
-    # %% SAVE RESULTS IN ONE CENTRAL RESULT FILE: result_file
-
-    results = {}
-    results["from_grid_total_el"] = from_grid_total_el.X
-    results["to_grid_total_el"] = to_grid_total_el.X
-
-    results["P_dem_total"] = []
-    results["P_inj_total"] = []
-    results["P_dem_gcp"] = []
-    results["P_inj_gcp"] = []
-    for t in time_steps:
-        results["P_dem_total"].append(round(residual["power"][t].X, 0))
-        results["P_inj_total"].append(round(residual["feed"][t].X, 0))
-        results["P_dem_gcp"].append(round(power["from_grid"][t].X, 0))
-        results["P_inj_gcp"].append(round(power["to_grid"][t].X, 0))
-
-    results["Cost_total"] = operational_costs.X
-    results["Emission_total"] = co2_total.X
-
-    # add results of the buildings
-    for n in range(nb):
-        results[n] = {}
-        results[n]["res_load"] = []
-        results[n]["res_inj"] = []
-        for t in time_steps:
-            results[n]["res_load"].append(round(res_dom["power"][n][t].X, 0))
-            results[n]["res_inj"].append(round(res_dom["feed"][n][t].X, 0))
+    # ---------------------------
+    # Collect results
+    # ---------------------------
+    results = {
+        "from_grid_total_el": from_grid_total_el.X,
+        "to_grid_total_el": to_grid_total_el.X,
+        "P_dem_total": [residual["power"][t].X for t in time_steps],
+        "P_inj_total": [residual["feed"][t].X for t in time_steps],
+        "P_dem_gcp":   [power["from_grid"][t].X for t in time_steps],
+        "P_inj_gcp":   [power["to_grid"][t].X for t in time_steps],
+        "Cost_total": operational_costs.X,
+        "Emission_total": co2_total.X,
+        "peaksum": peaksum.X,
+        "daily_peak": {int(d): daily_peak[d].X for d in daily_peak},
+        "net_heat_import": {n: [net_heat_import[n][t].X for t in time_steps] for n in range(nb)},
+        "heat_connection": {(i, j): [heat_connection[i][j][t].X for t in time_steps]
+                            for i in range(nb) for j in range(nb) if i != j},
+    }
 
     for n in range(nb):
-        for device in ecs_heat:
-            results[n][device] = {}
-            results[n][device]["Q_th"] = []
-            for t in time_steps:
-                results[n][device]["Q_th"].append(round(heat_dom[device][n][t].X, 0))
-
-    for n in range(nb):
-        for device in hp_modi:
-            results[n][device] = {}
-            results[n][device]["Q_th"] = []
-            results[n][device]["P_el"] = []
-            for t in time_steps:
-                results[n][device]["Q_th"].append(round(heat_mode[device][n][t].X, 0))
-                results[n][device]["P_el"].append(round(power_mode[device][n][t].X, 0))
-
-    for n in range(nb):
-        for device in ecs_power:
-            results[n][device] = {}
-            results[n][device]["P_el"] = []
-            for t in time_steps:
-                results[n][device]["P_el"].append(round(power_dom[device][n][t].X, 0))
-
-    for n in range(nb):
-        for device in ecs_storage:
-            results[n][device] = {}
-            for v in ("ch", "dch", "soc"):
-                results[n][device][v] = []
-            for t in time_steps:
-                results[n][device]["ch"].append(ch_dom[device][n][t].X)
-                results[n][device]["dch"].append(dch_dom[device][n][t].X)
-                results[n][device]["soc"].append(soc_dom[device][n][t].X)
-
-    results["peaksum"] = peaksum.X
-    results["daily_peak"] = {}
-    for d in days:
-        results["daily_peak"][d] = daily_peak[d].X
+        results[n] = {
+            "res_load": [res_dom["power"][n][t].X for t in time_steps],
+            "res_inj":  [res_dom["feed"][n][t].X  for t in time_steps]
+        }
+        for dev in ecs_heat:
+            results[n][dev] = {"Q_th": [heat_dom[dev][n][t].X for t in time_steps]}
+        for m in hp_modi:
+            results[n][m] = {
+                "Q_th": [heat_mode[m][n][t].X for t in time_steps],
+                "P_el": [power_mode[m][n][t].X for t in time_steps]
+            }
+        for dev in ecs_power:
+            results[n][dev] = {"P_el": [power_dom[dev][n][t].X for t in time_steps]}
+        for dev in ecs_storage:
+            results[n][dev] = {
+                "ch":  [ch_dom[dev][n][t].X  for t in time_steps],
+                "dch": [dch_dom[dev][n][t].X for t in time_steps],
+                "soc": [soc_dom[dev][n][t].X for t in time_steps],
+            }
 
     return results
+
+# --- Runner: Run this file directly, loading your .env for FIWARE -------------
+if __name__ == "__main__":
+    import argparse, os, sys, json
+    from pathlib import Path
+    import importlib.util
+    from types import SimpleNamespace
+    import gurobipy as gp
+
+
+
+    THIS_DIR = Path(__file__).resolve().parent
+    os.chdir(THIS_DIR)  # stabile Relativpfade
+    
+        # VOR dem Laden aus BES_design:
+    logs_dir = (THIS_DIR / "udp_optimizer" / "udp_optimizer" / "decentral_opti" / "data" / "logs")
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"[warn] konnte logs-verzeichnis nicht anlegen: {logs_dir} -> {e}")
+
+
+    parser = argparse.ArgumentParser(description="Run decentralized optimization")
+    parser.add_argument("--cluster", type=int, default=0, help="Cluster index (default: 0)")
+    parser.add_argument("--out", type=str, default="results_decentral.json", help="Output JSON file")
+    parser.add_argument("--env", type=str,
+                        default=r"N:\Forschung\EBC0938_BMWK_AIX-Heat_DEQ\Students\hgo-jsc\MA_code\.env",
+                        help="Path to .env with FIWARE credentials")
+    parser.add_argument("--demo", action="store_true",
+                        help="Force demo data (skip FIWARE even if .env loads).")
+    args = parser.parse_args()
+
+    # --- 1) .env laden (mit Fallback, falls python-dotenv fehlt) --------------
+    def load_env_file(dotenv_path: Path):
+        try:
+            from dotenv import load_dotenv, find_dotenv
+            load_dotenv(dotenv_path=str(dotenv_path), override=True)
+            return True
+        except Exception:
+            # Minimaler Fallback-Parser (KEY=VALUE, unterstützt einfache "..."-Werte)
+            if not dotenv_path.exists():
+                return False
+            for line in dotenv_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"): 
+                    continue
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip().strip("'").strip('"')
+                # einfache ${VAR}-Expansion
+                if "${" in val and "}" in val:
+                    import re
+                    def repl(m):
+                        return os.environ.get(m.group(1), "")
+                    val = re.sub(r"\$\{([^}]+)\}", lambda m: repl(m), val)
+                os.environ[key] = val
+            return True
+
+    env_loaded = load_env_file(Path(args.env))
+    if env_loaded:
+        print(f"[env] loaded: {args.env}")
+        # kurze Sichtprüfung
+        print(f"[env] FIWARE_URL_LD={os.environ.get('FIWARE_URL_LD')}")
+        print(f"[env] NGSI_VERSION={os.environ.get('NGSI_VERSION')}")
+    else:
+        print(f"[env] WARN: could not load .env at {args.env}")
+
+    # --- 2) Datenquelle wählen -------------------------------------------------
+    def build_demo_data(nb=2, T=24):
+        time = {"clusterLength": float(T), "timeResolution": 1.0, "dataResolution": 1.0}
+        ecoData = {"price_supply_el": 0.30/1000.0, "revenue_feed_in_el": 0.08/1000.0, "co2_el_grid": 0.40/1000.0}
+        site = {"T_e_cluster": {0: [0.0]*T}}
+        decentral_device_data = {
+            "HP":  {"grade": 0.45},
+            "TES": {"eta_ch": 0.98, "eta_standby": 0.999,  "coeff_ch": 0.5, "soc_min": 0.05, "soc_max": 1.0},
+            "BAT": {"eta_ch": 0.95, "eta_standby": 0.9995, "coeff_ch": 1.0, "soc_min": 0.05, "soc_max": 1.0},
+        }
+        def flat(v): return [float(v)]*T
+        district = []
+        for n in range(nb):
+            year = 2000 if n % 2 else 1990
+            user = SimpleNamespace(heat_cluster={0: flat(3000)}, dhw_cluster={0: flat(500)}, elec_cluster={0: flat(400)})
+            capacities = {"HP": 6000.0, "EH": 8000.0, "BAT": 5000.0, "TES": 20000.0,
+                          "PV": {"area": 0.0}, "STC": {"area": 0.0}}
+            district.append({"gmlId": f"B{n}",
+                             "envelope": SimpleNamespace(construction_year=year),
+                             "user": user,
+                             "generationPV_cluster": {0: flat(0.0)},
+                             "generationSTC_cluster": {0: flat(0.0)},
+                             "capacities": capacities})
+        heat_link_cap = [[0.0]*nb for _ in range(nb)]
+        if nb >= 2:
+            heat_link_cap[0][1] = 3000.0
+            heat_link_cap[1][0] = 3000.0
+        return SimpleNamespace(time=time, ecoData=ecoData, site=site,
+                               decentral_device_data=decentral_device_data,
+                               params_ehdo_model={"optim_focus": 0},
+                               district=district, heat_link_cap=heat_link_cap)
+
+    def load_data_via_bes_design():
+        # Besorge BES_design.py aus deinem Repo (relativ & absolut)
+        candidates = [
+            THIS_DIR / "udp_optimizer" / "udp_optimizer" / "BES_design.py",
+            Path(r"N:\Forschung\EBC0938_BMWK_AIX-Heat_DEQ\Students\hgo-jsc\MA_code\udp_optimizer\udp_optimizer\BES_design.py"),
+        ]
+        for p in candidates:
+            if p.exists():
+                spec = importlib.util.spec_from_file_location("BES_design_local", str(p))
+                mod = importlib.util.module_from_spec(spec)
+                assert spec.loader is not None
+                spec.loader.exec_module(mod)
+                if hasattr(mod, "calc_bes_scenario"):
+                    return mod.calc_bes_scenario()
+        raise RuntimeError("BES_design.py not found or has no calc_bes_scenario().")
+
+    if args.demo:
+        data = build_demo_data()
+        print("[data] Using DEMO data (skipping FIWARE).")
+    else:
+        try:
+            data = load_data_via_bes_design()
+            print("[data] Loaded via BES_design.calc_bes_scenario()")
+        except Exception as e:
+            print(f"[data] WARN: FIWARE/BES_design failed → {e}\n       Falling back to DEMO.")
+            data = build_demo_data()
+
+    # --- 3) Optimieren --------------------------------------------------------
+    model = gp.Model("decentral_op")
+    results = run_opti_decentral(model, data, cluster=args.cluster)
+
+    # Tuple-Keys serialisierbar machen
+    to_save = dict(results)
+    if "heat_connection" in to_save:
+        to_save["heat_connection"] = {f"{i}-{j}": v for (i, j), v in to_save["heat_connection"].items()}
+
+    out_path = THIS_DIR / args.out
+    out_path.write_text(json.dumps(to_save, indent=2), encoding="utf-8")
+
+    print("\n=== Decentral Optimization finished ===")
+    print(f"Cluster: {args.cluster}")
+    if "Cost_total" in results: print(f"Total cost: {results['Cost_total']:.3f}")
+    if "Emission_total" in results: print(f"Total CO2:  {results['Emission_total']:.3f}")
+    print(f"Saved results to: {out_path}\n")

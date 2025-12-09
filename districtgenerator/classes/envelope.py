@@ -450,20 +450,20 @@ class Envelope:
             })
 
             # if no u-value analysis needed, comment rest of the code
-            csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
+            # csv_log_path = os.path.join(self.file_path, "logs", "u_values_log.csv")
 
-            try:
-                df_existing = pd.read_csv(csv_log_path)
-                df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
-            except FileNotFoundError:
-                df_new = pd.DataFrame([u_row])
+            # try:
+            #     df_existing = pd.read_csv(csv_log_path)
+            #     df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
+            # except FileNotFoundError:
+            #     df_new = pd.DataFrame([u_row])
 
-            df_new.to_csv(csv_log_path, index=False)
+            # df_new.to_csv(csv_log_path, index=False)
 
-            if calcThick:
-                self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
-            else:
-                self.thick_req = None
+            # if calcThick:
+            #     self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
+            # else:
+            #     self.thick_req = None
 
 
 
