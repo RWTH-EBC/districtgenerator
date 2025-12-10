@@ -153,12 +153,13 @@ def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mip
     """
     # If no PyomoConfig is provided, load the default configuration
     if pyomo_config is None:
-        pyomo_config = PyomoConfig()  # Load default config if none provided
+        pyomo_config_obj = PyomoConfig()  # Load default config if none provided
+        pyomo_config = pyomo_config_obj.__dict__
 
     if solver_name is None:
-        solver_name = pyomo_config.solver_name
-    solver_executable = pyomo_config.solver_executable
-    solver_options = pyomo_config.solver_options.copy()  # make a copy to avoid modifying the original
+        solver_name = pyomo_config["solver_name"]
+    solver_executable = pyomo_config["solver_executable"]
+    solver_options = pyomo_config["solver_options"].copy()  # make a copy to avoid modifying the original
 
 
     # check if the solver name is valid

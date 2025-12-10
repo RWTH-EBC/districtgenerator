@@ -241,31 +241,31 @@ def calc_flow_and_temperature(data):
 
     # 3 supply and return temperature
     heat_grid_data = data.heat_grid_data
-    generation = heat_grid_data["generation"]["value"]
-    temperature_mode = heat_grid_data["temperature_mode"]["value"]
-    if temperature_mode == "Heating_curve":
+    generation = heat_grid_data["generation"]
+    temperature_mode = heat_grid_data["temperature_mode"]
+    if temperature_mode == "heating_curve":
         # Variable-constant operation mode (Heating curve)
-        T_supply_min = heat_grid_data["T_hot_heating_network"]["Heating_curve"]["min"][generation]["value"]
-        T_supply_max = heat_grid_data["T_hot_heating_network"]["Heating_curve"]["max"][generation]["value"]
-        T_return_min = heat_grid_data["T_cold_heating_network"]["Heating_curve"]["min"][generation]["value"]
-        T_return_max = heat_grid_data["T_cold_heating_network"]["Heating_curve"]["max"][generation]["value"]
+        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
+        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
+        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
+        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
         T_supply_cluster, T_return_cluster = heating_curve(T_e_cluster, T_supply_min, T_supply_max, T_return_min,
                                                            T_return_max)
         T_supply, T_return = heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max)
-    elif temperature_mode == "Constant":
-        # Constant operation mode
-        T_supply_value = heat_grid_data["T_hot_heating_network"]["Constant"][generation]["value"]
-        T_return_value = heat_grid_data["T_cold_heating_network"]["Constant"][generation]["value"]
+    elif temperature_mode == "constant":
+        # constant operation mode
+        T_supply_value = heat_grid_data["T_hot_heating_network"]["constant"][generation]
+        T_return_value = heat_grid_data["T_cold_heating_network"]["constant"][generation]
         T_supply = np.full_like(T_e, T_supply_value)
         T_return = np.full_like(T_e, T_return_value)
         T_supply_cluster = np.full((len(weeks), time_steps), T_supply_value)  # °C
         T_return_cluster = np.full((len(weeks), time_steps), T_return_value)  # °C
     else:
-        message = "Please select a valid temperature mode between 'Heating_curve' and 'Constant' in heat_grid.json."
+        message = "Please select a valid temperature mode between 'heating_curve' and 'constant' in heat_grid.json."
         print(message)
 
     # ΔT = T_supply - T_return (°C)
-    # if Constant operation mode, int
+    # if constant operation mode, int
     # if Variable-constant operation mode,ndarray, shape = (n_clusters, len_cluster)
     deltaT_cluster = T_supply_cluster - T_return_cluster  # °C
     deltaT = T_supply - T_return  # °C
@@ -279,15 +279,15 @@ def calc_flow_and_temperature(data):
     # T_a = (T_supply - T_return)/2
 
     # 4 fluids parameters
-    c_f = heat_grid_data["fluid"]["c_f"]["value"]  # 4180J/(kg*K), fluid specific heat capacity
-    rho_f = heat_grid_data["fluid"]["rho_f"]["value"]  # 1000kg/m^3,   fluid density
+    c_f = heat_grid_data["fluid"]["c_f"]  # 4180J/(kg*K), fluid specific heat capacity
+    rho_f = heat_grid_data["fluid"]["rho_f"]  # 1000kg/m^3,   fluid density
 
     # 5 read demand and calculate mass flow to every building
     heat_loss_substation = np.zeros_like(T_e)
     total_demand_cluster = np.zeros(
         (len(weeks), time_steps))  # Create a 2D array filled with zeros (weeks × time steps)
     total_demand = np.zeros_like(T_e)
-    h_loss_subst = data.heat_grid_data["h_loss_subst"]["value"]  # 5%, Heat losses at the substation
+    h_loss_subst = data.heat_grid_data["h_loss_subst"]  # 5%, Heat losses at the substation
     for building in data.district:
         # read (clustered) demand pofile for each building
         # clustered value (for the optimization)
@@ -444,13 +444,13 @@ def optimization_diameter(data, param, f_fric):
 
     # 3 fluids parameters
     heat_grid_data = data.heat_grid_data
-    c_f = heat_grid_data["fluid"]["c_f"]["value"]  # 4180J/(kg*K), fluid specific heat capacity
-    rho_f = heat_grid_data["fluid"]["rho_f"]["value"]  # 1000kg/m^3,   fluid density
+    c_f = heat_grid_data["fluid"]["c_f"]  # 4180J/(kg*K), fluid specific heat capacity
+    rho_f = heat_grid_data["fluid"]["rho_f"]  # 1000kg/m^3,   fluid density
 
     # 4 energy hub setup
 
     # 5 pump parameters
-    eta_pump = heat_grid_data["pump"]["eta_pump"]["value"]        # 0.65,         electric pump efficiency
+    eta_pump = heat_grid_data["pump"]["eta_pump"]        # 0.65,         electric pump efficiency
 
     # constant pressure drops outside the pipe network
     dp_substation = heat_grid_data["pump"].get("dp_substation", {}).get("value", 0.0)  # Pa
@@ -467,10 +467,10 @@ def optimization_diameter(data, param, f_fric):
     P_station_cluster = Vdot_total_cluster * dp_station_total / (eta_pump * 1000.0)
 
     # 6 pipe parameters
-    # conv_pipe = heat_grid_data["pipe"]["conv_pipe"]["value"]        # 3600W/(m^2 K), convective heat transfer between flowing fluid and the pipe's inner surface
-    # f_fric = heat_grid_data["pipe"]["f_fric"]["value"]               # 0.025,        pipe friction factor
-    dp_pipe_max = heat_grid_data["pipe"]["dp_pipe_max"]["value"]     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)
-    dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]["value"]     # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network https://doi.org/10.1016/j.energy.2024.131970)
+    # conv_pipe = heat_grid_data["pipe"]["conv_pipe"]        # 3600W/(m^2 K), convective heat transfer between flowing fluid and the pipe's inner surface
+    # f_fric = heat_grid_data["pipe"]["f_fric"]               # 0.025,        pipe friction factor
+    dp_pipe_max = heat_grid_data["pipe"]["dp_pipe_max"]     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)
+    dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]     # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network https://doi.org/10.1016/j.energy.2024.131970)
 
     # pre-factor for pump power calculation
     prefac = (8 * f_fric) / (rho_f ** 2 * np.pi ** 2 * eta_pump) / 1000
@@ -489,25 +489,25 @@ def optimization_diameter(data, param, f_fric):
         pipe["d_max"] = max(d_max_calc, d_min_calc + 20)
 
     # Distance between the centerlines of the supply and return pipelines
-    D_heating_network = data.heat_grid_data["D_heating_network"]["value"]  # 1m
+    D_heating_network = data.heat_grid_data["D_heating_network"]  # 1m
 
     # 7 econimic factor
     # pipe
-    # inv_earth_work = heat_grid_data["pipe"]["inv_earth_work"]["value"]  # 250EUR/m,  preparation costs for pipe installation
-    # inv_pipe = heat_grid_data["pipe"]["inv_pipe"]["value"]              # 1146.71EUR/(m^2*m), price for PE pipe without insulation per diameter^2 and m pipe length
-    pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]["value"]     # 30a,          pipe lifetime (VDI 2067)
-    cost_om_pipe = heat_grid_data["pipe"]["cost_om_pipe"]["value"]       # 0.005         pipe operation and maintenance costs as share of investment (VDI 2067)
+    # inv_earth_work = heat_grid_data["pipe"]["inv_earth_work"]  # 250EUR/m,  preparation costs for pipe installation
+    # inv_pipe = heat_grid_data["pipe"]["inv_pipe"]              # 1146.71EUR/(m^2*m), price for PE pipe without insulation per diameter^2 and m pipe length
+    pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]     # 30a,          pipe lifetime (VDI 2067)
+    cost_om_pipe = heat_grid_data["pipe"]["cost_om_pipe"]       # 0.005         pipe operation and maintenance costs as share of investment (VDI 2067)
 
     # calculate the Annualization Factor and add to datahandler
     pipe_ann_factor = calc_annual_factor(data, pipe_lifetime)
     data.heat_grid_data["pipe"]["pipe_ann_factor"] = pipe_ann_factor
 
     # pump
-    inv_pump = heat_grid_data["pump"]["inv_pump"]["value"]               # 700EUR/kW,    specific investment
-    pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]["value"]     # 10a,          pump lifetime (VDI 2067 Umwälzpumpe)
+    inv_pump = heat_grid_data["pump"]["inv_pump"]               # 700EUR/kW,    specific investment
+    pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]     # 10a,          pump lifetime (VDI 2067 Umwälzpumpe)
 
     price_el_pumps = data.ecoData["price_supply_el_eh"]    # 0.3141€/kWh,  electricity costs for pump supply used for network design (equals LEC of CHP for 7000 full load hours)
-    cost_om_pump = heat_grid_data["pump"]["cost_om_pump"]["value"]       # 0.03          cost share for operation & maintenance
+    cost_om_pump = heat_grid_data["pump"]["cost_om_pump"]       # 0.03          cost share for operation & maintenance
 
     # calculate the Annualization Factor and add to datahandler
     pump_ann_factor = calc_annual_factor(data, pump_lifetime)
@@ -550,12 +550,12 @@ def optimization_diameter(data, param, f_fric):
     T_soil_cluster = heat_grid_data["T_soil_cluster"]
 
     # coefficient of thermal conductivity
-    k_soil = heat_grid_data["k_soil"]["value"]  # 1.52 W/(m*K),     Soil thermal conductivity, corresponding to λ_s in EN 13941
-    k_pipe = heat_grid_data["k_PUF"]["value"]   # 0.03 W/(m*K),    Thermal conductivity of pipe insulation materials, corresponding to λ_i in EN 13941.
+    k_soil = heat_grid_data["k_soil"]  # 1.52 W/(m*K),     Soil thermal conductivity, corresponding to λ_s in EN 13941
+    k_pipe = heat_grid_data["k_PUF"]   # 0.03 W/(m*K),    Thermal conductivity of pipe insulation materials, corresponding to λ_i in EN 13941.
 
     # corrected value of depth
     # so that the surface transition insulance Ro at the soil surface is included
-    Z_c = heat_grid_data["grid_depth"]["value"] + 0.069 * k_soil
+    Z_c = heat_grid_data["grid_depth"] + 0.069 * k_soil
 
     # symmetrical and (a) antisymmetrical heat loss factors
     # Heat Interference Correction Factor Between Pipes (Heat Transfer Between Supply and Return Water)
@@ -810,9 +810,9 @@ def optimization_diameter(data, param, f_fric):
     if not os.path.exists(dir_dia):
         os.makedirs(dir_dia)
 
-    generation = heat_grid_data["generation"]["value"]
-    topology = heat_grid_data["topology_option"]["value"]
-    temperature_mode = heat_grid_data["temperature_mode"]["value"]
+    generation = heat_grid_data["generation"]
+    topology = heat_grid_data["topology_option"]
+    temperature_mode = heat_grid_data["temperature_mode"]
     result_folder = f"{data.scenario_name}_{generation}_{topology}_{temperature_mode}"
     dir_result = os.path.join(dir_dia, result_folder)
     if not os.path.exists(dir_result):
@@ -853,9 +853,9 @@ def output_diameter(data, model, param):
     if not os.path.exists(dir_dia):
         os.makedirs(dir_dia)
 
-    generation = data.heat_grid_data["generation"]["value"]
-    topology = data.heat_grid_data["topology_option"]["value"]
-    temperature_mode = data.heat_grid_data["temperature_mode"]["value"]
+    generation = data.heat_grid_data["generation"]
+    topology = data.heat_grid_data["topology_option"]
+    temperature_mode = data.heat_grid_data["temperature_mode"]
     result_folder = f"{data.scenario_name}_{generation}_{topology}_{temperature_mode}"
     dir_result = os.path.join(dir_dia, result_folder)
     if not os.path.exists(dir_result):
@@ -977,8 +977,8 @@ def output_diameter(data, model, param):
 
     # ---------- 3. plot Pipeline Map - Maximum velocity (m/s) ----------
     # calculate the max. velocity and the max. pressure drop
-    c_f = data.heat_grid_data["fluid"]["c_f"]["value"]  # 4180J/(kg*K), fluid specific heat capacity
-    rho_f = data.heat_grid_data["fluid"]["rho_f"]["value"]  # 1000kg/m^3,   fluid density
+    c_f = data.heat_grid_data["fluid"]["c_f"]  # 4180J/(kg*K), fluid specific heat capacity
+    rho_f = data.heat_grid_data["fluid"]["rho_f"]  # 1000kg/m^3,   fluid density
     pipe_dict = param["pipe_dict"]
     f_fric = param["f_fric"]
     for pipe_id, pipe in data.pipeline.items():
@@ -1141,7 +1141,7 @@ def output_diameter(data, model, param):
     # calculate heat loss in network
     T_s = param["T_s"]
     T_soil = data.heat_grid_data["T_soil"]
-    k_soil = data.heat_grid_data["k_soil"]["value"]
+    k_soil = data.heat_grid_data["k_soil"]
     heat_loss_network = np.zeros_like(T_s)
     # print(type(T_s), type(T_soil), T_s.shape, getattr(T_soil, "shape", None))
     total_pipe_length = 0
@@ -1166,7 +1166,7 @@ def output_diameter(data, model, param):
     # ---------- 7. save pump power(yearly profile) ----------
     # save pump power(yearly profile) in data.heat_grid_data["pump_power"]
     f_fric = param["f_fric"]
-    eta_pump = data.heat_grid_data["pump"]["eta_pump"]["value"]  # 0.65,         electric pump efficiency
+    eta_pump = data.heat_grid_data["pump"]["eta_pump"]  # 0.65,         electric pump efficiency
     prefac = (8 * f_fric) / (rho_f ** 2 * np.pi ** 2 * eta_pump) / 1000
     pump_power_pipe = {}
     for pipe_id, pipe in data.pipeline.items():
@@ -1227,19 +1227,19 @@ def output_diameter(data, model, param):
     C_substations = 0
     for building in buildings_connected:
         substation_capacity = building["envelope"].heatload/1000 + building["dhwpower"]/1000  #kW
-        substation_costs = substation_capacity * data.heat_grid_data["C_subst"]["value"]
+        substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
         C_substations += substation_costs
-    substation_lifetime = data.heat_grid_data["lifetime_subst"]["value"]
+    substation_lifetime = data.heat_grid_data["lifetime_subst"]
     substation_ann_factor = calc_annual_factor(data, substation_lifetime)
     substation_ann_costs = C_substations * substation_ann_factor
-    substation_om_costs = len(buildings_connected) * data.heat_grid_data["cost_om_subst"]["value"]
+    substation_om_costs = len(buildings_connected) * data.heat_grid_data["cost_om_subst"]
     print(f"Substations annualized cost: {substation_ann_costs:.2f} €")
     print(f"Substations O&M cost per year: {substation_om_costs:.2f} €")
 
     # cost of pipes
     pipes_tac_costs = pyo.value(model.tac["pipes"])
     pipe_ann_factor = data.heat_grid_data["pipe"]["pipe_ann_factor"]
-    cost_om_pipe = data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
+    cost_om_pipe = data.heat_grid_data["pipe"]["cost_om_pipe"]
     pipes_om_costs = pipes_tac_costs * cost_om_pipe / (pipe_ann_factor + cost_om_pipe)
     pipes_ann_costs = pipes_tac_costs - pipes_om_costs
     print(f"Pipes annualized cost: {pipes_ann_costs:.2f} €")
@@ -1250,11 +1250,11 @@ def output_diameter(data, model, param):
     print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
 
     # calculate the investment for the pump
-    inv_pump = pump_cap * data.heat_grid_data["pump"]["inv_pump"]["value"]
+    inv_pump = pump_cap * data.heat_grid_data["pump"]["inv_pump"]
 
     # cost of pump
     pump_ann_costs = inv_pump * data.heat_grid_data["pump"]["pump_ann_factor"]
-    pump_om_costs = inv_pump * data.heat_grid_data["pump"]["cost_om_pump"]["value"]
+    pump_om_costs = inv_pump * data.heat_grid_data["pump"]["cost_om_pump"]
     print(f"Pump annualized cost: {pump_ann_costs:.2f} €")
     print(f"Pump O&M cost per year: {pump_om_costs:.2f} €")
 
@@ -1372,7 +1372,7 @@ def calc_f_fric(data, model, param):
                 break  # Once the selected pipe diameter is found, exit the loop.
 
     pipe_dict = param["pipe_dict"]
-    nu_f = data.heat_grid_data["fluid"]["nu_f"]["value"]    # m2/s
+    nu_f = data.heat_grid_data["fluid"]["nu_f"]    # m2/s
 
     for pipe in data.pipeline.keys():
         flow_max = data.pipeline[pipe]["flow_max"]  # m3/s
@@ -1408,7 +1408,7 @@ def network_optimization(data):
     data, param = calc_flow_and_temperature(data)
 
     # get the initial friction factor
-    f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
+    f_fric_new = data.heat_grid_data["pipe"]["f_fric"]  # 0.025,        pipe friction factor
     f_fric_old = f_fric_new
 
     # Set maximum iteration count

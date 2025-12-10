@@ -35,9 +35,7 @@ from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig
-from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
-from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 from .plots_balances import plot_all
 
 class Datahandler:
@@ -123,9 +121,7 @@ class Datahandler:
         self.ecoData = {}
         self.heat_grid_data = {}
         self.pipe_data = None
-        self.pyomo_config = global_config.pyomo #! This needs to be integrated in the solver creation process
-
-        # Additional attributes
+        self.pyomo_config = {}
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
@@ -154,7 +150,8 @@ class Datahandler:
             eco_config=global_config.eco,
             central_config=global_config.central,
             calendar_config=global_config.calendar,
-            heat_grid_config=global_config.heatgrid
+            heat_grid_config=global_config.heatgrid,
+            pyomo_config=global_config.pyomo
         )
 
         self.buildings_completed = 0
@@ -189,7 +186,8 @@ class Datahandler:
                       eco_config: EcoConfig,
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
-                      heat_grid_config: HeatGridConfig):
+                      heat_grid_config: HeatGridConfig,
+                      pyomo_config: PyomoConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -258,14 +256,8 @@ class Datahandler:
 
         # Load list of possible devices (used in system BES)
         # Iterate over all attributes of the config instance
-        for attribute, value in decentral_config.__dict__.items():
-            # Split the attribute into abbreviation and parameter name parts based on the first underscore
-            abbr, _, param = attribute.partition("_")
-
-            # Initialize the sub-dictionary if needed.
-            if abbr not in self.decentral_device_data:
-                self.decentral_device_data[abbr] = {}
-            self.decentral_device_data[abbr][param] = value
+        for attr, value in decentral_config.__dict__.items():
+            self.decentral_device_data[attr] = value
 
         for attr, value in ehdo_config.__dict__.items():
             self.params_ehdo_model[attr] = value
@@ -276,43 +268,39 @@ class Datahandler:
 
         # Load list of possible devices (used in system BES)
         # Iterate over all attributes of the config instance
-        for attribute, value in central_config.__dict__.items():
-            # Split the attribute into abbreviation and parameter name parts based on the first underscore
-            abbr, _, param = attribute.partition("_")
-
-            # Initialize the sub-dictionary if needed.
-            if abbr not in self.central_device_data:
-                self.central_device_data[abbr] = {}
-            self.central_device_data[abbr][param] = value
+        for attr, value in central_config.__dict__.items():
+            self.central_device_data[attr] = value
 
         # load calendar data (used in generateDemands and generateEnvironment)
         for attr, value in calendar_config.__dict__.items():
             self.calendar[attr] = value
 
-        
+        # load pyomo solver data (used in optimization functions)
+        for attr, value in pyomo_config.__dict__.items():
+            self.pyomo_config[attr] = value
 
         #! Das hier überarbeiten, damit es in die neue Struktur passt?
-        # for attr, value in heat_grid_config.__dict__.items():
-        #     self.heat_grid_data[attr] = value
+        for attr, value in heat_grid_config.__dict__.items():
+            self.heat_grid_data[attr] = value
 
-        with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
-            self.heat_grid_data = json.load(json_file)
-            
+        # with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
+        #     self.heat_grid_data = json.load(json_file)
+
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
         # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
-        if self.heat_grid_data["generation"]["value"] == "3rd":
+        if self.heat_grid_data["generation"] == "3rd":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
-        elif self.heat_grid_data["generation"]["value"] == "4th":
+        elif self.heat_grid_data["generation"] == "4th":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
-        elif self.heat_grid_data["generation"]["value"] == "5th":
+        elif self.heat_grid_data["generation"] == "5th":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
             pass
         else:
-            print("Please select from the 3rd, 4th, or 5th generation and enter it into heat_grid.json.")
+            print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
 
 
     def select_plz_data(self):

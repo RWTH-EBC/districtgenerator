@@ -10,9 +10,6 @@ from pydantic_settings.sources import PydanticBaseSettingsSource
 
 from dotenv import dotenv_values
 
-from districtgenerator.data_handling.central_device_config import CentralDeviceConfig
-from districtgenerator.data_handling.decentral_device_config import DecentralDeviceConfig
-
 
 ### Helper functions ###
 def parse_int_list(value: any) -> list[int]:
@@ -204,7 +201,7 @@ class PyomoConfig(BaseSettings):
     solver_options: dict = Field(
         alias="solver_options", #Lowercase alias to match the output from the custom env settings loader
         default={        # Options passed to the solver, for further information see functions/solver_config.py 
-            "time_limit": 599,          # Time limit in seconds for each optimization run
+            "time_limit": 600,          # Time limit in seconds for each optimization run
             "mip_gap": 0.01,            # Acceptable MIP gap from optimal solution
             "threads": 4,               # Number of threads to use for solving
             "nonconvex" : 2,            # Allow non-convex problems 
@@ -239,7 +236,6 @@ class PyomoConfig(BaseSettings):
     )
      
 class HeatGridConfig(BaseSettings):
-    # ! This is not the current state in the model
     """
     Manages the configuration for the district heating network.
 
@@ -262,14 +258,14 @@ class HeatGridConfig(BaseSettings):
     grid_depth: float = 1.0             # Installation depth of the grid beneath the surface in meters.
     k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
     k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
-    k_PE: float = 0.42                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
-    h_loss_subst: float = 4.5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
-    dp_substation: float = 2000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
-    dp_energy_hub: float = 2000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
+    k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
+    h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
+    dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
+    dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     C_subst: float = 277.79        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
-    cost_om_subst: float = 1.44                  # Variable Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
-    lifetime_subst: int = 20                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
-    C_OM: float = 15.0               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
+    cost_om_subst: float = 50                  # Variable Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
+    lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
+    C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
 
     
     T_hot_heating_network: dict = Field(
@@ -460,7 +456,671 @@ class ScenarioName(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
+class DecentralDeviceConfig(BaseSettings):
+    """Configuration for decentralized devices in a district energy system.
 
+    This class defines the default parameters for various decentralized devices such as
+    heat pumps (HP), electric heaters (EH), gas boilers (BOI),
+    combined heat and power plants (CHP), fuel cells (FC), photovoltaics (PV),
+    solar thermal collectors (STC), thermal energy storage (TES),
+    battery storage (BAT), and electric vehicles (EV).
+
+    Each device has parameters such as efficiency, lifetime, investment costs,
+    and operational characteristics.
+    """
+
+    # CC Parameters (Air-to-Water Compression Chiller)
+    CC: dict = Field(
+        alias="cc",
+        default={
+            "grade": 0.4,           # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 700.0,       # Variable investment costs in €/kW.
+            "cost_om": 0.02         # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # HP parameters (Air Source Heat Pump)
+    HP: dict = Field(
+        alias="hp",
+        default={
+            "grade": 0.4,           # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 1950.0,      # Variable investment costs in €/kWth.
+            "cost_om": 0.02         # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # EH parameters (Electric Heater)
+    EH: dict = Field(
+        alias="eh",
+        default={
+            "eta_th": 1.0,          # Thermal efficiency.
+            "life_time": 25,        # Maximum life time in years.
+            "inv_var": 620.0,       # Variable investment costs in €/kW.
+            "cost_om": 0.0096       # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # BOI parameters (Gas Boiler)
+    BOI: dict = Field(
+        alias="boi",
+        default={
+            "eta_th": 0.99,         # Thermal efficiency.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 420.0,       # Variable investment costs in €/kW.
+            "cost_om": 0.031        # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # BBOI parameters (Biomass Boiler)
+    BBOI: dict = Field(
+        alias="bboi",
+        default={
+            "eta_th": 0.90,         # Thermal efficiency.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 2200.0,      # Variable investment costs in €/kW
+            "cost_om": 0.0095       # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+    
+    # OBOI parameters (Oil Boiler)
+    OBOI: dict = Field(
+        alias="oboi",
+        default={
+            "eta_th": 0.92,         # Thermal efficiency.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 779.0,       # Variable investment costs in €/kW.
+            "cost_om": 0.036        # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # H2BOI parameters (Hydrogen Boiler)
+    H2BOI: dict = Field(
+        alias="h2boi",
+        default={
+            "eta_th": 0.994,        # Thermal efficiency.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 390.0,       # Variable investment costs in €/kW.
+            "cost_om": 0.03         # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # CHP parameters (Combined Heat and Power)
+    CHP: dict = Field(
+        alias="chp",
+        default={
+            "eta_th": 0.62,         # Thermal efficiency.
+            "eta_el": 0.30,         # Electrical efficiency.
+            "life_time": 15,        # Maximum life time in years.
+            "inv_var": 3500.0,      # Variable investment costs in €/kW.
+            "cost_om": 0.05         # Operation and maintenance costs as a fraction of total investment costs (percentage).
+        }
+    )
+
+    # DH parameters (District Heating Connection)
+    DH: dict = Field(
+        alias="dh",
+        default={
+            "eta_th": 1.0,          # Thermal efficiency.
+            "life_time": 30,        # Maximum life time in years.
+            "inv_var": 60.93,       # Variable investment costs in €/kW.
+            "cap_fee": 0.0          # Capacity fee in €/kW/year.
+        }
+    )
+
+    # FC parameters (Fuel Cell)
+    FC: dict = Field(
+        alias="fc",
+        default={
+            "eta_th": 0.53,         # Thermal efficiency.
+            "eta_el": 0.39,         # Electrical efficiency.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 390.0,       # Variable investment costs in €/kW.
+            "cost_om": 0.03         # Operation and maintenance costs as a fraction of total investment costs (percentage).
+        }
+    )
+
+    # PV parameters (Photovoltaics)
+    PV: dict = Field(
+        alias="pv",
+        default={
+            "area_real": 1.6,               # Module area in squaremeters.
+            "eta_el_ref": 0.199,            # Electrical efficiency under reference conditions.
+            "t_cell_ref": 25,               # Reference cell temperature in degree Celsius.
+            "G_ref": 1000,                  # Reference solar irradiance in Watt per squaremeter.
+            "t_cell_noct": 44,              # Cell temperature under normal operating cell temperature (NOCT) conditions in degree Celsius.
+            "t_air_noct": 20,               # Ambient air temperature under normal operating cell temperature (NOCT) conditions in degree Celsius.
+            "G_noct": 800,                  # Irradiance under normal operating cell temperature (NOCT) conditions in Watt per squaremeter.
+            "gamma": 0.003,                 # Temperature coefficient of power loss in Percent per Kelvin.
+            "eta_inv": 0.96,                # Inverter efficiency.
+            "eta_opt": 0.9,                 # Optical efficiency.
+            "P_nominal": 220.0,             # Reference power per squaremeter, used for Battery sizing, in Watt per squaremeter.
+            "life_time": 25,                # Maximum life time in years.
+            "inv_var": 250,                 # Variable investment costs in €/m^2.
+            "cost_om": 0.015,               # Operation and maintenance costs as a fraction of investment costs in 1/year.
+            "kappa_inverter": 0.02,         # Correction factor for inverter losses
+            "kappa_wiring": 0.015,          # Correction factor for wiring losses
+            "kappa_connections": 0.005,     # Correction factor for all losses in connectors
+            "kappa_soiling": 0.02,          # Correction factor for losses due to soiling
+            "kappa_shading": 0.03,          # Correction factor for losses due to shading
+            "kappa_mismatch": 0.02,         # Correction factor for mismatch losses (production deviations between modules)
+            "kappa_NPR": 0.01,              # Correction factor for name plate rating losses (deviation of the power rating from the actual power)
+            "kappa_av": 0.025,              # Correction factor for losses to to non-availability of the system (e.g. maintenance, redispatch, etc.)
+            "kappa_LID": 0.015              # Correction factor for mismatch losses (production deviations between modules)
+        }
+    )
+
+    # STC parameters (Solar Thermal Collector)
+    STC: dict = Field(
+        alias="stc",
+        default={
+            "T_flow": 50,                   # Flow temperature in degree Celsius.
+            "zero_loss": 0.786,             # Optical efficiency (zero loss collector efficiency).
+            "first_order": 0.003345,        # First order loss coefficient (linear thermal losses) in Watt per squaremeter per Kelvin.
+            "second_order": 0.0000142,      # Second order loss coefficient (quadratic thermal losses) in Watt per squaremeter per Kelvin square.
+            "life_time": 20,                # Maximum life time in years.
+            "inv_var": 400,                 # Variable investment costs in €/m^2.
+            "cost_om": 0.05                 # Operation and maintenance costs as a fraction of total investment costs (percentage).
+        }
+    )
+
+    # TES parameters (Thermal Energy Storage)
+    TES: dict = Field(
+        alias="tes",
+        default={
+            "soc_min": 0.0,                 # Minimum state of charge.
+            "soc_max": 1.0,                 # Maximum state of charge.
+            "eta_standby": 0.97,            # Standby hourly efficiency (accounts for self-discharge).
+            "eta_ch": 1.0,                  # Charging and discharging efficiency.
+            "coeff_ch": 10000.0,            # Charging and discharging coefficient in Watt per Watthour.
+            "init": 0.5,                    # Initial state of charge.
+            "T_diff_max": 35,               # Maximum temperature difference in degree Celsius.
+            "life_time": 20,                # Maximum life time in years.
+            "inv_var": 11.0,                # Variable investment costs in €/liter.
+            "cost_om": 0.013                # Operation and maintenance costs as a fraction of investment costs in 1/year.
+        }
+    )
+
+    # BAT parameters (Battery Storage)
+    BAT: dict = Field(
+        alias="bat",
+        default={
+            "soc_min": 0.0,                 # Minimum state of charge.
+            "soc_max": 0.95,                # Maximum state of charge.
+            "eta_standby": 0.97,            # Standby hourly efficiency (accounts for self-discharge).
+            "eta_ch": 0.97,                 # Charging and discharging efficiency.
+            "coeff_ch": 0.8,                # Charging and discharging coefficient in Watt per Watthour.
+            "init": 0.5,                    # Initial state of charge.
+            "life_time": 15,                # Maximum life time in years.
+            "inv_var": 850.0,               # Variable investment costs in €/kWh.
+            "cost_om": 0.05                 # Operation and maintenance costs as a fraction of total investment costs (percentage).
+        }
+    )
+
+    # EV parameters (Electric Vehicle)
+    EV: dict = Field(
+        alias="ev",
+        default={
+            "soc_min": 0.05,                # Minimum state of charge.
+            "soc_max": 0.95,                # Maximum state of charge.
+            "eta_standby": 1.0,             # Standby hourly efficiency (accounts for self-discharge).
+            "eta_ch": 0.97,                 # Charging and discharging efficiency.
+            "coeff_ch": 0.15,               # Charging and discharging coefficient in Watt per Watthour.
+            "init": 0.9,                    # Initial state of charge.
+            "life_time": 20,                # Maximum life time in years.
+            "inv_var": 0.0,                 # Variable investment costs in €/kWh.
+            "cost_om": 0.0                  # Operation and maintenance costs as a fraction of total investment costs (percentage).
+        }
+    )
+
+    # Investment data parameters
+    inv_data: dict = Field(
+        alias="inv_data",
+        default={
+            "observation_time": 20,         # Observation time in years.
+            "interest_rate": 0.05           # Interest rate.
+        }
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        """Customize how settings are loaded to handle nested solver_options"""
+        # Get env file from dotenv_settings if available
+        env_file = getattr(dotenv_settings, 'env_file', None) if dotenv_settings else None
+        return (init_settings, GeneralCustomEnvSettings(settings_cls, env_file), env_settings, dotenv_settings, file_secret_settings)
+
+
+    model_config = SettingsConfigDict(
+        env_prefix="D_",
+        env_file=".decentraldeviceconfig",
+        extra="ignore"
+    )
+
+class CentralDeviceConfig(BaseSettings):
+    """Configuration for central devices in a district energy system.
+
+    This class defines the default parameters for various central devices such as
+    photovoltaic systems (PV), wind turbines (WT), water turbines (WAT),
+    solar thermal collectors (STC), combined heat and power systems (CHP),
+    boilers (BOI), heat pumps (HP), electric boilers (EB), chillers (CC),
+    and various storage systems like TES, BAT, and GS.
+
+    Each device has parameters such as feasibility, efficiency, lifetime, investment costs,
+    and operational characteristics.
+    """
+
+    # PV parameters (Photovoltaic System)
+    PV: dict = Field(
+        alias="pv",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "eta": 0.199,           # Electrical efficiency between 0 and 1.
+            "beta": 35.0,           # Tilt angle of the PV modules in degrees.
+            "gamma": 0,             # Azimuth angle (orientation) of the PV modules in degrees (0=South, -90=East, 90=West).
+            "life_time": 25,        # Maximum life time in years.
+            "inv_var": 1000,        # Investment variable in €/kWp.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "max_area": 10000,      # Maximum installation area in square meters.
+            "min_area": 0,          # Minimum installation area in square meters.
+            "G_stc": 1              # Global horizontal irradiance under STC in kW/m^2.
+        }
+    )
+
+    # WT parameters (Wind Turbine)
+    WT: dict = Field(
+        alias="wt",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1500,        # Investment variable in €/kW.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.015,       # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 3000,        # Maximum capacity in kW.
+            "h_coeff": 0.2,         # Hellmann exponent for wind speed correction.
+            "hub_h": 100,           # Hub height of the wind turbine in meters.
+            "ref_h": 10,            # Reference height for wind speed data in meters.
+            "norm_power": 0.85      # Normalized power output.
+        }
+    )
+
+    # WAT parameters (Water Turbine)
+    WAT: dict = Field(
+        alias="wat",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 2000,        # Investment variable in €/kW.
+            "life_time": 30,        # Maximum life time in years.
+            "cost_om": 0.01,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 2000,        # Maximum capacity in kW.
+            "potential": 50000      # Maximum available potential in kW.
+        }
+    )
+
+    # STC parameters (Solar Thermal Collector)
+    STC: dict = Field(
+        alias="stc",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "eta": 0.7,             # Thermal efficiency between 0 and 1.
+            "beta": 35.0,           # Tilt angle of the solar collectors in degrees.
+            "gamma": 0,             # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
+            "inv_var": 800,         # Investment variable in €/m^2.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "max_area": 5000,       # Maximum installation area in square meters.
+            "min_area": 0,          # Minimum installation area in square meters.
+            "G_stc": 1              # Global horizontal irradiance under STC in kW/m^2.
+        }
+    )
+
+    # CHP parameters (Combined Heat and Power)
+    CHP: dict = Field(
+        alias="chp",
+        default={
+            "feasible": True,       # Should this be considered for the central optimization.
+            "inv_var": 1200,        # Investment variable in €/kW.
+            "eta_el": 0.4,          # Electrical efficiency between 0 and 1.
+            "eta_th": 0.5,          # Thermal efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.03,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 1000         # Maximum capacity in kW.
+        }
+    )
+
+    # BOI parameters (Boiler)
+    BOI: dict = Field(
+        alias="boi",
+        default={
+            "feasible": True,       # Should this be considered for the central optimization.
+            "inv_var": 138,         # Investment variable in €/kW.
+            "eta_th": 0.99,         # Thermal efficiency between 0 and 1.
+            "life_time": 25,        # Maximum life time in years.
+            "cost_om": 0.014,       # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # GHP parameters (Gas Heat Pump)
+    GHP: dict = Field(
+        alias="ghp",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1000,        # Investment variable in €/kW.
+            "COP": 3.5,             # Coefficient of Performance (COP).
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # HP parameters (Heat Pump)
+    HP: dict = Field(
+        alias="hp",
+        default={
+            "feasible": False,              # Should this be considered for the central optimization.
+            "CCOP_feasible": True,          # Should this be considered for the central optimization (constant COP).
+            "ASHP_feasible": False,         # Should this be considered for the central optimization (air source).
+            "CSV_feasible": False,          # Should this be considered for the central optimization (CSV data).
+            "inv_var": 1110,                # Investment variable in €/kW.
+            "life_time": 20,                # Maximum life time in years.
+            "cost_om": 0.033,               # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,                   # Minimum capacity in kW.
+            "max_cap": 500,                 # Maximum capacity in kW.
+            "ASHP_carnot_eff": 0.4,         # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
+            "ASHP_supply_temp": 60,         # Supply temperature of the Air Source Heat Pump in Celsius.
+            "COP_const": 4                  # Constant Coefficient of Performance (COP).
+        }
+    )
+
+    # AirHP parameters (Air Source Heat Pump)
+    AirHP: dict = Field(
+        alias="airhp",
+        default={
+            "feasible": True,       # Should this be considered for the central optimization.
+            "life_time": 25,        # Maximum life time in years.
+            "inv_var": 1110,        # Investment variable in €/kWth.
+            "cost_om": 0.033,       # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kWth.
+            "max_cap": 20000        # Maximum capacity in kWth.
+        }
+    )
+
+    # GroundHP parameters (Ground Source Heat Pump)
+    GroundHP: dict = Field(
+        alias="groundhp",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 1000,        # Investment variable in €/kWth.
+            "cost_om": 0.025,       # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kWth.
+            "max_cap": 500          # Maximum capacity in kWth.
+        }
+    )
+
+    # EB parameters (Electric Boiler)
+    EB: dict = Field(
+        alias="eb",
+        default={
+            "feasible": True,       # Should this be considered for the central optimization.
+            "inv_var": 32.73,       # Investment variable in €/kW.
+            "eta_th": 0.99,         # Thermal efficiency between 0 and 1.
+            "life_time": 25,        # Maximum life time in years.
+            "cost_om": 0.01,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 10000        # Maximum capacity in kW.
+        }
+    )
+
+    # CC parameters (Chiller)
+    CC: dict = Field(
+        alias="cc",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 700,         # Investment variable in €/kW.
+            "COP": 3.5,             # Coefficient of Performance (COP).
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # AirCC parameters (Air Cooled Chiller)
+    AirCC: dict = Field(
+        alias="aircc",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "life_time": 20,        # Maximum life time in years.
+            "inv_var": 700,         # Investment variable in €/kW.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # AC parameters (Absorption Chiller)
+    AC: dict = Field(
+        alias="ac",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1000,        # Investment variable in €/kW.
+            "eta_th": 0.75,         # Thermal efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # BCHP parameters (Biomass Combined Heat and Power)
+    BCHP: dict = Field(
+        alias="bchp",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1140,        # Investment variable in €/kW.
+            "eta_el": 0.35,         # Electrical efficiency between 0 and 1.
+            "eta_th": 0.55,         # Thermal efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.03,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 1000         # Maximum capacity in kW.
+        }
+    )
+
+    # BBOI parameters (Biomass Boiler)
+    BBOI: dict = Field(
+        alias="bboi",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 570,         # Investment variable in €/kW.
+            "eta_th": 0.85,         # Thermal efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # WCHP parameters (Waste Combined Heat and Power)
+    WCHP: dict = Field(
+        alias="wchp",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 2000,        # Investment variable in €/kW.
+            "eta_el": 0.3,          # Electrical efficiency between 0 and 1.
+            "eta_th": 0.6,          # Thermal efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.03,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 1000         # Maximum capacity in kW.
+        }
+    )
+
+    # WBOI parameters (Waste Boiler)
+    WBOI: dict = Field(
+        alias="wboi",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 700,         # Investment variable in €/kW.
+            "eta_th": 0.8,          # Thermal efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 500          # Maximum capacity in kW.
+        }
+    )
+
+    # ELYZ parameters (Electrolyzer)
+    ELYZ: dict = Field(
+        alias="elyz",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1500,        # Investment variable in €/kW.
+            "eta_el": 0.7,          # Electrical efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.03,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 1000         # Maximum capacity in kW.
+        }
+    )
+
+    # FC parameters (Fuel Cell)
+    FC: dict = Field(
+        alias="fc",
+        default={
+            "feasible": False,              # Should this be considered for the central optimization.
+            "inv_var": 1800,                # Investment variable in €/kW.
+            "eta_el": 0.5,                 # Electrical efficiency between 0 and 1.
+            "eta_th": 0.4,                 # Thermal efficiency between 0 and 1.
+            "life_time": 20,                # Maximum life time in years.
+            "cost_om": 0.03,                # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,                   # Minimum capacity in kW.
+            "max_cap": 1000,                # Maximum capacity in kW.
+            "enable_heat_diss": True        # Enable/disable heat dissipation for the fuel cell.
+        }
+    )
+
+    # H2S parameters (Hydrogen Storage)
+    H2S: dict = Field(
+        alias="h2s",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1200,        # Investment variable in €/kWh.
+            "sto_loss": 0.0,        # Storage loss as a fraction.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kWh.
+            "max_cap": 5000         # Maximum capacity in kWh.
+        }
+    )
+
+    # SAB parameters (Sabatier Reactor)
+    SAB: dict = Field(
+        alias="sab",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 2000,        # Investment variable in €/kW.
+            "eta": 0.6,             # Round-trip efficiency between 0 and 1.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.03,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kW.
+            "max_cap": 1000         # Maximum capacity in kW.
+        }
+    )
+
+    # TES parameters (Thermal Energy Storage)
+    TES: dict = Field(
+        alias="tes",
+        default={
+            "feasible": True,       # Should this be considered for the central optimization.
+            "inv_var": 550,         # Investment variable in €/m^3.
+            "sto_loss": 0.01,       # Storage loss per hour as a fraction.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.013,       # Cost of operation and maintenance as a percentage of investment.
+            "min_vol": 0,           # Minimum storage volume in cubic meters.
+            "max_vol": 5000,        # Maximum storage volume in cubic meters.
+            "delta_T": 30,          # Temperature difference between charged and discharged state in Celsius.
+            "soc_init": 0.5         # Initial state of charge between 0 and 1.
+        }
+    )
+
+    # CTES parameters (Cold Thermal Energy Storage)
+    CTES: dict = Field(
+        alias="ctes",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 1300,        # Investment variable in €/m^3.
+            "sto_loss": 0.01,       # Storage loss per hour as a fraction.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.01,        # Cost of operation and maintenance as a percentage of investment.
+            "min_vol": 0,           # Minimum storage volume in cubic meters.
+            "max_vol": 5000,        # Maximum storage volume in cubic meters.
+            "delta_T": 30           # Temperature difference between charged and discharged state in Celsius.
+        }
+    )
+
+    # BAT parameters (Battery Storage)
+    BAT: dict = Field(
+        alias="bat",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 200,         # Investment variable in €/kWh.
+            "life_time": 15,        # Maximum life time in years.
+            "cost_om": 0.02,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kWh.
+            "max_cap": 200,         # Maximum capacity in kWh.
+            "sto_loss": 0.0,        # Storage loss as a fraction.
+            "soc_init": 0.5         # Initial state of charge between 0 and 1.
+        }
+    )
+
+    # GS parameters (Gas Storage)
+    GS: dict = Field(
+        alias="gs",
+        default={
+            "feasible": False,      # Should this be considered for the central optimization.
+            "inv_var": 150,         # Investment variable in €/kWh.
+            "life_time": 20,        # Maximum life time in years.
+            "cost_om": 0.01,        # Cost of operation and maintenance as a percentage of investment.
+            "min_cap": 0,           # Minimum capacity in kWh.
+            "max_cap": 10000,       # Maximum capacity in kWh.
+            "sto_loss": 0.0,        # Storage loss as a fraction.
+            "soc_init": 0.5         # Initial state of charge between 0 and 1.
+        }
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        """Customize how settings are loaded to handle nested dictionaries"""
+        # Get env file from dotenv_settings if available
+        env_file = getattr(dotenv_settings, 'env_file', None) if dotenv_settings else None
+        return (init_settings, GeneralCustomEnvSettings(settings_cls, env_file), env_settings, dotenv_settings, file_secret_settings)
+    
+    model_config = SettingsConfigDict(
+        env_prefix="C_",
+        env_file=".centraldeviceconfig",
+        extra="ignore"
+    )
 
 ### General Global classes ###
 
@@ -666,5 +1326,3 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         calendar=CalendarConfig(_env_file=env_file_path),
         scenario_name = ScenarioName(_env_file=env_file_path)
     )
-
-    

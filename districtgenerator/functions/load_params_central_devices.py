@@ -161,25 +161,28 @@ def load_params(data):
     param["sigma"] = sigma
 
     heat_grid = {
-        k: heat_grid_data[k]["value"]
+        k: heat_grid_data[k]
         for k in ["T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
     heat_grid["T_hot_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_hot_cooling_network"]
     heat_grid["T_cold_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_cooling_network"]
     heat_grid["delta_T_heatTransfer"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["delta_T_heatTransfer"]
 
-    generation = heat_grid_data["generation"]["value"]
-    temperature_mode = heat_grid_data["temperature_mode"]["value"]
-    if temperature_mode == "Heating_curve":
+    generation = heat_grid_data["generation"]
+    temperature_mode = heat_grid_data["temperature_mode"]
+    if temperature_mode == "heating_curve":
         # Variable-constant operation mode (Heating curve)
-        T_supply_min = heat_grid_data["T_hot_heating_network"]["Heating_curve"]["min"][generation]["value"]
-        T_supply_max = heat_grid_data["T_hot_heating_network"]["Heating_curve"]["max"][generation]["value"]
-        T_return_min = heat_grid_data["T_cold_heating_network"]["Heating_curve"]["min"][generation]["value"]
-        T_return_max = heat_grid_data["T_cold_heating_network"]["Heating_curve"]["max"][generation]["value"]
+        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
+        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
+        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
+        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
         T_supply, T_return = heating_curve(param["T_air"], T_supply_min, T_supply_max, T_return_min, T_return_max)
-    elif temperature_mode == "Constant":
-        # Constant operation mode
-        T_supply_const = heat_grid_data["T_hot_heating_network"]["Constant"][generation]["value"]
-        T_return_const = heat_grid_data["T_cold_heating_network"]["Constant"][generation]["value"]
+    elif temperature_mode == "constant":
+        # constant operation mode
+        print
+        print(heat_grid_data)
+        print(heat_grid_data["T_hot_heating_network"])
+        T_supply_const = heat_grid_data["T_hot_heating_network"]["constant"][generation]
+        T_return_const = heat_grid_data["T_cold_heating_network"]["constant"][generation]
         T_supply = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_supply_const  # °C
         T_return = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_return_const  # °C
 
