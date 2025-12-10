@@ -49,32 +49,50 @@
     },
     {
       "name": "inv_var",
-      "value": 2920,
+      "value": 1950,
       "unit": "€/kWth",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.015,
+      "value": 0.02,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
   ]
   },
   {
-  "device": "electric heater" ,
-  "abbreviation": "EH" ,
-  "description": "Electric heating device for bivalent operation in combination with the heat pump." ,
+  "device": "electric heater",
+  "abbreviation": "EH",
+  "description": "Electric heating device for bivalent operation in combination with the heat pump.",
   "specifications": [
+      {
+          "name": "eta_th",
+          "value": 1.0,
+          "unit": "-",
+          "description": "Thermal efficiency."
+      },
+      {
+          "name": "life_time",
+          "value": 25,
+          "unit": "years",
+          "description": "Maximum life time."
+      },
+      {
+          "name": "inv_var",
+          "value": 620,
+          "unit": "€/kW",
+          "description": ""
+      },
+      {
+          "name": "cost_om",
+          "value": 0.0096,
+          "unit": "1/year (fraction of inv_var)",
+          "description": ""
+          }
+        ]
+    },
     {
-      "name": "eta_th" ,
-      "value": 1.0 ,
-      "unit": "-" ,
-      "description": "Thermal efficiency."
-    }
-  ]
-  },
-  {
   "device": "gas boiler" ,
   "abbreviation": "BOI" ,
   "description": "Gas boiler." ,
@@ -93,13 +111,13 @@
     },
     {
       "name": "inv_var",
-      "value": 1370,
+      "value": 420,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.0095,
+      "value": 0.031,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
@@ -108,7 +126,7 @@
   {
   "device": "biomass boiler" ,
   "abbreviation": "BBOI" ,
-  "description": "Biomass boiler." ,
+  "description": "Biomass boiler (pellets)." ,
   "specifications": [
     {
       "name": "eta_th" ,
@@ -124,13 +142,13 @@
     },
     {
       "name": "inv_var",
-      "value": 1014,
+      "value": 2200,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cost_om",
-      "value": 0.06,
+      "value": 0.0095,
       "unit": "1/year (fraction of inv_var)",
       "description": ""
     }
@@ -143,7 +161,7 @@
   "specifications": [
     {
       "name": "eta_th" ,
-      "value": 0.93 ,
+      "value": 0.92,
       "unit": "-" ,
       "description": "Thermal efficiency."
     },
@@ -155,7 +173,7 @@
     },
     {
       "name": "inv_var",
-      "value": 390,
+      "value": 779,
       "unit": "€/kW",
       "description": ""
     },
@@ -254,13 +272,13 @@
     },
     {
       "name": "inv_var",
-      "value": 0,
+      "value": 60.93,
       "unit": "€/kW",
       "description": ""
     },
     {
       "name": "cap_fee",
-      "value": 50,
+      "value": 0,
       "unit": "€/(year*kW)",
       "description": "price payed for the connection to the district heating network."
     }
@@ -278,9 +296,9 @@
       "description": "Thermal efficiency."
     },
     {
-      "name": "eta_el" ,
-      "value": 0.39 ,
-      "unit": "-" ,
+      "name": "eta_el",
+      "value": 0.39,
+      "unit": "-",
       "description": "Electrical efficiency."
     },
     {
@@ -495,7 +513,7 @@
     },
     {
       "name": "second_order",
-      "value": 0.0000142,
+      "value": 1.42e-05,
       "unit": "Watt per squaremeter per Kelvin square",
       "description": "Second order efficiency. Quadratic thermal losses."
     },

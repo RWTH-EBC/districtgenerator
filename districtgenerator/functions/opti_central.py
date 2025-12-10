@@ -58,7 +58,7 @@ def run_opti_central(model, data, cluster):
         level=logging.INFO,
         format='%(levelname)s - %(name)s - %(message)s',
         handlers=[
-            logging.StreamHandler(),  # Console output
+            logging.FileHandler('optimization_debug.log'),  # Console output
             # Optional: logging.FileHandler('optimization_debug.log')  # File output
         ]
     )
@@ -1438,7 +1438,7 @@ def solve_model_and_extract_results(model, data):
 
     # Solve the model
     solver, solver_options = solver_config.create_solver()
-    results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
+    results = solver.solve(model, tee=False, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file
     term_cond = results.solver.termination_condition
@@ -1774,7 +1774,6 @@ def solve_model_and_extract_results(model, data):
             (ev_id, ev_data[ev_id]["car_id_str"]) for ev_id in ev_ids if ev_data.get(ev_id, {}).get("building_id") == n
         ]
 
-
         # Store profiles for each EV
         for ev_id, car_id_str in evs_in_building:
             ev_profile = next((e for e in ev_mapping if e['id'] == ev_id), None)
@@ -1789,6 +1788,7 @@ def solve_model_and_extract_results(model, data):
             for t in time_steps: # Profiles
                 results_dict[n]["EV"][car_id_str]["ch"].append(round(pyo.value(model.ch_ev[ev_id, t]), 0))
                 results_dict[n]["EV"][car_id_str]["dch"].append(round(pyo.value(model.dch_ev[ev_id, t]), 0))
+
                 if charging_type != 'on_demand':
                     results_dict[n]["EV"][car_id_str]["soc"].append(round(pyo.value(model.soc_ev[ev_id, t]), 0))
 

@@ -155,13 +155,13 @@
   },
   "pump": {
     "eta_pump": {"value": 0.65, "unit": "-", "description": "electric pump efficiency"},
-    "inv_pump": {"value": 700, "unit": "EUR/kW", "description": "specific investment pump(https://www.manomano.de/p/ksb-inlinepumpe-etaline-150-150-250-gg11-1450-1min-11kw-ie3-87098681)"},
+    "inv_pump": {"value": 700, "unit": "EUR/kW", "description": "specific investment pump"},
     "pump_lifetime": {"value": 10, "unit": "years", "description": "pump lifetime(VDI 2067 Umwälzpumpe)"},
     "cost_om_pump": {"value": 0.03, "unit": "-", "description": "pump O&M share"}
   },
   "pipe": {
     "f_fric": {"value": 0.025, "unit": "-", "description": "friction factor"},
-    "dp_pipe_max": {"value": 500, "unit": "Pa/m", "description": "max pressure gradient"},
+    "dp_pipe_max": {"value": 400, "unit": "Pa/m", "description": "max pressure gradient"},
     "dp_pipe_min": {"value": 30, "unit": "Pa/m", "description": "min pressure gradient"},
     "pipe_lifetime": {"value": 30, "unit": "years", "description": "pipe lifetime"},
     "cost_om_pipe": {"value": 0.005, "unit": "-", "description": "pipe O&M share"}

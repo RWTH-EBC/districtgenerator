@@ -528,7 +528,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     solver, solver_options = solver_config.create_solver()
     solve_start_time = time.time()
-    results = solver.solve(model, tee=True, logfile=solver_log_path, options=solver_options)
+    results = solver.solve(model, tee=False, options=solver_options)
     print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
 
     ################################################################################

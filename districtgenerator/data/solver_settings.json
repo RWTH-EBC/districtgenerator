@@ -1,6 +1,6 @@
 {
   "model_name": "Central_Optimization_Model",
-  "solver_name": "gurobi",
+  "solver_name": "highs",
   "solver_executable": null,
   "solver_options": {
     "time_limit": 600,

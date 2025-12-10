@@ -164,7 +164,7 @@ def solve_model_and_extract_results(model, timelimit=None, mipgap=None):
 
     # Solve the model
     solver, specific_options = solver_config.create_solver(timelimit=timelimit, mipgap=mipgap)
-    results = solver.solve(model, tee=True, options=specific_options)
+    results = solver.solve(model, tee=False, options=specific_options)
 
     # Check if an optimal solution was found
     if (results.solver.status == pyo.SolverStatus.ok) and (
