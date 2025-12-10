@@ -178,9 +178,6 @@ def load_params(data):
         T_supply, T_return = heating_curve(param["T_air"], T_supply_min, T_supply_max, T_return_min, T_return_max)
     elif temperature_mode == "constant":
         # constant operation mode
-        print
-        print(heat_grid_data)
-        print(heat_grid_data["T_hot_heating_network"])
         T_supply_const = heat_grid_data["T_hot_heating_network"]["constant"][generation]
         T_return_const = heat_grid_data["T_cold_heating_network"]["constant"][generation]
         T_supply = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_supply_const  # °C

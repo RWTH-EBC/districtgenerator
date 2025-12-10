@@ -235,6 +235,12 @@ class Datahandler:
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                          converters={"position": parse_position}).set_index("id", drop=False))
             
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        if os.path.exists(json_path):
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                self.site["district_parameters"] = jsonData["parameters"]
+            
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
         for attr, value in site_config.__dict__.items():

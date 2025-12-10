@@ -919,7 +919,7 @@ def output_diameter(data, model, param):
     plt.savefig(base + ".svg")  # SVG
     ax.grid(True, linestyle='--', linewidth=0.3)
 
-    plt.show()
+    # plt.show()
 
     # ---------- 2. plot Pipeline Map - Diameter ----------
     # get the optimized diameter for each pipe segment
@@ -973,7 +973,7 @@ def output_diameter(data, model, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    plt.show()
+    # plt.show()
 
     # ---------- 3. plot Pipeline Map - Maximum velocity (m/s) ----------
     # calculate the max. velocity and the max. pressure drop
@@ -1031,7 +1031,7 @@ def output_diameter(data, model, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    plt.show()
+    # plt.show()
 
     # ---------- 4. plot Pipeline Map - Maximum pressure drop (Pa/m) ----------
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -1077,7 +1077,7 @@ def output_diameter(data, model, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    plt.show()
+    # plt.show()
 
     # ---------- 5. plot Pipeline Map - Energy_density (MWh/m) ----------
     deltaT = param["deltaT"]
@@ -1131,7 +1131,7 @@ def output_diameter(data, model, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    plt.show()
+    # plt.show()
 
     # ---------- 6. save heat loss(yearly profile) ----------
     # save heat loss(yearly profile) in data.heat_grid_data["total_losses_heating_network"]
@@ -1200,8 +1200,8 @@ def output_diameter(data, model, param):
     pump_matrix = np.array(list(pump_power_line.values()))
 
     # Add yearly station + hub pressure-drop component
-    dp_substation = data.heat_grid_data.get("dp_substation", {}).get("value", 0.0)  # Pa
-    dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", {}).get("value", 0.0)  # Pa
+    dp_substation = data.heat_grid_data.get("dp_substation", 0.0)  # Pa
+    dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", 0.0)  # Pa
     dp_station_total = dp_substation + dp_energy_hub                                # Pa
 
     # Approximate total volume flow at energy hub as sum of flows leaving EH1
