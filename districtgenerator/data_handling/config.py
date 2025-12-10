@@ -136,17 +136,19 @@ class EcoConfig(BaseSettings):
     used in the district generator.
     """
 
-    price_supply_el: float = 0.3969     # Electricity price in €/kWh
-    revenue_feed_in_el: float = 0.0794  # Feed-in electricity price in €/kWh
-    price_supply_gas: float = 0.1236    # Gas price in €/kWh
-    price_hydrogen: float = 0.1         # Hydrogen price in €/kWh
-    price_waste: float = 0.1            # Waste price in €/kWh
-    price_biomass: float = 0.05         # Biomass price in €/kWh
-    co2_el_grid: float = 0.363          # Co2 emissions for electricity import (grid mix) in kg/kWh
-    co2_gas: float = 0.201              # Co2 emissions for burning natural gas in kg/kWh
-    co2_biom: float = 0.35              # Co2 emissions for burning biomass in kg/kWh
-    co2_waste: float = 0.0              # Co2 emissions for burning waste in kg/kWh
-    co2_hydrogen: float = 0.0           # Co2 emissions for burning hydrogen in kg/kWh
+    price_supply_el: float = 0.3969         # Electricity price in €/kWh
+    revenue_feed_in_el: float = 0.0794      # Feed-in electricity price in €/kWh
+    price_supply_el_network: float = 0.0    # Electricity price for selling to network in €/kWh
+    revenue_feed_in_el_network: float = 0.0 # Revenue for buying from network in €/kWh
+    price_supply_gas: float = 0.1236        # Gas price in €/kWh
+    price_hydrogen: float = 0.1             # Hydrogen price in €/kWh
+    price_waste: float = 0.1                # Waste price in €/kWh
+    price_biomass: float = 0.05             # Biomass price in €/kWh
+    co2_el_grid: float = 0.363              # Co2 emissions for electricity import (grid mix) in kg/kWh
+    co2_gas: float = 0.201                  # Co2 emissions for burning natural gas in kg/kWh
+    co2_biom: float = 0.35                  # Co2 emissions for burning biomass in kg/kWh
+    co2_waste: float = 0.0                  # Co2 emissions for burning waste in kg/kWh
+    co2_hydrogen: float = 0.0               # Co2 emissions for burning hydrogen in kg/kWh
 
     model_config = SettingsConfigDict(
         extra="allow" 
