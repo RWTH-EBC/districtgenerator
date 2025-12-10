@@ -1,8 +1,13 @@
 districtgenerator/results/*
+districtgenerator/data/weather/*
+results/*
+districtgenerator.egg-info/*
+
 districtgenerator/data/scenarios/*
-districtgenerator/examples/*
-districtgenerator/examples/results/*
-districtgenerator/examples/results/results/*
+!districtgenerator/data/scenarios/example.csv
+
+.env.CONFIG.*
+!.env.CONFIG.EXAMPLE
 
 errorfile.txt
 *.bk
@@ -16,15 +21,9 @@ errorfile.txt
 *.pkl
 __pycache__/
 .idea/
-demands/
-districtgenerator/data/weather/*
+
 *.egg-info/
 *.egg/
 *.eggs
-districtgenerator.egg-info/*
-
-joss/
-
-districtgenerator/
 
 .gitlab-ci.yml

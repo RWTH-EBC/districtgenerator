@@ -289,10 +289,11 @@ class Datahandler:
         for attr, value in calendar_config.__dict__.items():
             self.calendar[attr] = value
 
-        for attr, value in heat_grid_config.__dict__.items():
-            self.heat_grid_data[attr] = value
+        
 
         #! Das hier überarbeiten, damit es in die neue Struktur passt?
+        # for attr, value in heat_grid_config.__dict__.items():
+        #     self.heat_grid_data[attr] = value
 
         with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
             self.heat_grid_data = json.load(json_file)

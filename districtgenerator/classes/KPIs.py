@@ -430,7 +430,7 @@ class KPIs:
 
         c_om = 0 # Operation, maintenance and capacity costs
 
-        if dev.get("cost_om",None) is not None and dev.get("inv_var",0) != 0: # operation and maintenance costs [€/(a*€_invested)]
+        if dev.get("cost_om",None) is not None: # operation and maintenance costs [€/(a*€_invested)]
             c_om += dev["cost_om"] * inv
 
         if dev.get("cap_fee",None) is not None : # if a Capacity fee exists [€/(kW*a)]
