@@ -942,7 +942,8 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     # draw stacked plot of system costs
     # Extract non-zero ann/o&m costs of devices
-    plot_data = []  # list of (label, value)
+    costs_data = []  # list of (label, value)
+    revenues_data = []  # list of (label, value)
 
     for dev in model.all_devs:
         ann = safe_value(model.c_inv, dev)
@@ -952,32 +953,62 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
             continue  # skip unused devices
 
         # append ann then o&m costs
-        plot_data.append((f"Annualized investment for the {dev}", ann))
-        plot_data.append((f"Operation and maintenance cost for the {dev}", om))
+        costs_data.append((f"Annualized investment for the {dev}", ann))
+        costs_data.append((f"Operation and maintenance cost for the {dev}", om))
 
     # Add heat grid
-    plot_data.append(("Annualized investment for Heat Grid", heat_grid_ann_costs))
-    plot_data.append(("Operation and maintenance cost for Heat Grid", heat_grid_om_costs))
+    costs_data.append(("Annualized investment for Heat Grid", heat_grid_ann_costs))
+    costs_data.append(("Operation and maintenance cost for Heat Grid", heat_grid_om_costs))
 
-    # --- Prepare stacked values ---
-    labels = [item[0] for item in plot_data]
-    values = [item[1] for item in plot_data]
+    # Add Energy costs and revenues
+    if result_dict["total_el_costs"] != 0:
+        costs_data.append(("Electricity costs", result_dict["total_el_costs"]))
 
+    if result_dict["rev_feed_in_el"] != 0:
+        revenues_data.append(("Electricity feed-in revenues", result_dict["rev_feed_in_el"]))
+
+    if result_dict["total_gas_costs"] != 0:
+        costs_data.append(("Gas costs", result_dict["total_gas_costs"]))
+
+    if result_dict["rev_feed_in_gas"] != 0:
+        revenues_data.append(("Gas feed-in revenues", result_dict["rev_feed_in_gas"]))
+
+    if result_dict["supply_costs_biom"] != 0:
+        costs_data.append(("Biomasse costs", result_dict["supply_costs_biom"]))
+
+    if result_dict["supply_costs_waste"] != 0:
+        costs_data.append(("Waste costs", result_dict["supply_costs_waste"]))
+
+    if result_dict["supply_costs_hydrogen"] != 0:
+        costs_data.append(("Hydrogen costs", result_dict["supply_costs_hydrogen"]))
+
+    # Prepare colore
     cmap = plt.get_cmap("tab20")  # 20 distinct colors
-    colors = [cmap(i) for i in range(len(labels))]
+    cost_colors = [cmap(i) for i in range(len(costs_data))]
+    rev_colors = [cmap(i) for i in range(18, 20)]
 
     fig, ax = plt.subplots(figsize=(10, 14))
 
     x = [0]  # only ONE bar
-    bottom = 0
+    bottom_cost = 0
+    bottom_rev = 0
 
     # plot each pair layer
-    for label, val, col in zip(labels, values, colors):
-        ax.bar(x, val, bottom=bottom, color=col, label=label, width=0.6)
-        bottom += val
+    for (label, value), color in zip(costs_data, cost_colors):
+        ax.bar(x, value, bottom=bottom_cost,
+               color=color, label=label, width=0.6)
+        bottom_cost += value
+
+    for (label, value), color in zip(revenues_data, rev_colors):
+        ax.bar(x, -value, bottom=bottom_rev,
+               color=color, label=label, width=0.6)
+        bottom_rev -= value
 
     # Automatic line wrapping
-    wrapped_labels = ['\n'.join(textwrap.wrap(lbl, 20)) for lbl in labels]
+    cost_labels = [lbl for lbl, val in costs_data]
+    rev_labels = [lbl for lbl, val in revenues_data]
+    all_labels = cost_labels + rev_labels
+    wrapped_labels = ['\n'.join(textwrap.wrap(lbl, 20)) for lbl in all_labels]
 
     # X-axis cleanup
     ax.set_ylabel("Annual Costs [EUR/a]")
@@ -995,9 +1026,10 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     plt.tight_layout()
 
-    plot_filename = f"system_cost_stack_{data.scenario_name}.png"
-    plot_path = os.path.join(data.resultPath, plot_filename)
-    plt.savefig(plot_path)
+    dir_result = data.heat_grid_data["resultPath"]
+    base = os.path.join(dir_result, f"system_cost_stack_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
 
     plt.show()
 
