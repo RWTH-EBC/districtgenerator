@@ -8,6 +8,8 @@ districtgenerator/data/scenarios/*
 
 .env.CONFIG.*
 !.env.CONFIG.EXAMPLE
+!.env.CONFIG.BERLIN
+
 
 errorfile.txt
 *.bk
