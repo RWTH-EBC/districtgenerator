@@ -46,6 +46,7 @@ def network_optimization(data):
 
     # save result path in param
     param["dir_result"] = dir_result
+    data.heat_grid_data["resultPath"] = dir_result
 
     # calculate the flow (heat loss is first neglected in calculating flow)
     # initialize the attribute to store pipeline information
@@ -76,7 +77,15 @@ def network_optimization(data):
             # calculate the diameter of each pipeline segments based on the maximum permitted pressure drop
             data, param = calc_diameter(data, param, f_fric_new)
 
-        # calculate the friction factor with the result
+        # calculate the heat loss with the diameter result
+        data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
+
+        # recalculate the flow with heat loss
+        file_path = os.path.join(dir_result, f"pipe_iter_{i+1}.json")
+        data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe,
+                                heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
+
+        # calculate the friction factor with the diameter result
         f_fric_new = calc_f_fric(data, param)
 
         # print the current iteration status
@@ -97,23 +106,10 @@ def network_optimization(data):
     # save the final converged friction factor
     param["f_fric"] = f_fric_new
 
-    # ---------- 3. consider the heat loss to calculate flow for the recalculation of diameter ----------
-    # calculate the heat loss in grid with optimized result
-    data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
-
-    # recalculate the flow with the heat loss
-    file_path = os.path.join(dir_result, "pipe_before_last_opt.json")
-    data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
-
-    # run the optimization/calculation for the last time
     if heuristic == False:
-        # run the optimization
-        data, model, param = optimization_diameter(data, param, f_fric_new)
+        # write the optimization solution file
         solution_file = os.path.join(dir_result, 'solution_file.txt')
         write_solution_file(model, solution_file)
-    else:
-        # calculate the diameter of each pipeline segments based on the maximum permitted pressure drop
-        data, param = calc_diameter(data, param, f_fric_new)
 
     # output and process the results
     output_diameter(data, param)
@@ -1315,7 +1311,7 @@ def output_diameter(data, param):
     heat_loss_substation = param["heat_loss_substation"]
 
     # calculate heat loss in every pipe segment
-    data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
+    # data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
 
     # sum the heat loss in the network and calculate the heat loss density
     heat_loss_network = np.zeros_like(heat_loss_substation)
@@ -1335,8 +1331,8 @@ def output_diameter(data, param):
     print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
 
     # recalculate the flow distribution with heat loss
-    file_path = os.path.join(dir_result, "pipe_postprocess.json")
-    data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
+    # file_path = os.path.join(dir_result, "pipe_postprocess.json")
+    # data, param = calc_flow(data, param, heat_loss_pipe=heat_loss_pipe, heat_loss_pipe_cluster=heat_loss_pipe_cluster, save_path=file_path)
 
     # ---------- 1. plot Pipeline Map - Labeled by Pipe ID ----------
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -1830,9 +1826,9 @@ def output_diameter(data, param):
 
     plt.tight_layout()
 
-    plot_filename = f"network_cost_stack_{data.scenario_name}.png"
-    plot_path = os.path.join(dir_result, plot_filename)
-    plt.savefig(plot_path)
+    base = os.path.join(dir_result, f"network_cost_stack_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
 
     plt.show()
 
@@ -2139,8 +2135,6 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
         f_fric = param["f_fric"]
         d = pipes[pid]["d_i"]       # mm
         DN = pipes[pid]["DN"]
-        da = pipe_dict[DN]["Outer diameter (pipe) (mm)"]   # mm
-        R = da * 500                # mm, source: kingspan-logstor-design-manual-single-pipes-specifications-en-eur.pdf
 
         # ----------------------------
         # 1) Straight-through
@@ -2153,6 +2147,7 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
         # ----------------------------
         elif ntype == "bend":
             ang = pipe_angle.get(pid, 0.0)
+            R = pipe_dict[DN]["Radius (mm)"]   # mm
             K1 = -0.000041 * ang**2 + 0.0146 * ang + 0.05      # Bild 4.140 (Polynomial Fitting)
             K2 = 0.21 / (R/d) ** 0.5                           # Bild 4.141 (for sharp bend) / 4.143 (for smooth bend)
             K3 = 1                                      # (h=b for round tube) Bild 4.142 (for sharp bend) / 4.144 (for smooth bend)
