@@ -525,6 +525,7 @@ def load_parameter(data):
 
     # 4 load heating demand for each building
     heat_loss_substation = np.zeros_like(deltaT)
+    heat_supply = np.zeros_like(deltaT)
     h_loss_subst = data.heat_grid_data["h_loss_subst"]["value"]  # 5%, Heat losses at the substation
 
     for building in data.district:
@@ -546,7 +547,9 @@ def load_parameter(data):
             heating_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
             building["user"].heating_demand = heating_demand  # kW
             # Sum the heat losses in the substations
-            heat_loss_substation += heating_demand * h_loss_subst / 100  # kW
+            heat_loss_substation += heating_demand * (h_loss_subst / 100)  # kW
+            # Sum the heat demand in the network
+            heat_supply += heating_demand
 
     # 4 norm diameter
     pipe_dict = data.pipe_data.set_index("Nominal diameter (DN)").to_dict(orient="index")
@@ -566,18 +569,18 @@ def load_parameter(data):
 
     # symmetrical and (a) antisymmetrical heat loss factors
     # Heat Interference Correction Factor Between Pipes (Heat Transfer Between Supply and Return Water)
-    b = np.log((1 + (2 * Z_c / D_heating_network) ** 2) ** 0.5)
+    b = np.log((1 + (2 * Z_c / D_heating_network) ** 2) ** 0.5)     # DIN EN 13941-1 D.3
     for DN, pipe in pipe_dict.items():
         da = pipe["Outer diameter (pipe) (mm)"]
         Da = pipe["Outer diameter (case) (mm)"]
         # The soil thermal resistance term depends on the burial depth Zc
         # and the outer diameter Da of the pipe plus insulation layer.
-        a = np.log(4 * Z_c / (Da / 1000))
+        a = np.log(4 * Z_c / (Da / 1000))           # DIN EN 13941-1 D.3
         # The thermal resistance component of the insulation layer depends on the outer diameter Da of the pipe plus
         # insulation layer and the outer diameter da of the steel pipe.
-        beta = k_soil / k_pipe * np.log(Da / da)
+        beta = k_soil / k_pipe * np.log(Da / da)    # DIN EN 13941-1 D.7
         # ks / ka：symmetrical and (a) antisymmetrical heat loss factors according to zero-order multipole formula
-        ks_heating_network = (a + beta + b) ** -1
+        ks_heating_network = (a + beta + b) ** -1   # DIN EN 13941-1 D.3
         # ka_heating_network = (a + beta - b) ** -1
         pipe["symmetrical heat loss factor"] = ks_heating_network
         # pipe["antisymmetrical heat loss factor"] = ka_heating_network
@@ -612,7 +615,9 @@ def load_parameter(data):
     param["deltaT_cluster"] = deltaT_cluster
     param["T_return"] = T_return
     param["T_return_cluster"] = T_return_cluster
+    param["T_supply"] = T_supply
     param["heat_loss_substation"] = heat_loss_substation
+    param["heat_supply"] = heat_supply
     param["pipe_dict"] = pipe_dict
     param["path"] = path
     param["HP_ann_factor"] = HP_ann_factor
@@ -652,8 +657,8 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
         if building["buildingFeatures"]["heater"] == "heat_grid":
             pos_building = tuple(building["buildingFeatures"]["position"])
             # The heat supplied to the building by the network should include heat losses from the substation.
-            demand_cluster = building["user"].heating_demand_cluster * (1 + h_loss_subst / 100)
-            demand = building["user"].heating_demand * (1 + h_loss_subst / 100)
+            demand_cluster = building["user"].heating_demand_cluster * (1 + h_loss_subst / 100) # kW
+            demand = building["user"].heating_demand * (1 + h_loss_subst / 100)                 # kW
 
             # find corresponding pipeline node
             for key, node_info in data.pipeline_nodes.items():
@@ -681,7 +686,7 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
         p2 = np.array(pos_child, dtype=float)
 
         # Euclidean distance
-        length = float(np.linalg.norm(p1 - p2))
+        length = float(np.linalg.norm(p1 - p2)) # m
 
         # calculate the flow
         # heating_demand_cluster in kW, c_f in J/kg·K, 1kW = 1kJ/s
@@ -692,8 +697,8 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
         loads_array = pipe_loads[(parent, child)]
         flow_array = loads_array * 1000 / (c_f * deltaT * rho_f)  # m³/s
         # Retrieve the maximum and minimum flow rates, and convert the data type to float.
-        flow_max = float(np.max(flow_array[flow_array > 1e-6]))
-        flow_min = float(np.min(flow_array[flow_array > 1e-6]))
+        flow_max = float(np.max(flow_array[flow_array > 1e-6]))   # m³/s
+        flow_min = float(np.min(flow_array[flow_array > 1e-6]))   # m³/s
 
         # store into data.pipeline
         if pipe_id not in data.pipeline:
@@ -1232,11 +1237,11 @@ def calc_heat_loss_pipe(data, param):
     for pipe_id, pipe in data.pipeline.items():
         DN = pipe["DN"]  # mm
         ks = pipe_dict[DN]["symmetrical heat loss factor"]
-        length = pipe["length"]
+        length = pipe["length"] # m
 
         # *2: The first factor of two accounts for the heat loss of both the supply and return pipes.
         # *2: The second factor of two is in the equation of calculating q_s from DIN EN 13941.
-        pipe["heat_loss_pipe"] = 2 * (T_s - T_soil) * 2 * np.pi * k_soil * ks * length / 1000  # kW
+        pipe["heat_loss_pipe"] = 2 * (T_s - T_soil) * 2 * np.pi * k_soil * ks * length / 1000  # kW, DIN EN 13941-1 D.11
 
         # prepare heat_loss_pipe for recalculate the flow
         # shape like: key = (parent, child), value = ndarray of heat loss on this pipe.
@@ -1316,19 +1321,22 @@ def output_diameter(data, param):
     # sum the heat loss in the network and calculate the heat loss density
     heat_loss_network = np.zeros_like(heat_loss_substation)
     total_pipe_length = 0
+    annual_heat_loss_network = 0
     for pipe_id, pipe in data.pipeline.items():
         length = pipe["length"]
         total_pipe_length += length
-        pipe["heat_loss_density"] = np.sum(pipe["heat_loss_pipe"]) / 1000 / length  # MWh/m
+        annual_heat_loss_pipe = np.sum(pipe["heat_loss_pipe"])
+        pipe["heat_loss_density"] = annual_heat_loss_pipe / 1000 / length  # MWh/m
+        annual_heat_loss_network += annual_heat_loss_pipe
         heat_loss_network += pipe["heat_loss_pipe"]
 
     # calculate and save total heat loss
     heat_loss_total = heat_loss_substation + heat_loss_network
     data.heat_grid_data["total_losses_heating_network"] = heat_loss_total
     annual_heat_loss = np.sum(heat_loss_total)                      # kWh
-    total_heat_loss_per_m = annual_heat_loss / total_pipe_length    # kWh/m
-    print("Total heat loss in network calculation finished successfully.")
-    print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
+    # total_heat_loss_per_m = annual_heat_loss / total_pipe_length    # kWh/m
+    # print("Total heat loss in network calculation finished successfully.")
+    # print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
 
     # recalculate the flow distribution with heat loss
     # file_path = os.path.join(dir_result, "pipe_postprocess.json")
@@ -1650,7 +1658,7 @@ def output_diameter(data, param):
         velocity = flow / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
         zeta = pipe["zeta"]
         local_pressure_drop = rho_f * zeta * velocity**2 / 2  # Pa
-        pump_power_local = local_pressure_drop * flow / 1000  # kW
+        pump_power_local = local_pressure_drop * flow / (eta_pump * 1000.0)  # kW
 
         # total pump power for this pipe segment
         pump_power_pipe[pipe_id] = pump_power_friction + pump_power_local  # kW
@@ -1696,7 +1704,7 @@ def output_diameter(data, param):
     pump_power = np.max(pump_matrix, axis=0) + P_station_profile
 
     data.heat_grid_data["pump_power"] = pump_power
-    print("Total pump power in network calculation finished successfully.")
+    # print("Total pump power in network calculation finished successfully.")
 
     # ---------- 8. save cost ----------
     # cost of substation
@@ -1710,8 +1718,8 @@ def output_diameter(data, param):
     substation_ann_factor = calc_annual_factor(data, substation_lifetime)
     substation_ann_costs = C_substations * substation_ann_factor
     substation_om_costs = len(buildings_connected) * data.heat_grid_data["cost_om_subst"]["value"]
-    print(f"Substations annualized cost: {substation_ann_costs:.2f} €")
-    print(f"Substations O&M cost per year: {substation_om_costs:.2f} €")
+    # print(f"Substations annualized cost: {substation_ann_costs:.2f} €")
+    # print(f"Substations O&M cost per year: {substation_om_costs:.2f} €")
 
     # cost of pipes
     inv_pipes = 0
@@ -1725,12 +1733,12 @@ def output_diameter(data, param):
     pipe_ann_factor = data.heat_grid_data["pipe"]["pipe_ann_factor"]
     pipes_ann_costs = (inv_pipes + inv_construction) * pipe_ann_factor
     pipes_om_costs = inv_pipes * data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
-    print(f"Pipes annualized cost: {pipes_ann_costs:.2f} €")
-    print(f"Pipes O&M cost per year: {pipes_om_costs:.2f} €")
+    # print(f"Pipes annualized cost: {pipes_ann_costs:.2f} €")
+    # print(f"Pipes O&M cost per year: {pipes_om_costs:.2f} €")
 
     # calculate the capacity of the pump
-    pump_cap = np.max(pump_power)
-    print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
+    pump_cap = np.max(pump_power)   # kW
+    # print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
 
     # calculate the investment for the pump
     inv_pump = pump_cap * data.heat_grid_data["pump"]["inv_pump"]["value"]
@@ -1738,12 +1746,12 @@ def output_diameter(data, param):
     # cost of pump
     pump_ann_costs = inv_pump * data.heat_grid_data["pump"]["pump_ann_factor"]
     pump_om_costs = inv_pump * data.heat_grid_data["pump"]["cost_om_pump"]["value"]
-    print(f"Pump annualized cost: {pump_ann_costs:.2f} €")
-    print(f"Pump O&M cost per year: {pump_om_costs:.2f} €")
+    # print(f"Pump annualized cost: {pump_ann_costs:.2f} €")
+    # print(f"Pump O&M cost per year: {pump_om_costs:.2f} €")
 
     # cost of electricity
-    pump_energy_total = np.sum(pump_power)
-    print(f"The total electricity consumption for the pump is {pump_energy_total:5f}kWh/a.")
+    pump_energy_total = np.sum(pump_power)  # kWh
+    # print(f"The total electricity consumption for the pump is {pump_energy_total:5f}kWh/a.")
     pump_electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"]
 
     # calculate the total cost
@@ -1829,20 +1837,52 @@ def output_diameter(data, param):
     base = os.path.join(dir_result, f"network_cost_stack_{data.scenario_name}")
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
+    print("Cost stacked plot of heat grid saved to:", base)
 
     plt.show()
 
-    # ---------- 10. save energy and costs to a json-file ----------
+    # ---------- 10. save parameters, energy-consumption and costs to a json-file ----------
+    # output average temperatures for validation of the heat loss
+    T_soil = data.heat_grid_data["T_soil"]
+    T_soil_mean = np.mean(T_soil)
+    T_s_mean = np.mean(T_s)
+    T_supply = param["T_supply"]
+    T_supply_mean = np.mean(T_supply)
+
+    # output heat supply for validation of the percentage of pump electricity and heat loss
+    heat_supply = param["heat_supply"]  # kW
+    total_heat_supply = np.sum(heat_supply) # kWh
+
     results = {
         "f_fric": {
             "value": float(f_fric),
             "unit": "-",
             "description": "Darcy friction factor used in the hydraulic calculation"
         },
+        "T_soil_mean": {
+            "value": float(T_soil_mean),
+            "unit": "°C",
+            "description": "The annual average temperature of soil"
+        },
+        "T_s_mean": {
+            "value": float(T_s_mean),
+            "unit": "°C",
+            "description": "The annual average of the midpoint temperature between supply and return"
+        },
+        "T_supply_mean": {
+            "value": float(T_supply_mean),
+            "unit": "°C",
+            "description": "The annual average supply temperature"
+        },
         "total_pipe_length": {
             "value": float(total_pipe_length),
             "unit": "m",
             "description": "Sum of all pipe segments in the network"
+        },
+        "total_heat_supply": {
+            "value": float(total_heat_supply),
+            "unit": "kWh",
+            "description": "Total annual heat supplied by the heating network"
         },
         "pump_capacity": {
             "value": float(pump_cap),
@@ -1854,10 +1894,25 @@ def output_diameter(data, param):
             "unit": "kWh",
             "description": "Total annual electricity consumption for the pump"
         },
+        "pump_electricity_consumption_percentage": {
+            "value": float(pump_energy_total / total_heat_supply * 100),
+            "unit": "%",
+            "description": "Pump total annual electricity consumption as a percentage of network heat supply"
+        },
         "annual_heat_loss": {
             "value": float(annual_heat_loss),
             "unit": "kWh",
             "description": "Annual heat loss (including pipelines and substations)"
+        },
+        "heat_loss_density": {
+            "value": float(annual_heat_loss_network * 1000 / 8760 / total_pipe_length),
+            "unit": "W/m",
+            "description": "Heat loss density (only including pipelines)"
+        },
+        "heat_loss_percentage": {
+            "value": float(annual_heat_loss / total_heat_supply * 100),
+            "unit": "%",
+            "description": "Annual heat loss (including pipelines and substations) as a percentage of network heat supply"
         },
         "substation_ann_costs": {
             "value": float(substation_ann_costs),
@@ -1901,11 +1956,11 @@ def output_diameter(data, param):
         }
     }
 
-    json_path = os.path.join(dir_result, "parameters_outputs.json")
+    json_path = os.path.join(dir_result, "heat_grid_parameters_outputs.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    print("Saved JSON to:", json_path)
+    print("Output JSON-file saved to::", json_path)
 
     return data
 

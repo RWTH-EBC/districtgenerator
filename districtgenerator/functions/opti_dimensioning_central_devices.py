@@ -16,6 +16,7 @@ from datetime import datetime
 import os
 import matplotlib.pyplot as plt
 import textwrap
+import json
 import districtgenerator.functions.solver_config as solver_config
 
 
@@ -1030,7 +1031,26 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     base = os.path.join(dir_result, f"system_cost_stack_{data.scenario_name}")
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
+    print("Cost stacked plot of heating system saved to:", base)
 
     plt.show()
+
+    # save costs to json file
+    json_dict = {
+        "costs": [
+            {"label": label, "value": float(value)}
+            for (label, value) in costs_data
+        ],
+        "revenues": [
+            {"label": label, "value": float(value)}
+            for (label, value) in revenues_data
+        ]
+    }
+
+    json_path = os.path.join(dir_result, "energy_hub_costs_outputs.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(json_dict, f, indent=4, ensure_ascii=False)
+
+    print("Cost JSON-file saved to:", json_path)
 
     return result_dict
