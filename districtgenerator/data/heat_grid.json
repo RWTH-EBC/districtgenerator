@@ -37,8 +37,8 @@
   "T_cold_heating_network": {
     "Constant": {
       "3rd": {"value": 55, "unit": "°C", "description": "return temperature of 3rd generation heat grid"},
-      "4th": {"value": 30, "unit": "°C", "description": "return temperature of 4th generation heat grid"},
-      "5th": {"value": 14, "unit": "°C", "description": "return temperature of 5th generation heat grid"}
+      "4th": {"value": 35, "unit": "°C", "description": "return temperature of 4th generation heat grid"},
+      "5th": {"value": 11, "unit": "°C", "description": "return temperature of 5th generation heat grid"}
     },
     "Heating_curve": {
       "max": {
@@ -160,7 +160,7 @@
     "cost_om_pump": {"value": 0.03, "unit": "-", "description": "pump O&M share"}
   },
   "pipe": {
-    "f_fric": {"value": 0.025, "unit": "-", "description": "friction factor"},
+    "f_fric": {"value": 0.025, "unit": "-", "description": "initial friction factor for iteration"},
     "dp_pipe_max": {"value": 400, "unit": "Pa/m", "description": "max pressure gradient"},
     "dp_pipe_min": {"value": 30, "unit": "Pa/m", "description": "min pressure gradient"},
     "pipe_lifetime": {"value": 30, "unit": "years", "description": "pipe lifetime"},
