@@ -958,7 +958,7 @@ def process_results_per_district(result_dict, inv,c_inv,c_om, all_devs, devs, ca
         result_dict["co2_tax_total"] = int(result_dict["co2_onsite_emissions"] * param["co2_tax"] * 1000)  # EUR, only gas, biomass and waste.
 
         # Calculate maximum grid flows (electricity and gas)
-        for k in ["from_grid", "to_grid"]:
+        for k in ["from_grid", "to_grid", "from_main_grid", "to_main_grid", "from_network", "to_network"]:
             result_dict["max_el_" + k] = 0
             for d in clusters:
                 for t in time_steps:
@@ -1144,26 +1144,26 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
 
     # Prepare the data to be written to the CSV file
     data_to_save = [
-        ["Cost_parameter", "Value", "Unit"],                                            # Header row cost-parameters
-        ["co2_tax_total", result_dict.get("co2_tax_total", ""), "EUR"],                 # CO2 tax total
-        ["total_inv_cost", result_dict.get("total_inv_cost", "")],                      # Total investment cost
-        ["total_ann_inv_cost", result_dict.get("total_ann_inv_cost", ""),""],           # Total annual investment cost
-        ["total_om_cost", result_dict.get("total_om_cost", ""),""],                     # Total operation and maintenance cost
-        ["supply_costs_el", result_dict.get("supply_costs_el", ""),""],                 # Supply costs for electricity
-        ["cap_costs_el", result_dict.get("cap_costs_el", ""),""],                       # Capacity costs for electricity
-        ["total_el_costs", result_dict.get("total_el_costs", ""),""],                   # Total electricity costs
-        ["rev_feed_in_el", result_dict.get("rev_feed_in_el", ""),""],                   # Revenue from electricity feed-in
-        ["supply_costs_gas", result_dict.get("supply_costs_gas", ""),""],               # Supply costs for gas
-        ["cap_costs_gas", result_dict.get("cap_costs_gas", ""),""],                     # Capacity costs for gas
-        ["total_gas_costs", result_dict.get("total_gas_costs", ""),""],                 # Total gas costs
-        ["rev_feed_in_gas", result_dict.get("rev_feed_in_gas", ""),""],                 # Revenue from gas feed-in
-        ["supply_costs_biom", result_dict.get("supply_costs_biom", ""),""],             # Supply costs for biomass
-        ["supply_costs_waste", result_dict.get("supply_costs_waste", ""),""],           # Supply costs for waste
-        ["supply_costs_hydrogen", result_dict.get("supply_costs_hydrogen", ""),""],     # Supply costs for hydrogen
-        [],                                                                             # Empty row for separation
-        ["Co2_parameter", "Value", "Unit"],                                             # Header row co2-parameters
-        ["co2_onsite_emissions", result_dict.get("co2_onsite_emissions", ""),""],       # Onsite CO2 emissions
-        ["co2_credit_feedin", result_dict.get("co2_credit_feedin", ""),""],             # CO2 credit from feed-in
+        ["Cost_parameter", "Value", "Unit"],                                              # Header row cost-parameters
+        ["co2_tax_total", result_dict.get("co2_tax_total", ""), "EUR/a"],                   # CO2 tax total
+        ["total_inv_cost", result_dict.get("total_inv_cost", ""),"EUR/a"],                  # Total investment cost
+        ["total_ann_inv_cost", result_dict.get("total_ann_inv_cost", ""),"EUR/a"],          # Total annual investment cost
+        ["total_om_cost", result_dict.get("total_om_cost", ""),"EUR/a"],                    # Total operation and maintenance cost
+        ["supply_costs_el", result_dict.get("supply_costs_el", ""),"EUR/a"],                # Supply costs for electricity
+        ["cap_costs_el", result_dict.get("cap_costs_el", ""),"EUR/a"],                      # Capacity costs for electricity
+        ["total_el_costs", result_dict.get("total_el_costs", ""),"EUR/a"],                  # Total electricity costs
+        ["rev_feed_in_el", result_dict.get("rev_feed_in_el", ""),"EUR/a"],                  # Revenue from electricity feed-in
+        ["supply_costs_gas", result_dict.get("supply_costs_gas", ""),"EUR/a"],              # Supply costs for gas
+        ["cap_costs_gas", result_dict.get("cap_costs_gas", ""),"EUR/a"],                    # Capacity costs for gas
+        ["total_gas_costs", result_dict.get("total_gas_costs", ""),"EUR/a"],                # Total gas costs
+        ["rev_feed_in_gas", result_dict.get("rev_feed_in_gas", ""),"EUR/a"],                # Revenue from gas feed-in
+        ["supply_costs_biom", result_dict.get("supply_costs_biom", ""),"EUR/a"],            # Supply costs for biomass
+        ["supply_costs_waste", result_dict.get("supply_costs_waste", ""),"EUR/a"],          # Supply costs for waste
+        ["supply_costs_hydrogen", result_dict.get("supply_costs_hydrogen", ""),"EUR/a"],    # Supply costs for hydrogen
+        [],                                                                               # Empty row for separation
+        ["Co2_parameter", "Value", "Unit"],                                               # Header row co2-parameters
+        ["co2_onsite_emissions", result_dict.get("co2_onsite_emissions", "t/a"),""],    # Onsite CO2 emissions
+        ["co2_credit_feedin", result_dict.get("co2_credit_feedin", ""),"t/a"],          # CO2 credit from feed-in
         ["total_co2_el", result_dict.get("total_co2_el", ""),"t/a"],                    # Total CO2 emissions from electricity
         ["total_co2_el_feed_in", result_dict.get("total_co2_el_feed_in", ""),"t/a"],    # Total CO2 emissions from electricity feed-in
         ["total_co2_gas", result_dict.get("total_co2_gas", ""),"t/a"],                  # Total CO2 emissions from gas
@@ -1182,21 +1182,25 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
         ["biom_import_total", result_dict.get("biom_import_total", ""),"MWh"],              # Total biomass imported
         ["waste_import_total", result_dict.get("waste_import_total", ""),"MWh"],            # Total waste imported
         ["hydrogen_import_total", result_dict.get("hydrogen_import_total", ""),"MWh"],      # Total hydrogen imported
-        ["max_el_from_grid", result_dict.get("max_el_from_grid", ""),""],                   # Maximum electricity from grid
-        ["max_el_to_grid", result_dict.get("max_el_to_grid", ""),""],                       # Maximum electricity to grid
-        ["max_gas_from_grid", result_dict.get("max_gas_from_grid", ""),""],                 # Maximum gas from grid
-        ["max_gas_to_grid", result_dict.get("max_gas_to_grid", ""),""],                     # Maximum gas to grid
+        ["max_el_from_grid", result_dict.get("max_el_from_grid", ""),"kW"],                 # Maximum electricity from grid
+        ["max_el_to_grid", result_dict.get("max_el_to_grid", ""),"kW"],                     # Maximum electricity to grid
+        ["max_el_from_main_grid", result_dict.get("max_el_from_main_grid", ""),"kW"],       # Maximum electricity from main grid
+        ["max_el_to_main_grid", result_dict.get("max_el_to_main_grid", ""),"kW"],           # Maximum electricity to main grid
+        ["max_el_from_network", result_dict.get("max_el_from_network", ""),"kW"],           # Maximum electricity from network
+        ["max_el_to_network", result_dict.get("max_el_to_network", ""),"kW"],               # Maximum electricity to network
+        ["max_gas_from_grid", result_dict.get("max_gas_from_grid", ""),"kW"],               # Maximum gas from grid
+        ["max_gas_to_grid", result_dict.get("max_gas_to_grid", ""),"kW"],                   # Maximum gas to grid
         ["max_biom", result_dict.get("max_biom", ""),""],                                   # Maximum biomass import
         ["max_waste", result_dict.get("max_waste", ""),""],                                 # Maximum waste import
         ["max_hydrogen", result_dict.get("max_hydrogen", ""),""],                           # Maximum hydrogen import
         [],                                                                                 # Empty row for separation
         ["Areas PV and STC", "Value", "Unit"],                                              # Header row generation parameters
-        ["PV", result_dict.get("area", {}).get("PV", ""),""],                               # Area for PV
-        ["STC", result_dict.get("area", {}).get("STC", ""),""],                             # Area for STC
+        ["PV", result_dict.get("area", {}).get("PV", ""),"qm"],                             # Area for PV
+        ["STC", result_dict.get("area", {}).get("STC", ""),"qm"],                           # Area for STC
         [],                                                                                 # Empty row for separation
         ["volumes of thermal storages", "Value","Unit"],                                    # Header row for storage volumes
-        ["TES", result_dict.get("TES", {}).get("vol_liter", ""),""],                        # Volume of TES in liters
-        ["CTES", result_dict.get("CTES", {}).get("vol_liter", ""),""],                      # Volume of CTES in liters
+        ["TES", result_dict.get("TES", {}).get("vol_liter", ""),"l"],                       # Volume of TES in liters
+        ["CTES", result_dict.get("CTES", {}).get("vol_liter", ""),"l"],                     # Volume of CTES in liters
         ["", ""],                                                                           # Empty row for separation
         ["Device-capacity", "Value", "Unit"],                                               # Header row for device capacities
 
@@ -1205,7 +1209,7 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
     for device in all_devs:
         if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed
             capacity = result_dict.get(device, {}).get("cap", "")  # Get the capacity of the device
-            data_to_save.append([device, capacity,""])  # Add the device name to the CSV file
+            data_to_save.append([device, capacity,"kW"])  # Add the device name to the CSV file
 
     # Write the data to the CSV file
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
