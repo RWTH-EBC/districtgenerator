@@ -119,6 +119,7 @@ class Datahandler:
         self.central_device_data = {}
         self.calendar = {} #! This is new; check if everywhere correctly integrated
         self.ecoData = {}
+        self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
         self.heat_grid_data = {}
         self.pipe_data = None
         self.pyomo_config = {}
@@ -1707,17 +1708,84 @@ class Datahandler:
         -------
         None.
         """
-        optiData = {}
 
-        # initialize result list for all clusters
-        self.resultsOptimization = []
+        # initialize result dictionary for all clusters
+        self.resultsOptimization = {}
 
-        for cluster in range(self.time["clusterNumber"]):
-            # optimize operating costs of the district for current cluster
-            results_temp = opti_central.run_opti_central(data = self, cluster =cluster)
+        simulated_years = self.ecoData["interpolation_points"]
 
-            # save results as attribute
-            self.resultsOptimization.append(results_temp)
+        # Determine the all_sim_ecoData:
+        self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
+
+        self.resultsOptimization = {year: {} for year in simulated_years}
+
+        # simulate all years
+        for year in simulated_years:
+            sim_ecoData = self.all_sim_ecoData[year]
+
+            # Simulate each cluster every year
+            for cluster in range(self.time["clusterNumber"]):
+                # optimize operating costs of the district for current cluster
+                results_temp = opti_central.run_opti_central(data = self, cluster =cluster, sim_ecoData=sim_ecoData)
+
+                # save results as attribute
+                self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
+
+        print("Optimization of all clusters for all years is finished.")
+
+    def calculate_ecoData_per_cluster(self):
+        ecoData = self.ecoData
+        simulated_years = self.ecoData["interpolation_points"]
+        observation_time = self.ecoData["opti_observation_time"]
+        
+        # select the relevant subset of ecoData for optimization
+        irelevant_keys = ['num_interpolation_points','interpolation_points', 'opti_observation_time','opti_interest_rate']
+        ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in irelevant_keys}
+
+        # Identify the years that belong to each interpolation segment
+        year_segments = {k: [] for k in simulated_years}
+        
+
+        for i in range(observation_time): # 0,1,...,observation_time-1
+            for j in range(len(simulated_years)):
+                if simulated_years[j] == simulated_years[-1]:
+                    if i >= simulated_years[j]:
+                        year_segments[simulated_years[j]].append(i)
+                        break
+                if simulated_years[j] <= i < simulated_years[j+1]:
+                    year_segments[simulated_years[j]].append(i)
+                    break
+        
+        all_sim_ecoData = {}
+
+        interest_factor = self.ecoData['opti_interest_rate']
+        q = 1 + interest_factor
+
+        for year in simulated_years:
+            relevant_years = year_segments[year]
+            all_sim_ecoData[year] = {}  # Initialize dictionary for this year
+
+            n = len(relevant_years)
+            if q < 1: 
+                print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
+
+            if q!=1:
+                denom = sum(1/(q**idx) for idx in range(n))
+            elif q==1:
+                denom = n
+
+            for key in ecoData.keys():
+                subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
+                
+                # Calculate present value (PV) of the subset values
+                pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
+
+                # Calculate effective annualized price
+                effective_price = pv/denom
+
+                all_sim_ecoData[year][key] = effective_price
+
+        return all_sim_ecoData
 
     def calculateKPIs(self):
         """
@@ -1734,7 +1802,7 @@ class Datahandler:
         self.KPIs.calculateAllKPIs(self)
 
         # Plot everything
-        plot_all(self)
+        # plot_all(self) #TODO: REWORK this plotting function to allow multiple simulated years 
 
     def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=8):
         """

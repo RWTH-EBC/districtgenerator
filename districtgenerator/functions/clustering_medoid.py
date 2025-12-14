@@ -55,9 +55,14 @@ def _normalize_input(inputs):
     min_vals = np.min(inputs, axis=1, keepdims=True)
     max_vals = np.max(inputs, axis=1, keepdims=True)
 
-    # Normalize each profile
-    normalized_inputs = np.where(max_vals - min_vals > 0,
-                                 (inputs - min_vals) / (max_vals - min_vals), 0)
+    # Normalize each profile, avoiding division by zero
+    range_vals = max_vals - min_vals
+    normalized_inputs = np.divide(
+        inputs - min_vals,
+        range_vals,
+        out=np.zeros_like(inputs), # if not possible value is 0
+        where=range_vals > 0
+    )
 
     return normalized_inputs
 
@@ -247,7 +252,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
 
     n_inputs = inputs.shape[0]
     total_timesteps = inputs.shape[1]
-    print(f"Number of inputs: {n_inputs}, Total time steps: {total_timesteps}")
+    # print(f"Number of inputs: {n_inputs}, Total time steps: {total_timesteps}")
 
     num_periods = total_timesteps // len_cluster # -> Integer division
 

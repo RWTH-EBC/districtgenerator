@@ -12,29 +12,41 @@ from dotenv import dotenv_values
 
 
 ### Helper functions ###
-def parse_int_list(value: any) -> list[int]:
+def parse_float_list(value: any) -> list[float]:
     """
-    Parses a comma-separated string of integers into a list of integers.
+    Parses a comma-separated string of floats into a list of floats.
     If the input is already a list, it returns it directly.
 
     Parameters
     ----------
     value : any
-        The input value to parse. It can be a list of integers, a comma-separated string
-        of integers, or an empty string.
+        The input value to parse. It can be a list of floats, a comma-separated string
+        of floats, or an empty string.
 
     Returns
     -------
-    list[int]
-        A list of integers parsed from the input value.
+    list[float]
+        A list of floats parsed from the input value.
     """
     if isinstance(value, list):
-        return value
+        try:
+            return [float(x) for x in value]
+        except ValueError as e:
+            raise ValueError(f"Error parsing list elements of {value} into floats: {e}")
+        
     if isinstance(value, str):
+        # Remove whitespaces
+        value = value.strip()
+        # Remove [] at front and back if present
+        if value.startswith('[') and value.endswith(']'):
+            value = value[1:-1]
         if not value:
             return []
-        return [int(x.strip()) for x in value.split(',')]
-    raise ValueError(f"Cannot parse {type(value)} into a list of integers")
+        return [float(x.strip()) for x in value.split(',')]
+    
+    if isinstance(value, (int, float)):
+        return [float(value)]
+    raise ValueError(f"Cannot parse {type(value)} into a list of floats")
 
 ### Configuration Classes ###
 class LocationConfig(BaseSettings):
@@ -149,34 +161,139 @@ class EcoConfig(BaseSettings):
     This class contains parameters related to energy prices, CO2 emissions, and other economic factors
     used in the district generator.
     """
+    # General economic parameters #! TODO: Remove duplicates in EHDOConfig and DdecentralDeviceConfig
+    opti_interest_rate: float = 0.05     # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
+    opti_observation_time: int = 20      # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
+    
+    # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
+    # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
+    num_interpolation_points: Optional[int] = None # Number of interpolation points if not None these are used, otherwise the exact position is used
+    interpolation_points: str | list[int] = [0,5,10,15] # Exact interpolation points if num_interpolation_points is None, these points are used for interpolation
+    
 
     # electricity prices and feed-in revenue in €/kWh
-    price_supply_el: float = 0.300    # Electricity price in €/kWh
-    revenue_feed_in_el: float = 0.0794  # Feed-in electricity price in €/kWh
-    price_supply_el_eh: float = 0.300  # Electricity price for EHDO in €/kWh
-    revenue_feed_in_el_eh: float = 0.0794 # Feed-in electricity price for EHDO in €/kWh
+    price_supply_el: str | list = [0.300]    # Electricity price in €/kWh
+    revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
+    price_supply_el_eh: str | list = [0.300]  # Electricity price for EHDO in €/kWh
+    revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for EHDO in €/kWh
 
     # gas and other fuel prices in €/kWh
-    price_supply_gas: float = 0.127    # Gas price in €/kWh
-    price_supply_gas_eh: float = 0.127 # Gas price for EHDO in €/kWh
-    price_gasoline_liter: float = 1.7  # Gasoline price in €/liter
-    price_hydrogen: float = 0.250         # Hydrogen price in €/kWh
-    price_waste: float = 0.1            # Waste price in €/kWh
-    price_biomass: float = 0.0698         # Biomass price in €/kWh
-    price_oil: float = 0.0982           # Oil price in €/kWh
-    price_district_heat: float = 0.1367  # District heat price in €/kWh not including fees
+    price_supply_gas: str | list = [0.127]    # Gas price in €/kWh
+    price_supply_gas_eh: str | list = [0.127] # Gas price for EHDO in €/kWh
+    price_gasoline_liter: str | list = [1.7]  # Gasoline price in €/liter
+    price_hydrogen: str | list = [0.250]         # Hydrogen price in €/kWh
+    price_waste: str | list = [0.1]            # Waste price in €/kWh
+    price_biomass: str | list = [0.0698]         # Biomass price in €/kWh
+    price_oil: str | list = [0.0982]           # Oil price in €/kWh
+    price_district_heat: str | list = [0.1367]  # District heat price in €/kWh not including fees
 
     # CO2 emission factors in kg/kWh
-    co2_el_grid: float = 0.363          # Co2 emissions for electricity import (grid mix) in kg/kWh
-    co2_gas: float = 0.201              # Co2 emissions for burning natural gas in kg/kWh
-    co2_biom: float = 0.020              # Co2 emissions for burning biomass in kg/kWh
-    co2_hydrogen: float = 0.0031           # Co2 emissions for burning hydrogen in kg/kWh
-    co2_oil: float = 0.266              # Co2 emissions for burning oil in kg/kWh
-    co2_waste: float = 0.020              # Co2 emissions for burning waste in kg/kWh
-    co2_district_heat: float = 0.200    # Co2 emissions for district heat in kg/kWh
+    co2_el_grid: str | list = [0.363]          # Co2 emissions for electricity import (grid mix) in kg/kWh
+    co2_gas: str | list = [0.201]              # Co2 emissions for burning natural gas in kg/kWh
+    co2_biom: str | list = [0.020]              # Co2 emissions for burning biomass in kg/kWh
+    co2_hydrogen: str | list = [0.0031]           # Co2 emissions for burning hydrogen in kg/kWh
+    co2_oil: str | list = [0.266]              # Co2 emissions for burning oil in kg/kWh
+    co2_waste: str | list = [0.020]              # Co2 emissions for burning waste in kg/kWh
+    co2_district_heat: str | list = [0.200]    # Co2 emissions for district heat in kg/kWh
+
+    @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 
+                     'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh',
+                     'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
+                     'price_biomass', 'price_oil', 'price_district_heat',
+                     'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
+                     'co2_oil', 'co2_waste', 'co2_district_heat', mode='before')
+    @classmethod
+    def parse_to_float_list(cls, v):
+        """Convert input to list of floats"""
+        return parse_float_list(v)
+    
+    @field_validator('num_interpolation_points', mode='before')
+    @classmethod
+    def parse_none_string(cls, v):
+        """Convert string 'None' to Python None"""
+        if v == "None" or v == "null" or v == "" or v is None:
+            return None
+        return int(v)
+    
+    @model_validator(mode='after')
+    def expand_lists_to_observation_time(self) -> 'EcoConfig':
+        """
+        Expand all price and CO2 lists to match observation_time.
+        If list has only 1 element, repeat it observation_time times.
+        If list is shorter than observation_time, repeat the last value, and give a console warning.
+        If list is longer, truncate to observation_time, and give a console warning.
+        """
+        # List of all time dependent parameters
+        params_to_expand = [
+            'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
+            'price_supply_gas', 'price_supply_gas_eh', 'price_gasoline_liter', 'price_hydrogen',
+            'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat'
+        ]
+        
+        for param_name in params_to_expand:
+            current_list = getattr(self, param_name)
+
+            if not type(current_list) == list:
+                raise ValueError(f"{param_name} must be a list")
+            
+            if len(current_list) == 0:
+                raise ValueError(f"{param_name} cannot be an empty list")
+            elif len(current_list) == 1:
+                # Single value - repeat for all years
+                setattr(self, param_name, current_list * self.opti_observation_time)
+            elif len(current_list) < self.opti_observation_time:
+                # List too short - extend with last value
+                last_value = current_list[-1]
+                extended_list = current_list + [last_value] * (self.opti_observation_time - len(current_list))
+                setattr(self, param_name, extended_list)
+                print(f"Warning: {param_name} list was shorter than observation_time. Extended with last value to match length.")
+            elif len(current_list) > self.opti_observation_time:
+                # List too long - truncate
+                setattr(self, param_name, current_list[:self.opti_observation_time])
+                print(f"Warning: {param_name} list was longer than observation_time. Truncated to match length.")
+            # else: length matches exactly, no change needed
+        
+        return self
+
+    @model_validator(mode='after')
+    def select_interpolation_points(self) -> 'EcoConfig':
+        """Select interpolation points based on num_interpolation_points if specified."""
+        if self.num_interpolation_points is not None:
+            # Validate num_interpolation_points value
+            print(self.num_interpolation_points)
+            print(type(self.num_interpolation_points))
+            if self.num_interpolation_points < 1:
+                raise ValueError("num_interpolation_points must be at least 1.")
+            if self.num_interpolation_points > self.opti_observation_time:
+                raise ValueError(f"num_interpolation_points cannot be greater than opti_observation_time. Max is one per year {self.opti_observation_time}.")
+            
+            # First interpolation point is always year 0
+            selected_points = [0]
+
+            # Assign the remaining points evenly, to generate time windows of equal length
+            if self.num_interpolation_points > 1:
+                step = self.opti_observation_time / (self.num_interpolation_points)
+                for i in range(1, self.num_interpolation_points):
+                    point = round(i * step)
+                    selected_points.append(point)
+        
+            # Override interpolation_points with selected points
+            self.interpolation_points = selected_points
+
+        else: # Validate if the interpolation points are within the observation time
+            invalid_points = []
+            for point in self.interpolation_points:
+                if point < 0 or point >= self.opti_observation_time:
+                    invalid_points.append(point)
+
+            if invalid_points:
+                raise ValueError(f"The following interpolation points are invalid for the given observation time of {self.opti_observation_time} years: {invalid_points} (Max is {self.opti_observation_time - 1})")
+
+        return self
 
     model_config = SettingsConfigDict(
-        extra = 'ignore' # Ignores all other variables in the .env.CONFIG file 
+        extra = 'allow' # Ignores all other variables in the .env.CONFIG file 
     )
 
 class PhysicsConfig(BaseSettings):

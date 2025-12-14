@@ -47,7 +47,7 @@ def run_optim(data, devs, param, dem, result_dict):
     build_model(model=model, data=data, devs=devs, param=param, dem=dem)
     model_building_time = time.time() - start_time
 
-    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
+    # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
     # Solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
@@ -441,6 +441,20 @@ def build_model(model, data, devs, param, dem):
     # Economic constraints
     ################################################################################
 
+    #! Temporary fix for missing convertion to design optimization across multiple years
+    # TODO: Remove when full multi-year optimization is implemented
+    param["price_supply_el_eh"] = param["price_supply_el_eh"][0]
+    param["revenue_feed_in_el_eh"] = param["revenue_feed_in_el_eh"][0]
+    param["price_supply_gas_eh"] = param["price_supply_gas_eh"][0]
+    param["price_biomass"] = param["price_biomass"][0]
+    param["price_waste"] = param["price_waste"][0]
+    param["price_hydrogen"] = param["price_hydrogen"][0]
+    param["co2_gas"] = param["co2_gas"][0]
+    param["co2_biom"] = param["co2_biom"][0]
+    param["co2_waste"] = param["co2_waste"][0]
+    param["co2_hydrogen"] = param["co2_hydrogen"][0]
+    param["co2_el_grid"] = param["co2_el_grid"][0]
+
     # Electricity costs and revenues
     model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el_eh"])
     # Conditional capacity costs for electricity
@@ -529,7 +543,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
     solve_start_time = time.time()
     results = solver.solve(model, tee=False, options=solver_options)
-    print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+    # print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
 
     ################################################################################
     # Check and Save Results
