@@ -1161,6 +1161,7 @@ def build_model(model, data, cluster):
             network_losses_cooling[t]
 
     # Electricity balance
+    # TODO: add pump power in the heat grid?
     def eh_electricity_balance_rule(model, t):
         return (model.eh_power_PV[t] + model.eh_power_WT[t] + model.eh_power_WAT[t] + model.eh_power_CHP[t]
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
@@ -1437,8 +1438,9 @@ def solve_model_and_extract_results(model, data):
     errorfile_path = os.path.join(result_dir, "errorfile_opti_central.txt")
 
     # Solve the model
-    solver, solver_options = solver_config.create_solver()
-    results = solver.solve(model, tee=False, options=solver_options)
+    # solver, solver_options = solver_config.create_solver()
+    solver, solver_options = solver_config.create_solver(mipgap=0.03)
+    results = solver.solve(model, tee=True, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file
     term_cond = results.solver.termination_condition

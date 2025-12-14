@@ -108,7 +108,7 @@ def network_optimization(data):
 
     if heuristic == False:
         # write the optimization solution file
-        solution_file = os.path.join(dir_result, 'solution_file.txt')
+        solution_file = os.path.join(dir_result, 'solution_grid_file.txt')
         write_solution_file(model, solution_file)
 
     # output and process the results
@@ -1756,7 +1756,7 @@ def output_diameter(data, param):
 
     # calculate the total cost
     network_om_costs = pipes_om_costs + pump_om_costs + substation_om_costs
-    network_ann_costs = pipes_ann_costs + pump_ann_costs + pump_electricity_costs + substation_ann_costs
+    network_ann_costs = pipes_ann_costs + pump_ann_costs + substation_ann_costs
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
 
@@ -1924,16 +1924,6 @@ def output_diameter(data, param):
             "unit": "€",
             "description": "O&M cost for the substations"
         },
-        "pump_ann_costs": {
-            "value": float(pump_ann_costs),
-            "unit": "€",
-            "description": "Annualized investment for the pump"
-        },
-        "pump_om_costs": {
-            "value": float(pump_om_costs),
-            "unit": "€",
-            "description": "O&M cost for the pump"
-        },
         "pipes_ann_costs": {
             "value": float(pipes_ann_costs),
             "unit": "€",
@@ -1944,15 +1934,50 @@ def output_diameter(data, param):
             "unit": "€",
             "description": "O&M cost for the pipes"
         },
+        "pump_ann_costs": {
+            "value": float(pump_ann_costs),
+            "unit": "€",
+            "description": "Annualized investment for the pump"
+        },
+        "pump_om_costs": {
+            "value": float(pump_om_costs),
+            "unit": "€",
+            "description": "O&M cost for the pump"
+        },
+        "pump_electricity_costs": {
+            "value": float(pump_electricity_costs),
+            "unit": "€",
+            "description": "Electricity cost for the pump"
+        },
+        "HP_ann_costs": {
+            "value": float(HP_ann_costs),
+            "unit": "€",
+            "description": "Annualized investment for the heat pump for covering heat loss"
+        },
+        "HP_om_costs": {
+            "value": float(HP_om_costs),
+            "unit": "€",
+            "description": "O&M cost for the heat pump for covering heat loss"
+        },
+        "HP_electricity_costs": {
+            "value": float(HP_electricity_costs),
+            "unit": "€",
+            "description": "Electricity cost for the heat pump for covering heat loss"
+        },
         "network_ann_costs": {
             "value": float(network_ann_costs),
             "unit": "€",
-            "description": "Total annualized investment for the heating network"
+            "description": "Total annualized investment for the heating network (excluding cost for pump electricity and heat loss)"
         },
         "network_om_costs": {
             "value": float(network_om_costs),
             "unit": "€",
-            "description": "Total O&M cost for the heating network"
+            "description": "Total O&M cost for the heating network (excluding cost for pump electricity and heat loss)"
+        },
+        "network_total_costs": {
+            "value": float(network_ann_costs + network_om_costs + pump_electricity_costs + HP_ann_costs + HP_om_costs + HP_electricity_costs),
+            "unit": "€",
+            "description": "Total annual cost for the heating network (including cost for pump electricity and heat loss)"
         }
     }
 
