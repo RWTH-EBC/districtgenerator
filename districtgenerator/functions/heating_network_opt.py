@@ -1727,12 +1727,13 @@ def output_diameter(data, param):
     for pipe in data.pipeline.keys():
         # load diameters for each pipe
         DN = data.pipeline[pipe]["DN"]
-        inv_pipes += DN * param["pipe_dict"][DN]["Pipe Cost (€/m)"] * 2     # *2 for supply and return
-        inv_construction += DN * param["pipe_dict"][DN]["Construction Cost (€/m)"]
+        length = data.pipeline[pipe]["length"]
+        inv_pipes += length * param["pipe_dict"][DN]["Pipe Cost (€/m)"] * 2     # *2 for supply and return
+        inv_construction += length * param["pipe_dict"][DN]["Construction Cost (€/m)"]
     # calculate the cost for the pipes
     pipe_ann_factor = data.heat_grid_data["pipe"]["pipe_ann_factor"]
     pipes_ann_costs = (inv_pipes + inv_construction) * pipe_ann_factor
-    pipes_om_costs = inv_pipes * data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
+    pipes_om_costs = (inv_pipes + inv_construction) * data.heat_grid_data["pipe"]["cost_om_pipe"]["value"]
     # print(f"Pipes annualized cost: {pipes_ann_costs:.2f} €")
     # print(f"Pipes O&M cost per year: {pipes_om_costs:.2f} €")
 
@@ -1985,7 +1986,7 @@ def output_diameter(data, param):
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    print("Output JSON-file saved to::", json_path)
+    print("Output JSON-file saved to:", json_path)
 
     return data
 
