@@ -7,6 +7,7 @@ This script is a Pyomo-based translation of the original Gurobi model.
 """
 
 import pyomo.environ as pyo
+import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
 import sys
 from io import StringIO
@@ -42,10 +43,11 @@ def run_optim(data, devs, param, dem, result_dict):
     start_time = time.time()
 
     # Build the model
-    model = build_model(data=data, devs=devs, param=param, dem=dem)
+    model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization")
+    build_model(model=model, data=data, devs=devs, param=param, dem=dem)
     model_building_time = time.time() - start_time
 
-    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
+    # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
     # Solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
@@ -64,8 +66,8 @@ def run_optim(data, devs, param, dem, result_dict):
     return result_dict
 
 
-def build_model(data, devs, param, dem):
-    model = pyo.ConcreteModel("Energy_Hub_Model")
+def build_model(model, data, devs, param, dem):
+
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 1. Initialize Pyomo Model and Define Sets
@@ -439,6 +441,20 @@ def build_model(data, devs, param, dem):
     # Economic constraints
     ################################################################################
 
+    #! Temporary fix for missing convertion to design optimization across multiple years
+    # TODO: Remove when full multi-year optimization is implemented
+    param["price_supply_el_eh"] = param["price_supply_el_eh"][0]
+    param["revenue_feed_in_el_eh"] = param["revenue_feed_in_el_eh"][0]
+    param["price_supply_gas_eh"] = param["price_supply_gas_eh"][0]
+    param["price_biomass"] = param["price_biomass"][0]
+    param["price_waste"] = param["price_waste"][0]
+    param["price_hydrogen"] = param["price_hydrogen"][0]
+    param["co2_gas"] = param["co2_gas"][0]
+    param["co2_biom"] = param["co2_biom"][0]
+    param["co2_waste"] = param["co2_waste"][0]
+    param["co2_hydrogen"] = param["co2_hydrogen"][0]
+    param["co2_el_grid"] = param["co2_el_grid"][0]
+
     # Electricity costs and revenues
     model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el_eh"])
     # Conditional capacity costs for electricity
@@ -524,10 +540,10 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     # Solve the Model
     ################################################################################
 
-    solver, solver_options = solver_config.create_solver()
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
     solve_start_time = time.time()
     results = solver.solve(model, tee=False, options=solver_options)
-    print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+    # print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
 
     ################################################################################
     # Check and Save Results
@@ -556,7 +572,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
             except Exception as e:
                 f.write(f"\nCould not read solver log: {e}\n")
 
-        # IIS-Analysis
+        # IIS-Analysis #TODO: Needs a rework to capture the error source correctly
         try:
             import logging
             # Create string buffer to capture logging
@@ -617,6 +633,23 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
             with open(errorfile_path, 'a') as f:
                 f.write(f"IIS analysis failed: {e}\n")
+
+        # Using Gurobi to compute a better IIS if Gurobi is available
+        import gurobipy as gp
+        gurobi_available = True
+        try: _ = gp.Env.getEnv()
+        except: gurobi_available = False
+
+        if gurobi_available:
+            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
+            m = gp.read("debug_model.lp")
+            m.optimize()
+            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                m.computeIIS()
+                m.write("debug_model.ilp")
+                print("IIS written to debug_model.ilp")
+                raise Exception("Model is infeasible, see errorfile for details.")
+            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
 
         return None
 

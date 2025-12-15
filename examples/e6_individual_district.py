@@ -28,8 +28,7 @@ def example6_individual_district():
     # Now we calculate the profiles for a warm reference year from 2045.
 
     # 3. Change the minimum indoor temperature
-    # To change the minimum indoor temperature, we open the file "design_building_data.json"
-    # in the folder '\data' and change "T_set_min" to 18,0°C.
+    # To change the minimum indoor temperature, we change "T_set_min" to 18,0°C.
 
     # 4. Changing the time resolution:
     # To change the time resolution of the profiles open the json-file with the name "time_data"
@@ -38,7 +37,7 @@ def example6_individual_district():
     # Be careful to not delete the coma behind the value! Safe and close the file.
 
     # Initialize District
-    data = Datahandler(scenario_name = "example")
+    data = Datahandler(scenario_name = "district_C_buildings_4", heat_map_berlin=False, env_path=".env.CONFIG.BERLIN")
 
     # Generate Environment for the District
     data.generateEnvironment()

@@ -23,7 +23,7 @@ def el_buildings(plotData, data):
 
     color_labels = [
         "From grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
-        "Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"
+        "Demand", "EV charge", "HP", "BAT charge", "To grid"
     ]
 
     palette = sns.color_palette("tab20", n_colors=len(color_labels))
@@ -60,7 +60,7 @@ def el_buildings(plotData, data):
 
             ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps) / 1000
             HP = safe_array(plotData, c, n, "HP", "P_el", time_steps) / 1000
-            EH = safe_array(plotData, c, n, "EH", "P_el", time_steps) / 1000
+#            EH = safe_array(plotData, c, n, "EH", "P_el", time_steps) / 1000
             ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps) / 1000
 
             # SOURCES
@@ -69,8 +69,8 @@ def el_buildings(plotData, data):
             source_colors = [color_map[label] for label in source_labels]
 
             # SINKS
-            sinks = [demand, ch_EV, HP, EH, ch_BAT, feed]
-            sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"]
+            sinks = [demand, ch_EV, HP, ch_BAT, feed]
+            sink_labels = ["Demand", "EV charge", "HP", "BAT charge", "To grid"]
             sink_colors = [color_map[label] for label in sink_labels]
 
             # plot everything (even the all‐zero ones) for stacking consistency

@@ -3,6 +3,7 @@
 from pyomo.environ import SolverFactory
 import os, sys
 import json
+from districtgenerator.data_handling.config import PyomoConfig
 
 # --- Global constants for solver ---
 SUPPORTED_SOLVERS = ['gurobi', 'cbc', 'glpk', 'highs', 'scip']
@@ -128,13 +129,15 @@ OPTION_MAP = {
 
 _NO_INPUT = object()
 
-def create_solver(solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[SolverFactory, dict]:  # type: ignore
+def create_solver(pyomo_config = None, solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[SolverFactory, dict]:  # type: ignore
     """
     Returns a Pyomo solver instance based on the provided solver name.
     Creates the solver with options from a JSON file or function arguments.
     -------
     Parameters
-    solver_name : str, 
+    pyomo_config : PyomoConfig, optional
+        PyomoConfig instance containing solver settings. if None the settings are directly loaded from the config file with the standard values.
+    solver_name : str,
         name of the solver to use, e.g., 'gurobi', 'cbc', 'glpk', 'highs', 'scip' to override the JSON file setting
     timelimit : 
         int,        time limit for the solver in seconds to override the JSON file setting
@@ -148,29 +151,22 @@ def create_solver(solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[So
     Returns
     tuple: (SolverFactory instance, dict of solver options)
     """
-    # 1. Load solver settings from JSON file
-    try:
-        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filePath = os.path.join(srcPath, 'data')
-        settings_file = os.path.join(filePath, 'solver_settings.json')
-        with open(settings_file) as f:
-            solver_settings = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        # Use default values if the file does not exist or is invalid
-        print("Warning: 'solver_settings.json' not found or invalid. Using default settings.")
-        solver_settings = {
-            "solver_name": "cbc",
-            "solver_options": {"time_limit": 100, "mip_gap": 0.0001}
-        }
+    # If no PyomoConfig is provided, load the default configuration
+    if pyomo_config is None:
+        pyomo_config_obj = PyomoConfig()  # Load default config if none provided
+        pyomo_config = pyomo_config_obj.__dict__
 
-    solver_name = solver_name or solver_settings.get("solver_name")
+    if solver_name is None:
+        solver_name = pyomo_config["solver_name"]
+    solver_executable = pyomo_config["solver_executable"]
+    solver_options = pyomo_config["solver_options"].copy()  # make a copy to avoid modifying the original
+
+
     # check if the solver name is valid
     if solver_name not in SUPPORTED_SOLVERS:
         raise ValueError(f"Invalid solver name: {solver_name}. Supported solvers are: {SUPPORTED_SOLVERS}.")
-    
 
     # 2. Create the solver instance
-    solver_executable = solver_settings.get("solver_executable", None)
     if solver_executable:
         solver = SolverFactory(solver_name, executable=solver_executable)
     else:
@@ -178,19 +174,17 @@ def create_solver(solver_name=None,timelimit=_NO_INPUT, mipgap=None) -> tuple[So
         solver = SolverFactory(solver_name)
 
     # 3. get solver specific options
-    generic_options = solver_settings.get("solver_options", {})
-
     if timelimit is _NO_INPUT:
-        pass  # Use the value from the JSON file if None
+        pass  # Use the value from the JSON file if no Input is provided
     elif timelimit is None:
-        generic_options["time_limit"] = 3600 # if None a default time limit of 3600 seconds is set (1hour)
+        solver_options["time_limit"] = 3600 # if None a default time limit of 3600 seconds is set (1hour)
     else:
-        generic_options["time_limit"] = timelimit
+        solver_options["time_limit"] = timelimit
 
     if mipgap is not None:
-        generic_options["mip_gap"] = mipgap
+        solver_options["mip_gap"] = mipgap
     
-    specific_options = _map_options(solver_name, generic_options)
+    specific_options = _map_options(solver_name, solver_options)
 
 
     return solver, specific_options
@@ -222,7 +216,3 @@ def _map_options(solver_name, solver_options):
             # Raise an error if the option is not supported. If it is needed it can be added to the OPTION_MAP 
             raise ValueError(f"Unsupported option '{key}' for solver '{solver_name}'. Supported options are: {list(OPTION_MAP.keys())}.")
     return mapped_options
-
-def get_solver_name(): # Used for debugging purposes
-    solver, _ = create_solver()
-    return solver.name

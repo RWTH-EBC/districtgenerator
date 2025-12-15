@@ -1,6 +1,2 @@
 id;building;year;retrofit;construction_type;night_setback;area;heater;cooling;EV;f_TES;f_BAT;f_PV1;f_PV2;f_STC;gamma_PV;ev_charging
-0;SFH;1970;0;2;1;100;HP;1;0.5;35;0;0.4;0;0;0;on_demand
-1;MFH;1970;0;2;1;300;HP;1;0.5;35;0;0.4;0;0;0;on_demand
-2;MFH;1970;0;2;1;300;HP;1;0.5;35;0;0.4;0;0;0;on_demand
-3;MFH;1970;0;2;1;300;HP;1;0.5;35;0;0.4;0;0;0;on_demand
-4;OB;1970;0;2;1;400;HP;1;0.5;35;0;0.4;0;0;0;on_demand
+0;SC;1970;0;2;1;2000;HP;0;0;35;0;0.4;0;0;0;on_demand
