@@ -1278,6 +1278,7 @@ class Datahandler:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
+            adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
@@ -1389,6 +1390,11 @@ class Datahandler:
             scalings.append(False)
 
             inputsClustering.append(adjProfiles["losses_cooling_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            # central pump power
+            inputsClustering.append(adjProfiles["pump_power"])
             weights.append(0)
             scalings.append(False)
 
@@ -1505,9 +1511,10 @@ class Datahandler:
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
             self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 2]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 3]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 4]
+            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 2]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]

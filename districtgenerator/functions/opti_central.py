@@ -111,9 +111,11 @@ def build_model(model, data, cluster):
     try:
         network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
         network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
+        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
     except:
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
+        network_pump_power = [0] * T_e
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -1167,7 +1169,7 @@ def build_model(model, data, cluster):
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.eh_power_to_grid[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + network_pump_power[t] + model.eh_power_to_grid[t])
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1439,7 +1441,7 @@ def solve_model_and_extract_results(model, data):
 
     # Solve the model
     # solver, solver_options = solver_config.create_solver()
-    solver, solver_options = solver_config.create_solver(mipgap=0.03)
+    solver, solver_options = solver_config.create_solver(mipgap=0.025)
     results = solver.solve(model, tee=True, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file

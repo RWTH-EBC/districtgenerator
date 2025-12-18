@@ -82,10 +82,9 @@ def load_params(data):
     total_losses_cooling_network = data.heat_grid_data["total_losses_cooling_network"]
     cooling_total = cooling + total_losses_cooling_network
 
-    if "pump_power" in heat_grid_data:
-        pump_power = heat_grid_data["pump_power"]
-    else:
-        pump_power = np.zeros_like(electricityAppliances)
+    if "pump_power" not in heat_grid_data:
+        data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
+    pump_power = data.heat_grid_data["pump_power"]
     electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
 
     dem_uncl["heat"] = heating_total
