@@ -1086,9 +1086,8 @@ class Datahandler:
             building["capacities"] = bes_obj.designECS(building, self.site)
 
             # save the building capacities from here, need to force HP as device, output in
-
-            if not pv_standard:
-                if not pd.isna(building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"]):
+            try:
+                if not pv_standard:
 
                     # Parse string inputs to lists
                     roof_areas = [float(area) for area in building["buildingFeatures"]["surfaceAreaSuitableForSolarPV"].split("|")]
@@ -1106,33 +1105,33 @@ class Datahandler:
                         areas=roof_areas,
                         betas=roof_inclinations,
                         gammas=cardinal_directions,
-                        usageFactorPV=1, #building["buildingFeatures"]["f_PV"], #todo: check because netto area
-                        usageFactorSTC=1, #building["buildingFeatures"]["f_STC"],
+                        usageFactorPV=1, #set to 1 because roof area is netto
+                        usageFactorSTC=1,
                         devices=self.decentral_device_data,
                     )
 
                     # ---- LOGGING ----
-                    pv_rows = []
-                    for i in range(len(roof_areas)):
-                        pv_row = {
-                            "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
-                            "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"]*building["buildingFeatures"]["f_PV"],
-                            "actual_area_roof": roof_areas[i],
-                            "calculated_beta": 35,
-                            "actual_beta": roof_inclinations[i],
-                            "calculated_gamma": building["buildingFeatures"]["gamma_PV"],
-                            "actual_gamma": cardinal_directions[i],
-                            "roofShape": roof_shapes[i]
-                        }
-                        pv_rows.append(pv_row)
+                    # pv_rows = []
+                    # for i in range(len(roof_areas)):
+                    #     pv_row = {
+                    #         "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
+                    #         "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"]*building["buildingFeatures"]["f_PV"],
+                    #         "actual_area_roof": roof_areas[i],
+                    #         "calculated_beta": 35,
+                    #         "actual_beta": roof_inclinations[i],
+                    #         "calculated_gamma": building["buildingFeatures"]["gamma_PV"],
+                    #         "actual_gamma": cardinal_directions[i],
+                    #         "roofShape": roof_shapes[i]
+                    #     }
+                    #     pv_rows.append(pv_row)
 
-                    # Save logs to CSV
-                    pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
-                    try:
-                        df_existing_pv = pd.read_csv(pv_log_path)
-                        df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
-                    except FileNotFoundError:
-                        df_new_pv = pd.DataFrame(pv_rows)
+                    # # Save logs to CSV
+                    # pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
+                    # try:
+                    #     df_existing_pv = pd.read_csv(pv_log_path)
+                    #     df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
+                    # except FileNotFoundError:
+                    #     df_new_pv = pd.DataFrame(pv_rows)
 
                     # do not save log to reduce write operations
                     #df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
@@ -1158,13 +1157,15 @@ class Datahandler:
                             delimiter=';',
                             fmt='%.2f'
                         )
-
-            elif pv_standard:
+                else:
+                    raise Exception("Using standard PV calculation")
+            except:
+                print("DEBUG: Using standard PV calculation for building " + building["unique_name"])
                 # Standard single-surface calculation
                 building["generationPV"], building["generationSTC"] = sun.calcPVAndSTCProfile(
                     time=self.time,
                     site=self.site,
-                    areas=[building["envelope"].A["opaque"]["roof"]], #/building["buildingFeatures"]["number_of_floors"]], do we require this?
+                    areas=[building["envelope"].A["opaque"]["roof"]],
                     betas=[35],
                     gammas=[building["buildingFeatures"]["gamma_PV"]],
                     usageFactorPV=building["buildingFeatures"]["f_PV"],
