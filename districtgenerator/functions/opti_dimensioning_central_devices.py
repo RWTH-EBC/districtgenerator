@@ -495,7 +495,7 @@ def build_model(model, data, devs, param, dem):
     ################################################################################
 
     def objective_rule(model):
-        return (1 - param["optim_focus"]) * model.obj_tac + param["optim_focus"] * model.obj_co2
+        return (1 - param["optimization_focus"]) * model.obj_tac + param["optimization_focus"] * model.obj_co2
 
     model.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
 
@@ -704,7 +704,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     write_solution_file(model, solution_path)
 
     ################################################################################
-    # Post-processing and Result Extraction
+    # Post-processing and Result Extraction #! This needs to be adapted to multi-year optimization
     ################################################################################
 
     # --- Robust helper functions for safe value queries ---

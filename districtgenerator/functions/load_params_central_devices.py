@@ -658,7 +658,15 @@ def load_params(data):
     param["co2_biom"]        = ecoData["co2_biom"] # kg/kWh
     param["co2_waste"]       = ecoData["co2_waste"]  # kg/kWh
     param["co2_hydrogen"]    = ecoData["co2_hydrogen"]  # kg/kWh
+
+    ### Taxes ###
     param["co2_tax"]         = ecoData["co2_tax"]  # EUR/kg
+
+    ### Optimization focus ###
+    param["optimization_focus"] = ecoData["optimization_focus"] 
+    param["observation_time"]   = ecoData["observation_time"]  # years
+    param["interest_rate"]      = ecoData["interest_rate"]   # %
+
 
     ################################################################
     # INITIALIZE CALCULATION

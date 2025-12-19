@@ -433,9 +433,9 @@ def calc_annual_investment(data):
     annualized fix and variable investment
     """
 
-    observation_time = data.params_ehdo_model["observation_time"]
-    interest_rate = data.params_ehdo_model["interest_rate"]
-    q = 1 + data.params_ehdo_model["interest_rate"]
+    observation_time = data.ecoData["observation_time"]
+    interest_rate = data.ecoData["interest_rate"]
+    q = 1 + interest_rate
 
     # Calculate capital recovery factor
     CRF = ((q**observation_time)*interest_rate)/((q**observation_time)-1)

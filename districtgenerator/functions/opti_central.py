@@ -94,7 +94,6 @@ def build_model(model, data, cluster, sim_ecoData):
     ecoData = sim_ecoData # -> relevant economic data for the cluster
     siteData = data.site
     param_dec_devs = data.decentral_device_data
-    model_param_eh = data.params_ehdo_model
     central_device_data = data.central_device_data
     buildingData = data.district
     energyHubData = data.centralDevices
@@ -1409,9 +1408,9 @@ def build_model(model, data, cluster, sim_ecoData):
 
     # Select objective
     def obj_rule(model):
-        if model_param_eh["optim_focus"] == 0:
+        if ecoData["optimization_focus"] == 0:
             return model.obj == model.operational_costs
-        elif model_param_eh["optim_focus"] == 1:
+        elif ecoData["optimization_focus"] == 1:
             return model.obj == model.co2_total
 
     model.operational_costs_constraint = pyo.Constraint(rule=operational_costs_rule, doc="Total_amount_operational_costs")

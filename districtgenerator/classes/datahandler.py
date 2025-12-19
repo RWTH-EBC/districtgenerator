@@ -141,7 +141,7 @@ class Datahandler:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
         self.KPIs = None
-        self.load_all_data( #! This function needs to be adapted to the new config structure
+        self.load_all_data(
             site_config=global_config.location,
             time_config=global_config.time,
             design_building_config=global_config.design_building,
@@ -286,12 +286,9 @@ class Datahandler:
         for attr, value in pyomo_config.__dict__.items():
             self.pyomo_config[attr] = value
 
-        #! Das hier überarbeiten, damit es in die neue Struktur passt?
+        # load heat grid data (used in heating network design and optimization)
         for attr, value in heat_grid_config.__dict__.items():
             self.heat_grid_data[attr] = value
-
-        # with open(os.path.join(self.filePath, 'heat_grid.json')) as json_file:
-        #     self.heat_grid_data = json.load(json_file)
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
@@ -309,6 +306,8 @@ class Datahandler:
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
 
+        # Determine the all_sim_ecoData which contains prices, co2 factors for each simulated year used for optimizations:
+        self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
 
     def select_plz_data(self):
         """
@@ -1714,9 +1713,6 @@ class Datahandler:
 
         simulated_years = self.ecoData["interpolation_points"]
 
-        # Determine the all_sim_ecoData:
-        self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
-
         self.resultsOptimization = {year: {} for year in simulated_years}
 
         # Remove all solution files from previous optimizations
@@ -1742,11 +1738,11 @@ class Datahandler:
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData
         simulated_years = self.ecoData["interpolation_points"]
-        observation_time = self.ecoData["opti_observation_time"]
+        observation_time = self.ecoData["observation_time"]
 
         # select the relevant subset of ecoData for optimization
-        irelevant_keys = ['num_interpolation_points','interpolation_points', 'opti_observation_time','opti_interest_rate']
-        ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in irelevant_keys}
+        single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
+        ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
         # Identify the years that belong to each interpolation segment
         year_segments = {k: [] for k in simulated_years}
@@ -1764,7 +1760,7 @@ class Datahandler:
 
         all_sim_ecoData = {}
 
-        interest_factor = self.ecoData['opti_interest_rate']
+        interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
 
         for year in simulated_years:
@@ -1790,6 +1786,10 @@ class Datahandler:
                 effective_price = pv/denom
 
                 all_sim_ecoData[year][key] = effective_price
+
+            # Add the values in single_value_keys to each year's ecoData
+            for key in single_value_keys:
+                all_sim_ecoData[year][key] = self.ecoData[key]
 
         return all_sim_ecoData
 
