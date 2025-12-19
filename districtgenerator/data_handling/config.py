@@ -196,12 +196,16 @@ class EcoConfig(BaseSettings):
     co2_waste: str | list = [0.020]              # Co2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # Co2 emissions for district heat in kg/kWh
 
+    # Co2 tax in €/t_CO2
+    co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
+
+
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
-                     'co2_oil', 'co2_waste', 'co2_district_heat', mode='before')
+                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
         """Convert input to list of floats"""
@@ -228,7 +232,7 @@ class EcoConfig(BaseSettings):
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -537,7 +541,6 @@ class EHDOConfig(BaseSettings):
 
     # Other options
     peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
-    co2_tax: float = 0              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2
     co2_el_feed_in: float = 0       # CO₂ emission credit for electricity feed-in kg/kWh
     co2_gas_feed_in: float = 0      # CO₂ emission credit for gas feed-in kg/kWh
     optim_focus: int = 0            # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.

@@ -454,6 +454,7 @@ def build_model(model, data, devs, param, dem):
     param["co2_waste"] = param["co2_waste"][0]
     param["co2_hydrogen"] = param["co2_hydrogen"][0]
     param["co2_el_grid"] = param["co2_el_grid"][0]
+    param["co2_tax"] = param["co2_tax"][0]
 
     # Electricity costs and revenues
     model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el_eh"])
@@ -524,7 +525,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     Function to capsle solving the Pyomo model and extracting results.
     """
     # Folder to save model and results
-    result_dir = "results"
+    result_dir = "optimization_results"
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 

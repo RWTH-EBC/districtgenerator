@@ -49,7 +49,7 @@ EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
 
-def run_opti_central(data, cluster, sim_ecoData):
+def run_opti_central(data, year, cluster, sim_ecoData):
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
     """
@@ -58,7 +58,7 @@ def run_opti_central(data, cluster, sim_ecoData):
         level=logging.INFO,
         format='%(levelname)s - %(name)s - %(message)s',
         handlers=[
-            logging.FileHandler('optimization_debug.log'),  # Console output
+            logging.FileHandler('optimization_debug.log'),  # File output
             # Optional: logging.FileHandler('optimization_debug.log')  # File output
         ]
     )
@@ -66,11 +66,14 @@ def run_opti_central(data, cluster, sim_ecoData):
     start_time = time.time()
     # build the model
     model = pyo.ConcreteModel(name="Device_Operation_Optimization")
-    build_model(model, data, cluster, sim_ecoData)
+    build_model(model=model, data=data, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
+    print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
     # solve the model and extract results
-    results_dict = solve_model_and_extract_results(model, data)
+    results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster)
     model_solve_time = time.time() - start_time - model_building_time
+    if results_dict is not None:
+        print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
     # calculate total time
     total_time = time.time() - start_time
 
@@ -1415,27 +1418,25 @@ def build_model(model, data, cluster, sim_ecoData):
     model.co2_total_constraint = pyo.Constraint(rule=co2_total_rule, doc="Total_amount_CO2_emissions")
     model.obj_constraint = pyo.Constraint(rule=obj_rule, doc="Objective_function")
     model.objective = pyo.Objective(expr=model.obj, sense=pyo.minimize, doc="Objective_function_minimization")
-
-    print("Pyomo model built successfully")
     return model
 
 
-def solve_model_and_extract_results(model, data):
+def solve_model_and_extract_results(model, data, year, cluster):
     """
     Solves the Pyomo model and extracts results in the same format as the original Gurobi code.
     """
     # Folder to save model and results
-    result_dir = "results"
+    result_dir = "optimization_results"
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    lp_filename = os.path.join(result_dir, "opti_central_model.lp")
+    lp_filename = os.path.join(result_dir, f"opti_central_model_year_{year}_cluster_{cluster}.lp")
     model.write(lp_filename, io_options={'symbolic_solver_labels': True})
 
     # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, "solver_output.log")
+    solver_log_path = os.path.join(result_dir, f"solver_output_year_{year}_cluster_{cluster}.log")
     # Path for error file
-    errorfile_path = os.path.join(result_dir, "errorfile_opti_central.txt")
+    errorfile_path = os.path.join(result_dir, f"errorfile_opti_central_year_{year}_cluster_{cluster}.txt")
 
     # Solve the model
     solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config,)
@@ -1551,7 +1552,7 @@ def solve_model_and_extract_results(model, data):
             f.write('Model is unbounded\n')
         return None
     elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
-        print("Model solved to optimality")
+        pass
     else:
         print(f"Solver status: {results.solver.termination_condition}")
         with open('errorfile.txt', 'w') as f:
@@ -1591,7 +1592,8 @@ def solve_model_and_extract_results(model, data):
             print(f"Warning: Could not write solution file {filename}: {e}")
         return None
 
-    solution_file = os.path.join(result_dir, 'solution_file.txt')
+    # 
+    solution_file = os.path.join(result_dir, f'solution_file_year_{year}_cluster_{cluster}.txt')
     write_solution_file(model, solution_file)
 
     # Extract results
@@ -1821,7 +1823,6 @@ def solve_model_and_extract_results(model, data):
     return results_dict
 
 
-
 def _get_vehicle_mapping(buildingData, nbuildings):
     """
     Create mapping of individual EVs and ICEs to buildings with unique IDs.
@@ -1857,3 +1858,38 @@ def _get_vehicle_mapping(buildingData, nbuildings):
 
     return all_individual_evs_map, all_individual_ices_map
 
+
+def remove_previous_models_and_solutions():
+    """
+    Remove previous solution and error files to avoid confusion with new runs.
+    """
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        return
+    
+    # Remove model files
+    for filename in os.listdir(result_dir):
+        if filename.startswith("opti_central_model_year_") and filename.endswith(".lp"):
+            file_path = os.path.join(result_dir, filename)
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Could not remove file {file_path}: {e}")
+
+    # Remove solution files
+    for filename in os.listdir(result_dir):
+        if filename.startswith("solution_file_year_") and filename.endswith(".txt"):
+            file_path = os.path.join(result_dir, filename)
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Could not remove file {file_path}: {e}")
+
+    # Remove error files
+    for filename in os.listdir(result_dir):
+        if filename.startswith("errorfile_opti_central_year_") and filename.endswith(".txt"):
+            file_path = os.path.join(result_dir, filename)
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Warning: Could not remove file {file_path}: {e}")

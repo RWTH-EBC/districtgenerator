@@ -1719,19 +1719,25 @@ class Datahandler:
 
         self.resultsOptimization = {year: {} for year in simulated_years}
 
+        # Remove all solution files from previous optimizations
+        opti_central.remove_previous_models_and_solutions() # For better visibility remove previous solution files
+
         # simulate all years
-        for year in simulated_years:
+        start_time = time.time()
+        for i, year in enumerate(simulated_years):
             sim_ecoData = self.all_sim_ecoData[year]
 
             # Simulate each cluster every year
             for cluster in range(self.time["clusterNumber"]):
                 # optimize operating costs of the district for current cluster
-                results_temp = opti_central.run_opti_central(data = self, cluster =cluster, sim_ecoData=sim_ecoData)
+                print(f"\nStarting optimization for cluster {cluster + 1}/{self.time['clusterNumber']} for year {i+1}/{len(simulated_years)}...")
+                results_temp = opti_central.run_opti_central(data=self, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
 
                 # save results as attribute
                 self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
 
-        print("Optimization of all clusters for all years is finished.")
+        end_time = time.time()
+        print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData

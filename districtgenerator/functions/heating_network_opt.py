@@ -516,7 +516,7 @@ def optimization_diameter(data, param, f_fric):
     # heat loss
     p_gas = data.ecoData["price_supply_gas_eh"][0]                         # 0.1236€/kWh,  Gas price.
     eta_boiler = data.central_device_data["BOI"]["eta_th"]              # 0.99,         Thermal efficiency, source: Technikkatalog-Waermeplanung_Oktober2025.xlsx (Tabelle 20)
-    p_co2 = data.params_ehdo_model["co2_tax"]                           # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
+    p_co2 = data.ecoData["co2_tax"][0]                           # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
     EF = data.ecoData["co2_gas"][0]                                        # 0.201kg/kWh,  CO2 emissions by burning natural gas.
     inv_boiler = data.central_device_data["BOI"]["inv_var"]             # 138€/kW,      source: Technikkatalog-Waermeplanung_Oktober2025.xlsx (Tabelle 20)
     cost_om_boiler = data.central_device_data["BOI"]["cost_om"]         # 0.02,         1/year (fraction of inv_var) source: VDI2067

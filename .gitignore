@@ -1,6 +1,6 @@
 districtgenerator/results/*
 districtgenerator/data/weather/*
-results/*
+optimization_results/*
 districtgenerator.egg-info/*
 
 districtgenerator/data/scenarios/*
