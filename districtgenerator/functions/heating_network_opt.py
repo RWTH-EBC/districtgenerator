@@ -398,6 +398,200 @@ def calc_flow_and_temperature(data):
 
     return data, param
 
+
+def calc_flow_and_temperature_5G(data):
+    """
+    Calculate the supply and return temperature and the flow rate in each pipe segment for 5th Generation DHN
+
+    Parameters
+    ----------
+    data: class datahandler
+
+    Returns
+    -------
+    data: class datahandler
+    param: dictionary
+        including parameters for diameter optimization
+    """
+    # 1 time setup
+    # timeData = data.time
+    # dt = timeData["timeResolution"] / timeData["dataResolution"]
+    # list of clustered typical weeks
+    weeks = data.clusters
+    # how many timesteps are there in a typical week
+    time_steps = int(data.time["clusterLength"] / data.time["timeResolution"])
+
+    # 2 ambient temperature
+    T_e_cluster = data.site["T_e_cluster"]  # ndarray, shape = (n_clusters, len_cluster)
+    T_e = data.site["T_e"]
+
+    # 3 supply and return temperature
+    heat_grid_data = data.heat_grid_data
+    generation = heat_grid_data["generation"]["value"]
+    temperature_mode = heat_grid_data["temperature_mode"]["value"]  #constant vs heating curve
+    if temperature_mode == "Heating_curve":
+        # Variable-constant operation mode (Heating curve)
+        T_supply_min = heat_grid_data["T_hot_heating_network"]["Heating_curve"]["min"][generation]["value"]
+        T_supply_max = heat_grid_data["T_hot_heating_network"]["Heating_curve"]["max"][generation]["value"]
+        T_return_min = heat_grid_data["T_cold_heating_network"]["Heating_curve"]["min"][generation]["value"]
+        T_return_max = heat_grid_data["T_cold_heating_network"]["Heating_curve"]["max"][generation]["value"]
+        T_supply_cluster, T_return_cluster = heating_curve(T_e_cluster, T_supply_min, T_supply_max, T_return_min,
+                                                           T_return_max)
+        T_supply, T_return = heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max)
+    elif temperature_mode == "Constant":
+        # Constant operation mode
+        T_supply_value = heat_grid_data["T_hot_heating_network"]["Constant"][generation]["value"]
+        T_return_value = heat_grid_data["T_cold_heating_network"]["Constant"][generation]["value"]
+        T_supply = np.full_like(T_e, T_supply_value)
+        T_return = np.full_like(T_e, T_return_value)
+        T_supply_cluster = np.full((len(weeks), time_steps), T_supply_value)  # °C
+        T_return_cluster = np.full((len(weeks), time_steps), T_return_value)  # °C
+    else:
+        message = "Please select a valid temperature mode between 'Heating_curve' and 'Constant' in heat_grid.json."
+        print(message)
+
+    # ΔT = T_supply - T_return (°C)
+    # if Constant operation mode, int
+    # if Variable-constant operation mode,ndarray, shape = (n_clusters, len_cluster)
+    deltaT_cluster = T_supply_cluster - T_return_cluster  # °C
+    deltaT = T_supply - T_return  # °C
+
+    # Temperatures of pipes in the symmetrical and the antisymmetrical calculation case (DIN EN 13941)
+    T_s_cluster = (T_supply_cluster + T_return_cluster) / 2
+    T_s = (T_supply + T_return) / 2
+    # Antisymmetrical heat loss is not considered in this optimization.     #Todo: relevant für 5G Netze?
+    # Since it calculates the heat conduction between the supply and return pipes,
+    # the supply pipe loses heat while the return pipe gains it, resulting in a net system heat loss of zero.
+    # T_a = (T_supply - T_return)/2
+
+    # 4 fluids parameters
+    c_f = heat_grid_data["fluid"]["c_f"]["value"]  # 4180J/(kg*K), fluid specific heat capacity
+    rho_f = heat_grid_data["fluid"]["rho_f"]["value"]  # 1000kg/m^3,   fluid density
+
+    # 5 read demand and calculate mass flow to every building
+    heat_loss_substation = np.zeros_like(T_e)
+    total_demand_cluster = np.zeros((len(weeks), time_steps))  # Create a 2D array filled with zeros (weeks × time steps)
+    total_demand = np.zeros_like(T_e)
+    h_loss_subst = data.heat_grid_data["h_loss_subst"]["value"]  # 5%, Heat losses at the substation
+    for building in data.district:
+        # read (clustered) demand pofile for each building
+        # clustered value (for the optimization)
+        heating_cluster = building["user"].heat_cluster / 1000  # kW
+        dhw_cluster = building["user"].dhw_cluster / 1000  # kW
+        generationSTC_cluster = building["generationSTC_cluster"] / 1000  # kW
+
+        heating_demand_cluster = np.maximum(heating_cluster + dhw_cluster - generationSTC_cluster, 0)  # kW
+        building["user"].heating_demand_cluster = heating_demand_cluster  # kW
+        # Sum the heat demand in the network
+        total_demand_cluster += heating_demand_cluster * (1 + h_loss_subst / 100)   # kW
+
+        # year profile (for calculation of max and min permitted pipeline diameter)
+        heating = building["user"].heat / 1000  # kW
+        dhw = building["user"].dhw / 1000  # kW
+        generationSTC = building["generationSTC"] / 1000  # kW
+
+        heating_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
+        building["user"].heating_demand = heating_demand  # kW
+        # Sum the heat demand in the network
+        total_demand += heating_demand * (1 + h_loss_subst / 100)  # kW
+        # Sum the heat losses in the substations
+        heat_loss_substation += heating_demand * h_loss_subst / 100  # kW
+
+        # The volume flow in each building  m³/s
+        # heating_demand_cluster in kW, c_f in J/kg·K, 1kW = 1kJ/s
+        # V_dot = Q / (c*ΔT*ρ)
+        # clustered value (for the optimization)
+        flow_cluster = heating_demand_cluster * 1000 * (1 + h_loss_subst / 100) / (c_f * deltaT_cluster * rho_f)  # m³/s
+        building["user"].flow_cluster = flow_cluster  # m³/s
+        # year profile (for calculation of max and min permitted pipeline diameter)
+        flow = heating_demand * 1000 * (1 + h_loss_subst / 100) / (c_f * deltaT * rho_f)  # m³/s
+        building["user"].flow = flow  # m³/s
+
+    # generate the dict of buildng flow
+    # key = building_name, string; value = flow, ndarray
+    building_flows_cluster = {}
+    building_flows = {}
+
+    # match the coordinate and add data to building_flows
+    for building in data.district:
+        pos_building = tuple(building["buildingFeatures"]["position"])
+        flow_cluster = building["user"].flow_cluster
+        flow = building["user"].flow
+
+        # find corresponding pipeline node
+        for key, node_info in data.pipeline_nodes.items():
+            if tuple(node_info["pos"]) == pos_building:
+                building_flows_cluster[key] = flow_cluster
+                building_flows[key] = flow
+                data.pipeline_nodes[key]["flow_cluster"] = flow_cluster
+                break  # break once found
+
+    # 6 mass flow and capacity of each pipe
+    network = data.pipeline_topology
+    # calculate the flow for each pipe segment
+    pipe_flow_cluster = aggregate_flows(network, building_flows_cluster, root="EH1")
+    pipe_flow = aggregate_flows(network, building_flows, root="EH1")
+
+    # Iterate through each pipe in pipe_flow_cluster
+    for idx, ((parent, child), flow_cluster_array) in enumerate(pipe_flow_cluster.items(), 1):
+        # generate pipe id: pipe1, pipe2, ...
+        pipe_id = f"pipe{idx}"
+
+        # extract coordinates
+        pos_parent = data.pipeline_nodes[parent]["pos"]
+        pos_child = data.pipeline_nodes[child]["pos"]
+
+        # convert to numpy array
+        p1 = np.array(pos_parent, dtype=float)
+        p2 = np.array(pos_child, dtype=float)
+
+        # Euclidean distance
+        length = float(np.linalg.norm(p1 - p2))
+
+        # store into data.pipeline
+        data.pipeline[pipe_id] = {
+            "from": parent,  # string, name of start node
+            "to": child,  # string, name of end node
+            "from_pos": pos_parent,  # tuple, coordinate of start node
+            "to_pos": pos_child,  # tuple, coordinate of end node
+            "length": length,  # length of the pipe
+            "flow_cluster": flow_cluster_array  # original 2D flow array
+        }
+
+    # Iterate through each pipe in pipe_flow
+    for idx, ((parent, child), flow_array) in enumerate(pipe_flow.items(), 1):
+        # generate pipe id: pipe1, pipe2, ...
+        pipe_id = f"pipe{idx}"
+        data.pipeline[pipe_id]["flow"] = flow_array
+
+        # Retrieve the maximum and minimum flow rates, and convert the data type to float.
+        flow_max = float(np.max(flow_array[flow_array > 1e-6]))
+        flow_min = float(np.min(flow_array[flow_array > 1e-6]))
+        # store into data.pipeline
+        data.pipeline[pipe_id]["flow_max"] = flow_max
+        data.pipeline[pipe_id]["flow_min"] = flow_min
+
+    # prepare parameters for the optimization model
+    param = {}
+    param["total_demand_cluster"] = total_demand_cluster
+    param["total_demand"] = total_demand
+    param["heat_loss_substation"] = heat_loss_substation
+    param["T_s"] = T_s
+    param["T_s_cluster"] = T_s_cluster
+    param["deltaT"] = deltaT
+    param["deltaT_cluster"] = deltaT_cluster
+
+    return data, param
+
+
+
+
+
+
+
+
+
+
 def optimization_diameter(data, param, f_fric):
     """
     Optimize the diameter of each pipeline segments.
@@ -1405,39 +1599,84 @@ def network_optimization(data):
     -------
     data: class datahandler
     """
-    # calculate flow and temperature and prepare for the optimization
-    data, param = calc_flow_and_temperature(data)
 
-    # get the initial friction factor
-    f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
-    f_fric_old = f_fric_new
+    if data.heat_grid_data["generation"]["value"] != "5th":
 
-    # Set maximum iteration count
-    max_iter = 30
-    tol = 5e-4
-    converged = False
-    for i in range(max_iter):
-        # run the optimization
-        data, model, param = optimization_diameter(data, param, f_fric_new)
-        f_fric_new = calc_f_fric(data, model, param)
+        #Old calculation for 3rd and 4th generation DHN
 
-        # print the current iteration status
-        print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
+        # calculate flow and temperature and prepare for the optimization
+        data, param = calc_flow_and_temperature(data)
 
-        # Check convergence
-        if abs(f_fric_new - f_fric_old) < tol:
-            converged = True
-            print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.6f}")
-            break
-
-        # Update value for next iteration
+        # get the initial friction factor
+        f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
         f_fric_old = f_fric_new
 
-    if not converged:
-        print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
+        # Set maximum iteration count
+        max_iter = 30
+        tol = 5e-4
+        converged = False
+        for i in range(max_iter):
+            # run the optimization
+            data, model, param = optimization_diameter(data, param, f_fric_new)
+            f_fric_new = calc_f_fric(data, model, param)
 
-    param["f_fric"] = f_fric_new
+            # print the current iteration status
+            print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
 
-    output_diameter(data, model, param)
+            # Check convergence
+            if abs(f_fric_new - f_fric_old) < tol:
+                converged = True
+                print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.6f}")
+                break
+
+            # Update value for next iteration
+            f_fric_old = f_fric_new
+
+        if not converged:
+            print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
+
+        param["f_fric"] = f_fric_new
+
+        output_diameter(data, model, param)
+
+
+
+        #New calculation for 5th generation DHN
+    else:
+
+        # calculate flow and temperature and prepare for the optimization
+        data, param = calc_flow_and_temperature_5G(data)
+
+        # get the initial friction factor
+        f_fric_new = data.heat_grid_data["pipe"]["f_fric"]["value"]  # 0.025,        pipe friction factor
+        f_fric_old = f_fric_new
+
+        # Set maximum iteration count
+        max_iter = 30
+        tol = 5e-4
+        converged = False
+        for i in range(max_iter):
+            # run the optimization
+            data, model, param = optimization_diameter(data, param, f_fric_new)
+            f_fric_new = calc_f_fric(data, model, param)
+
+            # print the current iteration status
+            print(f"Iteration {i + 1}: f_fric_old = {f_fric_old:.6f}, f_fric_new = {f_fric_new:.6f}")
+
+            # Check convergence
+            if abs(f_fric_new - f_fric_old) < tol:
+                converged = True
+                print(f"Converged after {i + 1} iterations. Final f_fric = {f_fric_new:.6f}")
+                break
+
+            # Update value for next iteration
+            f_fric_old = f_fric_new
+
+        if not converged:
+            print(f"Not converged after {max_iter} iterations. Last f_fric = {f_fric_new:.6f}")
+
+        param["f_fric"] = f_fric_new
+
+        output_diameter(data, model, param)
 
     return data
