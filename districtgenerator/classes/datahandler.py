@@ -535,7 +535,8 @@ class Datahandler:
 
         # %% create TEASER project
         # create one project for the whole district
-        prj = Project(load_data=True)
+        #prj = Project(load_data=True)
+        prj = Project()
         prj.name = self.scenario_name
 
         for building in self.district:
