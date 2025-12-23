@@ -24,7 +24,7 @@ def example1_initialize_datahandler():
     # or 2 (Retrofit according to KfW 55).
     # The construction year can be chosen between 1860 and 2024.
     # The floor area can be freely selected.
-    data = Datahandler(scenario_name = "example")
+    data = Datahandler(scenario_name = "district_C_buildings_4", env_path=".env.CONFIG.EXAMPLE")
 
     ### =====================================  Output  ===================================== ###
     # This creates the datahandler object and empty files for information about the environment,

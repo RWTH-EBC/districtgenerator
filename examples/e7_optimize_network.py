@@ -11,7 +11,7 @@ def example7_optimize_heatingnetwork():
     # Initialize District
     # Enter the name of the scenario you wish to use in the folder: data/scenarios
     # The scenario can be first generated with e0_generate_scenario.py
-    data = Datahandler(scenario_name="district_D_buildings_15")
+    data = Datahandler(scenario_name="district_C_buildings_4", env_path=".env.CONFIG.EXAMPLE")
 
     # --- Check if building positions are available and valid ---
     missing_positions = (
@@ -52,7 +52,7 @@ def example7_optimize_heatingnetwork():
         )
         topology_option = "node"
     else:
-        topology_option = data.heat_grid_data["topology_option"]["value"]
+        topology_option = data.heat_grid_data["topology_option"]
 
     data.generateNetwork(topology_option = topology_option)
 

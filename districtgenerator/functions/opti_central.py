@@ -49,7 +49,7 @@ EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
 
-def run_opti_central(model, data, cluster):
+def run_opti_central(data, cluster, sim_ecoData):
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
     """
@@ -65,7 +65,8 @@ def run_opti_central(model, data, cluster):
 
     start_time = time.time()
     # build the model
-    build_model(model, data, cluster)
+    model = pyo.ConcreteModel(name="Device_Operation_Optimization")
+    build_model(model, data, cluster, sim_ecoData)
     model_building_time = time.time() - start_time
     # solve the model and extract results
     results_dict = solve_model_and_extract_results(model, data)
@@ -82,12 +83,12 @@ def run_opti_central(model, data, cluster):
     return results_dict
 
 
-def build_model(model, data, cluster):
+def build_model(model, data, cluster, sim_ecoData):
     """
     Builds the Pyomo model for the optimization of energy systems in a district.
     """
     timeData = data.time
-    ecoData = data.ecoData
+    ecoData = sim_ecoData # -> relevant economic data for the cluster
     siteData = data.site
     param_dec_devs = data.decentral_device_data
     model_param_eh = data.params_ehdo_model
@@ -111,9 +112,11 @@ def build_model(model, data, cluster):
     try:
         network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
         network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
+        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
     except:
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
+        network_pump_power = [0] * T_e
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -1166,7 +1169,7 @@ def build_model(model, data, cluster):
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.eh_power_to_grid[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + network_pump_power[t] + model.eh_power_to_grid[t])
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1437,8 +1440,8 @@ def solve_model_and_extract_results(model, data):
     errorfile_path = os.path.join(result_dir, "errorfile_opti_central.txt")
 
     # Solve the model
-    solver, solver_options = solver_config.create_solver()
-    results = solver.solve(model, tee=False, logfile=solver_log_path, options=solver_options)
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config,)
+    results = solver.solve(model, tee=False, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file
     term_cond = results.solver.termination_condition
@@ -1524,6 +1527,23 @@ def solve_model_and_extract_results(model, data):
 
             with open(errorfile_path, 'a') as f:
                 f.write(f"IIS analysis failed: {e}\n")
+
+        # Using Gurobi to compute a better IIS if Gurobi is available
+        import gurobipy as gp
+        gurobi_available = True
+        try: _ = gp.Env.getEnv()
+        except: gurobi_available = False
+
+        if gurobi_available:
+            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
+            m = gp.read("debug_model.lp")
+            m.optimize()
+            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                m.computeIIS()
+                m.write("debug_model.ilp")
+                print("IIS written to debug_model.ilp")
+                raise Exception("Model is infeasible, see errorfile for details.")
+            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
 
         return None
 

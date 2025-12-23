@@ -7,6 +7,7 @@ This script is a Pyomo-based translation of the original Gurobi model.
 """
 
 import pyomo.environ as pyo
+import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
 import sys
 from io import StringIO
@@ -14,6 +15,9 @@ import numpy as np
 import time
 from datetime import datetime
 import os
+import matplotlib.pyplot as plt
+import textwrap
+import json
 import districtgenerator.functions.solver_config as solver_config
 
 
@@ -42,10 +46,11 @@ def run_optim(data, devs, param, dem, result_dict):
     start_time = time.time()
 
     # Build the model
-    model = build_model(data=data, devs=devs, param=param, dem=dem)
+    model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization")
+    build_model(model=model, data=data, devs=devs, param=param, dem=dem)
     model_building_time = time.time() - start_time
 
-    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
+    # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
     # Solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
@@ -64,8 +69,8 @@ def run_optim(data, devs, param, dem, result_dict):
     return result_dict
 
 
-def build_model(data, devs, param, dem):
-    model = pyo.ConcreteModel("Energy_Hub_Model")
+def build_model(model, data, devs, param, dem):
+
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 1. Initialize Pyomo Model and Define Sets
@@ -439,6 +444,20 @@ def build_model(data, devs, param, dem):
     # Economic constraints
     ################################################################################
 
+    #! Temporary fix for missing convertion to design optimization across multiple years
+    # TODO: Remove when full multi-year optimization is implemented
+    param["price_supply_el_eh"] = param["price_supply_el_eh"][0]
+    param["revenue_feed_in_el_eh"] = param["revenue_feed_in_el_eh"][0]
+    param["price_supply_gas_eh"] = param["price_supply_gas_eh"][0]
+    param["price_biomass"] = param["price_biomass"][0]
+    param["price_waste"] = param["price_waste"][0]
+    param["price_hydrogen"] = param["price_hydrogen"][0]
+    param["co2_gas"] = param["co2_gas"][0]
+    param["co2_biom"] = param["co2_biom"][0]
+    param["co2_waste"] = param["co2_waste"][0]
+    param["co2_hydrogen"] = param["co2_hydrogen"][0]
+    param["co2_el_grid"] = param["co2_el_grid"][0]
+
     # Electricity costs and revenues
     model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el_eh"])
     # Conditional capacity costs for electricity
@@ -524,10 +543,10 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     # Solve the Model
     ################################################################################
 
-    solver, solver_options = solver_config.create_solver()
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
     solve_start_time = time.time()
-    results = solver.solve(model, tee=False, logfile=solver_log_path, options=solver_options)
-    print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+    results = solver.solve(model, tee=False, options=solver_options)
+    # print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
 
     ################################################################################
     # Check and Save Results
@@ -556,7 +575,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
             except Exception as e:
                 f.write(f"\nCould not read solver log: {e}\n")
 
-        # IIS-Analysis
+        # IIS-Analysis #TODO: Needs a rework to capture the error source correctly
         try:
             import logging
             # Create string buffer to capture logging
@@ -617,6 +636,23 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
             with open(errorfile_path, 'a') as f:
                 f.write(f"IIS analysis failed: {e}\n")
+
+        # Using Gurobi to compute a better IIS if Gurobi is available
+        import gurobipy as gp
+        gurobi_available = True
+        try: _ = gp.Env.getEnv()
+        except: gurobi_available = False
+
+        if gurobi_available:
+            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
+            m = gp.read("debug_model.lp")
+            m.optimize()
+            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                m.computeIIS()
+                m.write("debug_model.ilp")
+                print("IIS written to debug_model.ilp")
+                raise Exception("Model is infeasible, see errorfile for details.")
+            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
 
         return None
 
@@ -937,5 +973,117 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["total_co2_waste"] = int(safe_value_single(model.waste_import_total) * param["co2_waste"] / 1000)  # t/a
     result_dict["total_co2_hydrogen"] = int(
         safe_value_single(model.hydrogen_import_total) * param["co2_hydrogen"] / 1000)  # t/a
+
+    # draw stacked plot of system costs
+    # Extract non-zero ann/o&m costs of devices
+    costs_data = []  # list of (label, value)
+    revenues_data = []  # list of (label, value)
+
+    for dev in model.all_devs:
+        ann = safe_value(model.c_inv, dev)
+        om = safe_value(model.c_om, dev)
+
+        if ann == 0 and om == 0:
+            continue  # skip unused devices
+
+        # append ann then o&m costs
+        costs_data.append((f"Annualized investment for the {dev}", ann))
+        costs_data.append((f"Operation and maintenance cost for the {dev}", om))
+
+    # Add heat grid
+    costs_data.append(("Annualized investment for Heat Grid", heat_grid_ann_costs))
+    costs_data.append(("Operation and maintenance cost for Heat Grid", heat_grid_om_costs))
+
+    # Add Energy costs and revenues
+    if result_dict["total_el_costs"] != 0:
+        costs_data.append(("Electricity costs", result_dict["total_el_costs"]))
+
+    if result_dict["rev_feed_in_el"] != 0:
+        revenues_data.append(("Electricity feed-in revenues", result_dict["rev_feed_in_el"]))
+
+    if result_dict["total_gas_costs"] != 0:
+        costs_data.append(("Gas costs", result_dict["total_gas_costs"]))
+
+    if result_dict["rev_feed_in_gas"] != 0:
+        revenues_data.append(("Gas feed-in revenues", result_dict["rev_feed_in_gas"]))
+
+    if result_dict["supply_costs_biom"] != 0:
+        costs_data.append(("Biomasse costs", result_dict["supply_costs_biom"]))
+
+    if result_dict["supply_costs_waste"] != 0:
+        costs_data.append(("Waste costs", result_dict["supply_costs_waste"]))
+
+    if result_dict["supply_costs_hydrogen"] != 0:
+        costs_data.append(("Hydrogen costs", result_dict["supply_costs_hydrogen"]))
+
+    # Prepare colore
+    cmap = plt.get_cmap("tab20")  # 20 distinct colors
+    cost_colors = [cmap(i) for i in range(len(costs_data))]
+    rev_colors = [cmap(i) for i in range(18, 20)]
+
+    fig, ax = plt.subplots(figsize=(10, 14))
+
+    x = [0]  # only ONE bar
+    bottom_cost = 0
+    bottom_rev = 0
+
+    # plot each pair layer
+    for (label, value), color in zip(costs_data, cost_colors):
+        ax.bar(x, value, bottom=bottom_cost,
+               color=color, label=label, width=0.6)
+        bottom_cost += value
+
+    for (label, value), color in zip(revenues_data, rev_colors):
+        ax.bar(x, -value, bottom=bottom_rev,
+               color=color, label=label, width=0.6)
+        bottom_rev -= value
+
+    # Automatic line wrapping
+    cost_labels = [lbl for lbl, val in costs_data]
+    rev_labels = [lbl for lbl, val in revenues_data]
+    all_labels = cost_labels + rev_labels
+    wrapped_labels = ['\n'.join(textwrap.wrap(lbl, 20)) for lbl in all_labels]
+
+    # X-axis cleanup
+    ax.set_ylabel("Annual Costs [EUR/a]")
+    ax.set_title("Annual Cost Stacked Chart")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{data.scenario_name}"])
+    ax.legend(
+        wrapped_labels,
+        bbox_to_anchor=(1.05, 1),
+        loc="upper left",
+        labelspacing=0.7,  # control vertical spacing
+        handletextpad=0.5,
+        borderpad=0.6
+    )
+
+    plt.tight_layout()
+
+    dir_result = data.heat_grid_data["resultPath"]
+    base = os.path.join(dir_result, f"system_cost_stack_{data.scenario_name}")
+    plt.savefig(base + ".png")  # PNG
+    plt.savefig(base + ".svg")  # SVG
+    print("Cost stacked plot of heating system saved to:", base)
+
+    plt.show()
+
+    # save costs to json file
+    json_dict = {
+        "costs": [
+            {"label": label, "value": float(value)}
+            for (label, value) in costs_data
+        ],
+        "revenues": [
+            {"label": label, "value": float(value)}
+            for (label, value) in revenues_data
+        ]
+    }
+
+    json_path = os.path.join(dir_result, "energy_hub_costs_outputs.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(json_dict, f, indent=4, ensure_ascii=False)
+
+    print("Cost JSON-file saved to:", json_path)
 
     return result_dict

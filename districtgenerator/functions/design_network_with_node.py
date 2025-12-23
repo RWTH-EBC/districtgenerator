@@ -138,7 +138,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
     nx.draw_networkx_nodes(network, pos=pos, nodelist=pos.keys(), node_color="green", node_size=150)
     nx.draw_networkx_labels(network, pos=pos, labels={i: i for i in pos.keys()}, font_size=8, font_color="white")
 
-    plt.grid(True)              # Enable grid lines on the plot for better readability
+#    plt.grid(True)              # Enable grid lines on the plot for better readability
     plt.axis("equal")           # Ensure equal scaling on both axes (1 unit on x = 1 unit on y)
     plt.gca().set_axis_on()     # Make sure the plot axes are visible
 
