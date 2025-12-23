@@ -80,7 +80,7 @@
       },
       {
           "name": "inv_var",
-          "value": 620,
+          "value": 0,
           "unit": "€/kW",
           "description": ""
       },

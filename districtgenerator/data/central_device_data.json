@@ -104,7 +104,7 @@
     "feasible": false,
     "life_time": 20,
     "cost_om": 0.025,
-    "inv_var": 1000,
+    "inv_var": 1080,
     "min_cap": 0,
     "max_cap": 500
   },
