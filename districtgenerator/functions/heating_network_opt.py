@@ -2287,7 +2287,7 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
                     zeta_supply = 1.0045 * flow_ratio ** 2 - 0.6116 * flow_ratio + 0.0925  # Bild 4.150 (Polynomial Fitting)
 
                     # prepare the zeta value for certain flow ratio at three typical angles 45°,60°, 90°
-                    zeta_45_return = - 1.852 * flow_ratio ** 2 + 1.118 * flow_ratio - 0.056  # Bild 4.150 (Polynomial Fitting)
+                    zeta_45_return = - 1.852 * flow_ratio ** 2 + 1.118 * flow_ratio + 0.056  # Bild 4.150 (Polynomial Fitting)
                     zeta_60_return = - 1.250 * flow_ratio ** 2 + 0.911 * flow_ratio + 0.144  # Bild 4.150 (Polynomial Fitting)
                     zeta_90_return = 0.031 * flow_ratio ** 2 + 0.486 * flow_ratio + 0.079    # Bild 4.150 (Polynomial Fitting)
 
@@ -2348,7 +2348,7 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
                 # pipe contraction in return pipes
                 area_ratio = (d_up / d_child) ** 2
                 kontraktionszahl = 0.49 * area_ratio ** 2 - 0.12 * area_ratio + 0.624           # Bild 4.128 (Polynomial Fitting)
-                zeta_dia_change_up = 1.5 * ((1-1/kontraktionszahl) * kontraktionszahl) ** 2     # Gl. 4.179
+                zeta_dia_change_up = 1.5 * ((1-kontraktionszahl)/kontraktionszahl) ** 2     # Gl. 4.179
                 factor = (pipes[pid_up]["velocity_max"] / pipes[pid]["velocity_max"]) ** 2
                 zeta_dia_change_return = zeta_dia_change_up * factor
 
