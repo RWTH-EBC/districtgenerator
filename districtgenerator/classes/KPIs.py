@@ -406,14 +406,10 @@ class KPIs:
         for dev in devices:
             calc_annual_investment[dev] = 0
             for n in range(len(district)):
-                try:
-                    calc_annual_investment[dev] += self.calc_annual_cost_device(
-                        decentral_device_data[dev],
-                        decentral_device_data["inv_data"],
-                        capacities[n][dev])
-
-                except KeyError:
-                    continue
+                calc_annual_investment[dev] += self.calc_annual_cost_device(
+                    decentral_device_data[dev],
+                    data.ecoData,
+                    capacities[n][dev])
             self.annual_fixed_costs_decentral += calc_annual_investment[dev]
 
         try:
@@ -421,7 +417,7 @@ class KPIs:
         except KeyError:
             self.annual_fixed_costs_central = 0
 
-    def calc_annual_cost_device(self, dev, param, cap):
+    def calc_annual_cost_device(self, dev, ecoData, cap):
         """
         Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
 
@@ -429,8 +425,8 @@ class KPIs:
         ----------
         dev : dictionary
             technology parameter
-        param : dictionary
-            economic parameters
+        ecoData : dictionary
+            economic parameters (interest_rate, observation_time)
 
         Returns
         -------
@@ -450,9 +446,9 @@ class KPIs:
         # Online available at:
         # https://api.kww-halle.de/fileadmin/user_upload/Technikkatalog_W%C3%A4rmeplanung_Version_1.1_August24.xlsx
 
-        observation_time = param["observation_time"]
-        interest_rate = param["interest_rate"]
-        q = 1 + param["interest_rate"]
+        observation_time = ecoData["observation_time"]
+        interest_rate = ecoData["interest_rate"]
+        q = 1 + ecoData["interest_rate"]
 
         # Calculate capital recovery factor
         CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)

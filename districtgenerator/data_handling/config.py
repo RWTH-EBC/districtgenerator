@@ -181,6 +181,7 @@ class EcoConfig(BaseSettings):
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.127]    # Gas price in €/kWh
     price_supply_gas_eh: str | list = [0.127] # Gas price for EHDO in €/kWh
+    revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
     price_gasoline_liter: str | list = [1.7]  # Gasoline price in €/liter
     price_hydrogen: str | list = [0.250]         # Hydrogen price in €/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
@@ -202,7 +203,7 @@ class EcoConfig(BaseSettings):
 
 
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 
-                     'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh',
+                     'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
@@ -231,7 +232,7 @@ class EcoConfig(BaseSettings):
         # List of all time dependent parameters
         params_to_expand = [
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
-            'price_supply_gas', 'price_supply_gas_eh', 'price_gasoline_liter', 'price_hydrogen',
+            'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
             'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
@@ -517,7 +518,6 @@ class EHDOConfig(BaseSettings):
     enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
     price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
     enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
-    revenue_feed_in_gas: float = 0.02       # Revenue for natural gas feed-in €/kWh
     enable_cap_limit_gas: bool = False      # Restrict gas demand from grid, bool.
     cap_limit_gas: float = 1000000          # Maximum annual energy drawn from the gas grid in MWh/year
 
@@ -742,9 +742,9 @@ class DecentralDeviceConfig(BaseSettings):
     EV: dict = {}
 
     # Investment data parameters
-    inv_data__observation_time: int = 20  # Observation time in years. #! Remove here and use only in EcoConfig!
-    inv_data__interest_rate: float = 0.05  # Interest rate. #! Remove here and use only in EcoConfig!
-    inv_data: dict = {}
+    # inv_data__observation_time: int = 20  # Observation time in years. #! Remove here and use only in EcoConfig!
+    # inv_data__interest_rate: float = 0.05  # Interest rate. #! Remove here and use only in EcoConfig!
+    # inv_data: dict = {}
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':

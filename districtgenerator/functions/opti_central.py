@@ -66,7 +66,7 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     start_time = time.time()
     # build the model
     model = pyo.ConcreteModel(name="Device_Operation_Optimization")
-    build_model(model=model, data=data, cluster=cluster, sim_ecoData=sim_ecoData)
+    build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
     # solve the model and extract results
@@ -86,7 +86,7 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     return results_dict
 
 
-def build_model(model, data, cluster, sim_ecoData):
+def build_model(model, data, year, cluster, sim_ecoData):
     """
     Builds the Pyomo model for the optimization of energy systems in a district.
     """
@@ -688,7 +688,7 @@ def build_model(model, data, cluster, sim_ecoData):
         if energyHubData == {}:
             return model.eh_heat_HP[t] == 0
         else:
-            COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][cluster][t]
+            COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][year][cluster][t]
             return model.eh_heat_HP[t] == model.eh_power_HP[t] * COP_HP_eh
 
     def eh_eb_conversion_rule(model, t):
@@ -698,7 +698,7 @@ def build_model(model, data, cluster, sim_ecoData):
         if energyHubData == {}:
             return model.eh_cool_CC[t] == 0
         else:
-            COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][cluster][t]
+            COP_CC_eh = energyHubData["capacities"]["devs"]["CC"]["COP"][year][cluster][t]
             return model.eh_cool_CC[t] == model.eh_power_CC[t] * COP_CC_eh
 
     def eh_ac_conversion_rule(model, t):
