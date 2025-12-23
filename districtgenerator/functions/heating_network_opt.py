@@ -525,7 +525,7 @@ def load_parameter(data):
 
     # 4 load heating demand for each building
     heat_loss_substation = np.zeros_like(deltaT)
-    heat_supply = np.zeros_like(deltaT)
+    net_heat_demand = np.zeros_like(deltaT)
     h_loss_subst = data.heat_grid_data["h_loss_subst"]["value"]  # 5%, Heat losses at the substation
 
     for building in data.district:
@@ -549,7 +549,7 @@ def load_parameter(data):
             # Sum the heat losses in the substations
             heat_loss_substation += heating_demand * (h_loss_subst / 100)  # kW
             # Sum the heat demand in the network
-            heat_supply += heating_demand
+            net_heat_demand += heating_demand
 
     # 4 norm diameter
     pipe_dict = data.pipe_data.set_index("Nominal diameter (DN)").to_dict(orient="index")
@@ -604,7 +604,17 @@ def load_parameter(data):
     data.heat_grid_data["pump"]["pump_ann_factor"] = pump_ann_factor
 
     # HP
-    HP_lifetime = data.central_device_data["AirHP"]["life_time"]      # 25a,          Maximum lifetime. source:
+    # active HP is selected between AirHP and GroundHP
+    HP_candidates = ["AirHP", "GroundHP"]
+    for name in HP_candidates:
+        dev = data.central_device_data.get(name)
+        if dev.get("feasible", False):
+            active_HP = name
+            break
+    else:
+        raise ValueError("Neither AirHP nor GroundHP is feasible.")
+
+    HP_lifetime = data.central_device_data[active_HP]["life_time"]      # 25a,          Maximum lifetime. source:
     HP_ann_factor = calc_annual_factor(data, HP_lifetime)
 
     # prepare parameters for the optimization model
@@ -617,9 +627,10 @@ def load_parameter(data):
     param["T_return_cluster"] = T_return_cluster
     param["T_supply"] = T_supply
     param["heat_loss_substation"] = heat_loss_substation
-    param["heat_supply"] = heat_supply
+    param["net_heat_demand"] = net_heat_demand
     param["pipe_dict"] = pipe_dict
     param["path"] = path
+    param["active_HP"] = active_HP
     param["HP_ann_factor"] = HP_ann_factor
 
     return data, param
@@ -843,20 +854,27 @@ def optimization_diameter(data, param, f_fric):
     pump_ann_factor = heat_grid_data["pump"]["pump_ann_factor"]     # Annualization Factor
 
     # 3) heat loss
-    inv_HP = data.central_device_data["AirHP"]["inv_var"]               # 1500€/kW,      source:
-    cost_om_HP = data.central_device_data["AirHP"]["cost_om"]           # 0.025,        1/year (fraction of inv_var), source: VDI2067
+    active_HP = param["active_HP"]
+    inv_HP = data.central_device_data[active_HP]["inv_var"]               # 1110€/kW for AirHP, 1080€/kW for GroundHP     source: KWW
+    cost_om_HP = data.central_device_data[active_HP]["cost_om"]
     HP_ann_factor = param["HP_ann_factor"]
 
     # Calculate heat pump COPs
+    if active_HP == "AirHP":
+        dT_evap = 10
+        dT_pinch_evap = 5
+    elif active_HP == "GroundHP":
+        dT_evap = 5
+        dT_pinch_evap = 2
     devs_param = {
         "feasible": True,
-        "dT_evap": 10,                  # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
-        "dT_cond": deltaT_cluster,      # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
-        "dT_pinch_cond": 2,             # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
-        "dT_pinch_evap": 5,             # K,    temperature difference between both fluids in the evaporator at pinch point
-        "eta_compr": 0.8,               # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
-        "heatloss_compr": 0.3,          # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
-        "COP_max": 7,                   # ---,  maximum heat pump COP
+        "dT_evap": dT_evap,      # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "dT_cond": deltaT_cluster,  # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
+        "dT_pinch_cond": 2, # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
+        "dT_pinch_evap": dT_pinch_evap, # K,    temperature difference between both fluids in the evaporator at pinch point
+        "eta_compr": 0.8,   # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+        "heatloss_compr": 0.3, # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "COP_max": 7,       # ---,  maximum heat pump COP
     }
     # Temperatures
     t_c_in = data.site["T_e_cluster"] + 273.15   # heat source inlet (Air)
@@ -1765,16 +1783,23 @@ def output_diameter(data, param):
     # calculate capacity
     cap_HP = np.max(heat_loss_total)
     # calculate investment, o&m cost and electricity cost
-    HP_inv_costs = cap_HP * data.central_device_data["AirHP"]["inv_var"]
+    active_HP = param["active_HP"]
+    HP_inv_costs = cap_HP * data.central_device_data[active_HP]["inv_var"]
     HP_ann_costs = HP_inv_costs * param["HP_ann_factor"]
-    HP_om_costs = HP_inv_costs * data.central_device_data["AirHP"]["cost_om"]
+    HP_om_costs = HP_inv_costs * data.central_device_data[active_HP]["cost_om"]
     # calculate yearly COP profile and the eletricity cost for the HP
+    if active_HP == "AirHP":
+        dT_evap = 10
+        dT_pinch_evap = 5
+    elif active_HP == "GroundHP":
+        dT_evap = 5
+        dT_pinch_evap = 2
     devs_param = {
         "feasible": True,
-        "dT_evap": 10,      # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
+        "dT_evap": dT_evap,      # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
         "dT_cond": deltaT,  # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
         "dT_pinch_cond": 2, # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
-        "dT_pinch_evap": 5, # K,    temperature difference between both fluids in the evaporator at pinch point
+        "dT_pinch_evap": dT_pinch_evap, # K,    temperature difference between both fluids in the evaporator at pinch point
         "eta_compr": 0.8,   # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
         "heatloss_compr": 0.3, # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
         "COP_max": 7,       # ---,  maximum heat pump COP
@@ -1851,8 +1876,8 @@ def output_diameter(data, param):
     T_supply_mean = np.mean(T_supply)
 
     # output heat supply for validation of the percentage of pump electricity and heat loss
-    heat_supply = param["heat_supply"]  # kW
-    total_heat_supply = np.sum(heat_supply) # kWh
+    net_heat_demand = param["net_heat_demand"]  # kW
+    total_net_heat_demand = np.sum(net_heat_demand) # kWh
 
     results = {
         "f_fric": {
@@ -1880,8 +1905,8 @@ def output_diameter(data, param):
             "unit": "m",
             "description": "Sum of all pipe segments in the network"
         },
-        "total_heat_supply": {
-            "value": float(total_heat_supply),
+        "total_net_heat_demand": {
+            "value": float(total_net_heat_demand),
             "unit": "kWh",
             "description": "Total annual heat supplied by the heating network"
         },
@@ -1896,7 +1921,7 @@ def output_diameter(data, param):
             "description": "Total annual electricity consumption for the pump"
         },
         "pump_electricity_consumption_percentage": {
-            "value": float(pump_energy_total / total_heat_supply * 100),
+            "value": float(pump_energy_total / total_net_heat_demand * 100),
             "unit": "%",
             "description": "Pump total annual electricity consumption as a percentage of network heat supply"
         },
@@ -1911,7 +1936,7 @@ def output_diameter(data, param):
             "description": "Heat loss density (only including pipelines)"
         },
         "heat_loss_percentage": {
-            "value": float(annual_heat_loss / total_heat_supply * 100),
+            "value": float(annual_heat_loss / total_net_heat_demand * 100),
             "unit": "%",
             "description": "Annual heat loss (including pipelines and substations) as a percentage of network heat supply"
         },
