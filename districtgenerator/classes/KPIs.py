@@ -14,6 +14,7 @@ from datetime import datetime
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
+import pandas as pd
 
 class KPIs:
 
@@ -405,14 +406,10 @@ class KPIs:
         for dev in devices:
             calc_annual_investment[dev] = 0
             for n in range(len(district)):
-                try:
-                    calc_annual_investment[dev] += self.calc_annual_cost_device(
-                        decentral_device_data[dev],
-                        decentral_device_data["inv_data"],
-                        capacities[n][dev])
-
-                except KeyError:
-                    continue
+                calc_annual_investment[dev] += self.calc_annual_cost_device(
+                    decentral_device_data[dev],
+                    data.ecoData,
+                    capacities[n][dev])
             self.annual_fixed_costs_decentral += calc_annual_investment[dev]
 
         try:
@@ -420,7 +417,7 @@ class KPIs:
         except KeyError:
             self.annual_fixed_costs_central = 0
 
-    def calc_annual_cost_device(self, dev, param, cap):
+    def calc_annual_cost_device(self, dev, ecoData, cap):
         """
         Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
 
@@ -428,8 +425,8 @@ class KPIs:
         ----------
         dev : dictionary
             technology parameter
-        param : dictionary
-            economic parameters
+        ecoData : dictionary
+            economic parameters (interest_rate, observation_time)
 
         Returns
         -------
@@ -449,9 +446,9 @@ class KPIs:
         # Online available at:
         # https://api.kww-halle.de/fileadmin/user_upload/Technikkatalog_W%C3%A4rmeplanung_Version_1.1_August24.xlsx
 
-        observation_time = param["observation_time"]
-        interest_rate = param["interest_rate"]
-        q = 1 + param["interest_rate"]
+        observation_time = ecoData["observation_time"]
+        interest_rate = ecoData["interest_rate"]
+        q = 1 + ecoData["interest_rate"]
 
         # Calculate capital recovery factor
         CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
@@ -522,7 +519,6 @@ class KPIs:
 
             # central operation costs for each year [€]
             self.operationCosts[year] = round(temp_operationCosts, 0)
-
 
     def calculateCO2emissions(self, data):
         """
@@ -712,6 +708,88 @@ class KPIs:
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
         self.calculateGasolineCosts(data)
+        self.saveKPIs(data.scenario_name, data.resultPath)
+
+    def saveKPIs(self, scenario_name, result_path):
+        """
+        Save all calculated KPIs in a CSV file. Ensure that calculateAllKPIs() has been called before.
+
+        Parameters
+        - self: KPICalculator instance
+        - scenario_name: Name of the scenario for file naming
+        - result_path: Path to save the results
+        """
+
+        if result_path is None:
+            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            filename = os.path.join(src_path, "results", f"KPIs_{scenario_name}.csv")
+        else:
+            filename = os.path.join(result_path, f"KPIs_{scenario_name}.csv")
+
+        # Create dictionary to store KPI data
+        kpi_data = {}
+
+        # Get all simulated years
+        years = sorted(self.inputData["simulated_years"])
+
+        # Add year-dependent KPIs
+        kpi_data["Peak Demand [kW]"] = {year: self.peakDemand.get(year, None) for year in years}
+        kpi_data["Peak Injection [kW]"] = {year: self.peakInjection.get(year, None) for year in years}
+        kpi_data["Peak to Valley [kW]"] = {year: self.peakToValley.get(year, None) for year in years}
+        kpi_data["Electricity Injection to Grid [kWh/a]"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
+        kpi_data["Electricity Demand from Grid [kWh/a]"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
+        kpi_data["Gas Consumption [kWh/a]"] = {year: self.gas_year.get(year, None) for year in years}
+        kpi_data["Biomass Consumption [kWh/a]"] = {year: self.biomass_year.get(year, None) for year in years}
+        kpi_data["Waste Consumption [kWh/a]"] = {year: self.waste_year.get(year, None) for year in years}
+        kpi_data["Hydrogen Consumption [kWh/a]"] = {year: self.hydrogen_year.get(year, None) for year in years}
+        kpi_data["Oil Consumption [kWh/a]"] = {year: self.oil_year.get(year, None) for year in years}
+        kpi_data["District Heat Consumption [kWh/a]"] = {year: self.districtHeat_year.get(year, None) for year in years}
+        kpi_data["Electricity Injection within District [kWh/a]"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
+        kpi_data["Electricity Demand within District [kWh/a]"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
+        kpi_data["Demand Cover Factor [-]"] = {year: self.dcf_year.get(year, None) for year in years}
+        kpi_data["Supply Cover Factor [-]"] = {year: self.scf_year.get(year, None) for year in years}
+        kpi_data["Operation Costs [€/a]"] = {year: self.operationCosts.get(year, None) for year in years}
+        kpi_data["Total CO2 Emissions [t/a]"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
+        kpi_data["CO2 Emissions Grid Electricity [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
+        kpi_data["CO2 Emissions Gas [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
+        kpi_data["CO2 Emissions Biomass [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
+        kpi_data["CO2 Emissions Waste [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
+        kpi_data["CO2 Emissions Hydrogen [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
+        kpi_data["CO2 Emissions Oil [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
+        kpi_data["CO2 Emissions District Heat [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
+        kpi_data["Energy Autonomy [-]"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
+        kpi_data["Gasoline Costs [€/a]"] = {year: self.gasoline_costs.get(year, None) for year in years}
+
+        # Add year-independent KPIs (same value for all years)
+        kpi_data["Annual Fixed Costs Decentral [€/a]"] = {year: self.annual_fixed_costs_decentral for year in years}
+        kpi_data["Annual Fixed Costs Central [€/a]"] = {year: self.annual_fixed_costs_central for year in years}
+        kpi_data["Total Residential Area [m²]"] = {year: self.totalarea_residential for year in years}
+        kpi_data["Total Non-Residential Area [m²]"] = {year: self.totalarea_non_residential for year in years}
+        kpi_data["Total Number of Flats [-]"] = {year: self.totalnumberflats for year in years}
+        kpi_data["Total Number of Occupants [-]"] = {year: self.totalnumberocc for year in years}
+        kpi_data["Total Heat Load [kW]"] = {year: self.totalheatload/1000 for year in years}
+        kpi_data["Total Cooling Load [kW]"] = {year: self.totalcoolingload/1000 for year in years}
+        kpi_data["Total Heating Demand [kWh/a]"] = {year: self.total_heating_demand/1000 for year in years}
+        kpi_data["Total Cooling Demand [kWh/a]"] = {year: self.total_cooling_demand/1000 for year in years}
+        kpi_data["Total Electricity Demand [kWh/a]"] = {year: self.total_electricity_demand/1000 for year in years}
+        kpi_data["Total EV Demand [kWh/a]"] = {year: self.total_EV_demand/1000 for year in years}
+        kpi_data["Total DHW Demand [kWh/a]"] = {year: self.total_dhw_demand/1000 for year in years}
+        kpi_data["Total Electricity Peak [kW]"] = {year: self.total_electricity_peak/1000 for year in years}
+        kpi_data["Total Heat Peak [kW]"] = {year: self.total_heat_peak/1000 for year in years}
+        kpi_data["Total DHW Peak [kW]"] = {year: self.total_dhw_peak/1000 for year in years}
+        kpi_data["Total Cooling Peak [kW]"] = {year: self.total_cooling_peak/1000 for year in years}
+        kpi_data["Total EV Peak [kW]"] = {year: self.total_EV_peak/1000 for year in years}
+        kpi_data["Total ICE Fuel Consumption [liters/a]"] = {year: self.total_ICE_fuel_liters for year in years}
+
+        # Create DataFrame with KPI names as first column and years as subsequent columns
+        kpi_df = pd.DataFrame.from_dict(kpi_data, orient='index')
+        kpi_df.columns = [f"Year {year}" for year in years]
+        kpi_df.index.name = "KPI"
+        kpi_df.reset_index(inplace=True)
+
+        # Save to CSV
+        kpi_df.to_csv(filename, index=False, sep=';', decimal='.', encoding='utf-8')
+        print(f"KPIs saved to: {filename}")
 
     def create_certificate(self, data, result_path):
         """

@@ -1,5 +1,5 @@
 # Solution file
-# Created: 2025-12-23 15:04:02
+# Created: 2025-12-25 12:12:07
 # Objective value: 314.4219173260664
 # Variable values
 power_dom[('HP', 0, 0)] 0.000000

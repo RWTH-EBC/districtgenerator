@@ -524,7 +524,7 @@ def optimization_diameter(data, param):
     COP_HP = calc_COP(devs_param, [t_c_in, dt_c, t_h_in, dt_h])
 
     # calculate the price for co2 of the electrity from grid
-    p_co2 = data.params_ehdo_model["co2_tax"]                           # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
+    p_co2 = data.ecoData["co2_tax"][0]                              # 0,            carbon pricing (0.055€/kg in Germany in 2025 from website https://carbonpricingdashboard.worldbank.org/compliance/price)
     EF = data.ecoData["co2_el_grid"][0]                                    # 0.363kg/kWh,  CO2 emissions for electricity import (grid mix)
 
     # calculate the total unit cost of producing heat of AirHP
@@ -1047,7 +1047,11 @@ def output_diameter(data, param):
 
         DN = pipe["DN"]
         # Map pipe diameter to line width in the plot
-        lw = 1 + 5 * (DN - min_DN) / (max_DN - min_DN)  # range: 1-5
+        den = (max_DN - min_DN)
+        if den == 0:
+            lw = 3
+        else:
+            lw = 1 + 5 * (DN - min_DN) / (max_DN - min_DN)  # range: 1-5
         # The thicker the pipe, the redder its color; the thinner the pipe, the greener its color.
         color = cmap(norm(DN))
 
@@ -1773,9 +1777,9 @@ def calc_annual_factor(data, life_time):
     annualized fix and variable investment
     """
 
-    observation_time = data.params_ehdo_model["observation_time"]
-    interest_rate = data.params_ehdo_model["interest_rate"]
-    q = 1 + data.params_ehdo_model["interest_rate"]
+    observation_time = data.ecoData["observation_time"]
+    interest_rate = data.ecoData["interest_rate"]
+    q = 1 + interest_rate
 
     # Calculate capital recovery factor
     # Annualized cost = Present value × Capital Recovery Factor (CRF)
@@ -2220,8 +2224,7 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
                     zeta_supply = 1.0045 * flow_ratio ** 2 - 0.6116 * flow_ratio + 0.0925  # Bild 4.150 (Polynomial Fitting)
 
                     # prepare the zeta value for certain flow ratio at three typical angles 45°,60°, 90°
-                    #todo: correct for 45°
-                    zeta_45_return = - 1.852 * flow_ratio ** 2 + 1.118 * flow_ratio - 0.056  # Bild 4.150 (Polynomial Fitting)
+                    zeta_45_return = - 1.852 * flow_ratio ** 2 + 1.118 * flow_ratio + 0.056  # Bild 4.150 (Polynomial Fitting)
                     zeta_60_return = - 1.250 * flow_ratio ** 2 + 0.911 * flow_ratio + 0.144  # Bild 4.150 (Polynomial Fitting)
                     zeta_90_return = 0.031 * flow_ratio ** 2 + 0.486 * flow_ratio + 0.079    # Bild 4.150 (Polynomial Fitting)
 
@@ -2282,7 +2285,6 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
                 # pipe contraction in return pipes
                 area_ratio = (d_up / d_child) ** 2
                 kontraktionszahl = 0.49 * area_ratio ** 2 - 0.12 * area_ratio + 0.624           # Bild 4.128 (Polynomial Fitting)
-                #todo: coorected
                 zeta_dia_change_up = 1.5 * ((1 - kontraktionszahl) / kontraktionszahl) ** 2     # Gl. 4.179
                 factor = (pipes[pid_up]["velocity_max"] / pipes[pid]["velocity_max"]) ** 2
                 zeta_dia_change_return = zeta_dia_change_up * factor

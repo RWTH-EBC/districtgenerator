@@ -461,10 +461,10 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        plot_filename = f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.png"
-        # plot_filename = get_unique_filename(plot_filename)
-        plot_path = os.path.join(save_dir, plot_filename)
-        plt.savefig(plot_path)
+        plot_filename_png = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.png")
+        plot_filename_svg = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.svg")
+        plt.savefig(plot_filename_png, dpi=300)
+        plt.savefig(plot_filename_svg, format="svg")
 
         plt.show()
 
@@ -681,10 +681,10 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        plot_filename = f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.png"
-        # plot_filename = get_unique_filename(plot_filename)
-        plot_path = os.path.join(save_dir, plot_filename)
-        plt.savefig(plot_path)
+        plot_filename_png = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.png")
+        plot_filename_svg = os.path.join(save_dir,f"pipeline_layout_road_{district_type}_buildings_{len(buildings_info)}.svg")
+        plt.savefig(plot_filename_png, dpi=300)
+        plt.savefig(plot_filename_svg, format="svg")
 
         plt.show()
 
