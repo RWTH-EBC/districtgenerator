@@ -589,6 +589,11 @@ class Datahandler:
                 elif building["buildingFeatures"]["year"] >= 1960:
                     height_of_floors = 2.5  # m
 
+                if np.isnan(building.get("buildingFeatures", {}).get("year")):
+                    print(f"DEBUG Fehler: Gebäude mit ID {building.get("buildingFeatures", {}).get("id")} hat kein Baujahr!! {building.get("buildingFeatures", {}).get("year")}")
+                #print("DEBUG features:", building.get("buildingFeatures"))
+
+
                 prj.add_residential(method='tabula_de',
                                     usage=building_type,
                                     name="ResidentialBuildingTabula",
