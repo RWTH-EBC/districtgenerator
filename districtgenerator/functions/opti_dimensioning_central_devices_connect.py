@@ -1162,7 +1162,7 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
         ["supply_costs_hydrogen", result_dict.get("supply_costs_hydrogen", ""),"EUR/a"],    # Supply costs for hydrogen
         [],                                                                               # Empty row for separation
         ["Co2_parameter", "Value", "Unit"],                                               # Header row co2-parameters
-        ["co2_onsite_emissions", result_dict.get("co2_onsite_emissions", "t/a"),""],    # Onsite CO2 emissions
+        ["co2_onsite_emissions", result_dict.get("co2_onsite_emissions", ""),"t/a"],    # Onsite CO2 emissions
         ["co2_credit_feedin", result_dict.get("co2_credit_feedin", ""),"t/a"],          # CO2 credit from feed-in
         ["total_co2_el", result_dict.get("total_co2_el", ""),"t/a"],                    # Total CO2 emissions from electricity
         ["total_co2_el_feed_in", result_dict.get("total_co2_el_feed_in", ""),"t/a"],    # Total CO2 emissions from electricity feed-in

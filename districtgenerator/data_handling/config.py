@@ -234,7 +234,7 @@ class EHDOConfig(BaseSettings):
     enable_supply_el: bool = True           # Enable electricity supply, bool.
     enable_feed_in_el: bool = True          # Enable feed-in tariff for electricity, bool.
     enable_price_cap_el: bool = False       # Enable electricity capacity price, bool.
-    price_cap_el: float = 60                # Electricity capacity price in €/kWh.
+    price_cap_el: float = 60                # Electricity capacity price in €/kWh. # Probalby €/kW
     enable_cap_limit_el: bool = False       # Consider capacity of grid connection, bool.
     cap_limit_el: float = 100000  # in kW   # Capacity of grid connection in kW.
     enable_supply_limit_el: bool = False    # Enable restriction of electricity demand from grid, bool.
@@ -243,7 +243,7 @@ class EHDOConfig(BaseSettings):
     # Gas configuration
     enable_supply_gas: bool = False         # Enable gas supply, bool.
     enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
-    price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
+    price_cap_gas: float = 0.04             # Gas capacity price in €/kWh # Probalby €/kW
     enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
     revenue_feed_in_gas: float = 0.02       # Revenue for natural gas feed-in €/kWh
     enable_cap_limit_gas: bool = False      # Restrict gas demand from grid, bool.

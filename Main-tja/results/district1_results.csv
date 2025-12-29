@@ -1,12 +1,12 @@
 Cost_parameter;Value;Unit
 co2_tax_total;0;EUR/a
-total_inv_cost;11809511;EUR/a
-total_ann_inv_cost;946536;EUR/a
-total_om_cost;235451;EUR/a
-supply_costs_el;5286;EUR/a
+total_inv_cost;124427;EUR/a
+total_ann_inv_cost;8791;EUR/a
+total_om_cost;1774;EUR/a
+supply_costs_el;8330;EUR/a
 cap_costs_el;0;EUR/a
-total_el_costs;5286;EUR/a
-rev_feed_in_el;1645171;EUR/a
+total_el_costs;8330;EUR/a
+rev_feed_in_el;221025;EUR/a
 supply_costs_gas;0;EUR/a
 cap_costs_gas;0;EUR/a
 total_gas_costs;0;EUR/a
@@ -16,9 +16,9 @@ supply_costs_waste;0;EUR/a
 supply_costs_hydrogen;0;EUR/a
 
 Co2_parameter;Value;Unit
-co2_onsite_emissions;0;
+co2_onsite_emissions;0;t/a
 co2_credit_feedin;0;t/a
-total_co2_el;8;t/a
+total_co2_el;12;t/a
 total_co2_el_feed_in;0;t/a
 total_co2_gas;0;t/a
 total_co2_gas_feed_in;0;t/a
@@ -27,21 +27,21 @@ total_co2_waste;0;t/a
 total_co2_hydrogen;0;t/a
 
 Grid_flows;Value;Unit
-from_el_main_grid_total;16;MWh
-to_el_main_grid_total;20285;MWh
-from_network_total;12754;MWh
-to_network_total;4379;MWh
+from_el_main_grid_total;;MWh
+to_el_main_grid_total;;MWh
+from_network_total;;MWh
+to_network_total;;MWh
 from_gas_grid_total;0;MWh
 to_gas_grid_total;0;MWh
 biom_import_total;0;MWh
 waste_import_total;0;MWh
 hydrogen_import_total;0;MWh
-max_el_from_grid;8996;kW
-max_el_to_grid;17001;kW
-max_el_from_main_grid;28;kW
-max_el_to_main_grid;17001;kW
-max_el_from_network;8996;kW
-max_el_to_network;11209;kW
+max_el_from_grid;52;kW
+max_el_to_grid;2299;kW
+max_el_from_main_grid;;kW
+max_el_to_main_grid;;kW
+max_el_from_network;;kW
+max_el_to_network;;kW
 max_gas_from_grid;0;kW
 max_gas_to_grid;0;kW
 max_biom;0;
@@ -49,15 +49,14 @@ max_waste;0;
 max_hydrogen;0;
 
 Areas PV and STC;Value;Unit
-PV;50000;qm
+PV;0;qm
 STC;0;qm
 
 volumes of thermal storages;Value;Unit
-TES;4897.5;l
+TES;8812.2;l
 CTES;0.0;l
 ;
 Device-capacity;Value;Unit
-PV;9000.0;kW
-HP;27.2;kW
-EB;47.1;kW
-TES;312.8;kW
+HP;35.0;kW
+EB;51.8;kW
+TES;562.8;kW

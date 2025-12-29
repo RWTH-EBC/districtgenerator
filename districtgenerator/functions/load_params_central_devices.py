@@ -15,6 +15,7 @@ Contact:        Marco Wirtz
 """
 
 import numpy as np
+import pandas as pd
 import math
 import districtgenerator.functions.clustering_medoid as clustering
 import time
@@ -82,6 +83,22 @@ def load_params(data):
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
 
+    ####################################################################
+    # SAVE UNCLUSTERED HEAT DEMAND TO CSV FILE FOR VISUALIZATION PURPOSES
+    # Test if "heat" is in dem_uncl
+
+    if "heat" not in dem_uncl:
+        raise ValueError('"heat" is not part of "dem_uncl".')
+
+    # Save data to  Pandas DataFrame
+    heat_data = pd.DataFrame({"heat": dem_uncl["heat"]})
+    file_path = os.path.join(data.filePath, 'heat_demand_unclustered.csv')
+
+    # DataFrame to CSV
+    heat_data.to_csv(file_path, index=False, sep=";")
+
+    print(f'Daten wurden erfolgreich in "{file_path}" gespeichert.')
+
     ################################################################
     # DESIGN CLUSTERING
 
@@ -126,6 +143,24 @@ def load_params(data):
     param["GHI"] = clustered_series[4]
     param["DHI"] = clustered_series[5]
     param["wind_speed"] = clustered_series[6]
+
+    ####################################################################
+    # SAVE CLUSTERED HEAT DEMAND TO CSV FILE FOR VISUALIZATION PURPOSES
+    # Test if "heat" is in dem
+
+    if "heat" not in dem:
+        raise ValueError('"heat" is not part of "dem_uncl".')
+
+    # Save data to  Pandas DataFrame
+    heat_data_clustered = pd.DataFrame(dem["heat"],)
+    file_path = os.path.join(data.filePath, 'heat_demand_clustered.csv')
+
+    # DataFrame to CSV
+    heat_data_clustered.to_csv(file_path, index=False, sep=";")
+
+    print(f'Data successfully saved to "{file_path}"')
+
+    ################################################################
 
     # Save number of design days and design-day matrix
     param["cluster_weights"] = nc
