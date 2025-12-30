@@ -21,7 +21,7 @@ import os
 #from optim_app.help_functions import create_excel_file
 
 
-def run_optim(data, devs, param, dem, result_dict):
+def run_optim(data, devs, param, dem, result_dict, df_MNES, scenario_name):
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Load model parameters
@@ -667,6 +667,11 @@ def run_optim(data, devs, param, dem, result_dict):
         result_dict["PV_generation_uncl"] = devs["PV"]["norm_power"] / 1000 * area["PV"].X          # in kW
         result_dict["WT_generation_uncl"] = devs["WT"]["norm_power"] * cap["WT"].X                  # in kW
         result_dict["STC_generation_uncl"] = devs["STC"]["norm_power"] / 1000 * area["STC"].X       # in kW
+
+        df_MNES["centralPV"] = result_dict["PV_generation_uncl"]
+        df_MNES["centralWind"] = result_dict["WT_generation_uncl"]
+
+        df_MNES.to_csv('MNES' + scenario_name +'.csv', index=False)
 
         # Prepare time series of renewable curtailment
         power["PV_curtail"] = {}

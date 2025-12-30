@@ -19,14 +19,14 @@ class CentralDeviceConfig(BaseSettings):
     PV_beta: float = 35             # Tilt angle of the PV modules in degrees.
     PV_gamma: int = 0               # Azimuth angle (orientation) of the PV modules in degrees (0=South, -90=East, 90=West).
     PV_life_time: int = 20          # Maximum life time in years.
-    PV_inv_var: int = 1300          # Investment variable in €/kWp.
+    PV_inv_var: int = 900          # Investment variable in €/kWp.
     PV_cost_om: float = 0.02        # Cost of operation and maintenance as a percentage of investment.
     PV_max_area: int = 50000        # Maximum installation area in square meters.
     PV_min_area: int = 0            # Minimum installation area in square meters.
     PV_G_stc: int = 1               # Global horizontal irradiance under STC in kW/m^2.
 
     # WT parameters (Wind Turbine)
-    WT_feasible: bool = True        # Should this be considered for the central optimization.
+    WT_feasible: bool = False        # Should this be considered for the central optimization.
     WT_inv_var: int = 900           # Investment variable in €/kW.
     WT_life_time: int = 20          # Maximum life time in years.
     WT_cost_om: float = 0.03        # Cost of operation and maintenance as a percentage of investment.
@@ -89,19 +89,19 @@ class CentralDeviceConfig(BaseSettings):
     # HP parameters (Heat Pump)
     HP_feasible: bool = True        # Should this be considered for the central optimization.
     HP_CCOP_feasible: bool = False  # Should this be considered for the central optimization (constant COP).
-    HP_ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
-    HP_CSV_feasible: bool = True    # Should this be considered for the central optimization (CSV data).
-    HP_inv_var: int = 748           # Investment variable in €/kW.
+    HP_ASHP_feasible: bool = True   # Should this be considered for the central optimization (air source).
+    HP_CSV_feasible: bool = False   # Should this be considered for the central optimization (CSV data).
+    HP_inv_var: int = 1000           # Investment variable in €/kW.
     HP_life_time: int = 25          # Maximum life time in years.
     HP_cost_om: float = 0.03        # Cost of operation and maintenance as a percentage of investment.
-    HP_min_cap: int = 0             # Minimum capacity in kW.
-    HP_max_cap: int = 100000        # Maximum capacity in kW.
-    HP_ASHP_carnot_eff: float = 0.4 # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
-    HP_ASHP_supply_temp: int = 60   # Supply temperature of the Air Source Heat Pump in Celsius.
+    HP_min_cap: int = 300             # Minimum capacity in kW.
+    HP_max_cap: int = 20000         # Maximum capacity in kW.
+    HP_ASHP_carnot_eff: float = 0.45 # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
+    HP_ASHP_supply_temp: int = 50   # Supply temperature of the Air Source Heat Pump in Celsius.
     HP_COP_const: int = 5           # Constant Coefficient of Performance (COP).
 
     # AirHP parameters (Air Source Heat Pump)
-    AirHP_feasible: bool = True     # Should this be considered for the central optimization.
+    AirHP_feasible: bool = False     # Should this be considered for the central optimization.
     AirHP_life_time: int = 25       # Maximum life time in years.
     AirHP_inv_var: int = 1500       # Investment variable in €/kWth.
     AirHP_cost_om: float = 0.025    # Cost of operation and maintenance as a percentage of investment.
@@ -118,15 +118,15 @@ class CentralDeviceConfig(BaseSettings):
 
     # EB parameters (Electric Boiler)
     EB_feasible: bool = True        # Should this be considered for the central optimization.
-    EB_inv_var: int = 463           # Investment variable in €/kW.
-    EB_eta_th: float = 1.0          # Thermal efficiency between 0 and 1.
+    EB_inv_var: int = 188.48           # Investment variable in €/kW.
+    EB_eta_th: float = 0.99          # Thermal efficiency between 0 and 1.
     EB_life_time: int = 25          # Maximum life time in years.
-    EB_cost_om: float = 0.01        # Cost of operation and maintenance as a percentage of investment.
+    EB_cost_om: float = 0.025        # Cost of operation and maintenance as a percentage of investment.
     EB_min_cap: int = 0             # Minimum capacity in kW.
-    EB_max_cap: int = 100000        # Maximum capacity in kW.
+    EB_max_cap: int = 2000        # Maximum capacity in kW.
 
     # CC parameters (Chiller)
-    CC_feasible: bool = True        # Should this be considered for the central optimization.
+    CC_feasible: bool = False      # Should this be considered for the central optimization.
     CC_inv_var: int = 600           # Investment variable in €/kW.
     CC_COP: float = 5.0             # Coefficient of Performance (COP).
     CC_life_time: int = 20          # Maximum life time in years.
@@ -235,7 +235,7 @@ class CentralDeviceConfig(BaseSettings):
     TES_cost_om: float = 0.01       # Cost of operation and maintenance as a percentage of investment.
     TES_min_vol: int = 0            # Minimum storage volume in cubic meters.
     TES_max_vol: int = 100000       # Maximum storage volume in cubic meters.
-    TES_delta_T: int = 55           # Temperature difference between charged and discharged state in Celsius.
+    TES_delta_T: int = 10           # Temperature difference between charged and discharged state in Celsius.
     TES_soc_init: float = 0.5       # Initial state of charge between 0 and 1.
 
     # CTES parameters (Cold Thermal Energy Storage)
@@ -249,7 +249,7 @@ class CentralDeviceConfig(BaseSettings):
     CTES_delta_T: int = 55          # Temperature difference between charged and discharged state
 
     # BAT parameters (Battery Storage)
-    BAT_feasible: bool = False  # Should this be considered for the central optimization.
+    BAT_feasible: bool = True  # Should this be considered for the central optimization.
     BAT_inv_var: int = 970  # Investment variable in €/kWh.
     BAT_life_time: int = 15  # Maximum life time in years.
     BAT_cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.

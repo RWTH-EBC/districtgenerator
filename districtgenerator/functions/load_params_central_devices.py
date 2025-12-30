@@ -22,10 +22,12 @@ import os
 import sys
 import copy
 from districtgenerator.classes.solar import Sun
+import pandas as pd
 
 def load_params(data):
 
     result_dict = {}
+    df_MNES = pd.DataFrame(columns=["centralPV", "centralWind", "Temperature_T_e", "Heating", "DHW", "P_el"])
     # import model parameters
     central_device_data = copy.deepcopy(data.central_device_data)
     heat_grid_data = copy.deepcopy(data.heat_grid_data)
@@ -46,6 +48,8 @@ def load_params(data):
     param_uncl["GHI"] = data.site["SunTotal"]
     param_uncl["DHI"] = data.site["SunDiffuse"]
     param_uncl["wind_speed"] = data.site["wind_speed"]
+
+    df_MNES["Temperature_T_e"] = param_uncl["T_air"]
 
     ################################################################
     # LOAD DEMANDS
@@ -75,12 +79,16 @@ def load_params(data):
     cooling_total = cooling + heat_grid_data["total_losses_cooling_network"]
 
     electricity_total = electricityAppliances + electricityEV - generationPV
-    dem_uncl["heat"] = heating_total
-    dem_uncl["cool"] = cooling_total
+    dem_uncl["heat"] = heating
+    dem_uncl["cool"] = cooling_total * 0
     dem_uncl["power"] = electricity_total
     for k in ["heat", "cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
+
+    df_MNES["DHW"] = dhw
+    df_MNES["Heating"] = heating
+    df_MNES["P_el"] = electricity_total
 
     ################################################################
     # DESIGN CLUSTERING
@@ -628,7 +636,7 @@ def load_params(data):
     # Calculate values for post-processing
     result_dict = calc_monthly_dem(dem_uncl, param_uncl, result_dict)
 
-    return param, devs, dem, result_dict
+    return param, devs, dem, result_dict, df_MNES
 
 
 
