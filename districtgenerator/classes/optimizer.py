@@ -44,7 +44,7 @@ class Optimizer:
         Identifier of the currently regarded cluster.
     """
 
-    def __init__(self, data, cluster):
+    def __init__(self, data, cluster, config):
         """
         Constructor of Optimizer class.
 
@@ -54,33 +54,38 @@ class Optimizer:
             Datahandler object which contains all relevant information to perform the optimization.
         cluster : integer
             Identifier of the currently regarded cluster.
+        config : GurobiConfig object
+            List containing the configuration settings for the optimization.
 
         Returns
         -------
         None.
         """
 
-        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
         self.filePath = os.path.join(self.srcPath, 'data')
-        self.optiSettings = self.loadGurobiSettings()
+        self.optiSettings = {}
+        self.loadGurobiSettings(config)
         self.model = None
         self.data = data
         self.cluster = cluster
         self.initializeModel()
 
-    def loadGurobiSettings(self):
+    def loadGurobiSettings(self, config):
         """
         Load the optimization settings for the gurobi solver.
 
+        Parameters
+        ----------
+        config : GurobiConfig object
+            List containing the configuration settings for the optimization.
+
         Returns
         -------
-        optiSettings : dictionary
-            Optimization settings for the gurobi solver.
+        None.
         """
-
-        gurobiSettings = json.load(open(os.path.join(self.filePath, 'gurobi_settings.json')))
-
-        return gurobiSettings
+        for attr, value in config.__dict__.items():
+            self.optiSettings[attr] = value
 
     def initializeModel(self):
         """

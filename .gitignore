@@ -1,6 +1,7 @@
 districtgenerator/results/*
 districtgenerator/data/scenarios/*
 errorfile.txt
+build
 *.bk
 *.log
 *.lp
@@ -17,3 +18,4 @@ districtgenerator/data/weather/*
 *.egg-info/
 *.egg/
 *.eggs
+districtgenerator.egg-info/*

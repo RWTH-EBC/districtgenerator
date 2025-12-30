@@ -7,6 +7,7 @@ Then choose 'Modify Run Configuration' and tick 'Run with Python Console'.
 """
 
 import unittest
+import numpy as np
 
 class TestExamples(unittest.TestCase):
     """Unit Tests for the DistrictGenerator"""
@@ -18,6 +19,8 @@ class TestExamples(unittest.TestCase):
         # Executing the example and checking if no exceptions occur
         data_e1 = e1.example1_initialize_datahandler()
         self.assertIsNotNone(data_e1)  # Ensure that data is returned
+        # Check functionality works as expected with exemplary output
+        self.assertEqual(data_e1.district, [])
 
     def test_e2_generate_environment(self):
         """Tests the executability of example 2"""
@@ -26,6 +29,8 @@ class TestExamples(unittest.TestCase):
         # Executing the example and checking if no exceptions occur
         data_e2 = e2.example2_generate_environment()
         self.assertIsNotNone(data_e2)  # Ensure that data is returned
+        # Check functionality works as expected with exemplary output
+        self.assertIsInstance(data_e2.site['T_e'][0], float)
 
     def test_e3_initialize_buildings(self):
         """Tests the executability of example 3"""
@@ -34,6 +39,12 @@ class TestExamples(unittest.TestCase):
         # Executing the example and checking if no exceptions occur
         data_e3 = e3.example3_initialize_buildings()
         self.assertIsNotNone(data_e3)  # Ensure that data is returned
+        # Check functionality works as expected with exemplary output
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["id"], np.integer)
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["building"], str)
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["year"], np.integer)
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["retrofit"], np.integer)
+        self.assertIsInstance(data_e3.district[0]["buildingFeatures"]["area"], np.integer)
 
     def test_e4_generate_buildings(self):
         """Tests the executability of example 4"""
@@ -42,6 +53,8 @@ class TestExamples(unittest.TestCase):
         # Executing the example and checking if no exceptions occur
         data_e4 = e4.example4_generate_buildings()
         self.assertIsNotNone(data_e4)  # Ensure that data is returned
+        # Check functionality works as expected with exemplary output
+        self.assertIsInstance(data_e4.district[0]["envelope"].A["opaque"], dict)
 
     def test_e5_generate_demands(self):
         """Tests the executability of example 5"""
@@ -50,6 +63,8 @@ class TestExamples(unittest.TestCase):
         # Executing the example and checking if no exceptions occur
         data_e5 = e5.example5_generate_demands()
         self.assertIsNotNone(data_e5)  # Ensure that data is returned
+        # Check functionality works as expected with exemplary output
+        self.assertIsInstance(data_e5.district[0]["user"].heat, np.ndarray)
 
 if __name__ == '__main__':
     unittest.main()
