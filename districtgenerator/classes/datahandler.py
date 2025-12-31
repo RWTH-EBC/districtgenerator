@@ -224,9 +224,18 @@ class Datahandler:
         if self.heat_grid_data["generation"]["value"] == "3rd":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
+
         elif self.heat_grid_data["generation"]["value"] == "4th":
-            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
-            self.pipe_data = pd.read_csv(csv_path, sep=";")
+            pmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
+            pmr_data = pd.read_csv(pmr_path, sep=";")
+
+            # add KMR pipes for DN > 150
+            kmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
+            kmr_data = pd.read_csv(kmr_path, sep=";")
+            kmr_data = kmr_data[kmr_data["Nominal diameter (DN)"] > 150]
+
+            self.pipe_data = pd.concat([pmr_data, kmr_data], ignore_index=True)
+
         elif self.heat_grid_data["generation"]["value"] == "5th":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
