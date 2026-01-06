@@ -38,7 +38,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, u_values, calcThick, extra):
         """
         Constructor of Envelope class.
 
@@ -345,17 +345,17 @@ class Envelope:
                         elem["building_age_group"][1] and elem[
                     "construction_data"] == self.construction_data + "_1_" + self.usage_short:
 
-                    self.g_gl["window"] = elem["g_value"]
-                    for lay in elem["layer"].items():
-                        self.d["window"] = np.append(self.d["window"],
-                                                     lay[1]["thickness"])
-                        material_prop = self.loadMaterialID(
-                            lay[1]["material"]["material_id"], material_bind)
-                        self.rho["window"] = np.append(self.rho["window"],
-                                                       material_prop[1])
-                        self.Lambda["window"] = np.append(self.Lambda["window"],
-                                                          material_prop[2])
-                        self.cp["window"] = np.append(self.cp["window"],
+                        self.g_gl["window"] = elem["g_value"]
+                        for lay in elem["layer"].items():
+                            self.d["window"] = np.append(self.d["window"],
+                                                         lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(
+                                lay[1]["material"]["material_id"], material_bind)
+                            self.rho["window"] = np.append(self.rho["window"],
+                                                           material_prop[1])
+                            self.Lambda["window"] = np.append(self.Lambda["window"],
+                                                              material_prop[2])
+                            self.cp["window"] = np.append(self.cp["window"],
                                                       material_prop[3] * 1000)
 
             for x in self.opaque:

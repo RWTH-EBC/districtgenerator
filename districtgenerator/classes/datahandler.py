@@ -557,7 +557,7 @@ class Datahandler:
 
                     elif building_type == "multi_family_house":
                         # Generate a valid one-floor area and number of floors in one step
-                        one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
+                        one_floor_area = rd.randint(102, 971)  # Source: TABULA German Building Typology
                         # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                         number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                         # Cap the number of floors to a maximum of 8
@@ -569,13 +569,12 @@ class Datahandler:
                         # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                         number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
-
-                height_of_floors = height/number_of_floors
+                height_of_floors = height / number_of_floors
                 # Determining the typical floor height based on the building's construction year.
                 # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
                 # (built from 1960 onwards) tend to have lower ceilings.
                 # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
-                if height_of_floors< 2.5:
+                if height_of_floors < 2.5:
                     if building["buildingFeatures"]["year"] < 1960:
                         height_of_floors = 3.3  # m
                     elif building["buildingFeatures"]["year"] >= 1960:
