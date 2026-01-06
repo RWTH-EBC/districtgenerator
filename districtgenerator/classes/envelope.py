@@ -19,7 +19,7 @@ class Envelope:
         Project() instance of TEASER, contains functions to generate archetype buildings.
     building_params : dict
         Building parameters like construction year, retrofit.
-    construction_type : string
+    construction_data : string
         Building type.
     file_path : str
         File path.
@@ -38,7 +38,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_type, physics, design_building_data, file_path, u_values: Optional[Tuple] = None, extra = None, calcThick = False):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path):
         """
         Constructor of Envelope class.
 
@@ -66,7 +66,7 @@ class Envelope:
         self.prj = prj
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
-        self.construction_type = construction_type
+        self.construction_data = construction_data
         self.physics = physics
         self.design_building_data = design_building_data
         self.retrofit = building_params["retrofit"]
@@ -95,7 +95,6 @@ class Envelope:
         self.rho_air = self.physics["rho_air"]  # [kg/m3]
         self.T_set_min = self.design_building_data["T_set_min"]
         self.T_set_min_night = self.design_building_data["T_set_min_night"]
-        self.T_set_min_free_day = self.design_building_data["T_set_min_free_day"]
         self.T_set_max = self.design_building_data["T_set_max"]
         self.T_set_max_night = self.design_building_data["T_set_max_night"]
         self.ventilationRate = self.design_building_data["ventilation_rate"]
@@ -249,7 +248,7 @@ class Envelope:
             for name, elem in element_bind.items():
                 if "OuterWall" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
-                            elem["building_age_group"][1] and elem["construction_type"] == self.construction_type + "_1_" + self.usage_short:
+                            elem["building_age_group"][1] and elem["construction_data"] == self.construction_data + "_1_" + self.usage_short:
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -264,7 +263,7 @@ class Envelope:
                 if "Rooftop" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
                         elem["building_age_group"][1] and elem[
-                    "construction_type"] == self.construction_type + "_1_" + self.usage_short:
+                    "construction_data"] == self.construction_data + "_1_" + self.usage_short:
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -280,7 +279,7 @@ class Envelope:
                 if "GroundFloor" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
                         elem["building_age_group"][1] and elem[
-                    "construction_type"] == self.construction_type + "_1_" + self.usage_short:
+                    "construction_data"] == self.construction_data + "_1_" + self.usage_short:
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -296,7 +295,7 @@ class Envelope:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
-                        elem["building_age_group"][1] and elem["construction_type"] == "tabula_standard":
+                        elem["building_age_group"][1] and elem["construction_data"] == "tabula_de_standard":
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -312,7 +311,7 @@ class Envelope:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
-                        elem["building_age_group"][1] and elem["construction_type"] == "tabula_standard":
+                        elem["building_age_group"][1] and elem["construction_data"] == "tabula_de_standard":
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -324,11 +323,12 @@ class Envelope:
             comp = "intFloor"
             # INTERNAL FLOOR: Materials and U-value
             for name, elem in element_bind.items():
-                if "Floor" in name and "GroundFloor" not in name:
+                if "Floor" in name:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
-                        elem["building_age_group"][1] and elem["construction_type"] == "tabula_standard":
+                        elem["building_age_group"][1] and elem["construction_data"] == self.construction_data \
+                            + "_1_" + self.usage_short:
 
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
@@ -340,9 +340,10 @@ class Envelope:
             comp = "window"
             # INTERNAL FLOOR: Materials and U-value
             for name, elem in element_bind.items():
-                if "Window" in name and elem["building_age_group"][0] <= self.construction_year <= \
+                if "Window" in name:
+                    if elem["building_age_group"][0] <= self.construction_year <= \
                         elem["building_age_group"][1] and elem[
-                    "construction_type"] == self.construction_type + "_1_" + self.usage_short:
+                    "construction_data"] == self.construction_data + "_1_" + self.usage_short:
 
                     self.g_gl["window"] = elem["g_value"]
                     for lay in elem["layer"].items():
@@ -385,7 +386,7 @@ class Envelope:
                                                 + sum(self.d["window"]
                                                     / self.Lambda["window"])
                                                 + self.R_se["window"])))
-            
+
             # Base row info
             u_row = {
                 "ID": self.id,
@@ -408,7 +409,7 @@ class Envelope:
             if u_values:
                 for idx, x in enumerate(['wall', 'roof', 'floor']):
                     self.U["opaque"][x] =  u_values[idx]
-    
+
                 self.U["window"] = u_values[3]
 
                 u_row.update({
@@ -478,6 +479,51 @@ class Envelope:
                     self.partially_heated_portion = 0.28571 * self.U["opaque"]["wall"] + 0.014286
             self.T_set_min = 15 * self.partially_heated_portion + self.T_set_min * (1 - self.partially_heated_portion)
             self.T_set_min_night = self.T_set_min - 3 # Source: Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*.
+
+
+        elif isinstance(prj, NonResidential):
+            # Accessing u-values from Non-Residential typology
+            self.U["opaque"]["wall"] = prj.parameters["u_aw"]
+            self.U["opaque"]["roof"] = prj.parameters["u_d_opak"]
+            self.U["opaque"]["floor"] = prj.parameters["u_ug"]
+            self.U["window"]  = prj.parameters["u_fen"]
+            self.g_gl["window"] = prj.parameters["g_gl_fen"]
+
+                # Adjust the heating set temperature to account for the occupant behavior
+                # This is done to account for:
+                # - The tendency in poorly insulated buildings (high U-values) for occupants to set lower temperatures to avoid high energy bills,
+                # - And the trend in well-insulated modern buildings (low U-values) to maintain higher temperatures for comfort, as the energy demand increase is relatively small,
+                # - Only some parts of the building are heated directly, the rest are adjacent rooms which are heated indirectly to 15°C (assumption).
+                # Source:
+                # Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*. 8. July 2022.
+                # Authors: Bernhard von Manteuffel, Markus Offermann (Guidehouse)
+
+            # Adjust the heating set temperature based on the level of insulation of the building, as mentioned in the first two points:
+            if self.U["opaque"]["wall"] > 1:
+                    self.T_set_min = 18
+            elif self.U["opaque"]["wall"] < 0.3:
+                    self.T_set_min = 22
+            else:
+                    self.T_set_min = -5.7143 * self.U["opaque"]["wall"] + 23.714
+
+                # Adjust the heating set temperature based on the area of the heated portion of the building, as mentioned in the third point:
+            if self.U["opaque"]["wall"] > 1:
+                if prj.buildings[0].type_of_building in {"SingleFamilyHouse", "TerracedHouse"}:
+                        self.partially_heated_portion = 0.4
+                elif prj.buildings[0].type_of_building in {"MultiFamilyHouse", "ApartmentBlock"}:
+                        self.partially_heated_portion = 0.3
+            elif self.U["opaque"]["wall"] < 0.3:
+                if prj.buildings[0].type_of_building in {"SingleFamilyHouse", "TerracedHouse"}:
+                        self.partially_heated_portion = 0.15
+                elif prj.buildings[0].type_of_building in {"MultiFamilyHouse", "ApartmentBlock"}:
+                        self.partially_heated_portion = 0.10
+            else:
+                if prj.buildings[0].type_of_building in {"SingleFamilyHouse", "TerracedHouse"}:
+                        self.partially_heated_portion = 0.35714 * self.U["opaque"]["wall"] + 0.042857
+                elif prj.buildings[0].type_of_building in {"MultiFamilyHouse", "ApartmentBlock"}:
+                        self.partially_heated_portion = 0.28571 * self.U["opaque"]["wall"] + 0.014286
+                self.T_set_min = 15 * self.partially_heated_portion + self.T_set_min * (1 - self.partially_heated_portion)
+                self.T_set_min_night = self.T_set_min - 3 # Source: Umweltbundesamt (2022). *Realitätsnahe Berechnung des Energiebedarfs – Ad-hoc Papier*.
 
 
         elif isinstance(prj, NonResidential):

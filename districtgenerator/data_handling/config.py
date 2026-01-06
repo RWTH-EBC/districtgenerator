@@ -162,6 +162,7 @@ class PhysicsConfig(BaseSettings):
     c_p_water: float = 4.18     # J/(kg*K)
 
     model_config = SettingsConfigDict(
+        env_file= ".physicsconfig",
         extra="allow" 
     )
 
@@ -239,7 +240,7 @@ class EHDOConfig(BaseSettings):
     supply_limit_el: float = 100000         # Restrict electricity demand from grid in MWh/year
 
     # Gas configuration
-    enable_supply_gas: bool = False         # Enable gas supply, bool.
+    enable_supply_gas: bool = True         # Enable gas supply, bool.
     enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
     price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
     enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
@@ -318,7 +319,7 @@ class flags(BaseSettings):
     calcOcc: bool = True
     calcOccProf: bool = True
     model_config = SettingsConfigDict(
-        extra="allow" 
+        extra="allow"
     )
 
 class GlobalConfig(BaseModel):
@@ -388,6 +389,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     Load the global configuration from the specified environment file.
     If no environment file is provided, it defaults to standard parameters defined in the config classes.
     For error handling, it prints the used environment file path.
+    Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
 
     Parameters
     ----------

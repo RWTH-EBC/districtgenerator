@@ -466,6 +466,13 @@ class Datahandler:
             # Store features of the observed building
             building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
 
+            # Unique name = "<id>_<building type>"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
+            if name in name_pool:
+                print(f"Duplicate name: {name}, skipping")
+                continue
+            name_pool.append(name)
+
             # Add thermal transmittance if available
             if "thermalTransmittanceFacade" in self.scenario.columns:
                 building["buildingFeatures"]["thermalTransmittance"] = (
@@ -477,14 +484,6 @@ class Datahandler:
             else:
                 building["buildingFeatures"]["thermalTransmittance"] = None
 
-            # Create unique building name
-            name = f"{bldg_id}_{row['building']}"
-
-            # Check for duplicate names
-            if name in name_pool:
-                print(f"Duplicate name: {name}, skipping")
-                continue
-            name_pool.append(name)
 
             # Assign the unique name to the building
             building["unique_name"] = name
@@ -518,7 +517,7 @@ class Datahandler:
 
         # %% create TEASER project
         # create one project for the whole district
-        prj = Project(load_data=True)
+        prj = Project()
         prj.name = self.scenario_name
 
         for building in self.district:
@@ -529,30 +528,72 @@ class Datahandler:
             # add buildings to TEASER project
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+                if retrofit_level == "tabula_standard":
+                    construction_data = 'tabula_de_standard'
+                elif retrofit_level == "tabula_retrofit":
+                    construction_data = 'tabula_de_retrofit'
+                elif retrofit_level == "tabula_adv_retrofit":
+                    construction_data = 'tabula_de_adv_retrofit'
 
-                height = building["buildingFeatures"]["height"] 
-                number_of_floors = building["buildingFeatures"]["number_of_floors"] 
+                height = building["buildingFeatures"]["height"]
+                number_of_floors = building["buildingFeatures"]["number_of_floors"]
+                if number_of_floors == 0:
+                    # Determining the number of floors in a building based on its type.
+                    # The method estimates the number of floors by:
+                    # - Assigning a range of possible floor areas per level based on building type.
+                    # - Randomly selecting a value within the assigned range using the TABULA German Building Typology.
+                    # - Calculating the total number of floors by dividing the building’s total floor area
+                    #   by the selected single-floor area.
+
+                    if building_type == "single_family_house":
+                        one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
+                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+                    elif building_type == "terraced_house":
+                        one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
+                        number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+                    elif building_type == "multi_family_house":
+                        # Generate a valid one-floor area and number of floors in one step
+                        one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
+                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
+                        number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
+                        # Cap the number of floors to a maximum of 8
+                        if number_of_floors > 8:
+                            number_of_floors = 8
+
+                    elif building_type == "apartment_block":
+                        one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                        # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
+                        number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
+
+
                 height_of_floors = height/number_of_floors
+                # Determining the typical floor height based on the building's construction year.
+                # Older buildings (constructed before 1960) generally have higher ceilings, while newer buildings
+                # (built from 1960 onwards) tend to have lower ceilings.
+                # Source: https://www.wohnung.com/ratgeber/418/alt-und-neubau-deckenhoehe
                 if height_of_floors< 2.5:
                     if building["buildingFeatures"]["year"] < 1960:
                         height_of_floors = 3.3  # m
                     elif building["buildingFeatures"]["year"] >= 1960:
                         height_of_floors = 2.5  # m
 
-
                 if building["buildingFeatures"]["year"] < 1960:
                     height_of_floors = 3.3  # m
                 elif building["buildingFeatures"]["year"] >= 1960:
                     height_of_floors = 2.5  # m
 
-                prj.add_residential(method='tabula_de',
-                                    usage=building_type,
-                                    name="ResidentialBuildingTabula",
+                # add buildings to TEASER project
+                prj.add_residential(name="ResidentialBuildingTabula",
+                                    geometry_data="tabula_de_" + building_type,
+                                    construction_data=construction_data,
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
-                                    net_leased_area=building["buildingFeatures"]["area"],
-                                    construction_type=retrofit_level)
+                                    net_leased_area=building["buildingFeatures"]["area"])
 
 
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
@@ -563,7 +604,7 @@ class Datahandler:
             # containing all physical data of the envelope
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
-                                                construction_type=retrofit_level,
+                                                construction_data=construction_data,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath,
@@ -627,6 +668,7 @@ class Datahandler:
             building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
+            building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, name = None, calcUserProfiles=True, saveUserProfiles=True,  max_threads=8):
@@ -720,7 +762,7 @@ class Datahandler:
                                     occ= building["user"].occ,
                                     gains= building["user"].gains,
                                     carcharging_ondemand=building["user"].carcharging_ondemand,
-                                    carprofile=building["user"].carprofile,                                  
+                                    carprofile=building["user"].carprofile,
                                     nb_units= building["user"].nb_units,
                                     nb_occ= building["user"].nb_occ,
                                     ev_capacity=building["user"].ev_capacity or [0],
@@ -942,7 +984,7 @@ class Datahandler:
             roof_ins_df.to_parquet(roof_ins_file, engine='pyarrow', index=False)
             floor_ins_df.to_parquet(floor_ins_file, engine='pyarrow', index=False)
 
-    def saveHeatingProfile(self, heat, cooling, gmlId, name, path):
+    def saveHeatingProfile(self, heat, cooling, name, path):
         """
         Save heating demand to parquet files in the specified directory.
 

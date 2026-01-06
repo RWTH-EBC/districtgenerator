@@ -131,7 +131,7 @@ class Users:
         else:
             nb_occ_string = nb_occ  # Replace this with the correct variable if it's different
             nb_occ_list = ast.literal_eval(nb_occ_string)
-    
+
             # Ensure it's a list
             if isinstance(nb_occ_list, list):
                 # Optionally, convert all elements to integers (if needed)
@@ -693,7 +693,7 @@ class Users:
                     os.makedirs(directory_path, exist_ok=True)
                     prof_df.to_parquet(os.path.join(directory_path, 'occ_prof.parquet'), engine='pyarrow', index=False)
                     self.occ = self.occ + prof
-                else: 
+                else:
                     prof = pd.read_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow')['prof'].to_numpy()
                     temp_obj.load_occupancy_profiles_residential(prof)
                     self.occ = self.occ + prof

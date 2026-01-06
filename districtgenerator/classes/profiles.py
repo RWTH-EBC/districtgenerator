@@ -723,6 +723,7 @@ class Profiles:
 
         # Define Car Segment
         # https://ev-database.org/cheatsheet/range-electric-car
+        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(srcPath, 'data', 'car_segment.json')) as json_file:
             segments = json.load(json_file)
         segment_names = list(segments.keys())
