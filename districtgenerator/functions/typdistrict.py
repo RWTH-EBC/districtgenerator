@@ -923,7 +923,13 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
         "num_main_lines": max_degree,
         "num_roads": len(road_lines_scaled),
         "num_row_roads": m,
-        "num_column_roads": n
+        "num_column_roads": n,
+        "district_bounds": {
+            "xmin": xmin,
+            "xmax": xmax,
+            "ymin": ymin,
+            "ymax": ymax
+        }
     }
 
     return road_lines_scaled, buildings, transformer_pos, run_results, get_bigger_density

@@ -92,11 +92,11 @@ def build_model(model, data, devs, param, dem):
     # Create sets for all device types
     all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
                      "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
-                     "CTES", "BAT", "GS"]
+                     "CTES", "BAT", "GS", "WH"]
 
     gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
     power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
-    heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+    heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC", "WH"]
     cool_devs_list = ["CC", "AC"]
     hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
     biom_devs_list = ["BCHP", "BBOI", "import"]
@@ -143,6 +143,7 @@ def build_model(model, data, devs, param, dem):
     model.biom_import_total = pyo.Var(within=pyo.NonNegativeReals)
     model.waste_import_total = pyo.Var(within=pyo.NonNegativeReals)
     model.hydrogen_import_total = pyo.Var(within=pyo.NonNegativeReals)
+    model.waste_heat_total = pyo.Var(within=pyo.NonNegativeReals)
     model.rev_feed_in_gas = pyo.Var(within=pyo.NonNegativeReals)
     model.rev_feed_in_el = pyo.Var(within=pyo.NonNegativeReals)
     model.supply_costs_el = pyo.Var(within=pyo.NonNegativeReals)
@@ -152,6 +153,7 @@ def build_model(model, data, devs, param, dem):
     model.supply_costs_biom = pyo.Var(within=pyo.NonNegativeReals)
     model.supply_costs_waste = pyo.Var(within=pyo.Reals)
     model.supply_costs_hydrogen = pyo.Var(within=pyo.NonNegativeReals)
+    model.supply_costs_wh = pyo.Var(within=pyo.NonNegativeReals)
     model.obj_tac = pyo.Var(within=pyo.Reals)
     model.obj_co2 = pyo.Var(within=pyo.Reals)
 
@@ -225,6 +227,9 @@ def build_model(model, data, devs, param, dem):
             # Solar thermal collector heat limited by clustered norm power
             model.constraints.add(
                 model.heat["STC", d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
+            # Waste Heat Generation limited by load profile
+            model.constraints.add(
+                model.heat["WH", d, t] <= devs["WH"]["profile_clustered"][d][t])
             # Electric heat pump correlation between heat and electric power
             model.constraints.add(model.heat["HP", d, t] == model.power["HP", d, t] * devs["HP"]["COP"][d][t])
             # Electric boiler correlation between heat and electric power
@@ -269,7 +274,7 @@ def build_model(model, data, devs, param, dem):
         for t in model.time_steps:
             # Heat supply and demand balance
             heat_supply = sum(model.heat[dev, d, t] for dev in
-                              ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
+                              ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC", "WH"])
             heat_demand = dem["heat"][d][t] + model.heat["AC", d, t] + model.ch["TES", d, t]
             model.constraints.add(heat_supply == heat_demand)
 
@@ -398,6 +403,8 @@ def build_model(model, data, devs, param, dem):
         model.waste["import", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
     model.constraints.add(model.hydrogen_import_total == dt * sum(
         model.hydrogen["import", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
+    model.constraints.add(model.waste_heat_total == dt * sum(
+        model.heat["WH", d, t] * param["cluster_weights"][d] for d in model.clusters for t in model.time_steps))
 
     ################################################################################
     # Supply limitations (User input)
@@ -457,6 +464,7 @@ def build_model(model, data, devs, param, dem):
     param["co2_waste"] = param["co2_waste"][0]
     param["co2_hydrogen"] = param["co2_hydrogen"][0]
     param["co2_el_grid"] = param["co2_el_grid"][0]
+    param["price_wh"] = param["price_wh"][0]
 
     # Electricity costs and revenues
     model.constraints.add(model.supply_costs_el == model.from_el_grid_total * param["price_supply_el_eh"])
@@ -471,6 +479,9 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.supply_costs_gas == model.from_gas_grid_total * param["price_supply_gas_eh"])
     model.constraints.add(model.cap_costs_gas == model.grid_limit_gas * param["price_cap_gas"])
     model.constraints.add(model.rev_feed_in_gas == model.to_gas_grid_total * param["revenue_feed_in_gas"])
+
+    # Waste heat costs
+    model.constraints.add(model.supply_costs_wh == model.waste_heat_total * param["price_waste"])
 
     # Biomass, waste, and hydrogen costs
     model.constraints.add(model.supply_costs_biom == model.biom_import_total * param["price_biomass"])
@@ -508,7 +519,7 @@ def build_model(model, data, devs, param, dem):
                           + model.supply_costs_el + model.cap_costs_el
                           - model.rev_feed_in_el - model.rev_feed_in_gas
                           + model.supply_costs_biom + model.supply_costs_waste + model.supply_costs_hydrogen
-                          + co2_tax_term)
+                          + co2_tax_term + model.supply_costs_wh)
 
     # CO2 emissions calculation
     model.constraints.add(model.obj_co2 == model.from_el_grid_total * param["co2_el_grid"]

@@ -212,6 +212,7 @@ def load_parameter(data):
             # Sum the heat demand in the network
             net_heat_demand += heating_demand
 
+
     # 4 norm diameter
     pipe_dict = data.pipe_data.set_index("Nominal diameter (DN)").to_dict(orient="index")
     # To read data(eg. outer diameter) from pipes of different diameters, use pipe_dict[20][“outer diameter”]
@@ -328,26 +329,18 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
                     building_demand[key] = demand
                     break  # break once found
 
-    if data.waste_heat_data != None:
-        pos_waste_heat = data.waste_heat_data["position"]
-        waste_heat_cluster = data.waste_heat_data["clustered_profile"]
-        waste_heat = data.waste_heat_data["profile"]
 
-        for key, node_info in data.pipeline_nodes.items():
+    pos_waste_heat = data.waste_heat_data["position"]
+    waste_heat_cluster = data.waste_heat_data["clustered_profile"]
+    waste_heat = data.waste_heat_data["profile"]
 
-            if node_info["pos"] == pos_waste_heat:
-                building_demand_cluster[key] = -waste_heat_cluster
-                building_demand[key] = -waste_heat
-                break
+
 
     # 4 aggregate the heat load of every pipe segment
     network = data.pipeline_topology
-    print(network)
-    network_wh = data.pipeline_topology_wh
     pipe_loads_cluster = aggregate_heat_loads(network, building_demand_cluster, heat_loss_pipe_cluster, root="EH1")
     pipe_loads = aggregate_heat_loads(network, building_demand, heat_loss_pipe, root="EH1")
-    pipe_loads_cluster_wh = aggregate_heat_loads_wh(network_wh, building_demand_cluster, waste_heat_cluster, heat_loss_pipe_cluster, root="EH2")
-    #pipe_loads_wh = aggregate_heat_loads_wh(network_wh, building_demand, waste_heat, heat_loss_pipe, root="EH2")
+
 
 
     # Iterate through each pipe in pipe_loads_cluster
@@ -1844,136 +1837,18 @@ def aggregate_heat_loads(network, building_demand, heat_loss_pipe=None, root="EH
 
     pipe_loads = {}
 
-    def dfs(node):
-        """
-        Returns total *heat demand* from the subtree under this node.
+    loss = heat_loss_pipe.get((node, child), 0)
 
-        Parameters
-        ----------
-        node : str
-            Current node being processed in the DFS traversal.
+    delivered = demand + loss
 
-        Returns
-        -------
-        total_load : ndarray, same shape with the value of building_demand
-            Including building load + downstream loads + heat losses
-        """
+    total_load = sum(delivered)
 
-        total_load = 0
-        # If the current node represents a building, add its own flow
-        if node in building_demand:
-            total_load += building_demand[node]
+    model = pyo.ConcreteModel(name="grid_pipe_diameters")
 
-        # If there are no downstream nodes → this is a terminal node
-        # Return its own flow directly
-        if not network.get(node, []):
-            return total_load
-
-        # Traverse all child nodes and accumulate their loads
-        for child in network[node]:
-            downstream_load = dfs(child)
-
-            # Deduct pipe heat loss
-            loss = heat_loss_pipe.get((node, child), 0)
-            delivered = downstream_load + loss
-
-            # Store the load carried in this pipe
-            pipe_loads[(node, child)] = delivered
-
-            # This node must provide what's delivered onward
-            total_load += delivered
-
-        return total_load
-
-    # Start the recursive traversal from the root node (energy hub)
-    dfs(root)
-    return pipe_loads
-
-def aggregate_heat_loads_wh(network_wh, building_demand, waste_heat, heat_loss_pipe=None, root="EH2"):
-    """
-    Aggregate pipe flows from buildings to plant
-
-    Parameters
-    ----------
-    network : dict
-        Network topology, key = parent node, value = list of child nodes
-    building_demand : dict
-        key = building name, value = ndarray of heat loads (W or kW).
-    heat_loss_pipe : dict
-        key = (parent, child), value = ndarray of heat loss on this pipe.
-    root : string
-        Root node name
-
-    Returns
-    -------
-    pipe_loads : dict
-        key= (parent, child), value=ndarray of heat delivered into that pipe AFTER loss deduction.
-    """
-    if heat_loss_pipe is None:
-        heat_loss_pipe = {}
-
-    pipe_loads = {}
-
-    available_wh = building_demand["bldg3"]
-
-    def dfs(node, available_wh):
-        """
-        Returns total *heat demand* from the subtree under this node.
-
-        Parameters
-        ----------
-        node : str
-            Current node being processed in the DFS traversal.
-
-        Returns
-        -------
-        total_load : ndarray, same shape with the value of building_demand
-            Including building load + downstream loads + heat losses
-        """
-
-        total_load = np.zeros_like(available_wh)
-        # If the current node represents a building, add its own flow
-        if node in building_demand:
-
-            # controls if building can be supplied by available waste heat
-            if np.all(available_wh < building_demand[node]):
-                total_load += available_wh
-                return total_load
-            else:
-                total_load += np.minimum(available_wh, building_demand[node])
-
-        # If there are no downstream nodes → this is a terminal node
-        # Return its own flow directly
-        if not network_wh.get(node, []):
-            return total_load, available_wh
-
-
-
-
-
-        # Traverse all child nodes and accumulate their loads
-        for child in network_wh[node]:
-            print(f"Children: {child}")
-            downstream_load, available_wh = dfs(child,available_wh.copy())
-
-            # Deduct pipe heat loss
-            loss = heat_loss_pipe.get((node, child), 0)
-            required = downstream_load + loss
-            supplied = np.minimum(required, available_wh)
-
-
-            # Store the load carried in this pipe
-            pipe_loads[(node, child)] = supplied
-
-            # This node must provide what's delivered onward
-            available_wh -= supplied
-            total_load += supplied
-
-        return total_load, available_wh
-
-    # Start the recursive traversal from the root node (energy hub)
-    dfs(root, available_wh)
-    return pipe_loads
+    model.week = pyo.Set(initialize=weeks, doc="Typical weeks")
+    model.t = pyo.Set(initialize=range(time_steps), doc="Time steps within a typical week")
+    model.source = pyo.Set()
+    model.sink = pyo.Set()
 
 
 # Heat pump COP, part 2: Generalized COP estimation of heat pump processes

@@ -34,7 +34,7 @@ from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, WasteHeatConfig
 from .plots_balances import plot_all
 
 class Datahandler:
@@ -114,7 +114,7 @@ class Datahandler:
         self.central_device_data = {}
         self.calendar = {} #! This is new; check if everywhere correctly integrated
         self.ecoData = {}
-        self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
+        self.all_sim_ecoData = {} # Later overwritten with the calculated economic data for the simulated years
         self.heat_grid_data = {}
         self.pipe_data = None
         self.pyomo_config = {}
@@ -122,6 +122,7 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
+        self.waste_heat_data = {}
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -145,7 +146,8 @@ class Datahandler:
             central_config=global_config.central,
             calendar_config=global_config.calendar,
             heat_grid_config=global_config.heatgrid,
-            pyomo_config=global_config.pyomo
+            pyomo_config=global_config.pyomo,
+            waste_heat_config=global_config.waste_heat
         )
 
         self.buildings_completed = 0
@@ -181,7 +183,8 @@ class Datahandler:
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
                       heat_grid_config: HeatGridConfig,
-                      pyomo_config: PyomoConfig):
+                      pyomo_config: PyomoConfig,
+                      waste_heat_config: WasteHeatConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -266,6 +269,11 @@ class Datahandler:
         # load pyomo solver data (used in optimization functions)
         for attr, value in pyomo_config.__dict__.items():
             self.pyomo_config[attr] = value
+
+        # load waste heat data (used in generate WHProfiles)
+        for attr, value in waste_heat_config.__dict__.items():
+            self.waste_heat_data[attr] = value
+
 
         #! Das hier überarbeiten, damit es in die neue Struktur passt?
         for attr, value in heat_grid_config.__dict__.items():
@@ -515,6 +523,7 @@ class Datahandler:
                 num_sfh += 1
             elif row["building"] in ("MFH", "AB"):
                 num_mfh += 1
+
 
         # Rough time estimate
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
@@ -824,6 +833,94 @@ class Datahandler:
             building["user"].heat = heat
             building["user"].cooling = cooling
 
+
+    def generateWHProfiles(self):
+
+        json_path = os.path.join(self.scenario_file_path, "wh_source.json")
+
+        if os.path.exists(json_path):
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                wh_source = jsonData[0]["type"]
+                position = jsonData[0]["position"]
+
+        key_waste_heat = [key for key, value in self.waste_heat_data.items()
+                          # extracts key from all waste heat applications defined in the Config class
+                          if isinstance(value, dict)]
+
+        for i in key_waste_heat:
+            if i != wh_source:
+                del (self.waste_heat_data[i])
+
+        self.waste_heat_data["position"] = position
+
+
+
+        def loadProfile(name, path):
+
+            # ratio between specific electricity and heat, and yearly energy consumption
+            wh_to_elec = self.waste_heat_data[wh_source]["spec_wh"] / self.waste_heat_data[wh_source][
+                "spec_electricity"]
+            E_ges = self.waste_heat_data[wh_source]["spec_electricity"] * self.waste_heat_data[wh_source][
+                "prod_quantity"]
+
+            # create array with value from the csv file
+            csv_file = os.path.join(path, name + '.csv')
+            df = pd.read_csv(csv_file, usecols=["Mean_Value"], sep=";", decimal=",")
+            profile = df["Mean_Value"].to_numpy()[1:]
+
+            # adjust array with profile data, in case it is missing entries or has to many of them
+            if len(profile) >= 35040:
+                profile = profile[:35040]
+            else:
+                missing = 35040 - len(profile)
+                profile = np.concatenate([profile, np.full(missing, profile[-1])])  #TODO add interpolation and adjust to match initial days and holidays
+
+            # convert the profile to an hourly profile (original data consists of 15 min steps)
+            hourly_profile = profile.reshape(-1, 4).mean(axis=1)
+
+            # create electricity and waste heat profile
+            elec_profile = hourly_profile * (E_ges / np.sum(hourly_profile))
+            wh_profile = elec_profile * wh_to_elec
+
+            return wh_profile
+
+        def calcProfile(name, temperature, time_resolution, time_horizon):
+
+            timesteps = int(time_horizon / time_resolution)
+
+            if name == "DC":
+                it_load = self.waste_heat_data[wh_source]["IT_Load"]
+                pue = self.waste_heat_data[wh_source]["PUE"]
+                profile = np.full(timesteps, it_load)
+                # Cooling Degree Day Methode
+                T_ref = 18                           #TODO change name of variable
+                CDD_ges = 0
+                CDD = []
+                for i in range(timesteps):
+                    if temperature[i] > T_ref:
+                        CDD.append(temperature[i] - T_ref)
+                        CDD_ges += temperature[i] - T_ref
+                    else:
+                        CDD.append(0)
+                for i in range(timesteps):
+                    profile[i] += it_load * (pue - 1) * (CDD[i] / CDD_ges) * timesteps
+
+            return profile
+
+
+
+        if self.waste_heat_data[wh_source]["profile_type"] == "load":
+            self.waste_heat_data["profile"] = loadProfile(name=wh_source, path=os.path.join(self.resultPath, 'demands'))
+        else:
+            self.waste_heat_data["profile"] = calcProfile(wh_source, self.site["T_e"], self.time["timeResolution"],
+                                                          self.time["dataLength"])
+
+        waste_heat_profile = self.waste_heat_data["profile"]
+
+
+        return waste_heat_profile
+
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=True):
         """
         All in one solution for district and demand generation.
@@ -887,8 +984,8 @@ class Datahandler:
                 self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork()
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
+                #self.designCentralDevices(saveGenerationProfiles=True)
+                #self.finalizeClusterProfiles()
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
@@ -1281,6 +1378,7 @@ class Datahandler:
             adjProfiles[i]["generationPV"] = b["generationPV"][0:lengthArray]
             adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lengthArray]
 
+
             # Individual car profiles
             adjProfiles[i]["individual_cars"] = []
 
@@ -1316,6 +1414,9 @@ class Datahandler:
             else:
                 # no central STC exists; but array with just zeros leads to problem while clustering
                 adjProfiles["generationCentralSTC"] = np.ones(lengthArray) * sys.float_info.epsilon
+
+        if self.waste_heat_data != None:
+            adjProfiles["wh_profile"] = self.waste_heat_data["profile"][0:lengthArray]
 
         # wind speed, solar radiance, ambient temperature and soil temperature
         adjProfiles["wind_speed"] = self.site["wind_speed"][0:lengthArray]
@@ -1430,6 +1531,11 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
+        if self.waste_heat_data != None:
+            inputsClustering.append(adjProfiles["wh_profile"])
+            weights.append(0)
+            scalings.append(False)
+
         # Wind speed (only relevant for clustering)
         inputsClustering.append(adjProfiles["wind_speed"])
         if centralEnergySupply == True and self.centralDevices["capacities"]["WT"]["cap"] > 0: weights.append(len(self.district))
@@ -1485,6 +1591,7 @@ class Datahandler:
             self.district[i]["generationPV_cluster"] = newProfiles[index_house * i + 7]
             self.district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
 
+
         # Get individual car profiles
         profile_counter = index_individual_cars_start
         for i in range(len(self.district)):
@@ -1535,6 +1642,11 @@ class Datahandler:
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
             self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
+            self.wasteHeatData["clustered_profile"] = newProfiles[index_central + 6]
+        else:
+            self.waste_heat_data["clustered_profile"] = newProfiles[index_central]
+
+
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
@@ -1558,6 +1670,8 @@ class Datahandler:
         self.clusterWeights = {}
         for c in self.clusters:
             self.clusterWeights[c] = len(self.clusterAssignments[c])
+
+
 
     def saveDistrict(self):
         """
@@ -1757,6 +1871,7 @@ class Datahandler:
         """
         # get the input data for the optimizer
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        wasteheat_path = os.path.join(self.scenario_file_path, "wh_source.json")
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
@@ -1792,8 +1907,13 @@ class Datahandler:
             transformer_info = {
                 "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
             }
+        if os.path.exists(wasteheat_path):
+            with open(wasteheat_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                wasteheat_info = jsonData[0]["position"]
 
-        run_pipeline_node(district_type, buildings_info, transformer_info)
+
+        run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat_info)
 
     def designNetworkwithRoad(self):
         """
@@ -1808,6 +1928,8 @@ class Datahandler:
         district_type = self.site["district_parameters"]["district_type"]
         building_width = self.site["district_parameters"]["building_width"]
         house_connection = self.site["district_parameters"]["house_connection"]
+
+        wasteheat_path = os.path.join(self.scenario_file_path, "wh_source.json")
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
@@ -1826,8 +1948,12 @@ class Datahandler:
         # buildings_info = jsonData["values"]["buildings_info"]
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["transformer_station"]
+        if os.path.exists(wasteheat_path):
+            with open(wasteheat_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                wasteheat_info = jsonData[0]["position"]
 
-        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info, wasteheat_info)
 
     def generateNetwork(self, topology_option):
         """
@@ -1879,6 +2005,7 @@ class Datahandler:
 
         self.pipeline_nodes = jsonData.get("nodes", {})
         self.pipeline_topology = jsonData.get("edges", {})
+        self.pipeline_topology_wh = jsonData.get("edges_wh", {})
 
     def optimization_heatingnetwork(self):
         """

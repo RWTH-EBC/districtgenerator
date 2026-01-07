@@ -30,6 +30,7 @@ def load_params(data):
     # import model parameters
     central_device_data = copy.deepcopy(data.central_device_data)
     heat_grid_data = copy.deepcopy(data.heat_grid_data)
+    waste_heat_data = copy.deepcopy(data.waste_heat_data)
     param = copy.deepcopy(data.params_ehdo_model)
     ecoData = copy.deepcopy(data.ecoData)
     param_uncl = {}  # unclustered time series for weather data
@@ -218,7 +219,18 @@ def load_params(data):
             "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
-            "enable_heat_diss": value.get("enable_heat_diss", False)
+            "enable_heat_diss": value.get("enable_heat_diss", False),
+
+        }
+
+    # wh_model stores variables from every waste heat source
+    wh_model = {}
+    for key, value in waste_heat_data.items():
+        wh_model[key] = {
+            "enabled": value.get("feasible", False),
+            **{k: v for k, v in value.items() if
+               k != "feasible"}
+
         }
 
     devs = {}
@@ -418,6 +430,8 @@ def load_params(data):
                     COP[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
             devs["HP"]["COP"] = COP
 
+
+
     # Electric boiler
     devs["EB"] = {
         "feasible": all_models["EB"]["enabled"],
@@ -484,6 +498,18 @@ def load_params(data):
         "max_cap": all_models["AC"]["max_cap"],
     }
 
+    # Waste Heat Source
+    wh_source = next(iter(data.waste_heat_data))
+    devs["WH"] = {
+        key: wh_model[wh_source][key]
+        for key in wh_model[wh_source]
+        if key != "enabled"
+    }
+    devs["WH"]["profile"], devs["WH"]["profile_clustered"] = get_wh_profile(devs, param, data)
+    print(devs["WH"])
+
+
+
     ### Biomass and waste ###
 
     # Biomass CHP
@@ -508,6 +534,8 @@ def load_params(data):
         "min_cap": all_models["BBOI"]["min_cap"],
         "max_cap": all_models["BBOI"]["max_cap"],
     }
+
+
 
     # Waste CHP
     devs["WCHP"] = {
@@ -650,6 +678,8 @@ def load_params(data):
     param["price_biomass"]      = ecoData["price_biomass"]
     param["price_waste"]        = ecoData["price_waste"]
     param["price_hydrogen"]     = ecoData["price_hydrogen"]
+    # --- Waste Heat Price ---
+    param["price_wh"] = ecoData["price_wh"]
 
     ### Ecological impact ###
     param["co2_el_grid"]     = ecoData["co2_el_grid"] # kg/kWh
@@ -829,6 +859,7 @@ def get_PVandSTC_power(devs, param, data):
                                              usageFactorPV2=0,
                                              usageFactorSTC=0)
 
+
     # calculate theoretical STC generation
     _, potentialSTC = sun.calcPVAndSTCProfile(time=time,
                                               site=site,
@@ -858,6 +889,25 @@ def get_PVandSTC_power(devs, param, data):
         potentialSTC_clustered[i] = stc_chunks[day_type]
 
     return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
+
+def get_wh_profile(devs, param, data):
+    wh_profile = data.generateWHProfiles(wh_source = "DC")
+
+    # Get the corresponding values for the typedays
+    chunk_size = len(param["GHI"][0])
+    num_chunks = len(wh_profile) // chunk_size
+
+    # Split both potentialPV and potentialSTC into chunks
+    wh_chunks = np.split(wh_profile[:chunk_size * num_chunks], num_chunks)
+
+    # Initialize empty arrays with the same shape as the GHI input
+    wh_profile_clustered = np.zeros_like(param["GHI"])
+
+    # Fill both arrays according to the day types
+    for i, day_type in enumerate(param["typedays"]):
+        wh_profile_clustered[i] = wh_chunks[day_type]
+
+    return (wh_profile, wh_profile_clustered)
 
 
 # %% COP model for ammonia-heat pumps

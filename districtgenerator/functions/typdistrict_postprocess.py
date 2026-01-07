@@ -51,6 +51,10 @@ def scenario_generation():
     """
     # %% STEP ONE: set parameters for the model
     num_buildings = int(input("\nEnter the number of buildings: "))
+    add_waste_heat = input("\nDo you want to add a waste heat source? (y/n): ").lower() == 'y'
+    if add_waste_heat:
+        waste_heat_type = input("Enter the type of the waste heat source ('paper', 'data_center'): ")
+        distance_to_district = float(input("Enter the distance to the district (in m): "))
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
     # building_density = 5
     building_density_min = params["gebaeude_pro_ha"]["min"]  # buildings per hectare
@@ -226,6 +230,38 @@ def scenario_generation():
         for i in range(len(placed_buildings)):
             if i not in remove_indices:
                 buildings.append(placed_buildings[i])
+
+    ### Integrate Waste Heat Source ###
+    if add_waste_heat:
+        bounds = run_results["district_bounds"]
+        xmin, xmax = bounds["xmin"], bounds["xmax"]
+        ymin, ymax = bounds["ymin"], bounds["ymax"]
+
+        # Randomly select one side of the rectangle
+        side = np.random.choice(["left", "right", "bottom", "top"])
+
+        if side == "left":
+            base_point = (xmin, uniform(ymin, ymax))
+            outward_angle = np.pi
+        elif side == "right":
+            base_point = (xmax, uniform(ymin, ymax))
+            outward_angle = 0.0
+        elif side == "bottom":
+            base_point = (uniform(xmin, xmax), ymin)
+            outward_angle = -np.pi / 2
+        else:  # "top"
+            base_point = (uniform(xmin, xmax), ymax)
+            outward_angle = np.pi / 2
+
+        waste_pos = (
+            base_point[0] + distance_to_district * np.cos(outward_angle),
+            base_point[1] + distance_to_district * np.sin(outward_angle)
+        )
+
+
+
+        print(f"Waste-Heat {distance_to_district} m vom District-Rand ({side}), Pos: {waste_pos}")
+
 
     # %% STEP THREE: add the building attributes
 
@@ -466,11 +502,18 @@ def scenario_generation():
         ax.plot(transformer_pos[0], transformer_pos[1], 'ro', markersize=8)
         ax.text(transformer_pos[0], transformer_pos[1] + 1, '', color='red', fontsize=10, ha='center')
 
+    if add_waste_heat:
+        ax.plot(waste_pos[0], waste_pos[1], 'gs', markersize=12, label='Abwärmequelle')
+        ax.text(waste_pos[0], waste_pos[1] + 2, waste_heat_type, fontsize=10, ha='center')
+
     # 4 Create Custom Legend
     # 4.1 Infrastructure(Transformer) legend.
     transformer_handle = plt.Line2D([], [], marker='o', color='red', linestyle='None',
                                     markersize=10, label='Transformer Station')
-    infra_handles = [transformer_handle]
+    waste_heat_handle = plt.Line2D([], [], marker='s', color='green', linestyle='None',
+                                   markersize=12, label='Waste Heat Source')
+
+    infra_handles = [transformer_handle, waste_heat_handle]
 
     # 4.2 Building type legend.
     building_types = {}
@@ -493,6 +536,8 @@ def scenario_generation():
     ax.set_title("District layout "+district_type, fontsize=20)
     ax.grid(True, linestyle='--', linewidth=0.3)
     plt.tight_layout()
+
+
 
     # 6 Save the plot and json-file
     current_dir = os.path.dirname(__file__)
@@ -530,10 +575,21 @@ def scenario_generation():
             "construction_year": bld["construction_year"],
             "retrofit_level": bld["retrofit_level"]})
 
+    if add_waste_heat:
+        waste_heat_json = []
+        waste_heat_json.append({
+            "type": waste_heat_type,
+            "position": waste_pos})
+
     # Save parameters
     params_filename = os.path.join(save_dir,
                                    f"district_{district_type}_buildings_{len(buildings)}.json")
     # params_filename = get_unique_filename(params_filename)
+    params_filename_wh = os.path.join(save_dir,
+                                   f"wh_source.json")
+
+    with open(params_filename_wh, "w") as f:
+        json.dump(waste_heat_json, f, indent=4, default=convert_to_serializable)
 
     with open(params_filename, 'w') as f:
         json.dump({"parameters": run_results,

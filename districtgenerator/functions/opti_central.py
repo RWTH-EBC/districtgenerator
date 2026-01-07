@@ -36,7 +36,7 @@ EH_DEVS = ["PV", "WT", "STC", "WAT",
            "TES", "CTES", "BAT", "GS",
            ]
 
-EH_ECS_HEAT = ("STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC", "to_grid")
+EH_ECS_HEAT = ("STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC", "WH", "to_grid")
 EH_ECS_COOL = ("CC", "AC", "to_grid")
 EH_ECS_POWER = ("PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid")
 EH_ECS_GAS = ("CHP", "BOI", "GHP", "SAB")
@@ -96,6 +96,7 @@ def build_model(model, data, cluster, sim_ecoData):
     buildingData = data.district
     energyHubData = data.centralDevices
     heatingNetworkData = data.heat_grid_data
+    wasteheatData = data.waste_heat_data
 
     ################################################################################
     # Setting up the model
@@ -103,7 +104,7 @@ def build_model(model, data, cluster, sim_ecoData):
 
     # number of buildings in neighborhood
     nbuildings = len(buildingData)
-    time_steps = range(int(timeData["clusterLength"] / timeData["timeResolution"]))
+    time_steps = range(int(timeData["clusterLength"] / timeData["timeResolution"])) # (in this case time_steps is 168)
     dt = timeData["timeResolution"] / timeData["dataResolution"]
     last_time_step = len(time_steps) - 1
 
@@ -360,6 +361,7 @@ def build_model(model, data, cluster, sim_ecoData):
                                  doc="Heat produced by a waste combined heat and power unit (EH)")
     model.eh_heat_WBOI = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a waste boiler (EH)")
     model.eh_heat_FC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a fuel cell (EH)")
+    model.eh_heat_WH = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by waste heat sources (EH)")
     model.eh_heat_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals,
                                     doc="Heat from the Energy Hub to the heat grid")
 

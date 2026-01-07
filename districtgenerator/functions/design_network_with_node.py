@@ -66,7 +66,7 @@ def orient_network(G, plant):
                 queue.append(neighbor)
     return directed_dict
 
-def run_pipeline_node(district_type, buildings_info, transformer_info):
+def run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat_info):
     """
     Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
     using Minimum Spanning Tree(MST) algorithm
@@ -102,8 +102,16 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
     for i, point in enumerate(heat_network_points):
         weighted_graph.add_node(i+1, pos=point, role="bldg")
 
+    # add waste heat source
+    if wasteheat_info != None:
+        waste_heat = tuple(wasteheat_info)
+        node_num = len(heat_network_points) + 1
+        weighted_graph.add_node(node_num, pos=waste_heat, role="EH")
+    else:
+        print("Keine Abwärmequelle definiert.")
+
     # get a list of all the nodes in the graph
-    all_points = [transformer] + heat_network_points
+    all_points = [transformer] + heat_network_points + [waste_heat]
     # connect the nodes with edges and generate a complete graph
     for i in range(len(all_points)):
         for j in range(i + 1, len(all_points)):
@@ -160,6 +168,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
     # %% STEP FOUR: OUTPUT
     # Assign unique identifiers to all nodes and count the role attributes separately.
     counters = {"bldg": 1, "node": 1, "EH": 1}
+    node_num = 0
 
     for n in network.nodes:
         role = network.nodes[n].get("role", "node")  # default value for unassigned role attribute: "node"
@@ -167,12 +176,16 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
         if role == "bldg":
             network.nodes[n]["id"] = f"bldg{counters['bldg']}"
             counters["bldg"] += 1
+            node_num += 1
         elif role == "EH":
             network.nodes[n]["id"] = f"EH{counters['EH']}"
             counters["EH"] += 1
+            node_num += 1
         else:
             network.nodes[n]["id"] = f"node{counters['node']}"
             counters["node"] += 1
+            node_num += 1
+
 
     json_filename = f"topology_node_{district_type}_buildings_{len(buildings_info)}.json"
     # json_filename = get_unique_filename(json_filename)
@@ -180,12 +193,14 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
 
     # Orient an undirected graph starting from a plant node
     directed_dict = orient_network(network, 0)
+    wh_dict = orient_network(network, node_num-1)
 
     # Write the identifiers of all nodes, their corresponding coordinates,
     # and the entire network's tree structure into a JSON file.
     json_data = {
         "nodes": {},
-        "edges": directed_dict
+        "edges": directed_dict,
+        "edges_wh": wh_dict
     }
 
     for n, attrs in network.nodes(data=True):

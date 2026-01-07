@@ -13,7 +13,7 @@ from districtgenerator.classes import *
 
 def example4_generate_buildings():
     # Initialize District
-    data = Datahandler(scenario_name = "district_C_buildings_4", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "example", env_path=".env.CONFIG.EXAMPLE")
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -27,6 +27,7 @@ def example4_generate_buildings():
     # Based on this and in combination with the weather data from the environment we calculate e.g. the heat flow
     # through walls and internal gains.
     data.generateBuildings()
+    data.generateWHProfiles()
 
     ### ===========================================  Output  =========================================== ###
     # For every building the envelope class is added (e.g. see data.district.0.envelope). Within this class
@@ -40,3 +41,4 @@ def example4_generate_buildings():
 
 if __name__ == '__main__' :
     data = example4_generate_buildings()
+

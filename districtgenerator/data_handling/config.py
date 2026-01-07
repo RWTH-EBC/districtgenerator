@@ -187,6 +187,9 @@ class EcoConfig(BaseSettings):
     price_oil: str | list = [0.0982]           # Oil price in €/kWh
     price_district_heat: str | list = [0.1627]  # District heat price in €/kWh not including fees
 
+    # waste heat price
+    price_wh: str | list = [0.1]
+
     # CO2 emission factors in kg/kWh
     co2_el_grid: str | list = [0.363]          # Co2 emissions for electricity import (grid mix) in kg/kWh
     co2_gas: str | list = [0.201]              # Co2 emissions for burning natural gas in kg/kWh
@@ -228,7 +231,7 @@ class EcoConfig(BaseSettings):
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'price_wh'
         ]
         
         for param_name in params_to_expand:
@@ -1080,6 +1083,24 @@ class CentralDeviceConfig(BaseSettings):
     GS__soc_init: float = 0.5  # Initial state of charge between 0 and 1.
     GS: dict = {}
 
+    ### Waste Heat Sources ###
+    # DC parameters (data center)
+    DC__feasible: bool = True  # Will be set to false if this waste heat source is not simulated
+    DC__IT_Load: float = 100  # IT-Load in kW: possible values: ......
+    DC__PUE: float = 1.4  # Power Usage Effectivness (total load/ IT load): values for air-cooled DCs: ..., values for water-cooled DCs: ...
+    DC__profile_type: str = "calc"  # will the load-profile be loaded or calculated?
+    DC__wh_temperature: int = 35  # in celsius, depends on the cooling mechanism and the location for capturing waste heat: values for air-cooled DCs: ..., values for water-cooled DCs: ...
+    DC: dict = {}
+
+    # paper_industry parameters
+    paper__feasible: bool = True  # Will be set to false if this waste heat source is not simulated
+    paper__prod_quantity: float = 100000  # yearly production volume in t
+    paper__spec_electricity: float = 5  # specific electricity consumption in kWh/t
+    paper__spec_wh: float = 2  # specific waste heat generation in kWh/t
+    paper__profile_type: str = "load"  # will the load-profile be loaded or calculated?
+    paper__wh_temperature: int = 25  # waste heat temperature in celsius
+    paper: dict = {}
+
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
         """Build all device dictionaries from individual parameters."""
@@ -1118,6 +1139,80 @@ class CentralDeviceConfig(BaseSettings):
         env_file=".centraldeviceconfig",
         extra="ignore"
     )
+
+
+class WasteHeatConfig(BaseSettings):
+    """Configuration for waste heat sources in a district energy system.
+
+    This class defines the default parameters for various waste heat sources such as
+    data centers (DC), cold storages, wastewater treatment plants and various industry sources
+
+    Each device has parameters such as feasibility, efficiency, lifetime, investment costs,
+    and operational characteristics.
+    """
+    # DC parameters (data center)
+    DC__feasible: bool = True             # Will be set to false if this waste heat source is not simulated
+    DC__IT_Load: float = 100              # IT-Load in kW: possible values: ......
+    DC__PUE: float = 1.4                  # Power Usage Effectivness (total load/ IT load): values for air-cooled DCs: ..., values for water-cooled DCs: ...
+    DC__profile_type: str = "calc"        # will the load-profile be loaded or calculated?
+    DC__wh_temperature: int = 35          # in celsius, depends on the cooling mechanism and the location for capturing waste heat: values for air-cooled DCs: ..., values for water-cooled DCs: ...
+    DC: dict = {}
+
+    # paper_industry parameters
+    paper__feasible: bool = True          # Will be set to false if this waste heat source is not simulated
+    paper__prod_quantity: float = 10000     # yearly production volume in t
+    paper__spec_electricity: float = 5    # specific electricity consumption in kWh/t
+    paper__spec_wh: float = 2             # specific waste heat generation in kWh/t
+    paper__profile_type: str = "load"     # will the load-profile be loaded or calculated?
+    paper__wh_temperature: int = 25       # waste heat temperature in celsius
+    paper: dict = {}
+
+
+
+    @model_validator(mode='after')
+    def build_device_dicts(self) -> 'WasteHeatConfig':
+        """Build all device dictionaries from individual parameters."""
+
+        # Create a list of field names to avoid RuntimeError during iteration
+        field_names = list(self.__dict__.keys())
+
+        # Get all field names from the model
+        for field_name in field_names:
+            # Check if this is a dictionary field (uppercase device name)
+            if isinstance(getattr(self, field_name), dict):
+                # Only build if the dictionary is empty
+                if getattr(self, field_name) == {}:
+                    device_dict = {}
+                    prefix = f"{field_name}__"
+                    feasible_attr = f"{field_name}__feasible"
+
+                    if hasattr(self, feasible_attr) and not getattr(self, feasible_attr):
+                        delattr(self, field_name)
+                    else:
+                        # Find all attributes that start with this device prefix
+                        for attr_name in field_names:  # Use the snapshot here too
+                            if attr_name.startswith(prefix):
+                                # Remove the prefix to get the dictionary key
+                                dict_key = attr_name[len(prefix):]
+                                device_dict[dict_key] = getattr(self, attr_name)
+
+                        # Set the dictionary first
+                        setattr(self, field_name, device_dict)
+
+
+                    # Now delete the individual attributes
+                    for attr_name in field_names:
+                        if attr_name.startswith(prefix):
+                            delattr(self, attr_name)
+
+        return self
+
+    model_config = SettingsConfigDict(
+        env_prefix="WH_",
+        env_file=".wasteheatconfig",
+        extra="ignore"
+    )
+
 
 ### Global Config Classes ###
 
@@ -1169,6 +1264,7 @@ class GlobalConfig(BaseModel):
     central: 'CentralDeviceConfig'
     calendar: 'CalendarConfig'
     scenario_name: ScenarioName
+    waste_heat: WasteHeatConfig
 
 class Settings(BaseSettings):
     """
@@ -1234,5 +1330,6 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
-        scenario_name = ScenarioName(_env_file=env_file_path)
+        scenario_name = ScenarioName(_env_file=env_file_path),
+        waste_heat=WasteHeatConfig(_env_file=env_file_path)
     )
