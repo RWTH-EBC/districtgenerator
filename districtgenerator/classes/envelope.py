@@ -97,6 +97,7 @@ class Envelope:
         self.T_set_min_night = self.design_building_data["T_set_min_night"]
         self.T_set_max = self.design_building_data["T_set_max"]
         self.T_set_max_night = self.design_building_data["T_set_max_night"]
+        self.T_set_min_free_day = self.design_building_data["T_set_min_free_day"]
         self.ventilationRate = self.design_building_data["ventilation_rate"]
         self.T_bivalent = self.design_building_data["T_bivalent"]
         self.T_heatlimit = self.design_building_data["T_heatlimit"]
@@ -406,7 +407,7 @@ class Envelope:
             })
 
             # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
-            if u_values:
+            if not np.isnan(u_values).any():
                 for idx, x in enumerate(['wall', 'roof', 'floor']):
                     self.U["opaque"][x] =  u_values[idx]
 

@@ -689,9 +689,7 @@ class Users:
                 if self.calcOccProf:
                     prof = temp_obj.generate_occupancy_profiles_residential()
                     prof_df = pd.DataFrame(prof, columns=['prof'])
-                    directory_path = os.path.join(path, self.scenario_name)
-                    os.makedirs(directory_path, exist_ok=True)
-                    prof_df.to_parquet(os.path.join(directory_path, 'occ_prof.parquet'), engine='pyarrow', index=False)
+                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
                     self.occ = self.occ + prof
                 else:
                     prof = pd.read_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow')['prof'].to_numpy()

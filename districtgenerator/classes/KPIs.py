@@ -587,6 +587,93 @@ class KPIs:
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
 
+
+    def KPIs_to_dict(self, data):
+        """
+        Sammelt alle berechneten KPI-Attribute und gibt sie als
+        JSON-serialisierbares Dictionary zurück.
+        NumPy-Arrays und -Datentypen werden in Python-Listen und -Zahlen konvertiert.
+
+        Returns
+        -------
+        dict
+            Ein Dictionary, das alle wichtigen KPIs enthält.
+        """
+
+        # Hilfsfunktion, um NumPy-Typen sicher zu konvertieren
+        def convert_numpy(obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            if isinstance(obj, (np.float16, np.float32, np.float64)):
+                return float(obj)
+            if isinstance(obj, (np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):
+                return int(obj)
+            return obj
+
+        # Erstellen eines strukturierten Dictionaries für die Ergebnisse
+        kpi_results = {
+            "allgemeine_quartiersdaten": {
+                "wohnflaeche_m2": convert_numpy(self.totalarea_residential),
+                "gewerbeflaeche_m2": convert_numpy(self.totalarea_non_residential),
+                "anzahl_wohneinheiten": convert_numpy(self.totalnumberflats),
+                "anzahl_bewohner": convert_numpy(self.totalnumberocc),
+                "gesamte_heizlast_kW": convert_numpy(self.totalheatload / 1000),
+                "gesamte_kuehllast_kW": convert_numpy(self.totalcoolingload / 1000),
+            },
+            "jahresenergiebedarf": {
+                "heizwaerme_kWh": convert_numpy(self.total_heating_demand / 1000),
+                "kuelte_kWh": convert_numpy(self.total_cooling_demand / 1000),
+                "trinkwarmwasser_kWh": convert_numpy(self.total_dhw_demand / 1000),
+                "strom_allgemein_kWh": convert_numpy(self.total_electricity_demand / 1000),
+                "strom_elektromobilitaet_kWh": convert_numpy(self.total_EV_demand / 1000),
+            },
+            "oekonomische_kpis": {
+                "gesamte_betriebskosten_eur_pro_jahr": convert_numpy(self.operationCosts),
+                "annualisierte_investitionskosten_dezentral_eur_pro_jahr": convert_numpy(
+                    self.annual_fixed_costs_decentral),
+                "annualisierte_investitionskosten_zentral_eur_pro_jahr": convert_numpy(
+                    self.annual_fixed_costs_central),
+                "gesamte_jahreskosten_eur_pro_jahr": convert_numpy(
+                    (self.operationCosts or 0) +
+                    (self.annual_fixed_costs_decentral or 0) +
+                    (self.annual_fixed_costs_central or 0)
+                )
+            },
+            "oekologische_kpis": {
+                "co2_emissionen_strombezug_t_pro_jahr": convert_numpy(
+                    self.co2emissions[0] if self.co2emissions else None),
+                "co2_emissionen_gasbezug_t_pro_jahr": convert_numpy(
+                    self.co2emissions[1] if self.co2emissions else None),
+                "co2_emissionen_gesamt_t_pro_jahr": convert_numpy(
+                    sum(self.co2emissions) if self.co2emissions else None)
+            },
+            "technische_kpis_netzinteraktion": {
+                "spitzenlastbezug_netz_kW": convert_numpy(self.peakDemand),
+                "spitzeneinspeisung_netz_kW": convert_numpy(self.peakInjection),
+                "peak_to_valley_leistung_kW": convert_numpy(self.peakToValley),
+                "energiebezug_netz_kwh_pro_jahr": convert_numpy(self.W_dem_GCP_year),
+                "energieeinspeisung_netz_kwh_pro_jahr": convert_numpy(self.W_inj_GCP_year),
+                "gasbezug_kwh_pro_jahr": convert_numpy(self.Gas_year)
+            },
+            "technische_kpis_autarkie": {
+                "autarkiegrad_zeitlich_prozent": convert_numpy(
+                    self.energy_autonomy_year * 100 if self.energy_autonomy_year is not None else None),
+                "eigenverbrauchsanteil_prozent": convert_numpy(
+                    self.scf_year * 100 if self.scf_year is not None else None),  # Supply Cover Factor
+                "eigendeckungsanteil_prozent": convert_numpy(
+                    self.dcf_year * 100 if self.dcf_year is not None else None)  # Demand Cover Factor
+            }
+        }
+
+        # ensure result path to results/optimization exists
+        # json_path = f'{data.resultPath}/optimization/{data.scenario_name}'
+        # os.makedirs(json_path, exist_ok=True)
+
+        with open(f'{data.optimization_path}/KPIs_opti_central.json', 'w') as f:
+            json.dump(kpi_results, f, indent=4)
+
+        return kpi_results
+
     def create_certificate(self, data, result_path):
         """
         Generate a certificate as PDF file with a list of KPIs and a list with building information.

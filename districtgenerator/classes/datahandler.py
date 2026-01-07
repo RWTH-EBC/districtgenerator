@@ -60,7 +60,8 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None):
+                 env_path = None,
+                 run_name: str = None):
         """
         Constructor of Datahandler class.
 
@@ -117,7 +118,6 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
-
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
         else:
@@ -127,6 +127,24 @@ class Datahandler:
             self.resultPath = resultPath
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
+
+        if run_name is not None:
+            # Create the path to demands and generation
+            self.demands_path = os.path.join(self.resultPath, 'demands', self.scenario_name) # test if always necessary, run_name)
+            self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name, run_name)
+            self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name, run_name)
+
+        else:
+            self.demands_path = os.path.join(self.resultPath, 'demands', self.scenario_name)
+            self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name)
+            self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name)
+
+
+        os.makedirs(self.demands_path, exist_ok=True)
+        os.makedirs(self.generation_path, exist_ok=True)
+        os.makedirs(self.optimization_path, exist_ok=True)
+
+
 
         self.KPIs = None
         self.load_all_data(
@@ -466,13 +484,6 @@ class Datahandler:
             # Store features of the observed building
             building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
 
-            # Unique name = "<id>_<building type>"
-            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
-            if name in name_pool:
-                print(f"Duplicate name: {name}, skipping")
-                continue
-            name_pool.append(name)
-
             # Add thermal transmittance if available
             if "thermalTransmittanceFacade" in self.scenario.columns:
                 building["buildingFeatures"]["thermalTransmittance"] = (
@@ -484,6 +495,14 @@ class Datahandler:
             else:
                 building["buildingFeatures"]["thermalTransmittance"] = None
 
+            # Create unique building name
+            name = f"{bldg_id}_{row['building']}"
+
+            # Check for duplicate names
+            if name in name_pool:
+                print(f"Duplicate name: {name}, skipping")
+                continue
+            name_pool.append(name)
 
             # Assign the unique name to the building
             building["unique_name"] = name
@@ -534,6 +553,7 @@ class Datahandler:
                     construction_data = 'tabula_de_retrofit'
                 elif retrofit_level == "tabula_adv_retrofit":
                     construction_data = 'tabula_de_adv_retrofit'
+                else: construction_data = "tabula_standard" #bugfix
 
                 height = building["buildingFeatures"]["height"]
                 number_of_floors = building["buildingFeatures"]["number_of_floors"]
@@ -751,25 +771,25 @@ class Datahandler:
                                           time_horizon=self.time["dataLength"],
                                           building_devices_data=self.decentral_device_data,
                                           building=building,
-                                          path=os.path.join(self.resultPath, 'demands'),
+                                          path=self.demands_path,
                                           initial_day = self.initial_day)
 
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
-                                    elec=building["user"].elec,
-                                    dhw= building["user"].dhw,
-                                    occ= building["user"].occ,
-                                    gains= building["user"].gains,
-                                    carcharging_ondemand=building["user"].carcharging_ondemand,
-                                    carprofile=building["user"].carprofile,
-                                    nb_units= building["user"].nb_units,
-                                    nb_occ= building["user"].nb_occ,
-                                    ev_capacity=building["user"].ev_capacity or [0],
-                                    heatload= building["envelope"].heatload,
-                                    bivalent= building["envelope"].bivalent,
-                                    heatlimit= building["envelope"].heatlimit,
-                                    thick_req= building["envelope"].thick_req,
-                                    path=os.path.join(self.resultPath, 'demands'))
+                                  elec=building["user"].elec,
+                                  dhw= building["user"].dhw,
+                                  occ= building["user"].occ,
+                                  gains= building["user"].gains,
+                                  carcharging_ondemand=building["user"].carcharging_ondemand,
+                                  carprofile=building["user"].carprofile,
+                                  nb_units= building["user"].nb_units,
+                                  nb_occ= building["user"].nb_occ,
+                                  ev_capacity=building["user"].ev_capacity or [0],
+                                  heatload= building["envelope"].heatload,
+                                  bivalent= building["envelope"].bivalent,
+                                  heatlimit= building["envelope"].heatlimit,
+                                  thick_req= building["envelope"].thick_req,
+                                  path=os.path.join(self.demands_path))
                     #building["user"].saveProfiles(building["unique_name"], building["envelope"], os.path.join(self.resultPath, 'demands'))
 
             # print("Calculate demands of building " + building["unique_name"])
@@ -781,8 +801,8 @@ class Datahandler:
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
              building["envelope"].heatlimit) = self.loadProfiles(building["unique_name"],
-                                                                 os.path.join(self.resultPath, 'demands'))
-            (building["user"].heat, building["user"].cooling, building["gmlId"]) = self.loadHeatingProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
+                                                                 os.path.join(self.demands_path))
+            (building["user"].heat, building["user"].cooling, building["gmlId"]) = self.loadHeatingProfiles(building["unique_name"], os.path.join(self.demands_path))
             # building["user"].loadProfiles(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             print("Load demands of building " + building["unique_name"])
 
@@ -809,11 +829,11 @@ class Datahandler:
                                         cooling=building["user"].cooling,
                                         name=building["unique_name"],
                                         gmlId=idArray,
-                                        path=os.path.join(self.resultPath, 'demands'))
+                                        path=os.path.join(self.demands_path))
                 #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
                 heat, cooling, id = self.loadHeatingProfiles(name=building["unique_name"],
-                                                         path=os.path.join(self.resultPath, 'demands'))
+                                                             path=(self.demands_path))
                 building["user"].heat = heat
                 building["user"].cooling = cooling
                 building["gmlId"] = id
@@ -821,7 +841,7 @@ class Datahandler:
         print("Finished generating demands!")
 
     def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
-                                 designDevs=True, saveGenProfiles=True, optimization=True):
+                                 designDevs=True, saveGenProfiles=True, optimization=True, pv_standard=True):
         """
         All in one solution for district and demand generation.
 
@@ -863,7 +883,7 @@ class Datahandler:
                 self.designDevicesComplete(saveGenerationProfiles=saveGenProfiles)
             else:
                 centralEnergySupply = False
-                self.designDecentralDevices(saveGenerationProfiles=saveGenProfiles)
+                self.designDecentralDevices(saveGenerationProfiles=saveGenProfiles, pv_standard=pv_standard)
                 self.centralDevices = {}
 
             if optimization:
@@ -910,9 +930,7 @@ class Datahandler:
         -------
         None.
         """
-
-        # Create the directory with the specified name
-        directory_path = os.path.join(path, self.scenario_name, name)
+        directory_path = os.path.join(self.demands_path, name)
         os.makedirs(directory_path, exist_ok=True)
 
         # Create DataFrames directly from the input variables
@@ -928,7 +946,9 @@ class Datahandler:
             total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
         else:
             total_nb_occ = nb_occ
-        nb_occ_df = pd.DataFrame([[total_nb_occ]], columns=['occ'])
+        nb_occ_df = pd.DataFrame([total_nb_occ], columns=['occ'])
+        #nb_occ_list_df = pd.DataFrame([[nb_occ]], columns=['occ list'])
+        # todo: idea to save the full list of occupants per building unit for further analysis, does not work properly yet
 
         # Create DataFrames for building info
         nb_flats_df = pd.DataFrame([nb_units], columns=['Number of Flats or Main Rooms'])
@@ -954,6 +974,7 @@ class Datahandler:
         carprofile_file = os.path.join(directory_path, 'carprofile.parquet')
         nb_flats_file = os.path.join(directory_path, 'nb_flats.parquet')
         nb_occ_file = os.path.join(directory_path, 'nb_occ.parquet')
+        #nb_occ_list_file = os.path.join(directory_path, 'nb_occ_list.parquet')
         heatload_file = os.path.join(directory_path, 'heatload.parquet')
         bivalent_file = os.path.join(directory_path, 'bivalent.parquet')
         heatlimit_file = os.path.join(directory_path, 'heatlimit.parquet')
@@ -968,6 +989,7 @@ class Datahandler:
         carprofile_df.to_parquet(carprofile_file, engine='pyarrow', index=False)
         nb_flats_df.to_parquet(nb_flats_file, engine='pyarrow', index=False)
         nb_occ_df.to_parquet(nb_occ_file, engine='pyarrow', index=False)
+        #nb_occ_list_df.to_parquet(nb_occ_list_file, engine='pyarrow', index=False)
         heatload_df.to_parquet(heatload_file, engine='pyarrow', index=False)
         bivalent_df.to_parquet(bivalent_file, engine='pyarrow', index=False)
         heatlimit_df.to_parquet(heatlimit_file, engine='pyarrow', index=False)
@@ -983,7 +1005,7 @@ class Datahandler:
             roof_ins_df.to_parquet(roof_ins_file, engine='pyarrow', index=False)
             floor_ins_df.to_parquet(floor_ins_file, engine='pyarrow', index=False)
 
-    def saveHeatingProfile(self, heat, cooling, name, path):
+    def saveHeatingProfile(self, heat, cooling, name, gmlId, path):
         """
         Save heating demand to parquet files in the specified directory.
 
@@ -995,6 +1017,8 @@ class Datahandler:
             Hourly cooling demand in W.
         name : string
             Unique building name.
+        gmlId : list
+            List of gmlIds.
         path : string
             Results path.
 
@@ -1002,9 +1026,8 @@ class Datahandler:
         -------
         None.
         """
-
         # Create the directory path
-        directory_path = os.path.join(path, self.scenario_name, name)
+        directory_path = os.path.join(self.demands_path, name)
         os.makedirs(directory_path, exist_ok=True)
 
         # Create DataFrames
@@ -1043,9 +1066,9 @@ class Datahandler:
         tuple
             Loaded profile data in the correct order.
         """
-
-        directory_path = os.path.join(path, self.scenario_name, name)
-
+        # Create the directory path
+        directory_path = os.path.join(self.demands_path, name)
+        os.makedirs(directory_path, exist_ok=True)
         # Hourly profiles
         elec = pd.read_parquet(os.path.join(directory_path, 'elec.parquet'), engine='pyarrow')['elec'].to_numpy()
         dhw = pd.read_parquet(os.path.join(directory_path, 'dhw.parquet'), engine='pyarrow')['dhw'].to_numpy()
@@ -1056,7 +1079,8 @@ class Datahandler:
 
         # Building info
         nb_flats = int(pd.read_parquet(os.path.join(directory_path, 'nb_flats.parquet'), engine='pyarrow')['Number of Flats or Main Rooms'][0])
-        nb_occ = int(pd.read_parquet(os.path.join(directory_path, 'nb_occ.parquet'), engine='pyarrow')['occ'][0])
+        nb_occ = [int(pd.read_parquet(os.path.join(directory_path, 'nb_occ.parquet'), engine='pyarrow')['occ'][0])]
+        #nb_occ_list = pd.read_parquet(os.path.join(directory_path, 'nb_occ_list.parquet'), engine='pyarrow')['occ list'].to_numpy()
         ev_capacity = pd.read_parquet(os.path.join(directory_path, 'ev_capacity.parquet'), engine='pyarrow')['EV Capacity (Wh)'].to_numpy()
 
         # Envelope data
@@ -1065,8 +1089,6 @@ class Datahandler:
         heatlimit = float(pd.read_parquet(os.path.join(directory_path, 'heatlimit.parquet'), engine='pyarrow')['Heat Limit Heat Load (W)'][0])
 
         return elec, dhw, occ, gains, carcharging_ondemand, carprofile, nb_flats, nb_flats, nb_occ, ev_capacity, heatload, bivalent, heatlimit
-
-
 
 
     def loadHeatingProfiles(self, name, path):
@@ -1087,7 +1109,8 @@ class Datahandler:
         """
 
         # Create the directory path
-        directory_path = os.path.join(path, self.scenario_name, name)
+        directory_path = os.path.join(self.demands_path, name)
+        os.makedirs(directory_path, exist_ok=True)
 
         # Load heating and cooling data from their respective Parquet files
         heat = pd.read_parquet(os.path.join(directory_path, 'heating.parquet'), engine='pyarrow')['heating'].to_numpy()
@@ -1179,11 +1202,11 @@ class Datahandler:
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
                     if saveGenerationProfiles:
-                        base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
-                        os.makedirs(base_directory, exist_ok=True)
+                        # base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
+                        # os.makedirs(base_directory, exist_ok=True)
                         np.savetxt(
-                            base_directory
-                            + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                            self.generation_path
+                            + '/decentralPV_' + building["unique_name"] + '_' + self.scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                             building["generationPV"],
                             delimiter=';',
@@ -1191,8 +1214,8 @@ class Datahandler:
                         )
 
                         np.savetxt(
-                            base_directory
-                            + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                            self.generation_path
+                            + '/decentralSTC_' + building["unique_name"] + '_' + self.scenario_name + '_'
                             + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                             building["generationSTC"],
                             delimiter=';',
@@ -1215,18 +1238,18 @@ class Datahandler:
                 )
 
                 if saveGenerationProfiles:
-                    base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
-                    os.makedirs(base_directory, exist_ok=True)
+                    # base_directory = os.path.join(self.resultPath, 'generation', self.scenario_name)
+                    # os.makedirs(base_directory, exist_ok=True)
                     np.savetxt(
-                        base_directory
-                        + '/decentralPV_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                        self.generation_path
+                        + '/decentralPV_' + building["unique_name"] + '_' + self.scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                         building["generationPV"], delimiter=';',
                            fmt='%.2f')
 
                     np.savetxt(
-                        base_directory
-                        + '/decentralSTC_' + building["unique_name"] + '_' + self.conf_scenario_name + '_'
+                        self.generation_path
+                        + '/decentralSTC_' + building["unique_name"] + '_' + self.scenario_name + '_'
                         + building["buildingFeatures"]["gmlId"].replace(":", "_") + '.csv',
                         building["generationSTC"], delimiter=';',
                            fmt='%.2f')
@@ -1265,15 +1288,15 @@ class Datahandler:
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
+            np.savetxt(os.path.join(self.generation_path, 'centralPV.csv'),
                        self.centralDevices["generation"]["PV"],
                        delimiter=';',
                        fmt='%.2f')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
+            np.savetxt(os.path.join(self.generation_path, 'centralSTC.csv'),
                        self.centralDevices["generation"]["STC"],
                        delimiter=';',
                        fmt='%.2f')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
+            np.savetxt(os.path.join(self.generation_path, 'centralWind.csv'),
                        self.centralDevices["generation"]["Wind"],
                        delimiter=';',
                        fmt='%.2f')
@@ -1583,6 +1606,14 @@ class Datahandler:
 
             # save results as attribute
             self.resultsOptimization.append(results_temp)
+
+        # ensure result path to results/optimization exists
+        # json_path = f'{self.resultPath}/optimization/{self.scenario_name}'
+        # os.makedirs(json_path, exist_ok=True)
+
+        with open(f'{self.optimization_path}/result_opti_central_total.json', 'w') as f:
+            json.dump(self.resultsOptimization, f, indent=4)
+
 
     def calulateKPIs(self):
         """

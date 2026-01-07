@@ -926,4 +926,11 @@ def run_opti_central(model, data, cluster):
     for d in days:
         results["daily_peak"][d] = daily_peak[d].X
 
+    # ensure result path to results/optimization exists
+    # json_path = f'{data.resultPath}/optimization/{data.scenario_name}'
+    # os.makedirs(json_path, exist_ok=True)
+#
+    # with open(f'{json_path}/result_opti_central_part.json', 'w') as f:
+    #     json.dump(results, f, indent=4)
+
     return results

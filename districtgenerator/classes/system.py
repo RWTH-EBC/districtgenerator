@@ -98,9 +98,16 @@ class BES:
             if k == "HP":
                 BES["HP"] = self.bivalent_load_heating * (buildingFeatures["heater"] == k)
 
-            # electric heating (EH) exists if HP exists
+            # electric heating (EH) exists if HP exists (or singularly)
+            # if k == "EH":
+            #     BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (buildingFeatures["heater"] == "HP")
+
             if k == "EH":
-                BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (buildingFeatures["heater"] == "HP")
+                if buildingFeatures["heater"] == "HP":
+                    BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (
+                                buildingFeatures["heater"] == "HP")
+                else:
+                    BES["EH"] = self.design_load_heating * (buildingFeatures["heater"] == "EH")
 
             # thermal energy storage (TES)
             if k == "TES":

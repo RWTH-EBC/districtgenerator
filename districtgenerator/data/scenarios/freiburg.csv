@@ -1,5 +1,5 @@
-id;gmlId;building;year;construction_type;night_setback;retrofit;area;number_of_floors;elec;EV;height;heater;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging;thermalTransmittanceFacade;thermalTransmittanceRoof;thermalTransmittanceFloor;thermalTransmittanceCeiling;thermalTransmittanceWindow
-0;Building1;SFH;2014;None;1;1.0;137;2.0;1000;0;7.81;HP;35.0;1.0;6000.0;1;1;0;on_demand;0.1;2.7;0;0;0
-1;Building2;MFH;1960;None;1;0;300;2.0;1000;0;7.81;HP;35.0;1;6000.0;1;1;0;on_demand;
-2;Building3;AB;1960;None;1;1;300;2.0;1000;0;7.81;BOI;35.0;1;6000.0;1;1;0;on_demand;
-3;Building4;SFH;1970;None;1;0;300;2.0;1000;0;7.81;BOI;35.0;1;6000.0;1;1;0;on_demand;
+id;gmlId;building;year;construction_type;night_setback;retrofit;area;number_of_floors;elec;EV;cooling;height;heater;f_TES;f_BAT;f_EV;f_PV;f_STC;gamma_PV;ev_charging;thermalTransmittanceFacade;thermalTransmittanceRoof;thermalTransmittanceFloor;thermalTransmittanceCeiling;thermalTransmittanceWindow
+0;Building1;SFH;2014;None;1;1.0;137;2.0;1000;0;0;7.81;HP;35.0;1.0;6000.0;1;1;0;on_demand;0.1;2.7;0;0;0
+1;Building2;MFH;1960;None;1;0;300;2.0;1000;0;0;7.81;HP;35.0;1;6000.0;1;1;0;on_demand;
+2;Building3;AB;1960;None;1;1;300;2.0;1000;0;0;7.81;EH;35.0;1;6000.0;1;1;0;on_demand;
+3;Building4;SFH;1970;None;1;0;300;2.0;1000;0;0;7.81;BOI;35.0;1;6000.0;1;1;0;on_demand;
