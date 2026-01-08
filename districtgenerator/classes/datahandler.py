@@ -549,6 +549,8 @@ class Datahandler:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
                 if retrofit_level == "tabula_standard":
                     construction_data = 'tabula_de_standard'
+                    if building["buildingFeatures"]["year"]>2015:
+                        building["buildingFeatures"]["year"]=2015  #bugfix for tabula standard
                 elif retrofit_level == "tabula_retrofit":
                     construction_data = 'tabula_de_retrofit'
                 elif retrofit_level == "tabula_adv_retrofit":
