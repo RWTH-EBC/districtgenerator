@@ -318,7 +318,6 @@ class KPIs:
                 try:
                     # Check if the device exists for this building based on its capacity
                     if capacities.get(dev) and capacities[dev] > 0:
-                        print("here with dev", dev, "and capacity", capacities[dev])
                         annual_cost_device = self.calc_annual_cost_device(
                             decentral_device_data[dev],
                             decentral_device_data["inv"],
