@@ -286,7 +286,14 @@ class KPIs:
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
         counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
 
-        calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        # calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        # to include all devices with inv_var in decentral_device_data
+        investable_devices_list = [
+            dev
+            for dev, properties in decentral_device_data.items()
+            if 'inv_var' in properties
+        ]
+        calc_annual_investment = {dev: 0 for dev in investable_devices_list}
 
         # Refactor
         for n, building_id in enumerate(data.scenario["id"]):
@@ -295,6 +302,7 @@ class KPIs:
             building_annual_cost = 0
 
             capacities = {}
+            # ADD new technologies here!!
             capacities["BOI"] = district[n]["capacities"]["BOI"] / 1000
             capacities["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities["CHP"] = district[n]["capacities"]["CHP"] / 1000
@@ -304,14 +312,16 @@ class KPIs:
             capacities["BAT"] = district[n]["capacities"]["BAT"] / 1000
             capacities["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
                                  decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities["EH"] = district[n]["capacities"]["EH"] / 1000
 
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
+            for dev in investable_devices_list:
                 try:
                     # Check if the device exists for this building based on its capacity
-                    if capacities[dev] > 0:
+                    if capacities.get(dev) and capacities[dev] > 0:
+                        print("here with dev", dev, "and capacity", capacities[dev])
                         annual_cost_device = self.calc_annual_cost_device(
                             decentral_device_data[dev],
-                            decentral_device_data["inv_data"],
+                            decentral_device_data["inv"],
                             capacities[dev])
 
                         # Add to building and district totals
@@ -320,17 +330,12 @@ class KPIs:
 
                         ## Store per-device cost for the building
                         self.kpis_per_building[building_id]['costs'][f'annual_cost_{dev}_eur'] = annual_cost_device
-                except Exception:
-                    pass
-
+                except Exception as e:
+                    print("Error calculating annual cost for device", dev, "in building", building_id, ":", e)
             ## Store total annualized fixed cost for the building
             self.kpis_per_building[building_id]['costs']['annual_fixed_costs_eur'] = building_annual_cost
 
-
-        self.annual_fixed_costs_decentral = sum(
-            calc_annual_investment[dev]  # already summed for all districts
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]
-        )
+        self.annual_fixed_costs_decentral = sum(calc_annual_investment.values())
 
         try:
             self.annual_fixed_costs_central = data.centralDevices["capacities"]["total_ann_inv_cost"] + data.centralDevices["capacities"]["total_om_cost"]
@@ -367,8 +372,6 @@ class KPIs:
         # Öko-Institut e.V., IER Stuttgart, adelphi consult GmbH, Becker Büttner Held PartGmbB, Prognos AG, et al.
         # Online available at:
         # https://api.kww-halle.de/fileadmin/user_upload/Technikkatalog_W%C3%A4rmeplanung_Version_1.1_August24.xlsx
-        if cap is None or cap <= 0:
-            return 0
 
         observation_time = param["observation_time"]
         interest_rate = param["interest_rate"]
