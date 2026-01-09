@@ -109,8 +109,8 @@ class DecentralDeviceConfig(BaseSettings):
     EV_cost_om: float = 0.05         # Operation and maintenance costs as a fraction of total investment costs (percentage).
 
     # Investment data parameters
-    inv_data_observation_time: int = 20     # Observation time in years.
-    inv_data_interest_rate: float = 0.05    # Interest rate.
+    inv_observation_time: int = 20     # Observation time in years.
+    inv_interest_rate: float = 0.05    # Interest rate.
 
     model_config = SettingsConfigDict(
         env_prefix="D_",

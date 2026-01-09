@@ -321,11 +321,11 @@ class KPIs:
                     if counts.get(dev, 0) > 0:
                         calc_annual_investment[dev] += self.calc_annual_cost_device(
                             decentral_device_data[dev],
-                            decentral_device_data["inv_data"],
+                            decentral_device_data["inv"],
                             capacities[n][dev])
                     # Else leave as 0
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Error calculating annual cost for device {dev} in district {n}: {e}")
 
         self.annual_fixed_costs_decentral = sum(
             calc_annual_investment[dev]  # already summed for all districts
