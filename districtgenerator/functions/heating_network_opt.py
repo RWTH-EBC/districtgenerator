@@ -540,7 +540,14 @@ def optimization_diameter(data, param):
         for DN in pipe_dict.keys():
             d_i = pipe_dict[DN]["Inner diameter (pipe) (mm)"]
             if d_i >= d_min and d_i <= d_max:
+                v_lim = 1.2 if DN <= 32 else 2
+                D = d_i / 1000.0
+                A = np.pi * D ** 2 / 4.0
+                v = pipe["flow_max"] / A
+                if v > float(v_lim) + 1e-9:
+                    continue
                 pipe_candidates[pipe_id].append(DN)
+
     param["pipe_candidates"] = pipe_candidates
 
     # 8 heat loss parameters
@@ -869,10 +876,20 @@ def calc_diameter(data, param):
         d_max = pipe["d_max"]
 
         # find all feasible DN
-        candidates = [
-            DN for DN, vals in pipe_dict.items()
-            if vals["Inner diameter (pipe) (mm)"] >= d_min and vals["Inner diameter (pipe) (mm)"] <= d_max
-        ]
+        candidates = []
+        for DN, vals in pipe_dict.items():
+            d_i = vals["Inner diameter (pipe) (mm)"]
+            if d_i >= d_min and d_i <= d_max:
+
+                # Max velocity constraint (using peak flow)
+                v_lim = 1.2 if DN <= 32 else 2
+                D = d_i / 1000.0
+                A = np.pi * D ** 2 / 4.0
+                v = pipe["flow_max"] / A
+                if v > float(v_lim) + 1e-9:
+                    continue
+
+                candidates.append(DN)
 
         if candidates:
             # select the smallest diameter
