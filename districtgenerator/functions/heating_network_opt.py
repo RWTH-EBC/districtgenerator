@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import pyomo.environ as pyo
+from fluids.numerics import newton_line_search_factors
 from pyomo.util.infeasible import log_infeasible_constraints
 import numpy as np
 import math
@@ -370,9 +371,6 @@ def load_parameter(data):
     HP_lifetime = data.central_device_data["AirHP"]["life_time"]      # 25a,          Maximum lifetime. source:
     HP_ann_factor = calc_annual_factor(data, HP_lifetime)
 
-    # CC
-    CC_lifetime = data.central_device_data["AirCC"]["life_time"]  # 25a,          Maximum lifetime. source:
-    CC_ann_factor = calc_annual_factor(data, CC_lifetime)
 
     # prepare parameters for the optimization model
     param = {}
@@ -388,7 +386,6 @@ def load_parameter(data):
     param["pipe_dict"] = pipe_dict
     param["path"] = path
     param["HP_ann_factor"] = HP_ann_factor
-    param["CC_ann_factor"] = CC_ann_factor
 
     return data, param
 
@@ -461,7 +458,7 @@ def load_parameter_5G(data):
     # Antisymmetrical heat loss is not considered in this optimization.     #Todo: vermutlich nicht korrekt für 5G DHN (Antisymetrisch: Austausch Vor/Rücklauf)
     # Since it calculates the heat conduction between the supply and return pipes,
     # the supply pipe loses heat while the return pipe gains it, resulting in a net system heat loss of zero.
-    # T_a = (T_supply - T_return)/2
+    T_a = (T_supply - T_return)/2
 
     # 4 load heating demand for each building
     heat_loss_substation = np.zeros_like(deltaT)
@@ -474,9 +471,9 @@ def load_parameter_5G(data):
     # devs_param = {
     #     "feasible": True,
     #     "dT_evap": deltaT_cluster,      # K,    temperature difference in evaporator (how much the network's fluid cools down in the evaporator);
-    #     "dT_cond": 10,                  # K,    temperature difference in condenser (how much buildings's fluid heats up in the condenser)      #Todo: passt?
+    #     "dT_cond": 10,                  # K,    temperature difference in condenser (how much buildings's fluid heats up in the condenser)
     #     "dT_pinch_cond": 5,             # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
-    #     "dT_pinch_evap": 2,             # K,    temperature difference between both fluids in the evaporator at pinch point     #Todo: Pinch Abstände prüfen
+    #     "dT_pinch_evap": 2,             # K,    temperature difference between both fluids in the evaporator at pinch point
     #     "eta_compr": 0.8,               # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
     #     "heatloss_compr": 0.3,          # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
     #     "COP_max": 7,                   # ---,  maximum heat pump COP
@@ -507,7 +504,7 @@ def load_parameter_5G(data):
 
     cool_loss_substation = np.zeros_like(deltaT)
     net_cool_demand = np.zeros_like(deltaT)
-    c_loss_subst = data.heat_grid_data["c_loss_subst"]  # 3%, cool losses at the substation     #in Datei .env.CONFIG.EXAMPLE gesetzt
+    #c_loss_subst = data.heat_grid_data["c_loss_subst"]  # 3%, cool losses at the substation     #in Datei .env.CONFIG.EXAMPLE gesetzt
 
     for building in data.district:
         if building["buildingFeatures"]["heater"] == "heat_grid":
@@ -523,13 +520,13 @@ def load_parameter_5G(data):
 
 
 
-            heating_demand_cluster = heating_cluster - generationSTC_cluster - cc_cooling_cluster #direct_cooling_cluster             #Todo: Laut 5G Paper fehlt hier die Abwärme der Kühlanlagen
+            heating_demand_cluster = heating_cluster - generationSTC_cluster - cc_cooling_cluster #direct_cooling_cluster
             building["user"].heating_demand_cluster = heating_demand_cluster  # kW
 
 
 
             # year profile (for calculation of max and min permitted pipeline diameter)
-            heating = building["user"].heat/1000 * (1 - 1/COP_full_year) # kW
+            heating = building["user"].heat/1000 * (1 - 1/COP_full_year) # kW           #Todo: Verwendung klären: Was kann direkten Heizwärmebedarf decken und was nur indirekt?
             generationSTC = building["generationSTC"] / 1000  # kW
             #dhw = building["user"].dhw / 1000  # kW
 
@@ -553,6 +550,19 @@ def load_parameter_5G(data):
             #print(heating_demand_cluster[2,80])         #wichtig: Heating demand Cluster nehmen, sonst kein STC enthalten!
 
             #Neu erstellt für 5G Netze
+
+            building["user"].dim_dc_hp = float(np.max(heating))*1.2         #Sicherheitsfaktor 1,2. Alternative Auslegung abklären
+            building["user"].elec_demand_dc_hp = float(np.sum(heating))
+            print(building["user"].dim_dc_hp)
+            print(building["user"].elec_demand_dc_hp)
+
+
+    if data.heat_grid_data["generation"] != "5th":
+        dim_dc_hp_total = sum(building["user"].dim_dc_hp for building in data.district  if building["buildingFeatures"]["heater"] == "heat_grid")                     #total capacity for all decentral heatpumps in the district
+        elec_demand_dc_hp_total = sum(building["user"].elec_demand_dc_hp for building in data.district if building["buildingFeatures"]["heater"] == "heat_grid")     #total electricity demand for all decentral heatpumps in the district
+    else:
+        dim_dc_hp_total = 0.0
+        elec_demand_dc_hp_total = 0.0
 
             #cooling_demand_cluster = -heating_demand_cluster    # Energieströme sind gekoppelt, nur zwei Modi und nicht 4 (nur eine Bilanz und nicht zwei!)
             #building["user"].cooling_demand_cluster = cooling_demand_cluster  # kW
@@ -596,9 +606,11 @@ def load_parameter_5G(data):
         beta = k_soil / k_pipe * np.log(Da / da)  # DIN EN 13941-1 D.7
         # ks / ka：symmetrical and (a) antisymmetrical heat loss factors according to zero-order multipole formula
         ks_heating_network = (a + beta + b) ** -1  # DIN EN 13941-1 D.3
-        # ka_heating_network = (a + beta - b) ** -1
+        ka_heating_network = (a + beta - b) ** -1
         pipe["symmetrical heat loss factor"] = ks_heating_network
-        # pipe["antisymmetrical heat loss factor"] = ka_heating_network
+        pipe["antisymmetrical heat loss factor"] = ka_heating_network
+
+    asym_heat_exchange = T_a
 
     # 6 network topology
     # Extract all the branches from the topology (from root node to terminal node)
@@ -622,6 +634,10 @@ def load_parameter_5G(data):
     HP_lifetime = data.central_device_data["AirHP"]["life_time"]      # 25a,          Maximum lifetime. source:
     HP_ann_factor = calc_annual_factor(data, HP_lifetime)
 
+    # CC
+    CC_lifetime = data.central_device_data["AirCC"]["life_time"]  # 25a,          Maximum lifetime. source:
+    CC_ann_factor = calc_annual_factor(data, CC_lifetime)
+
     # prepare parameters for the optimization model
     param = {}
     param["T_s"] = T_s
@@ -630,6 +646,7 @@ def load_parameter_5G(data):
     param["deltaT_cluster"] = deltaT_cluster
     param["T_return"] = T_return
     param["T_return_cluster"] = T_return_cluster
+    param["T_supply_cluster"] = T_supply_cluster
     param["T_supply"] = T_supply
     param["heat_loss_substation"] = heat_loss_substation
     param["cool_loss_substation"] = cool_loss_substation
@@ -638,6 +655,9 @@ def load_parameter_5G(data):
     param["pipe_dict"] = pipe_dict
     param["path"] = path
     param["HP_ann_factor"] = HP_ann_factor
+    param["CC_ann_factor"] = CC_ann_factor
+    param["dim_dc_hp_total"] = dim_dc_hp_total
+    param["elec_demand_dc_hp_total"] = elec_demand_dc_hp_total
 
     return data, param
 
@@ -864,11 +884,11 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
                     break  # break once found
 
     # 4 aggregate the heat load of every pipe segment
-    network = data.pipeline_topology                                                                                    #Todo: braucht auf jeden Fall zwei Aggregate Flows: kalt und warm
-    pipe_loads_cluster = aggregate_heat_loads(network, building_demand_cluster, heat_loss_pipe_cluster, root="EH1")     #Todo: Anpassung von aggregate_flows nötig? --- Antwort: Sollte passen
+    network = data.pipeline_topology
+    pipe_loads_cluster = aggregate_heat_loads(network, building_demand_cluster, heat_loss_pipe_cluster, root="EH1")
     pipe_loads = aggregate_heat_loads(network, building_demand, heat_loss_pipe, root="EH1")
 
-    # Iterate through each pipe in pipe_loads_cluster       #Todo: Muss mit Minima/Maxima bei dem<0 umgehen können
+    # Iterate through each pipe in pipe_loads_cluster
     for idx, ((parent, child), loads_cluster_array) in enumerate(pipe_loads_cluster.items(), 1):
         # generate pipe id: pipe1, pipe2, ...
         pipe_id = f"{parent}->{child}"
@@ -1044,7 +1064,14 @@ def optimization_diameter(data, param):
     cost_om_CC = data.central_device_data["AirCC"][ "cost_om"]  # ,        1/year (fraction of inv_var), source: ?
     CC_ann_factor = param["CC_ann_factor"]
 
-    #Todo#Todo? Sind hier die dezentralen WP hinzuzufügen?
+    #Todo_ hier die dezentralen WP hinzuzufügen?: Nein da hier nur zusätzlich Kapazitäten durch Wärmeverluste modelliert werden?
+
+    inv_dc_HP = data.central_device_data["AirHP"]["inv_var"]*2  # 1500€/kW,      source:
+    cost_om_dc_HP = data.central_device_data["AirHP"]["cost_om"]*2  # 0.025,        1/year (fraction of inv_var), source: VDI2067
+    dc_HP_ann_factor = param["HP_ann_factor"]
+    price_el_dc_hp = data.ecoData["price_supply_el_eh"][0]     #Todo: korrekten Wert hinterlegen
+
+
 
     # Calculate central heat pump COPs
     devs_param = {
@@ -1124,7 +1151,7 @@ def optimization_diameter(data, param):
                               doc="Pairs of pipe and its feasible diameters")
 
     # Also define a set of devices for investments (pipes,pumps,HP) to hold inv / tac
-    invest_devs = ["pipes", "pumps", "HP"]
+    invest_devs = ["pipes", "pumps", "HP", "CC", "dc_HP"]
     model.invest_devs = pyo.Set(initialize=invest_devs, doc="Device types for investment & cost tracking")
 
     lines = list(path.keys())
@@ -1151,8 +1178,20 @@ def optimization_diameter(data, param):
     model.heat_loss_pipe = pyo.Var(model.pipe, model.week, model.t, within=pyo.Reals,    #NonNegative entfernt für 5G Netze, bleibt aber universell gültig
                                    doc="Heat loss per pipe, week, timestep (kW)")
 
+    # heat loss per pipe/week/t (kW)
+    model.asym_heat_exchange = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                                   doc="asymetric heat exchange per pipe, week, timestep (kW)")
+
     # Additional heat pump capacity (kW) required to compensate network heat losses
     model.HP_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Additional heat pump capacity (kW) to cover heat losses")
+
+    # Additional CompressionCooler capacity (kW) required to compensate network heat gains
+    model.CC_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Additional CompressionCooler capacity (kW) to cover heat gains")
+
+    # decentral heat pump capacity (kW) for 5th Generation heating networks
+    model.dc_HP_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="decentral heat pump capacity (kW) for 5th Generation heating networks")
+
+    model.dc_HP_cap = param["dim_dc_hp_total"]  #No real optimization variable for the current implementation
 
     # total annual heat loss (kWh) and energy cost
     model.heat_loss_total = pyo.Var(within=pyo.Reals, initialize=0.0, doc="Total annual heat loss (postive) or gain (negative) (kWh)")                    #NonNegative entfernt für 5G Netze, bleibt aber universell gültig
@@ -1160,6 +1199,8 @@ def optimization_diameter(data, param):
     model.heat_gain_total_sum_pipes = pyo.Var(within=pyo.NonPositiveReals, initialize=0.0, doc="Total annual heat gain visible for the energy hub, so only added values if total heat_loss summed by all pipes =< 0")     #Neu hinzugefügt für 5G Netze
     model.heat_loss_sum_pipes = pyo.Var(model.week, model.t,within=pyo.Reals, initialize=0.0, doc="Heat Loss summed for all pipes")                                     #Hilfsvariablen neu hinzugefügt für 5G Wärmenetze
     model.heat_loss_energy_cost = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual heat loss energy cost (EUR)")
+    model.heat_gain_energy_cost = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual heat loss energy cost (EUR)")
+    model.decentral_heat_pumps_energy_cost = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual energy cost (EUR) for the decentral heat pumps")
 
     # total annualized network cost (EUR)
     model.tac_network = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0,
@@ -1234,7 +1275,6 @@ def optimization_diameter(data, param):
                                                     doc="Total annual pump energy (kWh)")
 
 
-    #Todo: Wärmeverluste anpassen auf 5G Netze
 
     # 6) heat_loss per pipe/week/t
     # ks = sum(pipe_dict[d]['symmetrical heat loss factor'] * z[p,d] for d in candidates)
@@ -1250,16 +1290,27 @@ def optimization_diameter(data, param):
 
         return model.heat_loss_pipe[pipe, week, t] == 2 * (dT_eff) * 2 * np.pi * k_soil * ks * length / 1000
 
-
     model.heat_loss_def = pyo.Constraint(model.pipe, model.week, model.t, rule=heat_loss_rule,
                                          doc="Heat loss calculation per pipe/week/t")
 
-    # 7) Additional heat pump capacity must be >= heat loss at each pipe/week/t
-    def heatpump_capacity_rule(model, week, t):
-        return pyo.quicksum(model.heat_loss_pipe[pipe, week, t] for pipe in model.pipe) <= model.HP_cap     #sollte ohne Anpassung für 5G Wärmenetze funktionieren
 
-    model.heat_pump_capacity_constr = pyo.Constraint(model.week, model.t, rule=heatpump_capacity_rule,
-                                                  doc="Additional heat pump capacity must cover total pipe heat losses")
+
+
+    def asym_heat_exchange_rule(model, pipe, week, t):
+        ka = pyo.quicksum(pipe_dict[d]["antisymmetrical heat loss factor"] * model.z[pipe, d] for d in pipe_candidates[pipe])
+        i = week_to_i[week]
+        length = data.pipeline[pipe]["length"]
+
+        dT_eff = float(T_s_cluster[i, t])
+
+        return model.asym_heat_exchange[pipe, week, t] ==  dT_eff * 2 * np.pi * k_soil * ka * length / 1000
+
+
+    model.asym_heat_exchange_def = pyo.Constraint(model.pipe, model.week, model.t, rule=asym_heat_exchange_rule,        #Todo: weitere Verwendung klären. Nützlich?
+                                         doc="Asymetric Heat Exchange per pipe/week/t")
+
+
+
 
     # 8) Total heat loss in a year (sum over pipes, weeks, time weighted by cluster weights)
     def total_heat_loss_rule(model):
@@ -1305,6 +1356,25 @@ def optimization_diameter(data, param):
 
 
 
+    # 7) Additional heat pump capacity must be >= heat loss at each pipe/week/t
+    def heatpump_capacity_rule(model, week, t):
+        return model.heat_loss_sum_pipes_pos[week, t] <= model.HP_cap
+
+    model.heat_pump_capacity_constr = pyo.Constraint(model.week, model.t, rule=heatpump_capacity_rule,
+                                                     doc="Additional heat pump capacity must cover total pipe heat losses")
+
+
+
+    # 7.5) Additional cc capacity must be >= heat gain at each pipe/week/t
+    def cc_capacity_rule(model, week, t):
+        return model.heat_loss_sum_pipes_neg[week, t] <= model.CC_cap
+
+    model.cc_capacity_constr = pyo.Constraint(model.week, model.t, rule=cc_capacity_rule,
+                                              doc="Additional compressioncooler capacity must cover total pipe heat gains")
+
+
+
+
 
 
     # %% STEP FIVE: define the objective function
@@ -1315,6 +1385,20 @@ def optimization_diameter(data, param):
     model.inv_heatpump_constr = pyo.Constraint(rule=inv_heatpump_rule,
                                              doc="Heatpump investment = capacity * unit cost")
 
+    def inv_cc_rule(model):
+        return model.inv["CC"] == model.CC_cap * inv_CC
+
+    model.inv_cc_constr = pyo.Constraint(rule=inv_cc_rule,
+                                               doc="CompressionCooler investment = capacity * unit cost")
+
+    def inv_dc_heatpump_rule(model):
+        return model.inv["dc_HP"] == model.dc_HP_cap * inv_dc_HP
+
+    model.inv_dc_heatpump_constr = pyo.Constraint(rule=inv_dc_heatpump_rule,
+                                               doc="decentral Heatpump investment = capacity * unit cost")
+
+
+
     def tac_heatpump_rule(model):
         return model.tac["HP"] == model.inv["HP"] * (HP_ann_factor + cost_om_HP)
 
@@ -1323,8 +1407,12 @@ def optimization_diameter(data, param):
     def tac_cc_rule(model):
         return model.tac["CC"] == model.inv["CC"] * (CC_ann_factor + cost_om_CC)
 
-
     model.tac_cc_constr = pyo.Constraint(rule=tac_cc_rule, doc="TAC for additional CompressionCooler capacity")
+
+    def tac_dc_heatpump_rule(model):
+        return model.tac["dc_HP"] == model.inv["dc_HP"] * (dc_HP_ann_factor + cost_om_dc_HP)
+
+    model.tac_dc_heatpump_constr = pyo.Constraint(rule=tac_dc_heatpump_rule, doc="TAC for decentral heatpump capacity for 5Generation heating networks")
 
 
     def heatpump_energy_cost_rule(model):
@@ -1353,13 +1441,12 @@ def optimization_diameter(data, param):
             heat_gain_prefac[week_to_i[week], t] *
             data.clusterWeights[week]
             for week in model.week
-            for t in model.
+            for t in model.t
         )
 
     model.cc_energy_cost_constr = pyo.Constraint(rule=cc_energy_cost_rule,
                                                     doc="Additional Cooling energy cost for covering total pipe heat gains")
 
-    #Todo: Wärmeverluste anpassen bis hier hin
 
     # 2) Pump investment and TAC
     def inv_pump_rule(model):
@@ -1402,9 +1489,10 @@ def optimization_diameter(data, param):
     # 4) Total annualized network cost linking and objective
     def tac_network_rule(model):
         # tac_network == tac_pipes + tac_pumps + tac_HP + pump_energy_total*price_el_pumps + heat_loss_total*heat_loss_prefac
-        return model.tac_network == (model.tac["pipes"] + model.tac["pumps"] + model.tac["HP"]  +model.tac["CC"]
+        return model.tac_network == (model.tac["pipes"] + model.tac["pumps"] + model.tac["HP"]  + model.tac["CC"] + model.tac["dc_HP"]
                                      + model.pump_energy_total * price_el_pumps
-                                     + model.heat_loss_energy_cost + model.heat_gain_energy_cost)
+                                     + model.heat_loss_energy_cost + model.heat_gain_energy_cost
+                                     + param["elec_demand_dc_hp_total"] * price_el_dc_hp)
 
     model.tac_network_constr = pyo.Constraint(rule=tac_network_rule,
                                               doc="Link tac_network to components")
