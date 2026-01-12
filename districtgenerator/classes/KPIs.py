@@ -304,6 +304,7 @@ class KPIs:
             capacities = {}
             # ADD new technologies here!!
             capacities["BOI"] = district[n]["capacities"]["BOI"] / 1000
+            capacities["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
             capacities["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities["PV"] = district[n]["capacities"]["PV"]["area"]
@@ -628,6 +629,8 @@ class KPIs:
         price_el_per_kwh = data.ecoData["price_supply_el"]  # Expected unit: €/kWh
         revenue_feed_el_per_kwh = data.ecoData["revenue_feed_in_el"]  # Expected unit: €/kWh
         co2_factor_el_per_kwh = data.ecoData["co2_el_grid"]  # kgCO2/kWh
+        price_biom_per_kwh = data.ecoData.get("price_biomass", 0)  # €/k
+        co2_factor_biom_per_kwh = data.ecoData.get("co2_biom", 0)  # kgCO2/kWh
 
 
         for i, building_id in enumerate(data.scenario["id"]):
@@ -648,10 +651,12 @@ class KPIs:
                 res_load_kwh = np.sum(res["res_load"]) / 1000 * time_res_h
                 res_inj_kwh = np.sum(res["res_inj"]) / 1000 * time_res_h
                 res_gas_kwh = np.sum(res.get("res_gas", 0)) / 1000 * time_res_h
+                res_biom_kwh = np.sum(res.get("res_biom", 0)) / 1000 * time_res_h
 
                 annual_demand_from_grid += res_load_kwh * cluster_weight
                 annual_injection_to_grid += res_inj_kwh * cluster_weight
                 annual_gas_consumption_kwh += res_gas_kwh * cluster_weight
+                annual_biomass_consumption_kwh = res_biom_kwh * cluster_weight
 
                 # --- 1. Calculate Total On-site Electrical Generation for each timestep ---
                 gen_pv = np.array(res.get("PV", {}).get("P_el", 0))
@@ -697,6 +702,8 @@ class KPIs:
 
             # Store the annual gas consumption
             b_kpis['tech']['gas_consumption_kwh'] = annual_gas_consumption_kwh
+            b_kpis['tech']['biomass_consumption_kwh'] = annual_biomass_consumption_kwh
+
             # --- Calculate and Store Economic KPIs ---
             if 'eco' not in b_kpis:
                 b_kpis['eco'] = {}
@@ -715,12 +722,15 @@ class KPIs:
             annual_el_cost = annual_demand_from_grid * price_el_per_kwh
             b_kpis['eco']['el_cost'] = annual_el_cost
 
+            annual_biom_cost = annual_biomass_consumption_kwh * price_biom_per_kwh
+            b_kpis['eco']['biomass_cost'] = annual_biom_cost
+
             # Calculate total annual revenue from electricity fed into the grid
             annual_el_revenue = annual_injection_to_grid * revenue_feed_el_per_kwh
             b_kpis['eco']['el_revenue'] = annual_el_revenue
 
             # Calculate total annual energy costs (gas + electricity - revenue)
-            total_costs = annual_gas_cost + annual_el_cost - annual_el_revenue
+            total_costs = annual_gas_cost + annual_el_cost - annual_el_revenue + annual_biom_cost
             b_kpis['eco']['total_energy_cost_eur'] = total_costs
 
             # Calculate total annual CO2 emissions from electricity
@@ -731,8 +741,11 @@ class KPIs:
             annual_gas_co2_kg = annual_gas_consumption_kwh * co2_factor_gas_per_kwh
             b_kpis['eco']['gas_co2_emissions_kg'] = annual_gas_co2_kg
 
+            annual_biom_co2_kg = annual_biomass_consumption_kwh * co2_factor_biom_per_kwh
+            b_kpis['eco']['biomass_co2_emissions_kg'] = annual_biom_co2_kg
+
             # Calculate total annual CO2 emissions (gas + electricity)
-            total_emissions_gas_el = annual_gas_co2_kg + annual_el_co2_kg
+            total_emissions_gas_el = annual_gas_co2_kg + annual_el_co2_kg + annual_biom_co2_kg
             b_kpis['eco']['total_co2_emissions_kg'] = total_emissions_gas_el
             # =========================================================================
             # FINAL KPI CALCULATIONS (Self-Sufficiency and Self-Consumption)

@@ -69,7 +69,7 @@ def run_opti_central(model, data, cluster):
             EV_charging_ondemand[n] = [0] * len(elec_dem[n])
 
     # %% Sets of energy conversion systems in the buildings
-    ecs_heat = ("HP", "EH", "CHP", "FC", "BOI", "STC", "heat_grid", "DHW", "Heating")
+    ecs_heat = ("HP", "EH", "CHP", "FC", "BOI", "BBOI", "STC", "heat_grid", "DHW", "Heating")
     ecs_cool = ("CC", "heat_grid")
     ecs_power = ("HP", "EH", "CC", "CHP", "FC", "PV", "Demand")  # power consuming/producing devices (photovoltaic (PV))
     ecs_gas = ("CHP", "FC", "BOI")  # gas consuming devices
@@ -132,6 +132,15 @@ def run_opti_central(model, data, cluster):
                     heat_dom[device][n][t] = Q_DHW[n][t]
                 else:
                     heat_dom[device][n][t] = model.addVar(vtype="C",name="heat_" + device + "_n" + str(n) + "_t" + str(t))
+
+    # Biomass to devices
+    dec_biom = {}
+    for device in ["BBOI", "import"]:
+        dec_biom[device] = {}
+        for n in range(buildings):
+            dec_biom[device][n] = {}
+            for t in time_steps:
+                dec_biom[device][n][t] = model.addVar(vtype="C", name="dec_biom_" + device + "_n" + str(n) + "_t" + str(t))
 
     # Cool from devices
     cool_dom = {}
@@ -429,7 +438,7 @@ def run_opti_central(model, data, cluster):
     # Device generation <= device capacity
     for n in range(buildings):
         for t in time_steps:
-            for device in ["HP", "CHP", "BOI", "FC", "EH"]:
+            for device in ["HP", "CHP", "BOI", "FC", "EH", "BBOI"]:
                 model.addConstr(heat_dom[device][n][t] <= buildingData[n]["capacities"][device], name=str(device) + "_heat_cap_" + str(n) + "_" + str(t))
 
     for n in range(buildings):
@@ -495,6 +504,10 @@ def run_opti_central(model, data, cluster):
             # BOILER
             model.addConstr(heat_dom["BOI"][n][t] == param_dec_devs["BOI"]["eta_th"] * gas_dom["BOI"][n][t],
                             name="boiler_energybalance_heating" + str(n) + "_" + str(t))
+
+            # BIOMASS BOILER
+            model.addConstr(heat_dom["BBOI"][n][t] == param_dec_devs["BBOI"]["eta_th"] * dec_biom["BBOI"][n][t], # what is needed here?
+                            name="biomass_boiler_energybalance_heating" + str(n) + "_" + str(t))
 
     # min and max storage level, charging and discharging
     for n in range(buildings):
@@ -603,7 +616,7 @@ def run_opti_central(model, data, cluster):
                                 name="End_" + str(device) + "_storage_" + str(n) + "_" + str(t))
 
             model.addConstr(ch_dom[device][n][t] == heat_dom["CHP"][n][t] + heat_dom["HP"][n][t] + heat_dom["BOI"][n][t]
-                            + heat_dom["EH"][n][t] + heat_dom["STC"][n][t] + heat_dom["FC"][n][t],
+                            + heat_dom["EH"][n][t] + heat_dom["STC"][n][t] + heat_dom["FC"][n][t] + heat_dom["BBOI"][n][t],
                             name="Heat_charging_" + str(n) + "_" + str(t))
             model.addConstr(dch_dom[device][n][t] + heat_dom["heat_grid"][n][t] == heat_dom["DHW"][n][t] + heat_dom["Heating"][n][t],
                             name="Heat_discharging_" + str(n) + "_" + str(t))
@@ -662,6 +675,8 @@ def run_opti_central(model, data, cluster):
             # Cooling balance
             model.addConstr(cool_dom["CC"][n][t] + cool_dom["heat_grid"][n][t] == Q_cooling[n][t],
                             name="Cooling_balance_" + str(n) + "_" + str(t))
+
+            model.addConstr(dec_biom["import"][n][t] == dec_biom["BBOI"][n][t])
 
     # %% ENERGY HUB ENERGY BALANCES
     for t in time_steps:
@@ -832,6 +847,7 @@ def run_opti_central(model, data, cluster):
         results["P_inj_gcp"].append(round(power["to_grid"][t].X, 0))
         results["P_gas_total"].append(round(power["gas_from_grid"][t].X, 0))
 
+
     results["Cost_total"] = operational_costs.X
     results["Emission_total"] = co2_total.X
 
@@ -864,10 +880,13 @@ def run_opti_central(model, data, cluster):
         results[n]["res_load"] = []
         results[n]["res_inj"] = []
         results[n]["res_gas"] = []
+        results[n]["res_biom"] = []
         for t in time_steps:
             results[n]["res_load"].append(round(res_dom["power"][n][t].X, 0))
             results[n]["res_inj"].append(round(res_dom["feed"][n][t].X, 0))
             results[n]["res_gas"].append(round(gas_dom["BOI"][n][t].X + gas_dom["CHP"][n][t].X+gas_dom["FC"][n][t].X, 0))
+            results[n]["res_biom"].append(round(dec_biom["BBOI"][n][t].X, 0))
+            # Add import? is that even needed at building level?
 
     # Collect all devices appearing in any category to pre-initialize them
     all_devices = set(ecs_heat + ecs_cool + ecs_power + hp_modi + ecs_storage)

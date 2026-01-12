@@ -91,7 +91,7 @@ class BES:
             BES[k] = {}
 
             # capacity of boiler (BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
-            if k in ("BOI", "FC", "CHP"):
+            if k in ("BOI", "FC", "CHP", "BBOI"):
                 BES[k] = self.design_load_heating * (buildingFeatures["heater"] == k)
 
             # heat pump (HP) capacity refers to heat load at bivalent temperature

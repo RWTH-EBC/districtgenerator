@@ -40,6 +40,13 @@ class DecentralDeviceConfig(BaseSettings):
     BOI_inv_var: int = 130      # Variable investment costs in €/kW.
     BOI_cost_om: float = 0.05   # Operation and maintenance costs as a fraction of investment costs in 1/year.
 
+    # BBOI parameters (Biomass Boiler)
+    # Copied from central_device_config.py, to reuse todo: check values with technikkatalog?
+    BBOI_inv_var: int = 692         # Investment variable in €/kW.
+    BBOI_eta_th: float = 0.9        # Thermal efficiency between 0 and 1.
+    BBOI_life_time: int = 28        # Maximum life time in years.
+    BBOI_cost_om: float = 0.04      # Cost of operation and maintenance as a percentage of investment.
+
     # CHP parameters (Combined Heat and Power)
     # Definition: Gas based combined heat and power plant.
     CHP_eta_th: float = 0.62    # Thermal efficiency.
