@@ -678,7 +678,7 @@ class Datahandler:
                                      calcOccProf = self.calcOccProf)
 
             night_setback = building["buildingFeatures"]["night_setback"]
-            # %% calculate design heat loads
+            # %% calculate design heat loads in W
             # at norm outside temperature
             building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design", night_setback = night_setback)
             # at bivalent temperature

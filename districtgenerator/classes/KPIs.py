@@ -517,15 +517,32 @@ class KPIs:
             b_kpis = self.kpis_per_building[building_id]
 
             b_kpis['heating_system'] = building["buildingFeatures"].get("heater", "N/A")
-            active_technologies = []
+            active_technologies = {} #[]
             building_technologies = building.get('capacities', {})
+
+            # for tech_name, tech_value in building_technologies.items():
+            #     if isinstance(tech_value, (int, float)):
+            #         if tech_value > 0:
+            #             active_technologies.append(tech_name)
+            #     elif isinstance(tech_value, dict) and not tech_name == "inv": # avoid 'inv' sub-dictionary
+            #         if any(v > 0 for v in tech_value.values()):
+            #             active_technologies.append(tech_name)
+            # b_kpis['active_technologies'] = active_technologies
 
             for tech_name, tech_value in building_technologies.items():
                 if isinstance(tech_value, (int, float)):
                     if tech_value > 0:
-                        active_technologies.append(tech_name)
-                elif isinstance(tech_value, dict) and not tech_name == "inv": # avoid 'inv' sub-dictionary
-                        active_technologies.append(tech_name)
+                        active_technologies[tech_name] = {"capacity": tech_value}
+                elif isinstance(tech_value, dict) and not tech_name == "inv":  # avoid 'inv' sub-dictionary
+                    tech_details = {}
+                    has_positive_value = False
+                    for key, value in tech_value.items():
+                        # P_ref in W
+                        if value > 0:
+                            has_positive_value = True
+                            tech_details[key] = value
+                    if has_positive_value:
+                        active_technologies[tech_name] = tech_details
             b_kpis['active_technologies'] = active_technologies
 
             if building["buildingFeatures"]["building"] in {"SFH", "MFH", "TH", "AB"}:
@@ -543,11 +560,13 @@ class KPIs:
 
             # sum all building design heat and cooling loads
             heat_load = building["envelope"].heatload + building["dhwpower"]
-            cool_load = max(building["user"].cooling)
+            cooling_load = max(building["user"].cooling)
             total_heat_load += heat_load
-            total_cooling_load += cool_load
-            b_kpis['heat_load_kW'] = heat_load / 1000
-            b_kpis['cool_load_kW'] = cool_load / 1000
+            total_cooling_load += cooling_load
+            b_kpis['total_heat_load_kW'] = heat_load / 1000
+            b_kpis['cooling_load_kW'] = cooling_load / 1000
+            b_kpis['heat_load_kW'] = building["envelope"].heatload / 1000
+            b_kpis["dhw_power_kW"] = building["dhwpower"] / 1000
 
             # sum all building demands
             heating_demand = sum(building["user"].heat)
@@ -606,6 +625,10 @@ class KPIs:
 
         price_gas_per_kwh = data.ecoData["price_supply_gas"]  # Expected unit: €/kWh
         co2_factor_gas_per_kwh = data.ecoData["co2_gas"] # kgCO2/kWh
+        price_el_per_kwh = data.ecoData["price_supply_el"]  # Expected unit: €/kWh
+        revenue_feed_el_per_kwh = data.ecoData["revenue_feed_in_el"]  # Expected unit: €/kWh
+        co2_factor_el_per_kwh = data.ecoData["co2_el_grid"]  # kgCO2/kWh
+
 
         for i, building_id in enumerate(data.scenario["id"]):
             b_kpis = self.kpis_per_building[building_id]
@@ -677,13 +700,40 @@ class KPIs:
             # --- Calculate and Store Economic KPIs ---
             if 'eco' not in b_kpis:
                 b_kpis['eco'] = {}
+            # # Calculate total annual cost for gas
+            # annual_gas_cost = annual_gas_consumption_kwh * price_gas_per_kwh
+            # b_kpis['eco']['gas_cost'] = annual_gas_cost
+            # # Calculate total annual CO2 emissions from gas
+            # annual_gas_co2_kg = annual_gas_consumption_kwh * co2_factor_gas_per_kwh
+            # b_kpis['eco']['gas_co2_emissions_kg'] = annual_gas_co2_kg
+
             # Calculate total annual cost for gas
             annual_gas_cost = annual_gas_consumption_kwh * price_gas_per_kwh
             b_kpis['eco']['gas_cost'] = annual_gas_cost
+
+            # Calculate total annual cost for electricity
+            annual_el_cost = annual_demand_from_grid * price_el_per_kwh
+            b_kpis['eco']['el_cost'] = annual_el_cost
+
+            # Calculate total annual revenue from electricity fed into the grid
+            annual_el_revenue = annual_injection_to_grid * revenue_feed_el_per_kwh
+            b_kpis['eco']['el_revenue'] = annual_el_revenue
+
+            # Calculate total annual energy costs (gas + electricity - revenue)
+            total_costs = annual_gas_cost + annual_el_cost - annual_el_revenue
+            b_kpis['eco']['total_energy_cost_eur'] = total_costs
+
+            # Calculate total annual CO2 emissions from electricity
+            annual_el_co2_kg = annual_demand_from_grid * co2_factor_el_per_kwh
+            b_kpis['eco']['el_co2_emissions_kg'] = annual_el_co2_kg
+
             # Calculate total annual CO2 emissions from gas
             annual_gas_co2_kg = annual_gas_consumption_kwh * co2_factor_gas_per_kwh
             b_kpis['eco']['gas_co2_emissions_kg'] = annual_gas_co2_kg
 
+            # Calculate total annual CO2 emissions (gas + electricity)
+            total_emissions_gas_el = annual_gas_co2_kg + annual_el_co2_kg
+            b_kpis['eco']['total_co2_emissions_kg'] = total_emissions_gas_el
             # =========================================================================
             # FINAL KPI CALCULATIONS (Self-Sufficiency and Self-Consumption)
             # =========================================================================
@@ -764,51 +814,51 @@ class KPIs:
             return obj
 
         kpi_results = {
-            "allgemeine_quartiersdaten": {
-                "wohnflaeche_m2": convert_numpy(self.totalarea_residential),
-                "gewerbeflaeche_m2": convert_numpy(self.totalarea_non_residential),
-                "anzahl_wohneinheiten": convert_numpy(self.totalnumberflats),
-                "anzahl_bewohner": convert_numpy(self.totalnumberocc),
-                "gesamte_heizlast_kW": convert_numpy(self.totalheatload / 1000),
-                "gesamte_kuehllast_kW": convert_numpy(self.totalcoolingload / 1000),
+            "general_info": {
+                "res_area_m2": convert_numpy(self.totalarea_residential),
+                "non_res_area_m2": convert_numpy(self.totalarea_non_residential),
+                "total_nb_flats": convert_numpy(self.totalnumberflats),
+                "total_nb_occ": convert_numpy(self.totalnumberocc),
+                "total_headload_kW": convert_numpy(self.totalheatload / 1000),
+                "total_coolingload_kW": convert_numpy(self.totalcoolingload / 1000),
             },
-            "jahresenergiebedarf": {
-                "heizwaerme_kWh": convert_numpy(self.total_heating_demand / 1000),
-                "kuelte_kWh": convert_numpy(self.total_cooling_demand / 1000),
-                "trinkwarmwasser_kWh": convert_numpy(self.total_dhw_demand / 1000),
-                "strom_allgemein_kWh": convert_numpy(self.total_electricity_demand / 1000),
-                "strom_elektromobilitaet_kWh": convert_numpy(self.total_EV_demand / 1000),
+            "annual_energy_demand": {
+                "total_heating_kWh": convert_numpy(self.total_heating_demand / 1000),
+                "total_cooling_kWh": convert_numpy(self.total_cooling_demand / 1000),
+                "total_dhw_kWh": convert_numpy(self.total_dhw_demand / 1000),
+                "total_el_kWh": convert_numpy(self.total_electricity_demand / 1000),
+                "total_ev_kWh": convert_numpy(self.total_EV_demand / 1000),
             },
-            "oekonomische_kpis": {
-                "gesamte_betriebskosten_eur_pro_jahr": convert_numpy(self.operationCosts),
-                "annualisierte_investitionskosten_dezentral_eur_pro_jahr": convert_numpy(self.annual_fixed_costs_decentral),
-                "annualisierte_investitionskosten_zentral_eur_pro_jahr": convert_numpy(self.annual_fixed_costs_central),
-                "gesamte_jahreskosten_eur_pro_jahr": convert_numpy(
+            "total_economic_kpis": {
+                "total_operation_costs_eur_per_a": convert_numpy(self.operationCosts),
+                "annual_fixed_costs_decentral_eur_per_a": convert_numpy(self.annual_fixed_costs_decentral),
+                "annual_fixed_costs_central_eur_per_a": convert_numpy(self.annual_fixed_costs_central),
+                "total_costs_eur_per_a": convert_numpy(
                     (self.operationCosts or 0) +
                     (self.annual_fixed_costs_decentral or 0) +
                     (self.annual_fixed_costs_central or 0)
                 )
             },
-            "oekologische_kpis": {
-                "co2_emissionen_strombezug_t_pro_jahr": convert_numpy(self.co2emissions[0] if self.co2emissions else None),
-                "co2_emissionen_gasbezug_t_pro_jahr": convert_numpy(self.co2emissions[1] if self.co2emissions else None),
-                "co2_emissionen_gesamt_t_pro_jahr": convert_numpy(sum(self.co2emissions) if self.co2emissions else None)
+            "ecological_kpis": {
+                "co2_emissions_el_t_per_a": convert_numpy(self.co2emissions[0] if self.co2emissions else None),
+                "co2_emissions_gas_t_per_a": convert_numpy(self.co2emissions[1] if self.co2emissions else None),
+                "co2_emissions_total_t_per_a": convert_numpy(sum(self.co2emissions) if self.co2emissions else None)
             },
-            "technische_kpis_netzinteraktion": {
-                "spitzenlastbezug_netz_kW": convert_numpy(self.peakDemand),
-                "spitzeneinspeisung_netz_kW": convert_numpy(self.peakInjection),
-                "peak_to_valley_leistung_kW": convert_numpy(self.peakToValley),
-                "energiebezug_netz_kwh_pro_jahr": convert_numpy(self.W_dem_GCP_year),
-                "energieeinspeisung_netz_kwh_pro_jahr": convert_numpy(self.W_inj_GCP_year),
-                "gasbezug_kwh_pro_jahr": convert_numpy(self.Gas_year)
+            "technical_kpis_grid_interaction": {
+                "peak_demand_kW": convert_numpy(self.peakDemand),
+                "peak_injection_kW": convert_numpy(self.peakInjection if self.peakInjection>0 else 0),
+                "peak_to_valley_kW": convert_numpy(self.peakToValley),
+                "energy_supply_kwh_per_a": convert_numpy(self.W_dem_GCP_year),
+                "energy_injection_kwh_per_a": convert_numpy(self.W_inj_GCP_year),
+                "gas_supply_kwh_per_a": convert_numpy(self.Gas_year)
             },
-            "technische_kpis_autarkie_district": {
-                "autarkiegrad_zeitlich_prozent": convert_numpy(self.energy_autonomy_year * 100 if self.energy_autonomy_year is not None else None),
-                "eigenverbrauchsanteil_prozent": convert_numpy(self.scf_year * 100 if self.scf_year is not None else None),
-                "eigendeckungsanteil_prozent": convert_numpy(self.dcf_year * 100 if self.dcf_year is not None else None)
+            "technical_kpis_autonomy_district": {
+                "energy_autonomy_year_pct": convert_numpy(self.energy_autonomy_year * 100 if self.energy_autonomy_year is not None else None),
+                "supply_cover_factor_year_pct": convert_numpy(self.scf_year * 100 if self.scf_year is not None else None),
+                "demand_cover_factor_year_pct": convert_numpy(self.dcf_year * 100 if self.dcf_year is not None else None)
             },
             # Add the per-building KPI dictionary to the final output.
-            "kpis_per_gebaeude": {str(bid): {k: convert_numpy(v) for k, v in b_kpis.items()} for bid, b_kpis in self.kpis_per_building.items()}
+            "kpis_per_bldg": {str(bid): {k: convert_numpy(v) for k, v in b_kpis.items()} for bid, b_kpis in self.kpis_per_building.items()}
         }
 
         # Save to file
