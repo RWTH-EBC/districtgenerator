@@ -87,27 +87,36 @@ class BES:
         else:
             BES["heat_grid"] = 0
 
+        # Define hybrid heating systems for heat pumps
+        hybrid_systems = {
+            "HP": {"hp": "HP", "backup": "EH"},      # typical heat pump system with electric backup
+            "GHP": {"hp": "HP", "backup": "BOI"},      # Gas Hybrid Heat Pump
+            "BHP": {"hp": "HP", "backup": "BBOI"},     # Biomass Hybrid Heat Pump
+            "H2HP": {"hp": "HP", "backup": "H2BOI"},   # Hydrogen Hybrid Heat Pump
+            "OHP": {"hp": "HP", "backup": "OBOI"}      # Oil Hybrid Heat Pump
+        }
+
         for k in self.decentral_device_data.keys():
             BES[k] = {}
-
-            # capacity of boiler (BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
-            if k in ("BOI", "FC", "CHP", "BBOI"):
-                BES[k] = self.design_load_heating * (buildingFeatures["heater"] == k)
-
             # heat pump (HP) capacity refers to heat load at bivalent temperature
             if k == "HP":
-                BES["HP"] = self.bivalent_load_heating * (buildingFeatures["heater"] == k)
-
-            # electric heating (EH) exists if HP exists (or singularly)
-            # if k == "EH":
-            #     BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (buildingFeatures["heater"] == "HP")
-
-            if k == "EH":
-                if buildingFeatures["heater"] == "HP":
-                    BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (
-                                buildingFeatures["heater"] == "HP")
+                if buildingFeatures["heater"] in hybrid_systems:
+                    BES["HP"] = self.bivalent_load_heating
                 else:
-                    BES["EH"] = self.design_load_heating * (buildingFeatures["heater"] == "EH")
+                    BES["HP"] = 0
+
+
+            # Capacity of heating systems other than heat pumps
+            if k in ("BOI", "BBOI", "OBOI","H2BOI", "FC", "CHP", "EH", "DH"):
+                # As the primary heating system
+                if buildingFeatures["heater"] == k:
+                    BES[k] = self.design_load_heating
+
+                # As the backup system in a hybrid heat pump system
+                elif buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == k:
+                    BES[k] = (self.design_load_heating - self.bivalent_load_heating)
+                else:
+                    BES[k] = 0
 
             # thermal energy storage (TES)
             if k == "TES":

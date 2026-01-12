@@ -170,7 +170,7 @@ class CentralDeviceConfig(BaseSettings):
     BBOI_min_cap: int = 0           # Minimum capacity in kW.
     BBOI_max_cap: int = 100000      # Maximum capacity in kW.
 
-    # WCHP parameters (Water Combined Heat and Power)
+    # WCHP parameters (Waste Combined Heat and Power)
     WCHP_feasible: bool = False     # Should this be considered for the central optimization.
     WCHP_inv_var: int = 1200        # Investment variable in €/kW.
     WCHP_eta_el: float = 0.35       # Electrical efficiency between 0 and 1.

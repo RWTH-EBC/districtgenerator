@@ -608,7 +608,7 @@ class KPIs:
         self.totalcoolingload = total_cooling_load
         self.total_heating_demand = total_heating_demand
         self.total_cooling_demand = total_cooling_demand
-        self.total_electricity_demand = total_electricity_demand
+        self.total_electricity_demand = total_electricity_demand   # w/o EVs and electric-based heaters
         self.total_EV_demand = total_EV_demand
         self.total_dhw_demand = total_dhw_demand
         self.total_electricity_peak = max(sum_electricity_profile) if sum_electricity_profile else 0
