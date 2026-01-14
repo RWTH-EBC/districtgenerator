@@ -31,7 +31,8 @@ def load_params(data):
     central_device_data = copy.deepcopy(data.central_device_data)
     heat_grid_data = copy.deepcopy(data.heat_grid_data)
     param = copy.deepcopy(data.params_ehdo_model)
-    ecoData = copy.deepcopy(data.ecoData)
+    all_sim_ecoData = copy.deepcopy(data.all_sim_ecoData) # economic data for all simulated years
+    ecoData = copy.deepcopy(data.ecoData) # overall economic data
     param_uncl = {}  # unclustered time series for weather data
 
     ################################################################
@@ -82,10 +83,9 @@ def load_params(data):
     total_losses_cooling_network = data.heat_grid_data["total_losses_cooling_network"]
     cooling_total = cooling + total_losses_cooling_network
 
-    if "pump_power" in heat_grid_data:
-        pump_power = heat_grid_data["pump_power"]
-    else:
-        pump_power = np.zeros_like(electricityAppliances)
+    if "pump_power" not in heat_grid_data:
+        data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
+    pump_power = data.heat_grid_data["pump_power"]
     electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
 
     dem_uncl["heat"] = heating_total
@@ -132,16 +132,21 @@ def load_params(data):
 
     print("Design clustering finished. (" + str(time.time()-start) + ")\n")
 
-    dem = {}
-    dem["heat"] = clustered_series[0]
-    dem["cool"] = clustered_series[1]
-    dem["power"] = clustered_series[2]
+    # For every support year save the clustered demands - #! currently constant demands over the years
+    dem = {"heat": {}, "cool": {}, "power": {}}
+
+    for y in ecoData["interpolation_points"]:
+        dem["heat"][y] = clustered_series[0]
+        dem["cool"][y] = clustered_series[1]
+        dem["power"][y] = clustered_series[2]
+
     param["T_air"] = clustered_series[3]
     param["GHI"] = clustered_series[4]
     param["DHI"] = clustered_series[5]
     param["wind_speed"] = clustered_series[6]
 
     # Save number of design days and design-day matrix
+    # todo: Adjust this to allow for different clusters in each year?
     param["cluster_weights"] = nc
     param["cluster_matrix"] = z
 
@@ -352,8 +357,9 @@ def load_params(data):
         t_h_in = heat_grid["T_cold_heating_network"] + 273.15                            # heat sink (Network fluid) inlet temperature
         dt_h = devs["HP"]["dT_cond"]                                               # heat sink (Network fluid) temperature spread
 
-        # Calculate heat pump COPs
-        devs["HP"]["COP"] = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        # Calculate heat pump COPs for each support year (same values for all years since weather is constant)
+        COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Air source heat pump
     elif all_models["AirHP"]["enabled"]:
@@ -380,8 +386,9 @@ def load_params(data):
         t_h_in = heat_grid["T_cold_heating_network"] + 273.15                                           # heat sink (Network fluid) inlet temperature
         dt_h = devs["HP"]["dT_cond"]                                                                    # heat sink (Network fluid) temperature spread
 
-        # Calculate heat pump COPs
-        devs["HP"]["COP"] = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        # Calculate heat pump COPs for each support year (currently the same values for all years since weather is constant) -> May be changed
+        COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Default heat pump
     else:
@@ -398,26 +405,27 @@ def load_params(data):
             "max_cap": all_models["HP"]["max_cap"],
         }
 
-        # COP assignment
+        # COP assignment for each support year (same values for all years since weather is constant)
         if all_models["HP"]["CCOP_feasible"]:
-            devs["HP"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["ASHP_feasible"]:
-            COP = np.ones((data.time["clusterNumber"], clusterHorizon))
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
             eta_carnot = all_models["HP"]["ASHP_carnot_eff"]
             for d in range(data.time["clusterNumber"]):
                 for t in range(clusterHorizon):
-                    COP[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
-            devs["HP"]["COP"] = COP
+                    COP_base[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["CSV_feasible"]:
             COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
             # Cluster COP time series
-            COP = np.ones((data.time["clusterNumber"], clusterHorizon))
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
             for d in range(data.time["clusterNumber"]):
                 for t in range(clusterHorizon):
-                    COP[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
-            devs["HP"]["COP"] = COP
+                    COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Electric boiler
     devs["EB"] = {
@@ -457,8 +465,9 @@ def load_params(data):
         t_h_in = param["T_air"] + 273.15                                                                # heat sink (Air) inlet temperature
         dt_h = devs["CC"]["dT_cond"]                                                                    # heat sink (Air) temperature spread
 
-        # Calculate heat pump COPs
-        devs["CC"]["COP"] = calc_COP(data, clusterHorizon, devs, "CC", [t_c_in, dt_c, t_h_in, dt_h])
+        # Calculate compression chiller COPs for each support year (same values for all years since weather is constant)
+        COP_base = calc_COP(data, clusterHorizon, devs, "CC", [t_c_in, dt_c, t_h_in, dt_h])
+        devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Default compression chiller
     else:
@@ -472,7 +481,9 @@ def load_params(data):
             "max_cap": all_models["CC"]["max_cap"],
         }
 
-        devs["CC"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
+        # COP for each support year (same values for all years since weather is constant)
+        COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
+        devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Absorption chiller
     devs["AC"] = {
@@ -635,29 +646,67 @@ def load_params(data):
         "sto_loss": all_models["GS"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
     }
 
-    ################################################################
+    ###############################################################
+    ## Economic parameters (EcoData)
+    ###############################################################
+    #* Structure of ecoData: all_sim_ecoData[year][parameter_name] = value
+
+    ### Time independent parameters ###
+    param["interpolation_points"] = ecoData["interpolation_points"]  # years available in ecoData for interpolation
+    param["optimization_focus"] = ecoData["optimization_focus"]
+    param["observation_time"]   = ecoData["observation_time"]
+    param["interest_rate"]      = ecoData["interest_rate"]
+
     ### Energy costs ###
     # --- Electricity ---
     # Buildings
-    param["price_supply_el_buildings"] = ecoData["price_supply_el"]
-    param["revenue_feed_in_el_buildings"] = ecoData["revenue_feed_in_el"]
+    param["price_supply_el_buildings"] = {year: all_sim_ecoData[year]["price_supply_el"]
+                                        for year in param["interpolation_points"]}
+    param["revenue_feed_in_el_buildings"] = {year: all_sim_ecoData[year]["revenue_feed_in_el"]
+                                            for year in param["interpolation_points"]}
     # Energy Hub
-    param["price_supply_el_eh"] = ecoData["price_supply_el_eh"]
-    param["revenue_feed_in_el_eh"] = ecoData["revenue_feed_in_el_eh"]
+    param["price_supply_el_eh"] = {year: all_sim_ecoData[year]["price_supply_el_eh"]
+                                for year in param["interpolation_points"]}
+    param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
+                                    for year in param["interpolation_points"]}
+
     # --- Natural Gas ---
-    param["price_supply_gas_buildings"] = ecoData["price_supply_gas"]
-    param["price_supply_gas_eh"] = ecoData["price_supply_gas_eh"]
+    param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"]
+                                        for year in param["interpolation_points"]}
+    param["price_supply_gas_eh"] = {year: all_sim_ecoData[year]["price_supply_gas_eh"]
+                                    for year in param["interpolation_points"]}
+    param["revenue_feed_in_gas"] = {year: all_sim_ecoData[year]["revenue_feed_in_gas"]
+                                    for year in param["interpolation_points"]}
+
     # --- Other fuels ---
-    param["price_biomass"]      = ecoData["price_biomass"]
-    param["price_waste"]        = ecoData["price_waste"]
-    param["price_hydrogen"]     = ecoData["price_hydrogen"]
+    param["price_biomass"] = {year: all_sim_ecoData[year]["price_biomass"]
+                            for year in param["interpolation_points"]}
+    param["price_waste"] = {year: all_sim_ecoData[year]["price_waste"]
+                            for year in param["interpolation_points"]}
+    param["price_hydrogen"] = {year: all_sim_ecoData[year]["price_hydrogen"]
+                            for year in param["interpolation_points"]}
 
     ### Ecological impact ###
-    param["co2_el_grid"]     = ecoData["co2_el_grid"] # kg/kWh
-    param["co2_gas"]         = ecoData["co2_gas"] # kg/kWh
-    param["co2_biom"]        = ecoData["co2_biom"] # kg/kWh
-    param["co2_waste"]       = ecoData["co2_waste"]  # kg/kWh
-    param["co2_hydrogen"]    = ecoData["co2_hydrogen"]  # kg/kWh
+    param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"]
+                            for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_gas"] = {year: all_sim_ecoData[year]["co2_gas"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_biom"] = {year: all_sim_ecoData[year]["co2_biom"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_waste"] = {year: all_sim_ecoData[year]["co2_waste"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"]
+                            for year in param["interpolation_points"]}  # kg/kWh
+
+    # Optional: CO2 credits for feed-in (if available in all_sim_ecoData)
+    param["co2_el_feed_in"] = {year: all_sim_ecoData[year].get("co2_el_feed_in", 0)
+                            for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_gas_feed_in"] = {year: all_sim_ecoData[year].get("co2_gas_feed_in", 0)
+                                for year in param["interpolation_points"]}  # kg/kWh
+
+    ### Taxes ###
+    param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"]
+                        for year in param["interpolation_points"]}  # EUR/kg
 
     ################################################################
     # INITIALIZE CALCULATION

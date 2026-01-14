@@ -161,9 +161,10 @@ class EcoConfig(BaseSettings):
     This class contains parameters related to energy prices, CO2 emissions, and other economic factors
     used in the district generator.
     """
-    # General economic parameters #! TODO: Remove duplicates in EHDOConfig and DdecentralDeviceConfig
-    opti_interest_rate: float = 0.05     # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
-    opti_observation_time: int = 20      # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
+    # General economic parameters
+    interest_rate: float = 0.05  # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
+    observation_time: int = 20  # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
+    optimization_focus: int = 0  # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
     
     # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
@@ -180,6 +181,7 @@ class EcoConfig(BaseSettings):
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.127]    # Gas price in €/kWh
     price_supply_gas_eh: str | list = [0.127] # Gas price for EHDO in €/kWh
+    revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
     price_gasoline_liter: str | list = [1.7]  # Gasoline price in €/liter
     price_hydrogen: str | list = [0.250]         # Hydrogen price in €/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
@@ -196,12 +198,15 @@ class EcoConfig(BaseSettings):
     co2_waste: str | list = [0.020]              # Co2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # Co2 emissions for district heat in kg/kWh
 
-    @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 
-                     'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh',
+    # Co2 tax in €/t_CO2
+    co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
+
+    @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
+                     'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
-                     'co2_oil', 'co2_waste', 'co2_district_heat', mode='before')
+                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
         """Convert input to list of floats"""
@@ -226,9 +231,9 @@ class EcoConfig(BaseSettings):
         # List of all time dependent parameters
         params_to_expand = [
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
-            'price_supply_gas', 'price_supply_gas_eh', 'price_gasoline_liter', 'price_hydrogen',
+            'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -241,16 +246,16 @@ class EcoConfig(BaseSettings):
                 raise ValueError(f"{param_name} cannot be an empty list")
             elif len(current_list) == 1:
                 # Single value - repeat for all years
-                setattr(self, param_name, current_list * self.opti_observation_time)
-            elif len(current_list) < self.opti_observation_time:
+                setattr(self, param_name, current_list * self.observation_time)
+            elif len(current_list) < self.observation_time:
                 # List too short - extend with last value
                 last_value = current_list[-1]
-                extended_list = current_list + [last_value] * (self.opti_observation_time - len(current_list))
+                extended_list = current_list + [last_value] * (self.observation_time - len(current_list))
                 setattr(self, param_name, extended_list)
                 print(f"Warning: {param_name} list was shorter than observation_time. Extended with last value to match length.")
-            elif len(current_list) > self.opti_observation_time:
+            elif len(current_list) > self.observation_time:
                 # List too long - truncate
-                setattr(self, param_name, current_list[:self.opti_observation_time])
+                setattr(self, param_name, current_list[:self.observation_time])
                 print(f"Warning: {param_name} list was longer than observation_time. Truncated to match length.")
             # else: length matches exactly, no change needed
         
@@ -265,15 +270,15 @@ class EcoConfig(BaseSettings):
 #            print(type(self.num_interpolation_points))
             if self.num_interpolation_points < 1:
                 raise ValueError("num_interpolation_points must be at least 1.")
-            if self.num_interpolation_points > self.opti_observation_time:
-                raise ValueError(f"num_interpolation_points cannot be greater than opti_observation_time. Max is one per year {self.opti_observation_time}.")
+            if self.num_interpolation_points > self.observation_time:
+                raise ValueError(f"num_interpolation_points cannot be greater than observation_time. Max is one per year {self.observation_time}.")
             
             # First interpolation point is always year 0
             selected_points = [0]
 
             # Assign the remaining points evenly, to generate time windows of equal length
             if self.num_interpolation_points > 1:
-                step = self.opti_observation_time / (self.num_interpolation_points)
+                step = self.observation_time / (self.num_interpolation_points)
                 for i in range(1, self.num_interpolation_points):
                     point = round(i * step)
                     selected_points.append(point)
@@ -284,11 +289,11 @@ class EcoConfig(BaseSettings):
         else: # Validate if the interpolation points are within the observation time
             invalid_points = []
             for point in self.interpolation_points:
-                if point < 0 or point >= self.opti_observation_time:
+                if point < 0 or point >= self.observation_time:
                     invalid_points.append(point)
 
             if invalid_points:
-                raise ValueError(f"The following interpolation points are invalid for the given observation time of {self.opti_observation_time} years: {invalid_points} (Max is {self.opti_observation_time - 1})")
+                raise ValueError(f"The following interpolation points are invalid for the given observation time of {self.observation_time} years: {invalid_points} (Max is {self.observation_time - 1})")
 
         return self
 
@@ -313,7 +318,7 @@ class PyomoConfig(BaseSettings):
     """
     PyomoConfig class to manage the configuration of the Pyomo optimization solver.
     """
-    solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
+    solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
     solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
@@ -378,7 +383,8 @@ class HeatGridConfig(BaseSettings):
 
     generation: str = "4th"      # Heating network generation, selected between:"3rd", "4th" and "5th"
     topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
-    temperature_mode: str = "constant" # selected between: "Constant" and "Heating_curve"(controlled within limits depending on the outdoor temperature)
+    temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
+    heuristic: bool = True # selected between: True (heuristic method) and False (optimization method)
     D_heating_network: float = 1.0      # Distance between the centerlines of the supply and return pipelines in meters.
     T_hot_cooling_network: float = 12.0  # Flow temperature of the cooling network in degrees Celsius.
     T_cold_cooling_network: float = 6.0  # Return temperature of the cooling network in degrees Celsius.
@@ -405,15 +411,15 @@ class HeatGridConfig(BaseSettings):
     T_hot_heating_network__heating_curve__max__3rd: float = 75.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
     T_hot_heating_network__heating_curve__max__4th: float = 50.0  # Supply temperature of 4th generation heat grid when outdoor temperature is high in degrees Celsius.
     T_hot_heating_network__heating_curve__max__5th: float = 18.0  # Supply temperature of 5th generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__3rd: float = 90.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__4th: float = 70.0  # Supply temperature of 4th generation heat grid when outdoor temperature is low in degrees Celsius.
+    T_hot_heating_network__heating_curve__min__3rd: float = 85.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
+    T_hot_heating_network__heating_curve__min__4th: float = 65.0  # Supply temperature of 4th generation heat grid when outdoor temperature is low in degrees Celsius.
     T_hot_heating_network__heating_curve__min__5th: float = 14.0  # Supply temperature of 5th generation heat grid when outdoor temperature is low in degrees Celsius.
     T_hot_heating_network: dict = {}
 
-    T_cold_heating_network__constant__3rd: float = 55.0  # Return temperature of 3rd generation heat grid in degrees Celsius.
-    T_cold_heating_network__constant__4th: float = 30.0  # Return temperature of 4th generation heat grid in degrees Celsius.
-    T_cold_heating_network__constant__5th: float = 14.0  # Return temperature of 5th generation heat grid in degrees Celsius.
-    T_cold_heating_network__heating_curve__max__3rd: float = 40.0  # Return temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
+    T_cold_heating_network__constant__3rd: float = 50.0  # Return temperature of 3rd generation heat grid in degrees Celsius.
+    T_cold_heating_network__constant__4th: float = 35.0  # Return temperature of 4th generation heat grid in degrees Celsius.
+    T_cold_heating_network__constant__5th: float = 11.0  # Return temperature of 5th generation heat grid in degrees Celsius.
+    T_cold_heating_network__heating_curve__max__3rd: float = 45.0  # Return temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
     T_cold_heating_network__heating_curve__max__4th: float = 30.0  # Return temperature of 4th generation heat grid when outdoor temperature is high in degrees Celsius.
     T_cold_heating_network__heating_curve__max__5th: float = 11.0  # Return temperature of 5th generation heat grid when outdoor temperature is high in degrees Celsius.
     T_cold_heating_network__heating_curve__min__3rd: float = 50.0  # Return temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
@@ -433,7 +439,7 @@ class HeatGridConfig(BaseSettings):
     pump__cost_om_pump: float = 0.03    # Pump O&M share (fraction of investment cost per year).
     pump: dict = {}
 
-    pipe__f_fric: float = 0.025         # Friction factor (dimensionless).
+    pipe__f_fric: float = 0.025         # Friction factor (dimensionless). (Initial friction factor for iteration)
     pipe__dp_pipe_max: float = 400.0    # Max pressure gradient in Pa/m.
     pipe__dp_pipe_min: float = 30.0     # Min pressure gradient in Pa/m.
     pipe__pipe_lifetime: int = 30       # Pipe lifetime in years.
@@ -512,7 +518,6 @@ class EHDOConfig(BaseSettings):
     enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
     price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
     enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
-    revenue_feed_in_gas: float = 0.02       # Revenue for natural gas feed-in €/kWh
     enable_cap_limit_gas: bool = False      # Restrict gas demand from grid, bool.
     cap_limit_gas: float = 1000000          # Maximum annual energy drawn from the gas grid in MWh/year
 
@@ -537,15 +542,11 @@ class EHDOConfig(BaseSettings):
 
     # Other options
     peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
-    co2_tax: float = 0              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2
-    co2_el_feed_in: float = 0       # CO₂ emission credit for electricity feed-in kg/kWh
-    co2_gas_feed_in: float = 0      # CO₂ emission credit for gas feed-in kg/kWh
-    optim_focus: int = 0            # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
-    interest_rate: float = 0.05     # Interest rate. The interest rate affects the annualization of the investments according to VDI 2067.
-    observation_time: int = 20      # Project lifetime. The project lifetime affects annualization of investments according to VDI 2067 in years
+    co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
+    co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
 
-    # Helper attributes for unit formatting
+    # Helper attributes for unit formatting (Remove?)
     unit_placeholder: str = " - "   # used for cases where unit is a placeholder
     unit_dash: str = "-"            # used for cases where unit is a dash
 
@@ -739,11 +740,6 @@ class DecentralDeviceConfig(BaseSettings):
     EV__inv_var: float = 0.0  # Variable investment costs in €/kWh.
     EV__cost_om: float = 0.0  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     EV: dict = {}
-
-    # Investment data parameters
-    inv_data__observation_time: int = 20  # Observation time in years.
-    inv_data__interest_rate: float = 0.05  # Interest rate.
-    inv_data: dict = {}
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
