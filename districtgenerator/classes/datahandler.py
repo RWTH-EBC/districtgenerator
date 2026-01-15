@@ -549,6 +549,8 @@ class Datahandler:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
                 if retrofit_level == "tabula_standard":
                     construction_data = 'tabula_de_standard'
+                    if building["buildingFeatures"]["year"]>2015:
+                        building["buildingFeatures"]["year"]=2015  #bugfix for tabula standard
                 elif retrofit_level == "tabula_retrofit":
                     construction_data = 'tabula_de_retrofit'
                 elif retrofit_level == "tabula_adv_retrofit":
@@ -676,7 +678,7 @@ class Datahandler:
                                      calcOccProf = self.calcOccProf)
 
             night_setback = building["buildingFeatures"]["night_setback"]
-            # %% calculate design heat loads
+            # %% calculate design heat loads in W
             # at norm outside temperature
             building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design", night_setback = night_setback)
             # at bivalent temperature

@@ -63,6 +63,8 @@ class KPIs:
         self.total_electricity_demand = None
         self.total_dhw_demand = None
 
+        self.kpis_per_building = {bid: {} for bid in data.scenario["id"]}
+
         # initialize input data for calculation of KPIs
         inputData = {}
 
@@ -82,16 +84,8 @@ class KPIs:
 
         self.inputData = inputData
 
-        # prepare data to compute KPIs
-        self.prepareData(data, decentral_config)
-        self.calculateResidualLoad(data)
-        self.calculatePeakLoad()
-        self.calculatePeakToValley()
-        self.calculateEnergyExchangeGCP(data)
-        self.calculateEnergyExchangeWithinDistrict(data)
-        self.calculateAutonomy()
-        self.calculateCoverFactors(data)
-        self.calc_annual_cost_total(data)
+        # AIX HEAT Modification
+        self.calculateAllKPIs(data)
 
     def prepareData(self, data, decentralDev):
         """
@@ -115,18 +109,12 @@ class KPIs:
         lossesBattery_cumulated_cluster = []
         # Load data of decentral devices (to calculate battery losses)
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        #decentralDev = {}
-        #with open(os.path.join(srcPath, 'data', 'decentral_device_data.json')) as json_file:
-        #    jsonData = json.load(json_file)
-        #    for subData in jsonData:
-        #        decentralDev[subData["abbreviation"]] = {}
-        #        for subsubData in subData["specifications"]:
-        #            decentralDev[subData["abbreviation"]][subsubData["name"]] = subsubData["value"]
 
         # summed el. load of all buildings , [number of time periods, time steps within periods]
         self.sum_res_load = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
         # summed el. injection of all buildings
         self.sum_res_inj = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
+        self.sum_res_gas = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
         # el. load central energy unit
         centralEnergyUnit_load = np.zeros([len(data.clusters), len(data.district[0]["user"].elec_cluster[0])])
         # el. injection central energy unit
@@ -139,6 +127,7 @@ class KPIs:
             for id in data.scenario["id"]:
                 self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][id]["res_load"])
                 self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
+                self.sum_res_gas[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_gas"])
 
         ### for central energy unit
 
@@ -228,6 +217,7 @@ class KPIs:
         self.W_dem_buildings_year = 0
         # loop over cluster
         for c in range(len(self.inputData["clusters"])):
+            # Modifications AIX HEat
             self.W_dem_buildings_year += sum(self.sum_res_load[c, :] * data.time["timeResolution"] / 3600 / 1000) \
                                          * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
             self.W_inj_buildings_year += sum(self.sum_res_inj[c, :] * data.time["timeResolution"] / 3600 / 1000) \
@@ -245,43 +235,39 @@ class KPIs:
         self.supplyCoverFactor = np.zeros(len(self.inputData["clusters"]))
         self.demandCoverFactor = np.zeros(len(self.inputData["clusters"]))
 
-        min = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
+        min_exchange = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
         nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])],
                               dtype=float)
         nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])],
                               dtype=float)
 
+        # Refactor
         for c in range(len(self.inputData["clusters"])):
-            for t in range(len(data.district[0]["user"].elec_cluster[0])):
-                a = 0
-                b = 0
-                # sum of all buildings for each timestep
-                for id in data.scenario["id"]:
-                    a += self.inputData["resultsOptimization"][c][id]["res_load"][t] # res_load is the residual load of the building, meaning the net electricity needed for the building after accounting for all the consumers and producers in the building, including its PV, CHP...
-                    b += self.inputData["resultsOptimization"][c][id]["res_inj"][t]  # res_inj is the residual feed from the building, meaning the net electricity fed to the electrical grid from the building after accounting for all internal electricity usage in the building
-                # At the same time step t, either res_load or res_inj should be 0.
-                # However, a and b could both be greater than 0 at the same time step t,
-                # since they represent the sums of all the buildings.
-                # If both a and b are greater than 0, it means electricity is being transported from one building to another.
-                # sum of all timesteps
-                nenner_dem[c, t] += a
-                nenner_sup[c, t] += b
-                min[c, t] = np.min([a, b])
+            # sum of all buildings for each timestep
+            a = self.sum_res_load[c, :]  # Total demand from local grid by all buildings
+            b = self.sum_res_inj[c, :]  # Total injection to local grid by all buildings
 
-            self.demandCoverFactor[c] = np.sum(min[c, :]) / np.sum(nenner_dem[c, :])
-            self.supplyCoverFactor[c] = np.sum(min[c, :]) / np.sum(nenner_sup[c, :])
+            nenner_dem[c, :] = a
+            nenner_sup[c, :] = b
+            min_exchange[c, :] = np.minimum(a, b)
+
+            # Avoid division by zero
+            sum_nenner_dem = np.sum(nenner_dem[c, :])
+            sum_nenner_sup = np.sum(nenner_sup[c, :])
+
+            self.demandCoverFactor[c] = np.sum(min_exchange[c, :]) / sum_nenner_dem if sum_nenner_dem > 0 else 0
+            self.supplyCoverFactor[c] = np.sum(min_exchange[c, :]) / sum_nenner_sup if sum_nenner_sup > 0 else 0
 
         self.dcf_year = 0
         self.scf_year = 0
-        sum_ClusterWeights = 0
-        # loop over cluster
+
+        # Refactor
+        sum_ClusterWeights = sum(self.inputData["clusterWeights"].values())
+        if sum_ClusterWeights == 0: return # Avoid division by zero
         for c in range(len(self.inputData["clusters"])):
-            sum_ClusterWeights += self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        for c in range(len(self.inputData["clusters"])):
-            self.dcf_year += self.demandCoverFactor[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-                                                          / sum_ClusterWeights)
-            self.scf_year += self.supplyCoverFactor[c] * (self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-                                                          / sum_ClusterWeights)
+            weight_factor = self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights
+            self.dcf_year += self.demandCoverFactor[c] * weight_factor
+            self.scf_year += self.supplyCoverFactor[c] * weight_factor
 
     def calc_annual_cost_total(self, data):
 
@@ -300,37 +286,56 @@ class KPIs:
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
         counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
 
-        capacities = {}
-        for n in range(len(district)):
-            capacities[n] = {}
-            capacities[n]["BOI"] = district[n]["capacities"]["BOI"] / 1000
-            capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
-            capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
-            capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
-            capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
-            capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
-            capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
-            capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
-                                    decentral_device_data["TES"]["T_diff_max"] * 3600)
+        # calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        # to include all devices with inv_var in decentral_device_data
+        investable_devices_list = [
+            dev
+            for dev, properties in decentral_device_data.items()
+            if 'inv_var' in properties
+        ]
+        calc_annual_investment = {dev: 0 for dev in investable_devices_list}
 
-        calc_annual_investment = {dev: 0 for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]}
+        # Refactor
+        for n, building_id in enumerate(data.scenario["id"]):
+            ## Initialize cost dictionary for this building
+            self.kpis_per_building[building_id]['costs'] = {}
+            building_annual_cost = 0
 
-        for n in range(len(district)):
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]:
+            capacities = {}
+            # ADD new technologies here!!
+            capacities["BOI"] = district[n]["capacities"]["BOI"] / 1000
+            capacities["BBOI"] = district[n]["capacities"]["BBOI"] / 1000
+            capacities["HP"] = district[n]["capacities"]["HP"] / 1000
+            capacities["CHP"] = district[n]["capacities"]["CHP"] / 1000
+            capacities["PV"] = district[n]["capacities"]["PV"]["area"]
+            capacities["STC"] = district[n]["capacities"]["STC"]["area"]
+            capacities["EV"] = district[n]["capacities"]["EV"] / 1000
+            capacities["BAT"] = district[n]["capacities"]["BAT"] / 1000
+            capacities["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
+                                 decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities["EH"] = district[n]["capacities"]["EH"] / 1000
+
+            for dev in investable_devices_list:
                 try:
-                    if counts.get(dev, 0) > 0:
-                        calc_annual_investment[dev] += self.calc_annual_cost_device(
+                    # Check if the device exists for this building based on its capacity
+                    if capacities.get(dev) and capacities[dev] > 0:
+                        annual_cost_device = self.calc_annual_cost_device(
                             decentral_device_data[dev],
-                            decentral_device_data["inv_data"],
-                            capacities[n][dev])
-                    # Else leave as 0
-                except:
-                    pass
+                            decentral_device_data["inv"],
+                            capacities[dev])
 
-        self.annual_fixed_costs_decentral = sum(
-            calc_annual_investment[dev]  # already summed for all districts
-            for dev in ["BOI", "HP", "CHP", "PV", "STC", "EV", "BAT", "TES"]
-        )
+                        # Add to building and district totals
+                        building_annual_cost += annual_cost_device
+                        calc_annual_investment[dev] += annual_cost_device
+
+                        ## Store per-device cost for the building
+                        self.kpis_per_building[building_id]['costs'][f'annual_cost_{dev}_eur'] = annual_cost_device
+                except Exception as e:
+                    print("Error calculating annual cost for device", dev, "in building", building_id, ":", e)
+            ## Store total annualized fixed cost for the building
+            self.kpis_per_building[building_id]['costs']['annual_fixed_costs_eur'] = building_annual_cost
+
+        self.annual_fixed_costs_decentral = sum(calc_annual_investment.values())
 
         try:
             self.annual_fixed_costs_central = data.centralDevices["capacities"]["total_ann_inv_cost"] + data.centralDevices["capacities"]["total_om_cost"]
@@ -347,6 +352,8 @@ class KPIs:
             technology parameter
         param : dictionary
             economic parameters
+        cap : float
+            installed capacity of device [kW]
 
         Returns
         -------
@@ -414,19 +421,13 @@ class KPIs:
         -------
         None.
         """
+        # Refactor
+        operationCosts_clusters = [self.inputData["resultsOptimization"][c]["Cost_total"] for c in range(len(self.inputData["clusters"]))]
 
-        # list with central operation costs for each cluster [€]
-        operationCosts_clusters = []
-        for c in range(len(self.inputData["clusters"])):
-            operationCosts_clusters.append(self.inputData["resultsOptimization"][c]["Cost_total"])
-
-        # multiply central operation costs of each cluster with the weight of respective cluster
         temp_operationCosts = 0
         for c in range(len(self.inputData["clusters"])):
-            temp_operationCosts \
-                += operationCosts_clusters[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+            temp_operationCosts += operationCosts_clusters[c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
 
-        # central operation costs for one year [€]
         self.operationCosts = round(temp_operationCosts, 0)
 
     def calculateCO2emissions(self, json_data):
@@ -465,25 +466,21 @@ class KPIs:
         LOLP = np.zeros(len(self.inputData["clusters"]))
         self.energy_autonomy = np.zeros(len(self.inputData["clusters"]))
 
-        # loop over cluster
+        # Refactor
         for c in range(len(self.inputData["clusters"])):
-            y = 0
-            for t in range(len(self.residualLoad[c])):
-                if self.residualLoad[c, t] > 0:
-                    y += 1
-                else:
-                    y += 0
+            y = np.sum(self.residualLoad[c] > 0)
             LOLP[c] = y / len(self.residualLoad[c])
-        self.energy_autonomy = np.ones(len(self.inputData["clusters"])) - LOLP
+        self.energy_autonomy = 1 - LOLP
 
         self.energy_autonomy_year = 0
-        sum_ClusterWeights = 0
-        ## loop over cluster
+
+        # Refactor
+        sum_ClusterWeights = sum(self.inputData["clusterWeights"].values())
+        if sum_ClusterWeights == 0: return
+
         for c in range(len(self.inputData["clusters"])):
-            sum_ClusterWeights += self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-        for c in range(len(self.inputData["clusters"])):
-            self.energy_autonomy_year += self.energy_autonomy[c] * (
-                    self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights)
+            weight_factor = self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights
+            self.energy_autonomy_year += self.energy_autonomy[c] * weight_factor
 
     def calc_total_areas_and_demands(self, data):
         """
@@ -515,26 +512,81 @@ class KPIs:
         sum_cool_profile = []
         sum_dhw_profile = []
 
-        for building in data.district:
+        # for building in data.district:
+        for i, building in enumerate(data.district):
+            building_id = data.scenario["id"][i]
+            b_kpis = self.kpis_per_building[building_id]
+
+            b_kpis['heating_system'] = building["buildingFeatures"].get("heater", "N/A")
+            active_technologies = {} #[]
+            building_technologies = building.get('capacities', {})
+
+            # for tech_name, tech_value in building_technologies.items():
+            #     if isinstance(tech_value, (int, float)):
+            #         if tech_value > 0:
+            #             active_technologies.append(tech_name)
+            #     elif isinstance(tech_value, dict) and not tech_name == "inv": # avoid 'inv' sub-dictionary
+            #         if any(v > 0 for v in tech_value.values()):
+            #             active_technologies.append(tech_name)
+            # b_kpis['active_technologies'] = active_technologies
+
+            for tech_name, tech_value in building_technologies.items():
+                if isinstance(tech_value, (int, float)):
+                    if tech_value > 0:
+                        active_technologies[tech_name] = {"capacity": tech_value}
+                elif isinstance(tech_value, dict) and not tech_name == "inv":  # avoid 'inv' sub-dictionary
+                    tech_details = {}
+                    has_positive_value = False
+                    for key, value in tech_value.items():
+                        # P_ref in W
+                        if value > 0:
+                            has_positive_value = True
+                            tech_details[key] = value
+                    if has_positive_value:
+                        active_technologies[tech_name] = tech_details
+            b_kpis['active_technologies'] = active_technologies
+
             if building["buildingFeatures"]["building"] in {"SFH", "MFH", "TH", "AB"}:
                 # sum all building areas
                 total_area_residential += building["buildingFeatures"]["area"]
                 total_number_flats += building["user"].nb_flats
                 for flat in building["user"].nb_occ:
                     total_number_occ += flat
+                b_kpis['area_m2'] = building["buildingFeatures"]["area"]
+                b_kpis['building_type'] = "residential"
             else:
                 total_area_non_residential += building["buildingFeatures"]["area"]
+                b_kpis['area_m2'] = building["buildingFeatures"]["area"]
+                b_kpis['building_type'] = "non_residential"
 
             # sum all building design heat and cooling loads
-            total_heat_load += building["envelope"].heatload + building["dhwpower"]  # copied from system.py
-            total_cooling_load += max(building["user"].cooling) # copied from system.py
+            heat_load = building["envelope"].heatload + building["dhwpower"]
+            cooling_load = max(building["user"].cooling)
+            total_heat_load += heat_load
+            total_cooling_load += cooling_load
+            b_kpis['total_heat_load_kW'] = heat_load / 1000
+            b_kpis['cooling_load_kW'] = cooling_load / 1000
+            b_kpis['heat_load_kW'] = building["envelope"].heatload / 1000
+            b_kpis["dhw_power_kW"] = building["dhwpower"] / 1000
 
             # sum all building demands
-            total_heating_demand += sum(building["user"].heat)
-            total_cooling_demand += sum(building["user"].cooling)
-            total_electricity_demand += sum(building["user"].elec)   # w/o EVs and electric-based heaters
-            total_EV_demand += sum(building["user"].carprofile)
-            total_dhw_demand += sum(building["user"].dhw)
+            heating_demand = sum(building["user"].heat)
+            cooling_demand = sum(building["user"].cooling)
+            electricity_demand = sum(building["user"].elec)
+            ev_demand = sum(building["user"].carprofile)
+            dhw_demand = sum(building["user"].dhw)
+
+            total_heating_demand += heating_demand
+            total_cooling_demand += cooling_demand
+            total_electricity_demand += electricity_demand
+            total_EV_demand += ev_demand
+            total_dhw_demand += dhw_demand
+
+            b_kpis['annual_heating_demand_kWh'] = heating_demand / 1000
+            b_kpis['annual_cooling_demand_kWh'] = cooling_demand / 1000
+            b_kpis['annual_electricity_demand_kWh'] = electricity_demand / 1000
+            # b_kpis['annual_ev_demand_kWh'] = ev_demand / 1000
+            b_kpis['annual_dhw_demand_kWh'] = dhw_demand / 1000
 
             # sum all building demand profiles
             sum_electricity_profile = [sum(i) for i in zip_longest(
@@ -556,15 +608,176 @@ class KPIs:
         self.totalcoolingload = total_cooling_load
         self.total_heating_demand = total_heating_demand
         self.total_cooling_demand = total_cooling_demand
-        self.total_electricity_demand = total_electricity_demand   # w/o EVs and electric-based heaters
+        self.total_electricity_demand = total_electricity_demand
         self.total_EV_demand = total_EV_demand
         self.total_dhw_demand = total_dhw_demand
-        self.total_electricity_peak = max(sum_electricity_profile)
-        self.total_heat_peak = max(sum_heat_profile)
-        self.total_dhw_peak = max(sum_dhw_profile)
-        self.total_cooling_peak = max(sum_cool_profile)
-        self.total_EV_peak = max(sum_EV_profile)
+        self.total_electricity_peak = max(sum_electricity_profile) if sum_electricity_profile else 0
+        self.total_heat_peak = max(sum_heat_profile) if sum_heat_profile else 0
+        self.total_dhw_peak = max(sum_dhw_profile) if sum_dhw_profile else 0
+        self.total_cooling_peak = max(sum_cool_profile) if sum_cool_profile else 0
+        self.total_EV_peak = max(sum_EV_profile) if sum_EV_profile else 0
 
+    def calculate_per_building_kpis(self, data):
+        """
+        Calculates technical KPIs for each building individually and stores them.
+        This includes energy exchange with the local grid, self-consumption, and autonomy.
+        """
+        time_res_h = data.time["timeResolution"] / 3600
+
+        price_gas_per_kwh = data.ecoData["price_supply_gas"]  # Expected unit: €/kWh
+        co2_factor_gas_per_kwh = data.ecoData["co2_gas"] # kgCO2/kWh
+        price_el_per_kwh = data.ecoData["price_supply_el"]  # Expected unit: €/kWh
+        revenue_feed_el_per_kwh = data.ecoData["revenue_feed_in_el"]  # Expected unit: €/kWh
+        co2_factor_el_per_kwh = data.ecoData["co2_el_grid"]  # kgCO2/kWh
+        price_biom_per_kwh = data.ecoData.get("price_biomass", 0)  # €/k
+        co2_factor_biom_per_kwh = data.ecoData.get("co2_biom", 0)  # kgCO2/kWh
+
+
+        for i, building_id in enumerate(data.scenario["id"]):
+            b_kpis = self.kpis_per_building[building_id]
+
+            annual_demand_from_grid = 0
+            annual_injection_to_grid = 0
+            annual_gross_generation = 0
+            annual_gross_demand = 0
+            timesteps_autonomous = 0
+            annual_gas_consumption_kwh = 0
+
+            for c_idx, c_name in enumerate(self.inputData["clusters"]):
+                cluster_weight = self.inputData["clusterWeights"][c_name]
+                res = self.inputData["resultsOptimization"][c_idx][building_id]
+
+                # Energy exchange with the local grid
+                res_load_kwh = np.sum(res["res_load"]) / 1000 * time_res_h
+                res_inj_kwh = np.sum(res["res_inj"]) / 1000 * time_res_h
+                res_gas_kwh = np.sum(res.get("res_gas", 0)) / 1000 * time_res_h
+                res_biom_kwh = np.sum(res.get("res_biom", 0)) / 1000 * time_res_h
+
+                annual_demand_from_grid += res_load_kwh * cluster_weight
+                annual_injection_to_grid += res_inj_kwh * cluster_weight
+                annual_gas_consumption_kwh += res_gas_kwh * cluster_weight
+                annual_biomass_consumption_kwh = res_biom_kwh * cluster_weight
+
+                # --- 1. Calculate Total On-site Electrical Generation for each timestep ---
+                gen_pv = np.array(res.get("PV", {}).get("P_el", 0))
+                gen_chp = np.array(res.get("CHP", {}).get("P_el", 0))
+                gen_fc = np.array(res.get("FC", {}).get("P_el", 0))
+
+                # For the battery, discharge is generation (positive P_el)
+                bat_power = np.array(res.get("BAT", {}).get("P_el", 0))
+                gen_bat_discharge = np.maximum(0, bat_power)
+
+                gross_gen_ts = gen_pv + gen_chp + gen_fc + gen_bat_discharge
+
+                # --- 2. Calculate Total On-site Electrical Demand for each timestep ---
+                demand_base = np.array(res.get("Demand", {}).get("P_el", 0))
+                demand_hp = np.array(res.get("HP", {}).get("P_el", 0))
+                demand_hp35 = np.array(res.get("HP35", {}).get("P_el", 0))
+                demand_hp55 = np.array(res.get("HP55", {}).get("P_el", 0))
+                demand_eh = np.array(res.get("EH", {}).get("P_el", 0))
+                demand_ev = np.array(res.get("EV", {}).get("P_el", 0))
+
+                # For the battery, charge is a demand (negative P_el, so we take its absolute value)
+                demand_bat_charge = np.maximum(0, -bat_power)
+
+                gross_demand_ts = (demand_base + demand_hp + demand_hp35 + demand_hp55 +
+                                   demand_eh + demand_ev + demand_bat_charge)
+
+                # --- 3. Sum up for the annual values ---
+                # Convert from W to kWh for the cluster period
+                annual_gross_generation += (np.sum(gross_gen_ts) / 1000 * time_res_h) * cluster_weight
+                annual_gross_demand += (np.sum(gross_demand_ts) / 1000 * time_res_h) * cluster_weight
+
+                # Autonomy: timesteps where the building does not draw from the grid
+                timesteps_autonomous += np.sum(np.array(res["res_load"]) == 0) * cluster_weight
+
+            b_kpis['tech'] = {}
+            # Store annual grid exchange values
+            b_kpis['tech']['grid_demand_kWh'] = annual_demand_from_grid
+            b_kpis['tech']['grid_injection_kWh'] = annual_injection_to_grid
+
+            # Store annual gross generation and demand
+            b_kpis['tech']['gross_generation_kWh'] = annual_gross_generation
+            b_kpis['tech']['gross_demand_kWh'] = annual_gross_demand
+
+            # Store the annual gas consumption
+            b_kpis['tech']['gas_consumption_kwh'] = annual_gas_consumption_kwh
+            b_kpis['tech']['biomass_consumption_kwh'] = annual_biomass_consumption_kwh
+
+            # --- Calculate and Store Economic KPIs ---
+            if 'eco' not in b_kpis:
+                b_kpis['eco'] = {}
+            # # Calculate total annual cost for gas
+            # annual_gas_cost = annual_gas_consumption_kwh * price_gas_per_kwh
+            # b_kpis['eco']['gas_cost'] = annual_gas_cost
+            # # Calculate total annual CO2 emissions from gas
+            # annual_gas_co2_kg = annual_gas_consumption_kwh * co2_factor_gas_per_kwh
+            # b_kpis['eco']['gas_co2_emissions_kg'] = annual_gas_co2_kg
+
+            # Calculate total annual cost for gas
+            annual_gas_cost = annual_gas_consumption_kwh * price_gas_per_kwh
+            b_kpis['eco']['gas_cost'] = annual_gas_cost
+
+            # Calculate total annual cost for electricity
+            annual_el_cost = annual_demand_from_grid * price_el_per_kwh
+            b_kpis['eco']['el_cost'] = annual_el_cost
+
+            annual_biom_cost = annual_biomass_consumption_kwh * price_biom_per_kwh
+            b_kpis['eco']['biomass_cost'] = annual_biom_cost
+
+            # Calculate total annual revenue from electricity fed into the grid
+            annual_el_revenue = annual_injection_to_grid * revenue_feed_el_per_kwh
+            b_kpis['eco']['el_revenue'] = annual_el_revenue
+
+            # Calculate total annual energy costs (gas + electricity - revenue)
+            total_costs = annual_gas_cost + annual_el_cost - annual_el_revenue + annual_biom_cost
+            b_kpis['eco']['total_energy_cost_eur'] = total_costs
+
+            # Calculate total annual CO2 emissions from electricity
+            annual_el_co2_kg = annual_demand_from_grid * co2_factor_el_per_kwh
+            b_kpis['eco']['el_co2_emissions_kg'] = annual_el_co2_kg
+
+            # Calculate total annual CO2 emissions from gas
+            annual_gas_co2_kg = annual_gas_consumption_kwh * co2_factor_gas_per_kwh
+            b_kpis['eco']['gas_co2_emissions_kg'] = annual_gas_co2_kg
+
+            annual_biom_co2_kg = annual_biomass_consumption_kwh * co2_factor_biom_per_kwh
+            b_kpis['eco']['biomass_co2_emissions_kg'] = annual_biom_co2_kg
+
+            # Calculate total annual CO2 emissions (gas + electricity)
+            total_emissions_gas_el = annual_gas_co2_kg + annual_el_co2_kg + annual_biom_co2_kg
+            b_kpis['eco']['total_co2_emissions_kg'] = total_emissions_gas_el
+            # =========================================================================
+            # FINAL KPI CALCULATIONS (Self-Sufficiency and Self-Consumption)
+            # =========================================================================
+
+            # Self-Sufficiency Rate (SSR) or Autonomy Rate
+            # Formula: (Total Demand - Grid Import) / Total Demand
+            # This represents the fraction of the building's electricity needs met by on-site sources.
+            if annual_gross_demand > 0:
+                ssr = (annual_gross_demand - annual_demand_from_grid) / annual_gross_demand
+            else:
+                ssr = 0
+            b_kpis['tech']['self_sufficiency_rate'] = ssr
+
+            # Self-Consumption Rate (SCR)
+            # Formula: (Total Generation - Grid Export) / Total Generation
+            # This represents the fraction of the on-site generated electricity that is used on-site.
+            if annual_gross_generation > 0:
+                scr = (annual_gross_generation - annual_injection_to_grid) / annual_gross_generation
+            else:
+                scr = 0
+            b_kpis['tech']['self_consumption_rate'] = scr
+
+            # Timestep-based Autonomy
+            total_timesteps_in_year = 8760 / time_res_h
+            if total_timesteps_in_year > 0:
+                b_kpis['tech']['autonomy_timestep_rate'] = timesteps_autonomous / total_timesteps_in_year
+            else:
+                b_kpis['tech']['autonomy_timestep_rate'] = 0
+
+            # Update the main dictionary
+            self.kpis_per_building[building_id] = b_kpis
 
     def calculateAllKPIs(self, data):
         """
@@ -575,6 +788,7 @@ class KPIs:
         None.
         """
 
+        self.prepareData(data, data.decentral_device_data) # Needed for sum_res_load/inj
         self.calculateResidualLoad(data)
         self.calculatePeakLoad()
         self.calculatePeakToValley()
@@ -584,8 +798,13 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data.ecoData)
         self.calculateAutonomy()
+
+        # Combined district and per-building calculations
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
+
+        # Per-building KPI calculation method
+        self.calculate_per_building_kpis(data)
 
 
     def KPIs_to_dict(self, data):
@@ -602,75 +821,64 @@ class KPIs:
 
         # Hilfsfunktion, um NumPy-Typen sicher zu konvertieren
         def convert_numpy(obj):
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, (np.float16, np.float32, np.float64)):
-                return float(obj)
-            if isinstance(obj, (np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):
-                return int(obj)
+            if isinstance(obj, np.ndarray): return obj.tolist()
+            if isinstance(obj, (np.float16, np.float32, np.float64)): return float(obj)
+            if isinstance(obj, (np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)): return int(obj)
             return obj
 
-        # Erstellen eines strukturierten Dictionaries für die Ergebnisse
         kpi_results = {
-            "allgemeine_quartiersdaten": {
-                "wohnflaeche_m2": convert_numpy(self.totalarea_residential),
-                "gewerbeflaeche_m2": convert_numpy(self.totalarea_non_residential),
-                "anzahl_wohneinheiten": convert_numpy(self.totalnumberflats),
-                "anzahl_bewohner": convert_numpy(self.totalnumberocc),
-                "gesamte_heizlast_kW": convert_numpy(self.totalheatload / 1000),
-                "gesamte_kuehllast_kW": convert_numpy(self.totalcoolingload / 1000),
+            "general_info": {
+                "res_area_m2": convert_numpy(self.totalarea_residential),
+                "non_res_area_m2": convert_numpy(self.totalarea_non_residential),
+                "total_nb_flats": convert_numpy(self.totalnumberflats),
+                "total_nb_occ": convert_numpy(self.totalnumberocc),
+                "total_headload_kW": convert_numpy(self.totalheatload / 1000),
+                "total_coolingload_kW": convert_numpy(self.totalcoolingload / 1000),
             },
-            "jahresenergiebedarf": {
-                "heizwaerme_kWh": convert_numpy(self.total_heating_demand / 1000),
-                "kuelte_kWh": convert_numpy(self.total_cooling_demand / 1000),
-                "trinkwarmwasser_kWh": convert_numpy(self.total_dhw_demand / 1000),
-                "strom_allgemein_kWh": convert_numpy(self.total_electricity_demand / 1000),
-                "strom_elektromobilitaet_kWh": convert_numpy(self.total_EV_demand / 1000),
+            "annual_energy_demand": {
+                "total_heating_kWh": convert_numpy(self.total_heating_demand / 1000),
+                "total_cooling_kWh": convert_numpy(self.total_cooling_demand / 1000),
+                "total_dhw_kWh": convert_numpy(self.total_dhw_demand / 1000),
+                "total_el_kWh": convert_numpy(self.total_electricity_demand / 1000),
+                "total_ev_kWh": convert_numpy(self.total_EV_demand / 1000),
             },
-            "oekonomische_kpis": {
-                "gesamte_betriebskosten_eur_pro_jahr": convert_numpy(self.operationCosts),
-                "annualisierte_investitionskosten_dezentral_eur_pro_jahr": convert_numpy(
-                    self.annual_fixed_costs_decentral),
-                "annualisierte_investitionskosten_zentral_eur_pro_jahr": convert_numpy(
-                    self.annual_fixed_costs_central),
-                "gesamte_jahreskosten_eur_pro_jahr": convert_numpy(
+            "total_economic_kpis": {
+                "total_operation_costs_eur_per_a": convert_numpy(self.operationCosts),
+                "annual_fixed_costs_decentral_eur_per_a": convert_numpy(self.annual_fixed_costs_decentral),
+                "annual_fixed_costs_central_eur_per_a": convert_numpy(self.annual_fixed_costs_central),
+                "total_costs_eur_per_a": convert_numpy(
                     (self.operationCosts or 0) +
                     (self.annual_fixed_costs_decentral or 0) +
                     (self.annual_fixed_costs_central or 0)
                 )
             },
-            "oekologische_kpis": {
-                "co2_emissionen_strombezug_t_pro_jahr": convert_numpy(
-                    self.co2emissions[0] if self.co2emissions else None),
-                "co2_emissionen_gasbezug_t_pro_jahr": convert_numpy(
-                    self.co2emissions[1] if self.co2emissions else None),
-                "co2_emissionen_gesamt_t_pro_jahr": convert_numpy(
-                    sum(self.co2emissions) if self.co2emissions else None)
+            "ecological_kpis": {
+                "co2_emissions_el_t_per_a": convert_numpy(self.co2emissions[0] if self.co2emissions else None),
+                "co2_emissions_gas_t_per_a": convert_numpy(self.co2emissions[1] if self.co2emissions else None),
+                "co2_emissions_total_t_per_a": convert_numpy(sum(self.co2emissions) if self.co2emissions else None)
             },
-            "technische_kpis_netzinteraktion": {
-                "spitzenlastbezug_netz_kW": convert_numpy(self.peakDemand),
-                "spitzeneinspeisung_netz_kW": convert_numpy(self.peakInjection),
-                "peak_to_valley_leistung_kW": convert_numpy(self.peakToValley),
-                "energiebezug_netz_kwh_pro_jahr": convert_numpy(self.W_dem_GCP_year),
-                "energieeinspeisung_netz_kwh_pro_jahr": convert_numpy(self.W_inj_GCP_year),
-                "gasbezug_kwh_pro_jahr": convert_numpy(self.Gas_year)
+            "technical_kpis_grid_interaction": {
+                "peak_demand_kW": convert_numpy(self.peakDemand),
+                "peak_injection_kW": convert_numpy(self.peakInjection if self.peakInjection>0 else 0),
+                "peak_to_valley_kW": convert_numpy(self.peakToValley),
+                "energy_supply_kwh_per_a": convert_numpy(self.W_dem_GCP_year),
+                "energy_injection_kwh_per_a": convert_numpy(self.W_inj_GCP_year),
+                "gas_supply_kwh_per_a": convert_numpy(self.Gas_year)
             },
-            "technische_kpis_autarkie": {
-                "autarkiegrad_zeitlich_prozent": convert_numpy(
-                    self.energy_autonomy_year * 100 if self.energy_autonomy_year is not None else None),
-                "eigenverbrauchsanteil_prozent": convert_numpy(
-                    self.scf_year * 100 if self.scf_year is not None else None),  # Supply Cover Factor
-                "eigendeckungsanteil_prozent": convert_numpy(
-                    self.dcf_year * 100 if self.dcf_year is not None else None)  # Demand Cover Factor
-            }
+            "technical_kpis_autonomy_district": {
+                "energy_autonomy_year_pct": convert_numpy(self.energy_autonomy_year * 100 if self.energy_autonomy_year is not None else None),
+                "supply_cover_factor_year_pct": convert_numpy(self.scf_year * 100 if self.scf_year is not None else None),
+                "demand_cover_factor_year_pct": convert_numpy(self.dcf_year * 100 if self.dcf_year is not None else None)
+            },
+            # Add the per-building KPI dictionary to the final output.
+            "kpis_per_bldg": {str(bid): {k: convert_numpy(v) for k, v in b_kpis.items()} for bid, b_kpis in self.kpis_per_building.items()}
         }
 
-        # ensure result path to results/optimization exists
-        # json_path = f'{data.resultPath}/optimization/{data.scenario_name}'
-        # os.makedirs(json_path, exist_ok=True)
-
-        with open(f'{data.optimization_path}/KPIs_opti_central.json', 'w') as f:
-            json.dump(kpi_results, f, indent=4)
+        # Save to file
+        output_path = f'{data.optimization_path}/KPIs_opti_central.json'
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(kpi_results, f, indent=4, default=convert_numpy)
 
         return kpi_results
 

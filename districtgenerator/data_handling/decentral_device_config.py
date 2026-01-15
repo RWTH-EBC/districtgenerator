@@ -29,12 +29,23 @@ class DecentralDeviceConfig(BaseSettings):
     # EH parameters (Electric Heater)
     # Definition: Electric heating device for bivalent operation in combination with the heat pump.
     EH_eta_th: float = 1.0      # Thermal efficiency.
+    # Copied from central_device_config.py (from EB), to reuse todo: check values with technikkatalog?
+    EH_inv_var: int = 463           # Investment variable in €/kW.
+    EH_life_time: int = 25          # Maximum life time in years.
+    EH_cost_om: float = 0.01        # Cost of operation and maintenance as a percentage of investment.
 
     # BOI parameters (Gas Boiler)
     BOI_eta_th: float = 0.97    # Thermal efficiency.
     BOI_life_time: int = 20     # Maximum life time in years.
     BOI_inv_var: int = 130      # Variable investment costs in €/kW.
     BOI_cost_om: float = 0.05   # Operation and maintenance costs as a fraction of investment costs in 1/year.
+
+    # BBOI parameters (Biomass Boiler)
+    # Copied from central_device_config.py, to reuse todo: check values with technikkatalog?
+    BBOI_inv_var: int = 692         # Investment variable in €/kW.
+    BBOI_eta_th: float = 0.9        # Thermal efficiency between 0 and 1.
+    BBOI_life_time: int = 28        # Maximum life time in years.
+    BBOI_cost_om: float = 0.04      # Cost of operation and maintenance as a percentage of investment.
 
     # CHP parameters (Combined Heat and Power)
     # Definition: Gas based combined heat and power plant.
@@ -48,6 +59,10 @@ class DecentralDeviceConfig(BaseSettings):
     # Definition: Gas based fuel cell.
     FC_eta_th: float = 0.53     # Thermal efficiency.
     FC_eta_el: float = 0.39     # Electrical efficiency.
+    # Copied from central_device_config.py, to reuse todo: check values with technikkatalog?
+    FC_inv_var: int = 4000          # Investment variable in €/kW.
+    FC_life_time: int = 20          # Maximum life time in years.
+    FC_cost_om: float = 0.08        # Cost of operation and maintenance as a percentage of investment.
 
     # PV parameters (Photovoltaics)
     PV_area_real: float = 1.6       # Module area in squaremeters.
@@ -109,8 +124,9 @@ class DecentralDeviceConfig(BaseSettings):
     EV_cost_om: float = 0.05         # Operation and maintenance costs as a fraction of total investment costs (percentage).
 
     # Investment data parameters
-    inv_data_observation_time: int = 20     # Observation time in years.
-    inv_data_interest_rate: float = 0.05    # Interest rate.
+    # todo: check if same in develop
+    inv_observation_time: int = 20     # Observation time in years.
+    inv_interest_rate: float = 0.05    # Interest rate.
 
     model_config = SettingsConfigDict(
         env_prefix="D_",
