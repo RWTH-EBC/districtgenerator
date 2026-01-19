@@ -132,6 +132,7 @@ def _calculateHeat(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     H_ve    = zoneParameters.H_ve           # in W/K
     C_m     = zoneParameters.C_m            # in J/K
     H_tr_em = zoneParameters.H_tr_em[0]  # in W/K
+    # would this mean adding a possible cooling load here? todo
     Q_nHC = zoneParameters.heatload  # design (nominal) heat load
 
     Phi_ia = zoneParameters.phi_ia
@@ -424,7 +425,6 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
             current_T_set = T_set
             current_T_set_ub = T_set_ub
             if t_op < current_T_set and heating_season:
-                current_T_set = T_set
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
