@@ -527,7 +527,7 @@ class KPIs:
 
             # sum all building design heat and cooling loads
             total_heat_load += building["envelope"].heatload + building["dhwpower"]  # copied from system.py
-            total_cooling_load += max(building["user"].cooling) # copied from system.py
+            total_cooling_load = building["envelope"].coolingload # replaced max(building["users"].cooling)
 
             # sum all building demands
             total_heating_demand += sum(building["user"].heat)
@@ -553,7 +553,7 @@ class KPIs:
         self.totalnumberflats = total_number_flats
         self.totalnumberocc = total_number_occ
         self.totalheatload = total_heat_load
-        self.totalcoolingload = total_cooling_load
+        self.totalcoolingload = total_cooling_load # todo: ich würde vorschlagen das und die heatload auch in den Quartiersausweis per Gebäude zu integrieren
         self.total_heating_demand = total_heating_demand
         self.total_cooling_demand = total_cooling_demand
         self.total_electricity_demand = total_electricity_demand   # w/o EVs and electric-based heaters

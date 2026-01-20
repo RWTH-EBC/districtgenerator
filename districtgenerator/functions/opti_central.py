@@ -660,6 +660,8 @@ def run_opti_central(model, data, cluster):
                             name="Feed-in_max_" + str(n) + "_" + str(t))
 
             # Cooling balance
+            # todo: gibt es nur den Compression Chiller als Cooling device für dezentral? Was wenn der nicht ausgelegt wird?
+            #  Dann kann das doch niemals erreicht werden wenn cooling=true?
             model.addConstr(cool_dom["CC"][n][t] + cool_dom["heat_grid"][n][t] == Q_cooling[n][t],
                             name="Cooling_balance_" + str(n) + "_" + str(t))
 
