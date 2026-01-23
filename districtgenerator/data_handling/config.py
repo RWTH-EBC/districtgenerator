@@ -398,6 +398,7 @@ class HeatGridConfig(BaseSettings):
     k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
     h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
+    c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)
     dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     C_subst: float = 277.79        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
