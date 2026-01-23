@@ -588,10 +588,16 @@ def build_model(model, data, devs, param, dem):
         else:
             weights[year] = n - year # time from last support year to end of observation period
 
-    # Calculate the NPV for energy and miscellaneous costs #!(Currently simplified by assuming the total costs in each intervall occure at the begin of the intervall)
-    #todo: consider NPV of every year
-    npv_energy = sum((model.total_energy_costs[y] * weights[y]) / (q ** y) for y in support_years)
-    npv_misc = sum((model.misc_costs[y] * weights[y]) / (q ** y) for y in support_years)
+    # Calculate the NPV for energy and miscellaneous costs
+    npv_energy = 0
+    npv_misc = 0
+    for idx, year in enumerate(sorted_years):
+        interval_length = weights[year]
+
+    for year_in_interval in range(interval_length):
+        actual_year = year + year_in_interval
+    npv_energy += model.total_energy_costs[year] / (q ** actual_year)
+    npv_misc += model.misc_costs[year] / (q ** actual_year)
 
     # Annualize the NPV over the observation period using the annuity factor
     if i != 0:
