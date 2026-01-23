@@ -1052,7 +1052,8 @@ def optimization_diameter(data, param):
                 v_lim = 1.2 if DN <= 32 else 2
                 D = d_i / 1000.0
                 A = np.pi * D ** 2 / 4.0
-                v = pipe["flow_max"] / A
+                flow_ref = float(pipe.get("flow_abs_max", pipe.get("flow_max", 0.0)))  # m³/s
+                v = flow_ref / A
                 if v > float(v_lim) + 1e-9:
                     continue
                 pipe_candidates[pipe_id].append(DN)
@@ -1453,6 +1454,7 @@ def optimization_diameter(data, param):
 
     return data, model, param
 
+#todo Rawad: das anpassen für 5g
 def calc_diameter(data, param):
     """
     This is a rule-based (non-optimization) pipe sizing function.
@@ -2950,8 +2952,8 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
             pid_up = incoming_pipes[node][0]
             flow_child = pipe.get("flow_abs_max", pipe.get("flow_max", 0.0))
             flow_up = pipes[pid_up].get("flow_abs_max", pipes[pid_up].get("flow_max", 0.0))
-            flow_ratio = flow_child / max(flow_up, eps)
-            flow_ratio = np.clip(flow_child / flow_up, 0, 1)
+            flow_ratio_raw = flow_child / max(flow_up, eps)
+            flow_ratio = np.clip(flow_ratio_raw, 0.0, 1.0)
 
             if ang is None:
                 zeta_total = 0.0
