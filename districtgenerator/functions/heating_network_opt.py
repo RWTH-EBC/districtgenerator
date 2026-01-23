@@ -415,10 +415,10 @@ def load_parameter_5G(data):
     temperature_mode = heat_grid_data["temperature_mode"]
     if temperature_mode == "heating_curve":
         # Variable-constant operation mode (Heating curve)
-        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
-        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
-        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
-        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
+        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]                            #todo Rawad: wir sollen diese Temperaturen noch einmal überprüfen; sie scheinen mir (je nach Netztopologie) zu hoch zu sein
+        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]                            #todo Rawad: wir sollen diese Temperaturen noch einmal überprüfen; sie scheinen mir (je nach Netztopologie) zu hoch zu sein
+        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]                           #todo Rawad: wir sollen diese Temperaturen noch einmal überprüfen; sie scheinen mir (je nach Netztopologie) zu hoch zu sein
+        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]                           #todo Rawad: wir sollen diese Temperaturen noch einmal überprüfen; sie scheinen mir (je nach Netztopologie) zu hoch zu sein
         T_supply_cluster, T_return_cluster = heating_curve(T_e_cluster, T_supply_min, T_supply_max, T_return_min,
                                                            T_return_max)
         T_supply, T_return = heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max)
