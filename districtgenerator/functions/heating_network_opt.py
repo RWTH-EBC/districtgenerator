@@ -1061,8 +1061,8 @@ def optimization_diameter(data, param):
         cost_om_CC = data.central_device_data["AirCC"][ "cost_om"]  # ,        1/year (fraction of inv_var), source: ?
         CC_ann_factor = param["CC_ann_factor"]
 
-        inv_dc_HP = data.central_device_data["AirHP"]["inv_var"]*2  # 1500€/kW,      source:
-        cost_om_dc_HP = data.central_device_data["AirHP"]["cost_om"]*2  # 0.025,        1/year (fraction of inv_var), source: VDI2067
+        inv_dc_HP = data.central_device_data["AirHP"]["inv_var"]  # 1500€/kW,      source:    #Todo: Faktor prüfen
+        cost_om_dc_HP = data.central_device_data["AirHP"]["cost_om"]  # 0.025,        1/year (fraction of inv_var), source: VDI2067
         dc_HP_ann_factor = param["HP_ann_factor"]
         price_el_dc_hp = data.ecoData["price_supply_el_eh"][0]     #Todo: korrekten Wert hinterlegen
     else:
@@ -1703,16 +1703,23 @@ def output_diameter(data, param):
     # data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
 
     # sum the heat loss in the network and calculate the heat loss density
-    heat_loss_network = np.zeros_like(heat_loss_substation)
+    #heat_loss_network = np.zeros_like(heat_loss_substation)
     total_pipe_length = 0
-    annual_heat_loss_network = 0
+    #annual_heat_loss_network = 0
     for pipe_id, pipe in data.pipeline.items():
         length = pipe["length"]
         total_pipe_length += length
-        annual_heat_loss_pipe = np.sum(pipe["heat_loss_pipe"])
+
+        heat_change_pipe = np.asarray(pipe["heat_loss_pipe"], dtype=float)
+
+        annual_heat_loss_pipe = np.sum(heat_change_pipe[heat_change_pipe > 0])
+        annual_heat_gain_pipe = np.sum(heat_change_pipe[heat_change_pipe < 0])
+
         pipe["heat_loss_density"] = annual_heat_loss_pipe / 1000 / length  # MWh/m
-        annual_heat_loss_network += annual_heat_loss_pipe
-        heat_loss_network += pipe["heat_loss_pipe"]
+        pipe["heat_gain_density"] = annual_heat_gain_pipe / 1000 / length  # MWh/m
+
+        #annual_heat_loss_network += annual_heat_loss_pipe
+        #heat_loss_network += pipe["heat_loss_pipe"]
 
 
     t_s = len(next(iter(data.pipeline.values()))["heat_loss_pipe"])
@@ -2035,6 +2042,58 @@ def output_diameter(data, param):
 
     #plt.show()
 
+
+
+
+    # ---------- 6.5. plot Pipeline Map - Heat_gain_density (MWh/m) ----------      #newly added for 5th gen DHN
+    if data.heat_grid_data["generation"] == "5th":
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        # Retrieve all heat_gain_density_values of every pipe segment
+        heat_gain_density_values = [data.pipeline[pipe]["heat_gain_density"] for pipe in data.pipeline.keys()]
+        min_heat_gain_density, max_heat_gain_density = min(heat_gain_density_values), max(heat_gain_density_values)
+
+        norm_heat_gain_density = mcolors.Normalize(vmin=min_heat_gain_density, vmax=max_heat_gain_density)
+        # cmap = plt.cm.RdYlGn_r  # red → yellow → green
+
+        for pipe_id, pipe in data.pipeline.items():
+            start = tuple(pipe["from_pos"])
+            end = tuple(pipe["to_pos"])
+
+            heat_gain_density = -pipe["heat_gain_density"]      #Minus so only positive values are shown
+            # Map pressure_drop_max to line width in the plot
+            lw = 1 + 5 * (heat_gain_density - min_heat_gain_density) / (
+                    max_heat_gain_density - min_heat_gain_density)  # range: 1-5
+            # bigger energy_density, redder; smaller energy_density, greener
+            color = cmap(norm_heat_gain_density(heat_gain_density))
+
+            ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=lw)
+
+            # mark at the midpoint
+            mid_x = (start[0] + end[0]) / 2
+            mid_y = (start[1] + end[1]) / 2
+            ha = "center"
+            dy = 0
+            if abs(start[1] - end[1]) < 1e-6:
+                dy = 2
+                if start[0] > end[0] and start[0] - end[0] < 20:
+                    ha = "right"
+                elif start[0] < end[0] and end[0] - start[0] < 20:
+                    ha = "left"
+            ax.text(mid_x, mid_y + dy, f"{heat_gain_density:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
+
+        ax.set_title("Heat gain density (MWh/m)")
+        ax.set_aspect('equal')
+        ax.grid(True, linestyle='--', linewidth=0.3)
+
+        base = os.path.join(dir_result, f"pipeline_heat_gain_density_{data.scenario_name}")
+        plt.savefig(base + ".png")  # PNG
+        plt.savefig(base + ".svg")  # SVG
+
+        #plt.show()
+
+
+
     # ---------- 7. save pump power(yearly profile) ----------
     # save pump power(yearly profile) in data.heat_grid_data["pump_power"]
     eta_pump = data.heat_grid_data["pump"]["eta_pump"]  # 0.65,         electric pump efficiency
@@ -2222,7 +2281,7 @@ def output_diameter(data, param):
         cap_dc_HP = param["dim_dc_hp_total"]
         print(f"Kapazität der dezentralen HPs ist: {cap_dc_HP} kW!")
         # calculate investment, o&m cost and electricity cost
-        dc_HP_inv_costs = cap_dc_HP * data.central_device_data["AirHP"]["inv_var"]*2      #Todo: eigene Werte für dezentrale WP hinterlegen
+        dc_HP_inv_costs = cap_dc_HP * data.central_device_data["AirHP"]["inv_var"]      #Todo: eigene Werte für dezentrale WP hinterlegen
         dc_HP_ann_costs = dc_HP_inv_costs * param["HP_ann_factor"]
         dc_HP_om_costs = dc_HP_inv_costs * data.central_device_data["AirHP"]["cost_om"]
         # calculate yearly COP profile and the electricity cost for the decentral HPs
