@@ -551,8 +551,8 @@ class KPIs:
         # param["CRF"] = CRF
 
         # Total investment costs
-        inv_unsubsidized = dev["inv_var"] * cap
-        inv_subsidized = dev["inv_base"] * cap
+        inv_unsubsidized = dev["inv_base"] * cap
+        inv_subsidized = dev["inv_var"] * cap
         # Annualized investment costs
         if mode == "subsidized":
             c_inv = inv_subsidized * ann_factor
