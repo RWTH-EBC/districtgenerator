@@ -55,6 +55,8 @@ class KPIs:
         self.scf_year = None
         self.annual_fixed_costs_decentral = None
         self.annual_fixed_costs_central = None
+        self.decentral_individual_devices_annualized_cost = None
+        self.central_individual_devices_annualized_cost = None
         self.total_ICE_fuel_liters = None
         self.gasoline_costs = None
         self.totalarea_residential = None
@@ -400,24 +402,94 @@ class KPIs:
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
 
         calc_annual_investment = {}
+        calc_annual_investment_unsubsidized = {}
+        self.decentral_individual_devices_annualized_cost = {} #Dictionary to store annualized cost per device and building
         self.annual_fixed_costs_decentral = 0
+        self.annual_fixed_costs_decentral_unsubsidized = 0
 
         devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
-        for dev in devices:
-            calc_annual_investment[dev] = 0
-            for n in range(len(district)):
-                calc_annual_investment[dev] += self.calc_annual_cost_device(
-                    decentral_device_data[dev],
-                    data.ecoData,
-                    capacities[n][dev])
-            self.annual_fixed_costs_decentral += calc_annual_investment[dev]
+        
+        # Iteration über alle Gebäude und dann über alle Geräte
+        for n in range(len(district)):
+            self.decentral_individual_devices_annualized_cost[n] = {}
+            calc_annual_investment[n] = 0
+            calc_annual_investment_unsubsidized[n] = 0
 
+            for dev in devices:
+                cap = capacities[n][dev]
+                if cap > 0:
+                    subsidized_cost = self.calc_annual_cost_device(
+                        decentral_device_data[dev],
+                        data.ecoData,
+                        cap,
+                        mode="subsidized")
+                    
+                    unsubsidized_cost = self.calc_annual_cost_device(
+                        decentral_device_data[dev],
+                        data.ecoData,
+                        cap,
+                        mode="unsubsidized")
+
+                    calc_annual_investment[n] += subsidized_cost   
+                    calc_annual_investment_unsubsidized[n] += unsubsidized_cost
+                    self.decentral_individual_devices_annualized_cost[n][dev] = {"cap":cap,
+                                                                        "subsidized_annual_cost":subsidized_cost,
+                                                                        "unsubsidized_annual_cost":unsubsidized_cost}
+                
+            self.annual_fixed_costs_decentral += calc_annual_investment[n] # Annualized investment costs with subsidies
+            self.annual_fixed_costs_decentral_unsubsidized += calc_annual_investment_unsubsidized[n] # Annualized investment costs without subsidies
+
+        # Central devices individual costs
+        self.central_individual_devices_annualized_cost = {}
         try:
             self.annual_fixed_costs_central = data.centralDevices["capacities"]["total_ann_inv_cost"] + data.centralDevices["capacities"]["total_om_cost"]
+            self.annual_fixed_costs_central_unsubsidized = data.centralDevices["capacities"]["total_ann_inv_cost_unsubsidized"] + data.centralDevices["capacities"]["total_om_cost"]
+            
+            # Extract individual device costs from optimization results
+            if hasattr(data, 'centralDevices') and 'capacities' in data.centralDevices:
+                for dev_name, dev_spec in data.centralDevices["capacities"].items():
+                    # Skip non-dict entries (like total_ann_inv_cost, etc.)
+                    if not isinstance(dev_spec, dict):
+                        continue
+                    cap = dev_spec.get("cap", 0)
+                    if cap <= 0:
+                        continue
+                    
+                    # Get annualized costs directly from optimization results
+                    subsidized_cost = dev_spec.get("ann_inv_cost", 0)
+                    unsubsidized_cost = dev_spec.get("ann_inv_cost_unsubsidized", 0)
+                    om_cost = dev_spec.get("om_cost", 0)
+                    
+                    # Total costs (investment + O&M)
+                    total_subsidized = subsidized_cost + om_cost
+                    total_unsubsidized = unsubsidized_cost + om_cost
+                    
+                    # Store in dictionary (similar to decentral devices)
+                    self.central_individual_devices_annualized_cost[dev_name] = {
+                        "cap": cap,
+                        "subsidized_annual_cost": total_subsidized,
+                        "unsubsidized_annual_cost": total_unsubsidized
+                    }
+            
+            # Add heat grid costs if available
+            if hasattr(data, 'heat_grid_data') and data.heat_grid_data:
+                heat_grid_ann_cost = data.heat_grid_data.get("ann_costs", 0)
+                heat_grid_om_cost = data.heat_grid_data.get("om_costs", 0)
+                heat_grid_total_cost = data.heat_grid_data.get("costs", 0)
+                
+                # Only add if costs exist
+                if heat_grid_total_cost > 0 or (heat_grid_ann_cost + heat_grid_om_cost) > 0:
+                    self.central_individual_devices_annualized_cost["Heat_Grid"] = {
+                        "cap": '',  # Use total investment cost as "capacity" indicator
+                        "subsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost,
+                        "unsubsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost  # Same for heat grid (no subsidies)
+                    }
+
         except KeyError:
             self.annual_fixed_costs_central = 0
+            self.annual_fixed_costs_central_unsubsidized = 0
 
-    def calc_annual_cost_device(self, dev, ecoData, cap):
+    def calc_annual_cost_device(self, dev, ecoData, cap, mode="subsidized"):
         """
         Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
 
@@ -427,6 +499,10 @@ class KPIs:
             technology parameter
         ecoData : dictionary
             economic parameters (interest_rate, observation_time)
+        cap: float
+            installed capacity of the device [kW]
+        mode: str, optional
+            calculation mode. The default is "subsidized". Alternative 'unsubsidized' (without subsidies).
 
         Returns
         -------
@@ -475,14 +551,19 @@ class KPIs:
         # param["CRF"] = CRF
 
         # Total investment costs
-        inv = dev["inv_var"] * cap
+        inv_unsubsidized = dev["inv_var"] * cap
+        inv_subsidized = dev["inv_base"] * cap
         # Annualized investment costs
-        c_inv= inv * ann_factor
+        if mode == "subsidized":
+            c_inv = inv_subsidized * ann_factor
+        elif mode == "unsubsidized":
+            c_inv = inv_unsubsidized * ann_factor
+        else: raise ValueError(f"Mode {mode} for investment cost calculation not recognized. Possible modes are 'subsidized' and 'unsubsidized'.")
 
         c_om = 0 # Operation, maintenance and capacity costs
 
-        if dev.get("cost_om",None) is not None: # operation and maintenance costs [€/(a*€_invested)]
-            c_om += dev["cost_om"] * inv
+        if dev.get("cost_om",None) is not None: # operation and maintenance costs [€/(a*€_invested)] Always use the unsubsidized investment for O&M calculation
+            c_om += dev["cost_om"] * inv_unsubsidized
 
         if dev.get("cap_fee",None) is not None : # if a Capacity fee exists [€/(kW*a)]
             c_om += dev["cap_fee"] * cap
@@ -712,7 +793,7 @@ class KPIs:
 
     def saveKPIs(self, scenario_name, result_path):
         """
-        Save all calculated KPIs in a CSV file. Ensure that calculateAllKPIs() has been called before.
+        Save all calculated KPIs in an Excel file with two sheets. Ensure that calculateAllKPIs() has been called before.
 
         Parameters
         - self: KPICalculator instance
@@ -722,73 +803,131 @@ class KPIs:
 
         if result_path is None:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            filename = os.path.join(src_path, "results", f"KPIs_{scenario_name}.csv")
+            filename = os.path.join(src_path, "results", f"KPIs_{scenario_name}.xlsx")
         else:
-            filename = os.path.join(result_path, f"KPIs_{scenario_name}.csv")
-
-        # Create dictionary to store KPI data
-        kpi_data = {}
+            filename = os.path.join(result_path, f"KPIs_{scenario_name}.xlsx")
 
         # Get all simulated years
         years = sorted(self.inputData["simulated_years"])
 
-        # Add year-dependent KPIs
-        kpi_data["Peak Demand [kW]"] = {year: self.peakDemand.get(year, None) for year in years}
-        kpi_data["Peak Injection [kW]"] = {year: self.peakInjection.get(year, None) for year in years}
-        kpi_data["Peak to Valley [kW]"] = {year: self.peakToValley.get(year, None) for year in years}
-        kpi_data["Electricity Injection to Grid [kWh/a]"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
-        kpi_data["Electricity Demand from Grid [kWh/a]"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
-        kpi_data["Gas Consumption [kWh/a]"] = {year: self.gas_year.get(year, None) for year in years}
-        kpi_data["Biomass Consumption [kWh/a]"] = {year: self.biomass_year.get(year, None) for year in years}
-        kpi_data["Waste Consumption [kWh/a]"] = {year: self.waste_year.get(year, None) for year in years}
-        kpi_data["Hydrogen Consumption [kWh/a]"] = {year: self.hydrogen_year.get(year, None) for year in years}
-        kpi_data["Oil Consumption [kWh/a]"] = {year: self.oil_year.get(year, None) for year in years}
-        kpi_data["District Heat Consumption [kWh/a]"] = {year: self.districtHeat_year.get(year, None) for year in years}
-        kpi_data["Electricity Injection within District [kWh/a]"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
-        kpi_data["Electricity Demand within District [kWh/a]"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
-        kpi_data["Demand Cover Factor [-]"] = {year: self.dcf_year.get(year, None) for year in years}
-        kpi_data["Supply Cover Factor [-]"] = {year: self.scf_year.get(year, None) for year in years}
-        kpi_data["Operation Costs [€/a]"] = {year: self.operationCosts.get(year, None) for year in years}
-        kpi_data["Total CO2 Emissions [t/a]"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
-        kpi_data["CO2 Emissions Grid Electricity [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
-        kpi_data["CO2 Emissions Gas [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
-        kpi_data["CO2 Emissions Biomass [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
-        kpi_data["CO2 Emissions Waste [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
-        kpi_data["CO2 Emissions Hydrogen [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
-        kpi_data["CO2 Emissions Oil [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
-        kpi_data["CO2 Emissions District Heat [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
-        kpi_data["Energy Autonomy [-]"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
-        kpi_data["Gasoline Costs [€/a]"] = {year: self.gasoline_costs.get(year, None) for year in years}
+        # Create dictionary for year-dependent KPIs
+        kpi_data_yearly = {}
+        kpi_data_yearly["Peak Demand [kW]"] = {year: self.peakDemand.get(year, None) for year in years}
+        kpi_data_yearly["Peak Injection [kW]"] = {year: self.peakInjection.get(year, None) for year in years}
+        kpi_data_yearly["Peak to Valley [kW]"] = {year: self.peakToValley.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Injection to Grid [kWh/a]"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Demand from Grid [kWh/a]"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Gas Consumption [kWh/a]"] = {year: self.gas_year.get(year, None) for year in years}
+        kpi_data_yearly["Biomass Consumption [kWh/a]"] = {year: self.biomass_year.get(year, None) for year in years}
+        kpi_data_yearly["Waste Consumption [kWh/a]"] = {year: self.waste_year.get(year, None) for year in years}
+        kpi_data_yearly["Hydrogen Consumption [kWh/a]"] = {year: self.hydrogen_year.get(year, None) for year in years}
+        kpi_data_yearly["Oil Consumption [kWh/a]"] = {year: self.oil_year.get(year, None) for year in years}
+        kpi_data_yearly["District Heat Consumption [kWh/a]"] = {year: self.districtHeat_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Injection within District [kWh/a]"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Demand within District [kWh/a]"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
+        kpi_data_yearly["Demand Cover Factor [-]"] = {year: self.dcf_year.get(year, None) for year in years}
+        kpi_data_yearly["Supply Cover Factor [-]"] = {year: self.scf_year.get(year, None) for year in years}
+        kpi_data_yearly["Operation Costs [€/a]"] = {year: self.operationCosts.get(year, None) for year in years}
+        kpi_data_yearly["Total CO2 Emissions [t/a]"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Grid Electricity [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Gas [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Biomass [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Waste [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Hydrogen [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Oil [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
+        kpi_data_yearly["CO2 Emissions District Heat [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
+        kpi_data_yearly["Energy Autonomy [-]"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
+        kpi_data_yearly["Gasoline Costs [€/a]"] = {year: self.gasoline_costs.get(year, None) for year in years}
 
-        # Add year-independent KPIs (same value for all years)
-        kpi_data["Annual Fixed Costs Decentral [€/a]"] = {year: self.annual_fixed_costs_decentral for year in years}
-        kpi_data["Annual Fixed Costs Central [€/a]"] = {year: self.annual_fixed_costs_central for year in years}
-        kpi_data["Total Residential Area [m²]"] = {year: self.totalarea_residential for year in years}
-        kpi_data["Total Non-Residential Area [m²]"] = {year: self.totalarea_non_residential for year in years}
-        kpi_data["Total Number of Flats [-]"] = {year: self.totalnumberflats for year in years}
-        kpi_data["Total Number of Occupants [-]"] = {year: self.totalnumberocc for year in years}
-        kpi_data["Total Heat Load [kW]"] = {year: self.totalheatload/1000 for year in years}
-        kpi_data["Total Cooling Load [kW]"] = {year: self.totalcoolingload/1000 for year in years}
-        kpi_data["Total Heating Demand [kWh/a]"] = {year: self.total_heating_demand/1000 for year in years}
-        kpi_data["Total Cooling Demand [kWh/a]"] = {year: self.total_cooling_demand/1000 for year in years}
-        kpi_data["Total Electricity Demand [kWh/a]"] = {year: self.total_electricity_demand/1000 for year in years}
-        kpi_data["Total EV Demand [kWh/a]"] = {year: self.total_EV_demand/1000 for year in years}
-        kpi_data["Total DHW Demand [kWh/a]"] = {year: self.total_dhw_demand/1000 for year in years}
-        kpi_data["Total Electricity Peak [kW]"] = {year: self.total_electricity_peak/1000 for year in years}
-        kpi_data["Total Heat Peak [kW]"] = {year: self.total_heat_peak/1000 for year in years}
-        kpi_data["Total DHW Peak [kW]"] = {year: self.total_dhw_peak/1000 for year in years}
-        kpi_data["Total Cooling Peak [kW]"] = {year: self.total_cooling_peak/1000 for year in years}
-        kpi_data["Total EV Peak [kW]"] = {year: self.total_EV_peak/1000 for year in years}
-        kpi_data["Total ICE Fuel Consumption [liters/a]"] = {year: self.total_ICE_fuel_liters for year in years}
+        # Create dictionary for year-independent KPIs (same value for all years)
+        kpi_data_static = {}
+        kpi_data_static["Annual Fixed Costs Decentral [€/a]"] = self.annual_fixed_costs_decentral
+        kpi_data_static["Annual Fixed Costs Decentral Unsubsidized [€/a]"] = self.annual_fixed_costs_decentral_unsubsidized
+        kpi_data_static["Annual Fixed Costs Central [€/a]"] = self.annual_fixed_costs_central
+        kpi_data_static["Annual Fixed Costs Central Unsubsidized [€/a]"] = self.annual_fixed_costs_central_unsubsidized
+        kpi_data_static["Total Residential Area [m²]"] = self.totalarea_residential
+        kpi_data_static["Total Non-Residential Area [m²]"] = self.totalarea_non_residential
+        kpi_data_static["Total Number of Flats [-]"] = self.totalnumberflats
+        kpi_data_static["Total Number of Occupants [-]"] = self.totalnumberocc
+        kpi_data_static["Total Heat Load [kW]"] = self.totalheatload/1000
+        kpi_data_static["Total Cooling Load [kW]"] = self.totalcoolingload/1000
+        kpi_data_static["Total Heating Demand [kWh/a]"] = self.total_heating_demand/1000
+        kpi_data_static["Total Cooling Demand [kWh/a]"] = self.total_cooling_demand/1000
+        kpi_data_static["Total Electricity Demand [kWh/a]"] = self.total_electricity_demand/1000
+        kpi_data_static["Total EV Demand [kWh/a]"] = self.total_EV_demand/1000
+        kpi_data_static["Total DHW Demand [kWh/a]"] = self.total_dhw_demand/1000
+        kpi_data_static["Total Electricity Peak [kW]"] = self.total_electricity_peak/1000
+        kpi_data_static["Total Heat Peak [kW]"] = self.total_heat_peak/1000
+        kpi_data_static["Total DHW Peak [kW]"] = self.total_dhw_peak/1000
+        kpi_data_static["Total Cooling Peak [kW]"] = self.total_cooling_peak/1000
+        kpi_data_static["Total EV Peak [kW]"] = self.total_EV_peak/1000
+        kpi_data_static["Total ICE Fuel Consumption [liters/a]"] = self.total_ICE_fuel_liters
 
-        # Create DataFrame with KPI names as first column and years as subsequent columns
-        kpi_df = pd.DataFrame.from_dict(kpi_data, orient='index')
-        kpi_df.columns = [f"Year {year}" for year in years]
-        kpi_df.index.name = "KPI"
-        kpi_df.reset_index(inplace=True)
+        # Create device data list: Building ID, Device, Capacity [kW], Annualized Cost Subsidized [€/a], Annualized Cost Unsubsidized [€/a]
+        dec_device_data_list = []
+        for building_id, devices in self.decentral_individual_devices_annualized_cost.items():
+            for device_name, device_info in devices.items():
+                # Determine unit based on device type
+                if device_name in ["TES", "BAT", "EV"]:
+                    unit = "kWh"
+                elif device_name in ["PV", "STC"]:
+                    unit = "m²"
+                else:
+                    unit = "kW"
+                
+                dec_device_data_list.append({
+                    'Building ID': building_id,
+                    'Device': device_name,
+                    'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
+                    'Unit': unit,
+                    'Annualized Cost [€/a]': round(device_info['subsidized_annual_cost'], 2),
+                    'Annualized Cost Unsubsidized [€/a]': round(device_info['unsubsidized_annual_cost'], 2)
+                })
+        
+        # Central Devices capacities and subsidized and unsubsidized annualized costs
+        cent_device_data_list = []
+        for device_name, device_info in self.central_individual_devices_annualized_cost.items():
+            # Determine unit based on device type
+            if device_name == "Heat_Grid":
+                unit = "-"  # Heat grid capacity not defined? #TODO: Is this true?
+            elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
+                unit = "kWh"
+            elif device_name in ["PV", "STC"]:
+                unit = "m²"
+            else:
+                unit = "kW"
+            
+            cent_device_data_list.append({
+                'Device': device_name,
+                'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
+                'Unit': unit,
+                'Annualized Cost Subsidized [€/a]': round(device_info['subsidized_annual_cost'], 2),
+                'Annualized Cost Unsubsidized [€/a]': round(device_info['unsubsidized_annual_cost'], 2)
+            })
 
-        # Save to CSV
-        kpi_df.to_csv(filename, index=False, sep=';', decimal='.', encoding='utf-8')
+        # Create DataFrame for year-dependent KPIs
+        kpi_df_yearly = pd.DataFrame.from_dict(kpi_data_yearly, orient='index')
+        kpi_df_yearly.columns = [f"Year {year}" for year in years]
+        kpi_df_yearly.index.name = "KPI"
+        kpi_df_yearly.reset_index(inplace=True)
+
+        # Create DataFrame for year-independent KPIs
+        kpi_df_static = pd.DataFrame(list(kpi_data_static.items()), columns=['KPI', 'Value'])
+
+        # Create DataFrame for device costs
+        kpi_df_dec_devices = pd.DataFrame(dec_device_data_list) if dec_device_data_list else pd.DataFrame()
+        
+        # Create DataFrame for central device costs
+        kpi_df_cent_devices = pd.DataFrame(cent_device_data_list) if cent_device_data_list else pd.DataFrame()
+
+        # Save to Excel with four sheets (or three if no central devices)
+        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+            kpi_df_yearly.to_excel(writer, sheet_name='Yearly KPIs', index=False)
+            kpi_df_static.to_excel(writer, sheet_name='Static KPIs', index=False)
+            kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices Costs', index=False)
+            if not kpi_df_cent_devices.empty:
+                kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices Costs', index=False)
+        
         print(f"KPIs saved to: {filename}")
 
     def create_certificate(self, data, result_path):
