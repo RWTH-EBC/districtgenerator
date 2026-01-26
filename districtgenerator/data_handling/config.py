@@ -161,11 +161,11 @@ class EcoConfig(BaseSettings):
     This class contains parameters related to energy prices, CO2 emissions, and other economic factors
     used in the district generator.
     """
-    # General economic parameters #! TODO: Remove duplicates in EHDOConfig and DdecentralDeviceConfig
-    interest_rate: float = 0.05     # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
-    observation_time: int = 20      # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
-    optimization_focus: int = 0     # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
-
+    # General economic parameters
+    interest_rate: float = 0.05  # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
+    observation_time: int = 20  # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
+    optimization_focus: int = 0  # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
+    
     # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
     num_interpolation_points: Optional[int] = None # Number of interpolation points if not None these are used, otherwise the exact position is used
@@ -201,8 +201,7 @@ class EcoConfig(BaseSettings):
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
 
-
-    @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 
+    @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
@@ -319,7 +318,7 @@ class PyomoConfig(BaseSettings):
     """
     PyomoConfig class to manage the configuration of the Pyomo optimization solver.
     """
-    solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
+    solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
     solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
@@ -384,7 +383,8 @@ class HeatGridConfig(BaseSettings):
 
     generation: str = "4th"      # Heating network generation, selected between:"3rd", "4th" and "5th"
     topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
-    temperature_mode: str = "constant" # selected between: "Constant" and "Heating_curve"(controlled within limits depending on the outdoor temperature)
+    temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
+    heuristic: bool = True # selected between: True (heuristic method) and False (optimization method)
     D_heating_network: float = 1.0      # Distance between the centerlines of the supply and return pipelines in meters.
     T_hot_cooling_network: float = 12.0  # Flow temperature of the cooling network in degrees Celsius.
     T_cold_cooling_network: float = 6.0  # Return temperature of the cooling network in degrees Celsius.
@@ -411,15 +411,15 @@ class HeatGridConfig(BaseSettings):
     T_hot_heating_network__heating_curve__max__3rd: float = 75.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
     T_hot_heating_network__heating_curve__max__4th: float = 50.0  # Supply temperature of 4th generation heat grid when outdoor temperature is high in degrees Celsius.
     T_hot_heating_network__heating_curve__max__5th: float = 18.0  # Supply temperature of 5th generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__3rd: float = 90.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__4th: float = 70.0  # Supply temperature of 4th generation heat grid when outdoor temperature is low in degrees Celsius.
+    T_hot_heating_network__heating_curve__min__3rd: float = 85.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
+    T_hot_heating_network__heating_curve__min__4th: float = 65.0  # Supply temperature of 4th generation heat grid when outdoor temperature is low in degrees Celsius.
     T_hot_heating_network__heating_curve__min__5th: float = 14.0  # Supply temperature of 5th generation heat grid when outdoor temperature is low in degrees Celsius.
     T_hot_heating_network: dict = {}
 
-    T_cold_heating_network__constant__3rd: float = 55.0  # Return temperature of 3rd generation heat grid in degrees Celsius.
-    T_cold_heating_network__constant__4th: float = 30.0  # Return temperature of 4th generation heat grid in degrees Celsius.
-    T_cold_heating_network__constant__5th: float = 14.0  # Return temperature of 5th generation heat grid in degrees Celsius.
-    T_cold_heating_network__heating_curve__max__3rd: float = 40.0  # Return temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
+    T_cold_heating_network__constant__3rd: float = 50.0  # Return temperature of 3rd generation heat grid in degrees Celsius.
+    T_cold_heating_network__constant__4th: float = 35.0  # Return temperature of 4th generation heat grid in degrees Celsius.
+    T_cold_heating_network__constant__5th: float = 11.0  # Return temperature of 5th generation heat grid in degrees Celsius.
+    T_cold_heating_network__heating_curve__max__3rd: float = 45.0  # Return temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
     T_cold_heating_network__heating_curve__max__4th: float = 30.0  # Return temperature of 4th generation heat grid when outdoor temperature is high in degrees Celsius.
     T_cold_heating_network__heating_curve__max__5th: float = 11.0  # Return temperature of 5th generation heat grid when outdoor temperature is high in degrees Celsius.
     T_cold_heating_network__heating_curve__min__3rd: float = 50.0  # Return temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
@@ -439,7 +439,7 @@ class HeatGridConfig(BaseSettings):
     pump__cost_om_pump: float = 0.03    # Pump O&M share (fraction of investment cost per year).
     pump: dict = {}
 
-    pipe__f_fric: float = 0.025         # Friction factor (dimensionless).
+    pipe__f_fric: float = 0.025         # Friction factor (dimensionless). (Initial friction factor for iteration)
     pipe__dp_pipe_max: float = 400.0    # Max pressure gradient in Pa/m.
     pipe__dp_pipe_min: float = 30.0     # Min pressure gradient in Pa/m.
     pipe__pipe_lifetime: int = 30       # Pipe lifetime in years.
@@ -740,11 +740,6 @@ class DecentralDeviceConfig(BaseSettings):
     EV__inv_var: float = 0.0  # Variable investment costs in €/kWh.
     EV__cost_om: float = 0.0  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     EV: dict = {}
-
-    # Investment data parameters
-    # inv_data__observation_time: int = 20  # Observation time in years. #! Remove here and use only in EcoConfig!
-    # inv_data__interest_rate: float = 0.05  # Interest rate. #! Remove here and use only in EcoConfig!
-    # inv_data: dict = {}
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':

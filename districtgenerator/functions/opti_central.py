@@ -91,7 +91,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     Builds the Pyomo model for the optimization of energy systems in a district.
     """
     timeData = data.time
-    ecoData = sim_ecoData # -> relevant economic data for the cluster
+    ecoData = sim_ecoData
     siteData = data.site
     param_dec_devs = data.decentral_device_data
     central_device_data = data.central_device_data
@@ -114,9 +114,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
     try:
         network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
         network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
+        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
     except:
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
+        network_pump_power = [0] * T_e
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -1169,7 +1171,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.eh_power_to_grid[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + network_pump_power[t] + model.eh_power_to_grid[t])
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1591,7 +1593,6 @@ def solve_model_and_extract_results(model, data, year, cluster):
             print(f"Warning: Could not write solution file {filename}: {e}")
         return None
 
-    # 
     solution_file = os.path.join(result_dir, f'solution_file_year_{year}_cluster_{cluster}.txt')
     write_solution_file(model, solution_file)
 
@@ -1865,7 +1866,7 @@ def remove_previous_models_and_solutions():
     result_dir = "optimization_results"
     if not os.path.exists(result_dir):
         return
-    
+
     # Remove model files
     for filename in os.listdir(result_dir):
         if filename.startswith("opti_central_model_year_") and filename.endswith(".lp"):

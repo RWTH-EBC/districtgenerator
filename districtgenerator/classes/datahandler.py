@@ -36,7 +36,6 @@ from districtgenerator.functions.design_network_with_node import run_pipeline_no
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
-from .plots_balances import plot_all
 
 class Datahandler:
     """
@@ -237,6 +236,7 @@ class Datahandler:
                                          converters={"position": parse_position}).set_index("id", drop=False))
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+
         if os.path.exists(json_path):
             with open(json_path, encoding="utf-8") as json_file:
                 jsonData = json.load(json_file)
@@ -296,9 +296,16 @@ class Datahandler:
         if self.heat_grid_data["generation"] == "3rd":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
+
         elif self.heat_grid_data["generation"] == "4th":
-            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
-            self.pipe_data = pd.read_csv(csv_path, sep=";")
+            pmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
+            pmr_data = pd.read_csv(pmr_path, sep=";")
+            # add KMR pipes for DN > 150
+            kmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
+            kmr_data = pd.read_csv(kmr_path, sep=";")
+            kmr_data = kmr_data[kmr_data["Nominal diameter (DN)"] > 150]
+            self.pipe_data = pd.concat([pmr_data, kmr_data], ignore_index=True)
+
         elif self.heat_grid_data["generation"] == "5th":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
@@ -1361,6 +1368,7 @@ class Datahandler:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
+            adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]
@@ -1472,6 +1480,11 @@ class Datahandler:
             scalings.append(False)
 
             inputsClustering.append(adjProfiles["losses_cooling_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            # central pump power
+            inputsClustering.append(adjProfiles["pump_power"])
             weights.append(0)
             scalings.append(False)
 
@@ -1589,9 +1602,10 @@ class Datahandler:
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
             self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 2]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 3]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 4]
+            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 2]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
@@ -1763,6 +1777,8 @@ class Datahandler:
         interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
 
+        #TODO: Why are CO2 emission factors also considered here?
+
         for year in simulated_years:
             relevant_years = year_segments[year]
             all_sim_ecoData[year] = {}  # Initialize dictionary for this year
@@ -1806,9 +1822,6 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-
-        # Plot everything
-        # plot_all(self) #TODO: REWORK this plotting function to allow multiple simulated years
 
     def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=8):
         """
@@ -2028,21 +2041,23 @@ class Datahandler:
         # get the input data for the optimizer
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
-        if os.path.exists(json_path):
-            district_type = self.site["district_parameters"]["district_type"]
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                buildings_info = jsonData["values"]["buildings_info"]
-                transformer_info = jsonData["values"]["transformer_station"]
-        else:
-            # if JSON file not found → Extract building coordinates from district data
-            district_type = "unknown"
-            buildings_info = []
-            for building in self.district:
+        # only get the position of buildings connected to the heat grid
+        buildings_info = []
+        for building in self.district:
+            if building["buildingFeatures"]["heater"] == "heat_grid":
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"building": building["unique_name"],
                                  "position": pos}
                 buildings_info.append(building_dict)
+
+        if os.path.exists(json_path):
+            district_type = self.site["district_parameters"]["district_type"]
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                transformer_info = jsonData["values"]["transformer_station"]
+        else:
+            # if JSON file not found → Extract building coordinates from district data
+            district_type = "unknown"
 
             # Randomly choose one building as transformer base
             chosen_building = random.choice(buildings_info)
@@ -2076,9 +2091,20 @@ class Datahandler:
         building_width = self.site["district_parameters"]["building_width"]
         house_connection = self.site["district_parameters"]["house_connection"]
 
+        # only get the position of buildings connected to the heat grid
+        buildings_info = []
+        i = 0
+        for building in self.district:
+            if building["buildingFeatures"]["heater"] == "heat_grid":
+                pos = building["buildingFeatures"]["position"]
+                building_dict = {"id": i,
+                                 "building": building["unique_name"],
+                                 "position": pos}
+                buildings_info.append(building_dict)
+                i += 1
+
         with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
-        buildings_info = jsonData["values"]["buildings_info"]
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["transformer_station"]
 
@@ -2122,7 +2148,11 @@ class Datahandler:
         else:
             # if JSON file not found
             district_type = "unknown"
-        topology_file = f"topology_{topology_option}_{district_type}_buildings_{len(self.district)}.json"
+        connected_building_count = sum(
+            1 for building in self.district
+            if building["buildingFeatures"]["heater"] == "heat_grid"
+        )
+        topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
 
         # load the file of the heating network topology
         with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
@@ -2147,85 +2177,6 @@ class Datahandler:
         None.
         """
         network_optimization(self)
-
-def generate_demands_worker_wrapper(args):
-    """
-    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
-    Startet den Worker und den Monitor-Thread für ein Gebäude.
-    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
-    """
-    try:
-        warnings.filterwarnings("ignore",
-                                category=FutureWarning)  # ! Ignoriere FutureWarnings in Multiprocessing for better readability of terminal output
-        start_time_building = time.time()
-
-        self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
-        building_name = building.get("unique_name")
-
-        # Event zum Stoppen des Monitor-Threads
-        stop_event = threading.Event()
-
-        timeout_duration = 1800  # 30 minutes to identify long-running threads
-        monitor = threading.Thread(
-            target=monitor_task,
-            args=(start_time_building, timeout_duration, building_name, stop_event),
-            daemon=True
-        )
-        monitor.start()
-
-        # Starting the demand generation worker
-        try:
-            self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
-
-            result = {
-                "unique_name": building["unique_name"],
-                "elec": building["user"].elec,
-                'dhw': building["user"].dhw,
-                'cooling': building["user"].cooling,
-                'heating': building["user"].heat,
-                'occ': building["user"].occ,
-                'EV_carcharging_ondemand': building["user"].EV_carcharging_ondemand,
-                'EV_carprofile': building["user"].EV_carprofile,
-                "ev_capacity": building["user"].ev_capacity,
-                'ice_carprofile': building["user"].ice_carprofile,
-                'gains': building["user"].gains,
-                "nb_units": building["user"].nb_units,
-                'nb_occ': building["user"].nb_occ,
-                'envelope': building["envelope"],
-                'night_setback': building["buildingFeatures"]["night_setback"],
-                'individual_car_profiles': building["user"].individual_car_profiles
-            }
-        finally:
-            # This part is always executed, even if an error occurs in the try block to safely close the monitor thread
-            stop_event.set()
-            monitor.join(timeout=1)  # Wait for the monitor thread to finish (with timeout)
-
-        # Time needed for calculating this building
-        end_time_building = time.time()
-        duration_building = end_time_building - start_time_building
-
-        return result, duration_building
-    except Exception as e:
-        print(f"Error in generate_demands_worker_wrapper for building {building.get('unique_name')}: {e}")
-        return None, None
-
-
-def monitor_task(start_time, timeout_duration, building_name, stop_event):
-    """
-    Monitors the progress of a task and gives a warning if the thread takes longer than the specified timeout duration.
-    """
-
-    # Wait for the specified timeout duration and check if the task is completed. During this time the thread is inactive.
-    # If stop_event is set, the return is True, otherwise False after timeout
-    was_stopped_in_time = stop_event.wait(timeout=timeout_duration)
-
-    if was_stopped_in_time:
-        pass  # Task completed within the timeout duration
-    else:
-        elapsed_time = time.time() - start_time
-        print(f"Runtime Warning: The task for building {building_name} is already taking {elapsed_time:.2f} seconds.")
-
-    # The monitoring thread ends here
 
 def generate_demands_worker_wrapper(args):
     """

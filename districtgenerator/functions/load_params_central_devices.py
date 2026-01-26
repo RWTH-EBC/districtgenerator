@@ -83,10 +83,9 @@ def load_params(data):
     total_losses_cooling_network = data.heat_grid_data["total_losses_cooling_network"]
     cooling_total = cooling + total_losses_cooling_network
 
-    if "pump_power" in heat_grid_data:
-        pump_power = heat_grid_data["pump_power"]
-    else:
-        pump_power = np.zeros_like(electricityAppliances)
+    if "pump_power" not in heat_grid_data:
+        data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
+    pump_power = data.heat_grid_data["pump_power"]
     electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
 
     dem_uncl["heat"] = heating_total
@@ -146,7 +145,8 @@ def load_params(data):
     param["DHI"] = clustered_series[5]
     param["wind_speed"] = clustered_series[6]
 
-    # Save number of design days and design-day matrix #! Adjust this to allow for different clusters in each year? 
+    # Save number of design days and design-day matrix
+    # todo: Adjust this to allow for different clusters in each year?
     param["cluster_weights"] = nc
     param["cluster_matrix"] = z
 
@@ -647,7 +647,7 @@ def load_params(data):
     }
 
     ###############################################################
-    ## Economic parameters (EcoData) 
+    ## Economic parameters (EcoData)
     ###############################################################
     #* Structure of ecoData: all_sim_ecoData[year][parameter_name] = value
 
@@ -660,52 +660,52 @@ def load_params(data):
     ### Energy costs ###
     # --- Electricity ---
     # Buildings
-    param["price_supply_el_buildings"] = {year: all_sim_ecoData[year]["price_supply_el"] 
+    param["price_supply_el_buildings"] = {year: all_sim_ecoData[year]["price_supply_el"]
                                         for year in param["interpolation_points"]}
-    param["revenue_feed_in_el_buildings"] = {year: all_sim_ecoData[year]["revenue_feed_in_el"] 
+    param["revenue_feed_in_el_buildings"] = {year: all_sim_ecoData[year]["revenue_feed_in_el"]
                                             for year in param["interpolation_points"]}
     # Energy Hub
-    param["price_supply_el_eh"] = {year: all_sim_ecoData[year]["price_supply_el_eh"] 
+    param["price_supply_el_eh"] = {year: all_sim_ecoData[year]["price_supply_el_eh"]
                                 for year in param["interpolation_points"]}
-    param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"] 
+    param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
                                     for year in param["interpolation_points"]}
 
     # --- Natural Gas ---
-    param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"] 
+    param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"]
                                         for year in param["interpolation_points"]}
-    param["price_supply_gas_eh"] = {year: all_sim_ecoData[year]["price_supply_gas_eh"] 
+    param["price_supply_gas_eh"] = {year: all_sim_ecoData[year]["price_supply_gas_eh"]
                                     for year in param["interpolation_points"]}
-    param["revenue_feed_in_gas"] = {year: all_sim_ecoData[year]["revenue_feed_in_gas"] 
+    param["revenue_feed_in_gas"] = {year: all_sim_ecoData[year]["revenue_feed_in_gas"]
                                     for year in param["interpolation_points"]}
 
     # --- Other fuels ---
-    param["price_biomass"] = {year: all_sim_ecoData[year]["price_biomass"] 
+    param["price_biomass"] = {year: all_sim_ecoData[year]["price_biomass"]
                             for year in param["interpolation_points"]}
-    param["price_waste"] = {year: all_sim_ecoData[year]["price_waste"] 
+    param["price_waste"] = {year: all_sim_ecoData[year]["price_waste"]
                             for year in param["interpolation_points"]}
-    param["price_hydrogen"] = {year: all_sim_ecoData[year]["price_hydrogen"] 
+    param["price_hydrogen"] = {year: all_sim_ecoData[year]["price_hydrogen"]
                             for year in param["interpolation_points"]}
 
     ### Ecological impact ###
-    param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"] 
+    param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"]
                             for year in param["interpolation_points"]}  # kg/kWh
-    param["co2_gas"] = {year: all_sim_ecoData[year]["co2_gas"] 
+    param["co2_gas"] = {year: all_sim_ecoData[year]["co2_gas"]
                         for year in param["interpolation_points"]}  # kg/kWh
-    param["co2_biom"] = {year: all_sim_ecoData[year]["co2_biom"] 
+    param["co2_biom"] = {year: all_sim_ecoData[year]["co2_biom"]
                         for year in param["interpolation_points"]}  # kg/kWh
-    param["co2_waste"] = {year: all_sim_ecoData[year]["co2_waste"] 
+    param["co2_waste"] = {year: all_sim_ecoData[year]["co2_waste"]
                         for year in param["interpolation_points"]}  # kg/kWh
-    param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"] 
+    param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"]
                             for year in param["interpolation_points"]}  # kg/kWh
 
     # Optional: CO2 credits for feed-in (if available in all_sim_ecoData)
-    param["co2_el_feed_in"] = {year: all_sim_ecoData[year].get("co2_el_feed_in", 0) 
+    param["co2_el_feed_in"] = {year: all_sim_ecoData[year].get("co2_el_feed_in", 0)
                             for year in param["interpolation_points"]}  # kg/kWh
-    param["co2_gas_feed_in"] = {year: all_sim_ecoData[year].get("co2_gas_feed_in", 0) 
+    param["co2_gas_feed_in"] = {year: all_sim_ecoData[year].get("co2_gas_feed_in", 0)
                                 for year in param["interpolation_points"]}  # kg/kWh
 
     ### Taxes ###
-    param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"] 
+    param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"]
                         for year in param["interpolation_points"]}  # EUR/kg
 
     ################################################################

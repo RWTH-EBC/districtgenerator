@@ -15,6 +15,9 @@ import numpy as np
 import time
 from datetime import datetime
 import os
+import matplotlib.pyplot as plt
+import textwrap
+import json
 import districtgenerator.functions.solver_config as solver_config
 
 
@@ -88,7 +91,7 @@ def build_model(model, data, devs, param, dem):
     # Support years for multi-year optimization
     support_years = sorted(param["interpolation_points"])  # z.B. [0, 5, 10, 15, 20]
     model.support_years = pyo.Set(initialize=support_years)
-    
+
     # Store observation time
     model.observation_time = pyo.Param(initialize=param["observation_time"])
 
@@ -125,7 +128,7 @@ def build_model(model, data, devs, param, dem):
     # Capacity variables (same for all years - single investment decision)
     model.cap = pyo.Var(model.all_devs, within=pyo.NonNegativeReals, name="nominal_capacity")
     model.area = pyo.Var(model.area_devs, within=pyo.NonNegativeReals, name="roof_area")
-    
+
     # Operational variables for EACH SUPPORT YEAR
     model.gas = pyo.Var(model.gas_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.power = pyo.Var(model.power_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
@@ -135,22 +138,21 @@ def build_model(model, data, devs, param, dem):
     model.biom = pyo.Var(model.biom_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.waste = pyo.Var(model.waste_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.ch = pyo.Var(model.storage_devs, model.support_years, model.clusters, model.time_steps, within=pyo.Reals)
-    
-    # Storage SOC still uses weekly tracking but indexed by support year
-    model.soc = pyo.Var(model.storage_devs, model.support_years, model.year, model.time_steps, 
+
+    # Storage SOC uses weekly tracking but indexed by support year
+    model.soc = pyo.Var(model.storage_devs, model.support_years, model.year, model.time_steps,
                         within=pyo.NonNegativeReals)
-    
+
     # Investment costs (same for all years)
     model.inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
     model.c_inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
     model.c_om = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
     model.c_total = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
-    
-    
+
     # Grid limits (same for all years - infrastructure decision)
     model.grid_limit_el = pyo.Var(within=pyo.NonNegativeReals)
     model.grid_limit_gas = pyo.Var(within=pyo.NonNegativeReals)
-    
+
     # Yearly totals - indexed by support year
     model.from_el_grid_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.to_el_grid_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
@@ -159,7 +161,7 @@ def build_model(model, data, devs, param, dem):
     model.biom_import_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.waste_import_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.hydrogen_import_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
-    
+
     # Revenues and costs per support year
     model.rev_feed_in_gas = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.rev_feed_in_el = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
@@ -171,15 +173,14 @@ def build_model(model, data, devs, param, dem):
     model.supply_costs_waste = pyo.Var(model.support_years, within=pyo.Reals)
     model.supply_costs_hydrogen = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
 
-
     model.total_annual_costs_devices = pyo.Var(within=pyo.NonNegativeReals)                 # Total annual costs for devices (inv and om)
     model.heat_grid_costs = pyo.Var(within=pyo.NonNegativeReals)                            # Total annual costs for heat grid (inv and om)
     model.total_energy_costs = pyo.Var(model.support_years, within=pyo.NonNegativeReals)    # Total energy costs per year
     model.annualized_energy_costs = pyo.Var(within=pyo.NonNegativeReals)                    # Annualized energy costs
     model.misc_costs = pyo.Var(model.support_years, within=pyo.NonNegativeReals)            # e.g., CO2 costs, insurance, other taxes etc.
     model.annualized_misc_costs = pyo.Var(within=pyo.NonNegativeReals)                      # Annualized miscellaneous costs
-    model.total_connection_costs = pyo.Var(within=pyo.NonNegativeReals)                      # Total annual costs for connection to grids
-    
+    model.total_connection_costs = pyo.Var(within=pyo.NonNegativeReals)                     # Total annual costs for connection to grids
+
     # Objective variables
     model.obj_tac = pyo.Var(within=pyo.Reals)
     model.obj_co2 = pyo.Var(within=pyo.Reals)
@@ -233,7 +234,7 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.cap["PV"] == model.area["PV"] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
     model.constraints.add(model.cap["STC"] == model.area["STC"] * devs["STC"]["G_stc"] * devs["STC"]["eta"])
 
-    # state of charge < storage capacity for each time step
+    # state of charge < storage capacity
     for y in model.support_years:
         for dev in model.storage_devs:
             for day_y in model.year:
@@ -243,21 +244,19 @@ def build_model(model, data, devs, param, dem):
     #################################################################################
     # Energy Conversion Constraints (Input / Output Relations) (for every time step)
     #################################################################################
-    
+
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
                 # Photovoltaics power limited by clustered norm power
                 model.constraints.add(
-                    model.power["PV", y, d, t] <= 
-                    devs["PV"]["norm_power_clustered"][d][t] / 1000 * model.area["PV"])
+                    model.power["PV", y, d, t] <= devs["PV"]["norm_power_clustered"][d][t] / 1000 * model.area["PV"])
                 # Wind turbine power limited by clustered norm power
                 model.constraints.add(model.power["WT", y, d, t] <= devs["WT"]["norm_power_clustered"][d][t] * model.cap["WT"])
                 # Hydropower power limited by potential
                 model.constraints.add(model.power["WAT", y, d, t] <= devs["WAT"]["potential"])
                 # Solar thermal collector heat limited by clustered norm power
-                model.constraints.add(
-                    model.heat["STC", y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
+                model.constraints.add(model.heat["STC", y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
                 # Electric heat pump correlation between heat and electric power
                 model.constraints.add(model.heat["HP", y, d, t] == model.power["HP", y, d, t] * devs["HP"]["COP"][y][d][t])
                 # Electric boiler correlation between heat and electric power
@@ -293,7 +292,7 @@ def build_model(model, data, devs, param, dem):
                     model.constraints.add(model.heat["FC", y, d, t] == model.hydrogen["FC", y, d, t] * devs["FC"]["eta_th"])
                 # Sabatier reactor correlation between hydrogen consumption and gas production
                 model.constraints.add(model.gas["SAB", y, d, t] == model.hydrogen["SAB", y, d, t] * devs["SAB"]["eta"])
-    
+
     ################################################################################
     # Energy balances for each time step
     ################################################################################
@@ -306,7 +305,7 @@ def build_model(model, data, devs, param, dem):
                                   ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
                 heat_demand = dem["heat"][y][d][t] + model.heat["AC", y, d, t] + model.ch["TES", y, d, t]
                 model.constraints.add(heat_supply == heat_demand)
-                
+
                 # Electric power supply and demand balance
                 power_supply = sum(
                     model.power[dev, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
@@ -422,37 +421,37 @@ def build_model(model, data, devs, param, dem):
     for y in model.support_years:
         model.constraints.add(
             model.from_gas_grid_total[y] == dt * sum(
-                model.gas["from_grid", y, d, t] * param["cluster_weights"][d] 
+                model.gas["from_grid", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
-        
+
         model.constraints.add(
             model.from_el_grid_total[y] == dt * sum(
-                model.power["from_grid", y, d, t] * param["cluster_weights"][d] 
+                model.power["from_grid", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
-        
+
         model.constraints.add(
             model.to_gas_grid_total[y] == dt * sum(
-                model.gas["to_grid", y, d, t] * param["cluster_weights"][d] 
+                model.gas["to_grid", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
-        
+
         model.constraints.add(
             model.to_el_grid_total[y] == dt * sum(
-                model.power["to_grid", y, d, t] * param["cluster_weights"][d] 
+                model.power["to_grid", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
-        
+
         model.constraints.add(
             model.biom_import_total[y] == dt * sum(
-                model.biom["import", y, d, t] * param["cluster_weights"][d] 
+                model.biom["import", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
-        
+
         model.constraints.add(
             model.waste_import_total[y] == dt * sum(
-                model.waste["import", y, d, t] * param["cluster_weights"][d] 
+                model.waste["import", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
-        
+
         model.constraints.add(
             model.hydrogen_import_total[y] == dt * sum(
-                model.hydrogen["import", y, d, t] * param["cluster_weights"][d] 
+                model.hydrogen["import", y, d, t] * param["cluster_weights"][d]
                 for d in model.clusters for t in model.time_steps))
 
     ################################################################################
@@ -518,23 +517,23 @@ def build_model(model, data, devs, param, dem):
     for y in model.support_years:
         model.constraints.add(model.supply_costs_el[y] == model.from_el_grid_total[y] * param["price_supply_el_eh"][y])
         model.constraints.add(model.rev_feed_in_el[y] == model.to_el_grid_total[y] * param["revenue_feed_in_el_eh"][y])
-        
+
         # Gas costs and revenues (per support year with year-specific prices)
         model.constraints.add(model.supply_costs_gas[y] == model.from_gas_grid_total[y] * param["price_supply_gas_eh"][y])
         model.constraints.add(model.rev_feed_in_gas[y] == model.to_gas_grid_total[y] * param["revenue_feed_in_gas"][y])
-        
+
         # Biomass, waste, and hydrogen costs (per support year with year-specific prices)
         model.constraints.add(model.supply_costs_biom[y] == model.biom_import_total[y] * param["price_biomass"][y])
         model.constraints.add(model.supply_costs_waste[y] == model.waste_import_total[y] * param["price_waste"][y])
         model.constraints.add(model.supply_costs_hydrogen[y] == model.hydrogen_import_total[y] * param["price_hydrogen"][y])
-    
+
     # Conditional capacity costs for electricity (same for all years)
     if param["enable_price_cap_el"]:
         model.constraints.add(model.cap_costs_el == model.grid_limit_el * param["price_cap_el"])
     else:
         model.constraints.add(model.cap_costs_el == 0)
-    
-    # Gas capacity costs (same for all years)   #? Conditional capacity costs for gas (same for all years) needed?
+
+    # Gas capacity costs (same for all years)
     model.constraints.add(model.cap_costs_gas == model.grid_limit_gas * param["price_cap_gas"])
 
     # Investment and operational costs for each device (Annualized)
@@ -547,7 +546,7 @@ def build_model(model, data, devs, param, dem):
     # Combined total annualized investment and O&M costs for all devices
     model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs))
 
-    # Heat grid costs (Currently assumed to be a constant annual cost)
+    # Heat grid costs
     model.constraints.add(model.heat_grid_costs == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
 
     # Connection costs to electricity and gas grid (currently assumed to be a constant annual cost)
@@ -555,26 +554,24 @@ def build_model(model, data, devs, param, dem):
 
     # Energy costs and revenues
     for y in model.support_years:
-        model.constraints.add(model.total_energy_costs[y] == 
-                              model.supply_costs_el[y] 
+        model.constraints.add(model.total_energy_costs[y] ==
+                              model.supply_costs_el[y]
                               + model.supply_costs_gas[y]
-                              + model.supply_costs_biom[y] 
-                              + model.supply_costs_waste[y] 
+                              + model.supply_costs_biom[y]
+                              + model.supply_costs_waste[y]
                               + model.supply_costs_hydrogen[y]
-                              - model.rev_feed_in_el[y] 
+                              - model.rev_feed_in_el[y]
                               - model.rev_feed_in_gas[y])
-        
 
     # CO2 tax term for emissions from gas, biomass, waste for each support year (Usually not paid by consumers, already included in energy prices)
     co2_tax_term={}
     for y in model.support_years:
         co2_tax_term[y] = (model.from_gas_grid_total[y] * param["co2_gas"][y] + model.biom_import_total[y] * param[
             "co2_biom"][y] + model.waste_import_total[y] * param["co2_waste"][y]) * param["co2_tax"][y]
-        
+
     # additional costs and revenues can be added here if needed
     for y in model.support_years:
         model.constraints.add(model.misc_costs[y] == co2_tax_term[y])
-
 
     # Anualize Energy costs and miscellaneous costs over all support years by calculating Sum of the NPV of each support year/intervall and then annualizing it
     i = param["interest_rate"]
@@ -582,7 +579,7 @@ def build_model(model, data, devs, param, dem):
     n = param["observation_time"]
     support_years = model.support_years
     sorted_years = sorted(support_years)
-    
+
     # Calculate the weights for each support year based on the intervals they cover
     weights = {}
     for idx, year in enumerate(sorted_years):
@@ -591,9 +588,16 @@ def build_model(model, data, devs, param, dem):
         else:
             weights[year] = n - year # time from last support year to end of observation period
 
-    # Calculate the NPV for energy and miscellaneous costs #!(Currently simplified by assuming the total costs in each intervall occure at the begin of the intervall)
-    npv_energy = sum((model.total_energy_costs[y] * weights[y]) / (q ** y) for y in support_years)
-    npv_misc = sum((model.misc_costs[y] * weights[y]) / (q ** y) for y in support_years)
+    # Calculate the NPV for energy and miscellaneous costs
+    npv_energy = 0
+    npv_misc = 0
+    for idx, year in enumerate(sorted_years):
+        interval_length = weights[year]
+
+    for year_in_interval in range(interval_length):
+        actual_year = year + year_in_interval
+    npv_energy += model.total_energy_costs[year] / (q ** actual_year)
+    npv_misc += model.misc_costs[year] / (q ** actual_year)
 
     # Annualize the NPV over the observation period using the annuity factor
     if i != 0:
@@ -606,11 +610,11 @@ def build_model(model, data, devs, param, dem):
 
     # Total annual costs (According to VDI 2067 Blatt 1:)
     # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
-    model.constraints.add(model.obj_tac == model.total_annual_costs_devices     # Cost associated with devices (inv and om)
-                          + model.total_connection_costs                        # Cost for connection to el and gas grid
-                          + model.heat_grid_costs                               # Cost for heat grid inv and om   
-                          + model.annualized_energy_costs                       # Energy supply costs minus revenues from feed-in
-                          + model.annualized_misc_costs)                        # Miscellaneous costs minus revenues
+    model.constraints.add(model.obj_tac == model.total_annual_costs_devices  # Cost associated with devices (inv and om)
+                          + model.total_connection_costs  # Cost for connection to el and gas grid
+                          + model.heat_grid_costs  # Cost for heat grid inv and om
+                          + model.annualized_energy_costs  # Energy supply costs minus revenues from feed-in
+                          + model.annualized_misc_costs)  # Miscellaneous costs minus revenues
 
     # CO2 emissions calculation (Sum over the whole observation period)
     model.constraints.add(model.obj_co2 == sum(
@@ -865,15 +869,15 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         sum(safe_value(model.c_inv, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
 
-    # Total energy imports and exports - per support year and total (weighted sum)
-    result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years}
-    result_dict["to_el_grid_total_by_year"] = {y: int(safe_value(model.to_el_grid_total, y) / 1000) for y in model.support_years}
-    result_dict["from_gas_grid_total_by_year"] = {y: int(safe_value(model.from_gas_grid_total, y) / 1000) for y in model.support_years}
-    result_dict["to_gas_grid_total_by_year"] = {y: int(safe_value(model.to_gas_grid_total, y) / 1000) for y in model.support_years}
-    result_dict["biom_import_total_by_year"] = {y: int(safe_value(model.biom_import_total, y) / 1000) for y in model.support_years}
-    result_dict["waste_import_total_by_year"] = {y: int(safe_value(model.waste_import_total, y) / 1000) for y in model.support_years}
-    result_dict["hydrogen_import_total_by_year"] = {y: int(safe_value(model.hydrogen_import_total, y) / 1000) for y in model.support_years}
-    
+    # Total energy imports and exports - per support year
+    result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh
+    result_dict["to_el_grid_total_by_year"] = {y: int(safe_value(model.to_el_grid_total, y) / 1000) for y in model.support_years}       #MWh
+    result_dict["from_gas_grid_total_by_year"] = {y: int(safe_value(model.from_gas_grid_total, y) / 1000) for y in model.support_years}  #MWh
+    result_dict["to_gas_grid_total_by_year"] = {y: int(safe_value(model.to_gas_grid_total, y) / 1000) for y in model.support_years}       #MWh
+    result_dict["biom_import_total_by_year"] = {y: int(safe_value(model.biom_import_total, y) / 1000) for y in model.support_years}      #MWh
+    result_dict["waste_import_total_by_year"] = {y: int(safe_value(model.waste_import_total, y) / 1000) for y in model.support_years}        #MWh
+    result_dict["hydrogen_import_total_by_year"] = {y: int(safe_value(model.hydrogen_import_total, y) / 1000) for y in model.support_years}    #MWh
+
     # Calculate weights for each support year (same logic as in build_model)
     sorted_years = sorted(model.support_years)
     n = param["observation_time"]
@@ -883,7 +887,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
             weights[year] = sorted_years[idx + 1] - year
         else:
             weights[year] = n - year
-    
+
     # Total energy imports and exports over the whole observation period (weighted sum)
     result_dict["from_el_grid_total"] = int(sum(safe_value(model.from_el_grid_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
     result_dict["to_el_grid_total"] = int(sum(safe_value(model.to_el_grid_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
@@ -894,7 +898,6 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["hydrogen_import_total"] = int(sum(safe_value(model.hydrogen_import_total, y) * weights[y] for y in model.support_years) / 1000)  # MWh
 
     # CO2 emissions breakdown - calculate weighted average based on first support year for backward compatibility
-    first_year = min(model.support_years)
     result_dict["co2_onsite_emissions"] = int((sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] for y in model.support_years) +
                                                sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] for y in model.support_years) +
                                                sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] for y in model.support_years)) / 1000)
@@ -928,12 +931,12 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["supply_costs_hydrogen_by_year"] = {y: int(safe_value(model.supply_costs_hydrogen, y)) for y in model.support_years}
     result_dict["rev_feed_in_el_by_year"] = {y: int(safe_value(model.rev_feed_in_el, y)) for y in model.support_years}
     result_dict["rev_feed_in_gas_by_year"] = {y: int(safe_value(model.rev_feed_in_gas, y)) for y in model.support_years}
-    
+
     # Totals (annualized values for backward compatibility)
     result_dict["supply_costs_el"] = int(safe_value_single(model.annualized_energy_costs))  # Annualized over all years
     result_dict["cap_costs_el"] = int(safe_value_single(model.cap_costs_el))
     result_dict["total_el_costs"] = result_dict["supply_costs_el"] + result_dict["cap_costs_el"]
-    result_dict["rev_feed_in_el"] = int(sum(safe_value(model.rev_feed_in_el, y) for y in model.support_years) / len(model.support_years))
+    result_dict["rev_feed_in_el"] = int(sum(safe_value(model.rev_feed_in_el, y) for y in model.support_years) / len(model.support_years))  # Average annual electricity feed-in revenue
 
     result_dict["supply_costs_gas"] = int(sum(safe_value(model.supply_costs_gas, y) for y in model.support_years) / len(model.support_years))
     result_dict["cap_costs_gas"] = int(safe_value_single(model.cap_costs_gas))
@@ -1007,7 +1010,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                     profile.append(safe_value(model.power, (device, y, d, t)))
             result_dict["power_profile_by_year"][y][device] = profile
             result_dict["power_kW_by_year"][y][device] = int(max(profile)) if profile else 0
-    
+
     # Heat profiles and maximum heat - store for each support year
     result_dict["heat_profile_by_year"] = {}
     result_dict["heat_kW_by_year"] = {}
@@ -1021,7 +1024,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                     profile.append(safe_value(model.heat, (device, y, d, t)))
             result_dict["heat_profile_by_year"][y][device] = profile
             result_dict["heat_kW_by_year"][y][device] = int(max(profile)) if profile else 0
-    
+
     # Cooling profiles and maximum cooling - store for each support year
     result_dict["cool_profile_by_year"] = {}
     result_dict["cool_kW_by_year"] = {}
@@ -1035,7 +1038,6 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                     profile.append(safe_value(model.cool, (device, y, d, t)))
             result_dict["cool_profile_by_year"][y][device] = profile
             result_dict["cool_kW_by_year"][y][device] = int(max(profile)) if profile else 0
-    
 
     # Area usage
     result_dict["area"] = {}

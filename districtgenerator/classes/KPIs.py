@@ -713,7 +713,7 @@ class KPIs:
     def saveKPIs(self, scenario_name, result_path):
         """
         Save all calculated KPIs in a CSV file. Ensure that calculateAllKPIs() has been called before.
-        
+
         Parameters
         - self: KPICalculator instance
         - scenario_name: Name of the scenario for file naming
@@ -728,10 +728,10 @@ class KPIs:
 
         # Create dictionary to store KPI data
         kpi_data = {}
-        
+
         # Get all simulated years
         years = sorted(self.inputData["simulated_years"])
-        
+
         # Add year-dependent KPIs
         kpi_data["Peak Demand [kW]"] = {year: self.peakDemand.get(year, None) for year in years}
         kpi_data["Peak Injection [kW]"] = {year: self.peakInjection.get(year, None) for year in years}
@@ -759,7 +759,7 @@ class KPIs:
         kpi_data["CO2 Emissions District Heat [t/a]"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
         kpi_data["Energy Autonomy [-]"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
         kpi_data["Gasoline Costs [€/a]"] = {year: self.gasoline_costs.get(year, None) for year in years}
-        
+
         # Add year-independent KPIs (same value for all years)
         kpi_data["Annual Fixed Costs Decentral [€/a]"] = {year: self.annual_fixed_costs_decentral for year in years}
         kpi_data["Annual Fixed Costs Central [€/a]"] = {year: self.annual_fixed_costs_central for year in years}
@@ -767,28 +767,28 @@ class KPIs:
         kpi_data["Total Non-Residential Area [m²]"] = {year: self.totalarea_non_residential for year in years}
         kpi_data["Total Number of Flats [-]"] = {year: self.totalnumberflats for year in years}
         kpi_data["Total Number of Occupants [-]"] = {year: self.totalnumberocc for year in years}
-        kpi_data["Total Heat Load [kW]"] = {year: self.totalheatload for year in years}
-        kpi_data["Total Cooling Load [kW]"] = {year: self.totalcoolingload for year in years}
-        kpi_data["Total Heating Demand [kWh/a]"] = {year: self.total_heating_demand for year in years}
-        kpi_data["Total Cooling Demand [kWh/a]"] = {year: self.total_cooling_demand for year in years}
-        kpi_data["Total Electricity Demand [kWh/a]"] = {year: self.total_electricity_demand for year in years}
-        kpi_data["Total EV Demand [kWh/a]"] = {year: self.total_EV_demand for year in years}
-        kpi_data["Total DHW Demand [kWh/a]"] = {year: self.total_dhw_demand for year in years}
-        kpi_data["Total Electricity Peak [kW]"] = {year: self.total_electricity_peak for year in years}
-        kpi_data["Total Heat Peak [kW]"] = {year: self.total_heat_peak for year in years}
-        kpi_data["Total DHW Peak [kW]"] = {year: self.total_dhw_peak for year in years}
-        kpi_data["Total Cooling Peak [kW]"] = {year: self.total_cooling_peak for year in years}
-        kpi_data["Total EV Peak [kW]"] = {year: self.total_EV_peak for year in years}
+        kpi_data["Total Heat Load [kW]"] = {year: self.totalheatload/1000 for year in years}
+        kpi_data["Total Cooling Load [kW]"] = {year: self.totalcoolingload/1000 for year in years}
+        kpi_data["Total Heating Demand [kWh/a]"] = {year: self.total_heating_demand/1000 for year in years}
+        kpi_data["Total Cooling Demand [kWh/a]"] = {year: self.total_cooling_demand/1000 for year in years}
+        kpi_data["Total Electricity Demand [kWh/a]"] = {year: self.total_electricity_demand/1000 for year in years}
+        kpi_data["Total EV Demand [kWh/a]"] = {year: self.total_EV_demand/1000 for year in years}
+        kpi_data["Total DHW Demand [kWh/a]"] = {year: self.total_dhw_demand/1000 for year in years}
+        kpi_data["Total Electricity Peak [kW]"] = {year: self.total_electricity_peak/1000 for year in years}
+        kpi_data["Total Heat Peak [kW]"] = {year: self.total_heat_peak/1000 for year in years}
+        kpi_data["Total DHW Peak [kW]"] = {year: self.total_dhw_peak/1000 for year in years}
+        kpi_data["Total Cooling Peak [kW]"] = {year: self.total_cooling_peak/1000 for year in years}
+        kpi_data["Total EV Peak [kW]"] = {year: self.total_EV_peak/1000 for year in years}
         kpi_data["Total ICE Fuel Consumption [liters/a]"] = {year: self.total_ICE_fuel_liters for year in years}
-        
+
         # Create DataFrame with KPI names as first column and years as subsequent columns
         kpi_df = pd.DataFrame.from_dict(kpi_data, orient='index')
         kpi_df.columns = [f"Year {year}" for year in years]
         kpi_df.index.name = "KPI"
         kpi_df.reset_index(inplace=True)
-        
+
         # Save to CSV
-        kpi_df.to_csv(filename, index=False, sep=';', decimal=',', encoding='utf-8')
+        kpi_df.to_csv(filename, index=False, sep=';', decimal='.', encoding='utf-8')
         print(f"KPIs saved to: {filename}")
 
     def create_certificate(self, data, result_path):
