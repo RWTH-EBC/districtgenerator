@@ -838,9 +838,9 @@ class KPIs:
         self.calc_total_areas_and_demands(data)
         self.calculateGasolineCosts(data)
         self.calc_total_consumption_and_emissions(data)
-        self.saveKPIs(data.scenario_name, data.resultPath)
+        self.saveKPIs(data.scenario_name, data.resultPath, data.district)
 
-    def saveKPIs(self, scenario_name, result_path):
+    def saveKPIs(self, scenario_name, result_path, buildings):
         """
         Save all calculated KPIs in an Excel file with two sheets. Ensure that calculateAllKPIs() has been called before.
 
@@ -920,16 +920,16 @@ class KPIs:
 
         # Add here Total total consumptions and CO2 emissions of each energy carrier.
         # kpi_data_static["Electricity Consumption (kWh)"] = '' # Not currently calculated. 
-        kpi_data_static["Grid Electricity Consumption (kWh)"] = self.total_W_dem_GCP
-        kpi_data_static["Buildings Electricity Consumption (kWh)"] = self.total_W_dem_buildings
-        kpi_data_static["Grid Electricity Injection (kWh)"] = self.total_W_inj_GCP
-        kpi_data_static["Buildings Electricity Injection (kWh)"] = self.total_W_inj_buildings
-        kpi_data_static["Gas Consumption (kWh)"] = self.total_gas
-        kpi_data_static["Biomass Consumption (kWh)"] = self.total_biomass
-        kpi_data_static["Waste Consumption (kWh)"] = self.total_waste
-        kpi_data_static["Hydrogen Consumption (kWh)"] = self.total_hydrogen
-        kpi_data_static["Oil Consumption (kWh)"] = self.total_oil
-        kpi_data_static["District Heat Consumption (kWh)"] = self.total_districtHeat
+        kpi_data_static["Grid Electricity Consumption (MWh)"] = self.total_W_dem_GCP / 1000
+        kpi_data_static["Buildings Electricity Consumption (MWh)"] = self.total_W_dem_buildings / 1000
+        kpi_data_static["Grid Electricity Injection (MWh)"] = self.total_W_inj_GCP / 1000
+        kpi_data_static["Buildings Electricity Injection (MWh)"] = self.total_W_inj_buildings / 1000
+        kpi_data_static["Gas Consumption (MWh)"] = self.total_gas / 1000
+        kpi_data_static["Biomass Consumption (MWh)"] = self.total_biomass / 1000
+        kpi_data_static["Waste Consumption (MWh)"] = self.total_waste / 1000
+        kpi_data_static["Hydrogen Consumption (MWh)"] = self.total_hydrogen / 1000
+        kpi_data_static["Oil Consumption (MWh)"] = self.total_oil / 1000
+        kpi_data_static["District Heat Consumption (MWh)"] = self.total_districtHeat / 1000
         # kpi_data_static["ICE Fuel Consumption (liters)"] = ''
 
         kpi_data_static["Total CO2 Emissions (t)"] = self.total_co2_all
@@ -945,6 +945,7 @@ class KPIs:
         # Create device data list: Building ID, Device, Capacity [kW], Annualized Cost Subsidized [€/a], Annualized Cost Unsubsidized [€/a]
         dec_device_data_list = []
         for building_id, devices in self.decentral_individual_devices_annualized_cost.items():
+            building = buildings[building_id]   
             for device_name, device_info in devices.items():
                 # Determine unit based on device type
                 if device_name in ["TES", "BAT", "EV"]:
@@ -955,7 +956,7 @@ class KPIs:
                     unit = "kW"
                 
                 dec_device_data_list.append({
-                    'Building ID': building_id,
+                    'Building ID': building["unique_name"],
                     'Device': device_name,
                     'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
                     'Unit': unit,
