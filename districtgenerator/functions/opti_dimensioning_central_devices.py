@@ -144,8 +144,10 @@ def build_model(model, data, devs, param, dem):
                         within=pyo.NonNegativeReals)
 
     # Investment costs (same for all years)
-    model.inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)    # subsidized investment costs payed by the investor
+    model.inv_base = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)  # unsubsidized investment costs
     model.c_inv = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
+    model.c_inv_base = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)  # unsubsidized annualized investment costs
     model.c_om = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
     model.c_total = pyo.Var(model.all_devs, within=pyo.NonNegativeReals)
 
@@ -242,7 +244,7 @@ def build_model(model, data, devs, param, dem):
                     model.constraints.add(model.soc[dev, y, day_y, t] <= model.cap[dev])
 
     #################################################################################
-    # Energy Conversion Constraints (Input / Output Relations)
+    # Energy Conversion Constraints (Input / Output Relations) (for every time step)
     #################################################################################
 
     for y in model.support_years:
@@ -294,7 +296,7 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.gas["SAB", y, d, t] == model.hydrogen["SAB", y, d, t] * devs["SAB"]["eta"])
 
     ################################################################################
-    # Energy balances
+    # Energy balances for each time step
     ################################################################################
 
     for y in model.support_years:
@@ -539,8 +541,10 @@ def build_model(model, data, devs, param, dem):
     # Investment and operational costs for each device (Annualized)
     for dev in model.all_devs:
         model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+        model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
         model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
-        model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv[dev])  # operation and maintenance costs
+        model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
+        model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
         model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
 
     # Combined total annualized investment and O&M costs for all devices
@@ -589,15 +593,21 @@ def build_model(model, data, devs, param, dem):
             weights[year] = n - year # time from last support year to end of observation period
 
     # Calculate the NPV for energy and miscellaneous costs
+    # Use geometric series formula: sum(1/q^(year+k) for k in 0..n-1) = (1/q^year) * (1 - (1/q)^n) / (1 - 1/q)
     npv_energy = 0
     npv_misc = 0
     for idx, year in enumerate(sorted_years):
         interval_length = weights[year]
+        # Calculate discount factor for this interval using geometric series formula
+        if i != 0:  # If interest rate is not zero
+            base_discount = 1 / (q ** year)
+            interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
+            discount_factor = base_discount * interval_factor
+        else:  # If interest rate is zero, discount factor is simply the interval length
+            discount_factor = interval_length
 
-    for year_in_interval in range(interval_length):
-        actual_year = year + year_in_interval
-    npv_energy += model.total_energy_costs[year] / (q ** actual_year)
-    npv_misc += model.misc_costs[year] / (q ** actual_year)
+        npv_energy += model.total_energy_costs[year] * discount_factor
+        npv_misc += model.misc_costs[year] * discount_factor
 
     # Annualize the NPV over the observation period using the annuity factor
     if i != 0:
@@ -849,7 +859,12 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t/a
 
     for k in model.all_devs:
-        result_dict[k] = {"cap": round(safe_value(model.cap, k), 1)}
+        result_dict[k] = {
+            "cap": round(safe_value(model.cap, k), 1),
+            "ann_inv_cost": round(safe_value(model.c_inv, k), 2),
+            "ann_inv_cost_unsubsidized": round(safe_value(model.c_inv_base, k), 2),
+            "om_cost": round(safe_value(model.c_om, k), 2)
+        }
 
     # Add 'from_grid' and 'to_grid' capacity information if the option is enabled
     if param.get("enable_cap_limit_el", True):
@@ -865,8 +880,11 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     heat_grid_om_costs = data.heat_grid_data.get("om_costs", 0)
 
     result_dict["total_inv_cost"] = int(sum(safe_value(model.inv, k) for k in model.all_devs) + heat_grid_costs)
+    result_dict["total_inv_cost_unsubsidized"] = int(sum(safe_value(model.inv_base, k) for k in model.all_devs) + heat_grid_costs)
     result_dict["total_ann_inv_cost"] = int(
         sum(safe_value(model.c_inv, k) for k in model.all_devs) + heat_grid_ann_costs)
+    result_dict["total_ann_inv_cost_unsubsidized"] = int(
+        sum(safe_value(model.c_inv_base, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
 
     # Total energy imports and exports - per support year
