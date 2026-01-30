@@ -200,21 +200,21 @@ class EcoConfig(BaseSettings):
     
 
     # electricity prices and feed-in revenue in €/kWh
-    price_supply_el: str | list = [0.300]    # Electricity price in €/kWh
+    price_supply_el: str | list = [0.3460, 0.3480, 0.3500, 0.3520, 0.3540, 0.3560, 0.3526, 0.3492, 0.3458, 0.3424, 0.3390, 0.3366, 0.3342, 0.3318, 0.3294, 0.3270, 0.3270, 0.3270, 0.3270, 0.3270]    # Electricity price in €/kWh
     revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
-    price_supply_el_eh: str | list = [0.300]  # Electricity price for EHDO in €/kWh
-    revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for EHDO in €/kWh
+    price_supply_el_eh: str | list = [0.1590, 0.1554, 0.1518, 0.1482, 0.1446, 0.1410, 0.1394, 0.1378, 0.1362, 0.1346, 0.1330, 0.1302, 0.1274, 0.1246, 0.1218, 0.1190, 0.1190, 0.1190, 0.1190, 0.1190]  # Electricity price for the energy hub in €/kWh
+    revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
 
     # gas and other fuel prices in €/kWh
-    price_supply_gas: str | list = [0.127]    # Gas price in €/kWh
-    price_supply_gas_eh: str | list = [0.127] # Gas price for EHDO in €/kWh
+    price_supply_gas: str | list = [0.1230, 0.1218, 0.1206, 0.1194, 0.1182, 0.1170, 0.1198, 0.1226, 0.1254, 0.1282, 0.1310, 0.1338, 0.1366, 0.1394, 0.1422, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450]    # Gas price in €/kWh
+    price_supply_gas_eh: str | list = [0.0820, 0.0794, 0.0768, 0.0742, 0.0716, 0.0690, 0.0708, 0.0726, 0.0744, 0.0762, 0.0780, 0.0796, 0.0812, 0.0828, 0.0844, 0.0860, 0.0860, 0.0860, 0.0860, 0.0860] # Gas price for the energy hub in €/kWh
     revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
-    price_gasoline_liter: str | list = [1.7]  # Gasoline price in €/liter
-    price_hydrogen: str | list = [0.250]         # Hydrogen price in €/kWh
+    price_gasoline_liter: str | list = [1.70, 1.72, 1.74, 1.76, 1.78, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.82, 1.84, 1.86, 1.88, 1.90, 1.90, 1.90, 1.90, 1.90]  # Gasoline price in €/liter
+    price_hydrogen: str | list = [0.2990, 0.2938, 0.2886, 0.2834, 0.2782, 0.2730, 0.2678, 0.2626, 0.2574, 0.2522, 0.2470, 0.2418, 0.2366, 0.2314, 0.2262, 0.2210, 0.2176, 0.2142, 0.2108, 0.2074]         # Hydrogen price in €/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
-    price_biomass: str | list = [0.0698]         # Biomass price in €/kWh
-    price_oil: str | list = [0.0982]           # Oil price in €/kWh
-    price_district_heat: str | list = [0.1627]  # District heat price in €/kWh not including fees
+    price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
+    price_oil: str | list = [0.90, 0.94, 0.98, 1.02, 1.06, 1.10, 1.12, 1.14, 1.16, 1.18, 1.20, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34, 1.36, 1.38]           # Oil price in €/kWh
+    price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
     co2_el_grid: str | list = [0.363]          # Co2 emissions for electricity import (grid mix) in kg/kWh
@@ -637,7 +637,7 @@ class DecentralDeviceConfig(BaseSettings):
     HP__inv_base: float = 1950.0  # Unsubsidized investment in €/kWth.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    HP__enable_measures: bool = True # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
+    HP__enable_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
     HP__measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
 
