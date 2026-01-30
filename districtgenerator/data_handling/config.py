@@ -127,6 +127,33 @@ class DesignBuildingConfig(BaseSettings):
     ventilation_rate: float = 0.50  # Room ventilation rate in 1/h (per hour)
     thermal_model_type: str = '5R1C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
 
+    # --- Decentral HPs sink temperature (mean of supply & return) by age class and retrofit level ---
+    # retrofit: 0=standard, 1=retrofit, 2=advanced retrofit
+    # Source:
+    # Wüllhorst et al. (2025), "Impact of hybrid heat pump shares and building envelope
+    # retrofit rates on load penetration in German low-voltage grids",
+    # DOI: 10.1016/j.apenergy.2025.125530
+    # Temperature levels represent supply/return temperatures
+
+    hp_sink_temp_levels: Dict[str, Dict[int, Tuple[float, float]]] = Field(
+        default_factory=lambda: {
+            "2010-": {0: (35.0, 30.0), 1: (35.0, 30.0), 2: (35.0, 30.0)},
+            "1984-2009": {0: (52.5, 42.5), 1: (40.05, 34.35), 2: (36.55, 31.55)},
+            "1979-1983": {0: (70.0, 55.0), 1: (45.1, 38.7), 2: (38.1, 33.1)},
+            "1969-1978": {0: (70.0, 55.0), 1: (42.8, 37.2), 2: (36.9, 31.9)},
+            "1958-1968": {0: (70.0, 55.0), 1: (41.4, 36.2), 2: (35.0, 30.0)},
+            "-1957": {0: (70.0, 55.0), 1: (39.6, 34.6), 2: (35.0, 30.0)},
+        }
+    )
+
+    # Optional "low-temperature measures" (geringinvasive Maßnahmen) are assumed to
+    # reduce the required sink temperature (e.g. hydraulic balancing, radiator
+    # optimization, control adjustments), improving HP efficiency without full
+    # building refurbishment. If enabled, the sink temperature is capped at 45 °C.
+    # Source:
+    # KWW-Technikkatalog Wärmeplanung
+    hp_sink_temp_measures_cap: float = 45.0
+
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
     buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"])
@@ -610,6 +637,8 @@ class DecentralDeviceConfig(BaseSettings):
     HP__inv_base: float = 1950.0  # Unsubsidized investment in €/kWth.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    HP__enable_measures: bool = True # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
+    HP__measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
 
     # EH parameters (Electric Heater)

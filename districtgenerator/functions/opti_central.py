@@ -25,7 +25,6 @@ ECS_BIOMASS = ("BBOI",)  # biomass consuming devices
 ECS_HYDROGEN = ("H2BOI", "FC")  # hydrogen consuming devices
 ECS_OIL = ("OBOI",)  # oil consuming devices
 ECS_STORAGE = ("BAT", "TES")  # battery (BAT), thermal energy storage (TES)
-HP_MODI = ("HP35", "HP55")  # modi of the HP with different HP supply temperatures in °C
 
 # Create set for energy hub devices
 EH_DEVS = ["PV", "WT", "STC", "WAT",
@@ -85,6 +84,49 @@ def run_opti_central(data, year, cluster, sim_ecoData):
 
     return results_dict
 
+def compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, design_building):
+
+    temp_levels = design_building["hp_sink_temp_levels"]
+    Tsink_target = design_building["hp_sink_temp_measures_cap"]
+    use_hp_measures = param_dec_devs["HP"].get("enable_measures", False)
+
+    def _age_key(cy: int) -> str:
+        if 2010 <= cy:
+            return "2010-"
+        elif 1984 <= cy <= 2009:
+            return "1984-2009"
+        elif 1979 <= cy <= 1983:
+            return "1979-1983"
+        elif 1969 <= cy <= 1978:
+            return "1969-1978"
+        elif 1958 <= cy <= 1968:
+            return "1958-1968"
+        else:
+            return "-1957"
+
+    T_sink = {}
+    hp_measures_applied = {}
+
+    for n in range(len(buildingData)):
+        cy = buildingData[n]["envelope"].construction_year
+        r = buildingData[n]["envelope"].retrofit  # 0/1/2
+
+        key = _age_key(cy)
+        Ts, Tr = temp_levels[key].get(r, temp_levels[key][0])
+        Tsink_original = 0.5 * (Ts + Tr)
+
+        applied = False
+        Tsink = Tsink_original
+
+        if use_hp_measures and Tsink_original > Tsink_target:
+            Tsink = Tsink_target
+            applied = True
+
+        buildingData[n]["envelope"].hp_measures = applied
+        T_sink[n] = Tsink
+        hp_measures_applied[n] = applied
+
+    return T_sink, hp_measures_applied
 
 def build_model(model, data, year, cluster, sim_ecoData):
     """
@@ -232,7 +274,6 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.ecs_hydrogen = pyo.Set(initialize=ECS_HYDROGEN, doc="Hydrogen generating or consuming devices in the buildings")
     model.ecs_oil = pyo.Set(initialize=ECS_OIL, doc="Oil generating or consuming devices in the buildings")
     model.ecs_storage = pyo.Set(initialize=ECS_STORAGE, doc="Storage devices in the buildings")
-    model.hp_modi = pyo.Set(initialize=HP_MODI, doc="Heat pump modi with different supply temperatures for domestic heatpumps")
     model.EVs = pyo.Set(initialize=ev_data.keys(), doc="Individual electric vehicles in the buildings")
     model.ICEs = pyo.Set(initialize=ice_data.keys(), doc="Individual internal combustion engine vehicles in the buildings")
 
@@ -270,10 +311,6 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.oil_dom = pyo.Var(model.ecs_oil, model.n, model.t, within=pyo.NonNegativeReals,
                             doc="Oil to/from domestic devices")
     model.dh_heat_supply = pyo.Var(model.n, model.t, within=pyo.NonNegativeReals, doc="Heat supplied by the district heating network to the buildings") # Heat supplied by district heating network
-
-    # Heat pump modi
-    model.power_mode = pyo.Var(model.hp_modi, model.n, model.t, within=pyo.NonNegativeReals)
-    model.heat_mode = pyo.Var(model.hp_modi, model.n, model.t, within=pyo.NonNegativeReals)
 
     # Storage variables
     model.soc_dom = pyo.Var(model.ecs_storage, model.n, model.t, within=pyo.NonNegativeReals,
@@ -771,35 +808,22 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # Energy Conversion for domestic devices
     ################################################################################
 
-    # Energy balance heat pump
-    def hp_heat_balance_rule(model, n, t):
-        return model.heat_dom["HP", n, t] == model.heat_mode["HP35", n, t] + model.heat_mode["HP55", n, t]
+    # Heat pump conversion with sink temperature from age class + retrofit (mean supply/return)
+    model.T_sink, model.hp_measures_applied = compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, data.design_building_data)
+    def hp_conversion_rule(model, n, t):
+        if buildingData[n]["capacities"]["HP"] <= 0:
+            return model.heat_dom["HP", n, t] == 0
 
-    def hp_power_balance_rule(model, n, t):
-        return model.power_dom["HP", n, t] == model.power_mode["HP35", n, t] + model.power_mode["HP55", n, t]
+        Tsink = model.T_sink[n]   # °C
+        deltaT = Tsink - T_e[t]
+        if deltaT <= 0:
+            deltaT = 0.1
 
-    # heat generation of heat pump for each modus
-    def hp_mode_constraint_new_rule(model, n, t):
-        if buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
-            return model.power_mode["HP55", n, t] == 0
-        else:
-            return pyo.Constraint.Skip  # Maybe problems when both rules are skipped?
+        return model.heat_dom["HP", n, t] == model.power_dom["HP", n, t] * param_dec_devs["HP"]["grade"] * (
+                    273.15 + Tsink) / deltaT
 
-    def hp_mode_constraint_old_rule(model, n, t):
-        if buildingData[n]["envelope"].construction_year < 1995 and buildingData[n]["capacities"]["HP"] > 0:
-            return model.power_mode["HP35", n, t] == 0
-        else:
-            return pyo.Constraint.Skip  # Maybe problems when both rules are skipped?
-
-    # Energy conversion heat pump modus 35
-    def hp35_conversion_rule(model, n, t):
-        return model.heat_mode["HP35", n, t] == model.power_mode["HP35", n, t] * param_dec_devs["HP"]["grade"] * (
-                273.15 + 35) / (35 - T_e[t])
-
-    # Energy conversion heat pump modus 55
-    def hp55_conversion_rule(model, n, t):
-        return model.heat_mode["HP55", n, t] == model.power_mode["HP55", n, t] * param_dec_devs["HP"]["grade"] * (
-                273.15 + 55) / (55 - T_e[t])
+    model.hp_conversion = pyo.Constraint(model.n, model.t, rule=hp_conversion_rule,
+                                         doc="HP conversion using age+retrofit dependent sink temperature")
 
     # Electric heater
     def eh_conversion_rule(model, n, t):
@@ -845,18 +869,6 @@ def build_model(model, data, year, cluster, sim_ecoData):
                     273.15 + 5) / max(T_e[t] - 5, 0.1)
 
     # Constraints for building devices conversion
-    model.hp_heat_balance = pyo.Constraint(model.n, model.t, rule=hp_heat_balance_rule,
-                                           doc="Heat pump total heat output balance between HP35 and HP55 modes")
-    model.hp_power_balance = pyo.Constraint(model.n, model.t, rule=hp_power_balance_rule,
-                                            doc="Heat pump total power consumption balance between HP35 and HP55 modes")
-    model.hp_mode_new = pyo.Constraint(model.n, model.t, rule=hp_mode_constraint_new_rule,
-                                       doc="Heat pump mode restriction for new buildings (≥1995): only HP35 mode allowed")
-    model.hp_mode_old = pyo.Constraint(model.n, model.t, rule=hp_mode_constraint_old_rule,
-                                       doc="Heat pump mode restriction for old buildings (<1995): only HP55 mode allowed")
-    model.hp35_conversion = pyo.Constraint(model.n, model.t, rule=hp35_conversion_rule,
-                                           doc="Heat pump HP35 mode: converts electricity to heat with COP dependent on ambient temperature (35°C supply)")
-    model.hp55_conversion = pyo.Constraint(model.n, model.t, rule=hp55_conversion_rule,
-                                           doc="Heat pump HP55 mode: converts electricity to heat with COP dependent on ambient temperature (55°C supply)")
     model.eh_conversion = pyo.Constraint(model.n, model.t, rule=eh_conversion_rule,
                                          doc="Electric heater: converts electricity to heat for space heating and DHW")
     model.chp_heat_conversion = pyo.Constraint(model.n, model.t, rule=chp_heat_conversion_rule,
@@ -1732,15 +1744,22 @@ def solve_model_and_extract_results(model, data, year, cluster):
             for t in time_steps:
                 results_dict[n][device]["Q_cool"].append(round(pyo.value(model.cool_dom[device, n, t]), 0))
 
-    # HP modes
+    # HP
     for n in range(nbuildings):
-        for device in HP_MODI:
-            results_dict[n][device] = {}
-            results_dict[n][device]["Q_th"] = []
-            results_dict[n][device]["P_el"] = []
-            for t in time_steps:
-                results_dict[n][device]["Q_th"].append(round(pyo.value(model.heat_mode[device, n, t]), 0))
-                results_dict[n][device]["P_el"].append(round(pyo.value(model.power_mode[device, n, t]), 0))
+        results_dict[n].setdefault("HP", {})
+
+        Tsink_val = float(model.T_sink[n])
+        results_dict[n]["HP"]["hp_measures_applied"] = bool(model.hp_measures_applied[n])
+
+        results_dict[n]["HP"]["COP"] = []
+        results_dict[n]["HP"]["T_sink"] = []
+
+        for t in time_steps:
+            Pel = pyo.value(model.power_dom["HP", n, t])
+            Qth = pyo.value(model.heat_dom["HP", n, t])
+
+            results_dict[n]["HP"]["T_sink"].append(Tsink_val)
+            results_dict[n]["HP"]["COP"].append(round(Qth / Pel, 3) if Pel and Pel > 1e-6 else 0.0)
 
     # Power devices
     for n in range(nbuildings):
