@@ -463,36 +463,93 @@ def load_parameter_5G(data):
     net_heat_supply = np.zeros_like(deltaT)
     c_loss_subst = data.heat_grid_data["c_loss_subst"]  # 3%, cool losses at the substation # todo Rawad: Werte überprüfen
 
+
     for building in data.district:
         if building["buildingFeatures"]["heater"] == "heat_grid":
             # read (clustered) demand pofile for each building
             # clustered value (for the optimization)
-            heating_cluster = building["user"].heat_cluster / 1000 * (1 - 1/COP_clustered)   # kW Heat needed by the evaporator of the heat pump
-            #dhw_cluster = building["user"].dhw_cluster / 1000  # kW        #todo Rawad: warum kein dhw?
+
             generationSTC_cluster = building["generationSTC_cluster"] / 1000  # kW
+            dhw_cluster = building["user"].dhw_cluster / 1000  # kW                 #Todo optional: DHW kann auch über STC versorgt werden
+            heating_cluster = building["user"].heat_cluster
+            building_hp_size_cluster = np.full_like(heating_cluster, building["envelope"].heatload/1000, dtype=float)   #Size of building heat_pump, chosen as the building norm-heatload, as an array for further processing
+            building_hr_demand_cluster = np.zeros_like(heating_cluster,dtype=float)       #demand on the building heat rod
+            heatpump_demand_cluster = np.zeros_like(heating_cluster,dtype=float)
+
+
+            heat_dem_after_STC_cluster = np.maximum(heating_cluster - generationSTC_cluster, 0.0)
+            excess_heat_after_STC_cluster = np.maximum(generationSTC_cluster - heating_cluster, 0.0)
+
+
+            #Mask to decide if heatpump size limits the heatpump heat generation
+            mask = heat_dem_after_STC_cluster <= building_hp_size_cluster
+
+            # Heatpump demand equals remaining heatdemand when not limited by size
+            heatpump_demand_cluster[mask] = (heat_dem_after_STC_cluster[mask] / 1000 * (1 - 1/COP_clustered[mask]))
+
+            # Heatpump demand equals maximum heatpump demand if needed demand exceeds maximum demand
+            heatpump_demand_cluster[~mask] = building_hp_size_cluster[~mask] / 1000 * (1 - 1/COP_clustered[~mask])
+
+            # electric HeatRod demand equals remaining heat demand plus district hot water demand
+            building_hr_demand_cluster[~mask] = (heat_dem_after_STC_cluster[~mask] - building_hp_size_cluster[~mask]) + dhw_cluster
+
+
+
+
 
             direct_cooling_cluster = (building["user"].cooling_cluster)/1000 # kW Heat given by the direct cooling heat exchanger #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
-            cc_cooling_cluster = building["user"].cooling_cluster * (1 + 1 / COP_CC_clustered) / 1000 # kW Heat given by the condensor of the CC
 
-            heat_from_network_cluster = np.maximum(heating_cluster - generationSTC_cluster, 0.0)
-            heat_to_network_cluster = cc_cooling_cluster   #direct_cooling_cluster  #todo Rawad: warum ist direct_cooling nicht berücksichtigt hier?
+
+            heat_from_network_cluster = np.maximum(heatpump_demand_cluster - excess_heat_after_STC_cluster - direct_cooling_cluster, 0.0)
+            heat_to_network_cluster = -1.0* np.minimum(heatpump_demand_cluster - excess_heat_after_STC_cluster - direct_cooling_cluster, 0.0)
 
             building["user"].heat_from_network_cluster = heat_from_network_cluster  # kW
             building["user"].heat_to_network_cluster = heat_to_network_cluster
 
+
+
+
+
+
             # year profile (for calculation of max and min permitted pipeline diameter)
-            heating = building["user"].heat/1000 * (1 - 1/COP_full_year) # kW Heat needed by the evaporator of the heat pump
-            #dhw = building["user"].dhw / 1000  # kW                                    #todo Rawad: warum kein dhw?
             generationSTC = building["generationSTC"] / 1000  # kW
+            heating = building["user"].heat
 
-            direct_cooling = (building["user"].cooling)/1000        # kW Heat given by the direct cooling heat exchanger   #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
-            cc_cooling = building["user"].cooling * (1 + 1 / COP_CC_full_year) / 1000  # kW Heat given by the condensor of the CC
+            heat_dem_after_STC = np.maximum(heating - generationSTC, 0.0)
+            excess_heat_after_STC = np.maximum(generationSTC - heating, 0.0)
 
-            heat_from_network = np.maximum(heating - generationSTC, 0.0)
-            heat_to_network = cc_cooling    #direct_cooling_cluster  #todo Rawad: warum ist direct_cooling nicht berücksichtigt hier?
+
+            heatpump_demand = heat_dem_after_STC / 1000 * (1 - 1/COP_full_year)   # kW Heat needed by the evaporator of the heat pump
+            dhw = building["user"].dhw / 1000  # kW                 #Todo optional: DHW kann auch über STC versorgt werden
+            direct_cooling = (building["user"].cooling)/1000 # kW Heat given by the direct cooling heat exchanger #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
+
+
+            heat_from_network = np.maximum(heatpump_demand - excess_heat_after_STC - direct_cooling, 0.0)
+            heat_to_network = -1.0* np.minimum(heatpump_demand- excess_heat_after_STC - direct_cooling, 0.0)
 
             building["user"].heat_from_network = heat_from_network  # kW
             building["user"].heat_to_network = heat_to_network
+
+            print("Halloooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo")
+
+
+            
+
+            # heating = building["user"].heat/1000 * (1 - 1/COP_full_year) # kW Heat needed by the evaporator of the heat pump
+            # dhw = building["user"].dhw / 1000  # kW
+            # generationSTC = building["generationSTC"] / 1000  # kW
+            #
+            # direct_cooling = (building["user"].cooling)/1000        # kW Heat given by the direct cooling heat exchanger   #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
+            #
+            # heat_from_network = np.maximum(heating + dhw - generationSTC - direct_cooling, 0.0)
+            # heat_to_network = -1.0* np.minimum(heating + dhw - generationSTC - direct_cooling, 0.0)
+            #
+            # #alte Version: für Rückfragen an Rawad behalten
+            # #heat_from_network = np.maximum(heating - generationSTC, 0.0)
+            # #heat_to_network = direct_cooling_cluster  #odo Rawad: warum ist direct_cooling nicht berücksichtigt hier?
+            #
+            # building["user"].heat_from_network = heat_from_network  # kW
+            # building["user"].heat_to_network = heat_to_network
 
             # Sum the heat and cool losses in the substations
 
@@ -510,6 +567,7 @@ def load_parameter_5G(data):
     # todo Rawad: es fehlen noch die dim_dc_cc, oder?
 
     if data.heat_grid_data["generation"] == "5th":
+        dim_dc_hp = np.array([building["envelope"].heatload for building in data.district], dtype=float)
         #todo Rawad: würde ich anders machen
         dim_dc_hp_total = sum(building["user"].dim_dc_hp for building in data.district  if building["buildingFeatures"]["heater"] == "heat_grid")                     #total capacity for all decentral heatpumps in the district
         elec_demand_dc_hp_total = sum(building["user"].elec_demand_dc_hp for building in data.district if building["buildingFeatures"]["heater"] == "heat_grid")     #total electricity demand for all decentral heatpumps in the district
@@ -1627,30 +1685,77 @@ def output_diameter(data, param):
     # data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
 
     # sum the heat loss in the network and calculate the heat loss density
-    heat_loss_network = np.zeros_like(heat_loss_substation)
+    # heat_loss_network = np.zeros_like(heat_loss_substation)
+    # total_pipe_length = 0
+    # annual_heat_loss_network = 0
+    # for pipe_id, pipe in data.pipeline.items():
+    #     length = pipe["length"]
+    #     total_pipe_length += length
+    #     annual_heat_loss_pipe = np.sum(pipe["heat_loss_pipe"])
+    #     pipe["heat_loss_density"] = annual_heat_loss_pipe / 1000 / length  # MWh/m
+    #     annual_heat_loss_network += annual_heat_loss_pipe
+    #     heat_loss_network += pipe["heat_loss_pipe"]
+    #
+    # t_s = len(next(iter(data.pipeline.values()))["heat_loss_pipe"])  # Number of time steps
+    # heat_loss_pos_network = np.zeros(t_s, dtype=float)
+    # heat_gain_pos_network = np.zeros(t_s, dtype=float)
+    #
+    # #Calculates the annual heat loss and gain visible for the energy hub (only when total heat loss added by all pipes ist >0 for losses or <0 for gains)
+    # annual_heat_loss_pos = 0
+    # for time_step in range(t_s):                 #iteriert über jeden Zeitpunkt der Zeitreihe (8760)
+    #     net = sum(pipe["heat_loss_pipe"][time_step] for pipe in data.pipeline.values())
+    #     heat_loss_pos_network[time_step] = max(net, 0.0)
+    #     heat_gain_pos_network[time_step] = max(-net, 0.0)
+    #
+    # annual_heat_loss_pos = np.sum(heat_loss_pos_network)
+    # annual_heat_gain_pos = np.sum(heat_gain_pos_network)
+
+
+    # sum the heat loss in the network and calculate the heat loss density
+    #heat_loss_network = np.zeros_like(heat_loss_substation)
     total_pipe_length = 0
-    annual_heat_loss_network = 0
+    #annual_heat_loss_network = 0
     for pipe_id, pipe in data.pipeline.items():
         length = pipe["length"]
         total_pipe_length += length
-        annual_heat_loss_pipe = np.sum(pipe["heat_loss_pipe"])
-        pipe["heat_loss_density"] = annual_heat_loss_pipe / 1000 / length  # MWh/m
-        annual_heat_loss_network += annual_heat_loss_pipe
-        heat_loss_network += pipe["heat_loss_pipe"]
 
-    t_s = len(next(iter(data.pipeline.values()))["heat_loss_pipe"])  # Number of time steps
+        heat_change_pipe = np.asarray(pipe["heat_loss_pipe"], dtype=float)
+
+        annual_heat_loss_pipe = np.sum(heat_change_pipe[heat_change_pipe > 0])
+        annual_heat_gain_pipe = np.sum(heat_change_pipe[heat_change_pipe < 0])
+
+        pipe["heat_loss_density"] = annual_heat_loss_pipe / 1000 / length  # MWh/m
+        pipe["heat_gain_density"] = annual_heat_gain_pipe / 1000 / length  # MWh/m
+
+        #annual_heat_loss_network += annual_heat_loss_pipe
+        #heat_loss_network += pipe["heat_loss_pipe"]
+
+
+    t_s = len(next(iter(data.pipeline.values()))["heat_loss_pipe"])
     heat_loss_pos_network = np.zeros(t_s, dtype=float)
     heat_gain_pos_network = np.zeros(t_s, dtype=float)
 
     #Calculates the annual heat loss and gain visible for the energy hub (only when total heat loss added by all pipes ist >0 for losses or <0 for gains)
     annual_heat_loss_pos = 0
     for time_step in range(t_s):                 #iteriert über jeden Zeitpunkt der Zeitreihe (8760)
-        net = sum(pipe["heat_loss_pipe"][time_step] for pipe in data.pipeline.values())
-        heat_loss_pos_network[time_step] = max(net, 0.0)
-        heat_gain_pos_network[time_step] = max(-net, 0.0)
+        value_sum = sum(pipe["heat_loss_pipe"][time_step] for pipe in data.pipeline.values())
+        if value_sum >= 0:
+            heat_loss_pos_network[time_step] = value_sum
+            heat_gain_pos_network[time_step] = 0
+        else:
+            heat_gain_pos_network[time_step] = abs(value_sum)   #positive values only
+            heat_loss_pos_network[time_step] = 0
 
     annual_heat_loss_pos = np.sum(heat_loss_pos_network)
     annual_heat_gain_pos = np.sum(heat_gain_pos_network)
+
+    print(annual_heat_loss_pos)
+    print(annual_heat_gain_pos)
+
+
+
+
+
 
     heat_loss_pos_total = heat_loss_substation + heat_loss_pos_network
 
@@ -1950,6 +2055,57 @@ def output_diameter(data, param):
     plt.savefig(base + ".svg")  # SVG
 
     #plt.show()
+
+
+    # ---------- 6.5. plot Pipeline Map - Heat_gain_density (MWh/m) ----------      #newly added for 5th gen DHN
+    if data.heat_grid_data["generation"] == "5th":
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        # Retrieve all heat_gain_density_values of every pipe segment
+        heat_gain_density_values = [data.pipeline[pipe]["heat_gain_density"] for pipe in data.pipeline.keys()]
+        min_heat_gain_density, max_heat_gain_density = min(heat_gain_density_values), max(heat_gain_density_values)
+
+        norm_heat_gain_density = mcolors.Normalize(vmin=min_heat_gain_density, vmax=max_heat_gain_density)
+        # cmap = plt.cm.RdYlGn_r  # red → yellow → green
+
+        for pipe_id, pipe in data.pipeline.items():
+            start = tuple(pipe["from_pos"])
+            end = tuple(pipe["to_pos"])
+
+            heat_gain_density = -pipe["heat_gain_density"]      #Minus so only positive values are shown
+            # Map pressure_drop_max to line width in the plot
+            lw = 1 + 5 * (heat_gain_density - min_heat_gain_density) / (
+                    max_heat_gain_density - min_heat_gain_density)  # range: 1-5
+            # bigger energy_density, redder; smaller energy_density, greener
+            color = cmap(norm_heat_gain_density(heat_gain_density))
+
+            ax.plot([start[0], end[0]], [start[1], end[1]], color=color, linewidth=lw)
+
+            # mark at the midpoint
+            mid_x = (start[0] + end[0]) / 2
+            mid_y = (start[1] + end[1]) / 2
+            ha = "center"
+            dy = 0
+            if abs(start[1] - end[1]) < 1e-6:
+                dy = 2
+                if start[0] > end[0] and start[0] - end[0] < 20:
+                    ha = "right"
+                elif start[0] < end[0] and end[0] - start[0] < 20:
+                    ha = "left"
+            ax.text(mid_x, mid_y + dy, f"{heat_gain_density:.3f}", fontsize=8, ha=ha, color='black', fontweight='bold')
+
+        ax.set_title("Heat gain density (MWh/m)")
+        ax.set_aspect('equal')
+        ax.grid(True, linestyle='--', linewidth=0.3)
+
+        base = os.path.join(dir_result, f"pipeline_heat_gain_density_{data.scenario_name}")
+        plt.savefig(base + ".png")  # PNG
+        plt.savefig(base + ".svg")  # SVG
+
+        #plt.show()
+    
+    
+    
 
     # ---------- 7. save pump power(yearly profile) ----------
     # save pump power(yearly profile) in data.heat_grid_data["pump_power"]
