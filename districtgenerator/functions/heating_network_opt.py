@@ -487,6 +487,7 @@ def load_parameter_5G(data):
             # Heatpump demand equals remaining heatdemand when not limited by size
             heatpump_demand_cluster[mask] = (heat_dem_after_STC_cluster[mask] / 1000 * (1 - 1/COP_clustered[mask]))
 
+
             # Heatpump demand equals maximum heatpump demand if needed demand exceeds maximum demand
             heatpump_demand_cluster[~mask] = building_hp_size_cluster[~mask] / 1000 * (1 - 1/COP_clustered[~mask])
 
