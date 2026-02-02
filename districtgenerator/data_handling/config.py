@@ -621,6 +621,14 @@ class DecentralDeviceConfig(BaseSettings):
     EH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EH: dict = {}
 
+    # DC parameters (Direct Cooling)
+    DC__eta_th: float = 0.9  # Thermal efficiency.          #Todo: Parameter für Direct Cooler prüfen
+    DC__life_time: int = 30  # Maximum life time in years.
+    DC__inv_base: float = 500.0  # Unsubsidized investment in €/kW.
+    DC__cost_om: float = 0.01  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    DC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    DC: dict = {}
+
     # BOI parameters (Gas Boiler)
     BOI__eta_th: float = 0.99  # Thermal efficiency.
     BOI__life_time: int = 20  # Maximum life time in years.
