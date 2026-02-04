@@ -155,7 +155,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
     plt.savefig(plot_filename_png, dpi=300)
     plt.savefig(plot_filename_svg, format="svg")
 
-    plt.show()
+#    plt.show()
 
     # %% STEP FOUR: OUTPUT
     # Assign unique identifiers to all nodes and count the role attributes separately.

@@ -128,6 +128,7 @@ class Datahandler:
         self.filePath = filePath
         self.heat_map_berlin = heat_map_berlin
         self.pv_stc_potential = None
+        self.cluster_meta = None
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -1182,15 +1183,9 @@ class Datahandler:
         None.
         """
 
-        for building in self.district:
+        dt_s = self.time["timeResolution"]
 
-            # %% create building energy system object
-            # get capacities of all possible devices
-            building["bes_obj"] = BES(physics=self.physics,
-                          decentral_device_data=self.decentral_device_data,
-                          design_building_data=self.design_building_data,
-                          file_path=self.filePath)
-            building["capacities"] = building["bes_obj"].designECS(building, self.site)
+        for building in self.district:
 
             if self.heat_map_berlin:
                 # Read PV potentials for the current building from the DataFrame
@@ -1236,32 +1231,57 @@ class Datahandler:
                 building["generationPV"] = total_pv_generation
                 building["generationSTC"] = total_stc_generation
 
-
             else:
                 # calculate PV and STC generation
-                building["generationPV"], building["generationSTC"] = \
-                    sun.calcPVAndSTCProfile(time=self.time,
-                                            site=self.site,
-                                            devices=self.decentral_device_data,
-                                            area_roof=building["envelope"].A["opaque"]["roof"],
-                                            # In Germany, this is a roof pitch between 30 and 35 degrees
-                                            beta=[35],
-                                            # surface azimuth angles (Orientation to the south: 0°)
-                                            gamma=[building["buildingFeatures"]["gamma_PV"]],
-                                            usageFactorPV1=building["buildingFeatures"]["f_PV1"],
-                                            usageFactorPV2=building["buildingFeatures"]["f_PV2"],
-                                            usageFactorSTC=building["buildingFeatures"]["f_STC"])
+                building["generationPV"], building["generationSTC"] = sun.calcPVAndSTCProfile(
+                    time=self.time,
+                    site=self.site,
+                    devices=self.decentral_device_data,
+                    area_roof=building["envelope"].A["opaque"]["roof"],
+                    beta=[35],  # In Germany, this is a roof pitch between 30 and 35 degrees
+                    gamma=[building["buildingFeatures"]["gamma_PV"]], # surface azimuth angles (Orientation to the south: 0°)
+                    usageFactorPV1=building["buildingFeatures"]["f_PV1"],
+                    usageFactorPV2=building["buildingFeatures"]["f_PV2"],
+                    usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
-            # optionally save generation profiles
+        # Pre-cluster for the optimization of the decentral heating system
+        any_opt = any(str(b["buildingFeatures"].get("heater", "")).strip().lower() in ("opt", "opt_geg")
+                      for b in self.district)
+
+        if any_opt:
+            self.clusterProfiles(centralEnergySupply=False)
+
+            self.cluster_meta = {
+                "clusterWeights": self.clusterWeights,
+                "clusters": self.clusters,
+                "len_cluster": int(self.time["clusterLength"] / self.time["timeResolution"]),
+                "clusterNumber": self.time["clusterNumber"],
+            }
+
+        for building in self.district:
+            building["cluster_meta"] = self.cluster_meta
+
+            # create building energy system object (may choose heater if "opt")
+            building["bes_obj"] = BES(
+                physics=self.physics,
+                decentral_device_data=self.decentral_device_data,
+                design_building_data=self.design_building_data,
+                file_path=self.filePath,
+                eco_data=self.ecoData,
+                pyomo_config=self.pyomo_config
+            )
+
+            # get capacities of all possible devices
+            building["capacities"] = building["bes_obj"].designECS(building, self.site, dt_s=dt_s)
+
+            # Optionally save PV/STC generation profiles
             if saveGenerationProfiles == True:
-                np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '.csv',
-                           building["generationPV"],
-                           delimiter=',')
-                np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '.csv',
-                           building["generationSTC"],
-                           delimiter=',')
+                np.savetxt(os.path.join(self.resultPath, "generation", f"decentralPV_{building['unique_name']}.csv"),
+                    building["generationPV"],
+                    delimiter=",")
+                np.savetxt(os.path.join(self.resultPath, "generation", f"decentralSTC_{building['unique_name']}.csv"),
+                    building["generationSTC"],
+                    delimiter=",")
 
     def designCentralDevices(self, saveGenerationProfiles):
         """

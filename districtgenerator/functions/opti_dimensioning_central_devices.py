@@ -89,7 +89,7 @@ def build_model(model, data, devs, param, dem):
     model.sigma = pyo.Param(model.year, initialize=param["sigma"])
 
     # Support years for multi-year optimization
-    support_years = sorted(param["interpolation_points"])  # z.B. [0, 5, 10, 15, 20]
+    support_years = sorted(param["interpolation_points"])  # For example [0, 5, 10, 15, 20]
     model.support_years = pyo.Set(initialize=support_years)
 
     # Store observation time

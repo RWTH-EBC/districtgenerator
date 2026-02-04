@@ -848,7 +848,7 @@ class CentralDeviceConfig(BaseSettings):
     PV__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     PV__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     PV__life_time: int = 25  # Maximum life time in years.
-    PV__inv_base: float = 1000  # Unsubsidized investment in €/m^2.
+    PV__inv_base: float = 1000  # Unsubsidized investment in €/kW.
     PV__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     PV__max_area: float = 10000  # Maximum installation area in square meters.
     PV__min_area: float = 0  # Minimum installation area in square meters.
@@ -886,7 +886,7 @@ class CentralDeviceConfig(BaseSettings):
     STC__eta: float = 0.7  # Thermal efficiency between 0 and 1.
     STC__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     STC__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
-    STC__inv_base: float = 800  # Unsubsidized investment in €/m^2.
+    STC__inv_base: float = 800  # Unsubsidized investment in €/kW.
     STC__life_time: int = 20  # Maximum life time in years.
     STC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     STC__max_area: float = 5000  # Maximum installation area in square meters.
