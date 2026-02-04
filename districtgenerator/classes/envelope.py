@@ -648,7 +648,10 @@ class Envelope:
     def calcCoolingLoad(self, site, method="design", nb_occ=2):
         """
         Calculate design (nominal) cooling load at design outside temperature
+        Compare to SIA2024 or VDI2078 for more details on the method.
+        https://cms.sia.ch/de/api/getMedia/941
 
+        Static calculation pyhsically based on VDI 2078 (1996) and DIN EN ISO 13790
         Parameters
         ----------
         site : dict
@@ -703,10 +706,18 @@ class Envelope:
 
         # 7. Thermal Mass Reduction (Storage Factor)
         # Time constant for thermal delay in hours (J / W)
+        # Approximation of the dynamic storage effect using a static reduction factor.
+        #     # While VDI 2078 (2015) prescribes a dynamic simulation (response factors),
+        #     # this static approach (based on ISO 13790 / EN 12831 concepts) is sufficient
+        #     # for nominal load estimation (sizing).
         tau = self.C_m / H["total"] / 3600
+        # Reduction factor f_storage (heuristic formula)
+        # High mass -> high tau -> low f_storage -> lower peak load
         f_storage = 1 / (1 + tau / 15)
 
         # 8. Total Cooling Load in W
+        # Convective loads (ventilation) are immediate.
+        # Radiative loads (solar, internal) are dampened by f_storage.
         Q_nC = (Q_trans + Q_solar + Q_internal_sensible) * f_storage + \
                Q_vent_sensible + Q_vent_latent + Q_internal_latent
 
@@ -748,6 +759,7 @@ class Envelope:
 
     def _calc_internal_loads_design(self, nb_occ):
         """Helper to calculate sensible and latent internal gains.
+
         Parameters
         ----------
         nb_occ : int
@@ -760,8 +772,18 @@ class Envelope:
             Latent internal heat gains in W
         """
 
-        # 1. Sensible Heat Gains
         # Standard values: 5-7 W/m² for residential, 10-20 W/m² for offices
+        # Includes: Appliances, Lighting, and Sensible heat from persons.
+        # Values derived from SIA 2024 / DIN V 18599 standard profiles:
+        #
+        # - Residential (5 W/m²):
+        #   Conservative average for modern apartments.
+        #   Accounts for efficient lighting, typical appliance mix, and lower occupancy density.
+        #
+        # - Office (15 W/m²):
+        #   Standard value for office usage. Composition approx.:
+        #   ~ 6 W/m² from Persons (Sensible heat at ~15 m²/person)
+        #   ~ 9 W/m² from Equipment (Laptops/PC) and Lighting.
         if self.usage_short in ["SFH", "MFH", "TH", "AB"]:
             q_int = 5  # Residential
         else:
@@ -771,6 +793,11 @@ class Envelope:
 
         # 2. Latent Heat Gains (Humidity load per person)
         # Assumption: 45 W per person
+        # Represents humidity load (perspiration/respiration) relevant for dehumidification.
+        # Source: VDI 2078 (Heat emission of human body)
+        # - Activity: "Seated / Light work" (Total metabolic rate ~120 W)
+        # - Condition: At design room temperature (~24°C - 26°C)
+        # - Split: ~75 W Sensible (included in q_int above) / ~45 W Latent
         Q_internal_latent = int(nb_occ) * 45
 
         return Q_internal_sensible, Q_internal_latent
@@ -1040,118 +1067,4 @@ class Envelope:
                                   * self.U["opaque"][drct2] * self.b_tr[drct2][t]
                                   for drct2 in direction2)
 
-    def _calcCoolingLoadAtTimestep(self, site, t):
-        """
-        Calculate cooling load at specific timestep
 
-        Parameters
-        ----------
-        site : dict
-            Site data
-        t : int
-            Timestep index
-        orientation_map : dict
-            Mapping of orientations to SunRad indices
-
-        Returns
-        -------
-        Q_C : float
-            Cooling load at timestep t [W]
-        """
-
-        # 1. Transmission heat gains (only when outdoor > indoor)
-        T_e = site["T_e"][t]
-        T_i = self.T_set_max  # e.g., 26°C -> kühlen auf T_set_max? todo
-
-        # if T_e > T_i:
-        #     U_TB = 0.05  # thermal bridge surcharge
-#
-        #     # Ground temperature (typically 10-15°C in Germany, relatively constant)
-        #     T_ground = site.get("T_ground", 12)  # °C
-#
-        #     Q_trans = (
-        #             self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) * (T_e - T_i) +
-        #             self.A["window"]["sum"] * self.U["window"] * (T_e - T_i) +
-        #             self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB) * (T_e - T_i) +
-        #             self.A["opaque"]["floor"] * self.U["opaque"]["floor"] * (T_ground - T_i) # typically cooling load is negative here
-        #     )
-#
-        # else:
-        #     Q_trans = 0
-
-        if T_e > T_i:
-            Q_trans = self.H_tr_em[t] * (T_e - T_i) # todo: check if this is correct
-        else:
-            Q_trans = 0
-
-        # 2. Solar heat gains through windows
-        Q_solar = self.phi_sol[t]
-
-        # 3. Internal heat gains (sensible only for now)
-        Q_internal = self.phi_int[t]
-
-        # 4. Ventilation heat gains (sensible)
-        if T_e > T_i:
-            Q_vent_sensible = self.H_ve * (T_e - T_i)
-        else:
-            Q_vent_sensible = 0
-
-        # 5. Ventilation heat gains (latent) - if you have humidity data
-        Q_vent_latent = 0
-        if "r_humidity" in site:
-            Q_vent_latent = self._calcLatentVentilationLoad(site, t)
-
-        # 6. Apply thermal mass reduction factor (for building storage capacity)
-        tau = self.C_m / (self.H_tr_em[t] + self.H_ve)  # time constant [hours]
-        f_storage = 1 / (1 + tau / 15)  # for hourly timesteps
-
-        # Total cooling load
-        Q_C = (Q_trans + Q_solar + Q_internal) * f_storage + Q_vent_sensible + Q_vent_latent
-
-        return max(Q_C, 0)  # No negative cooling loads
-
-
-    def _calcLatentVentilationLoad(self, site, t):
-        """
-        Calculate latent heat load from ventilation (moisture)
-
-        Parameters
-        ----------
-        site : dict
-            Must contain r_humidity, T_e, pressure
-        t : int
-            Timestep index
-
-        Returns
-        -------
-        Q_latent : float
-            Latent cooling load [W]
-        """
-
-        # Latent heat of vaporization
-        h_fg = 2500000  # J/kg
-
-        # Calculate absolute humidity (simplified)
-        RH_out = site["r_humidity"][t] / 100  # relative humidity outdoor
-        RH_in = 0.50  # assume 50% indoor relative humidity
-        T_e = site["T_e"][t] + 273.15  # to Kelvin
-        T_i = self.T_set_max + 273.15
-
-        # Saturation vapor pressure (Magnus formula)
-        p_sat_out = 611.2 * np.exp(17.62 * (T_e - 273.15) / (243.12 + (T_e - 273.15)))
-        p_sat_in = 611.2 * np.exp(17.62 * (T_i - 273.15) / (243.12 + (T_i - 273.15)))
-
-        # Absolute humidity [kg_water/kg_air]
-        x_out = 0.622 * RH_out * p_sat_out / (site["pressure"][t] * 100 - RH_out * p_sat_out)
-        x_in = 0.622 * RH_in * p_sat_in / (site["pressure"][t] * 100 - RH_in * p_sat_in)
-
-        # Mass flow rate of air
-        m_dot_air = self.ventilationRate * self.rho_air * self.V / 3600  # kg/s
-
-        # Latent load (only if outdoor humidity > indoor)
-        if x_out > x_in:
-            Q_latent = m_dot_air * (x_out - x_in) * h_fg
-        else:
-            Q_latent = 0
-
-        return Q_latent
