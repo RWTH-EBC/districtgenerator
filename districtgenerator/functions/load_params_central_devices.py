@@ -97,7 +97,7 @@ def load_params(data):
     # DataFrame to CSV
     heat_data.to_csv(file_path, index=False, sep=";")
 
-    print(f'Daten wurden erfolgreich in "{file_path}" gespeichert.')
+    print(f'Unclustered data saved in "{file_path}".')
 
     ################################################################
     # DESIGN CLUSTERING
@@ -152,7 +152,7 @@ def load_params(data):
         raise ValueError('"heat" is not part of "dem_uncl".')
 
     # Save data to  Pandas DataFrame
-    heat_data_clustered = pd.DataFrame(dem["heat"],)
+    heat_data_clustered = pd.DataFrame(dem["heat"])
     file_path = os.path.join(data.filePath, 'heat_demand_clustered.csv')
 
     # DataFrame to CSV

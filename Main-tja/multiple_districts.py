@@ -31,7 +31,7 @@ def multiple_districts(configs_dir: Path) -> list[Datahandler]:
 
         # Generate a complete district. 
         # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
-        data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
+        data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
 
         all_data.append(data)
 
