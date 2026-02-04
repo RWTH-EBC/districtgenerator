@@ -69,7 +69,6 @@ class Datahandler:
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
                  env_path = None,
-                 heat_map_berlin = False
                  ):
         """
         Constructor of Datahandler class.
@@ -88,8 +87,7 @@ class Datahandler:
             Path to the data directory. If None, it defaults to 'srcPath/data'.
         env_path : str, optional
             Path to the environment configuration file. If None, it defaults to the global configuration file.
-        heat_map_berlin : bool, optional
-            Whether the data is given in the heat map berlin format. The default is False.
+
 
         Returns
         -------
@@ -118,7 +116,7 @@ class Datahandler:
         self.central_device_data = {}
         self.calendar = {} #! This is new; check if everywhere correctly integrated
         self.ecoData = {}
-        self.all_sim_ecoData = {} # Later overwritten with the calculated economic data for the simulated years
+        self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
         self.heat_grid_data = {}
         self.pipe_data = None
         self.pyomo_config = {}
@@ -126,7 +124,6 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
-        self.heat_map_berlin = heat_map_berlin
         self.pv_stc_potential = None
 
         if scenario_file_path is not None:
@@ -218,21 +215,8 @@ class Datahandler:
         None.
         """
 
-        # %% load scenario file with building information
-        if self.heat_map_berlin:
-            # %% load heat map berlin formatted scenario file
-            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
-                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
-                                         converters={"position": parse_position}).set_index("id", drop=False))
-            self.pv_stc_potential = pd.read_csv(
-                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
-                delimiter=';',
-                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
-            )
-        else:
-            # %% load normal formatted scenario file
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+        # %% load normal formatted scenario file
+        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                          converters={"position": parse_position}).set_index("id", drop=False))
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
@@ -1191,56 +1175,11 @@ class Datahandler:
                           design_building_data=self.design_building_data,
                           file_path=self.filePath)
             building["capacities"] = building["bes_obj"].designECS(building, self.site)
-
-            if self.heat_map_berlin:
-                # Read PV potentials for the current building from the DataFrame
-                pv_data = self.pv_stc_potential[self.pv_stc_potential["uuid"] == building["buildingFeatures"]["alkis_id"]]
-                # Initialize sums for PV and STC
-                total_pv_generation = None
-                total_stc_generation = None
-
-                # Loop over each PV sub-area for this building
-                for idx, row in pv_data.iterrows():
-                    area = row["modanetto"]  # Area of the sub-surface
-                    roof_type = row["dachtyp"]  # Roof type
-
-                    # Check if roof is flat and adjust tilt and azimuth accordingly
-                    if roof_type == "flach":
-                        tilt = 30  # Flat roofs: 30 degrees tilt
-                        azimuth = 0  # Flat roofs: south orientation (0°)
-                    else:
-                        azimuth = row["richtung"]  # Orientation (gamma)
-                        tilt = row["neigung"]  # Tilt angle (beta)
-
-                    # Calculate PV and STC profiles for this sub-area
-                    pv_profile, stc_profile = sun.calcPVAndSTCProfile(
-                        time=self.time,
-                        site=self.site,
-                        area_roof=area,
-                        beta=[tilt],
-                        gamma=[azimuth],
-                        usageFactorPV1=1,
-                        usageFactorPV2=0,
-                        usageFactorSTC=building["buildingFeatures"]["f_STC"]
-                    )
-
-                    # Sum up the profiles
-                    if total_pv_generation is None:
-                        total_pv_generation = pv_profile
-                        total_stc_generation = stc_profile
-                    else:
-                        total_pv_generation += pv_profile
-                        total_stc_generation += stc_profile
-
-                # Store the summed values
-                building["generationPV"] = total_pv_generation
-                building["generationSTC"] = total_stc_generation
-
-
-            else:
-                # calculate PV and STC generation
-                building["generationPV"], building["generationSTC"] = \
-                    sun.calcPVAndSTCProfile(time=self.time,
+            
+            # %% calculate generation profiles of decentral devices
+            # calculate PV and STC generation
+            building["generationPV"], building["generationSTC"] = \
+                sun.calcPVAndSTCProfile(time=self.time,
                                             site=self.site,
                                             devices=self.decentral_device_data,
                                             area_roof=building["envelope"].A["opaque"]["roof"],

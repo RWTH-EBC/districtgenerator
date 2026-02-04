@@ -4,7 +4,7 @@
 - **U-values (thermal transmittance)** and **window g-values (solar energy transmittance)** for non-residential buildings are derived from:
   - Envelope areas and baseline U-values from Hörner et al., 2022, https://github.com/IWUGERMANY/Nichtwohngebaeude-Typologie-DeutschlandIWU Non-Residential Building Typology.
   - Renovation progress data from Hörner et al., 2022, Stand und Dynamik der energetischen Moderni-sierung von Gebäudehülle und haustechnischen Anlagen im Bestand der Nichtwohngebäude.
-  - Legal U-value limits for refurbished components from the German Energy Saving Ordinance EnEV 2016 (distinguishes zones with T_winter ≥ 19 °C vs. 12 – < 19 °C). and KfW 55 standard specifications.
+  - Legal U-value limits for refurbished components from the German Energy Saving Ordinance EnEV 2014 (separate limits for heated vs. not-heated zones) and KfW 55 standard specifications.
   - Heated and non-heated area shares (T_winter threshold 19 °C) from SIA 2024.
   - Reference data for window g-values from Bagherian et al., 2021, https://www.bbsr.bund.de/BBSR/DE/veroeffentlichungen/bbsr-online/2021/bbsr-online-37-2021.html.
 
@@ -16,13 +16,14 @@ Three characteristic retrofit states are distinguished, following the analogy of
    - For buildings constructed **before 2010**, IWU mean values are corrected using renovation progress data.
    - For **buildings after 2010**, IWU means are applied directly (new construction, assumed unrenovated).
 
-2. **EnEV 2016 refurbished (partially retrofitted)**
-   - Represents compliance with German EnEV 2016 refurbishment thresholds.
-   - If an EnEV 2016 value is higher (worse) than the original, the original value is retained.
+2. **EnEV 2014 refurbished (partially retrofitted)**
+   - Represents compliance with German EnEV 2014 refurbishment thresholds, with **distinct maxima** for **heated** and **not-heated** building zones
    - Because many non-residential buildings include areas with < 19 °C, we compute weighted average U-values using the heated-area share from SIA 2024.
+   - If an EnEV 2014 value is higher (worse) than the original, the original value is retained.
 
 3. **KfW 55 refurbished (completely retrofitted)**
    - Represents an ambitious refurbishment level consistent with the KfW 55 efficiency house standard.
+   - If a KfW-55 U-value is higher (worse) than the EnEV-2014 value, the lower (better) value is retained.
 
 ### Parameter Definitions
 | German Description                                      | Key        | Unit    | Explanation in English                                       |
