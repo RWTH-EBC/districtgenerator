@@ -12,9 +12,11 @@ import matplotlib.pyplot as plt
 def one_district_opt_cent():
 
     # Initialize District
-    data = Datahandler(env_path=".env.CONFIG.DISTRICT1")
+    data = Datahandler(env_path=".env.CONFIG.EXAMPLE")
     model_param_eh = data.params_ehdo_model
-    print(f"\nOptim_dimension of: {data.scenario_name} is {model_param_eh["optim_dimension"]}")
+    
+    #ToDo: add Opitm_dimension to config.py
+    #print(f"\nOptim_dimension of: {data.scenario_name} is {model_param_eh["optim_dimension"]}")
 
     # Generate Environment for the District
     data.generateEnvironment()

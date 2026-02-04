@@ -19,3 +19,4 @@ pydantic-settings >= 2.2.1
 pydantic >= 2.8.2
 fluids==1.3.0
 shapely==2.1.2
+networkx

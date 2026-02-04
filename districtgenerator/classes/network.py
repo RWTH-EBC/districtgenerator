@@ -6,8 +6,8 @@
 from districtgenerator.classes import Datahandler
 from pathlib import Path
 from .system import CES
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, GurobiConfig, HeatGridConfig, CalendarConfig
-import districtgenerator.functions.heating_network as heating_network
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, HeatGridConfig, CalendarConfig
+#import districtgenerator.functions.heating_network as heating_network
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
 import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
 

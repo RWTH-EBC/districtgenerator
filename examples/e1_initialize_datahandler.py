@@ -36,7 +36,7 @@ def example1_initialize_datahandler():
 
 if __name__ == '__main__':
     data = example1_initialize_datahandler()
-    pprint(data.__dict__)
+
 
     
 

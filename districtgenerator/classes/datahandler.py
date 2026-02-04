@@ -118,7 +118,7 @@ class Datahandler:
         self.central_device_data = {}
         self.calendar = {} #! This is new; check if everywhere correctly integrated
         self.ecoData = {}
-        self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
+        self.all_sim_ecoData = {} # Later overwritten with the calculated economic data for the simulated years
         self.heat_grid_data = {}
         self.pipe_data = None
         self.pyomo_config = {}

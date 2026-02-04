@@ -10,22 +10,22 @@ def heating_network(data):
     timeData = data.time
     dt = timeData["timeResolution"] / timeData["dataResolution"]
 
+    heating = np.zeros(len(data.district[0]["user"].heat))
+    cooling = np.zeros(len(data.district[0]["user"].cooling))
+    dhw = np.zeros(len(data.district[0]["user"].dhw))
+    generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
+
     # LOAD DEMANDS
     for b in range(len(data.district)):
-        if b == 0:
-            heating = data.district[b]["user"].heat / 1000  # kW
-            cooling = data.district[b]["user"].cooling / 1000  # kW
-            dhw = data.district[b]["user"].dhw / 1000  # kW
-            generationSTC = data.district[b]["generationSTC"] / 1000  # kW
-
-        else:
+        # Only buildings connected to the heat grid can be supplied by it
+        if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
             heating += data.district[b]["user"].heat / 1000  # kW
             cooling += data.district[b]["user"].cooling / 1000  # kW
             dhw += data.district[b]["user"].dhw / 1000  # kW
             generationSTC += data.district[b]["generationSTC"] / 1000  # kW
 
 
-    heat_grid_data["net_heating_demand"] = heating + dhw - generationSTC  # kW
+    heat_grid_data["net_heating_demand"] = np.maximum(heating + dhw - generationSTC, 0)  # kW
     heat_grid_data["net_cooling_demand"] = cooling  # kW
     heat_grid_data["net_sum_heating_demand"] = sum(heat_grid_data["net_heating_demand"]) * dt  # kWh/year
     heat_grid_data["net_sum_cooling_demand"] = sum(heat_grid_data["net_cooling_demand"]) * dt  # kWh/year
@@ -34,6 +34,14 @@ def heating_network(data):
     data = calc_costs(data)
     data = calc_annual_investment(data)
     data = calculate_soil_temperature(data, dt)
+
+#    Assign hot/cold network temperatures
+    T_e = data.site["T_e"]  # outdoor temperature time series
+    T_hot, T_cold = get_heating_network_temperatures(data, T_e)
+
+    data.heat_grid_data["T_hot_heating_network"]["value"] = T_hot
+    data.heat_grid_data["T_cold_heating_network"]["value"] = T_cold
+
     data = calculate_thermal_losses(data)
 
 
@@ -51,18 +59,20 @@ def calc_costs(data):
     Source:
     - Luis Sánchez-García et al. (2023), "Understanding effective width for district heating," Energy journal.
     """
+    # Total Land Area (AL) in hectares
+    AL = data.site["district_area"]  # unit: ha
 
-    FAR = data.heat_grid_data["FAR"]  # Floor area ratio (German: Geschossflächenzahl)
+    # Number of buildings connected to the network
+    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
+    number_of_buildings = len(buildings_connected)
 
     # Calculate Total Building Floor Area
-    total_area = 0
-    for building in data.district:
-        total_area += building["buildingFeatures"].area
+    total_building_area = 0 # unit: m²
+    for building in buildings_connected:
+        total_building_area += building["buildingFeatures"].area
 
-    # Calculate Land Area (AL) in hectares
-    AL = total_area / FAR / 10000 # ha
 
-    number_of_buildings = len(data.district)
+    calculated_FAR = total_building_area / (AL * 10000)  # Floor Area Ratio (FAR) (deutsch: Geschossflächenzahl)
 
     # G represents the inequality of building distribution.
     # G = 0 assumes perfectly even distribution of buildings.
@@ -98,7 +108,7 @@ def calc_costs(data):
     chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
     data.heat_grid_data["DN_heating_serv"] = chosen_row_serv["Nominal diameter (DN)"]
     data.heat_grid_data["da_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
-    data.heat_grid_data["di_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
+    data.heat_grid_data["di_heating_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
     data.heat_grid_data["Da_heating_serv"] = chosen_row_serv["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
 
     # Heating Network Installation Cost
@@ -127,7 +137,7 @@ def calc_costs(data):
         chosen_row_serv = larger_DN_serv.loc[larger_DN_serv["Nominal diameter (DN)"].idxmin()]
         data.heat_grid_data["DN_cooling_serv"] = chosen_row_serv["Nominal diameter (DN)"]
         data.heat_grid_data["da_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"]
-        data.heat_grid_data["di_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_dist["Thickness (pipe) (mm)"]
+        data.heat_grid_data["di_cooling_serv"] = chosen_row_serv["Outer diameter (pipe) (mm)"] - 2 * chosen_row_serv["Thickness (pipe) (mm)"]
         data.heat_grid_data["Da_cooling_serv"] = chosen_row_serv["Outer diameter (case) (mm)"]  # outer diameter of the pipe including insulation
 
         # Cooling Network Installation Cost
@@ -142,9 +152,12 @@ def calc_costs(data):
 
     # Substation Costs
     C_substations = 0
-    for building in data.district:
+
+    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
+
+    for building in buildings_connected:
         substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
-        substation_costs = substation_capacity * data.heat_grid_data["C_substation"]
+        substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
         C_substations += substation_costs
 
     # Total Network Costs
@@ -167,8 +180,8 @@ def calculate_thermal_losses(data):
     #%% Losses in the heating network
 
     # get heating network parameters
-    T_hot_heating_network = data.heat_grid_data["T_hot_heating_network"]
-    T_cold_heating_network = data.heat_grid_data["T_cold_heating_network"]
+    T_hot_heating_network = np.array(data.heat_grid_data["T_hot_heating_network"]["value"], dtype=float)
+    T_cold_heating_network = np.array(data.heat_grid_data["T_cold_heating_network"]["value"], dtype=float)
 
     D_heating_network = data.heat_grid_data["D_heating_network"] # Distance between the centerlines of the supply and return pipelines
 
@@ -211,7 +224,7 @@ def calculate_thermal_losses(data):
     losses_heating_network_serv = (losses_hotpipe_heating_network_serv + losses_coldpipe_heating_network_serv) / 1000  # kW
 
     # Losses in the substations
-    losses_substations_heating = data.heat_grid_data["h_loss_substation"]/100 * data.heat_grid_data["net_heating_demand"]
+    losses_substations_heating = data.heat_grid_data["h_loss_subst"]/100 * data.heat_grid_data["net_heating_demand"]
 
     # total losses in the heating network
     data.heat_grid_data["total_losses_heating_network"] = losses_heating_network_dist + losses_heating_network_serv + losses_substations_heating # kW
@@ -260,7 +273,7 @@ def calculate_thermal_losses(data):
         losses_cooling_network_serv = (losses_hotpipe_cooling_network_serv + losses_coldpipe_cooling_network_serv) / 1000  # kW
 
         # Losses in the substations
-        losses_substations_cooling = data.heat_grid_data["h_loss_substation"] / 100 * data.heat_grid_data["net_cooling_demand"]
+        losses_substations_cooling = data.heat_grid_data["h_loss_subst"] / 100 * data.heat_grid_data["net_cooling_demand"]
 
     else:
         losses_cooling_network_dist = np.zeros(len(data.heat_grid_data["T_soil"]))
@@ -363,7 +376,7 @@ def calculate_soil_temperature(data, dt):
     Ts_phase = Tair_phase + cmath.phase(z) # phase angle difference between the air and the ground surface temperature
 
     # Calculate soil temperature in grid depth
-    d = data.heat_grid_data["d_asphalt"]    # m asphalt layer thickness
+    d = data.heat_grid_data["d_asph"]    # m asphalt layer thickness
     t = data.heat_grid_data["grid_depth"] # m installation depth beneath surface
     omega = 2 * np.pi / 365 / 24
     time = np.arange(dt, 8760 + dt, dt)  # time array in hours
@@ -420,9 +433,9 @@ def calc_annual_investment(data):
     annualized fix and variable investment
     """
 
-    observation_time = data.params_ehdo_model["observation_time"]
-    interest_rate = data.params_ehdo_model["interest_rate"]
-    q = 1 + data.params_ehdo_model["interest_rate"]
+    observation_time = data.ecoData["observation_time"]
+    interest_rate = data.ecoData["interest_rate"]
+    q = 1 + interest_rate
 
     # Calculate capital recovery factor
     CRF = ((q**observation_time)*interest_rate)/((q**observation_time)-1)
@@ -448,9 +461,67 @@ def calc_annual_investment(data):
 
     data.heat_grid_data["CRF"] = CRF
     data.heat_grid_data["ann_costs"] = data.heat_grid_data["costs"] * data.heat_grid_data["ann_factor"] # €/a
-    data.heat_grid_data["om_costs"] = data.heat_grid_data["C_om"] * data.heat_grid_data["net_sum_heating_demand"]/1000 + data.heat_grid_data["C_om"] * data.heat_grid_data["net_sum_cooling_demand"]/1000 # €/a
+    data.heat_grid_data["om_costs"] = data.heat_grid_data["C_OM"] * data.heat_grid_data["net_sum_heating_demand"]/1000 + data.heat_grid_data["C_OM"] * data.heat_grid_data["net_sum_cooling_demand"]/1000 # €/a
 
     return data
 
+def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
+    """
+    Sliding temperature heating curve (2D version).
+    """
+    T_e = np.array(T_e, dtype=float)
 
+    # Outdoor temp limits
+    T_min, T_max = -10, 15
 
+    # Supply-return ΔT at min and max outdoor temp
+    dT_min = T_supply_min - T_return_min
+    dT_max = T_supply_max - T_return_max
+
+    # Interpolate supply temperature
+    T_supply = np.interp(T_e, [T_min, T_max], [T_supply_min, T_supply_max])
+
+    # Interpolate temperature difference
+    dT = np.interp(T_e, [T_min, T_max], [dT_min, dT_max])
+
+    # Return temperature
+    T_return = T_supply - dT
+
+    return T_supply, T_return
+
+def get_heating_network_temperatures(data, T_e=None):
+    """
+    Reads the correct heating network temperatures from heating_grid.json
+    and returns constant temperatures or time-dependent heating-curve values.
+    """
+    gen = data.heat_grid_data["generation"]               # "3rd", "4th", "5th"
+    mode = data.heat_grid_data["temperature_mode"]        # "constant" or "heating_curve"
+
+    # --- CONSTANT MODE ---------------------------------------------------------
+    if mode == "constant":
+        T_hot = data.heat_grid_data["T_hot_heating_network"]["constant"][gen]
+        T_cold = data.heat_grid_data["T_cold_heating_network"]["constant"][gen]
+        return np.array(T_hot), np.array(T_cold)
+
+    # --- HEATING CURVE MODE ----------------------------------------------------
+    if mode == "heating_curve":
+        if T_e is None:
+            raise ValueError("T_e must be supplied when temperature_mode = 'heating_curve'.")
+
+        # Supply temperatures
+        T_supply_min = data.heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][gen]
+        T_supply_max = data.heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][gen]
+
+        # Return temperatures
+        T_return_min = data.heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][gen]
+        T_return_max = data.heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][gen]
+
+        T_supply, T_return = heating_curve(
+            T_e,
+            T_supply_min, T_supply_max,
+            T_return_min, T_return_max
+        )
+
+        return T_supply, T_return
+
+    raise ValueError(f"Unknown temperature_mode: {mode}")

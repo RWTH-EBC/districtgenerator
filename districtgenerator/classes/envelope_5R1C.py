@@ -448,7 +448,7 @@ class Envelope:
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
             if not prj.buildings[self.id].type_of_building == "TerracedHouse":
-                self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area
+                self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area        # one external wall
                 self.A["opaque"]["south"] = prj.buildings[self.id].thermal_zones[0].outer_walls[2].area
                 self.A["opaque"]["east"] = prj.buildings[self.id].thermal_zones[0].outer_walls[1].area
                 self.A["opaque"]["west"] = prj.buildings[self.id].thermal_zones[0].outer_walls[3].area
@@ -458,22 +458,23 @@ class Envelope:
                 self.A["opaque"]["east"] = 0.0
                 self.A["opaque"]["west"] = 0.0
 
+            self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)                                      # all external walls
+
             try:
-                self.A["opaque"]["roof"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].rooftops)
+                self.A["opaque"]["roof"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].rooftops)   # Roof
             except KeyError:
                 self.A["opaque"]["roof"] = 0.0
 
-            self.A["opaque"]["floor"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].floors)
-            self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
+            self.A["opaque"]["floor"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].ground_floors)        # GroundFloor
 
-            # Area of internal floor equals usable area
-            self.A["opaque"]["intFloor"] = self.A["f"]
-            self.A["opaque"]["ceiling"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].ceilings)
-            self.A["opaque"]["intWall"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].inner_walls)
+
+            self.A["opaque"]["intFloor"] = self.A["f"] - self.A["opaque"]["floor"]  # all internal floors
+            self.A["opaque"]["ceiling"] = self.A["opaque"]["intFloor"] # all ceilings
+            self.A["opaque"]["intWall"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].inner_walls)  # all internal walls
 
             self.A["window"] = {}
             if not prj.buildings[self.id].type_of_building == "TerracedHouse":
-                self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[0].area
+                self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[0].area             # one window
                 self.A["window"]["south"] = prj.buildings[self.id].thermal_zones[0].windows[2].area
                 self.A["window"]["east"] = prj.buildings[self.id].thermal_zones[0].windows[1].area
                 self.A["window"]["west"] = prj.buildings[self.id].thermal_zones[0].windows[3].area
@@ -486,10 +487,9 @@ class Envelope:
             self.A["window"]["roof"] = 0.0
             self.A["window"]["floor"] = 0.0
 
-            self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
+            self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)                  # all windows
 
         elif isinstance(prj, NonResidential):
-
             self.V = prj.volume
 
             self.A = {}  # in m2
@@ -516,7 +516,7 @@ class Envelope:
             self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
             # Area of internal floor equals usable area
-            self.A["opaque"]["intFloor"] = self.A["f"]
+            self.A["opaque"]["intFloor"] = self.A["f"] - self.A["opaque"]["floor"]
             # Area of the highest floor equals area of base plate
             self.A["opaque"]["ceiling"] = self.A["opaque"]["floor"]
             # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)
@@ -557,17 +557,11 @@ class Envelope:
             Heat load.
         """
 
-        # Thermal bridge surcharge for opaque components (categroy A) [table 2, DIN/TS 12831-1]
-        U_TB = 0.05  # [W/m²K]
-        # Correction factor for annual fluctuation of the outdoor temperature (fθann) [DIN/TS 12831-1, 4.3.1]
-        f_g1 = 1.45
-        # Reduction factor (fix,k) [DIN EN 12831-1, 6.3.2.5 and table 7]
-        # T_me = mean outdoor temperature
-        # T_ne = norm outdoor temperature
-        # for an exterior wall f1 = 1 -> fix,k = f1 + f2 = f2
+        U_TB = 0.05  # [W/m²K] Thermal bridge surcharge
+        f_g1 = 1.45  # Correction factor for annual fluctuation of the outdoor temperature
+        # Reduction factor
         f_g2 = (self.T_set_min - site["T_me"]) / (self.T_set_min - site["T_ne"])
-        # influence of groundwater neglected [DIN/TS 12831-1, 4.3.1]
-        G_w = 1.0
+        G_w = 1.0  # influence of groundwater neglected
 
         if method == "design":
             Q_nHC = (self.A["opaque"]["wall"] * (self.U["opaque"]["wall"] + U_TB) +
@@ -599,7 +593,6 @@ class Envelope:
                        * (self.T_set_min - self.T_heatlimit)
 
         return Q_nHC
-
     def calculateHeatCapacity(self, prj):
         if isinstance(prj, Project):
             self.C_m = sum((self.kappa["opaque"][x]
@@ -636,7 +629,6 @@ class Envelope:
                 f"Currently no method implemented for caluclation of average Heat Capacity for type f{type(prj)}")
 
         return self.C_m
-
     def calcNormativeProperties(self, SunRad, internal_gains):
         """
         Calculate normative properties according to DIN EN ISO 13790.
