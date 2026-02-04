@@ -95,7 +95,7 @@ class DesignBuildingConfig(BaseSettings):
     T_set_min: float = 20.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
     T_set_min_night: float = 18.0   # Required minimum indoor temperature at night (for heating load calculation) in degrees Celsius
     T_set_min_free_day: float = 16.0 # Minimum required indoor temperature on a non-working day in a non-residential building (for heating load calculations)
-    T_set_max: float = 23.0         # Required maximum indoor temperature (for cooling load calculation) in degrees Celsius
+    T_set_max: float = 26.0         # Required maximum indoor temperature (for cooling load calculation) in degrees Celsius
     T_set_max_night: float = 28.0   # Required maximum indoor temperature at night (for cooling load calculation) in degrees Celsius
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)

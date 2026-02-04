@@ -405,8 +405,8 @@ class Datahandler:
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
 
-        # Load other site-dependent values based on DIN/TS 12831-1:2020-04
-        filePath = os.path.join(self.filePath, 'site_data.txt')
+        # Load other site-dependent values based on DIN/TS 12831-1:2020-04 and VDI 2078-2015 (KLZ)
+        filePath = os.path.join(self.filePath, 'site_data_with_KLZ.txt') # todo changed!
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
         # Filter data for the specific zip code
@@ -417,6 +417,27 @@ class Datahandler:
         self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
         self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
         self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
+
+        # KLZ added to site_data based on nearest VDI station (generate_klz_site_data.py)
+        klz = filtered_data.iloc[0]['KLZ']
+        # Cooling limit temperatures based on Cooling Laod Zones (Kühllastzonen)
+        # Calculated based on estimated amplitude based on VDI 2078 p. 117
+        # To account for thermal mass and avoid outliers, T_me is used as average plus amplitude
+        vdi_climate_data = {
+            1: (23.3, 6.7),  # Zone 1 (Rostock)
+            2: (24.1, 7.4),  # Zone 2 (Hamburg)
+            3: (25, 8.0),  # Zone 3 (Potsdam)
+            4: (26.1, 8.4),  # Zone 4 (Mannheim)
+        }
+
+        # Calculation: T_max = T_me + Amplitude
+        if klz in vdi_climate_data:
+            t_mean, amplitude = vdi_climate_data[klz]
+            self.site["T_design_cooling"] = t_mean + amplitude
+        else:
+            # Fallback (Standard Zone 3)
+            t_mean, amplitude = vdi_climate_data[3]
+            self.site["T_design_cooling"] = t_mean + amplitude
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
@@ -508,12 +529,13 @@ class Datahandler:
             # add buildings to TEASER project
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
-                if retrofit_level == "tabula_standard":
-                    construction_data = 'tabula_de_standard'
-                elif retrofit_level == "tabula_retrofit":
+                if retrofit_level == "tabula_retrofit":
                     construction_data = 'tabula_de_retrofit'
                 elif retrofit_level == "tabula_adv_retrofit":
                     construction_data = 'tabula_de_adv_retrofit'
+                else:
+                    # tabula standard
+                    construction_data = 'tabula_de_standard'
 
                 # Determining the number of floors in a building based on its type.
                 # The method estimates the number of floors by:
@@ -556,15 +578,6 @@ class Datahandler:
                 elif building["buildingFeatures"]["year"] >= 1960:
                     height_of_floors = 2.5  # m
 
-                #prj.add_residential(method='tabula_de',
-                #                    usage=building_type,
-                #                    name="ResidentialBuildingTabula",
-                #                    year_of_construction=building["buildingFeatures"]["year"],
-                #                    number_of_floors=number_of_floors,
-                #                    height_of_floors=height_of_floors,
-                #                    net_leased_area=building["buildingFeatures"]["area"],
-                #                    construction_type=retrofit_level)
-
                 # add buildings to TEASER project
                 prj.add_residential(name="ResidentialBuildingTabula",
                                     geometry_data="tabula_de_" + building_type,
@@ -580,12 +593,6 @@ class Datahandler:
 
                 # %% create envelope object
                 # containing all physical data of the envelope
-                #building["envelope"] = Envelope(prj=prj,
-                #                                building_params=building["buildingFeatures"],
-                #                                construction_type=retrofit_level,
-                #                                physics=self.physics,
-                #                                design_building_data=self.design_building_data,
-                #                                file_path=self.filePath)
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_data=construction_data,
@@ -642,6 +649,9 @@ class Datahandler:
             building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit", night_setback = night_setback)
             # for drinking hot water
             building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
+
+            # %% calculate design cooling load
+            building["envelope"].coolingload = building["envelope"].calcCoolingLoad(site=self.site, nb_occ=np.sum(building["user"].nb_occ))
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"] = building["buildingFeatures"].copy()

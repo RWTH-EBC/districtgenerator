@@ -191,6 +191,110 @@ def _calculateHeat(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     T_op = weight * T_i + (1 - weight) * T_s
     return (Q_HC, T_op, T_m, T_i, T_s)
 
+def _calculateCooling(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
+    """
+    Calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s) that result when
+    reaching a given set temperature T_set.
+
+    Parameters
+    ----------
+    zoneParameters : ZoneParameters
+        Resistances and capacity
+    zoneInputs : ZoneInputs
+        External inputs (solar, internal gains, set temperatures)
+    T_m_init : float
+        Initial temperature of the thermal mass in degree Celsius.
+    T_set : float
+        Set temperature in degree Celsius.
+    timestep : integer, optional
+        Define which index is relevant (zoneInputs, H_ve)
+
+    Returns
+    -------
+    Q_HC : float
+        Heating (positive) or cooling (negative) load for the current time
+        step in Watt.
+    T_op : float
+        .
+    T_m : float
+        .
+    T_air : float
+        .
+    T_s : float
+        .
+    """
+
+    # Note: If not stated differently, all equations, pages and sections
+    # refer to DIN EN ISO 13790:2008 (the official German version of
+    # ISO 13790:2008).
+
+    # Extract parameters
+    H_tr_is = zoneParameters.H_tr_is        # in W/K
+    H_tr_ms = zoneParameters.H_tr_ms        # in W/K
+    H_tr_w  = zoneParameters.H_tr_w         # in W/K
+    H_ve    = zoneParameters.H_ve           # in W/K
+    C_m     = zoneParameters.C_m            # in J/K
+    H_tr_em = zoneParameters.H_tr_em[0]  # in W/K
+    Q_nHC = -1*zoneParameters.coolingload  # design (nominal) cooling load (negative)
+
+    Phi_ia = zoneParameters.phi_ia
+    Phi_m  = zoneParameters.phi_m
+    Phi_st = zoneParameters.phi_st
+
+    # Initialize A*x = b
+    # x: T_m, T_s, T_air (T_i), Q_HC
+    A = np.zeros((4,4))
+    b = np.zeros(4)
+
+    # Row wise entering
+    A[0,0] = H_tr_em + H_tr_ms + C_m / (3600 * dt)
+    A[0,1] = - H_tr_ms
+    A[1,0] = - H_tr_ms
+    A[1,1] = H_tr_ms + H_tr_is + H_tr_w
+    A[1,2] = - H_tr_is
+    A[2,1] = - H_tr_is
+    A[2,2] = H_ve + H_tr_is
+    A[2,3] = -1
+    A[3,2] = 0.3
+    A[3,1] = 1 - A[3,2]
+
+    b[0] = Phi_m[timestep] + H_tr_em * T_e[timestep] + C_m * T_m_init / (3600 * dt)
+    b[1] = Phi_st[timestep] + H_tr_w * T_e[timestep]
+    b[2] = Phi_ia[timestep] + H_ve * T_e[timestep]
+    b[3] = T_set
+
+    # Solve for "x"
+    x = _solve(A, b)
+
+    # Linear system of equations to determine T_i, T_s, T_m, Q_HC (in kW)
+    T_i  = x[2]
+    T_s  = x[1]
+    T_m  = x[0]
+    Q_HC = x[3]
+
+    # If Q_HC exceeds Q_nHC, re-solve assuming Q_HC = Q_nHC
+    # Note: Q_HC and Q_nHC are negative, so Q_HC can not be smaller (more negative) than Q_nHC
+    if Q_HC < Q_nHC:
+        # Remove the row and column corresponding to Q_HC
+        A_reduced = A[:3, :3]  # Exclude the last row and column
+        b_reduced = b[:3]      # Exclude the last element of b
+
+        # Adjust b to account for Q_HC = Q_nHC
+        b_reduced[2] += Q_nHC  # Subtract fixed Q_HC from the third equation
+
+        # Re-solve the system
+        x_reduced  =  _solve(A_reduced, b_reduced)  # Exclude Q_HC column and row
+
+        # Update results
+        T_i = x_reduced[2]
+        T_s = x_reduced[1]
+        T_m = x_reduced[0]
+        Q_HC = Q_nHC
+
+    weight = 0.3
+    T_op = weight * T_i + (1 - weight) * T_s
+    return (Q_HC, T_op, T_m, T_i, T_s)
+
 
 def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
     """
@@ -304,7 +408,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
                                                              timestep=t)
             elif t_op > current_T_set_ub and cooling_season:
                 # Compute cooling demand
-                (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
+                (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
                                                              T_e,
                                                              current_T_set_ub,
                                                              t_m_previous,
@@ -339,7 +443,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
                 (day % 7 not in (0, 6) and
                  day not in holidays)):
                 # Compute cooling demand
-                (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
+                (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
                                                              T_e,
                                                              current_T_set_ub,
                                                              t_m_previous,
@@ -424,7 +528,6 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
             current_T_set = T_set
             current_T_set_ub = T_set_ub
             if t_op < current_T_set and heating_season:
-                current_T_set = T_set
                 # Compute heat demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
                                                              T_e,
@@ -434,7 +537,7 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
                                                              timestep=t)
             elif t_op > current_T_set_ub and cooling_season:
                 # Compute cooling demand
-                (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
+                (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
                                                              T_e,
                                                              current_T_set_ub,
                                                              t_m_previous,
@@ -464,7 +567,7 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
                   (day % 7 not in (0, 6) and
                    day not in holidays)):
                 # Compute cooling demand
-                (q_hc, t_op, t_m, t_i, t_s) = _calculateHeat(zoneParameters,
+                (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
                                                              T_e,
                                                              current_T_set_ub,
                                                              t_m_previous,
