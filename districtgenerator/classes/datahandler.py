@@ -690,16 +690,18 @@ class Datahandler:
             # IMPORTANT: remove the trailing comma (your current code makes this a 1-tuple)
             building["user"].occ = result["occ"]
 
-            building["user"].car = result["car"]
+            building["user"].carcharging_ondemand =  result["carcharging_ondemand"]
+            building["user"].carprofile = result["carprofile"]
+            building["user"].ev_capacity = result.get("ev_capacity")
+
             building["user"].gains = result["gains"]
-            building["user"].nb_flats = result["nb_flats"]
+            building["user"].nb_units = result["nb_units"]
             building["user"].nb_occ = result["nb_occ"]
 
             # If Envelope is not safely serializable, keep the existing one and only store what you need.
             # If you really need it, keep it, but threads don't require pickling so it's fine.
             building["envelope"] = result["envelope"]
 
-            building["clusteringData"] = result["clusteringData"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
@@ -788,6 +790,23 @@ class Datahandler:
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
+
+        return {
+            "unique_name": building["unique_name"],
+            "elec": building["user"].elec,
+            'dhw': building["user"].dhw,
+            'cooling': building["user"].cooling,
+            'heating': building["user"].heat,
+            'occ': building["user"].occ,
+            'carcharging_ondemand': building["user"].carcharging_ondemand,
+            'carprofile': building["user"].carprofile,
+            "ev_capacity": building["user"].ev_capacity,
+            'gains': building["user"].gains,
+            "nb_units": building["user"].nb_units,
+            'nb_occ': building["user"].nb_occ,
+            'envelope': building["envelope"],
+            'night_setback': building["buildingFeatures"]["night_setback"],
+        }
         # print(f'done {building["unique_name"]}')
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
