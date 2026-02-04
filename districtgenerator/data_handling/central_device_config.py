@@ -118,7 +118,7 @@ class CentralDeviceConfig(BaseSettings):
 
     # EB parameters (Electric Boiler)
     EB_feasible: bool = True        # Should this be considered for the central optimization.
-    EB_inv_var: int = 188.48           # Investment variable in €/kW.
+    EB_inv_var: int = 463           # Investment variable in €/kW.
     EB_eta_th: float = 0.99          # Thermal efficiency between 0 and 1.
     EB_life_time: int = 25          # Maximum life time in years.
     EB_cost_om: float = 0.025        # Cost of operation and maintenance as a percentage of investment.

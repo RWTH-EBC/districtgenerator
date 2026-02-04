@@ -136,9 +136,9 @@ class EcoConfig(BaseSettings):
     used in the district generator.
     """
 
-    price_supply_el: float = 0.415     # Electricity price in €/kWh
+    price_supply_el: float = 0.2991     # Electricity price in €/kWh
     revenue_feed_in_el: float = 0.0734  # Feed-in electricity price in €/kWh
-    price_supply_gas: float = 0.1236    # Gas price in €/kWh
+    price_supply_gas: float = 0.0917    # Gas price in €/kWh
     price_hydrogen: float = 0.1         # Hydrogen price in €/kWh
     price_waste: float = 0.1            # Waste price in €/kWh
     price_biomass: float = 0.05         # Biomass price in €/kWh

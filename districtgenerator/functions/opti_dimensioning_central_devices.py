@@ -18,6 +18,7 @@ import gurobipy as gp
 import numpy as np
 import time
 import os
+import json
 #from optim_app.help_functions import create_excel_file
 
 
@@ -671,7 +672,7 @@ def run_optim(data, devs, param, dem, result_dict, df_MNES, scenario_name):
         df_MNES["centralPV"] = result_dict["PV_generation_uncl"]
         df_MNES["centralWind"] = result_dict["WT_generation_uncl"]
 
-        df_MNES.to_csv('MNES' + scenario_name +'.csv', index=False)
+        df_MNES.to_csv('MNES_' + scenario_name +'.csv', index=False)
 
         # Prepare time series of renewable curtailment
         power["PV_curtail"] = {}
@@ -774,5 +775,26 @@ def run_optim(data, devs, param, dem, result_dict, df_MNES, scenario_name):
         result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
         result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
 
+        # Convert all ndarray objects in result_dict to lists
+        def convert_ndarray_to_list(obj):
+            if isinstance(obj, dict):
+                return {key: convert_ndarray_to_list(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_ndarray_to_list(item) for item in obj]
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            else:
+                return obj
+
+        # Before saving result_dict to JSON
+        result_dict = convert_ndarray_to_list(result_dict)
+
+        output_dir = os.path.join("results", scenario_name)
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Save the result_dict as JSON in the specified directory
+        output_file = os.path.join(output_dir, f"{scenario_name}_results.json")
+        with open(output_file, 'w') as json_file:
+            json.dump(result_dict, json_file, indent=4)
 
         return result_dict

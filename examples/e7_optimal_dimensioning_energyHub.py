@@ -10,7 +10,7 @@ from districtgenerator.classes import *
 def example7_optiEnergyCentral_EHDO():
 
     # Initialize District
-    data = Datahandler(scenario_name = "rural")
+    data = Datahandler(env_path=".env.CONFIG.URBAN_CHP")
 
     # We directly generate a complete district.
     data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=True)

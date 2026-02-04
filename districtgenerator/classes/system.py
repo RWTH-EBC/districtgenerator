@@ -192,6 +192,6 @@ class CES():
         param, devs, dem, result_dict, df_MNES = load_params_central_devices.load_params(data)
 
         # Run optimization
-        capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict, df_MNES, self.scenario_name)
+        capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict, df_MNES, data.scenario_name)
 
         return capacities_centralDevices

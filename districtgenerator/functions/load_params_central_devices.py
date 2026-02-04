@@ -78,7 +78,7 @@ def load_params(data):
     heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
     cooling_total = cooling + heat_grid_data["total_losses_cooling_network"]
 
-    electricity_total = electricityAppliances + electricityEV - generationPV
+    electricity_total = electricityAppliances + electricityEV
     dem_uncl["heat"] = heating
     dem_uncl["cool"] = cooling_total * 0
     dem_uncl["power"] = electricity_total
