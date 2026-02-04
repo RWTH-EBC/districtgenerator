@@ -1040,42 +1040,6 @@ class Envelope:
                                   * self.U["opaque"][drct2] * self.b_tr[drct2][t]
                                   for drct2 in direction2)
 
-
-    # def calcCoolingLoad(self, site, method="design", design_day_index=None):
-    #     """
-    #     Calculate design cooling load
-#
-    #     Parameters
-    #     ----------
-    #     site : dict
-    #         Location and climate data, must include site["SunRad"]
-    #     method : string
-    #         "design" for peak load, "annual" for yearly profile
-    #     design_day_index : int, optional
-    #         Specific timestep for design conditions. If None, finds peak.
-#
-    #     Returns
-    #     -------
-    #     Q_nC : float or array
-    #         Cooling load [W]. Single value for "design", array for "annual"
-    #     """
-#
-    #     if method == "design":
-    #         # Find design conditions (typically hottest day with high solar gains)
-    #         if design_day_index is None:
-    #             # Find peak outdoor temperature hour
-    #             design_day_index = np.argmax(site["T_e"])
-#
-    #         Q_nC = self._calcCoolingLoadAtTimestep(site, design_day_index)
-#
-    #     elif method == "annual":
-    #         # Calculate for all timesteps
-    #         Q_nC = np.zeros(len(site["T_e"]))
-    #         for t in range(len(site["T_e"])):
-    #             Q_nC[t] = self._calcCoolingLoadAtTimestep(site, t)
-#
-    #     return Q_nC
-
     def _calcCoolingLoadAtTimestep(self, site, t):
         """
         Calculate cooling load at specific timestep
@@ -1191,42 +1155,3 @@ class Envelope:
             Q_latent = 0
 
         return Q_latent
-
-    # def calcCoolingLoad(self, site, method="design"):
-    #     """
-    #     Calculate design cooling load according to VDI 2078 / DIN EN ISO 52016-1
-#
-    #     Parameters
-    #     ----------
-    #     site : dict
-    #         Location and climate data, should include:
-    #         - T_ne_summer: norm outside temperature for cooling [°C]
-    #         - solar_irradiance: dict with values for each orientation [W/m²]
-    #         - latitude: for solar calculations [°]
-    #     method : string, optional
-    #         "design" for peak load, "annual" for yearly simulation
-#
-    #     Returns
-    #     -------
-    #     Q_nC : float
-    #         Cooling load [W]
-    #     """
-#
-    #     # Transmission heat gains
-    #     Q_trans = self._calcTransmissionGains(site)
-#
-    #     # Solar heat gains through windows
-    #     Q_solar = self._calcSolarGains(site)
-#
-    #     # Internal heat gains
-    #     Q_internal = self._calcInternalGains()
-#
-    #     # Ventilation heat gains
-    #     Q_vent = self._calcVentilationGains(site)
-#
-    #     # Apply thermal mass reduction factor (depends on building construction)
-    #     f_storage = self._getThermalMassReductionFactor()
-#
-    #     Q_nC = (Q_trans + Q_solar + Q_internal) * f_storage + Q_vent
-#
-    #     return Q_nC
