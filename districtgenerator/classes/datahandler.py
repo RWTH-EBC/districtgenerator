@@ -6,7 +6,7 @@ import os
 import sys
 import copy
 import datetime
-import multiprocessing
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import openpyxl
@@ -658,63 +658,66 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
-        """
-        Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
-
-        Parameters
-        ----------
-        calcUserProfiles: bool, optional
-            True: calculate new user profiles.
-            False: load user profiles from file.
-            The default is True.
-        saveUserProfiles: bool, optional
-            True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
-            The default is True.
-
-        Returns
-        -------
-        None.
-        """
-
-        args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
-
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
-
-        results = []
         self.save_progress()
 
-        with multiprocessing.Pool(processes=max_threads) as pool:
-            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
+        results = []
+
+        # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
+        with ThreadPoolExecutor(max_workers=max_threads) as ex:
+            future_map = {
+                ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles): building[
+                    "unique_name"]
+                for building in self.district
+            }
+
+            for fut in as_completed(future_map):
+                unique_name = future_map[fut]
+                try:
+                    result = fut.result()
+                except Exception as e:
+                    print(f"Error in building {unique_name}: {e}")
+                    continue
+
                 self.buildings_completed += 1
                 results.append(result)
-
                 self.save_progress()
 
-                print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
-                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
+                print(
+                    f"building {self.buildings_completed}/{self.buildings_total} calculated "
+                    f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}"
+                )
 
+        # Write results back to district objects
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
+
+            # IMPORTANT: remove the trailing comma (your current code makes this a 1-tuple)
             building["user"].occ = result["occ"]
+
             building["user"].carcharging_ondemand =  result["carcharging_ondemand"]
             building["user"].carprofile = result["carprofile"]
             building["user"].ev_capacity = result.get("ev_capacity")
+
             building["user"].gains = result["gains"]
             building["user"].nb_units = result["nb_units"]
             building["user"].nb_occ = result["nb_occ"]
+
+            # If Envelope is not safely serializable, keep the existing one and only store what you need.
+            # If you really need it, keep it, but threads don't require pickling so it's fine.
             building["envelope"] = result["envelope"]
+
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
 
         self.save_progress()
-
-        print("Finished generating demands with multiprocessing!")
+        print("Finished generating demands with threading!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
         """
@@ -797,6 +800,23 @@ class Datahandler:
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
             building["user"].cooling = cooling
+
+        return {
+            "unique_name": building["unique_name"],
+            "elec": building["user"].elec,
+            'dhw': building["user"].dhw,
+            'cooling': building["user"].cooling,
+            'heating': building["user"].heat,
+            'occ': building["user"].occ,
+            'carcharging_ondemand': building["user"].carcharging_ondemand,
+            'carprofile': building["user"].carprofile,
+            "ev_capacity": building["user"].ev_capacity,
+            'gains': building["user"].gains,
+            "nb_units": building["user"].nb_units,
+            'nb_occ': building["user"].nb_occ,
+            'envelope': building["envelope"],
+            'night_setback': building["buildingFeatures"]["night_setback"],
+        }
         # print(f'done {building["unique_name"]}')
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
@@ -1442,31 +1462,3 @@ class Datahandler:
         self.KPIs = KPIs(self, decentral_config=self.decentral_device_data)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-
-
-def generate_demands_worker_wrapper(args):
-    """
-    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
-    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
-    """
-    self_ref, building, calcUserProfiles, saveUserProfiles = args
-    self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles)
-
-    result = {
-        "unique_name": building["unique_name"],
-        "elec": building["user"].elec,
-        'dhw': building["user"].dhw,
-        'cooling': building["user"].cooling,
-        'heating': building["user"].heat,
-        'occ': building["user"].occ,
-        'carcharging_ondemand': building["user"].carcharging_ondemand,
-        'carprofile': building["user"].carprofile,
-        "ev_capacity": building["user"].ev_capacity,
-        'gains': building["user"].gains,
-        "nb_units": building["user"].nb_units,
-        'nb_occ': building["user"].nb_occ,
-        'envelope': building["envelope"],
-        'night_setback': building["buildingFeatures"]["night_setback"],
-    }
-
-    return result
