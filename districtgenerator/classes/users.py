@@ -14,7 +14,6 @@ import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 import districtgenerator.functions._5R1C as heating_5R1C
 import districtgenerator.functions._7R2C as heating_7R2C
-import districtgenerator.functions.SIA as SIA
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 
@@ -83,7 +82,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit):
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -119,7 +118,7 @@ class Users:
         self.individual_car_profiles = []
 
         # Initialize SIA class and read data
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA2024
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
@@ -719,7 +718,7 @@ class Users:
                 holidays.update(school_holiday_days)
                 holidays = sorted(list(holidays))  # keep format consistent
 
-            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
+            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
             # Occupancy profile in the building
             _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
             self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)

@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
-
-import json
-import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
-
-from .solar import Sun
-import numpy as np
-
 
 class BES:
     """

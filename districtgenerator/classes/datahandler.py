@@ -28,6 +28,7 @@ from .system import CES
 from .plots import DemandPlots
 from .KPIs import KPIs
 from .non_residential import NonResidential
+import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
@@ -315,6 +316,8 @@ class Datahandler:
 
         # Determine the all_sim_ecoData which contains prices, co2 factors for each simulated year used for optimizations:
         self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
+
+        self.SIA2024 = SIA.read_SIA_data()
 
     def select_plz_data(self):
         """
@@ -688,7 +691,8 @@ class Datahandler:
             building["user"] = Users(building=building["buildingFeatures"]["building"],
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
-                                     retrofit=building["buildingFeatures"]["retrofit"])
+                                     retrofit=building["buildingFeatures"]["retrofit"],
+                                     SIA2024=self.SIA2024)
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads

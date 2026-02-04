@@ -466,7 +466,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         plt.savefig(plot_filename_png, dpi=300)
         plt.savefig(plot_filename_svg, format="svg")
 
-        plt.show()
+#        plt.show()
 
         # %% STEP SIX: Output
         json_filename = f"topology_road_{district_type}_buildings_{len(buildings_info)}.json"
@@ -686,7 +686,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         plt.savefig(plot_filename_png, dpi=300)
         plt.savefig(plot_filename_svg, format="svg")
 
-        plt.show()
+#        plt.show()
 
         # %% STEP FOUR: Output
         # Add role attribute

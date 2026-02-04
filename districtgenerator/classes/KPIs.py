@@ -448,6 +448,12 @@ class KPIs:
                         cap,
                         mode="unsubsidized")
 
+                    # If HP is installed, EH investment is assumed to be included in HP
+                    # → keep EH capacity visible, but set EH annualized costs to 0
+                    if dev == "EH" and capacities[n].get("HP", 0) > 0:
+                        subsidized_cost = 0.0
+                        unsubsidized_cost = 0.0
+
                     calc_annual_investment[n] += subsidized_cost
                     calc_annual_investment_unsubsidized[n] += unsubsidized_cost
                     self.decentral_individual_devices_annualized_cost[n][dev] = {"cap":cap,
