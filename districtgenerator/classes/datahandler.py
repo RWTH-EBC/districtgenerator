@@ -7,6 +7,7 @@ import sys
 import copy
 import datetime
 import multiprocessing
+import warnings
 
 import numpy as np
 import openpyxl
@@ -483,6 +484,16 @@ class Datahandler:
 
             # Store features of the observed building
             building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
+
+            # Validate that the sum of PV and STC roof area fractions does not exceed 1
+            f_pv = building["buildingFeatures"].get("f_PV", 0) or 0
+            f_stc = building["buildingFeatures"].get("f_STC", 0) or 0
+            if f_pv + f_stc > 1:
+                warnings.warn(
+                    f"Building {bldg_id} ('{row['building']}'): f_PV ({f_pv}) + f_STC ({f_stc}) = {f_pv + f_stc} > 1. "
+                    f"The combined PV and STC area exceeds the available rooftop area.",
+                    UserWarning
+                )
 
             # Add thermal transmittance if available
             if "thermalTransmittanceFacade" in self.scenario.columns:

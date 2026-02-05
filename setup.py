@@ -13,6 +13,7 @@ setuptools.setup(name='districtgenerator',
                  author_email='joel.schoelzel@eonerc.rwth-aachen.de',
                  license='MIT License',
                  packages=setuptools.find_packages(),
+                 include_package_data=True,
                  install_requires=requirements,
                  classifiers=("Programming Language :: Python :: 3", ),
                  )
