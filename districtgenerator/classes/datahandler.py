@@ -509,7 +509,7 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{bldg_id}_{row['building']}"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
@@ -1235,13 +1235,13 @@ class Datahandler:
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralPV_{self.scenario_name}.csv'),
                        self.centralDevices["generation"]["PV"],
                        delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralSTC_{self.scenario_name}.csv'),
                        self.centralDevices["generation"]["STC"],
                        delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralWind_{self.scenario_name}.csv'),
                        self.centralDevices["generation"]["Wind"],
                        delimiter=',')
 

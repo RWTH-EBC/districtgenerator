@@ -660,7 +660,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    lp_filename = os.path.join(result_dir, "ehdo_model.lp")
+    lp_filename = os.path.join(result_dir, f"ehdo_model_{data.scenario_name}.lp")
     model.write(lp_filename, io_options={"symbolic_solver_labels": True})
 
     # temporary log-file for the solver
@@ -831,7 +831,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
             print(f"Warning: Could not write solution file {filename}: {e}")
         return None
 
-    solution_path = os.path.join(result_dir, 'solution_ehdo_file.txt')
+    solution_path = os.path.join(result_dir, f"solution_ehdo_file_{data.scenario_name}.txt")
     write_solution_file(model, solution_path)
 
     ################################################################################
