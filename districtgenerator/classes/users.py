@@ -12,8 +12,8 @@ import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
-import districtgenerator.functions.heating_profile_5R1C as heating
-import districtgenerator.functions.SIA as SIA
+import districtgenerator.functions._5R1C as heating_5R1C
+import districtgenerator.functions._7R2C as heating_7R2C
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 
@@ -82,7 +82,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit):
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -111,12 +111,14 @@ class Users:
         self.gains = None
         self.heat = None
         self.cooling = None
-        self.carprofile = None
-        self.carcharging_ondemand = None
+        self.EV_carprofile = None
+        self.EV_carcharging_ondemand = None
         self.ev_capacity = None
+        self.ice_carprofile = None
+        self.individual_car_profiles = []
 
         # Initialize SIA class and read data
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA2024
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
@@ -449,6 +451,8 @@ class Users:
     def generate_annual_app_el_consumption_non_residential(self, area, ventilation=0):             # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
 
         if self.building not in {"SFH","TH","MFH","AB"}:
+            if self.building == "SC":
+                ventilation = 1
             for number, data in self.SIA2024.items():
                 zone_name = data.get('Zone_name_GER')
                 if zone_name:
@@ -616,9 +620,9 @@ class Users:
             lights = self.bulbs_power
 
             #  Create wrapper object only for lighting
-            self.el_wrapper.append(wrap_light.ElectricityProfile(lights))
+            self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -633,6 +637,8 @@ class Users:
         initial_day : integer, optional
             Day of the week with which the generation starts.
             1-7 for monday-sunday. The default is 1.
+        gen_cars : bool, optional if turned to false no car profiles are generated to improve perfomance if cars are not needed. The default is True.
+            Be aware that setting it to false causes the simulation to not possess cars even if the scenario says so.
 
         Returns
         -------
@@ -647,16 +653,21 @@ class Users:
 
         time_day = 24 * 60 * 60
         nb_days = int(time_horizon/time_day)
+
+        self.occ = np.zeros(int(time_horizon / time_resolution))
+        self.dhw = np.zeros(int(time_horizon / time_resolution))
+        self.elec = np.zeros(int(time_horizon / time_resolution))
+        self.gains = np.zeros(int(time_horizon / time_resolution))
+        self.EV_carprofile = np.zeros(int(time_horizon / time_resolution))
+        self.EV_carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
+        self.ev_capacity = [0.0]
+        self.ice_carprofile = np.zeros(int(time_horizon / time_resolution))
+        self.individual_car_profiles = []
+
+        # Residential buildings
         if self.building in {"SFH", "TH", "MFH", "AB"}:
 
-            self.occ = np.zeros(int(time_horizon / time_resolution))
-            self.dhw = np.zeros(int(time_horizon / time_resolution))
-            self.elec = np.zeros(int(time_horizon / time_resolution))
-            self.gains = np.zeros(int(time_horizon / time_resolution))
-            self.carprofile = np.zeros(int(time_horizon / time_resolution))
-            self.carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
-            self.ev_capacity = []
-
+            current_index = 0  # To keep track of the starting index for car profiles Id in each flat
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
@@ -671,13 +682,43 @@ class Users:
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
                 self.gains = self.gains + temp_obj.generate_gain_profile_residential()
-                carprofile, on_demand_charging, ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
-                self.carprofile = self.carprofile + carprofile # Sum car profiles over all flats in the building
-                self.carcharging_ondemand = self.carcharging_ondemand + on_demand_charging
-                self.ev_capacity += ev_capacity
+                if gen_cars:
+                    (EV_carprofile, EV_on_demand_charging, ev_capacity,
+                     ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                         building=building,
+                         building_devices_data=building_devices_data,
+                         holidays=holidays,
+                         start_index_car=current_index)
+
+                    self.EV_carprofile = self.EV_carprofile + EV_carprofile  # Sum car profiles over all flats in the building
+                    self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + EV_on_demand_charging
+                    self.ev_capacity += ev_capacity
+                    self.ice_carprofile = self.ice_carprofile + ice_carprofile
+                    self.individual_car_profiles.extend(individual_car_profiles)
+                    current_index += len(individual_car_profiles)  # Update the starting index for the next flat of the building
 
         else:
-            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
+            # Non-residential buildings
+            # Define average school holiday day ranges (Julian days)
+            SCHOOL_HOLIDAYS = [
+                range(94, 107),  # Osterferien
+                range(189, 233),  # Sommerferien
+                range(285, 298),  # Herbstferien
+                list(range(357, 366)) + list(range(1, 7)),  # Weihnachtsferien
+            ]
+
+            # Flatten all holiday days into one set for fast lookup
+            school_holiday_days = set()
+            for r in SCHOOL_HOLIDAYS:
+                school_holiday_days.update(r)
+
+            # If the current building is a school ("SC"), extend the holiday list
+            if self.building == "SC":
+                holidays = set(holidays or [])
+                holidays.update(school_holiday_days)
+                holidays = sorted(list(holidays))  # keep format consistent
+
+            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
             # Occupancy profile in the building
             _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
             self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
@@ -688,14 +729,20 @@ class Users:
             self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
             # In the case of non-residential buildings, EVs are only for office buildings
-            if self.building in {"OB"}:
-                self.carprofile, self.carcharging_ondemand, self.ev_capacity = temp_obj.generate_ev_profile(building=building, building_devices_data = building_devices_data, holidays=holidays)
-            else:
-                self.carprofile = np.zeros(len(self.occ), dtype=np.float64)
-                self.carcharging_ondemand = np.zeros(len(self.occ), dtype=np.float64)
-                self.ev_capacity = [0.0]
+            if self.building in {"OB"} and gen_cars:
+                (EV_carprofile, EV_on_demand_charging, ev_capacity,
+                ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                    building=building,
+                    building_devices_data=building_devices_data,
+                    holidays=holidays
+                )
+                self.EV_carprofile += EV_carprofile
+                self.EV_carcharging_ondemand += EV_on_demand_charging
+                self.ev_capacity += ev_capacity
+                self.ice_carprofile += ice_carprofile
+                self.individual_car_profiles.extend(individual_car_profiles)
 
-    def calcHeatingProfile(self, site, envelope, night_setback, is_cooled, calendar, time_resolution):
+    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, calendar, time_resolution, initial_day):
         """
         Calculate heat demand for each building.
 
@@ -727,12 +774,39 @@ class Users:
         """
 
         dt = time_resolution / (60 * 60)
+
+        # Extend holidays for schools
+        if self.building == "SC":
+            # Define average NRW school holiday day ranges (Julian days)
+            SCHOOL_HOLIDAYS = [
+                range(94, 107),  # Osterferien
+                range(189, 233),  # Sommerferien
+                range(285, 298),  # Herbstferien
+                list(range(357, 366)) + list(range(1, 7)),  # Weihnachtsferien
+            ]
+
+            # Flatten and merge with existing holidays
+            school_holiday_days = set()
+            for r in SCHOOL_HOLIDAYS:
+                school_holiday_days.update(r)
+
+            calendar["holidays"] = set(calendar["holidays"] or [])
+            calendar["holidays"].update(school_holiday_days)
+            calendar["holidays"] = sorted(list(calendar["holidays"]))  # consistent type for downstream use
+
+        if thermal_model == "5R1C":
+            heating = heating_5R1C
+        elif thermal_model == "7R2C":
+            heating = heating_7R2C
+        else:
+            raise ValueError(f"Unknown thermal_model_type: {thermal_model}")
+
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt,
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt, initial_day,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, initial_day, self.building)
 
         # Force cooling to zero if building is not actively cooled
         if is_cooled == 0:

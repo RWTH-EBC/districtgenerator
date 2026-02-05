@@ -1,14 +1,6 @@
 # -*- coding: utf-8 -*-
-
-import json
-import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
-import districtgenerator.functions.heating_network as heating_network
-
-from .solar import Sun
-import numpy as np
-
 
 class BES:
     """
@@ -77,7 +69,6 @@ class BES:
                              * (T_bivalent - T_design)
 
         # Design load for cooling
-        # todo: hab das hier jetzt hinzugefügt -> geht nur in den CC rein. Soll das so?
         self.design_load_cooling = building["envelope"].coolingload
 
         BES = {}
@@ -88,20 +79,36 @@ class BES:
         else:
             BES["heat_grid"] = 0
 
+        # Define hybrid heating systems for heat pumps
+        hybrid_systems = {
+            "HP": {"hp": "HP", "backup": "EH"},      # typical heat pump system with electric backup
+            "GHP": {"hp": "HP", "backup": "BOI"},      # Gas Hybrid Heat Pump
+            "BHP": {"hp": "HP", "backup": "BBOI"},     # Biomass Hybrid Heat Pump
+            "H2HP": {"hp": "HP", "backup": "H2BOI"},   # Hydrogen Hybrid Heat Pump
+            "OHP": {"hp": "HP", "backup": "OBOI"}      # Oil Hybrid Heat Pump
+        }
+
         for k in self.decentral_device_data.keys():
             BES[k] = {}
-
-            # capacity of boiler (BOI), fuel cell (FC) or combined heat and power (CHP) refers to design heat load
-            if k in ("BOI", "FC", "CHP"):
-                BES[k] = self.design_load_heating * (buildingFeatures["heater"] == k)
-
             # heat pump (HP) capacity refers to heat load at bivalent temperature
             if k == "HP":
-                BES["HP"] = self.bivalent_load_heating * (buildingFeatures["heater"] == k)
+                if buildingFeatures["heater"] in hybrid_systems:
+                    BES["HP"] = self.bivalent_load_heating
+                else:
+                    BES["HP"] = 0
 
-            # electric heating (EH) exists if HP exists
-            if k == "EH":
-                BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) * (buildingFeatures["heater"] == "HP")
+
+            # Capacity of heating systems other than heat pumps
+            if k in ("BOI", "BBOI", "OBOI","H2BOI", "FC", "CHP", "EH", "DH"):
+                # As the primary heating system
+                if buildingFeatures["heater"] == k:
+                    BES[k] = self.design_load_heating
+
+                # As the backup system in a hybrid heat pump system
+                elif buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == k:
+                    BES[k] = (self.design_load_heating - self.bivalent_load_heating)
+                else:
+                    BES[k] = 0
 
             # thermal energy storage (TES)
             if k == "TES":
@@ -132,7 +139,7 @@ class BES:
                 BES["BAT"] = buildingFeatures["f_BAT"] \
                              * self.decentral_device_data["PV"]["P_nominal"] \
                              * building["envelope"].A["opaque"]["roof"] \
-                             * buildingFeatures["f_PV"]
+                             * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
 
             # electric vehicle (EV)
             if k == "EV":
@@ -144,7 +151,7 @@ class BES:
                 BES["PV"] = {}
                 # f_PV is the fraction of the roof area that is suitable and available for PV installation
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * buildingFeatures["f_PV"]
+                              * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]
@@ -159,7 +166,7 @@ class BES:
         return BES
 
 
-class CES():
+class CES:
     """
     Abstract class for design of the central energy system.
     """
@@ -173,6 +180,7 @@ class CES():
         None.
         """
 
+
     def designCES(self, data):
         """
         Dimensioning of central devices with EHDO
@@ -185,9 +193,6 @@ class CES():
         capacities_centralDevices : dictionary
             The capacities of the central devices.
         """
-
-        # Load parameters of the heating network
-        data = heating_network.heating_network(data)
 
         # Load parameters of the energy hub
         param, devs, dem, result_dict = load_params_central_devices.load_params(data)

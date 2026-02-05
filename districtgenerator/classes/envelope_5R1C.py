@@ -244,20 +244,14 @@ class Envelope:
             for name, elem in element_bind.items():
                 if "OuterWall" in name:
                     if elem["building_age_group"][0] <= self.construction_year <= \
-                            elem["building_age_group"][1] and \
-                            elem["construction_data"] == self.construction_data \
-                            + "_1_" + self.usage_short:
+                            elem["building_age_group"][1] and elem["construction_data"] == self.construction_data + "_1_" + self.usage_short:
+
                         for lay in elem["layer"].items():
-                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                               lay[1]["thickness"])
-                            material_prop = self.loadMaterialID(
-                                lay[1]["material"]["material_id"], material_bind)
-                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                                 material_prop[1])
-                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                    material_prop[2])
-                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                                material_prop[3] * 1000)
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
             comp = "roof"
             # ROOF: Materials and U-value
@@ -306,8 +300,7 @@ class Envelope:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
-                            elem["building_age_group"][1] and \
-                            elem["construction_data"] == "tabula_de_standard":
+                            elem["building_age_group"][1] and elem["construction_data"] == "tabula_de_standard":
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                                lay[1]["thickness"])
@@ -480,7 +473,7 @@ class Envelope:
             drct = ("south", "west", "north", "east")
             self.A["opaque"] = {}
             if not prj.buildings[self.id].type_of_building == "TerracedHouse":
-                self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area
+                self.A["opaque"]["north"] = prj.buildings[self.id].thermal_zones[0].outer_walls[0].area        # one external wall
                 self.A["opaque"]["south"] = prj.buildings[self.id].thermal_zones[0].outer_walls[2].area
                 self.A["opaque"]["east"] = prj.buildings[self.id].thermal_zones[0].outer_walls[1].area
                 self.A["opaque"]["west"] = prj.buildings[self.id].thermal_zones[0].outer_walls[3].area
@@ -490,22 +483,23 @@ class Envelope:
                 self.A["opaque"]["east"] = 0.0
                 self.A["opaque"]["west"] = 0.0
 
+            self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)                                      # all external walls
+
             try:
-                self.A["opaque"]["roof"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].rooftops)
+                self.A["opaque"]["roof"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].rooftops)   # Roof
             except KeyError:
                 self.A["opaque"]["roof"] = 0.0
 
-            self.A["opaque"]["floor"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].floors)
-            self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
+            self.A["opaque"]["floor"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].ground_floors)        # GroundFloor
 
-            # Area of internal floor equals usable area
-            self.A["opaque"]["intFloor"] = self.A["f"]
-            self.A["opaque"]["ceiling"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].ceilings)
-            self.A["opaque"]["intWall"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].inner_walls)
+
+            self.A["opaque"]["intFloor"] = self.A["f"] - self.A["opaque"]["floor"]  # all internal floors
+            self.A["opaque"]["ceiling"] = self.A["opaque"]["intFloor"] # all ceilings
+            self.A["opaque"]["intWall"] = sum(r.area for r in prj.buildings[self.id].thermal_zones[0].inner_walls)  # all internal walls
 
             self.A["window"] = {}
             if not prj.buildings[self.id].type_of_building == "TerracedHouse":
-                self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[0].area
+                self.A["window"]["north"] = prj.buildings[self.id].thermal_zones[0].windows[0].area             # one window
                 self.A["window"]["south"] = prj.buildings[self.id].thermal_zones[0].windows[2].area
                 self.A["window"]["east"] = prj.buildings[self.id].thermal_zones[0].windows[1].area
                 self.A["window"]["west"] = prj.buildings[self.id].thermal_zones[0].windows[3].area
@@ -518,7 +512,7 @@ class Envelope:
             self.A["window"]["roof"] = 0.0
             self.A["window"]["floor"] = 0.0
 
-            self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)
+            self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)                  # all windows
 
         elif isinstance(prj, NonResidential):
 
@@ -548,7 +542,7 @@ class Envelope:
             self.A["opaque"]["wall"] = sum(self.A["opaque"][d] for d in drct)
 
             # Area of internal floor equals usable area
-            self.A["opaque"]["intFloor"] = self.A["f"]
+            self.A["opaque"]["intFloor"] = self.A["f"] - self.A["opaque"]["floor"]
             # Area of the highest floor equals area of base plate
             self.A["opaque"]["ceiling"] = self.A["opaque"]["floor"]
             # Assumption: 6 continuous walls per floor (3*N-S, 3*E-W)
@@ -838,7 +832,6 @@ class Envelope:
             return m_dot_air * (x_out - x_in) * h_fg
 
         return 0
-
 
     def calculateHeatCapacity(self, prj):
         if isinstance(prj, Project):

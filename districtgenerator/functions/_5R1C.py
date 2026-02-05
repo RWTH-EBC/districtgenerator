@@ -273,7 +273,6 @@ def _calculateCooling(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     Q_HC = x[3]
 
     # If Q_HC exceeds Q_nHC, re-solve assuming Q_HC = Q_nHC
-    # Note: Q_HC and Q_nHC are negative, so Q_HC can not be smaller (more negative) than Q_nHC
     if Q_HC < Q_nHC:
         # Remove the row and column corresponding to Q_HC
         A_reduced = A[:3, :3]  # Exclude the last row and column
@@ -296,7 +295,7 @@ def _calculateCooling(zoneParameters, T_e, T_set,T_m_init, dt, timestep):
     return (Q_HC, T_op, T_m, T_i, T_s)
 
 
-def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
+def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_type):
     """
     Calculate heating and cooling demand with night setback for residential buildings
     and night set up for non-residential buildings.
@@ -357,12 +356,11 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
     Q_C = np.zeros(numberTimesteps)
     T_op = np.zeros(numberTimesteps)
 
-
     timesteps_per_day = numberTimesteps / 365  # Calculate timesteps per day
     if building_type in {"SFH", "TH", "MFH", "AB"}:
         night_hours = list(range(22, 24)) + list(range(0, 6))  # 22:00 to 05:59 Source: E. Sperber et al. (2024), Turn down your thermostats – A contribution to overcoming the European gas crisis? The example of Germany
     else:
-        night_hours = list(range(18, 24)) + list(range(0, 6))  # 18:00 to 05:59
+        night_hours = list(range(18, 24)) + list(range(0, 5))  # 18:00 to 04:59
 
     for t in range(numberTimesteps):
 
@@ -376,7 +374,8 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
         hour_of_day = int(day_fraction * 24)
 
         # Calculate current day
-        day = t // timesteps_per_day
+        day = int(t // timesteps_per_day)
+        weekday = (initial_day + day) % 7  # 0=Monday, …, 6=Sunday
 
         # Define if heating or cooling season
         cooling_season = (day in range(cooling_start, cooling_end)) and calendar["consider_cooling_period"]
@@ -419,14 +418,15 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
                 q_hc = 0
 
         else:
+            # Check if the current hour is nighttime
             if hour_of_day in night_hours:
-                if (day % 7 not in (0, 6) and day not in holidays):
+                if (weekday not in (5, 6) and day not in holidays):
                     current_T_set = T_set_night
                 else:
                     current_T_set = T_set_free_day
                 current_T_set_ub = T_set_ub_night
             else:
-                if (day % 7 not in (0, 6) and day not in holidays):
+                if (weekday not in (5, 6) and day not in holidays):
                     current_T_set = T_set
                 else:
                     current_T_set = T_set_free_day
@@ -440,7 +440,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
                                                              dt,
                                                              timestep=t)
             elif (t_op > current_T_set_ub and cooling_season and
-                (day % 7 not in (0, 6) and
+                (weekday not in (5, 6) and
                  day not in holidays)):
                 # Compute cooling demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
@@ -469,7 +469,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, building_type):
     return (Q_H, Q_C, T_op, T_m, T_i, T_s)
 
 
-def calc(zoneParameters, T_e, calendar, dt, building_type):
+def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
     """
     """
     if building_type in {"SFH", "TH", "MFH", "AB"}:
@@ -508,12 +508,12 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
             t_m_previous = T_m[t - 1]
 
         # Calculate current day
-        day = t // timesteps_per_day
+        day = int(t // timesteps_per_day)
+        weekday = (initial_day + day) % 7
 
         # Define cooling season
-        # theoretical gleichzeitig
         cooling_season = (day in range(cooling_start, cooling_end)) and calendar["consider_cooling_period"]
-        # negative because of year ending in heating period
+        # Define heating season
         heating_season = (day not in range(heating_end, heating_start)) and calendar["consider_heating_period"]
 
         # Compute what happens without heating (deadband)
@@ -524,7 +524,6 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
                                                  timestep=t)
 
         if building_type in {"SFH", "TH", "MFH", "AB"}:
-            #             if t_op < T_set and (not heating_period or day not in range(heating_end, heating_start)):
             current_T_set = T_set
             current_T_set_ub = T_set_ub
             if t_op < current_T_set and heating_season:
@@ -549,7 +548,7 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
 
         else:
             # Non residential buildings
-            if (day % 7 not in (0, 6) and day not in holidays):
+            if (weekday not in (5, 6) and day not in holidays):
                 current_T_set = T_set
             else:
                 current_T_set = T_set_free_day
@@ -564,7 +563,7 @@ def calc(zoneParameters, T_e, calendar, dt, building_type):
                                                              dt,
                                                              timestep=t)
             elif (t_op > current_T_set_ub and cooling_season and
-                  (day % 7 not in (0, 6) and
+                  (weekday not in (5, 6) and
                    day not in holidays)):
                 # Compute cooling demand
                 (q_hc, t_op, t_m, t_i, t_s) = _calculateCooling(zoneParameters,
