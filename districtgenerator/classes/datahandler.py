@@ -35,7 +35,7 @@ from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, NetworkDistConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 
 class Datahandler:
     """
@@ -113,6 +113,7 @@ class Datahandler:
         self.decentral_device_data = {}
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
+        self.params_networkdist = {} # new TJ
         self.central_device_data = {}
         self.calendar = {} #! This is new; check if everywhere correctly integrated
         self.ecoData = {}
@@ -142,6 +143,7 @@ class Datahandler:
             time_config=global_config.time,
             design_building_config=global_config.design_building,
             physics_config=global_config.physics,
+            networkdist_config=global_config.networkdist, # new TJ
             decentral_config=global_config.decentral,
             ehdo_config=global_config.ehdo,
             eco_config=global_config.eco,
@@ -181,6 +183,7 @@ class Datahandler:
                       decentral_config: DecentralDeviceConfig,
                       ehdo_config: EHDOConfig,
                       eco_config: EcoConfig,
+                      networkdist_config: NetworkDistConfig, # new TJ
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
                       heat_grid_config: HeatGridConfig,
@@ -204,6 +207,8 @@ class Datahandler:
             EHDO model configuration data.
         eco_config : EcoConfig
             Economic configuration data.
+        networkdist_config : NetworkDistConfig # new TJ
+            Network of districts configuration data.
         central_config : CentralDeviceConfig
             Central device configuration data.
         calendar_config : CalendarConfig
@@ -252,6 +257,9 @@ class Datahandler:
 
         for attr, value in ehdo_config.__dict__.items():
             self.params_ehdo_model[attr] = value
+
+        for attr, value in networkdist_config.__dict__.items(): # new TJ
+            self.params_networkdist[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
         for attr, value in eco_config.__dict__.items():

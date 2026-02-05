@@ -6,10 +6,11 @@
 from districtgenerator.classes import Datahandler
 from pathlib import Path
 from .system import CES
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, HeatGridConfig, CalendarConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, NetworkDistConfig, PhysicsConfig, EHDOConfig, HeatGridConfig, CalendarConfig
 #import districtgenerator.functions.heating_network as heating_network
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
 import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
+import districtgenerator.functions.heating_network_simple as heating_network_simple
 
 class Network:
     def __init__(self):
@@ -54,7 +55,7 @@ class Network:
 
             # Initialize District for the current scenario.
             data = Datahandler(env_path=scenario_file)
-            model_param_eh = data.params_ehdo_model
+            model_param_eh = data.params_networkdist
             print(f"\nOptim_dimension of: {data.scenario_name} is {model_param_eh['optim_dimension']}")
 
             # Generate Environment for the District
@@ -91,29 +92,51 @@ class Network:
             print("No interconnected districts found for optimization.")
             return
         
-        # design decentral devices for each district
+        # Design decentral devices for each district
         for data in self.interconnected_districts:
             data.designDecentralDevices()
-
-
-       # Check if the interconnected districts use a heat grid as heating system
-        if all(data.district[0]["buildingFeatures"]["heater"] == "heat_grid" for data in self.interconnected_districts):
+        
+        # Design central devices for interconnected districts
+        for data in self.interconnected_districts:
+            # Check if district uses central energy supply (heat grid)
+            # ToDo: This check only checks if the last district has a heat grid. It could be improved by checking all districts and only designing the central devices if at least one district has a heat grid.
+            has_heat_grid = any(
+                building["buildingFeatures"]["heater"] == "heat_grid"
+                for building in self.district)
+            
+        if has_heat_grid:
+            heating_network_simple.heating_network(self)
             self.designCentralDevsConnected() 
         else:
-            print("The interconnected districts do not use a heat grid as heating system.")
+            print("No central heat grid detected — skipping heating network design.")
+            self.centralDevices = {}
+
+        for data in self.interconnected_districts:
+            self.finalizeClusterProfiles()        
+
+
+    #    # Check if the interconnected districts use a heat grid as heating system
+    #     if all(data.district[0]["buildingFeatures"]["heater"] == "heat_grid" for data in self.interconnected_districts):
+    #         self.designCentralDevsConnected() 
+    #     else:
+    #         print("The interconnected districts do not use a heat grid as heating system.")
 
 
         
         # for i, data in enumerate(self.interconnected_districts):
         #     print(f"Scenario Name: {data.scenario_name}")
         #     print(f"Site Data: {data.site}") 
-    def designCentralDevsConnected(self):
+    def designCentralDevsConnected(self, saveGenerationProfiles):
         """
-        This function designs the central devices for interconnected districts all togeether in the network.
+        This function designs the central devices for interconnected districts all together in the network.
 
         Parameters
         ----------
-        None.
+        saveGenerationProfiles : bool, optional
+            True: save central PV, STC and WT profiles as CSV-file.
+            False: don't save central PV, STC and WT profiles as CSV-file.
+            The default is True.
+
 
         Returns
         -------
@@ -123,8 +146,9 @@ class Network:
         for district in self.interconnected_districts:
             # Initialize central devices dictionary
             district.centralDevices = {}
-            # Load parameters of the heating network
-            district = heating_network.heating_network(data=district)
+
+            # # Load parameters of the heating network
+            # district = heating_network.heating_network(data=district) # Not part of new district generator any more
             # Load parameters of the energy hub
             param, devs, dem, result_dict = load_params_central_devices.load_params(district)
             # Save parameters of the energy hub for each district

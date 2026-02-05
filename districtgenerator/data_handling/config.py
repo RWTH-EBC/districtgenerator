@@ -156,6 +156,17 @@ class DesignBuildingConfig(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file 
     )
 
+class NetworkDistConfig(BaseSettings): # new TJ
+    """
+    NetworkDistConfig class to manage parameters related the network of interconnected districts."""
+
+    # General parameters
+    optim_dimension: int=0 # Optimization dimension: '0' -> single district, '1' -> district network
+
+    model_config = SettingsConfigDict(
+        extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
+    )
+
 class EcoConfig(BaseSettings):
     """ EcoConfig class to manage economic parameters for the district generator.
     This class contains parameters related to energy prices, CO2 emissions, and other economic factors
@@ -545,6 +556,8 @@ class EHDOConfig(BaseSettings):
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
+
+    
 
     # Helper attributes for unit formatting (Remove?)
     unit_placeholder: str = " - "   # used for cases where unit is a placeholder
@@ -1209,6 +1222,7 @@ class GlobalConfig(BaseModel):
     pyomo: 'PyomoConfig'
     heatgrid: 'HeatGridConfig'
     ehdo: 'EHDOConfig'
+    networkdist: 'NetworkDistConfig' # new TJ
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
     calendar: 'CalendarConfig'
@@ -1274,6 +1288,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         physics=PhysicsConfig(_env_file=env_file_path),
         pyomo=PyomoConfig(_env_file=env_file_path),
         heatgrid=HeatGridConfig(_env_file=env_file_path),
+        networkdist=NetworkDistConfig(_env_file=env_file_path), # new TJ
         ehdo=EHDOConfig(_env_file=env_file_path),
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
