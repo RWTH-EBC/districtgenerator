@@ -7,7 +7,6 @@ from districtgenerator.classes import Datahandler
 from pathlib import Path
 from .system import CES
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, NetworkDistConfig, PhysicsConfig, EHDOConfig, HeatGridConfig, CalendarConfig
-#import districtgenerator.functions.heating_network as heating_network
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
 import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
 import districtgenerator.functions.heating_network_simple as heating_network_simple
@@ -28,9 +27,6 @@ class Network:
         self.district = []
         self.interconnected_districts = []
 
-
-        
-    
     def initializeDistricts(self,configs_dir: Path, calcUserProfiles=True, saveUserProfiles=True):
         """
         This function initializes multiple districts in the network.
@@ -55,21 +51,27 @@ class Network:
 
             # Initialize District for the current scenario.
             data = Datahandler(env_path=scenario_file)
+
+            # Print optim_dimension for the current scenario
             model_param_eh = data.params_networkdist
             print(f"\nOptim_dimension of: {data.scenario_name} is {model_param_eh['optim_dimension']}")
-
+            
             # Generate Environment for the District
+            print(f"Generating environment for {data.scenario_name}...")
             data.generateEnvironment()
 
             # Initialize Buildings to the District
+            print(f"Initializing buildings for {data.scenario_name}...")
             data.initializeBuildings()
 
             # Generate more detailed Building models
+            print(f"Generating detailed building models for {data.scenario_name}...")
             data.generateBuildings()
 
             # Generate building specific demand profiles with the adjusted assumptions
             # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
-            data.generateDemands(calcUserProfiles, saveUserProfiles)
+            print()
+            data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
             self.district.append(data)
 
@@ -85,8 +87,9 @@ class Network:
         -------
         None.
         """
+
         # Filter interconnected districts (optim_dimension == 1)
-        self.interconnected_districts = [data for data in self.district if data.params_ehdo_model['optim_dimension'] == 1]
+        self.interconnected_districts = [data for data in self.district if data.params_networkdist['optim_dimension'] == 1]
 
         if not self.interconnected_districts:
             print("No interconnected districts found for optimization.")
@@ -95,6 +98,11 @@ class Network:
         # Design decentral devices for each district
         for data in self.interconnected_districts:
             data.designDecentralDevices()
+
+        # Print capacities of the decentral devices in all districts
+        for data in self.interconnected_districts:
+            for device, capacity in data.district[0]["capacities"].items():
+                print(f"  {device}: {capacity}")
         
         # Design central devices for interconnected districts
         for data in self.interconnected_districts:
@@ -102,19 +110,19 @@ class Network:
             # ToDo: This check only checks if the last district has a heat grid. It could be improved by checking all districts and only designing the central devices if at least one district has a heat grid.
             has_heat_grid = any(
                 building["buildingFeatures"]["heater"] == "heat_grid"
-                for building in self.district)
+                for building in data.district)
             
-        if has_heat_grid:
-            heating_network_simple.heating_network(self)
-            self.designCentralDevsConnected() 
-        else:
-            print("No central heat grid detected — skipping heating network design.")
-            self.centralDevices = {}
+        # if has_heat_grid:
+        #     heating_network_simple.heating_network(self)
+        #     self.designCentralDevsConnected() 
+        # else:
+        #     print("No central heat grid detected — skipping heating network design.")
+        #     self.centralDevices = {}
 
-        for data in self.interconnected_districts:
-            self.finalizeClusterProfiles()        
+        # for data in self.interconnected_districts:
+        #     self.finalizeClusterProfiles()        
 
-
+    # ALT
     #    # Check if the interconnected districts use a heat grid as heating system
     #     if all(data.district[0]["buildingFeatures"]["heater"] == "heat_grid" for data in self.interconnected_districts):
     #         self.designCentralDevsConnected() 

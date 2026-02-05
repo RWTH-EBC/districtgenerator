@@ -11,3 +11,4 @@ if __name__ == '__main__':
     network = Network()
 
     network.initializeDistricts(configs_dir=configs_directory_path, calcUserProfiles=False, saveUserProfiles=False)
+    network.optimize_network()
