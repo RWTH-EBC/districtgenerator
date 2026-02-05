@@ -29,9 +29,12 @@ def multiple_districts(configs_dir: Path) -> list[Datahandler]:
         # Initialize District for the current scenario.
         data = Datahandler(env_path=scenario_file)
 
+        # Get topology option either node or road based from heat grid data
+        topology_option = data.heat_grid_data["topology_option"]
+
         # Generate a complete district. 
         # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
-        data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True)
+        data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True, topology_option = topology_option)
 
         all_data.append(data)
 

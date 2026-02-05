@@ -580,7 +580,7 @@ class ScenarioName(BaseSettings):
     scenario_name: str = 'base_scenario' # default value for scenario name
 
     model_config = SettingsConfigDict(
-        extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
+        extra = 'allow' 
     )
 
 class DecentralDeviceConfig(BaseSettings):

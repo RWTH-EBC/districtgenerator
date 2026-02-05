@@ -11,7 +11,8 @@ def example7_optiEnergyCentral_EHDO():
 
     # Initialize District
     data = Datahandler(scenario_name = "example", env_path=".env.CONFIG.EXAMPLE")
-    
+
+    # Get topology option either node or road based from heat grid data
     topology_option = data.heat_grid_data["topology_option"]
 
     # We directly generate a complete district.
@@ -34,6 +35,29 @@ def example7_optiEnergyCentral_EHDO():
     # The results are saved in the data/generation folder of the district generator.
 
     print("Congratulations! You generated your energy central for the selected neighborhood!")
+
+
+    print("Capacities of the decentral devices in the buildings:")
+    
+    for building in data.district:
+        if "capacities" in building:
+            print(f"Building: {building['unique_name']}")
+            print("Capacities:")
+            for device, capacity in building["capacities"].items():
+                print(f"  {device}: {capacity}")
+        else:
+            print(f"Building: {building['unique_name']} has no capacities defined.")
+
+
+    if "capacities" in data.centralDevices:
+        capacities = data.centralDevices["capacities"]
+        print("Capacities of the central devices in energy hub:")
+        for device, details in capacities.items():
+            if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
+                print(f"  {device}: {details['cap']}")
+
+    else:
+        print("No capacities defined in energy hub.")
 
     return data
 

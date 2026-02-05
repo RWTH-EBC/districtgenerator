@@ -30,6 +30,9 @@ def one_district_opt_cent():
     # Now we generate building specific demand profiles with the adjusted assumptions
     # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)    
+
+    # Get topology option either node or road based from heat grid data
+    topology_option = data.heat_grid_data["topology_option"]
     
     # Design decentral and central devices for the current district.
     #data.designDevicesComplete(saveGenerationProfiles=True)

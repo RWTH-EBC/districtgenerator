@@ -101,7 +101,7 @@ class Datahandler:
 
         self.initial_day = None
         self.district = []
-        self.scenario_name = scenario_name
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name
         self.scenario = None
         self.total_building_area = None
 
