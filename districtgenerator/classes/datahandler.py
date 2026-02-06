@@ -1767,6 +1767,8 @@ class Datahandler:
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData
+        # Change this to take the interpolation points from ecoData instead of hardcoding them
+        self.ecoData["interpolation_points"] = [0]
         simulated_years = self.ecoData["interpolation_points"]
         observation_time = self.ecoData["observation_time"]
 
@@ -1792,8 +1794,6 @@ class Datahandler:
 
         interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
-
-        #TODO: Why are CO2 emission factors also considered here?
 
         for year in simulated_years:
             relevant_years = year_segments[year]

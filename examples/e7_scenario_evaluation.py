@@ -29,16 +29,15 @@ def example7_scenario_evaluation():
     # of the energy central and the economic parameters are read from additional
     # .csv and .json data sources.
 
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=True)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
-#    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
-
+    data.calculateKPIs()
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
-    # data.KPIs.create_certificate(data=data, result_path=data.resultPath)
+    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
     return data
