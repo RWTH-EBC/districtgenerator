@@ -111,16 +111,20 @@ class Network:
             has_heat_grid = any(
                 building["buildingFeatures"]["heater"] == "heat_grid"
                 for building in data.district)
+            if has_heat_grid:
+                heating_network_simple.heating_network(data)
+            else:
+                print("No central heat grid detected — skipping heating network design.")
+                self.centralDevices = {}
             
-        # if has_heat_grid:
-        #     heating_network_simple.heating_network(self)
-        #     self.designCentralDevsConnected() 
-        # else:
-        #     print("No central heat grid detected — skipping heating network design.")
-        #     self.centralDevices = {}
+        if has_heat_grid:
+            self.designCentralDevsConnected() 
+        else:
+            print("No central heat grid detected — skipping heating network design.")
+            
 
-        # for data in self.interconnected_districts:
-        #     self.finalizeClusterProfiles()        
+        for data in self.interconnected_districts:
+            data.finalizeClusterProfiles()        
 
     # ALT
     #    # Check if the interconnected districts use a heat grid as heating system
@@ -134,7 +138,7 @@ class Network:
         # for i, data in enumerate(self.interconnected_districts):
         #     print(f"Scenario Name: {data.scenario_name}")
         #     print(f"Site Data: {data.site}") 
-    def designCentralDevsConnected(self, saveGenerationProfiles):
+    def designCentralDevsConnected(self):
         """
         This function designs the central devices for interconnected districts all together in the network.
 

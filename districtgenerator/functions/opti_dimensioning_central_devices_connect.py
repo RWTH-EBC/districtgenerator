@@ -65,7 +65,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Build the model
-    model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization")
+    model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization_Network")
     model_building_time = time.time() - start_time
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -89,7 +89,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     model.observation_time = pyo.Param(initialize=param["observation_time"])
 
     #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Initialize all all_devs to store all_devs for each district 
+    # Initialize lists for all devices for each district 
     all_devs_con = {}
     gas_devs_con = {}
     power_devs_con = {}
@@ -105,7 +105,6 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         # Get the scenario_name of the district
         scenario_name = district.scenario_name
         # Call setup_devices and store the results
-        # all_devs_con[scenario_name], gas_devs_con[scenario_name], power_devs_con[scenario_name], heat_devs_con[scenario_name], cool_devs_con[scenario_name], hydrogen_devs_con[scenario_name], biom_devs_con[scenario_name], waste_devs_con[scenario_name], storage_devs_con[scenario_name], area_devs_con[scenario_name] = setup_devices(model, district)
         device_con = setup_devices(model, district)
         all_devs_con[scenario_name] = device_con[0]
         gas_devs_con[scenario_name] = device_con[1]
@@ -136,7 +135,10 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
             all_devs = all_devs_con[scenario_name]
             # Call add_variables to add variables to the model
             variables={}
-            variables = add_variables_per_district(district, model, all_devs, clusters, time_steps, year)
+            variables = add_variables_per_district(
+                district, model, all_devs_con, gas_devs_con, 
+                power_devs_con, heat_devs_con, cool_devs_con, hydrogen_devs_con, 
+                biom_devs_con, waste_devs_con, storage_devs_con, area_devs_con)
             variablesCon[scenario_name] = variables
 
     # Print cap variable for test reasons
@@ -438,6 +440,9 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         return result_dictCon
 
 def setup_devices(model, district):
+    # Create a set for all districts
+    model.districts = pyo.Set(initialize=district.scenario_name)
+
     # Create sets for all device types
     all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
                          "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
@@ -452,6 +457,7 @@ def setup_devices(model, district):
     waste_devs_list = ["WCHP", "WBOI", "import"]
     storage_devs_list = ["TES", "CTES", "BAT", "H2S", "GS"]
     area_devs_list = ["PV", "STC"]
+    
 
     # Add sets to the model for this district
     model.add_component(f"all_devs_{district.scenario_name}", pyo.Set(initialize=all_devs_list))
@@ -467,22 +473,26 @@ def setup_devices(model, district):
 
     return all_devs_list, gas_devs_list, power_devs_list, heat_devs_list, cool_devs_list, hydrogen_devs_list, biom_devs_list, waste_devs_list, storage_devs_list, area_devs_list
 
-def add_variables_per_district(district, model, all_devs, clusters, time_steps, year):
-    # Capacity variables (same for all years - single investment decision)
-    set_name = f"area_devs_{district.scenario_name}"
-    var_name = f"cap_{district.scenario_name}"
-    model.add_component(var_name, pyo.Var(model.component(set_name), within=pyo.NonNegativeReals, name=f"nominal_capacity_{district.scenario_name}"))
-    # Device's capacity (i.e. rated power)
-    cap = {}
-    for device in all_devs:
-        cap[device] = model.addVar(vtype="C", name="nominal_capacity_" + str(device) + "_" + str(district.scenario_name))
+def add_variables_per_district(
+                district, model, all_devs_con, gas_devs_con, 
+                power_devs_con, heat_devs_con, cool_devs_con, hydrogen_devs_con, 
+                biom_devs_con, waste_devs_con, storage_devs_con, area_devs_con):
     
+    # Capacity variables (same for all years - single investment decision)
+    model.cap = pyo.Var(model.districts, model.all_devs, within=pyo.NonNegativeReals, name="nominal_capacity")
 
-    # Roof area used for PV and solar thermal collector installation
-    area = {}
-    for device in ["PV", "STC"]:
-        area[device] = model.addVar(vtype = "C", name="roof_area_" + str(device) + "_" + str(district.scenario_name))
+    # # Capacity variables (same for all years - single investment decision)
+    # var_name = f"cap_{district.scenario_name}"
+    # set_name = f"all_devs_{district.scenario_name}"
+    # name = f"nominal_capacity_{district.scenario_name}"
+    # model.add_component(var_name, pyo.Var(model.component(set_name), within=pyo.NonNegativeReals, name=name))
 
+    # # Roof area used for PV and solar thermal collector installation
+    # var_name = f"area_{district.scenario_name}"
+    # set_name = f"area_devs_{district.scenario_name}"
+    # name = f"roof_area_{district.scenario_name}"
+    # model.add_component(var_name, pyo.Var(model.component(set_name), within=pyo.NonNegativeReals, name=name))
+    
     # Gas flow to/from devices
     gas = {}
     for device in ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]:
