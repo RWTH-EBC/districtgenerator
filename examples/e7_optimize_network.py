@@ -30,7 +30,6 @@ def example7_optimize_heatingnetwork():
     # Generate Environment for the District
     data.generateEnvironment()
 
-
     # Initialize Buildings to the District
     data.initializeBuildings()
 
