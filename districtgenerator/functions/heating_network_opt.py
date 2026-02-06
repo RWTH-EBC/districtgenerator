@@ -1587,7 +1587,6 @@ def optimization_diameter(data, param):
     model.tac_network_constr = pyo.Constraint(rule=tac_network_rule,
                                               doc="Link tac_network to components")
 
-
     # Objective: minimize tac_network
     model.objective = pyo.Objective(expr=model.tac_network, sense=pyo.minimize,
                               doc="Minimize total annualized network cost")
