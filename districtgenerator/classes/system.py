@@ -69,7 +69,7 @@ class BES:
                              * (T_bivalent - T_design)
 
         # Design load for cooling
-        self.design_load_cooling = max(building["user"].cooling)
+        self.design_load_cooling = building["envelope"].coolingload
 
         BES = {}
 

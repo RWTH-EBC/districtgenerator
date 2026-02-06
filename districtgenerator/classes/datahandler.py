@@ -11,14 +11,12 @@ import random
 import time
 import math
 import warnings
-import threading
 import numpy as np
 import openpyxl
 import pandas as pd
 import random as rd
 import holidays as hol
 from teaser.project import Project
-
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
 from .solar import Sun
@@ -117,12 +115,13 @@ class Datahandler:
         self.params_ehdo_technical = {}
         self.params_ehdo_model = {}
         self.central_device_data = {}
-        self.calendar = {} #! This is new; check if everywhere correctly integrated
+        self.calendar = {}
         self.ecoData = {}
         self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
         self.heat_grid_data = {}
-        self.pipe_data = None
+        self.pipe_data = {}
         self.pyomo_config = {}
+        # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
@@ -439,7 +438,6 @@ class Datahandler:
         elif self.site["TRYYear"] == "TRY2045":
             self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2045)
 
-
         # interpolate input data to achieve required data resolution
         # transformation from values for points in time to values for time intervals
         self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),      # Direct horizontal radiation
@@ -466,9 +464,8 @@ class Datahandler:
 
         self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
 
-        # Load other site-dependent values based on DIN/TS 12831-1:2020-04
-        srcPath = os.path.dirname(os.path.abspath(__file__))
-        filePath = os.path.join(os.path.dirname(srcPath), 'data', 'site_data.txt')
+        # Load other site-dependent values based on DIN/TS 12831-1:2020-04 and VDI 2078-2015 (KLZ)
+        filePath = os.path.join(self.filePath, 'site_data_with_KLZ.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
 
         # Filter data for the specific zip code
@@ -479,6 +476,27 @@ class Datahandler:
         self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
         self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
         self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
+
+        # KLZ added to site_data based on nearest VDI station (generate_klz_site_data.py)
+        klz = filtered_data.iloc[0]['KLZ']
+        # Cooling limit temperatures based on Cooling Laod Zones (Kühllastzonen)
+        # Calculated based on estimated amplitude based on VDI 2078 p. 117
+        # To account for thermal mass and avoid outliers, T_me is used as average plus amplitude
+        vdi_climate_data = {
+            1: (23.3, 6.7),  # Zone 1 (Cool)
+            2: (24.1, 7.4),  # Zone 2 (Moderate)
+            3: (25, 8.0),  # Zone 3 (Warm)
+            4: (26.1, 8.4),  # Zone 4 (Hot)
+        }
+
+        # Calculation: T_max = T_me + Amplitude
+        if klz in vdi_climate_data:
+            t_mean, amplitude = vdi_climate_data[klz]
+            self.site["T_design_cooling"] = t_mean + amplitude
+        else:
+            # Fallback (Standard Zone 3)
+            t_mean, amplitude = vdi_climate_data[3]
+            self.site["T_design_cooling"] = t_mean + amplitude
 
         # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
@@ -528,7 +546,7 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{bldg_id}_{row['building']}"
+            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
@@ -563,7 +581,7 @@ class Datahandler:
 
         # %% create TEASER project
         # create one project for the whole district
-        prj = Project(load_data=True)
+        prj = Project()
         prj.name = self.scenario_name
 
         for building in self.district:
@@ -574,6 +592,13 @@ class Datahandler:
             # add buildings to TEASER project
             if building_type in {"single_family_house", "multi_family_house", "terraced_house", "apartment_block"}:
                 retrofit_level = bldgs["retrofit_long"][bldgs["retrofit_short"].index(building["buildingFeatures"]["retrofit"])]
+                if retrofit_level == "tabula_retrofit":
+                    construction_data = 'tabula_de_retrofit'
+                elif retrofit_level == "tabula_adv_retrofit":
+                    construction_data = 'tabula_de_adv_retrofit'
+                else:
+                    # tabula standard
+                    construction_data = 'tabula_de_standard'
 
                 # Determining the number of floors in a building based on its type.
                 # The method estimates the number of floors by:
@@ -616,15 +641,14 @@ class Datahandler:
                 elif building["buildingFeatures"]["year"] >= 1960:
                     height_of_floors = 2.5  # m
 
-                prj.add_residential(method='tabula_de',
-                                    usage=building_type,
-                                    name="ResidentialBuildingTabula",
+                # add buildings to TEASER project
+                prj.add_residential(name="ResidentialBuildingTabula",
+                                    geometry_data="tabula_de_" + building_type,
+                                    construction_data=construction_data,
                                     year_of_construction=building["buildingFeatures"]["year"],
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
-                                    net_leased_area=building["buildingFeatures"]["area"],
-                                    construction_type=retrofit_level)
-
+                                    net_leased_area=building["buildingFeatures"]["area"])
 
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
                 building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
@@ -643,7 +667,7 @@ class Datahandler:
 
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
-                                                construction_type=retrofit_level,
+                                                construction_data=construction_data,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath)
@@ -681,7 +705,7 @@ class Datahandler:
 
                 building["envelope"] = Envelope(prj=nrb_prj,
                                                 building_params=building["buildingFeatures"],
-                                                construction_type=construction_type,
+                                                construction_data=construction_type,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
                                                 file_path=self.filePath)
@@ -704,6 +728,8 @@ class Datahandler:
             building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit", night_setback = night_setback)
             # for drinking hot water
             building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
+            # %% calculate design cooling load
+            building["envelope"].coolingload = building["envelope"].calcCoolingLoad(site=self.site, nb_occ=np.sum(building["user"].nb_occ))
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
@@ -798,6 +824,7 @@ class Datahandler:
                                   heatload=building["envelope"].heatload,
                                   bivalent=building["envelope"].bivalent,
                                   heatlimit=building["envelope"].heatlimit,
+                                  coolingload=building["envelope"].coolingload,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=building["user"].individual_car_profiles)
 
@@ -811,7 +838,7 @@ class Datahandler:
              building["user"].nb_main_rooms,
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
-             building["envelope"].heatlimit,
+             building["envelope"].heatlimit, building["envelope"].coolingload,
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])
@@ -837,7 +864,7 @@ class Datahandler:
                                                 thermal_model=building["thermal_model"],
                                                 night_setback=night_setback,
                                                 is_cooled=is_cooled,
-                                                holidays=self.calendar["holidays"],
+                                                calendar=self.calendar,
                                                 time_resolution=self.time["timeResolution"],
                                                 initial_day=self.initial_day)
 
@@ -846,7 +873,6 @@ class Datahandler:
                                         cooling=building["user"].cooling,
                                         name=building["unique_name"],
                                         path=os.path.join(self.resultPath, 'demands'))
-                # building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
         else:
             heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
                                                      path=os.path.join(self.resultPath, 'demands'))
@@ -925,15 +951,37 @@ class Datahandler:
 
     def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
-                     nb_occ, heatload, bivalent, heatlimit, path,
+                     nb_occ, heatload, bivalent, heatlimit, coolingload, path,
                      individual_car_profiles=None):
         """
         Save profiles to csv.
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
+        elec : list
+            Hourly electricity demand in W.
+        dhw : list
+            Hourly domestic hot water demand in W.
+        occ : list
+            Hourly occupancy of persons.
+        gains : list
+            Hourly internal gains in W.
+        car : list
+            Hourly electricity demand of EV in W.
+        nb_flats : int
+            Number of flats in the building.
+        nb_occ : list
+            Number of occupants in the building.
+        heatload : float
+            Design heat load in W.
+        bivalent : float
+            Bivalent heat load in W.
+        heatlimit : float
+            Heat limit heat load in W.
+        coolingload : float
+            Design cooling load in W.
         path : string
             Results path.
 
@@ -989,10 +1037,11 @@ class Datahandler:
                 'EV_capacity_agg': str(ev_capacity)[1:-1],
                 "Design Heat Load (W)": [heatload],
                 "Bivalent Heat Load (W)": [bivalent],
-                "Heat Limit Heat Load (W)": [heatlimit]
+                "Heat Limit Heat Load (W)": [heatlimit],
+                "Design Cooling Load (W)": [coolingload],
             }), ["Number of Flats or main Rooms", "Number of Occupants", "EV_capacities",
                  "Design Heat Load (W)", "Bivalent Heat Load (W)",
-                 "Heat Limit Heat Load (W)"])
+                 "Heat Limit Heat Load (W)", "Design Cooling Load (W)"])
         }
 
         excel_file = os.path.join(path, name + '.xlsx')
@@ -1007,7 +1056,11 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        heat: list
+            Hourly heating demand in W.
+        cooling: list
+            Hourly cooling demand in W.
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -1030,13 +1083,14 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
 
         Returns
         -------
+        None.
         """
 
         excel_file = os.path.join(path, name + '.xlsx')
@@ -1052,7 +1106,8 @@ class Datahandler:
                     data.append(row[0])
             return np.array(data)
 
-        building_id = int(name.split('_')[0])
+        parts = name.split('_')
+        building_id = int(parts[-2])
         idx = self.building_dict[building_id]
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
@@ -1132,10 +1187,11 @@ class Datahandler:
         heatload = float(other_data[3])
         bivalent = float(other_data[4])
         heatlimit = float(other_data[5])
+        coolingload = float(other_data[6])
 
         workbook.close()
 
-        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, individual_car_profiles
+        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
@@ -1143,7 +1199,7 @@ class Datahandler:
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
         path : string
             Results path.
@@ -1478,6 +1534,7 @@ class Datahandler:
         index_central = len(inputsClustering) # Index of the first entry of central energy profiles
 
         if centralEnergySupply == True:
+
             # Heating and cooling networks losses
             inputsClustering.append(adjProfiles["losses_heating_network"])
             weights.append(0)

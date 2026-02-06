@@ -1274,7 +1274,7 @@ def output_diameter(data, param):
         heat_loss_density = pipe["heat_loss_density"]
         # Map pressure_drop_max to line width in the plot
         lw = 1 + 5 * (heat_loss_density - min_heat_loss_density) / (
-                max_heat_loss_density - min_heat_loss_density)  # range: 1-5
+                max_heat_loss_density - min_heat_loss_density + 1e-12)  # range: 1-5
         # bigger energy_density, redder; smaller energy_density, greener
         color = cmap(norm_heat_loss_density(heat_loss_density))
 

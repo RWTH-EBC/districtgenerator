@@ -742,7 +742,7 @@ class Users:
                 self.ice_carprofile += ice_carprofile
                 self.individual_car_profiles.extend(individual_car_profiles)
 
-    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, holidays, time_resolution, initial_day):
+    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, calendar, time_resolution, initial_day):
         """
         Calculate heat demand for each building.
 
@@ -752,8 +752,17 @@ class Users:
             Site data, e.g. weather.
         envelope: object
             Containing all physical data of the envelope.
+        night_setback : integer
+            1 if night setback is activated, 0 if not.
+        is_cooled : integer
+            1 if the building is actively cooled, 0 if not.
+        calendar : dict
+            Information about TRY (holidays, heating period, etc.).
         time_resolution : integer
             Resolution of time steps of output array in seconds.
+
+        Outputs
+        -------
         Q_H : float
             Heating load for the current time step in Watt.
         Q_C : float
@@ -766,7 +775,7 @@ class Users:
 
         dt = time_resolution / (60 * 60)
 
-        # --- Extend holidays for schools ------------------------------------
+        # Extend holidays for schools
         if self.building == "SC":
             # Define average NRW school holiday day ranges (Julian days)
             SCHOOL_HOLIDAYS = [
@@ -781,10 +790,9 @@ class Users:
             for r in SCHOOL_HOLIDAYS:
                 school_holiday_days.update(r)
 
-            holidays = set(holidays or [])
-            holidays.update(school_holiday_days)
-            holidays = sorted(list(holidays))  # consistent type for downstream use
-        # --------------------------------------------------------------------
+            calendar["holidays"] = set(calendar["holidays"] or [])
+            calendar["holidays"].update(school_holiday_days)
+            calendar["holidays"] = sorted(list(calendar["holidays"]))  # consistent type for downstream use
 
         if thermal_model == "5R1C":
             heating = heating_5R1C
@@ -795,10 +803,10 @@ class Users:
 
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt, initial_day,
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt, initial_day,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, initial_day, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, initial_day, self.building)
 
         # Force cooling to zero if building is not actively cooled
         if is_cooled == 0:

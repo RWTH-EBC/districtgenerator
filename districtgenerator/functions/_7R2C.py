@@ -256,7 +256,8 @@ def _step5_free_float(params, state5, T_ext, theta_eq, gains_t):
 
 
 def _step5_with_setpoint(params, state5, T_ext, theta_eq, gains_t,
-                         T_set, w_op, f_aw, sigma=(0.,0.,1.), Q_limit=None):
+                         T_set, w_op, f_aw, sigma=(0.,0.,1.), Q_limit=None,
+                         Q_limit_cool=None):
     """
     Enforce T_op = T_set, with HVAC split:
       sigma = (σ_iw_rad, σ_aw_rad, σ_conv_air)
@@ -325,13 +326,24 @@ def _step5_with_setpoint(params, state5, T_ext, theta_eq, gains_t,
     sol = np.linalg.solve(A, b)
     T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw, Q_HC = sol
 
-    # Optional clamp
+    # Optional clamp (heating)
     if Q_limit is not None and Q_HC > Q_limit:
         Qc = float(Q_limit)  # cap only the positive (heating) side
         # Re-solve with Q_HC fixed
         A3 = A[:5, :5].copy();
         b3 = b[:5].copy()
         # Move Q terms to RHS
+        b3[0] += sigma[2] * Qc
+        b3[1] += sigma[0] * Qc
+        b3[3] += sigma[1] * Qc
+        T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw = np.linalg.solve(A3, b3)
+        Q_HC = Qc
+
+    # Optional clamp (cooling)
+    if Q_limit_cool is not None and Q_HC < -float(Q_limit_cool):
+        Qc = -float(Q_limit_cool)  # ADDED: cap negative (cooling) side
+        A3 = A[:5, :5].copy()
+        b3 = b[:5].copy()
         b3[0] += sigma[2] * Qc
         b3[1] += sigma[0] * Qc
         b3[3] += sigma[1] * Qc
@@ -348,7 +360,8 @@ def simulate_7r2c(envelope,
                   T_set_cool: Optional[np.ndarray] = None,
                   cooling_season_days: Tuple[int, int] = (145, 255),
                   w_op: float = 0.5,
-                  night_setback: bool = False) -> Dict[str, np.ndarray]:
+                  night_setback: bool = False,
+                  calendar: Optional[Dict] = None):
     """
 Run a simulation with the 5-node model (Air + IW_s + IW_m + AW_s + AW_m).
 
@@ -374,6 +387,10 @@ w_op : float, default 0.5
     where T_s is the area-weighted interior surface temperature.
 night_setback : bool, default False
     If True, applies the envelope’s night setpoints to the setpoint arrays.
+calendar : dict, optional  # ADDED
+    If provided, overrides heating/cooling enable seasons using:
+      heating_period_start, heating_period_end, consider_heating_period
+      cooling_period_start, cooling_period_end, consider_cooling_period
 
 Returns
 -------
@@ -422,6 +439,24 @@ dict[str, np.ndarray]
     day_of_year = np.arange(n) // steps_per_day + 1
     cool_on = (day_of_year >= cooling_season_days[0]) & (day_of_year <= cooling_season_days[1])
 
+    # Calendar-based seasons
+    if calendar is not None:
+        heating_start = int(calendar["heating_period_start"])
+        heating_end = int(calendar["heating_period_end"])
+        cooling_start = int(calendar["cooling_period_start"])
+        cooling_end = int(calendar["cooling_period_end"])
+
+        consider_cooling = bool(calendar.get("consider_cooling_period", True))
+        consider_heating = bool(calendar.get("consider_heating_period", True))
+
+        day = (np.arange(n) // steps_per_day).astype(int)
+
+        cool_on = (day >= cooling_start) & (day < cooling_end) & consider_cooling
+
+        heat_on = (~((day >= heating_end) & (day < heating_start))) & consider_heating
+    else:
+        heat_on = np.ones(n, dtype=bool)
+
     f_aw = _area_fraction_aw(envelope)
 
     # Initialize arrays
@@ -434,6 +469,7 @@ dict[str, np.ndarray]
     state5 = (T0, T0, T0, T0, T0)
 
     Q_lim = envelope.heatload
+    Q_lim_cool = getattr(envelope, "coolingload", None)
     sigma = (0.0, 0.0, 1.0)  # default: all convective to air
 
     for t in range(n):
@@ -449,15 +485,16 @@ dict[str, np.ndarray]
         )
         T_op_ff = w_op * T_air_ff + (1.0 - w_op) * ((1.0 - f_aw) * T_s_iw_ff + f_aw * T_s_aw_ff)
 
-        need_heat = T_op_ff < T_set_heat[t]
+        # Gate heating with heat_on; cooling with cool_on (calendar or default)
+        need_heat = (T_op_ff < T_set_heat[t]) and heat_on[t]
         need_cool = (T_op_ff > T_set_cool[t]) and cool_on[t]
 
         if need_heat or need_cool:
             T_target = T_set_heat[t] if need_heat else T_set_cool[t]
             T_air_t, T_s_iw_t, T_m_iw_t, T_s_aw_t, T_m_aw_t, Q_HC = _step5_with_setpoint(
                 params, state5, T_ext[t], theta_eq[t], g_t,
-                T_set=T_target, w_op=w_op, f_aw=f_aw, sigma=sigma, Q_limit=Q_lim
-            )
+                T_set=T_target, w_op=w_op, f_aw=f_aw, sigma=sigma,
+                Q_limit=Q_lim, Q_limit_cool=Q_lim_cool)
         else:
             T_air_t, T_s_iw_t, T_m_iw_t, T_s_aw_t, T_m_aw_t = \
                 T_air_ff, T_s_iw_ff, T_m_iw_ff, T_s_aw_ff, T_m_aw_ff
@@ -528,7 +565,7 @@ def _map_states_for_legacy(envelope, T_air, T_s_iw, T_m_iw, T_s_aw, T_m_aw):
     return T_m, T_i, T_s
 
 
-def calc(envelope, T_e, holidays, dt, initial_day, building_type):
+def calc(envelope, T_e, calendar, dt, initial_day, building_type):
     """
     Returns (Q_H, Q_C, T_op, T_m, T_i, T_s).
 
@@ -539,6 +576,9 @@ def calc(envelope, T_e, holidays, dt, initial_day, building_type):
     """
     T_e = np.asarray(T_e, dtype=float)
     n = len(T_e)
+
+    holidays = calendar["holidays"]
+
     # Build setpoints like the old logic (no night setback branch), honoring initial_day
     T_heat, T_cool = _build_setpoints_arrays(
         envelope=envelope, n=n, dt_h=dt,
@@ -556,7 +596,8 @@ def calc(envelope, T_e, holidays, dt, initial_day, building_type):
         T_set_heat=T_heat,
         T_set_cool=T_cool,
         night_setback=False,
-    )
+        calendar=calendar)
+
     T_m, T_i, T_s = _map_states_for_legacy(
         envelope,
         out["T_air"],
@@ -566,7 +607,7 @@ def calc(envelope, T_e, holidays, dt, initial_day, building_type):
     return (out["Q_H"], out["Q_C"], out["T_op"], T_m, T_i, T_s)
 
 
-def calc_night_setback(envelope, T_e, holidays, dt, initial_day, building_type):
+def calc_night_setback(envelope, T_e, calendar, dt, initial_day, building_type):
     """
     Returns (Q_H, Q_C, T_op, T_m, T_i, T_s).
 
@@ -577,6 +618,9 @@ def calc_night_setback(envelope, T_e, holidays, dt, initial_day, building_type):
     """
     T_e = np.asarray(T_e, dtype=float)
     n = len(T_e)
+
+    holidays = calendar["holidays"]
+
     # Build setpoints like the old night-setback logic, honoring initial_day
     T_heat, T_cool = _build_setpoints_arrays(
         envelope=envelope, n=n, dt_h=dt,
@@ -592,7 +636,7 @@ def calc_night_setback(envelope, T_e, holidays, dt, initial_day, building_type):
         T_set_heat=T_heat,
         T_set_cool=T_cool,
         night_setback=False,  # we've already embedded the setback into arrays
-    )
+        calendar=calendar)
 
     T_m, T_i, T_s = _map_states_for_legacy(
         envelope,

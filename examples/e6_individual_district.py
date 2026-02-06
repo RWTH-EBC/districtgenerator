@@ -37,7 +37,7 @@ def example6_individual_district():
     # Be careful to not delete the coma behind the value! Safe and close the file.
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_C_buildings_4", heat_map_berlin=False, env_path=".env.CONFIG.BERLIN")
+    data = Datahandler(scenario_name = "district_kulmer_str_dg_2", heat_map_berlin=False, env_path=".env.CONFIG.BERLIN")
 
     # Generate Environment for the District
     data.generateEnvironment()

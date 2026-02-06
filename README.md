@@ -61,10 +61,20 @@ To generate your district, you need to know some information about its buildings
 The minimal input data set was defined following the [TABULA archetype approach](https://webtool.building-typology.eu/#bm):
 
 - id: building ID (just numerate the buildings)
-- building: residential building type (single family house, terraced house, multi family house or apartment block)
+- building: building type (SFH = single family house, TH = terraced house, MFH = multi family house, AB = apartment block, OB = office building, SC = school, GS = grocery store, RE = restaurant, MFH+GR = multi family house + grocery store, AB+GR = apartment block + grocery store, MFH+RE = multi family house + restaurant, AB+RE = apartment block + restaurant)
 - year: construction year (the calendar year in which the building was constructed)
+- construction_type: building thermal mass (0 = lightweight construction, 1 = medium construction, 2 = heavyweight construction)
 - retrofit: retrofit state according to TABULA (0: existing state, 1: usual refurbishment, 2: advanced refurbishment)
 - area: reference floor area (given in square meters)
+- night_setback: night temperature setback (0 = no night setback, 1 = with night setback)
+- heating: selected heat generator type (HP = heat pump, EH = electric heating, CHP = combined heat and power, FC = fuel cell, BOI = boiler, STC = solar thermal collector, heat_grid = district heating)
+- EV: electric vehicle share - fraction between 0 and 1 representing the proportion of electric vehicles in the building's total vehicle inventory
+- fTES: thermal energy storage size in liters per kW heating capacity of the heat generation system
+- fBAT: battery storage size in Wh per W of PV system power (Wh/W_PV)
+- fPV: fraction of total roof area covered with photovoltaics (the side with azimuth angle gammaPV, based on TABULA building typology roof area data)
+- fSTC: fraction of roof area equipped with solar thermal collectors (based on TABULA building typology roof area data)
+- gammaPV: azimuth angle of roof side 1 in degrees (0° = south-facing orientation)
+- EV_charging: electric vehicle charging behavior (bidirectional = charging and discharging with use as electricity storage, on-demand = charging as needed, intelligent = optimized charging)
 
 The example.csv file can be used as [template](../districtgenerator/data/scenarios/example.csv).
 
