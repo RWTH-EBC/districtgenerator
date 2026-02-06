@@ -55,7 +55,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     """
    
     # Load data for one district for test reasons
-    data=dataCon[0]
+    data=dataCon[list(dataCon.keys())[0]]
     param=paramCon[list(paramCon.keys())[0]]
 
     # Set start_time 
@@ -303,7 +303,7 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
                     model.constraints.add(model.cool["AC", district, y, d, t] == model.heat["AC", district, y, d, t] * devs["AC"]["eta_th"])
                     # Gas CHP correlation between production of power and heat and gas consumption
                     model.constraints.add(model.power["CHP", district, y, d, t] == model.gas["CHP", district, y, d, t] * devs["CHP"]["eta_el"])
-                    model.constraints.add(model.heat["CHP", y, d, t] == model.gas["CHP", district, y, d, t] * devs["CHP"]["eta_th"])
+                    model.constraints.add(model.heat["CHP", district , y, d, t] == model.gas["CHP", district, y, d, t] * devs["CHP"]["eta_th"])
                     # Gas boiler correlation between heat and gas consumption
                     model.constraints.add(model.heat["BOI", district, y, d, t] == model.gas["BOI", district, y, d, t] * devs["BOI"]["eta_th"])
                     # Gas heat pump correlation between heat and gas consumption
@@ -410,7 +410,7 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
                                 + model.cap["CHP", district] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                                 + model.cap["BOI", district]
                                 + model.cap["GHP", district]
-                                + model.cap["BCHP"], district / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                                + model.cap["BCHP", district] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
                                 + model.cap["BBOI", district]
                                 + model.cap["WCHP", district] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
                                 + model.cap["WBOI", district]
@@ -422,7 +422,7 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
 
             # Power (with renewable sources)
             model.constraints.add(
-                model.cap["PV", district] + model.cap["WT", district] + model.cap["WAT", district] + model.cap["CHP"], district + model.cap["BCHP", district] + model.cap[
+                model.cap["PV", district] + model.cap["WT", district] + model.cap["WAT", district] + model.cap["CHP", district] + model.cap["BCHP", district] + model.cap[
                     "WCHP", district] + model.cap["FC", district] + model.grid_limit_el[district] >= param["peak_power"])
 
             # Hydrogen
@@ -746,6 +746,7 @@ def process_results_per_district(model, dataCon, devsCon, paramCon, result_dic):
     errorfile_path = os.path.join(result_dir, 'errorfile_ehdo.txt')
         
         ##### For further analysis
+    for district in model.districts:
         for k in all_devs:
             result_dict[k] = {}
 

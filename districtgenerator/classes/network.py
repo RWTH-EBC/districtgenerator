@@ -25,7 +25,7 @@ class Network:
         None.
         """
         self.district = []
-        self.interconnected_districts = []
+        self.interconnected_districts = {}
 
     def initializeDistricts(self,configs_dir: Path, calcUserProfiles=True, saveUserProfiles=True):
         """
@@ -89,23 +89,27 @@ class Network:
         """
 
         # Filter interconnected districts (optim_dimension == 1)
-        self.interconnected_districts = [data for data in self.district if data.params_networkdist['optim_dimension'] == 1]
+        # old: self.interconnected_districts = [data for data in self.district if data.params_networkdist['optim_dimension'] == 1]
+
+        for data in self.district:
+            if data.params_networkdist['optim_dimension'] == 1:
+                self.interconnected_districts[data.scenario_name] = data
 
         if not self.interconnected_districts:
             print("No interconnected districts found for optimization.")
             return
         
         # Design decentral devices for each district
-        for data in self.interconnected_districts:
+        for data in self.interconnected_districts.values():
             data.designDecentralDevices()
 
         # Print capacities of the decentral devices in all districts
-        for data in self.interconnected_districts:
+        for data in self.interconnected_districts.values():
             for device, capacity in data.district[0]["capacities"].items():
                 print(f"  {device}: {capacity}")
         
         # Design central devices for interconnected districts
-        for data in self.interconnected_districts:
+        for data in self.interconnected_districts.values():
             # Check if district uses central energy supply (heat grid)
             # ToDo: This check only checks if the last district has a heat grid. It could be improved by checking all districts and only designing the central devices if at least one district has a heat grid.
             has_heat_grid = any(
@@ -123,7 +127,7 @@ class Network:
             print("No central heat grid detected — skipping heating network design.")
             
 
-        for data in self.interconnected_districts:
+        for data in self.interconnected_districts.values():
             data.finalizeClusterProfiles()        
 
     # ALT
@@ -155,7 +159,7 @@ class Network:
         None.
         """
         
-        for district in self.interconnected_districts:
+        for district in self.interconnected_districts.values():
             # Initialize central devices dictionary
             district.centralDevices = {}
 
@@ -185,7 +189,7 @@ class Network:
         demCon = {}
         result_dictCon = {}  
 
-        for district in self.interconnected_districts:
+        for district in self.interconnected_districts.values():
             # Check if 'params' key exists in centralDevices
             if "params" in district.centralDevices:
                 # Add the params of each district to the combined dictionary
@@ -212,7 +216,7 @@ class Network:
             )
         
         # Assign results to each district
-        for district in self.interconnected_districts:
+        for district in self.interconnected_districts.values():
             scenario_name = district.scenario_name
             if scenario_name in result_dictCon:
                 district.centralDevices["capacities"] = result_dictCon[scenario_name]
