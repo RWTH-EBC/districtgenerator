@@ -456,8 +456,9 @@ def load_parameter_5G(data):
     #Calculation of COP for the Building Heat Pumps in 5th Gen DHN
     COP_clustered = calc_cop_carnot(T_supply_cluster,55,quality_grade=0.4)
     COP_full_year = calc_cop_carnot(T_supply,55,quality_grade=0.4)
-    COP_CC_clustered = calc_cop_CC_carnot(T_supply_cluster, 6,quality_grade=0.5)
-    COP_CC_full_year = calc_cop_CC_carnot(T_supply,6,  quality_grade=0.5)
+    COP_dhw_clustered = calc_cop_carnot(T_supply_cluster, 60, quality_grade=0.4)
+    COP_dhw_full_year = calc_cop_carnot(T_supply, 60, quality_grade=0.4)
+
 
     heat_loss_substation_cooling = np.zeros_like(deltaT)
     net_heat_supply = np.zeros_like(deltaT)
@@ -471,7 +472,7 @@ def load_parameter_5G(data):
 
             generationSTC_cluster = building["generationSTC_cluster"] / 1000  # kW
             dhw_cluster = building["user"].dhw_cluster / 1000                 # kW
-            heating_cluster = building["user"].heat_cluster /1000             # kW          #Todo: /1000 nötig?
+            heating_cluster = building["user"].heat_cluster /1000             # kW
             direct_cooling_cluster = building["user"].cooling_cluster / 1000  # kW        #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
             building_hp_size_cluster = np.full_like(heating_cluster, building["envelope"].heatload/1000, dtype=float)  #Size of building heat_pump, chosen as the building norm-heatload, as an array for further processing
 
@@ -518,20 +519,78 @@ def load_parameter_5G(data):
             dhw = building["user"].dhw / 1000                 # kW
             heating = building["user"].heat /1000             # kW
             direct_cooling = building["user"].cooling / 1000  # kW
-            building_hp_size = np.full_like(heating, building["envelope"].heatload/1000, dtype=float)  #Size of building heat_pump, chosen as the building norm-heatload, as an array for further processing
 
 
-            heat_dem_after_STC = np.maximum(heating + dhw - generationSTC, 0.0)
-            excess_heat_after_STC = np.maximum(generationSTC - heating - dhw, 0.0)
+            dim_dc_hp = building["envelope"].bivalent/1000
+            dim_dc_hr = building["envelope"].heatload/1000 - calc_hp_max_power(data, dim_dc_hp, np.min(T_supply))       #Todo dringend: Verhältnis zwischen Wärmenetztemperaturen und Bivalenz/Norm Temperatur klären, Mäpping ?
+            dim_dc_ah = np.max(dhw) #Todo: Auxilary heater für Warmwasserspeicher passend dimensionieren
 
-            mask = heat_dem_after_STC <= building_hp_size  #Mask to decide if heatpump size limits the heatpump heat generation
+            hp_max_heat = np.asarray(calc_hp_max_power(data, dim_dc_hp, T_supply), dtype=float) # Max heat generation for every hour (depending on supply temperature) of building heat_pump, chosen as the building bivalent-heatload, as an array for further processing
+            hr_max_heat = np.full_like(heating, dim_dc_hr, dtype=float)
+            ah_max_heat = np.full_like(heating, dim_dc_ah, dtype=float)
+
+            hp_heat_sh = np.zeros_like(heating, dtype=float)
+            hp_heat_dhw = np.zeros_like(heating, dtype=float)
+            hp_headroom = np.zeros_like(heating, dtype=float)
+            hr_heat = np.zeros_like(heating, dtype=float)
+            ah_heat = np.zeros_like(heating, dtype=float)
+
+
+            #dhw_TES_energy = np.zeros_like(heating, dtype=float)
+            #dhw_TES_energy[0] = 500 #kWh
+            #TES_loss= 0.01
+            # for time_step in range(len(dhw_TES_energy) - 1):
+            #    dhw_TES_energy[time_step+1] = dhw_TES_energy[time_step]* (1 - TES_loss) + excess_heat_after_STC -
+
+
+
+            #Calculation of excess STC heat to first fulfill space heating demand
+            space_heat_dem_after_STC = np.maximum(heating - generationSTC, 0.0)
+            excess_STC_heat_after_space_heat = np.maximum(generationSTC - heating, 0.0)
+
+            mask_sh = hp_max_heat >= space_heat_dem_after_STC  #Mask to decide wether hp heat generation is enough to fulfill space heating demand for a given hour
+
+            hp_heat_sh = np.where(mask_sh, space_heat_dem_after_STC , hp_max_heat)
+            hr_heat= np.where(mask_sh, 0.0 , space_heat_dem_after_STC - hp_max_heat)
+            hp_headroom = np.where(mask_sh, hp_max_heat - space_heat_dem_after_STC , 0.0)   #hp headroom calculatesthe  amount of remaining hp heat generation potential to use for fullfilling the dhw heat demand
+
+
+
+            #Calculation of excess STC heat to secondly fulfill dhw demand after fulfilling space heating demand
+            dhw_heat_dem_after_STC_excess = np.maximum(dhw - excess_STC_heat_after_space_heat, 0.0)
+            STC_fully_excess = np.maximum(excess_STC_heat_after_space_heat - dhw, 0.0)
+
+            mask_dhw = hp_headroom >=  dhw_heat_dem_after_STC_excess  #Mask to decide wether the hp's left heat generation headroom is enough to fulfill the dhw demand for a given hour
+
+            hp_heat_dhw = np.where(mask_dhw, dhw_heat_dem_after_STC_excess, hp_headroom)
+            ah_heat = np.where(mask_dhw, 0.0, dhw_heat_dem_after_STC_excess - hp_headroom)
+
+
+
+            #Calculation of power draw by installed heating technologies
+            hp_elec_demand = hp_heat_sh/COP_full_year + hp_heat_dhw/COP_dhw_full_year
+            hr_elec_demand = hr_heat
+            ah_elec_demand = ah_heat
+
+            #Calculation of heatpump's heat demand (of lower level heat)
+            heatpump_demand = hp_heat_sh* (1 - 1/COP_full_year) + hp_heat_sh* (1 - 1/COP_dhw_full_year)
+
+
+
+
 
             # Heatpump demand equals remaining heatdemand at times not limited by heatpump size,  # Heatpump demand equals maximum heatpump demand if needed demand exceeds maximum heatpump size
-            heatpump_demand = np.where(mask, heat_dem_after_STC * (1 - 1/COP_full_year), building_hp_size * (1 - 1/COP_full_year))
+            heatpump_demand_sh = np.where(mask_sh, space_heat_dem_after_STC * (1 - 1/COP_full_year), building_hp_size * (1 - 1/COP_full_year))
+            heatpump_demand_dhw = np.where(mask_sh and mask_dhw, ,0.0)
+
+
+
+            heatpump_demand_sh = np.where(mask_sh, space_heat_dem_after_STC * (1 - 1 / COP_full_year), building_hp_size * (1 - 1 / COP_full_year))
+
 
 
             # electric HeatRod demand equals remaining heat demand plus district hot water demand
-            building_hr_demand = np.where(mask, 0.0, (heat_dem_after_STC - building_hp_size))
+            hr_demand = np.where(mask, 0.0, (heat_dem_after_STC - building_hp_size))
 
 
 
@@ -544,46 +603,6 @@ def load_parameter_5G(data):
 
 
 
-
-            # generationSTC = building["generationSTC"] / 1000  # kW
-            # heating = building["user"].heat
-
-            # heat_dem_after_STC = np.maximum(heating - generationSTC, 0.0)
-            # excess_heat_after_STC = np.maximum(generationSTC - heating, 0.0)
-
-
-            # heatpump_demand = heat_dem_after_STC / 1000 * (1 - 1/COP_full_year)   # kW Heat needed by the evaporator of the heat pump
-            # dhw = building["user"].dhw / 1000  # kW                 #Todo optional: DHW kann auch über STC versorgt werden
-            # direct_cooling = (building["user"].cooling)/1000 # kW Heat given by the direct cooling heat exchanger #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
-
-
-            # heat_from_network = np.maximum(heatpump_demand - excess_heat_after_STC - direct_cooling, 0.0)
-            # heat_to_network = -1.0* np.minimum(heatpump_demand- excess_heat_after_STC - direct_cooling, 0.0)
-
-            # building["user"].heat_from_network = heat_from_network  # kW
-            # building["user"].heat_to_network = heat_to_network
-
-
-            
-
-            # heating = building["user"].heat/1000 * (1 - 1/COP_full_year) # kW Heat needed by the evaporator of the heat pump
-            # dhw = building["user"].dhw / 1000  # kW
-            # generationSTC = building["generationSTC"] / 1000  # kW
-            #
-            # direct_cooling = (building["user"].cooling)/1000        # kW Heat given by the direct cooling heat exchanger   #todo Rawad: Die Dimensionierung und Investitionen für diese Wärmeübertrager fehlen noch
-            #
-            # heat_from_network = np.maximum(heating + dhw - generationSTC - direct_cooling, 0.0)
-            # heat_to_network = -1.0* np.minimum(heating + dhw - generationSTC - direct_cooling, 0.0)
-            #
-            # #alte Version: für Rückfragen an Rawad behalten
-            # #heat_from_network = np.maximum(heating - generationSTC, 0.0)
-            # #heat_to_network = direct_cooling_cluster  #odo Rawad: warum ist direct_cooling nicht berücksichtigt hier?
-            #
-            # building["user"].heat_from_network = heat_from_network  # kW
-            # building["user"].heat_to_network = heat_to_network
-
-            # Sum the heat and cool losses in the substations
-
             loss_h_substation = heat_from_network * (h_loss_subst / 100)  # kW
             loss_c_substation = heat_to_network   * (c_loss_subst / 100)  # kW
             heat_loss_substation_heating += loss_h_substation  # kW
@@ -592,11 +611,12 @@ def load_parameter_5G(data):
             net_heat_demand += heat_from_network
             net_heat_supply += heat_to_network
 
-            building["user"].dim_dc_hp = building["envelope"].heatload/1000
-            building["user"].dim_dc_hr = np.max(building_hr_demand)
+            #building["user"].dim_dc_hp = building["envelope"].heatload/1000
+            building["user"].dim_dc_hp = building["envelope"].bivalent / 1000
+            building["user"].dim_dc_hr = np.max(hr_demand)
             building["user"].dim_dc_dc = np.max(direct_cooling)
             building["user"].elec_demand_dc_hp = float(np.sum(heatpump_demand))
-            building["user"].elec_demand_dc_hr = float(np.sum(building_hr_demand))
+            building["user"].elec_demand_dc_hr = float(np.sum(hr_demand))
 
 
 
@@ -718,6 +738,20 @@ def load_parameter_5G(data):
     param["elec_demand_dc_hr_total"] = elec_demand_dc_hr_total
 
     return data, param
+
+
+
+def calc_hp_max_power(data, building_hp_size, T_supply):
+
+    a_hp = 0.2
+    #T_biv = float(data.design_building_data["T_bivalent"])
+    T_biv = np.minimum(data.heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][data.heat_grid_data["generation"]])
+
+    heat_hp_max = np.maximum(building_hp_size + a_hp * (T_supply - T_biv), 0.0)
+
+    return heat_hp_max
+
+
 
 def calc_cop_carnot(T_cold_C, T_hot_C, quality_grade=0.4):
     T_cold_K = (T_cold_C)+273.15
@@ -1647,7 +1681,7 @@ def calc_diameter(data, param):
     dp_pipe_max = 300     # 300Pa/m,      maximum pipe pressure gradient (Planungshandbuch Fernwärme)       #Todo: Wert für 5G Netze prüfen
     dp_pipe_min = heat_grid_data["pipe"]["dp_pipe_min"]    # 30Pa/m,       minimum pipe pressure gradient (Improved genetic algorithm for pipe diameter optimization of an existing large-scale district heating network https://doi.org/10.1016/j.energy.2024.131970)
 
-    f_default = float(data.heat_grid_data["pipe"]["f_fric"])        #Todo: Wert für 5G Netze prüfen
+    f_default = float(data.heat_grid_data["pipe"]["f_fric"])        #Todo: iterativ? überprüfen
 
     # Calculate minimum inner pipe diameters [mm] due to limitation of pipe friction
     for pipe_id, pipe in data.pipeline.items():
