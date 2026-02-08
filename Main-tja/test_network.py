@@ -33,7 +33,7 @@ if __name__ == '__main__':
         net_heating_demand = district.heat_grid_data.get("net_heating_demand", None)
         print(f"Net heating demand: {net_heating_demand} kW")
 
-    # Print parameters form load params
+    # Print parameters from load params
     # for district in network.interconnected_districts:
     #     params = district.centralDevices.get("params", None)
     #     devs = district.centralDevices.get("devs", None)

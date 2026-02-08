@@ -130,13 +130,6 @@ class Network:
         for data in self.interconnected_districts.values():
             data.finalizeClusterProfiles()        
 
-    # ALT
-    #    # Check if the interconnected districts use a heat grid as heating system
-    #     if all(data.district[0]["buildingFeatures"]["heater"] == "heat_grid" for data in self.interconnected_districts):
-    #         self.designCentralDevsConnected() 
-    #     else:
-    #         print("The interconnected districts do not use a heat grid as heating system.")
-
 
         
         # for i, data in enumerate(self.interconnected_districts):
@@ -163,8 +156,6 @@ class Network:
             # Initialize central devices dictionary
             district.centralDevices = {}
 
-            # # Load parameters of the heating network
-            # district = heating_network.heating_network(data=district) # Not part of new district generator any more
             # Load parameters of the energy hub
             param, devs, dem, result_dict = load_params_central_devices.load_params(district)
             # Save parameters of the energy hub for each district
@@ -190,17 +181,11 @@ class Network:
         result_dictCon = {}  
 
         for district in self.interconnected_districts.values():
-            # Check if 'params' key exists in centralDevices
-            if "params" in district.centralDevices:
-                # Add the params of each district to the combined dictionary
-                paramCon[district.scenario_name] = district.centralDevices["params"]
-                devsCon[district.scenario_name] = district.centralDevices["devs"]
-                demCon[district.scenario_name] = district.centralDevices["dem"]
-                result_dictCon[district.scenario_name] = district.centralDevices["result_dict"]
-            else:
-                print(f"No 'params' data found for district: {district.scenario_name}")
-
-
+            # Add the params of each district to the combined dictionary
+            paramCon[district.scenario_name] = district.centralDevices["params"]
+            devsCon[district.scenario_name] = district.centralDevices["devs"]
+            demCon[district.scenario_name] = district.centralDevices["dem"]
+            result_dictCon[district.scenario_name] = district.centralDevices["result_dict"]
         
         # Print paramCon:
         #print(f"ParamCon: {paramCon}")
@@ -218,10 +203,8 @@ class Network:
         # Assign results to each district
         for district in self.interconnected_districts.values():
             scenario_name = district.scenario_name
-            if scenario_name in result_dictCon:
-                district.centralDevices["capacities"] = result_dictCon[scenario_name]
-            else:
-                print(f"No results found for district: {scenario_name}")
+            district.centralDevices["capacities"] = result_dictCon[scenario_name]
+
         
         #self.interconnected_districts[0].centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon)
         

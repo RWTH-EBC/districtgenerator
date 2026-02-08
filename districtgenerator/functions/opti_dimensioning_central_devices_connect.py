@@ -90,11 +90,8 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     # Initialize lists of devices for each district 
 
     # Call setup_devices and store the results
-    setup_devices(model, dataCon)
+    all_devs_list =setup_devices(model, dataCon)
 
-    # Print scenario_name for test reasons
-    # TODO: Change for several districts
-    print(f"Scenario name for optimization: {dataCon[0].scenario_name}")
 
     # Set up model and create variables
     model = add_variables(model)
@@ -103,12 +100,24 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     # Call add_constraints to add constraints to the model
     model = add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_horizon, dataCon)
 
+    # Folder to save model and results
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
     # Solve the model and extract results
-    result_dict= process_results_per_district(model, dataCon, devsCon, paramCon, result_dict)
+    result_dictCon= process_results_per_district(model, dataCon, devsCon, paramCon, result_dictCon, result_dir)
+    for district in model.districts:
+        scenario_name = district
+        result_dict = result_dictCon[scenario_name]
+        # Save results to csv
+        save_results_csv(result_dict, scenario_name, result_dir, all_devs_list)
+        
+    return result_dictCon
 
 def setup_devices(model, dataCon):
     # Create a set for all districts
-    district_names = [district.scenario_name for district in dataCon]
+    district_names = [district.scenario_name for district in dataCon.values()]
     model.districts = pyo.Set(initialize=district_names)
 
     # Create sets for all device types
@@ -117,7 +126,8 @@ def setup_devices(model, dataCon):
                          "CTES", "BAT", "GS"]
 
     gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
-    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid","from_main_grid", "to_main_grid", "from_network", "to_network"]
+    # power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid","from_main_grid", "to_main_grid", "from_network", "to_network"]
+    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid","from_main_grid", "to_main_grid"]
     heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
     cool_devs_list = ["CC", "AC"]
     hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
@@ -137,6 +147,8 @@ def setup_devices(model, dataCon):
     model.waste_devs = pyo.Set(initialize=waste_devs_list)
     model.storage_devs = pyo.Set(initialize=storage_devs_list)
     model.area_devs = pyo.Set(initialize=area_devs_list)
+    
+    return all_devs_list
 
  
 def add_variables(model):
@@ -174,8 +186,8 @@ def add_variables(model):
     # Yearly total energy flows - indexed by support year and district
     model.from_el_main_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
     model.to_el_main_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
-    model.from_network_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
-    model.to_network_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
+    # model.from_network_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
+    # model.to_network_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
     model.from_gas_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
     model.to_gas_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
     model.biom_import_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)
@@ -484,15 +496,15 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
                     model.power["to_main_grid", district, y, d, t] * param["cluster_weights"][d]
                     for d in model.clusters for t in model.time_steps))
             
-            model.constraints.add(
-                model.from_network_total[district, y] == dt * sum(
-                    model.power["from_network", district, y, d, t] * param["cluster_weights"][d]
-                    for d in model.clusters for t in model.time_steps))
+            # model.constraints.add(
+            #     model.from_network_total[district, y] == dt * sum(
+            #         model.power["from_network", district, y, d, t] * param["cluster_weights"][d]
+            #         for d in model.clusters for t in model.time_steps))
             
-            model.constraints.add(
-                model.to_network_total[district, y] == dt * sum(
-                    model.power["to_network", district, y, d, t] * param["cluster_weights"][d]
-                    for d in model.clusters for t in model.time_steps))
+            # model.constraints.add(
+            #     model.to_network_total[district, y] == dt * sum(
+            #         model.power["to_network", district, y, d, t] * param["cluster_weights"][d]
+            #         for d in model.clusters for t in model.time_steps))
 
             model.constraints.add(
                 model.biom_import_total[district, y] == dt * sum(
@@ -637,6 +649,10 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
         for y in model.support_years:
             model.constraints.add(model.misc_costs[district, y] == co2_tax_term[district, y])
 
+    # Initialize dictionaries to store weights for each support year based on the intervals they cover        
+    weights = {}
+    for district in model.districts:
+        param = paramCon[district]
         # Anualize Energy costs and miscellaneous costs over all support years by calculating Sum of the NPV of each support year/intervall and then annualizing it
         i = param["interest_rate"]
         q = 1 + i
@@ -645,17 +661,20 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
         sorted_years = sorted(support_years)
 
         # Calculate the weights for each support year based on the intervals they cover
-        weights = {}
         for idx, year in enumerate(sorted_years):
             if idx < len(sorted_years) - 1:
                 weights[year] = sorted_years[idx + 1] - year # time until next support year
             else:
                 weights[year] = n - year # time from last support year to end of observation period
 
-        # Calculate the NPV for energy and miscellaneous costs
-        # Use geometric series formula for efficiency: sum(1/q^(year+k) for k in 0..n-1) = (1/q^year) * (1 - (1/q)^n) / (1 - 1/q)
-        npv_energy[district] = {}
-        npv_misc[district] = {}
+    # Calculate the NPV for energy and miscellaneous costs
+    # Use geometric series formula for efficiency: sum(1/q^(year+k) for k in 0..n-1) = (1/q^year) * (1 - (1/q)^n) / (1 - 1/q)
+    npv_energy = {}
+    npv_misc = {}
+    for district in model.districts:
+        # Initialize NPVs for this district
+        npv_energy[district] = 0
+        npv_misc[district] = 0
         for idx, year in enumerate(sorted_years):
             interval_length = weights[year]
             # Calculate discount factor for this interval using geometric series formula
@@ -678,32 +697,35 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
         model.constraints.add(model.annualized_energy_costs[district] == npv_energy[district] * annuity_factor)
         model.constraints.add(model.annualized_misc_costs[district] == npv_energy[district] * annuity_factor)
 
-        # Total annual costs (According to VDI 2067 Blatt 1:)
-        # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
+
 
     #%% DIFINE VARIBALES FOR OBJECTIVE FUNCTIONS
     tac_sum_total = 0
     co2_sum_total = 0
 
+    # Total annual costs (According to VDI 2067 Blatt 1:)
+    # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
+
     for district in model.districts:
-        tac_sum_distr = (model.total_annual_costs_devices  # Cost associated with devices (inv and om)
-                        + model.total_connection_costs  # Cost for connection to el and gas grid
-                        + model.heat_grid_costs  # Cost for heat grid inv and om
-                        + model.annualized_energy_costs  # Energy supply costs minus revenues from feed-in
-                        + model.annualized_misc_costs)  # Miscellaneous costs minus revenues
+        param = paramCon[district]
+        tac_sum_distr = (model.total_annual_costs_devices[district]  # Cost associated with devices (inv and om)
+                        + model.total_connection_costs[district]  # Cost for connection to el and gas grid
+                        + model.heat_grid_costs[district]  # Cost for heat grid inv and om
+                        + model.annualized_energy_costs[district]  # Energy supply costs minus revenues from feed-in
+                        + model.annualized_misc_costs[district])  # Miscellaneous costs minus revenues
         
         # Sum up total annualized costs for all districts
         tac_sum_total += tac_sum_distr
         
         co2_sum_distr = sum(
         (
-            model.from_el_grid_total[y] * param["co2_el_grid"][y]
-            + model.from_gas_grid_total[y] * param["co2_gas"][y]
-            + model.biom_import_total[y] * param["co2_biom"][y]
-            + model.waste_import_total[y] * param["co2_waste"][y]
-            + model.hydrogen_import_total[y] * param["co2_hydrogen"][y]
-            - model.to_el_grid_total[y] * param["co2_el_feed_in"][y]
-            - model.to_gas_grid_total[y] * param["co2_gas_feed_in"][y]
+            model.from_el_main_grid_total[district, y] * param["co2_el_grid"][y]
+            + model.from_gas_grid_total[district, y] * param["co2_gas"][y]
+            + model.biom_import_total[district, y] * param["co2_biom"][y]
+            + model.waste_import_total[district, y] * param["co2_waste"][y]
+            + model.hydrogen_import_total[district, y] * param["co2_hydrogen"][y]
+            - model.to_el_main_grid_total[district, y] * param["co2_el_feed_in"][y]
+            - model.to_gas_grid_total[district, y] * param["co2_gas_feed_in"][y]
         ) * weights[y] for y in model.support_years
         )
     
@@ -726,231 +748,548 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
     return model
 
 
-def process_results_per_district(model, dataCon, devsCon, paramCon, result_dic):
+def process_results_per_district(model, dataCon, devsCon, paramCon, result_dictCon, result_dir):
     """
     Function to capsle extracting the results from the Pyomo model.
 
     """
-
-    # Folder to save model and results
-    result_dir = "optimization_results"
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-
-    lp_filename = os.path.join(result_dir, f"ehdo_model_{data.scenario_name}.lp")
+    lp_filename = os.path.join(result_dir, f"ehdo_model_network.lp")
     model.write(lp_filename, io_options={"symbolic_solver_labels": True})
 
     # temporary log-file for the solver
     solver_log_path = os.path.join(result_dir, "solver_output_ehdo.log")
     # Path for error file
     errorfile_path = os.path.join(result_dir, 'errorfile_ehdo.txt')
-        
-        ##### For further analysis
+
+    ################################################################################
+    # Solve the Model
+    ################################################################################
+    # Assumption: The solver configuration is the same for all districts, so the first one from the dictionary is taken. 
+    # If needed, this can be adjusted to allow for different solvers per district.
+    data=dataCon[list(dataCon.keys())[0]]
+
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
+    solve_start_time = time.time()
+    results = solver.solve(model, tee=False, options=solver_options)
+    print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+
+    ################################################################################
+    # Check and Save Results
+    ################################################################################
+
+    # Check if solution is optimal, otherwise write an error file to help find errors
+    if results.solver.termination_condition == pyo.TerminationCondition.infeasible:
+        print(f"Model is infeasible for further analysis see {errorfile_path}")
+        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
+        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
+        with open(errorfile_path, 'w') as f:
+            f.write('Error: Model is infeasible\n')
+            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"Model Statistics:\n")
+            f.write(f"  - Variables: {n_vars}\n")
+            f.write(f"  - Constraints: {n_cons}\n\n")
+            f.write(f"  - LP File: {lp_filename}\n\n")
+            try:
+                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
+                    f.write("\nSolver Log:\n")
+                    f.write("-" * 40 + "\n")
+                    f.write(log_file.read())
+                    f.write("-" * 40 + "\n")
+                # Remove temporary solver log file
+                os.remove(solver_log_path)
+            except Exception as e:
+                f.write(f"\nCould not read solver log: {e}\n")
+
+        # IIS-Analysis #TODO: Needs a rework to capture the error source correctly
+        try:
+            import logging
+            # Create string buffer to capture logging
+            logging_buffer = StringIO()
+
+            # Store original logging handlers
+            root_logger = logging.getLogger()
+            original_handlers = root_logger.handlers[:]
+            original_level = root_logger.level
+
+            # Clear existing handlers temporarily
+            for handler in original_handlers:
+                root_logger.removeHandler(handler)
+
+            # Add string handler to capture only IIS output
+            string_handler = logging.StreamHandler(logging_buffer)
+            string_handler.setLevel(logging.INFO)
+            root_logger.addHandler(string_handler)
+            root_logger.setLevel(logging.INFO)
+
+            # Run IIS analysis - output goes to buffer
+            log_infeasible_constraints(model, log_expression=True, log_variables=True)
+
+            # Get captured content
+            iis_content = logging_buffer.getvalue()
+
+            # Restore logging
+            root_logger.removeHandler(string_handler)
+            for handler in original_handlers:
+                root_logger.addHandler(handler)
+            root_logger.setLevel(original_level)
+
+            # Write to error file
+            with open(errorfile_path, 'a', encoding='utf-8') as f:
+                f.write("INFEASIBLE CONSTRAINTS:\n")
+                f.write("-" * 40 + "\n")
+                if iis_content.strip():
+                    f.write(iis_content)
+                else:
+                    f.write("No IIS details captured\n")
+                f.write("-" * 40 + "\n")
+
+            print(f"Infeasibility analysis saved to {errorfile_path}")
+
+        except Exception as e:
+            # Ensure logging is restored
+            try:
+                if 'original_handlers' in locals():
+                    root_logger.removeHandler(string_handler)
+                    for handler in original_handlers:
+                        if handler not in root_logger.handlers:
+                            root_logger.addHandler(handler)
+                    root_logger.setLevel(original_level)
+            except:
+                pass
+
+            print(f"IIS analysis failed: {e}")
+
+            with open(errorfile_path, 'a') as f:
+                f.write(f"IIS analysis failed: {e}\n")
+
+        # Using Gurobi to compute a better IIS if Gurobi is available
+        import gurobipy as gp
+        gurobi_available = True
+        try: _ = gp.Env.getEnv()
+        except: gurobi_available = False
+
+        if gurobi_available:
+            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
+            m = gp.read("debug_model.lp")
+            m.optimize()
+            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                m.computeIIS()
+                m.write("debug_model.ilp")
+                print("IIS written to debug_model.ilp")
+                raise Exception("Model is infeasible, see errorfile for details.")
+            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
+
+        return None
+
+    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
+        print("Model is unbounded")
+        with open(errorfile_path, 'w') as f:
+            f.write('Model is unbounded\n')
+        return None
+    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
+        print("Model solved to optimality")
+    else:
+        print(f"Solver status: {results.solver.termination_condition}")
+        with open(errorfile_path, 'w') as f:
+            f.write(f'Solver status: {results.solver.termination_condition}\n')
+        return None
+
+    # Remove temporary solver log file
+    if os.path.exists(solver_log_path):
+        os.remove(solver_log_path)
+
+    # Save all variable values in a solution file:
+    def write_solution_file(model, filename):
+        """
+        Write solution values to a file in a format similar to Gurobi's .sol files
+        """
+        try:
+            with open(filename, 'w') as f:
+                f.write("# Solution file\n")
+                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
+                f.write("# Variable values\n")
+
+                # Write all variable values
+                for var in model.component_objects(pyo.Var, active=True):
+                    if var.is_indexed():
+                        for index in var:
+                            if var[index].value is not None:
+                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
+                    else:
+                        if var.value is not None:
+                            f.write(f"{var.name} {var.value:.6f}\n")
+
+                f.write("# End of solution\n")
+            print(f"Solution written to {filename}")
+
+        except Exception as e:
+            print(f"Warning: Could not write solution file {filename}: {e}")
+        return None
+
+    solution_path = os.path.join(result_dir, "solution_ehdo_file_.txt")
+    write_solution_file(model, solution_path)
+
+    ################################################################################
+    # Post-processing and Result Extraction #! This needs to be adapted to multi-year optimization
+    ################################################################################
+
+    # --- Robust helper functions for safe value queries ---
+    def safe_value(var_container, index):  # Safe value retrieval for indexed variables
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
+
+    def safe_value_single(var):  # Safe value retrieval for single variables
+        try:
+            val = pyo.value(var)
+            return val if val is not None else 0
+        except ValueError:
+            return 0
+
+    # Process results for the whole network and store them in result_dictCon
+    result_dictCon["network"] = {}
+    result_dictCon["network"]["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
+    result_dictCon["network"]["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t/a
+
+    # Define the output file path
+    csv_file_path = os.path.join(result_dir, "network_results.csv")
+
+    # Prepare the data to be written to the CSV file
+    data_to_save = [
+        ["Variable", "Value"],  # Header row
+        ["tac_total", result_dictCon.get("network", "").get("tac","")],  # Total annualized costs
+        ["co2_total", result_dictCon.get("network", "").get("co2","")]  # Total CO2 emissions
+   
+        ]
+
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
+
+    print(f"Network-results saved to {csv_file_path}")
+
     for district in model.districts:
-        for k in all_devs:
-            result_dict[k] = {}
+        result_dict = result_dictCon[district]
+        data = dataCon[district]
+        devs = devsCon[district]
+        param = paramCon[district]
 
         result_dict["devs"] = devs
 
-        # Moved to run_optim_connect()
-        # result_dict["tac"] = int(obj["tac"].X)      # EUR/a 
-        # result_dict["co2"] = int(obj["co2"].X/1000) # t/a
+        for k in model.all_devs:
+            result_dict[k] = {
+                "cap": round(safe_value(model.cap, (k, district)), 1),
+                "ann_inv_cost": round(safe_value(model.c_inv, (k, district)), 2),
+                "ann_inv_cost_unsubsidized": round(safe_value(model.c_inv_base, (k, district)), 2),
+                "om_cost": round(safe_value(model.c_om, (k, district)), 2)
+            }
 
-        for k in cap.keys():
-            result_dict[k] = {"cap": round(cap[k].X, 1)}
-
-        # Add 'from_grid' capacity if the option is enabled
-        if param["enable_cap_limit_el"]:
+        # Add 'from_grid' and 'to_grid' capacity information if the option is enabled
+        if param.get("enable_cap_limit_el", True):
             result_dict["from_grid"] = {"cap": param["cap_limit_el"]}
             result_dict["to_grid"] = {"cap": param["cap_limit_el"]}
         else:
             result_dict["from_grid"] = {"cap": float("inf")}
             result_dict["to_grid"] = {"cap": float("inf")}
-            
 
-        result_dict["total_inv_cost"]        = int(sum(inv[k].X for k in cap.keys()) + data.heat_grid_data["costs"])
-        result_dict["total_ann_inv_cost"]    = int(sum(c_inv[k].X for k in cap.keys()) + data.heat_grid_data["ann_costs"])
-        result_dict["total_om_cost"]         = int(sum(c_om[k].X  for k in cap.keys()) + data.heat_grid_data["om_costs"])
-
-        result_dict["from_el_main_grid_total"]    = int(from_el_main_grid_total.X / 1000)    # MWh
-        result_dict["to_el_main_grid_total"]      = int(to_el_main_grid_total.X / 1000)      # MWh
-        result_dict["from_network_total"]        = int(from_network_total.X / 1000)        # MWh
-        result_dict["to_network_total"]          = int(to_network_total.X / 1000)          # MWh
-        result_dict["from_gas_grid_total"]   = int(from_gas_grid_total.X / 1000)   # MWh
-        result_dict["to_gas_grid_total"]     = int(to_gas_grid_total.X / 1000)     # MWh
-        result_dict["biom_import_total"]     = int(biom_import_total.X / 1000)     # MWh
-        result_dict["waste_import_total"]    = int(waste_import_total.X / 1000)    # MWh
-        result_dict["hydrogen_import_total"] = int(hydrogen_import_total.X / 1000) # MWh
-
-        # CO2 emissions
-        result_dict["co2_onsite_emissions"] = int((from_gas_grid_total.X * param["co2_gas"] + biom_import_total.X * param["co2_biom"] + waste_import_total.X * param["co2_waste"])/1000)
-        #result_dict["co2_global_emissions"] = int(result_dict["co2"]/1000)  # Moved to run_optim_connect()
-        result_dict["co2_credit_feedin"] = int((to_el_main_grid_total.X * param["co2_el_feed_in"] + to_gas_grid_total.X * param["co2_gas_feed_in"])/1000)
-        result_dict["co2_tax_total"] = int(result_dict["co2_onsite_emissions"] * param["co2_tax"] * 1000)  # EUR, only gas, biomass and waste.
-
-        # Calculate maximum grid flows (electricity and gas)
-        for k in ["from_grid", "to_grid", "from_main_grid", "to_main_grid", "from_network", "to_network"]:
-            result_dict["max_el_" + k] = 0
-            for d in clusters:
-                for t in time_steps:
-                    if power[k][d][t].X > result_dict["max_el_" + k]:
-                        result_dict["max_el_" + k] = power[k][d][t].X
-            result_dict["max_el_" + k] = int(result_dict["max_el_" + k])
-
-        for k in ["from_grid", "to_grid"]:
-            result_dict["max_gas_" + k] = 0
-            for d in clusters:
-                for t in time_steps:
-                    if gas[k][d][t].X > result_dict["max_gas_" + k]:
-                        result_dict["max_gas_" + k] = gas[k][d][t].X
-            result_dict["max_gas_" + k] = int(result_dict["max_gas_" + k])
-
-        result_dict["max_biom"] = 0
-        for d in clusters:
-            for t in time_steps:
-                if biom["import"][d][t].X > result_dict["max_biom"]:
-                    result_dict["max_biom"] = biom["import"][d][t].X
-        result_dict["max_biom"] = int(result_dict["max_biom"])
-
-        result_dict["max_waste"] = 0
-        for d in clusters:
-            for t in time_steps:
-                if waste["import"][d][t].X > result_dict["max_waste"]:
-                    result_dict["max_waste"] = waste["import"][d][t].X
-        result_dict["max_waste"] = int(result_dict["max_waste"])
-
-        result_dict["max_hydrogen"] = 0
-        for d in clusters:
-            for t in time_steps:
-                if hydrogen["import"][d][t].X > result_dict["max_hydrogen"]:
-                    result_dict["max_hydrogen"] = hydrogen["import"][d][t].X
-        result_dict["max_hydrogen"] = int(result_dict["max_hydrogen"])
-
-        # Costs
-        result_dict["supply_costs_el"] = int(supply_costs_el.X)
-        result_dict["cap_costs_el"] = int(cap_costs_el.X)
-        result_dict["total_el_costs"] = int(supply_costs_el.X + cap_costs_el.X)
-        result_dict["rev_feed_in_el"] = int(rev_feed_in_el.X)
-
-        result_dict["supply_costs_gas"] = int(supply_costs_gas.X)
-        result_dict["cap_costs_gas"] = int(cap_costs_gas.X)
-        result_dict["total_gas_costs"] = int(supply_costs_gas.X + cap_costs_gas.X)
-        result_dict["rev_feed_in_gas"] = int(rev_feed_in_gas.X)
-
-        result_dict["supply_costs_biom"] = int(supply_costs_biom.X)
-        result_dict["supply_costs_waste"] = int(supply_costs_waste.X)
-        result_dict["supply_costs_hydrogen"] = int(supply_costs_hydrogen.X)
-
-        # Prepare time series of renewable generation (without curtailment)
+        # Investment and operational costs
         
-        result_dict["PV_generation_uncl"] = devs["PV"]["norm_power"] / 1000 * area["PV"].X          # in kW
-        result_dict["WT_generation_uncl"] = devs["WT"]["norm_power"] * cap["WT"].X                  # in kW
-        result_dict["STC_generation_uncl"] = devs["STC"]["norm_power"] / 1000 * area["STC"].X       # in kW
+        heat_grid_costs = data.heat_grid_data.get("costs", 0)
+        heat_grid_ann_costs = data.heat_grid_data.get("ann_costs", 0)
+        heat_grid_om_costs = data.heat_grid_data.get("om_costs", 0)
 
-        # Prepare time series of renewable curtailment
-        power["PV_curtail"] = {}
-        power["WT_curtail"] = {}
-        power["WAT_curtail"] = {}
-        heat["STC_curtail"] = {}
-        for d in clusters:
-            power["PV_curtail"][d] = {}
-            power["WT_curtail"][d] = {}
-            power["WAT_curtail"][d] = {}
-            heat["STC_curtail"][d] = {}
-            for t in time_steps:
-                power["PV_curtail"][d][t] = devs["PV"]["norm_power_clustered"][d][t]/1000 * area["PV"].X - power["PV"][d][t].X
-                power["WT_curtail"][d][t] = devs["WT"]["norm_power_clustered"][d][t] * cap["WT"].X - power["WT"][d][t].X
-                power["WAT_curtail"][d][t] = np.min([cap["WAT"].X, devs["WAT"]["potential"]]) - power["WAT"][d][t].X
-                heat["STC_curtail"][d][t] = devs["STC"]["norm_power_clustered"][d][t]/1000  * area["STC"].X - heat["STC"][d][t].X
+        result_dict["total_inv_cost"] = int(sum(safe_value(model.inv, (k, district)) for k in model.all_devs) + heat_grid_costs)
+        result_dict["total_inv_cost_unsubsidized"] = int(sum(safe_value(model.inv_base, (k, district)) for k in model.all_devs) + heat_grid_costs)
+        result_dict["total_ann_inv_cost"] = int(
+            sum(safe_value(model.c_inv, (k, district)) for k in model.all_devs) + heat_grid_ann_costs)
+        result_dict["total_ann_inv_cost_unsubsidized"] = int(
+            sum(safe_value(model.c_inv_base, (k, district)) for k in model.all_devs) + heat_grid_ann_costs)
+        result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, (k, district)) for k in model.all_devs) + heat_grid_om_costs)
 
-        result_dict["PV"]["curtailed"]  = int(dt * (sum(sum(power["PV_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-        result_dict["STC"]["curtailed"] = int(dt * (sum(sum(heat["STC_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-        result_dict["WT"]["curtailed"]  = int(dt * (sum(sum(power["WT_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
-        result_dict["WAT"]["curtailed"] = int(dt * (sum(sum(power["WAT_curtail"][d][t] for t in time_steps) * param["cluster_weights"][d] for d in clusters)))
+        # Total energy imports and exports - per support year
+        result_dict["from_el_main_grid_total_by_year"] = {y: int(safe_value(model.from_el_main_grid_total, (district, y)) / 1000) for y in model.support_years} #MWh
+        result_dict["to_el_main_grid_total_by_year"] = {y: int(safe_value(model.to_el_main_grid_total, (district, y)) / 1000) for y in model.support_years}       #MWh
+        result_dict["from_gas_grid_total_by_year"] = {y: int(safe_value(model.from_gas_grid_total, (district, y)) / 1000) for y in model.support_years}  #MWh
+        result_dict["to_gas_grid_total_by_year"] = {y: int(safe_value(model.to_gas_grid_total, (district, y)) / 1000) for y in model.support_years}       #MWh
+        result_dict["biom_import_total_by_year"] = {y: int(safe_value(model.biom_import_total, (district, y)) / 1000) for y in model.support_years}      #MWh
+        result_dict["waste_import_total_by_year"] = {y: int(safe_value(model.waste_import_total, (district, y)) / 1000) for y in model.support_years}        #MWh
+        result_dict["hydrogen_import_total_by_year"] = {y: int(safe_value(model.hydrogen_import_total, (district, y)) / 1000) for y in model.support_years}    #MWh
 
-        result_dict["power_profile"] = {}
-        result_dict["power_kW"] = {}
-        for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid",
-                       "to_grid"]:
-            result_dict["power_profile"][device] = []
-            for d in clusters:
-                for t in time_steps:
-                    result_dict["power_profile"][device].append(power[device][d][t].X)
-            result_dict["power_kW"][device] = int(max(result_dict["power_profile"][device]))
+        # Calculate weights for each support year (same logic as in build_model)
+        sorted_years = sorted(model.support_years)
+        n = param["observation_time"]
+        weights = {}
+        for idx, year in enumerate(sorted_years):
+            if idx < len(sorted_years) - 1:
+                weights[year] = sorted_years[idx + 1] - year
+            else:
+                weights[year] = n - year
 
-        # Heat to/from devices
-        result_dict["heat_profile"] = {}
-        result_dict["heat_kW"] = {}
-        for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
-            result_dict["heat_profile"][device] = []
-            for d in clusters:
-                for t in time_steps:
-                    result_dict["heat_profile"][device].append(heat[device][d][t].X)
-            result_dict["heat_kW"][device] = int(max(result_dict["heat_profile"][device]))
+        # Total energy imports and exports over the whole observation period (weighted sum)
+        result_dict["from_el_main_grid_total"] = int(sum(safe_value(model.from_el_main_grid_total, (district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
+        result_dict["to_el_main_grid_total"] = int(sum(safe_value(model.to_el_main_grid_total, (district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
+        result_dict["from_gas_grid_total"] = int(sum(safe_value(model.from_gas_grid_total, (district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
+        result_dict["to_gas_grid_total"] = int(sum(safe_value(model.to_gas_grid_total, (district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
+        result_dict["biom_import_total"] = int(sum(safe_value(model.biom_import_total, (district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
+        result_dict["waste_import_total"] = int(sum(safe_value(model.waste_import_total, (district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
+        result_dict["hydrogen_import_total"] = int(sum(safe_value(model.hydrogen_import_total,(district, y)) * weights[y] for y in model.support_years) / 1000)  # MWh
 
+        # CO2 emissions breakdown - calculate weighted average based on first support year for backward compatibility
+        result_dict["co2_onsite_emissions"] = int((sum(safe_value(model.from_gas_grid_total, (district, y)) * param["co2_gas"][y] for y in model.support_years) +
+                                                sum(safe_value(model.biom_import_total, (district, y)) * param["co2_biom"][y] for y in model.support_years) +
+                                                sum(safe_value(model.waste_import_total, (district, y)) * param["co2_waste"][y] for y in model.support_years)) / 1000)
+        # result_dict["co2_global_emissions"] = int(result_dict["co2"] / 1000) # Already saved in result_dictCon["network"]["co2"]
+        result_dict["co2_credit_feedin"] = int((sum(safe_value(model.to_el_main_grid_total, (district, y)) * param["co2_el_feed_in"][y] for y in model.support_years) +
+                                                sum(safe_value(model.to_gas_grid_total,(district, y)) * param["co2_gas_feed_in"][y] for y in model.support_years)) / 1000)
+        # CO2 tax: Use weighted average
+        result_dict["co2_tax_total"] = int(sum(safe_value(model.misc_costs,(district, y)) for y in model.support_years) / len(model.support_years))  # EUR
+
+        # Maximum grid flows (electricity and gas) - check across all support years
+        for grid_type in ["from_grid", "to_grid"]:
+            max_el = max(safe_value(model.power, (grid_type, district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps)
+            result_dict[f"max_el_{grid_type}"] = int(max_el)
+
+            max_gas = max(safe_value(model.gas, (grid_type, district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps)
+            result_dict[f"max_gas_{grid_type}"] = int(max_gas)
+
+        # Maximum import flows for other resources - check across all support years
+        result_dict["max_biom"] = int(
+            max(safe_value(model.biom, ("import", district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps))
+        result_dict["max_waste"] = int(
+            max(safe_value(model.waste, ("import", district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps))
+        result_dict["max_hydrogen"] = int(
+            max(safe_value(model.hydrogen, ("import", district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps))
+
+        # Energy costs and revenues - per year and total (annualized)
+        result_dict["supply_costs_el_by_year"] = {y: int(safe_value(model.supply_costs_el, (district, y))) for y in model.support_years}
+        result_dict["supply_costs_gas_by_year"] = {y: int(safe_value(model.supply_costs_gas, (district, y))) for y in model.support_years}
+        result_dict["supply_costs_biom_by_year"] = {y: int(safe_value(model.supply_costs_biom, (district, y))) for y in model.support_years}
+        result_dict["supply_costs_waste_by_year"] = {y: int(safe_value(model.supply_costs_waste, (district, y))) for y in model.support_years}
+        result_dict["supply_costs_hydrogen_by_year"] = {y: int(safe_value(model.supply_costs_hydrogen, (district, y))) for y in model.support_years}
+        result_dict["rev_feed_in_el_by_year"] = {y: int(safe_value(model.rev_feed_in_el, (district, y))) for y in model.support_years}
+        result_dict["rev_feed_in_gas_by_year"] = {y: int(safe_value(model.rev_feed_in_gas, (district, y))) for y in model.support_years}
+
+        # Totals (annualized values for backward compatibility)
+        result_dict["supply_costs_el"] = int(safe_value_single(model.annualized_energy_costs[district]))  # Annualized over all years
+        result_dict["cap_costs_el"] = int(safe_value_single(model.cap_costs_el[district]))
+        result_dict["total_el_costs"] = result_dict["supply_costs_el"] + result_dict["cap_costs_el"]
+        result_dict["rev_feed_in_el"] = int(sum(safe_value(model.rev_feed_in_el, (district, y)) for y in model.support_years) / len(model.support_years))  # Average annual electricity feed-in revenue
+
+        result_dict["supply_costs_gas"] = int(sum(safe_value(model.supply_costs_gas, (district, y)) for y in model.support_years) / len(model.support_years))
+        result_dict["cap_costs_gas"] = int(safe_value_single(model.cap_costs_gas[district]))
+        result_dict["total_gas_costs"] = result_dict["supply_costs_gas"] + result_dict["cap_costs_gas"]
+        result_dict["rev_feed_in_gas"] = int(sum(safe_value(model.rev_feed_in_gas, (district, y)) for y in model.support_years) / len(model.support_years))
+
+        result_dict["supply_costs_biom"] = int(sum(safe_value(model.supply_costs_biom, (district, y)) for y in model.support_years) / len(model.support_years))
+        result_dict["supply_costs_waste"] = int(sum(safe_value(model.supply_costs_waste, (district, y)) for y in model.support_years) / len(model.support_years))
+        result_dict["supply_costs_hydrogen"] = int(sum(safe_value(model.supply_costs_hydrogen, (district, y)) for y in model.support_years) / len(model.support_years))
+
+        # Renewable generation potential (without curtailment)
+        result_dict["PV_generation_uncl"] = [x / 1000 * safe_value(model.area, ("PV", district)) for x in
+                                            devs["PV"]["norm_power"]]  # in kW
+        result_dict["WT_generation_uncl"] = [x * safe_value(model.cap, ("WT", district)) for x in devs["WT"]["norm_power"]]  # in kW
+        result_dict["STC_generation_uncl"] = [x / 1000 * safe_value(model.area, ("STC", district)) for x in
+                                            devs["STC"]["norm_power"]]  # in kW
+
+        # Calculate curtailment for renewable sources
+        dt = data.time["timeResolution"] / data.time["dataResolution"]
+
+        # PV curtailment - sum over all support years - average per year
+        pv_curtailed = 0
+        for y in model.support_years:
+            for d in model.clusters:
+                for t in model.time_steps:
+                    potential = devs["PV"]["norm_power_clustered"][d][t] / 1000 * safe_value(model.area, ("PV", district))
+                    actual = safe_value(model.power, ("PV", district, y, d, t))
+                    pv_curtailed += (potential - actual) * param["cluster_weights"][d]
+        result_dict["PV"]["curtailed"] = int(dt * pv_curtailed / len(model.support_years))
+
+        # STC curtailment - sum over all support years - average per year
+        stc_curtailed = 0
+        for y in model.support_years:
+            for d in model.clusters:
+                for t in model.time_steps:
+                    potential = devs["STC"]["norm_power_clustered"][d][t] / 1000 * safe_value(model.area, ("STC", district))
+                    actual = safe_value(model.heat, ("STC", district, y, d, t))
+                    stc_curtailed += (potential - actual) * param["cluster_weights"][d]
+        result_dict["STC"]["curtailed"] = int(dt * stc_curtailed / len(model.support_years))
+
+        # WT curtailment - sum over all support years - average per year
+        wt_curtailed = 0
+        for y in model.support_years:
+            for d in model.clusters:
+                for t in model.time_steps:
+                    potential = devs["WT"]["norm_power_clustered"][d][t] * safe_value(model.cap, ("WT", district))
+                    actual = safe_value(model.power, ("WT", district, y, d, t))
+                    wt_curtailed += (potential - actual) * param["cluster_weights"][d]
+        result_dict["WT"]["curtailed"] = int(dt * wt_curtailed / len(model.support_years))
+
+        # WAT curtailment - sum over all support years - average per year
+        wat_curtailed = 0
+        for y in model.support_years:
+            for d in model.clusters:
+                for t in model.time_steps:
+                    potential = min(safe_value(model.cap, (district, "WAT")), devs["WAT"]["potential"])
+                    actual = safe_value(model.power, ("WAT", district, y, d, t))
+                    wat_curtailed += (potential - actual) * param["cluster_weights"][d]
+        result_dict["WAT"]["curtailed"] = int(dt * wat_curtailed / len(model.support_years))
+
+        # Power profiles and maximum power - store for each support year - multi-year adaptation
+        result_dict["power_profile_by_year"] = {}
+        result_dict["power_kW_by_year"] = {}
+        for y in model.support_years:
+            result_dict["power_profile_by_year"][y] = {}
+            result_dict["power_kW_by_year"][y] = {}
+            for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+                profile = []
+                for d in model.clusters:
+                    for t in model.time_steps:
+                        profile.append(safe_value(model.power, (device, district, y, d, t)))
+                result_dict["power_profile_by_year"][y][device] = profile
+                result_dict["power_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+
+        # Heat profiles and maximum heat - store for each support year
+        result_dict["heat_profile_by_year"] = {}
+        result_dict["heat_kW_by_year"] = {}
+        for y in model.support_years:
+            result_dict["heat_profile_by_year"][y] = {}
+            result_dict["heat_kW_by_year"][y] = {}
+            for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
+                profile = []
+                for d in model.clusters:
+                    for t in model.time_steps:
+                        profile.append(safe_value(model.heat, (device, district, y, d, t)))
+                result_dict["heat_profile_by_year"][y][device] = profile
+                result_dict["heat_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+
+        # Cooling profiles and maximum cooling - store for each support year
+        result_dict["cool_profile_by_year"] = {}
+        result_dict["cool_kW_by_year"] = {}
+        for y in model.support_years:
+            result_dict["cool_profile_by_year"][y] = {}
+            result_dict["cool_kW_by_year"][y] = {}
+            for device in ["CC", "AC"]:
+                profile = []
+                for d in model.clusters:
+                    for t in model.time_steps:
+                        profile.append(safe_value(model.cool, (device, district, y, d, t)))
+                result_dict["cool_profile_by_year"][y][device] = profile
+                result_dict["cool_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+
+        # Area usage
         result_dict["area"] = {}
         for device in ["PV", "STC"]:
-            result_dict["area"][device] = int(area[device].X)
+            result_dict["area"][device] = int(safe_value(model.area, (device, district)))
 
-        # Calculate generation
+        # Calculate annual generation for each device type
         eps = 0.01
+
+        # Heat generation
         for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(heat[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(heat[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
+            gen_kwh = dt * sum(safe_value(model.heat, (k, district, d, t)) * param["cluster_weights"][d]
+                            for d in model.clusters for t in model.time_steps)
+            result_dict[k]["gen_kWh"] = gen_kwh
+            result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
 
+        # Cooling generation
         for k in ["CC", "AC"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(cool[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(cool[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
+            gen_kwh = dt * sum(safe_value(model.cool, (k, district, d, t)) * param["cluster_weights"][d]
+                            for d in model.clusters for t in model.time_steps)
+            result_dict[k]["gen_kWh"] = gen_kwh
+            result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
 
+        # Power generation
         for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(power[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(power[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
+            gen_kwh = dt * sum(safe_value(model.power, (k, district, d, t)) * param["cluster_weights"][d]
+                            for d in model.clusters for t in model.time_steps)
+            result_dict[k]["gen_kWh"] = gen_kwh
+            result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
 
-        # Calculate hydrogen generation for ELYZ
-        result_dict["ELYZ"]["gen_H2"] = int(dt * sum(sum(power["ELYZ"][d][t].X * devs["ELYZ"]["eta_el"]for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
+        # Special: Hydrogen generation for ELYZ
+        h2_gen = dt * sum(safe_value(model.power, ("ELYZ", district, d, t)) * devs["ELYZ"]["eta_el"] * param["cluster_weights"][d]
+                        for d in model.clusters for t in model.time_steps)
+        result_dict["ELYZ"]["gen_H2"] = int(h2_gen / 1000)  # MWh
 
+        # Gas generation for SAB
         for k in ["SAB"]:
-            result_dict[k]["gen_kWh"] = dt * sum(sum(gas[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)  # in kWh
-            result_dict[k]["gen"] = int(dt * sum(sum(gas[k][d][t].X for t in time_steps) * param["cluster_weights"][d] for d in clusters)/1000)  # in MWh
+            gen_kwh = dt * sum(safe_value(model.gas, (k, district, d, t)) * param["cluster_weights"][d]
+                            for d in model.clusters for t in model.time_steps)
+            result_dict[k]["gen_kWh"] = gen_kwh
+            result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
 
         # Calculate full load hours
-        for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "SAB"]:
-            if cap[k].X > eps:
-                result_dict[k]["hrs"] = int(result_dict[k]["gen_kWh"] / cap[k].X)
+        for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
+                "ELYZ", "FC", "SAB"]:
+            cap_k = safe_value(model.cap, (k, district))
+            if cap_k > eps:
+                result_dict[k]["hrs"] = int(result_dict[k]["gen_kWh"] / cap_k)
             else:
                 result_dict[k]["hrs"] = 0
 
-
-        # Select technologies that are installed (to list only these in results)
-        for k in all_devs:
-            if cap[k].X > eps:
-                result_dict[k]["inst"] = True
-            else:
-                result_dict[k]["inst"] = False
+        # Select technologies that are installed
+        for k in model.all_devs:
+            result_dict[k]["inst"] = safe_value(model.cap, (k, district)) > eps
 
         # Calculate charge cycles of storages
         for k in ["TES", "CTES", "BAT", "H2S", "GS"]:
-            if cap[k].X > eps:
-                result_dict[k]["chc"] = int(dt * sum(sum(abs(ch[k][d][t].X)/2 for t in time_steps) * param["cluster_weights"][d] for d in clusters) / cap[k].X)
+            cap_k = safe_value(model.cap, (k, district))
+            if cap_k > eps:
+                charge_cycles = dt * sum(abs(safe_value(model.ch, (k, district, d, t))) / 2 * param["cluster_weights"][d]
+                                        for d in model.clusters for t in model.time_steps)
+                result_dict[k]["chc"] = int(charge_cycles / cap_k)
             else:
                 result_dict[k]["chc"] = 0
 
         # Calculate volume of thermal storages
         for k in ["TES", "CTES"]:
-            result_dict[k]["vol_liter"] = round(cap[k].X / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600 * 1000, 1)
+            cap_k = safe_value(model.cap, (k, district))
+            if cap_k > eps:
+                result_dict[k]["vol_liter"] = round(
+                    cap_k / (param["c_w"] * param["rho_w"] * devs[k]["delta_T"]) * 3600 * 1000, 1)
+            else:
+                result_dict[k]["vol_liter"] = 0
 
-        # Calculate emissions
-        result_dict["total_co2_el"] = int(from_el_main_grid_total.X * param["co2_el_grid"]/1000) # t/a
-        result_dict["total_co2_el_feed_in"] = int(to_el_main_grid_total.X * param["co2_el_feed_in"]/1000) # t/a
-        result_dict["total_co2_gas"] = int(from_gas_grid_total.X * param["co2_gas"]/1000) # t/a
-        result_dict["total_co2_gas_feed_in"] = int(to_gas_grid_total.X * param["co2_gas_feed_in"]/1000) # t/a
-        result_dict["total_co2_biom"] = int(biom_import_total.X * param["co2_biom"]/1000) # t/a
-        result_dict["total_co2_waste"] = int(waste_import_total.X * param["co2_waste"]/1000) # t/a
-        result_dict["total_co2_hydrogen"] = int(hydrogen_import_total.X * param["co2_hydrogen"]/1000) # t/a
+            # Storage state of charge and charging power
+        for dev in model.storage_devs:
+            # Maximum SOC (across all support years)
+            max_soc = max(safe_value(model.soc, (dev, district, y, day_y, t)) for y in model.support_years for day_y in model.year for t in model.time_steps)
+            result_dict[dev]["soc"] = int(max_soc)
 
-        return result_dict
+            # Maximum charging power (across all support years)
+            max_ch = max(safe_value(model.ch, (dev, district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps)
+            result_dict[dev]["ch"] = int(max_ch)
 
-def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
+        # Calculate detailed CO2 emissions by source (weighted sum over all support years with year-specific factors)
+        result_dict["total_co2_el"] = int(sum(safe_value(model.from_el_main_grid_total, (y, district)) * param["co2_el_grid"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+        result_dict["total_co2_el_feed_in"] = int(sum(safe_value(model.to_el_main_grid_total, (y, district)) * param["co2_el_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+        result_dict["total_co2_gas"] = int(sum(safe_value(model.from_gas_grid_total, (y, district)) * param["co2_gas"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+        result_dict["total_co2_gas_feed_in"] = int(sum(safe_value(model.to_gas_grid_total, (y, district)) * param["co2_gas_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+        result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, (y, district)) * param["co2_biom"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+        result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, (y, district)) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+        result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, (y, district)) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+
+    return result_dictCon
+
+    # ToDo: hinzufügen
+    # result_dict["from_network_total"]        = int(from_network_total.X / 1000)        # MWh
+    # result_dict["to_network_total"]          = int(to_network_total.X / 1000)          # MWh
+
+
+    # for d in clusters:
+    #     # Calculate maximum grid flows (electricity and gas)
+    #     for k in ["from_grid", "to_grid", "from_main_grid", "to_main_grid", "from_network", "to_network"]:
+    #         result_dict["max_el_" + k] = 0
+    #         for d in clusters:
+    #             for t in time_steps:
+    #                 if power[k][d][t].X > result_dict["max_el_" + k]:
+    #                     result_dict["max_el_" + k] = power[k][d][t].X
+    #         result_dict["max_el_" + k] = int(result_dict["max_el_" + k])
+
+def save_results_csv(result_dict, scenario_name, result_dir, all_devs_list):
     """
     Saves specific results from result_dict into a CSV file.
 
@@ -975,24 +1314,26 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
 
     # Prepare the data to be written to the CSV file
     data_to_save = [
-        ["Cost_parameter", "Value", "Unit"],                                              # Header row cost-parameters
-        ["co2_tax_total", result_dict.get("co2_tax_total", ""), "EUR/a"],                   # CO2 tax total
-        ["total_inv_cost", result_dict.get("total_inv_cost", ""),"EUR/a"],                  # Total investment cost
-        ["total_ann_inv_cost", result_dict.get("total_ann_inv_cost", ""),"EUR/a"],          # Total annual investment cost
-        ["total_om_cost", result_dict.get("total_om_cost", ""),"EUR/a"],                    # Total operation and maintenance cost
-        ["supply_costs_el", result_dict.get("supply_costs_el", ""),"EUR/a"],                # Supply costs for electricity
-        ["cap_costs_el", result_dict.get("cap_costs_el", ""),"EUR/a"],                      # Capacity costs for electricity
-        ["total_el_costs", result_dict.get("total_el_costs", ""),"EUR/a"],                  # Total electricity costs
-        ["rev_feed_in_el", result_dict.get("rev_feed_in_el", ""),"EUR/a"],                  # Revenue from electricity feed-in
-        ["supply_costs_gas", result_dict.get("supply_costs_gas", ""),"EUR/a"],              # Supply costs for gas
-        ["cap_costs_gas", result_dict.get("cap_costs_gas", ""),"EUR/a"],                    # Capacity costs for gas
-        ["total_gas_costs", result_dict.get("total_gas_costs", ""),"EUR/a"],                # Total gas costs
-        ["rev_feed_in_gas", result_dict.get("rev_feed_in_gas", ""),"EUR/a"],                # Revenue from gas feed-in
-        ["supply_costs_biom", result_dict.get("supply_costs_biom", ""),"EUR/a"],            # Supply costs for biomass
-        ["supply_costs_waste", result_dict.get("supply_costs_waste", ""),"EUR/a"],          # Supply costs for waste
-        ["supply_costs_hydrogen", result_dict.get("supply_costs_hydrogen", ""),"EUR/a"],    # Supply costs for hydrogen
-        [],                                                                               # Empty row for separation
-        ["Co2_parameter", "Value", "Unit"],                                               # Header row co2-parameters
+        ["Cost_parameter", "Value", "Unit"],                                                            # Header row cost-parameters
+        ["co2_tax_total", result_dict.get("co2_tax_total", ""), "EUR/a"],                               # CO2 tax total
+        ["total_inv_cost", result_dict.get("total_inv_cost", ""),"EUR/a"],                              # Total investment cost
+        ["total_inv_cost_unsubsidized", result_dict.get("total_inv_cost_unsubsidized", ""),"EUR/a"],    # Total unsubsidized investment costs
+        ["total_ann_inv_cost", result_dict.get("total_ann_inv_cost", ""),"EUR/a"],                      # Total annual investment cost
+        ["total_om_cost", result_dict.get("total_om_cost", ""),"EUR/a"],                                # Total operation and maintenance cost
+        ["total_ann_inv_cost_unsubsidized", result_dict.get("total_ann_inv_cost_unsubsidized", ""),"EUR/a"],  # Total unsubsidized annual investment cost
+        ["supply_costs_el", result_dict.get("supply_costs_el", ""),"EUR/a"],                            # Supply costs for electricity
+        ["cap_costs_el", result_dict.get("cap_costs_el", ""),"EUR/a"],                                  # Capacity costs for electricity
+        ["total_el_costs", result_dict.get("total_el_costs", ""),"EUR/a"],                              # Total electricity costs
+        ["rev_feed_in_el", result_dict.get("rev_feed_in_el", ""),"EUR/a"],                              # Revenue from electricity feed-in
+        ["supply_costs_gas", result_dict.get("supply_costs_gas", ""),"EUR/a"],                          # Supply costs for gas
+        ["cap_costs_gas", result_dict.get("cap_costs_gas", ""),"EUR/a"],                                # Capacity costs for gas
+        ["total_gas_costs", result_dict.get("total_gas_costs", ""),"EUR/a"],                            # Total gas costs
+        ["rev_feed_in_gas", result_dict.get("rev_feed_in_gas", ""),"EUR/a"],                            # Revenue from gas feed-in
+        ["supply_costs_biom", result_dict.get("supply_costs_biom", ""),"EUR/a"],                        # Supply costs for biomass
+        ["supply_costs_waste", result_dict.get("supply_costs_waste", ""),"EUR/a"],                      # Supply costs for waste
+        ["supply_costs_hydrogen", result_dict.get("supply_costs_hydrogen", ""),"EUR/a"],                # Supply costs for hydrogen
+        [],                                                                                             # Empty row for separation
+        ["Co2_parameter", "Value", "Unit"],                                                             # Header row co2-parameters
         ["co2_onsite_emissions", result_dict.get("co2_onsite_emissions", ""),"t/a"],    # Onsite CO2 emissions
         ["co2_credit_feedin", result_dict.get("co2_credit_feedin", ""),"t/a"],          # CO2 credit from feed-in
         ["total_co2_el", result_dict.get("total_co2_el", ""),"t/a"],                    # Total CO2 emissions from electricity
@@ -1006,8 +1347,8 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
         ["Grid_flows", "Value", "Unit"],                                                # Header row grid flows
         ["from_el_main_grid_total", result_dict.get("from_el_main_grid_total", ""),"MWh"],  # Total electricity from grid
         ["to_el_main_grid_total", result_dict.get("to_el_main_grid_total", ""),"MWh"],      # Total electricity to grid
-        ["from_network_total", result_dict.get("from_network_total", ""),"MWh"],            # Total electricity from network
-        ["to_network_total", result_dict.get("to_network_total", ""),"MWh"],                # Total electricity to network
+        # ["from_network_total", result_dict.get("from_network_total", ""),"MWh"],            # Total electricity from network
+        # ["to_network_total", result_dict.get("to_network_total", ""),"MWh"],                # Total electricity to network
         ["from_gas_grid_total", result_dict.get("from_gas_grid_total", ""),"MWh"],          # Total gas from grid
         ["to_gas_grid_total", result_dict.get("to_gas_grid_total", ""),"MWh"],              # Total gas to grid
         ["biom_import_total", result_dict.get("biom_import_total", ""),"MWh"],              # Total biomass imported
@@ -1017,8 +1358,8 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
         ["max_el_to_grid", result_dict.get("max_el_to_grid", ""),"kW"],                     # Maximum electricity to grid
         ["max_el_from_main_grid", result_dict.get("max_el_from_main_grid", ""),"kW"],       # Maximum electricity from main grid
         ["max_el_to_main_grid", result_dict.get("max_el_to_main_grid", ""),"kW"],           # Maximum electricity to main grid
-        ["max_el_from_network", result_dict.get("max_el_from_network", ""),"kW"],           # Maximum electricity from network
-        ["max_el_to_network", result_dict.get("max_el_to_network", ""),"kW"],               # Maximum electricity to network
+        # ["max_el_from_network", result_dict.get("max_el_from_network", ""),"kW"],           # Maximum electricity from network
+        # ["max_el_to_network", result_dict.get("max_el_to_network", ""),"kW"],               # Maximum electricity to network
         ["max_gas_from_grid", result_dict.get("max_gas_from_grid", ""),"kW"],               # Maximum gas from grid
         ["max_gas_to_grid", result_dict.get("max_gas_to_grid", ""),"kW"],                   # Maximum gas to grid
         ["max_biom", result_dict.get("max_biom", ""),""],                                   # Maximum biomass import
@@ -1037,10 +1378,16 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs):
 
     ]
     # Add devices to the CSV file if they are installed
-    for device in all_devs:
+    for device in all_devs_list:
         if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed
             capacity = result_dict.get(device, {}).get("cap", "")  # Get the capacity of the device
+            ann_inv_costs = result_dict.get(device, {}).get("ann_inv_cost", "")  # Get the annualized investment costs of the device
+            ann_inv_costs_unsubsidized = result_dict.get(device, {}).get("ann_inv_cost_unsubsidized", "")
+            om_costs = result_dict.get(device, {}).get("om_cost", "")
             data_to_save.append([device, capacity,"kW"])  # Add the device name to the CSV file
+            data_to_save.append([f"{device}_ann_inv_cost", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
+            data_to_save.append([f"{device}_ann_inv_cost_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])
+            data_to_save.append([f"{device}_om_cost", om_costs, "EUR/a"])
 
     # Write the data to the CSV file
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:

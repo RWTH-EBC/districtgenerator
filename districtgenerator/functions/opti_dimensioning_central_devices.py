@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import textwrap
 import json
 import districtgenerator.functions.solver_config as solver_config
+import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
 
 
 def run_optim(data, devs, param, dem, result_dict):
@@ -55,6 +56,8 @@ def run_optim(data, devs, param, dem, result_dict):
     # Solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
                                                   result_dict=result_dict)
+    # ToDo: New check function
+    opti_dimensioning_central_devices_connect.save_results_csv(result_dict, data, devs, param)
     model_solve_time = time.time() - start_time - model_building_time
 
     # Total time needed

@@ -12,3 +12,15 @@ if __name__ == '__main__':
 
     network.initializeDistricts(configs_dir=configs_directory_path, calcUserProfiles=False, saveUserProfiles=False)
     network.optimize_network()
+
+    #print(network.interconnected_districts)
+    for district in network.interconnected_districts.values():
+        # Print capacities of central devices
+        if "capacities" in district.centralDevices:
+            capacities = district.centralDevices["capacities"]
+            print(f"\nCapacities of the central devices in the energy hub of: {district.scenario_name}")
+            for device, details in capacities.items():
+                if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
+                    print(f"  {device}: {details['cap']}")
+        else:
+            print(f"No capacities defined in energy hub of: {district.scenario_name}")  
