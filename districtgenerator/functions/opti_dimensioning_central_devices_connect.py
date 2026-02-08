@@ -111,8 +111,8 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         scenario_name = district
         result_dict = result_dictCon[scenario_name]
         # Save results to csv
-        save_results_csv(result_dict, scenario_name, result_dir, all_devs_list)
-        
+        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list)
+
     return result_dictCon
 
 def setup_devices(model, dataCon):
@@ -1289,7 +1289,7 @@ def process_results_per_district(model, dataCon, devsCon, paramCon, result_dictC
     #                     result_dict["max_el_" + k] = power[k][d][t].X
     #         result_dict["max_el_" + k] = int(result_dict["max_el_" + k])
 
-def save_results_csv(result_dict, scenario_name, result_dir, all_devs_list):
+def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list):
     """
     Saves specific results from result_dict into a CSV file.
 
@@ -1319,8 +1319,8 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs_list):
         ["total_inv_cost", result_dict.get("total_inv_cost", ""),"EUR/a"],                              # Total investment cost
         ["total_inv_cost_unsubsidized", result_dict.get("total_inv_cost_unsubsidized", ""),"EUR/a"],    # Total unsubsidized investment costs
         ["total_ann_inv_cost", result_dict.get("total_ann_inv_cost", ""),"EUR/a"],                      # Total annual investment cost
-        ["total_om_cost", result_dict.get("total_om_cost", ""),"EUR/a"],                                # Total operation and maintenance cost
         ["total_ann_inv_cost_unsubsidized", result_dict.get("total_ann_inv_cost_unsubsidized", ""),"EUR/a"],  # Total unsubsidized annual investment cost
+        ["total_om_cost", result_dict.get("total_om_cost", ""),"EUR/a"],                                # Total operation and maintenance costs
         ["supply_costs_el", result_dict.get("supply_costs_el", ""),"EUR/a"],                            # Supply costs for electricity
         ["cap_costs_el", result_dict.get("cap_costs_el", ""),"EUR/a"],                                  # Capacity costs for electricity
         ["total_el_costs", result_dict.get("total_el_costs", ""),"EUR/a"],                              # Total electricity costs
@@ -1388,6 +1388,15 @@ def save_results_csv(result_dict, scenario_name, result_dir, all_devs_list):
             data_to_save.append([f"{device}_ann_inv_cost", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
             data_to_save.append([f"{device}_ann_inv_cost_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])
             data_to_save.append([f"{device}_om_cost", om_costs, "EUR/a"])
+
+    for y in model.support_years:
+        data_to_save.append([f"from_el_main_grid_total_{y}", result_dict.get("from_el_main_grid_total_by_year", {}).get(y, ""), "MWh"])
+        data_to_save.append([f"to_el_main_grid_total_{y}", result_dict.get("to_el_main_grid_total_by_year", {}).get(y, ""), "MWh"])
+        data_to_save.append([f"from_gas_grid_total_{y}", result_dict.get("from_gas_grid_total_by_year", {}).get(y, ""), "MWh"])
+        data_to_save.append([f"to_gas_grid_total_{y}", result_dict.get("to_gas_grid_total_by_year", {}).get(y, ""), "MWh"])
+        data_to_save.append([f"biom_import_total_{y}", result_dict.get("biom_import_total_by_year", {}).get(y, ""), "MWh"])
+        data_to_save.append([f"waste_import_total_{y}", result_dict.get("waste_import_total_by_year", {}).get(y, ""), "MWh"])
+        data_to_save.append([f"hydrogen_import_total_{y}", result_dict.get("hydrogen_import_total_by_year", {}).get(y, ""), "MWh"])
 
     # Write the data to the CSV file
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:

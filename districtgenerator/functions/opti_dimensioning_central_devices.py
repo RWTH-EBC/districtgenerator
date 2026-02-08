@@ -48,7 +48,7 @@ def run_optim(data, devs, param, dem, result_dict):
 
     # Build the model
     model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization")
-    build_model(model=model, data=data, devs=devs, param=param, dem=dem)
+    model, all_devs_list = build_model(model=model, data=data, devs=devs, param=param, dem=dem)
     model_building_time = time.time() - start_time
 
     # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
@@ -57,7 +57,13 @@ def run_optim(data, devs, param, dem, result_dict):
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
                                                   result_dict=result_dict)
     # ToDo: New check function
-    opti_dimensioning_central_devices_connect.save_results_csv(result_dict, data, devs, param)
+    scenario_name = data.scenario_name
+    # Folder to save model and results
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
+    opti_dimensioning_central_devices_connect.save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list)
     model_solve_time = time.time() - start_time - model_building_time
 
     # Total time needed
@@ -651,7 +657,7 @@ def build_model(model, data, devs, param, dem):
 
     model.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
 
-    return model
+    return model, all_devs_list
 
 
 def solve_model_and_extract_results(data, model, devs, param, result_dict):
