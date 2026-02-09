@@ -1,0 +1,95 @@
+districtgenerator/classes/KPIs.py:3:8: F401 [*] `sys` imported but unused
+districtgenerator/classes/KPIs.py:11:1: F403 `from reportlab.graphics.shapes import *` used; unable to detect undefined names
+districtgenerator/classes/KPIs.py:108:9: F841 Local variable `electricityDemand_cluster` is assigned to but never used
+districtgenerator/classes/KPIs.py:109:9: F841 Local variable `electricityGeneration_cluster` is assigned to but never used
+districtgenerator/classes/KPIs.py:110:9: F841 Local variable `electricityGenerationRenewable_cluster` is assigned to but never used
+districtgenerator/classes/KPIs.py:111:9: F841 Local variable `lossesBattery_cumulated_cluster` is assigned to but never used
+districtgenerator/classes/KPIs.py:127:9: F841 Local variable `centralEnergyUnit_load` is assigned to but never used
+districtgenerator/classes/KPIs.py:129:9: F841 Local variable `centralEnergyUnit_inj` is assigned to but never used
+districtgenerator/classes/KPIs.py:219:9: F841 Local variable `W_inj_buildings` is assigned to but never used
+districtgenerator/classes/KPIs.py:221:9: F841 Local variable `W_dem_buildings` is assigned to but never used
+districtgenerator/classes/KPIs.py:312:25: E701 Multiple statements on one line (colon)
+districtgenerator/classes/KPIs.py:313:17: E722 Do not use bare `except`
+districtgenerator/classes/KPIs.py:897:13: F405 `Drawing` may be undefined, or defined from star imports
+districtgenerator/classes/__init__.py:2:26: F401 [*] `.datahandler.Datahandler` imported but unused
+districtgenerator/classes/__init__.py:4:23: F401 [*] `.envelope.Envelope` imported but unused
+districtgenerator/classes/__init__.py:5:20: F401 [*] `.solar.Sun` imported but unused
+districtgenerator/classes/__init__.py:6:20: F401 [*] `.users.Users` imported but unused
+districtgenerator/classes/__init__.py:7:22: F401 [*] `.profils.Profiles` imported but unused
+districtgenerator/classes/datahandler.py:203:29: F841 [*] Local variable `e` is assigned to but never used
+districtgenerator/classes/datahandler.py:378:23: F541 [*] f-string without any placeholders
+districtgenerator/classes/datahandler.py:815:42: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/classes/datahandler.py:856:38: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/classes/datahandler.py:912:35: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/classes/datahandler.py:918:35: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/classes/datahandler.py:924:17: F841 Local variable `existence_centralWT` is assigned to but never used
+districtgenerator/classes/datahandler.py:931:17: F841 Local variable `existence_centralPV` is assigned to but never used
+districtgenerator/classes/datahandler.py:938:17: F841 Local variable `existence_centralSTC` is assigned to but never used
+districtgenerator/classes/datahandler.py:952:39: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/classes/datahandler.py:958:35: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/classes/datahandler.py:977:39: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/classes/datahandler.py:985:39: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/classes/datahandler.py:992:35: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/classes/datahandler.py:1111:9: F841 Local variable `optiData` is assigned to but never used
+districtgenerator/classes/envelope.py:3:8: F401 [*] `json` imported but unused
+districtgenerator/classes/envelope.py:4:8: F401 [*] `os` imported but unused
+districtgenerator/classes/envelope.py:539:9: F841 Local variable `C_m` is assigned to but never used
+districtgenerator/classes/optimizer.py:1:1: E401 Multiple imports on one line
+districtgenerator/classes/optimizer.py:3:25: F401 [*] `collections.defaultdict` imported but unused
+districtgenerator/classes/plots.py:328:29: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:336:25: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:338:25: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:340:25: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:343:17: E722 Do not use bare `except`
+districtgenerator/classes/plots.py:373:25: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:375:25: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:377:25: E711 Comparison to `None` should be `cond is None`
+districtgenerator/classes/plots.py:380:17: E722 Do not use bare `except`
+districtgenerator/classes/profils.py:5:8: F401 [*] `json` imported but unused
+districtgenerator/classes/profils.py:345:13: F841 Local variable `factor_compare_annual_demand` is assigned to but never used
+districtgenerator/classes/profils.py:421:13: E722 Do not use bare `except`
+districtgenerator/classes/solar.py:3:1: E401 Multiple imports on one line
+districtgenerator/classes/solar.py:386:9: E741 Ambiguous variable name: `I`
+districtgenerator/classes/system.py:3:8: F401 [*] `json` imported but unused
+districtgenerator/classes/system.py:4:8: F401 [*] `os` imported but unused
+districtgenerator/classes/users.py:2:8: F401 [*] `json` imported but unused
+districtgenerator/classes/users.py:3:8: F401 [*] `statistics` imported but unused
+districtgenerator/classes/users.py:4:1: E401 Multiple imports on one line
+districtgenerator/classes/users.py:4:12: F401 [*] `math` imported but unused
+districtgenerator/classes/users.py:7:18: F401 [*] `pandas` imported but unused
+districtgenerator/classes/users.py:8:8: F401 [*] `openpyxl` imported but unused
+districtgenerator/classes/users.py:374:9: F841 Local variable `T_e` is assigned to but never used
+districtgenerator/classes/users.py:391:17: F841 Local variable `unique_name` is assigned to but never used
+districtgenerator/functions/clustering_medoid.py:29:5: E731 Do not assign a `lambda` expression, use a `def`
+districtgenerator/functions/clustering_medoid.py:83:23: E711 Comparison to `None` should be `cond is None`
+districtgenerator/functions/clustering_medoid.py:87:5: E722 Do not use bare `except`
+districtgenerator/functions/clustering_medoid.py:88:29: E711 Comparison to `None` should be `cond is None`
+districtgenerator/functions/load_params_central_devices.py:22:8: F401 [*] `sys` imported but unused
+districtgenerator/functions/opti_central.py:7:1: E401 Multiple imports on one line
+districtgenerator/functions/opti_central.py:7:8: F401 [*] `os` imported but unused
+districtgenerator/functions/opti_central.py:7:12: F401 [*] `json` imported but unused
+districtgenerator/functions/opti_central.py:49:9: E722 Do not use bare `except`
+districtgenerator/functions/opti_central.py:60:5: F841 Local variable `ecs_sell` is assigned to but never used
+districtgenerator/functions/opti_central.py:75:9: F841 Local variable `a` is assigned to but never used
+districtgenerator/functions/opti_dimensioning_central_devices.py:204:40: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:351:38: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:372:48: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:397:48: E712 Comparison to `False` should be `cond is False` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:458:38: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:460:39: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:464:37: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:466:40: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:468:43: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:472:38: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:474:41: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:476:44: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:480:42: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:482:48: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:486:40: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:488:46: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:492:43: E712 Comparison to `True` should be `cond is not True` or `if not cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:494:49: E712 Comparison to `True` should be `cond is True` or `if cond:`
+districtgenerator/functions/opti_dimensioning_central_devices.py:565:9: E722 Do not use bare `except`
+districtgenerator/functions/wind_turbines.py:153:5: E722 Do not use bare `except`
+Found 93 errors.
+[*] 22 fixable with the `--fix` option (55 hidden fixes can be enabled with the `--unsafe-fixes` option).
