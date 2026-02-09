@@ -14,7 +14,6 @@ import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
 import districtgenerator.functions._5R1C as heating_5R1C
 import districtgenerator.functions._7R2C as heating_7R2C
-import districtgenerator.functions.SIA as SIA
 
 RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 
@@ -83,7 +82,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit):
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -119,7 +118,7 @@ class Users:
         self.individual_car_profiles = []
 
         # Initialize SIA class and read data
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA2024
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
@@ -719,7 +718,7 @@ class Users:
                 holidays.update(school_holiday_days)
                 holidays = sorted(list(holidays))  # keep format consistent
 
-            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building)
+            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
             # Occupancy profile in the building
             _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
             self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
@@ -743,7 +742,7 @@ class Users:
                 self.ice_carprofile += ice_carprofile
                 self.individual_car_profiles.extend(individual_car_profiles)
 
-    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, holidays, time_resolution, initial_day):
+    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, calendar, time_resolution, initial_day):
         """
         Calculate heat demand for each building.
 
@@ -753,8 +752,17 @@ class Users:
             Site data, e.g. weather.
         envelope: object
             Containing all physical data of the envelope.
+        night_setback : integer
+            1 if night setback is activated, 0 if not.
+        is_cooled : integer
+            1 if the building is actively cooled, 0 if not.
+        calendar : dict
+            Information about TRY (holidays, heating period, etc.).
         time_resolution : integer
             Resolution of time steps of output array in seconds.
+
+        Outputs
+        -------
         Q_H : float
             Heating load for the current time step in Watt.
         Q_C : float
@@ -767,7 +775,7 @@ class Users:
 
         dt = time_resolution / (60 * 60)
 
-        # --- Extend holidays for schools ------------------------------------
+        # Extend holidays for schools
         if self.building == "SC":
             # Define average NRW school holiday day ranges (Julian days)
             SCHOOL_HOLIDAYS = [
@@ -782,10 +790,9 @@ class Users:
             for r in SCHOOL_HOLIDAYS:
                 school_holiday_days.update(r)
 
-            holidays = set(holidays or [])
-            holidays.update(school_holiday_days)
-            holidays = sorted(list(holidays))  # consistent type for downstream use
-        # --------------------------------------------------------------------
+            calendar["holidays"] = set(calendar["holidays"] or [])
+            calendar["holidays"].update(school_holiday_days)
+            calendar["holidays"] = sorted(list(calendar["holidays"]))  # consistent type for downstream use
 
         if thermal_model == "5R1C":
             heating = heating_5R1C
@@ -796,10 +803,10 @@ class Users:
 
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt, initial_day,
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt, initial_day,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, initial_day, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, initial_day, self.building)
 
         # Force cooling to zero if building is not actively cooled
         if is_cooled == 0:

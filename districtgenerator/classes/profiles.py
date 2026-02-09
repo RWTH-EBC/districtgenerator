@@ -10,7 +10,6 @@ import richardsonpy.classes.occupancy as occ_residential
 import richardsonpy.functions.change_resolution as cr
 import OpenDHW
 import districtgenerator.functions.change_resolution as chres
-import districtgenerator.functions.SIA as SIA
 
 
 class Profiles:
@@ -44,7 +43,7 @@ class Profiles:
         Electric load profile of lighting in W.
     """
 
-    def __init__(self, number_occupants, number_occupants_building, initial_day, nb_days, time_resolution, building):
+    def __init__(self, number_occupants, number_occupants_building, initial_day, nb_days, time_resolution, building,SIA2024=None):
         """
         Constructor of Profiles class.
 
@@ -60,7 +59,7 @@ class Profiles:
         self.time_resolution = time_resolution
 
         # Initialize SIA class and read data
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA2024
         self.building = building
         if self.building in {"OB", "SC", "GS", "RE"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
             self.building_zones = self.SIA2024[self.building]

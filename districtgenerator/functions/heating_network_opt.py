@@ -1655,7 +1655,7 @@ def output_diameter(data, param):
     heat_loss_pos_total = heat_loss_substation + heat_loss_pos_network
 
     annual_heat_loss_pos_total = np.sum(heat_loss_substation) + annual_heat_loss_pos     # kWh
-    data.heat_grid_data["total_losses_heating_network"] = annual_heat_loss_pos_total
+    data.heat_grid_data["total_losses_heating_network"] = heat_loss_pos_total
     # total_heat_loss_per_m = annual_heat_loss / total_pipe_length    # kWh/m
     # print("Total heat loss in network calculation finished successfully.")
     # print(f"Annual heat loss in pipeline network is {total_heat_loss_per_m:.2f} kWh per meter.")
@@ -1922,7 +1922,7 @@ def output_diameter(data, param):
         heat_loss_density = pipe["heat_loss_density"]
         # Map pressure_drop_max to line width in the plot
         lw = 1 + 5 * (heat_loss_density - min_heat_loss_density) / (
-                max_heat_loss_density - min_heat_loss_density)  # range: 1-5
+                max_heat_loss_density - min_heat_loss_density + 1e-12)  # range: 1-5
         # bigger energy_density, redder; smaller energy_density, greener
         color = cmap(norm_heat_loss_density(heat_loss_density))
 

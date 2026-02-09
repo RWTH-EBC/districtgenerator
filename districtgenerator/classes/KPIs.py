@@ -231,8 +231,6 @@ class KPIs:
         oil = {}
         districtHeat = {}
 
-
-
         for year in self.inputData["simulated_years"]:
             # Electricity [kWh] feed into the superordinated grid
             W_inj_GCP[year] = np.zeros(len(data.clusters))
@@ -392,6 +390,7 @@ class KPIs:
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
+            capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
             capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
@@ -408,13 +407,32 @@ class KPIs:
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
 
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
             self.decentral_individual_devices_annualized_cost[n] = {}
             calc_annual_investment[n] = 0
             calc_annual_investment_unsubsidized[n] = 0
+
+            # HP temperature measures
+            # Only count measures if HP exists and sink temperature higher than 45°C
+            if capacities[n]["HP"] > 0 and district[n]["envelope"].hp_measures == True:
+                heatload_kw = district[n]["envelope"].heatload / 1000  # kW
+                inv_eur_per_kw = data.decentral_device_data["HP"]["measures_inv_fix"]
+                inv_total = inv_eur_per_kw * heatload_kw  # €
+
+                ann_cost_meas = self.calc_annualized_investment(inv_total, data.ecoData)
+
+                # Add to totals
+                calc_annual_investment[n] += ann_cost_meas
+                calc_annual_investment_unsubsidized[n] += ann_cost_meas
+
+                self.decentral_individual_devices_annualized_cost[n]["T_reduction_measures"] = {
+                    "cap": heatload_kw,
+                    "subsidized_annual_cost": ann_cost_meas,
+                    "unsubsidized_annual_cost": ann_cost_meas,
+                }
 
             for dev in devices:
                 cap = capacities[n][dev]
@@ -430,6 +448,12 @@ class KPIs:
                         data.ecoData,
                         cap,
                         mode="unsubsidized")
+
+                    # If HP is installed, EH investment is assumed to be included in HP
+                    # → keep EH capacity visible, but set EH annualized costs to 0
+                    if dev == "EH" and capacities[n].get("HP", 0) > 0:
+                        subsidized_cost = 0.0
+                        unsubsidized_cost = 0.0
 
                     calc_annual_investment[n] += subsidized_cost
                     calc_annual_investment_unsubsidized[n] += unsubsidized_cost
@@ -573,6 +597,19 @@ class KPIs:
         c_total = c_inv + c_om
 
         return c_total
+
+    def calc_annualized_investment(self, inv_total, ecoData):
+        """
+        Annualize a one-time investment (no replacements, no O&M).
+        """
+        observation_time = ecoData["observation_time"]
+        interest_rate = ecoData["interest_rate"]
+        q = 1 + interest_rate
+
+        # Capital recovery factor
+        CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
+
+        return inv_total * CRF
 
     def calculateOperationCosts(self, data):
         """

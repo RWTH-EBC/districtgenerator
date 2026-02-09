@@ -124,8 +124,35 @@ class DesignBuildingConfig(BaseSettings):
     T_set_max_night: float = 28.0   # Required maximum indoor temperature at night (for cooling load calculation) in degrees Celsius
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
-    ventilation_rate: float = 0.50  # Room ventilation rate in 1/h (per hour)
+    ventilation_rate: float = 0.5  # Room ventilation rate in 1/h (per hour)
     thermal_model_type: str = '5R1C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
+
+    # --- Decentral HPs sink temperature (mean of supply & return) by age class and retrofit level ---
+    # retrofit: 0=standard, 1=retrofit, 2=advanced retrofit
+    # Source:
+    # Wüllhorst et al. (2025), "Impact of hybrid heat pump shares and building envelope
+    # retrofit rates on load penetration in German low-voltage grids",
+    # DOI: 10.1016/j.apenergy.2025.125530
+    # Temperature levels represent supply/return temperatures
+
+    hp_sink_temp_levels: Dict[str, Dict[int, Tuple[float, float]]] = Field(
+        default_factory=lambda: {
+            "2010-": {0: (35.0, 30.0), 1: (35.0, 30.0), 2: (35.0, 30.0)},
+            "1984-2009": {0: (52.5, 42.5), 1: (40.05, 34.35), 2: (36.55, 31.55)},
+            "1979-1983": {0: (70.0, 55.0), 1: (45.1, 38.7), 2: (38.1, 33.1)},
+            "1969-1978": {0: (70.0, 55.0), 1: (42.8, 37.2), 2: (36.9, 31.9)},
+            "1958-1968": {0: (70.0, 55.0), 1: (41.4, 36.2), 2: (35.0, 30.0)},
+            "-1957": {0: (70.0, 55.0), 1: (39.6, 34.6), 2: (35.0, 30.0)},
+        }
+    )
+
+    # Optional "low-temperature measures" (geringinvasive Maßnahmen) are assumed to
+    # reduce the required sink temperature (e.g. hydraulic balancing, radiator
+    # optimization, control adjustments), improving HP efficiency without full
+    # building refurbishment. If enabled, the sink temperature is capped at 45 °C.
+    # Source:
+    # KWW-Technikkatalog Wärmeplanung
+    hp_sink_temp_measures_cap: float = 45.0
 
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
@@ -162,9 +189,9 @@ class EcoConfig(BaseSettings):
     used in the district generator.
     """
     # General economic parameters
-    interest_rate: float = 0.05     # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
-    observation_time: int = 20      # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
-    optimization_focus: int = 0     # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
+    interest_rate: float = 0.05  # Interest rate for the device operational optimization analysis. The interest rate affects the annualization of the investments according to VDI 2067.
+    observation_time: int = 20  # Project lifetime, for the device operational optimization analysis. The project lifetime affects annualization of investments according to VDI 2067 in years
+    optimization_focus: int = 0  # Optimization focus. Annual costs vs CO2 emissions. '0' means only cost optimization; '1' means only CO2 optimization.
 
     # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
@@ -173,30 +200,30 @@ class EcoConfig(BaseSettings):
     
 
     # electricity prices and feed-in revenue in €/kWh
-    price_supply_el: str | list = [0.300]    # Electricity price in €/kWh
+    price_supply_el: str | list = [0.3460, 0.3480, 0.3500, 0.3520, 0.3540, 0.3560, 0.3526, 0.3492, 0.3458, 0.3424, 0.3390, 0.3366, 0.3342, 0.3318, 0.3294, 0.3270, 0.3270, 0.3270, 0.3270, 0.3270]    # Electricity price in €/kWh
     revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
-    price_supply_el_eh: str | list = [0.300]  # Electricity price for EHDO in €/kWh
-    revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for EHDO in €/kWh
+    price_supply_el_eh: str | list = [0.1590, 0.1554, 0.1518, 0.1482, 0.1446, 0.1410, 0.1394, 0.1378, 0.1362, 0.1346, 0.1330, 0.1302, 0.1274, 0.1246, 0.1218, 0.1190, 0.1190, 0.1190, 0.1190, 0.1190]  # Electricity price for the energy hub in €/kWh
+    revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
 
     # gas and other fuel prices in €/kWh
-    price_supply_gas: str | list = [0.127]    # Gas price in €/kWh
-    price_supply_gas_eh: str | list = [0.127] # Gas price for EHDO in €/kWh
+    price_supply_gas: str | list = [0.1230, 0.1218, 0.1206, 0.1194, 0.1182, 0.1170, 0.1198, 0.1226, 0.1254, 0.1282, 0.1310, 0.1338, 0.1366, 0.1394, 0.1422, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450]    # Gas price in €/kWh
+    price_supply_gas_eh: str | list = [0.0820, 0.0794, 0.0768, 0.0742, 0.0716, 0.0690, 0.0708, 0.0726, 0.0744, 0.0762, 0.0780, 0.0796, 0.0812, 0.0828, 0.0844, 0.0860, 0.0860, 0.0860, 0.0860, 0.0860] # Gas price for the energy hub in €/kWh
     revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
-    price_gasoline_liter: str | list = [1.7]  # Gasoline price in €/liter
-    price_hydrogen: str | list = [0.250]         # Hydrogen price in €/kWh
+    price_gasoline_liter: str | list = [1.70, 1.72, 1.74, 1.76, 1.78, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.82, 1.84, 1.86, 1.88, 1.90, 1.90, 1.90, 1.90, 1.90]  # Gasoline price in €/liter
+    price_hydrogen: str | list = [0.2990, 0.2938, 0.2886, 0.2834, 0.2782, 0.2730, 0.2678, 0.2626, 0.2574, 0.2522, 0.2470, 0.2418, 0.2366, 0.2314, 0.2262, 0.2210, 0.2176, 0.2142, 0.2108, 0.2074]         # Hydrogen price in €/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
-    price_biomass: str | list = [0.0698]         # Biomass price in €/kWh
-    price_oil: str | list = [0.0982]           # Oil price in €/kWh
-    price_district_heat: str | list = [0.1627]  # District heat price in €/kWh not including fees
+    price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
+    price_oil: str | list = [0.90, 0.94, 0.98, 1.02, 1.06, 1.10, 1.12, 1.14, 1.16, 1.18, 1.20, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34, 1.36, 1.38]           # Oil price in €/kWh
+    price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
-    co2_el_grid: str | list = [0.363]          # Co2 emissions for electricity import (grid mix) in kg/kWh
-    co2_gas: str | list = [0.201]              # Co2 emissions for burning natural gas in kg/kWh
-    co2_biom: str | list = [0.020]              # Co2 emissions for burning biomass in kg/kWh
-    co2_hydrogen: str | list = [0.0031]           # Co2 emissions for burning hydrogen in kg/kWh
-    co2_oil: str | list = [0.266]              # Co2 emissions for burning oil in kg/kWh
-    co2_waste: str | list = [0.020]              # Co2 emissions for burning waste in kg/kWh
-    co2_district_heat: str | list = [0.200]    # Co2 emissions for district heat in kg/kWh
+    co2_el_grid: str | list = [0.328]          # CO2 emissions for electricity import (grid mix) in kg/kWh
+    co2_gas: str | list = [0.240]              # CO2 emissions for burning natural gas in kg/kWh
+    co2_biom: str | list = [0.020]              # CO2 emissions for burning biomass in kg/kWh
+    co2_hydrogen: str | list = [0.0402]           # CO2 emissions for burning hydrogen in kg/kWh
+    co2_oil: str | list = [0.310]              # CO2 emissions for burning oil in kg/kWh
+    co2_waste: str | list = [0.020]              # CO2 emissions for burning waste in kg/kWh
+    co2_district_heat: str | list = [0.200]    # CO2 emissions for district heat in kg/kWh
 
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
@@ -381,7 +408,7 @@ class HeatGridConfig(BaseSettings):
     physical dimensions, material properties, and costs.
     """
 
-    generation: str = "4th"      # Heating network generation, selected between:"3rd", "4th" and "5th"
+    generation: str = "5th"      # Heating network generation, selected between:"3rd", "4th" and "5th"
     topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
     temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
     heuristic: bool = False # selected between: True (heuristic method) and False (optimization method)
@@ -401,8 +428,8 @@ class HeatGridConfig(BaseSettings):
     c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)
     dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
-    C_subst: float = 277.79        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
-    cost_om_subst: float = 50                  # Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
+    C_subst: float = 584        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
+    cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
 
@@ -608,9 +635,11 @@ class DecentralDeviceConfig(BaseSettings):
     # HP parameters (Air Source Heat Pump)
     HP__grade: float = 0.4  # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
     HP__life_time: int = 20  # Maximum life time in years.
-    HP__inv_base: float = 1950.0  # Unsubsidized investment in €/kWth.
+    HP__inv_base: float = 1660.0  # Unsubsidized investment in €/kWth.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    HP__enable_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
+    HP__measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
 
     # EH parameters (Electric Heater)
@@ -624,7 +653,7 @@ class DecentralDeviceConfig(BaseSettings):
     # BOI parameters (Gas Boiler)
     BOI__eta_th: float = 0.99  # Thermal efficiency.
     BOI__life_time: int = 20  # Maximum life time in years.
-    BOI__inv_base: float = 420.0  # Unsubsidized investment in €/kW.
+    BOI__inv_base: float = 527.0  # Unsubsidized investment in €/kW.
     BOI__cost_om: float = 0.031  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BOI: dict = {}
@@ -632,7 +661,7 @@ class DecentralDeviceConfig(BaseSettings):
     # BBOI parameters (Biomass Boiler)
     BBOI__eta_th: float = 0.90  # Thermal efficiency.
     BBOI__life_time: int = 20  # Maximum life time in years.
-    BBOI__inv_base: float = 2200.0  # Unsubsidized investment in €/kW
+    BBOI__inv_base: float = 2724.0  # Unsubsidized investment in €/kW
     BBOI__cost_om: float = 0.0095  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     BBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BBOI: dict = {}
@@ -640,7 +669,7 @@ class DecentralDeviceConfig(BaseSettings):
     # OBOI parameters (Oil Boiler)
     OBOI__eta_th: float = 0.92  # Thermal efficiency.
     OBOI__life_time: int = 20  # Maximum life time in years.
-    OBOI__inv_base: float = 779.0  # Unsubsidized investment in €/kW.
+    OBOI__inv_base: float = 770.0  # Unsubsidized investment in €/kW.
     OBOI__cost_om: float = 0.036  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     OBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     OBOI: dict = {}
@@ -648,7 +677,7 @@ class DecentralDeviceConfig(BaseSettings):
     # H2BOI parameters (Hydrogen Boiler)
     H2BOI__eta_th: float = 0.994  # Thermal efficiency.
     H2BOI__life_time: int = 20  # Maximum life time in years.
-    H2BOI__inv_base: float = 390.0  # Unsubsidized investment in €/kW.
+    H2BOI__inv_base: float = 597.0  # Unsubsidized investment in €/kW.
     H2BOI__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     H2BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     H2BOI: dict = {}
@@ -657,7 +686,7 @@ class DecentralDeviceConfig(BaseSettings):
     CHP__eta_th: float = 0.62  # Thermal efficiency.
     CHP__eta_el: float = 0.30  # Electrical efficiency.
     CHP__life_time: int = 15  # Maximum life time in years.
-    CHP__inv_base: float = 3500.0  # Unsubsidized investment in €/kW.
+    CHP__inv_base: float = 3338.0  # Unsubsidized investment in €/kW.
     CHP__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     CHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CHP: dict = {}
@@ -665,7 +694,7 @@ class DecentralDeviceConfig(BaseSettings):
     # DH parameters (District Heating Connection)
     DH__eta_th: float = 1.0  # Thermal efficiency.
     DH__life_time: int = 30  # Maximum life time in years.
-    DH__inv_base: float = 60.93  # Unsubsidized investment in €/kW.
+    DH__inv_base: float = 60.93  # (Baukostenzuschuss) Unsubsidized investment in €/kW.
     DH__cap_fee: float = 0.0  # Capacity fee in €/kW/year.
     DH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     DH: dict = {}
@@ -674,7 +703,7 @@ class DecentralDeviceConfig(BaseSettings):
     FC__eta_th: float = 0.53  # Thermal efficiency.
     FC__eta_el: float = 0.39  # Electrical efficiency.
     FC__life_time: int = 20  # Maximum life time in years.
-    FC__inv_base: float = 390.0  # Unsubsidized investment in €/kW.
+    FC__inv_base: float = 2900.0  # Unsubsidized investment in €/kW.
     FC__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     FC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     FC: dict = {}
@@ -712,7 +741,7 @@ class DecentralDeviceConfig(BaseSettings):
     STC__first_order: float = 0.003345  # First order loss coefficient (linear thermal losses) in Watt per squaremeter per Kelvin.
     STC__second_order: float = 0.0000142  # Second order loss coefficient (quadratic thermal losses) in Watt per squaremeter per Kelvin square.
     STC__life_time: int = 20  # Maximum life time in years.
-    STC__inv_base: int = 400  # Unsubsidized investment in €/m^2.
+    STC__inv_base: int = 600  # Unsubsidized investment in €/m^2.
     STC__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     STC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     STC: dict = {}
@@ -820,7 +849,7 @@ class CentralDeviceConfig(BaseSettings):
     PV__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     PV__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     PV__life_time: int = 25  # Maximum life time in years.
-    PV__inv_base: float = 1000  # Unsubsidized investment in €/m^2.
+    PV__inv_base: float = 1000  # Unsubsidized investment in €/kW.
     PV__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     PV__max_area: float = 10000  # Maximum installation area in square meters.
     PV__min_area: float = 0  # Minimum installation area in square meters.
@@ -858,7 +887,7 @@ class CentralDeviceConfig(BaseSettings):
     STC__eta: float = 0.7  # Thermal efficiency between 0 and 1.
     STC__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     STC__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
-    STC__inv_base: float = 800  # Unsubsidized investment in €/m^2.
+    STC__inv_base: float = 800  # Unsubsidized investment in €/kW.
     STC__life_time: int = 20  # Maximum life time in years.
     STC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     STC__max_area: float = 5000  # Maximum installation area in square meters.
@@ -1074,7 +1103,7 @@ class CentralDeviceConfig(BaseSettings):
 
     # TES parameters (Thermal Energy Storage)
     TES__feasible: bool = True  # Should this be considered for the central optimization.
-    TES__inv_base: float = 550  # Unsubsidized investment in €/m^3.
+    TES__inv_base: float = 640  # Unsubsidized investment in €/m^3.
     TES__sto_loss: float = 0.01  # Storage loss per hour as a fraction.
     TES__life_time: int = 20  # Maximum life time in years.
     TES__cost_om: float = 0.013  # Cost of operation and maintenance as a percentage of investment.
