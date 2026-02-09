@@ -19482,17 +19482,17 @@
                 "districtgenerator.classes.optimizer"
             ],
             "districtgenerator.classes.envelope": [
-                "districtgenerator.classes.datahandler",
-                "districtgenerator.classes"
+                "districtgenerator.classes",
+                "districtgenerator.classes.datahandler"
             ],
             "districtgenerator.classes.solar": [
-                "districtgenerator.classes.datahandler",
+                "districtgenerator.classes",
                 "districtgenerator.classes.system",
-                "districtgenerator.classes"
+                "districtgenerator.classes.datahandler"
             ],
             "districtgenerator.classes.users": [
-                "districtgenerator.classes.datahandler",
-                "districtgenerator.classes"
+                "districtgenerator.classes",
+                "districtgenerator.classes.datahandler"
             ],
             "districtgenerator.classes.system": [
                 "districtgenerator.classes.datahandler"
@@ -19831,17 +19831,17 @@
                 "districtgenerator.classes.optimizer"
             ],
             "districtgenerator.classes.envelope": [
-                "districtgenerator.classes.datahandler",
-                "districtgenerator.classes"
+                "districtgenerator.classes",
+                "districtgenerator.classes.datahandler"
             ],
             "districtgenerator.classes.solar": [
+                "districtgenerator.classes",
                 "districtgenerator.classes.system",
-                "districtgenerator.classes.datahandler",
-                "districtgenerator.classes"
+                "districtgenerator.classes.datahandler"
             ],
             "districtgenerator.classes.users": [
-                "districtgenerator.classes.datahandler",
-                "districtgenerator.classes"
+                "districtgenerator.classes",
+                "districtgenerator.classes.datahandler"
             ],
             "districtgenerator.classes.system": [
                 "districtgenerator.classes.datahandler"
