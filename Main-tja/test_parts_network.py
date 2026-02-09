@@ -10,8 +10,8 @@ if __name__ == '__main__':
 
     network = Network()
 
-    network.initializeDistricts(configs_dir=configs_directory_path, calcUserProfiles=False, saveUserProfiles=False)
-    network.optimize_network()
+    network.initializeDistrictsWithDecentralDevs(configs_dir=configs_directory_path, calcUserProfiles=True, saveUserProfiles=True)
+    network.optimize_network(saveGenerationProfiles= True)
 
     #print(network.interconnected_districts)
     for district in network.interconnected_districts.values():

@@ -51,12 +51,12 @@ def run_optim(data, devs, param, dem, result_dict):
     model, all_devs_list = build_model(model=model, data=data, devs=devs, param=param, dem=dem)
     model_building_time = time.time() - start_time
 
-    # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
+    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
     # Solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
                                                   result_dict=result_dict)
-    # ToDo: New check function
+    # New: Tja save results to csv to compare with network optimization results
     scenario_name = data.scenario_name
     # Folder to save model and results
     result_dir = "optimization_results"
