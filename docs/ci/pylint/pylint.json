@@ -19203,7 +19203,7 @@
             "column": 0,
             "path": "districtgenerator/functions/__init__.py",
             "symbol": "duplicate-code",
-            "message": "Similar lines in 2 files\n==districtgenerator.functions.opti_central:[66:73]\n==districtgenerator.functions.opti_dimensioning_central_devices:[40:51]\n                \"HP\", \"EB\", \"CC\", \"AC\",\n                \"CHP\", \"BOI\", \"GHP\",\n                \"BCHP\", \"BBOI\", \"WCHP\", \"WBOI\",\n                \"ELYZ\", \"FC\", \"H2S\", \"SAB\",\n                \"TES\", \"CTES\", \"BAT\", \"GS\",\n                ]\n\n    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n    # Set up model and create variables\n\n    # Create a new model",
+            "message": "Similar lines in 2 files\n==districtgenerator.functions.opti_central:[66:73]\n==districtgenerator.functions.opti_dimensioning_central_devices:[40:51]\n                \"HP\", \"EB\", \"CC\", \"AC\",\n                \"CHP\", \"BOI\", \"GHP\",\n                \"BCHP\", \"BBOI\", \"WCHP\", \"WBOI\",\n                \"ELYZ\", \"FC\", \"H2S\", \"SAB\",\n                \"TES\", \"CTES\", \"BAT\", \"GS\",\n                ]\n",
             "message-id": "R0801"
         }
     ],
