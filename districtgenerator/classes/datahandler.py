@@ -517,7 +517,8 @@ class Datahandler:
             building["buildingFeatures"] = row
 
             # Unique name = "<id>_<building type>"
-            name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
+            #name = f"{self.scenario_name}_{bldg_id}_{row['building']}" # new TJA
+            name = f"{bldg_id}_{row['building']}_{self.scenario_name}" 
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
                 continue
