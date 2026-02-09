@@ -11,6 +11,7 @@ jobs:
       PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
     with:
       PYTHON_VERSION: "3.10"
+      PYTHON_TEST_MATRIX: '["3.10", "3.11", "3.12", "3.13"]'
       USE_PYLINT: true
       USE_RUFF: true
       BUILD_PACKAGE: true
