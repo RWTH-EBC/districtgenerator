@@ -1772,7 +1772,11 @@ districtgenerator/functions/__init__.py:1:0: R0801: Similar lines in 2 files
                 "ELYZ", "FC", "H2S", "SAB",
                 "TES", "CTES", "BAT", "GS",
                 ]
- (duplicate-code)
+
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # Set up model and create variables
+
+    # Create a new model (duplicate-code)
 
 -----------------------------------
 Your code has been rated at 4.43/10
