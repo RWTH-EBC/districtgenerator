@@ -126,6 +126,7 @@ class Datahandler:
         self.building_dict = {} # Dictionary to store Residential Building IDs
         self.srcPath = srcPath
         self.filePath = filePath
+        self.cluster_meta = None
         self.heat_map_berlin = heat_map_berlin
         self.pv_stc_potential = None
 
@@ -1242,15 +1243,9 @@ class Datahandler:
         None.
         """
 
-        for building in self.district:
+        dt_s = self.time["timeResolution"]
 
-            # %% create building energy system object
-            # get capacities of all possible devices
-            building["bes_obj"] = BES(physics=self.physics,
-                          decentral_device_data=self.decentral_device_data,
-                          design_building_data=self.design_building_data,
-                          file_path=self.filePath)
-            building["capacities"] = building["bes_obj"].designECS(building, self.site)
+        for building in self.district:
 
             if self.heat_map_berlin:
                 # Read PV potentials for the current building from the DataFrame
@@ -1312,10 +1307,48 @@ class Datahandler:
                                             usageFactorPV2=building["buildingFeatures"]["f_PV2"],
                                             usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
-            # optionally save generation profiles
+        # Pre-cluster for the optimization of the decentral heating system
+        def is_opt_like(v):
+            s = str(v or "").strip().lower()
+            return (
+                    s in ("opt", "opt_geg", "opt_custom")
+                    or ("," in s)
+                    or s.startswith(("opt:", "opt[", "opt(", "opt{"))
+                    or (s.startswith("[") and s.endswith("]"))
+                    or (s.startswith("(") and s.endswith(")"))
+                    or (s.startswith("{") and s.endswith("}"))
+            )
+        any_opt = any(is_opt_like(b["buildingFeatures"].get("heater", "")) for b in self.district)
+
+        if any_opt:
+            self.clusterProfiles(centralEnergySupply=False)
+
+            self.cluster_meta = {
+                "clusterWeights": self.clusterWeights,
+                "clusters": self.clusters,
+                "len_cluster": int(self.time["clusterLength"] / self.time["timeResolution"]),
+                "clusterNumber": self.time["clusterNumber"],
+            }
+
+        for building in self.district:
+            building["cluster_meta"] = self.cluster_meta
+
+            # create building energy system object (may choose heater if "opt")
+            building["bes_obj"] = BES(
+                physics=self.physics,
+                decentral_device_data=self.decentral_device_data,
+                design_building_data=self.design_building_data,
+                file_path=self.filePath,
+                eco_data=self.ecoData,
+                pyomo_config=self.pyomo_config
+            )
+
+            # get capacities of all possible devices
+            building["capacities"] = building["bes_obj"].designECS(building, self.site, dt_s=dt_s)
+
+            # Optionally save PV/STC generation profiles
             if saveGenerationProfiles == True:
-                np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralPV_' + building["unique_name"] + '.csv',
+                np.savetxt(os.path.join(self.resultPath, 'generation') + '/decentralPV_' + building["unique_name"] + '.csv',
                            building["generationPV"],
                            delimiter=',')
                 np.savetxt(os.path.join(self.resultPath, 'generation')

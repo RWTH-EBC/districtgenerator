@@ -984,7 +984,9 @@ class KPIs:
             building = buildings[building_id]
             for device_name, device_info in devices.items():
                 # Determine unit based on device type
-                if device_name in ["TES", "BAT", "EV"]:
+                if device_name == "TES":
+                    unit = "Liter"
+                elif device_name in ["BAT", "EV"]:
                     unit = "kWh"
                 elif device_name in ["PV", "STC"]:
                     unit = "m²"

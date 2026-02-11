@@ -337,7 +337,7 @@ class Envelope:
             comp = "intFloor"
             # INTERNAL FLOOR: Materials and U-value
             for name, elem in element_bind.items():
-                if "Floor" in name:
+                if "Floor" in name and "GroundFloor" not in name:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
