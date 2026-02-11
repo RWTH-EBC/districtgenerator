@@ -219,13 +219,34 @@ class Datahandler:
         None.
         """
 
+        dtype_dict = {
+            'building': str,
+            'year': int,
+            'retrofit': int,
+            'construction_type': int,
+            'night_setback': int,
+            'area': float,
+            'number_of_floors': int,
+            'heater': str,
+            'cooling': int,
+            'EV': float,
+            'f_TES': float,
+            'f_BAT': float,
+            'f_PV1': float,
+            'f_PV2': float,
+            'f_STC': float,
+            'gamma_PV': float,
+            'ev_charging': str,
+        }
+        
+
         # %% load scenario file with building information
         if self.heat_map_berlin:
             # %% load heat map berlin formatted scenario file
             self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                             self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
-                                         converters={"position": parse_position}).set_index("id", drop=False))
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
             self.pv_stc_potential = pd.read_csv(
                 self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
                 delimiter=';',
@@ -234,7 +255,7 @@ class Datahandler:
         else:
             # %% load normal formatted scenario file
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                         converters={"position": parse_position}).set_index("id", drop=False))
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -754,7 +775,7 @@ class Datahandler:
             self.district.append(building)
             self.building_dict[bldg_id] = len(self.district) - 1
 
-            # Count for time estimate
+            # Count for time estimate #* Does not account for mixed-use and non-residential buildings
             if row["building"] in ("SFH", "TH"):
                 num_sfh += 1
             elif row["building"] in ("MFH", "AB"):
@@ -817,7 +838,7 @@ class Datahandler:
                     one_floor_area = rd.randint(350, 540)
                     total_floors = max(3, round(total_area / one_floor_area))
                 else:
-                    # For non-residential main buildings, use percentage split
+                    # TODO: For non-residential main buildings, change from percentage-based to a method that considers the actual floor number.
                     one_floor_area = total_area * 0.25  # Assume 25% for secondary
                     total_floors = 4  # Default
 
@@ -984,7 +1005,7 @@ class Datahandler:
                 elif building["buildingFeatures"]["year"] >= 1960:
                     height_of_floors = 2.5  # m
 
-                nrb_prj = NonResidential(
+                nrb_prj = NonResidential( #! Add here also the fixed floor number logic?
                         usage=building["buildingFeatures"]["building"],
                         name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
@@ -2154,6 +2175,11 @@ class Datahandler:
         single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
+        # All keys that have co2 in name are undiscounted
+        undiscounted_keys = set()
+        co2_keys = set([k for k in ecoData.keys() if 'co2' in k.lower()])
+        undiscounted_keys.update(co2_keys)
+
         # Identify the years that belong to each interpolation segment
         year_segments = {k: [] for k in simulated_years}
 
@@ -2172,16 +2198,14 @@ class Datahandler:
 
         interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
-
-        #TODO: Why are CO2 emission factors also considered here?
+        if q < 1:
+                print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
 
         for year in simulated_years:
             relevant_years = year_segments[year]
             all_sim_ecoData[year] = {}  # Initialize dictionary for this year
 
             n = len(relevant_years)
-            if q < 1:
-                print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
 
             if q!=1:
                 denom = sum(1/(q**idx) for idx in range(n))
@@ -2192,10 +2216,12 @@ class Datahandler:
                 subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 
                 # Calculate present value (PV) of the subset values
-                pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
-
-                # Calculate effective annualized price
-                effective_price = pv/denom
+                if key in undiscounted_keys:
+                    pv = sum(subset_values)  # No discounting for these keys
+                    effective_price = pv / n  # For undiscounted values, the effective value is just the average over the years in the segment
+                else:
+                    pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
+                    effective_price = pv/denom
 
                 all_sim_ecoData[year][key] = effective_price
 

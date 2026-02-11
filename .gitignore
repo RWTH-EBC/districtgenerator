@@ -2,7 +2,7 @@ districtgenerator/results/*
 districtgenerator/data/weather/*
 results/*
 districtgenerator.egg-info/*
-examples/optimization_results/
+optimization_results/*
 
 districtgenerator/data/scenarios/*
 !districtgenerator/data/scenarios/example.csv

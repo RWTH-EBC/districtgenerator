@@ -5,8 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import List
 
-# This Class is responsible for the envelope generation + behavior configuration for non-residential buildings
-
+# This Class is responsible for non-residential envelope generation
 class NonResidential(object):
     """Base class for each non-residential archetype.
 
@@ -231,6 +230,7 @@ class NonResidential(object):
           # If no matching age group is found
         raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.usage}'.")
     
+# This class is responsible for the behavior configuration for non-residential buildings
 @dataclass
 class NonResidentialConfig:
     # Basic configuration parameters to be provided for the generation of a non-residential building
