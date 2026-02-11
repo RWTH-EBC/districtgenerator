@@ -293,8 +293,8 @@ class EcoConfig(BaseSettings):
         """Select interpolation points based on num_interpolation_points if specified."""
         if self.num_interpolation_points is not None:
             # Validate num_interpolation_points value
-#            print(self.num_interpolation_points)
-#            print(type(self.num_interpolation_points))
+            # print(self.num_interpolation_points)
+            # print(type(self.num_interpolation_points))
             if self.num_interpolation_points < 1:
                 raise ValueError("num_interpolation_points must be at least 1.")
             if self.num_interpolation_points > self.observation_time:

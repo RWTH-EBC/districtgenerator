@@ -115,10 +115,9 @@ class Envelope:
         if self.is_residential:
             V_dot_area = self.ventilationRate * self.V  # m³/h
             V_dot_infiltration = 0
-            V_dot_persons = 0
             eta_temp_vent = 0  # Assumption: No heat recovery for residential buildings.
         else: # Non-residential buildings
-            # TODO: Check if logic is applicable, and if the standard deviation values are reasonable.
+            # Determine building standard (existing, standard, goal) based on construction year and retrofit level of the building. Based on the SIA2024 categorization.
             if self.construction_year < 1980 and self.retrofit == 0:
                 mode = 'existing' # existing
             elif self.retrofit == 2:
@@ -155,10 +154,11 @@ class Envelope:
                         q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
                         V_dot_infiltration += zone_area * q_v_infiltration
 
-            V_dot_persons = 0 # TODO: Add calculation of ventilation airflow based on number of persons in the building and airflow per person from SIA2024 data.
+
+
 
         self.eta_temp_vent = eta_temp_vent
-        self.V_dot = V_dot_area + V_dot_persons
+        self.V_dot = V_dot_area
         self.V_dot_infiltration = V_dot_infiltration
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
@@ -985,6 +985,8 @@ class Envelope:
 
         # thermal transmittance coefficient H_ve [W/K]
         # (DIN EN ISO 13790 2008-09, section 9.3.1, equation 21, page 49)
+        self.H_ve = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # accounting for ventilation heat recovery for ventilation and not for infiltration
+
         self.H_ve = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # accounting for ventilation heat recovery for ventilation and not for infiltration
 
         # thermal transmittance coefficient H_tr_is [W/K]
