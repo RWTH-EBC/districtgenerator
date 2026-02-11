@@ -1,18 +1,11 @@
 # -*- coding: utf-8 -*-
-
 """
-
 EHDO - ENERGY HUB DESIGN OPTIMIZATION Tool
+Pyomo Version
 
-Developed by:   E.ON Energy Research Center,
-                Institute for Energy Efficient Buildings and Indoor Climate,
-                RWTH Aachen University,
-                Germany
-
-Contact:        Marco Wirtz
-                marco.wirtz@eonerc.rwth-aachen.de
-
+This script is a Pyomo-based translation of the original Gurobi model.
 """
+
 import pyomo.environ as pyo
 import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
@@ -29,8 +22,6 @@ import districtgenerator.functions.solver_config as solver_config
 import numpy as np
 import csv
 
-#from optim_app.help_functions import create_excel_file
-
 def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     """
     Runs the Energy Hub Design Optimization using Pyomo for several districts.
@@ -46,29 +37,62 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     demCon : dict
         Contains demand profiles (heat, power, cool) for all districts.
     result_dictCon : dict
-        A dictionary that will be populated with the optimization results for all districts.
+        A dictionary that will be filled with the optimization results for all districts.
 
     Returns
     -------
     dict
         The populated result dictionary, or the original dict if no solution is found.
     """
-   
     # Set start_time 
     start_time = time.time()
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # Build the model
     model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization_Network")
+    model, all_devs_list = build_model(model, dataCon, devsCon, paramCon, demCon)
     model_building_time = time.time() - start_time
     
+    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Cluster
+    # Solve the model and extract results
+    result_dictCon = solve_model_and_extract_results(dataCon, model, devsCon, paramCon,
+                                                  result_dictCon)
+
+    # Folder to save model and results
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
+    for district in model.districts:
+        scenario_name = district
+        result_dict = result_dictCon[scenario_name]
+        # Save results to csv
+        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list)
+    
+    model_solve_time = time.time() - start_time - model_building_time
+
+    # Total time needed
+    total_time = time.time() - start_time
+
+    # Maybe record the times into a log file
+
+    print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
+    print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
+    print(f" Total time needed: {total_time:.2f} seconds.")
+
+    return result_dictCon
+
+def build_model(model, dataCon, devsCon, paramCon, demCon):
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # 1. Initialize Pyomo Model and Define Sets
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
     # Load data for one district for clustering
+    # calculate cluster time horizon
     data=dataCon[list(dataCon.keys())[0]]
     param=paramCon[list(paramCon.keys())[0]]
 
+    # Model Parameters
     # Calculate cluster time horizon
     cluster_horizon = int(data.time["clusterLength"] / data.time["timeResolution"])
     dt = data.time["timeResolution"] / data.time["dataResolution"]
@@ -86,51 +110,19 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
 
     # Store observation time
     model.observation_time = pyo.Param(initialize=param["observation_time"])
-
-    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Initialize lists of devices for each district 
-
-    # Call setup_devices and store the results
-    all_devs_list = setup_devices(model, dataCon)
-
-    # Set up model and create variables
-    model = add_variables(model)
-
-    # Add constraints for each district
-    # Call add_constraints to add constraints to the model
-    model = add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_horizon, dataCon)
-
-
-    print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
-
-    # Folder to save model and results
-    result_dir = "optimization_results"
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-
-    # Solve the model and extract results
-    result_dictCon= process_results_per_district(model, dataCon, devsCon, paramCon, result_dictCon, result_dir)
-    for district in model.districts:
-        scenario_name = district
-        result_dict = result_dictCon[scenario_name]
-        # Save results to csv
-        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list)
-
-    return result_dictCon
-
-def setup_devices(model, dataCon):
+    
     # Create a set for all districts
     district_names = [district.scenario_name for district in dataCon.values()]
     model.districts = pyo.Set(initialize=district_names)
 
     # Create sets for all device types
     all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
-                         "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
-                         "CTES", "BAT", "GS"]
+                     "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+                     "CTES", "BAT", "GS"]
 
     gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
     # power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid","from_main_grid", "to_main_grid", "from_network", "to_network"]
-    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid","from_grid", "to_grid"]
+    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
     heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
     cool_devs_list = ["CC", "AC"]
     hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
@@ -151,10 +143,9 @@ def setup_devices(model, dataCon):
     model.storage_devs = pyo.Set(initialize=storage_devs_list)
     model.area_devs = pyo.Set(initialize=area_devs_list)
     
-    return all_devs_list
-
- 
-def add_variables(model):
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    # 2. Create Pyomo Variables
+    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     # Capacity variables (same for all years - single investment decision) but indexed by district
     model.cap = pyo.Var( model.all_devs, model.districts, within=pyo.NonNegativeReals, name="nominal_capacity")
@@ -221,11 +212,6 @@ def add_variables(model):
     model.obj_tac = pyo.Var(within=pyo.Reals)
     model.obj_co2 = pyo.Var(within=pyo.Reals)
 
-    return model
-
-
-def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_horizon, dataCon):
-    # Add constraints for each district
     ################################################################################
     # Define maximum Capacity of devices Constraints
     ################################################################################
@@ -702,28 +688,6 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
         model.constraints.add(model.annualized_misc_costs[district] == npv_energy[district] * annuity_factor)
 
 
-    # for district in model.districts:
-    #     param = paramCon[district]
-    #     # Total annual costs (According to VDI 2067 Blatt 1:)
-    #     # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
-    #     model.constraints.add(model.obj_tac == model.total_annual_costs_devices[district]  # Cost associated with devices (inv and om)
-    #                         + model.total_connection_costs[district]  # Cost for connection to el and gas grid
-    #                         + model.heat_grid_costs[district]  # Cost for heat grid inv and om
-    #                         + model.annualized_energy_costs[district]  # Energy supply costs minus revenues from feed-in
-    #                         + model.annualized_misc_costs[district])  # Miscellaneous costs minus revenues
-
-    #     # CO2 emissions calculation (Sum over the whole observation period)
-    #     model.constraints.add(model.obj_co2 == sum(
-    #     (
-    #         model.from_el_main_grid_total[district, y] * param["co2_el_grid"][y]
-    #         + model.from_gas_grid_total[district, y] * param["co2_gas"][y]
-    #         + model.biom_import_total[district, y] * param["co2_biom"][y]
-    #         + model.waste_import_total[district, y] * param["co2_waste"][y]
-    #         + model.hydrogen_import_total[district, y] * param["co2_hydrogen"][y]
-    #         - model.to_el_main_grid_total[district, y] * param["co2_el_feed_in"][y]
-    #         - model.to_gas_grid_total[district, y] * param["co2_gas_feed_in"][y]
-    #     ) * weights[district][y] for y in model.support_years
-    #     ))
 
 
     #%% DIFINE VARIBALES FOR OBJECTIVE FUNCTIONS
@@ -771,14 +735,19 @@ def add_constraints_per_district(model, devsCon, demCon, paramCon, dt, cluster_h
 
     model.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
 
-    return model
+    return model, all_devs_list
 
 
-def process_results_per_district(model, dataCon, devsCon, paramCon, result_dictCon, result_dir):
+def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_dictCon):
     """
-    Function to capsle extracting the results from the Pyomo model.
-
+    Function to capsle solving the Pyomo model and extracting results.
     """
+
+    # Folder to save model and results
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
     lp_filename = os.path.join(result_dir, f"ehdo_model_network.lp")
     model.write(lp_filename, io_options={"symbolic_solver_labels": True})
 
@@ -953,7 +922,7 @@ def process_results_per_district(model, dataCon, devsCon, paramCon, result_dictC
             print(f"Warning: Could not write solution file {filename}: {e}")
         return None
 
-    solution_path = os.path.join(result_dir, "solution_ehdo_file_.txt")
+    solution_path = os.path.join(result_dir, "solution_ehdo_file.txt")
     write_solution_file(model, solution_path)
 
     ################################################################################
@@ -997,6 +966,7 @@ def process_results_per_district(model, dataCon, devsCon, paramCon, result_dictC
         writer.writerows(data_to_save)
 
     print(f"Network-results saved to {csv_file_path}")
+
     # Initialise weights
     weights = {}
     for district in model.districts:

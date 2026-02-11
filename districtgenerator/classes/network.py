@@ -143,12 +143,15 @@ class Network:
         
             
         # Optimize central devices for interconnected districts together in the network
-        self.designCentralDevsConnected(saveGenerationProfiles) 
+        if self.interconnected_districts:
+            self.designCentralDevsConnected(saveGenerationProfiles) 
 
-        # Finalize cluster profiles for all interconnected districts after optimization
-        for data in self.interconnected_districts.values():
-            data.finalizeClusterProfiles()        
-
+            # Finalize cluster profiles for all interconnected districts after optimization
+            for data in self.interconnected_districts.values():
+                data.finalizeClusterProfiles()
+        else:
+            print("No interconnected districts found (optim_dimension == 1). Skipping network optimization.")
+        
 
     def designCentralDevsConnected(self, saveGenerationProfiles=True):
         """
@@ -177,12 +180,6 @@ class Network:
             district.centralDevices["devs"] = devs
             district.centralDevices["dem"] = dem
             district.centralDevices["result_dict"] = result_dict
-
-        # Run central optimization for one district
-        # self.interconnected_districts[0].centralDevices["capacities"] = opti_dimensioning_central_devices_connect.run_optim_connect(self.interconnected_districts[0], devs, param, dem, result_dict)
-        
-        # # Print centralDevices["params"] for one district
-        # print(f"Params of district 1: {self.interconnected_districts[0].centralDevices["params"]}")
 
         # Prepare combined data for all interconnected districts
         # Initialize empty dictionary for combined parameters

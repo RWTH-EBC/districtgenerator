@@ -20,6 +20,7 @@ import textwrap
 import json
 import districtgenerator.functions.solver_config as solver_config
 import districtgenerator.functions.opti_dimensioning_central_devices_connect as opti_dimensioning_central_devices_connect
+import csv
 
 
 def run_optim(data, devs, param, dem, result_dict):
@@ -44,6 +45,7 @@ def run_optim(data, devs, param, dem, result_dict):
     dict
         The populated result dictionary, or the original dict if no solution is found.
     """
+    # Set start_time 
     start_time = time.time()
 
     # Build the model
@@ -71,9 +73,9 @@ def run_optim(data, devs, param, dem, result_dict):
 
     # Maybe record the times into a log file
 
-    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
-    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
-    # print(f" Total time needed: {total_time:.2f} seconds.")
+    print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
+    print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
+    print(f" Total time needed: {total_time:.2f} seconds.")
 
     return result_dict
 
@@ -119,6 +121,7 @@ def build_model(model, data, devs, param, dem):
     storage_devs_list = ["TES", "CTES", "BAT", "H2S", "GS"]
     area_devs_list = ["PV", "STC"]
 
+    # Add sets to the model for this district
     model.all_devs = pyo.Set(initialize=all_devs_list)
     model.gas_devs = pyo.Set(initialize=gas_devs_list)
     model.power_devs = pyo.Set(initialize=power_devs_list)
@@ -866,6 +869,24 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["devs"] = devs
     result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
     result_dict["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t/a
+
+        # Define the output file path
+    csv_file_path = os.path.join(result_dir, f"TAC_and_CO2_results_{data.scenario_name}.csv")
+
+    # Prepare the data to be written to the CSV file
+    data_to_save = [
+        ["Variable", "Value"],  # Header row
+        ["tac_total", result_dict.get("tac","")],  # Total annualized costs
+        ["co2_total", result_dict.get("co2","")]  # Total CO2 emissions
+   
+        ]
+
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
+
+    print(f"Network-results saved to {csv_file_path}")
 
     for k in model.all_devs:
         result_dict[k] = {
