@@ -685,7 +685,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             annuity_factor = 1 / n  # If interest rate is 0, simply divide by number of years
 
         model.constraints.add(model.annualized_energy_costs[district] == npv_energy[district] * annuity_factor)
-        model.constraints.add(model.annualized_misc_costs[district] == npv_energy[district] * annuity_factor)
+        model.constraints.add(model.annualized_misc_costs[district] == npv_misc[district] * annuity_factor)
 
 
 
@@ -694,8 +694,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     tac_sum_total = 0
     co2_sum_total = 0
 
-    #Total annual costs (According to VDI 2067 Blatt 1:)
-    #obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
+    # Total annual costs (According to VDI 2067 Blatt 1:)
+    # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
     for district in model.districts:
         param = paramCon[district]
         tac_sum_distr = (model.total_annual_costs_devices[district]  # Cost associated with devices (inv and om)
@@ -716,7 +716,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             + model.hydrogen_import_total[district, y] * param["co2_hydrogen"][y]
             - model.to_el_grid_total[district, y] * param["co2_el_feed_in"][y]
             - model.to_gas_grid_total[district, y] * param["co2_gas_feed_in"][y]
-        ) * weights[district][year] for y in model.support_years
+        ) * weights[district][y] for y in model.support_years
         )
     
         # Sum up total CO2 emissions for all districts
