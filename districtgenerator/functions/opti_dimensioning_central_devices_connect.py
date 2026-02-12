@@ -376,20 +376,20 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     # Waste supply and demand balance
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
 
-                    # # Mutual exclusivity of grid import and export in each time step #new for network
-                    # # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
-                    # model.constraints.add(
-                    # model.power["from_main_grid", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
-                    # )
+                    # Mutual exclusivity of grid import and export in each time step #new for network
+                    # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
+                    model.constraints.add(
+                    model.power["from_main_grid", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
+                    )
 
                     # model.constraints.add(
                     # model.power["from_network", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
                     # )
 
-                    # # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
-                    # model.constraints.add(
-                    #     model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
-                    # )
+                    # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
+                    model.constraints.add(
+                        model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
+                    )
 
                     # model.constraints.add(
                     #     model.power["to_network", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
@@ -1372,7 +1372,7 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
         ["hydrogen_import_total", result_dict.get("hydrogen_import_total", ""),"MWh"],      # Total hydrogen imported
         ["max_el_from_grid", result_dict.get("max_el_from_grid", ""),"kW"],                 # Maximum electricity from grid
         ["max_el_to_grid", result_dict.get("max_el_to_grid", ""),"kW"],                     # Maximum electricity to grid
-        ["max_el_from_main_grid", result_dict.get("max_el_main_from_grid", ""),"kW"],       # Maximum electricity from main grid #new for network
+        ["max_el_from_main_grid", result_dict.get("max_el_from_main_grid", ""),"kW"],       # Maximum electricity from main grid #new for network
         ["max_el_to_main_grid", result_dict.get("max_el_to_main_grid", ""),"kW"],           # Maximum electricity to main grid #new for network
         ["max_el_from_network", result_dict.get("max_el_from_network", ""),"kW"],           # Maximum electricity from network #new for network
         ["max_el_to_network", result_dict.get("max_el_to_network", ""),"kW"],               # Maximum electricity to network #new for network
