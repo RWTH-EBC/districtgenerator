@@ -24,6 +24,4 @@ if __name__ == '__main__':
                     print(f"  {device}: {details['cap']}")
         else:
             print(f"No capacities defined in energy hub of: {district.scenario_name}")  
-    
 
-        #KPIs.calc_annual_cost_device(self, dev, ecoData, cap, mode="subsidized")

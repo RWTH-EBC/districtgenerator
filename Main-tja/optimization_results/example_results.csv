@@ -29,8 +29,12 @@ total_co2_waste;0;t/a
 total_co2_hydrogen;0;t/a
 
 Grid_flows;Value;Unit
-from_el_grid_total;75;MWh
-to_el_grid_total;37;MWh
+from_el_grid_total;;MWh
+to_el_grid_total;;MWh
+from_el_main_grid_total;75;MWh
+to_el_main_grid_total;37;MWh
+from_network_total;0;MWh
+to_network_total;0;MWh
 from_gas_grid_total;0;MWh
 to_gas_grid_total;0;MWh
 biom_import_total;0;MWh
@@ -38,8 +42,10 @@ waste_import_total;0;MWh
 hydrogen_import_total;0;MWh
 max_el_from_grid;31;kW
 max_el_to_grid;46;kW
-max_el_from_grid;31;kW
-max_el_to_grid;46;kW
+max_el_from_main_grid;;kW
+max_el_to_main_grid;46;kW
+max_el_from_network;0;kW
+max_el_to_network;0;kW
 max_gas_from_grid;0;kW
 max_gas_to_grid;0;kW
 max_biom;0;
@@ -67,8 +73,12 @@ TES;694.5;kW
 TES_ann_inv_cost;1096.6;EUR/a
 TES_ann_inv_cost_unsubsidized;1096.6;EUR/a
 TES_om_cost;142.56;EUR/a
-from_el_grid_total_0;75;MWh
-to_el_grid_total_0;37;MWh
+from_el_grid_total_0;;MWh
+to_el_grid_total_0;;MWh
+from_el_main_grid_total_0;75;MWh
+to_el_main_grid_total_0;37;MWh
+from_network_total_0;;MWh
+to_network_total_0;;MWh
 from_gas_grid_total_0;0;MWh
 to_gas_grid_total_0;0;MWh
 biom_import_total_0;0;MWh

@@ -187,6 +187,8 @@ class EcoConfig(BaseSettings):
     price_supply_el: str | list = [0.300]    # Electricity price in €/kWh
     revenue_feed_in_el: str | list = [0.0794]  # Feed-in electricity price in €/kWh
     price_supply_el_eh: str | list = [0.300]  # Electricity price for EHDO in €/kWh
+    price_supply_el_network: str | list = [0] # Electricity price for EHDO network in €/kWh # New TJA
+    revenue_feed_in_el_network: str | list = [0] # Feed-in electricity price for EHDO network in €/kWh # New TJA
     revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for EHDO in €/kWh
 
     # gas and other fuel prices in €/kWh
@@ -213,6 +215,7 @@ class EcoConfig(BaseSettings):
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
 
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
+                     'price_supply_el_network', 'revenue_feed_in_el_network', # New TJA
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
@@ -241,8 +244,10 @@ class EcoConfig(BaseSettings):
         """
         # List of all time dependent parameters
         params_to_expand = [
-            'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
-            'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
+            'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 
+            'price_supply_el_network', 'revenue_feed_in_el_network', # New TJA
+            'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 
+            'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
             'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
@@ -332,7 +337,7 @@ class PyomoConfig(BaseSettings):
     solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
-    solver_options__mip_gap: float = 0            # Acceptable MIP gap from optimal solution
+    solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
     solver_options__threads: int = 4               # Number of threads to use for solving
     solver_options__nonconvex: int = 2            # Allow non-convex problems
     solver_options__dual_reductions: int = 1        # Try to reduce the model size before solving 1 = yes, 0 = no -> May slightly change results

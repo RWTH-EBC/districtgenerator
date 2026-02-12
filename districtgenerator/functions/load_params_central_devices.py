@@ -698,6 +698,11 @@ def load_params(data):
                                 for year in param["interpolation_points"]}
     param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
                                     for year in param["interpolation_points"]}
+    param["price_supply_el_network"] = {year: all_sim_ecoData[year]["price_supply_el_network"] # New TJA
+                                for year in param["interpolation_points"]}
+    param["revenue_feed_in_el_network"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_network"] # New TJA
+                                    for year in param["interpolation_points"]}
+    
 
     # --- Natural Gas ---
     param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"]
