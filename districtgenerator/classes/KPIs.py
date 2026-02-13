@@ -1609,12 +1609,12 @@ class KPIs:
 
         }
         opt_ergebnisse={
-                "CO2-äqui. Emissionen": str(round(sum(self.co2emissions))) + " t/a",          #todo: check
-                "Energiekosten (ohne ice)": str(round(self.operationCosts)) + " \u20AC/a",       #todo: check
+                "CO2-äqui. Emissionen": str(round(sum(self.co2emissions))) + " t/a",
+                "Energiekosten (ohne ice)": str(round(self.operationCosts)) + " \u20AC/a",
                 "Gasolinekosten": str(round(self.gasoline_costs or 0)) + " \u20AC/a",
                 "Decentral Fixed Costs": str(round(self.annual_fixed_costs_decentral)) + " \u20AC/a",
                 "Central Fixed Costs": str(round(self.annual_fixed_costs_central)) + " \u20AC/a",
-                "Spitzenlast (el.)": str(round(self.peakDemand, 2)) + " kW",             #todo: check
+                "Spitzenlast (el.)": str(round(self.peakDemand, 2)) + " kW",
                 "Max. Einspeiseleistung": str(round(self.peakInjection, 2)) + " kW",
                 "Supply-Cover-Faktor": str(round(self.scf_year * 100, 0)) + " %",
                 "Demand-Cover-Faktor": str(round(self.dcf_year * 100, 0)) + " %",
