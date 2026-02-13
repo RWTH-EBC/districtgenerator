@@ -180,6 +180,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                                    within=pyo.Binary) # new for network
 
     # Yearly total energy flows - indexed by support year and district
+    model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
+    model.to_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
     model.from_el_main_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) # for network
     model.to_el_main_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) # for network
     model.from_network_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) # for network
@@ -377,19 +379,19 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
 
                     # Mutual exclusivity of grid import and export in each time step #new for network
-                    # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
-                    model.constraints.add(
-                    model.power["from_main_grid", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
-                    )
+                    # # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
+                    # model.constraints.add(
+                    # model.power["from_main_grid", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
+                    # )
 
                     # model.constraints.add(
                     # model.power["from_network", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
                     # )
 
-                    # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
-                    model.constraints.add(
-                        model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
-                    )
+                    # # # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
+                    # # model.constraints.add(
+                    # #     model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
+                    # # )
 
                     # model.constraints.add(
                     #     model.power["to_network", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
@@ -496,6 +498,11 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                 model.from_el_main_grid_total[district, y] == dt * sum(
                     model.power["from_main_grid", district, y, d, t] * param["cluster_weights"][d] # for network
                     for d in model.clusters for t in model.time_steps))
+            
+            model.constraints.add(
+                model.from_el_grid_total[district, y] == dt * sum(
+                    model.power["from_grid", district, y, d, t] * param["cluster_weights"][d]
+                    for d in model.clusters for t in model.time_steps))
 
             model.constraints.add(
                 model.to_gas_grid_total[district, y] == dt * sum(
@@ -505,6 +512,11 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             model.constraints.add(
                 model.to_el_main_grid_total[district, y] == dt * sum(
                     model.power["to_main_grid", district, y, d, t] * param["cluster_weights"][d] # for network
+                    for d in model.clusters for t in model.time_steps))
+            
+            model.constraints.add(
+                model.to_el_grid_total[district, y] == dt * sum(
+                    model.power["to_grid", district, y, d, t] * param["cluster_weights"][d]
                     for d in model.clusters for t in model.time_steps))
             
             model.constraints.add(
@@ -1035,11 +1047,23 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             sum(safe_value(model.c_inv_base, (k, district)) for k in model.all_devs) + heat_grid_ann_costs)
         result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, (k, district)) for k in model.all_devs) + heat_grid_om_costs)
 
+        # Total annualized costs for the district new for network
+
+        result_dict["tac_sum_distr"] = int(
+            safe_value(model.total_annual_costs_devices, district)
+            + safe_value(model.total_connection_costs, district)
+            + safe_value(model.heat_grid_costs, district)
+            + safe_value(model.annualized_energy_costs, district)
+            + safe_value(model.annualized_misc_costs, district)
+        )
+
         # Total energy imports and exports - per support year
+        result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, (district, y)) / 1000) for y in model.support_years} #MWh 
         result_dict["from_el_main_grid_total_by_year"] = {y: int(safe_value(model.from_el_main_grid_total, (district, y)) / 1000) for y in model.support_years} #MWh # new for network
-        result_dict["from_network_by_year"] = {y: int(safe_value(model.from_network_total, (district, y)) / 1000) for y in model.support_years} #MWh # new for network
+        result_dict["from_network_total_by_year"] = {y: int(safe_value(model.from_network_total, (district, y)) / 1000) for y in model.support_years} #MWh # new for network
         result_dict["to_el_main_grid_total_by_year"] = {y: int(safe_value(model.to_el_main_grid_total, (district, y)) / 1000) for y in model.support_years}       #MWh # new for network
-        result_dict["to_network_by_year"] = {y: int(safe_value(model.to_network_total, (district, y)) / 1000) for y in model.support_years} #MWh # new for network
+        result_dict["to_el_grid_total_by_year"] = {y: int(safe_value(model.to_el_grid_total, (district, y)) / 1000) for y in model.support_years} #MWh
+        result_dict["to_network_total_by_year"] = {y: int(safe_value(model.to_network_total, (district, y)) / 1000) for y in model.support_years} #MWh # new for network
         result_dict["from_gas_grid_total_by_year"] = {y: int(safe_value(model.from_gas_grid_total, (district, y)) / 1000) for y in model.support_years}  #MWh
         result_dict["to_gas_grid_total_by_year"] = {y: int(safe_value(model.to_gas_grid_total, (district, y)) / 1000) for y in model.support_years}       #MWh
         result_dict["biom_import_total_by_year"] = {y: int(safe_value(model.biom_import_total, (district, y)) / 1000) for y in model.support_years}      #MWh
@@ -1055,7 +1079,22 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             else:
                 weights[district][year] = n - year
 
+        co2_sum_distr = sum(
+            (
+                safe_value(model.from_el_main_grid_total, (district, y)) * param["co2_el_grid"][y]
+                + safe_value(model.from_gas_grid_total, (district, y)) * param["co2_gas"][y]
+                + safe_value(model.biom_import_total, (district, y)) * param["co2_biom"][y]
+                + safe_value(model.waste_import_total, (district, y)) * param["co2_waste"][y]
+                + safe_value(model.hydrogen_import_total, (district, y)) * param["co2_hydrogen"][y]
+                - safe_value(model.to_el_main_grid_total, (district, y)) * param["co2_el_feed_in"][y]
+                - safe_value(model.to_gas_grid_total, (district, y)) * param["co2_gas_feed_in"][y]
+            ) * weights[district][y] for y in model.support_years
+        )
+        result_dict["co2_sum_distr"] = int(co2_sum_distr / 1000)
+
         # Total energy imports and exports over the whole observation period (weighted sum)
+        result_dict["from_el_grid_total"] = int(sum(safe_value(model.from_el_grid_total, (district, y)) * weights[district][y] for y in model.support_years) / 1000)  # MWh # for network
+        result_dict["to_el_grid_total"] = int(sum(safe_value(model.to_el_grid_total, (district, y)) * weights[district][y] for y in model.support_years) / 1000)  # MWh # for network
         result_dict["from_el_main_grid_total"] = int(sum(safe_value(model.from_el_main_grid_total, (district, y)) * weights[district][y] for y in model.support_years) / 1000)  # MWh # for network
         result_dict["to_el_main_grid_total"] = int(sum(safe_value(model.to_el_main_grid_total, (district, y)) * weights[district][y] for y in model.support_years) / 1000)  # MWh # for network
         result_dict["from_network_total"] = int(sum(safe_value(model.from_network_total, (district, y)) * weights[district][y] for y in model.support_years) / 1000)  # MWh # for network
@@ -1328,6 +1367,10 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
 
     # Prepare the data to be written to the CSV file
     data_to_save = [
+        ["Optimization results", "Value", "Unit"],                                                       # Header row cost-parameters
+        ["tac_distr", result_dict.get("tac_sum_distr", ""), "EUR/a"],                                   # Total annualized costs per district
+        ["co2_distr", result_dict.get("co2_sum_distr", ""), "t/a"],                                     # Total CO2 emissions per district
+
         ["Cost_parameter", "Value", "Unit"],                                                            # Header row cost-parameters
         ["co2_tax_total", result_dict.get("co2_tax_total", ""), "EUR/a"],                               # CO2 tax total
         ["total_inv_cost", result_dict.get("total_inv_cost", ""),"EUR/a"],                              # Total investment cost

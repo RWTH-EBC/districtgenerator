@@ -1,4 +1,4 @@
-from districtgenerator.classes import Network
+from districtgenerator.classes import Network, KPIs
 from pathlib import Path
 
 if __name__ == '__main__':
@@ -10,7 +10,11 @@ if __name__ == '__main__':
 
     network = Network()
 
-    network.initializeDistrictsWithDecentralDevs(configs_dir=configs_directory_path, calcUserProfiles=False, saveUserProfiles=False)
+    network.initializeDistrictsWithDecentralDevs(
+        configs_dir=configs_directory_path, 
+        calcUserProfiles=False, 
+        saveUserProfiles=False)
+    
     network.optimize_network(saveGenerationProfiles= True)
 
     #print(network.interconnected_districts)
@@ -23,5 +27,14 @@ if __name__ == '__main__':
                 if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
                     print(f"  {device}: {details['cap']}")
         else:
-            print(f"No capacities defined in energy hub of: {district.scenario_name}")  
+            print(f"No capacities defined in energy hub of: {district.scenario_name}") 
+
+    # Can be used if I update opti_central for the network optimization
+    # for district in network.interconnected_districts.values():
+    #     district.optimizationClusters()
+    #     district.calculateKPIs()  
+    #     print(f"\n{district.scenario_name}")
+    #     print("  Grid demand (kWh/a):", district.KPIs.W_dem_GCP_year)
+    #     print("  Grid injection (kWh/a):", district.KPIs.W_inj_GCP_year)
+    #     print("  Gas (kWh/a):", district.KPIs.gas_year)
 
