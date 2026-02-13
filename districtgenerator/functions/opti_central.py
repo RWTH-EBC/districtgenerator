@@ -338,20 +338,18 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.binary_EV = pyo.Var(model.EVs, model.t, within=pyo.Binary, doc="Binary variable for electric vehicle charging/discharging")
 
     # Residual network demand
-    model.residual_power = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                   doc="Residual power demand of the neighborhood")  # Only pos demand allowed
-    model.residual_feed = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Residual feed-in of the neighborhood")
+    model.residual_power = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Sum of residual power demand over all the buildings")
+    model.residual_feed = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Sum of residual feed-in over all the buildings")
 
     # activation variable for trafo load
     model.yTrafo = pyo.Var(model.t, within=pyo.Binary)
 
     ################################################################################
-    # Energyhub variables #! Organise in the same structure as for the buildings to improve readability
+    # Energyhub variables
     ################################################################################
 
     # Gas flow to/from devices
-    model.eh_gas_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                               doc="Gas consumption by a combined heat and power unit (EH)")
+    model.eh_gas_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas consumption by a combined heat and power unit (EH)")
     model.eh_gas_BOI = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas consumption by a gas boiler (EH)")
     model.eh_gas_GHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas consumption by a gas heat pump (EH)")
     model.eh_gas_SAB = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas produced by a sabatier reactor (EH)")
@@ -359,56 +357,39 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_gas_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas flow to grid from EH")
 
     # Electric power to/from devices
-    model.eh_power_PV = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                doc="Electricity produced by a photovoltaik unit (EH)")
+    model.eh_power_PV = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a photovoltaik unit (EH)")
     model.eh_power_WT = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a wind turbine (EH)")
     model.eh_power_WAT = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="")
     model.eh_power_HP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity consumed by an heat pump (EH)")
-    model.eh_power_EB = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                doc="Electricity consumed by a electric boiler (EH)")
-    model.eh_power_CC = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                doc="Electricity consumed by a compression chiller (EH)")
-    model.eh_power_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                 doc="Electricity produced by a gas combined heat and power unit (EH)")
-    model.eh_power_BCHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                  doc="Electricity produced by a biomass combined heat and power unit (EH)")
-    model.eh_power_WCHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                  doc="Electricity produced by a waste combined heat and power unit (EH)")
-    model.eh_power_ELYZ = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                  doc="Electricity consumed by an electrolyser (EH)")
+    model.eh_power_EB = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity consumed by a electric boiler (EH)")
+    model.eh_power_CC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity consumed by a compression chiller (EH)")
+    model.eh_power_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a gas combined heat and power unit (EH)")
+    model.eh_power_BCHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a biomass combined heat and power unit (EH)")
+    model.eh_power_WCHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a waste combined heat and power unit (EH)")
+    model.eh_power_ELYZ = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity consumed by an electrolyser (EH)")
     model.eh_power_FC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a fuel cell (EH)")
-    model.eh_power_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                       doc="Electricity imported from the grid by the Energy Hub")
-    model.eh_power_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                     doc="Electricity exported to the grid by the Energy Hub")
+    model.eh_power_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity imported from the internal neighborhood grid by the Energy Hub")
+    model.eh_power_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity exported to the external neighborhood by the Energy Hub")
 
     # Heat to/from devices
-    model.eh_heat_STC = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                doc="Heat produced by a solar thermal collector (EH)")
+    model.eh_heat_STC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a solar thermal collector (EH)")
     model.eh_heat_HP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by an heat pump (EH)")
     model.eh_heat_EB = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by an electric boiler (EH)")
     model.eh_heat_AC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat used by an adsorption chiller (EH)")
-    model.eh_heat_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                doc="Heat produced by a gas combined heat and power unit (EH)")
+    model.eh_heat_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a gas combined heat and power unit (EH)")
     model.eh_heat_BOI = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a gas boiler (EH)")
     model.eh_heat_GHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a gas heat pump (EH)")
-    model.eh_heat_BCHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                 doc="Heat produced by a biomass combined heat and power unit (EH)")
+    model.eh_heat_BCHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a biomass combined heat and power unit (EH)")
     model.eh_heat_BBOI = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a biomass boiler (EH)")
-    model.eh_heat_WCHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                 doc="Heat produced by a waste combined heat and power unit (EH)")
+    model.eh_heat_WCHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a waste combined heat and power unit (EH)")
     model.eh_heat_WBOI = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a waste boiler (EH)")
     model.eh_heat_FC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a fuel cell (EH)")
-    model.eh_heat_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                    doc="Heat from the Energy Hub to the heat grid")
+    model.eh_heat_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat from the Energy Hub to the heat grid")
 
     # Cooling power to/from devices
-    model.eh_cool_CC = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                               doc="Cooling produced by a compression chiller (EH)")
-    model.eh_cool_AC = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                               doc="Cooling produced by an adsorption chiller (EH)")
-    model.eh_cool_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals,
-                                    doc="Cooling from the Energy Hub to the cooling grid")
+    model.eh_cool_CC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Cooling produced by a compression chiller (EH)")
+    model.eh_cool_AC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Cooling produced by an adsorption chiller (EH)")
+    model.eh_cool_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Cooling from the Energy Hub to the cooling grid")
 
     # Hydrogen to/from devices
     model.eh_hydrogen_ELYZ = pyo.Var(model.t, within=pyo.NonNegativeReals)
@@ -459,8 +440,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ################################################################################
 
     # Electrical power to/from grid at GNP, gas from grid #TODO: Rename variables
-    model.power_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals)
-    model.power_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals)
+    model.power_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity imported from the external grid into the neighborhood (at the grid connection point)")
+    model.power_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity exported from the neighborhood to the external grid (at the grid connection point)")
     model.power_gas_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_hydrogen_grid_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_biomass_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
@@ -469,12 +450,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
     # total energy amounts taken from grid
-    model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
-    model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
-    model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
-    model.from_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
-    model.to_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals)
-    model.from_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals)
+    model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy imported from the external grid by the neighborhood")
+    model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy exported from the neighborhood to the external grid")
+    model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals, doc="Sum of all buildings electricity exports to the internal neighborhood grid")
+    model.from_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals, doc="Sum of all buildings electricity imports from the internal neighborhood grid")
+    model.to_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy exported from the Energy Hub to the internal neighborhood grid")
+    model.from_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy imported from the internal neighborhood grid by the Energy Hub")
     model.from_grid_total_gas = pyo.Var(within=pyo.NonNegativeReals)
     model.from_grid_total_hydrogen = pyo.Var(within=pyo.NonNegativeReals)
     model.total_biomass_used = pyo.Var(within=pyo.NonNegativeReals)
@@ -650,7 +631,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return constraint_rule
 
     def create_dom_storage_dch_capacity_constraint(device_name):
-        """Factory-function für Storage Discharging Capacity Constraints"""
+        """Factory-function for Storage Discharging Capacity Constraints"""
 
         def constraint_rule(model, n, t):
             return model.dch_dom[device_name, n, t] <= buildingData[n]["capacities"][device_name] * \
@@ -659,7 +640,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return constraint_rule
 
     def create_dom_storage_soc_max_constraint(device_name):
-        """Factory-function für Storage SOC Maximum Constraints"""
+        """Factory-function for Storage SOC Maximum Constraints"""
 
         def constraint_rule(model, n, t):
             return model.soc_dom[device_name, n, t] <= param_dec_devs[device_name]["soc_max"] * \
@@ -677,12 +658,10 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return constraint_rule
 
     # STC and PV generation constraints
-    def stc_capacity_rule(model, n,
-                          t):  # STC generation below or equal to potential stc generation (Allows curtailment of STC)
+    def stc_capacity_rule(model, n, t):  # STC generation below or equal to potential stc generation (Allows curtailment of STC)
         return model.heat_dom["STC", n, t] <= STC_heat[n][t]
 
-    def pv_capacity_rule(model, n,
-                         t):  # PV generation below or equal to potential pv generation (Allows curtailment of PV)
+    def pv_capacity_rule(model, n, t):  # PV generation below or equal to potential pv generation (Allows curtailment of PV)
         return model.power_dom["PV", n, t] <= PV_gen[n][t]
 
     # heat from local heat grid
@@ -974,7 +953,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.ev_binary2 = pyo.Constraint(model.EVs, model.t, rule=ev_binary2_rule)
 
     ################################################################################
-    # %% Building storage balances and constraints #! Here a similar factory function to the energy hub storages might be useful
+    # %% Building storage balances and constraints
     ################################################################################
 
     # SOC coupled over all times steps (Energy amount balance, kWh)
@@ -1188,8 +1167,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
         return (model.eh_cool_AC[t] + model.eh_cool_CC[t] + model.eh_dch_CTES[t]  # Cooling supply
-                == model.eh_cool_to_grid[t] + model.eh_ch_CTES[t]  # Cooling demand
-                )
+                == model.eh_cool_to_grid[t] + model.eh_ch_CTES[t])  # Cooling demand
 
     # gas balance
     def eh_gas_balance_rule(model, t):
@@ -1213,10 +1191,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     model.eh_heating_balance = pyo.Constraint(model.t, rule=eh_heating_balance_rule, doc="EnergyHub_heat_balance")
     model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
-    model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule,
-                                          doc="EnergyHub_cooling_supply_to_buildings")
-    model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule,
-                                                  doc="EnergyHub_electricity_balance")
+    model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule, doc="EnergyHub_cooling_supply_to_buildings")
+    model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule, doc="EnergyHub_electricity_balance")
     model.eh_cooling_balance = pyo.Constraint(model.t, rule=eh_cooling_balance_rule, doc="EnergyHub_cooling_balance")
     model.eh_gas_balance = pyo.Constraint(model.t, rule=eh_gas_balance_rule, doc="EnergyHub_gas_balance")
     model.eh_hydrogen_balance = pyo.Constraint(model.t, rule=eh_hydrogen_balance_rule, doc="EnergyHub_hydrogen_balance")
@@ -1626,7 +1602,10 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
     results_dict["total_waste_used"] = pyo.value(model.total_waste_used)
     results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
-
+    results_dict["from_grid_total_el_buildings"] = pyo.value(model.from_grid_total_el_buildings)
+    results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
+    results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
+    results_dict["to_grid_total_el_eh"] = pyo.value(model.to_grid_total_el_eh)
 
     # energy imports and exports per time step in W
     results_dict["P_dem_total"] = []
@@ -1719,13 +1698,13 @@ def solve_model_and_extract_results(model, data, year, cluster):
         for t in time_steps:
             results_dict[n]["res_load"].append(round(pyo.value(model.res_dom_power[n, t]), 0))
             results_dict[n]["res_inj"].append(round(pyo.value(model.res_dom_feed[n, t]), 0))
-            gas_total = pyo.value(model.gas_dom["BOI", n, t]) + pyo.value(
-                model.gas_dom["CHP", n, t])  # ! This should not be here -> Doubling of Code possible. One combined gas variable would be better
+            gas_total = sum(pyo.value(model.gas_dom[d, n, t]) for d in ECS_GAS)
             results_dict[n]["res_gas"].append(round(gas_total, 0))
-            results_dict[n]["res_biomass"].append(round(pyo.value(model.biomass_dom["BBOI", n, t]), 0))
-            results_dict[n]["res_oil"].append(round(pyo.value(model.oil_dom["OBOI", n, t]), 0))
-            hydrogen_total = pyo.value(model.hydrogen_dom["H2BOI", n, t]) + pyo.value(
-                model.hydrogen_dom["FC", n, t])  # ! This should not be here -> Doubling of Code possible. One combined hydrogen variable would be better
+            biomass_total = sum(pyo.value(model.biomass_dom[d, n, t]) for d in ECS_BIOMASS)
+            results_dict[n]["res_biomass"].append(round(biomass_total, 0))
+            oil_total = sum(pyo.value(model.oil_dom[d, n, t]) for d in ECS_OIL)
+            results_dict[n]["res_oil"].append(round(oil_total, 0))
+            hydrogen_total = sum(pyo.value(model.hydrogen_dom[d, n, t]) for d in ECS_HYDROGEN)
             results_dict[n]["res_hydrogen"].append(round(hydrogen_total, 0))
 
     # Heat devices
@@ -1759,7 +1738,11 @@ def solve_model_and_extract_results(model, data, year, cluster):
             Qth = pyo.value(model.heat_dom["HP", n, t])
 
             results_dict[n]["HP"]["T_sink"].append(Tsink_val)
-            results_dict[n]["HP"]["COP"].append(round(Qth / Pel, 3) if Pel and Pel > 1e-6 else 0.0)
+
+            if Pel and Pel > 1e-6:
+                results_dict[n]["HP"]["COP"].append(round(Qth / Pel, 3))
+            else:
+                results_dict[n]["HP"]["COP"].append(0.0)
 
     # Power devices
     for n in range(nbuildings):
@@ -1773,8 +1756,10 @@ def solve_model_and_extract_results(model, data, year, cluster):
     for n in range(nbuildings):
         for device in ECS_STORAGE:
             results_dict[n][device] = {}
-            for v in ("ch", "dch", "soc"):
-                results_dict[n][device][v] = []
+            results_dict[n][device]["ch"] = []
+            results_dict[n][device]["dch"] = []
+            results_dict[n][device]["soc"] = []
+
             for t in time_steps:
                 results_dict[n][device]["ch"].append(pyo.value(model.ch_dom[device, n, t]))
                 results_dict[n][device]["dch"].append(pyo.value(model.dch_dom[device, n, t]))

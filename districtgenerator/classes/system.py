@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 from districtgenerator.functions.opti_dimensioning_decentral_devices import choose_cheapest_heating_concept_fixed_design
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
@@ -66,12 +67,18 @@ class BES:
         self.design_load_cooling = building["envelope"].coolingload
 
         # If heater == "opt": choose cheapest heating concept FIRST
-        heater_mode = str(buildingFeatures.get("heater", "")).strip().lower()
+        heater_raw = buildingFeatures.get("heater", "")
+        mode, allowed, manual = self._parse_heater_spec(heater_raw)
 
-        if heater_mode in ("opt", "opt_geg"):
-            candidates = self._candidate_fixed_capacities(building, mode=heater_mode)
+        if mode in ("opt", "opt_geg", "opt_custom"):
 
-            # Choose cheapest concept by fixed-design operation optimization
+            # build full candidates (opt/opt_geg handled inside _candidate_fixed_capacities)
+            candidates = self._candidate_fixed_capacities(building, mode=("opt_geg" if mode == "opt_geg" else "opt"))
+
+            # if custom list: filter them
+            if mode == "opt_custom":
+                candidates = self._filter_candidates(candidates, allowed)
+
             chosen, evals = choose_cheapest_heating_concept_fixed_design(
                 demand_heat_w=building["user"].heat_cluster,
                 demand_dhw_w=building["user"].dhw_cluster,
@@ -91,6 +98,11 @@ class BES:
             )
 
             buildingFeatures["heater"] = chosen
+
+        elif mode == "manual":
+            # keep whatever manual heater was given
+            if manual is not None:
+                buildingFeatures["heater"] = str(manual).strip()
 
         BES = {}
 
@@ -131,7 +143,7 @@ class BES:
                 if buildingFeatures["heater"] == "CHP":
                     eta_el = float(self.decentral_device_data["CHP"]["eta_el"])
                     eta_th = float(self.decentral_device_data["CHP"]["eta_th"])
-                    BES["CHP"] = self.design_load_heating * (eta_el / max(eta_th, 1e-9))
+                    BES["CHP"] = BES["CHP"] = self.design_load_heating
                 else:
                     BES["CHP"] = 0
 
@@ -139,7 +151,7 @@ class BES:
                 if buildingFeatures["heater"] == "FC":
                     eta_el = float(self.decentral_device_data["FC"]["eta_el"])
                     eta_th = float(self.decentral_device_data["FC"]["eta_th"])
-                    BES["FC"] = self.design_load_heating * (eta_el / max(eta_th, 1e-9))
+                    BES["FC"] = self.design_load_heating
                 else:
                     BES["FC"] = 0
 
@@ -265,27 +277,10 @@ class BES:
             return caps
 
         # monovalent (single primary heater)
-        for dev in ("BOI", "BBOI", "OBOI", "H2BOI", "EH"):
+        for dev in ("BOI", "BBOI", "OBOI", "H2BOI", "EH", "CHP", "FC"):
             caps = blank_caps()
             caps[dev] = design
             candidates[dev] = caps
-
-        # CHP / FC as monovalent heat producers
-        eta_chp_el = float(self.decentral_device_data["CHP"]["eta_el"])
-        eta_chp_th = float(self.decentral_device_data["CHP"]["eta_th"])
-        eta_fc_el = float(self.decentral_device_data["FC"]["eta_el"])
-        eta_fc_th = float(self.decentral_device_data["FC"]["eta_th"])
-
-        p_chp_needed_w_el = design * (eta_chp_el / eta_chp_th)
-        p_fc_needed_w_el = design * (eta_fc_el / eta_fc_th)
-
-        caps = blank_caps()
-        caps["CHP"] = p_chp_needed_w_el
-        candidates["CHP"] = caps
-
-        caps = blank_caps()
-        caps["FC"] = p_fc_needed_w_el
-        candidates["FC"] = caps
 
         # heat pump hybrids
         hybrids = {
@@ -311,6 +306,84 @@ class BES:
                 raise RuntimeError("opt_GEG produced no candidates. Check allowed set / candidate keys.")
 
         return candidates
+
+    def _parse_heater_spec(self, heater_value):
+        """
+        Valid inputs:
+          - "heat_grid" (manual)
+          - "DH" (manual)
+          - "opt"
+          - "opt_geg"
+          - custom list: "HP,BBOI" or "[HP,BBOI]" or "opt:[HP,BBOI]" (but NOT containing DH/heat_grid)
+          - single manual tech: "HP", "BOI", ...
+        Returns:
+          mode: "manual" | "opt" | "opt_geg" | "opt_custom"
+          allowed: set[str] | None
+          manual: str | None
+        """
+
+        if heater_value is None:
+            return "manual", None, None
+
+        s = str(heater_value).strip()
+        if not s:
+            return "manual", None, None
+
+        low = s.lower()
+
+        # explicit optimization keywords
+        if low in ("opt", "opt_geg"):
+            return low, None, None
+
+        # detect list-ish syntax
+        is_custom = (
+                ("," in s) or
+                (s.startswith("[") and s.endswith("]")) or
+                (s.startswith("(") and s.endswith(")")) or
+                (s.startswith("{") and s.endswith("}")) or
+                low.startswith("opt:") or low.startswith("opt[") or low.startswith("opt(") or low.startswith("opt{")
+        )
+
+        if is_custom:
+            cleaned = re.sub(r"^\s*opt\s*[: ]?\s*", "", s, flags=re.IGNORECASE).strip()
+
+            # strip wrappers
+            if (cleaned.startswith("[") and cleaned.endswith("]")) or \
+                    (cleaned.startswith("(") and cleaned.endswith(")")) or \
+                    (cleaned.startswith("{") and cleaned.endswith("}")):
+                cleaned = cleaned[1:-1].strip()
+
+            tokens = [t.strip() for t in cleaned.split(",") if t.strip()]
+            allowed = {t.upper() for t in tokens}
+
+            # empty list -> treat as manual
+            if not allowed:
+                return "manual", None, s
+
+            # forbid DH / heat_grid inside optimization lists
+            forbidden = {"DH", "HEAT_GRID", "HEATGRID", "HEAT-GRID"}
+            if allowed & forbidden:
+                raise ValueError(
+                    f"Invalid heater list {sorted(allowed)}: DH/heat_grid cannot be part of optimization lists. "
+                    f"Use 'DH' or 'heat_grid' alone if you want a fixed choice."
+                )
+
+            return "opt_custom", allowed, None
+
+        # otherwise: manual single tech (including 'DH' or 'heat_grid')
+        return "manual", None, s
+
+    def _filter_candidates(self, candidates, allowed_set):
+        """Filter candidate dict by allowed_set; raise if nothing remains."""
+        allowed_set = {a.upper() for a in (allowed_set or set())}
+        filtered = {k: v for k, v in candidates.items() if k.upper() in allowed_set}
+
+        if not filtered:
+            raise RuntimeError(
+                f"Custom heater candidate list {sorted(allowed_set)} produced no valid candidates. "
+                f"Valid keys include: {sorted(candidates.keys())}"
+            )
+        return filtered
 
 class CES:
     """

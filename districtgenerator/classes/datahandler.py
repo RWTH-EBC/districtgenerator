@@ -1244,8 +1244,17 @@ class Datahandler:
                                         usageFactorSTC=building["buildingFeatures"]["f_STC"])
 
         # Pre-cluster for the optimization of the decentral heating system
-        any_opt = any(str(b["buildingFeatures"].get("heater", "")).strip().lower() in ("opt", "opt_geg")
-                      for b in self.district)
+        def is_opt_like(v):
+            s = str(v or "").strip().lower()
+            return (
+                    s in ("opt", "opt_geg", "opt_custom")
+                    or ("," in s)
+                    or s.startswith(("opt:", "opt[", "opt(", "opt{"))
+                    or (s.startswith("[") and s.endswith("]"))
+                    or (s.startswith("(") and s.endswith(")"))
+                    or (s.startswith("{") and s.endswith("}"))
+            )
+        any_opt = any(is_opt_like(b["buildingFeatures"].get("heater", "")) for b in self.district)
 
         if any_opt:
             self.clusterProfiles(centralEnergySupply=False)
