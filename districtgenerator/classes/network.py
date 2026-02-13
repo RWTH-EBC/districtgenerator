@@ -144,13 +144,16 @@ class Network:
             
         # Optimize central devices for interconnected districts together in the network
         if self.interconnected_districts:
-            self.designCentralDevsConnected(saveGenerationProfiles) 
+            result_dictCon = self.designCentralDevsConnected(saveGenerationProfiles) 
 
             # Finalize cluster profiles for all interconnected districts after optimization
             for data in self.interconnected_districts.values():
                 data.finalizeClusterProfiles()
         else:
             print("No interconnected districts found (optim_dimension == 1). Skipping network optimization.")
+            result_dictCon = None
+            
+        return result_dictCon
         
 
     def designCentralDevsConnected(self, saveGenerationProfiles=True):
@@ -227,6 +230,7 @@ class Network:
                 np.savetxt(os.path.join(district.resultPath, 'generation', f'centralWind_{district.scenario_name}.csv'),
                         district.centralDevices["generation"]["Wind"],
                         delimiter=',')
+        return result_dictCon
         
 
 

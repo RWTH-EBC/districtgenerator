@@ -1,5 +1,7 @@
 from districtgenerator.classes import Network, KPIs
 from pathlib import Path
+from districtgenerator.functions.plot_results import plot_grid_flows
+import os
 
 if __name__ == '__main__':
     # This helper code finds the 'data' directory relative to this script's location.
@@ -15,7 +17,7 @@ if __name__ == '__main__':
         calcUserProfiles=False, 
         saveUserProfiles=False)
     
-    network.optimize_network(saveGenerationProfiles= True)
+    result_dictCon=network.optimize_network(saveGenerationProfiles= True)
 
     #print(network.interconnected_districts)
     for district in network.interconnected_districts.values():
@@ -27,7 +29,14 @@ if __name__ == '__main__':
                 if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
                     print(f"  {device}: {details['cap']}")
         else:
-            print(f"No capacities defined in energy hub of: {district.scenario_name}") 
+            print(f"No capacities defined in energy hub of: {district.scenario_name}")
+
+
+    # Folder to save model and results
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
 
     # Can be used if I update opti_central for the network optimization
     # for district in network.interconnected_districts.values():

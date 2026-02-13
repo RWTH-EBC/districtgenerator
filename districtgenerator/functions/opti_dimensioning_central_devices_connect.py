@@ -378,7 +378,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     # Waste supply and demand balance
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
 
-                    # Mutual exclusivity of grid import and export in each time step #new for network
+                    # #Mutual exclusivity of grid import and export in each time step #new for network
                     # # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
                     # model.constraints.add(
                     # model.power["from_main_grid", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
@@ -388,10 +388,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     # model.power["from_network", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
                     # )
 
-                    # # # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
-                    # # model.constraints.add(
-                    # #     model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
-                    # # )
+                    # # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
+                    # model.constraints.add(
+                    #     model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
+                    # )
 
                     # model.constraints.add(
                     #     model.power["to_network", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
@@ -1069,7 +1069,42 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         result_dict["biom_import_total_by_year"] = {y: int(safe_value(model.biom_import_total, (district, y)) / 1000) for y in model.support_years}      #MWh
         result_dict["waste_import_total_by_year"] = {y: int(safe_value(model.waste_import_total, (district, y)) / 1000) for y in model.support_years}        #MWh
         result_dict["hydrogen_import_total_by_year"] = {y: int(safe_value(model.hydrogen_import_total, (district, y)) / 1000) for y in model.support_years}    #MWh
-    
+
+        # Grid timeseries new for network
+        result_dict["from_main_grid_timeseries"] = {
+            y: [[safe_value(model.power, ("from_main_grid", district, y, d, t)) for t in model.time_steps]
+                for d in model.clusters]
+            for y in model.support_years
+        }
+        result_dict["to_main_grid_timeseries"] = {
+            y: [[safe_value(model.power, ("to_main_grid", district, y, d, t)) for t in model.time_steps]
+                for d in model.clusters]
+            for y in model.support_years
+        }
+
+        result_dict["from_network_timeseries"] = {
+            y: [[safe_value(model.power, ("from_network", district, y, d, t)) for t in model.time_steps]
+                for d in model.clusters]
+            for y in model.support_years
+        }
+        result_dict["to_network_timeseries"] = {
+            y: [[safe_value(model.power, ("to_network", district, y, d, t)) for t in model.time_steps]
+                for d in model.clusters]
+            for y in model.support_years
+        }
+
+        result_dict["from_grid_timeseries"] = {
+            y: [[safe_value(model.power, ("from_grid", district, y, d, t)) for t in model.time_steps]
+                for d in model.clusters]
+            for y in model.support_years
+        }
+        result_dict["to_grid_timeseries"] = {
+            y: [[safe_value(model.power, ("to_grid", district, y, d, t)) for t in model.time_steps]
+                for d in model.clusters]
+            for y in model.support_years
+        }
+
+
         # Calculate weights for each support year (same logic as in build_model)
         sorted_years = sorted(model.support_years)
         n = param["observation_time"]
