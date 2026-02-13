@@ -685,7 +685,7 @@ class DecentralDeviceConfig(BaseSettings):
     CHP__eta_th: float = 0.62  # Thermal efficiency.
     CHP__eta_el: float = 0.30  # Electrical efficiency.
     CHP__life_time: int = 15  # Maximum life time in years.
-    CHP__inv_base: float = 3338.0  # Unsubsidized investment in €/kW.
+    CHP__inv_base: float = 3338.0  # Unsubsidized investment in €/kW_th
     CHP__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     CHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CHP: dict = {}
@@ -702,7 +702,7 @@ class DecentralDeviceConfig(BaseSettings):
     FC__eta_th: float = 0.53  # Thermal efficiency.
     FC__eta_el: float = 0.39  # Electrical efficiency.
     FC__life_time: int = 20  # Maximum life time in years.
-    FC__inv_base: float = 2900.0  # Unsubsidized investment in €/kW.
+    FC__inv_base: float = 2900.0  # Unsubsidized investment in €/kW_th
     FC__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     FC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     FC: dict = {}

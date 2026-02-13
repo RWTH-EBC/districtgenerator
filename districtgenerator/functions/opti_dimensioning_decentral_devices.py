@@ -163,42 +163,9 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
             if "area" in v:
                 return float(v["area"])
 
-    cap_HP_kw_th = cap_w("HP") / 1000.0
-    hp_installed = any(cap_w(k) > 0 for k in ["HP", "GHP", "BHP", "H2HP", "OHP"])
-    cap_EH_kw_th = cap_w("EH") / 1000.0
-    cap_BOI_kw_th = cap_w("BOI") / 1000.0
-    cap_BBOI_kw_th = cap_w("BBOI") / 1000.0
-    cap_OBOI_kw_th = cap_w("OBOI") / 1000.0
-    cap_H2BOI_kw_th = cap_w("H2BOI") / 1000.0
-
-    cap_CHP_kw_el = cap_w("CHP") / 1000.0
-    cap_FC_kw_el = cap_w("FC") / 1000.0
-
-    area_PV_m2 = cap_area_m2("PV")
-    area_STC_m2 = cap_area_m2("STC")
-
-    cap_TES_kwh = cap_wh("TES") / 1000.0
-    cap_TES_L = cap_TES_kwh / ((1000 * 4180 * float(decentral_device_data["TES"]["T_diff_max"]) * 0.001) / 3.6e6)
-
-    cap_BAT_kwh = cap_wh("BAT") / 1000.0
-
-    tes_init_frac = float(decentral_device_data.get("TES", {}).get("init"))
-    bat_init_frac = float(decentral_device_data.get("BAT", {}).get("init"))
-
-    soc_init_TES = cap_TES_kwh * tes_init_frac  # kWh
-    soc_init_BAT = cap_BAT_kwh * bat_init_frac  # kWh
-
     # Parameters
     def dev_param(dev, key):
         return float(decentral_device_data.get(dev, {}).get(key))
-
-    # HP parameters
-    hp_grade = dev_param("HP", "grade")
-    Tsink, hp_measures_applied = compute_hp_sink_temperature_single_building(
-        building=building,
-        decentral_device_data=decentral_device_data,
-        design_building_data=design_building_data,
-        hp_installed=hp_installed)
 
     # Efficiencies
     eta_eh = dev_param("EH", "eta_th")
@@ -217,6 +184,41 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     bat_eta_standby = dev_param("BAT", "eta_standby")
     bat_eta_ch = dev_param("BAT", "eta_ch")
     bat_coeff = dev_param("BAT", "coeff_ch")
+
+    cap_HP_kw_th = cap_w("HP") / 1000.0
+    hp_installed = any(cap_w(k) > 0 for k in ["HP", "GHP", "BHP", "H2HP", "OHP"])
+    cap_EH_kw_th = cap_w("EH") / 1000.0
+    cap_BOI_kw_th = cap_w("BOI") / 1000.0
+    cap_BBOI_kw_th = cap_w("BBOI") / 1000.0
+    cap_OBOI_kw_th = cap_w("OBOI") / 1000.0
+    cap_H2BOI_kw_th = cap_w("H2BOI") / 1000.0
+
+    cap_CHP_kw_th = cap_w("CHP") / 1000.0
+    cap_CHP_kw_el = cap_CHP_kw_th * (eta_chp_el / eta_chp_th)
+    cap_FC_kw_th = cap_w("FC") / 1000.0
+    cap_FC_kw_el = cap_FC_kw_th * (eta_fc_el / eta_fc_th)
+
+    area_PV_m2 = cap_area_m2("PV")
+    area_STC_m2 = cap_area_m2("STC")
+
+    cap_TES_kwh = cap_wh("TES") / 1000.0
+    cap_TES_L = cap_TES_kwh / ((1000 * 4180 * float(decentral_device_data["TES"]["T_diff_max"]) * 0.001) / 3.6e6)
+
+    cap_BAT_kwh = cap_wh("BAT") / 1000.0
+
+    tes_init_frac = float(decentral_device_data.get("TES", {}).get("init"))
+    bat_init_frac = float(decentral_device_data.get("BAT", {}).get("init"))
+
+    soc_init_TES = cap_TES_kwh * tes_init_frac  # kWh
+    soc_init_BAT = cap_BAT_kwh * bat_init_frac  # kWh
+
+    # HP parameters
+    hp_grade = dev_param("HP", "grade")
+    Tsink, hp_measures_applied = compute_hp_sink_temperature_single_building(
+        building=building,
+        decentral_device_data=decentral_device_data,
+        design_building_data=design_building_data,
+        hp_installed=hp_installed)
 
     # Fixed annualized costs (CAPEX+O&M)
     def dev_dict(dev_name):
@@ -248,8 +250,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BBOI"), eco_data, cap_BBOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("OBOI"), eco_data, cap_OBOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("H2BOI"), eco_data, cap_H2BOI_kw_th, mode="subsidized")
-    fixed_cost += annualized_device_cost_over_horizon(dev_dict("CHP"), eco_data, cap_CHP_kw_el, mode="subsidized")
-    fixed_cost += annualized_device_cost_over_horizon(dev_dict("FC"), eco_data, cap_FC_kw_el, mode="subsidized")
+    fixed_cost += annualized_device_cost_over_horizon(dev_dict("CHP"), eco_data, cap_CHP_kw_th, mode="subsidized")
+    fixed_cost += annualized_device_cost_over_horizon(dev_dict("FC"), eco_data, cap_FC_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BAT"), eco_data, cap_BAT_kwh, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("TES"), eco_data, cap_TES_L, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("PV"), eco_data, area_PV_m2, mode="subsidized")

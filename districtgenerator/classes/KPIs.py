@@ -104,6 +104,8 @@ class KPIs:
         self.calculateCoverFactors(data)
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
+        self.calculateLCOH_buildings(data)
+        self.calculateLCOH_EH(data)
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateGasolineCosts(data)
@@ -677,6 +679,324 @@ class KPIs:
                 "co2_district_heat": co2_district_heat
             }
 
+    def calculateLCOH_buildings(self, data):
+        """
+        Calculate the building-level Levelized Cost of Heat (LCOH) in ct/kWh.
+
+        This function computes the average cost per unit of useful heat delivered
+        to each building for every simulated year. The LCOH includes:
+
+        For co-generation technologies (CHP and fuel cells) producing both heat
+        and electricity, fuel costs are allocated using a price-based allocation
+        method:
+                share_heat = (Q * price_dh) / (Q * price_dh + E * price_el)
+
+        Parameters
+        ----------
+        data
+
+        Returns
+        -------
+        None
+        """
+
+        years = self.inputData["simulated_years"]
+        clusters = self.inputData["clusters"]
+        cweights = self.inputData["clusterWeights"]
+        dt = float(data.time["timeResolution"])
+
+        self.lcoh_year_building = {}
+
+        for year in years:
+            eco = data.all_sim_ecoData[year]
+
+            price_gas = eco["price_supply_gas"]
+            price_el = eco["price_supply_el"]
+            price_biom = eco.get("price_biomass", 0.0)
+            price_h2 = eco.get("price_hydrogen", 0.0)
+            price_oil = eco.get("price_oil", 0.0)
+            price_dh = eco.get("price_district_heat", 0.0)
+
+            self.lcoh_year_building[year] = {}
+
+            # LOOP BUILDINGS
+            for n in range(len(data.district)):
+
+                Q_total_building = (sum(data.district[n]["user"].dhw) + sum(data.district[n]["user"].heat)) * dt / 3600 / 1000
+                fuel_cost_heat = 0.0
+                el_cost_heat = 0.0
+                dh_cost_heat = 0.0
+                fixed_cost_heat = 0.0
+                heater_type = data.district[n]["buildingFeatures"]["heater"]
+
+                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "STC", "T_reduction_measures"}
+
+                # Fixed cost allocation
+                for dev, info in self.decentral_individual_devices_annualized_cost.get(n, {}).items():
+                    if dev in heat_devices:
+                        fixed_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
+
+                # LOOP CLUSTERS
+                for c in range(len(clusters)):
+
+                    cw = float(cweights[clusters[c]])
+                    cluster = self.inputData["resultsOptimization"][year][c]
+                    res = cluster[n]
+                    T = len(res.get("res_load", []))
+
+                    # District Heating
+                    if heater_type == "DH" and "DH" in res:
+                        dh_energy = (np.array(res["DH"].get("Q_th", [0] * T)).sum() * dt / 3600 / 1000)
+                        dh_cost_heat += cw * dh_energy * price_dh
+
+                    # Boilers
+                    if heater_type in ["BOI", "GHP"] and "BOI" in res:
+                        Q = np.array(res["BOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["BOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_gas
+
+                    if heater_type in ["BBOI", "BHP"] and "BBOI" in res:
+                        Q = np.array(res["BBOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["BBOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_biom
+
+                    if heater_type in ["OBOI", "OHP"] and "OBOI" in res:
+                        Q = np.array(res["OBOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["OBOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_oil
+
+                    if heater_type in ["H2BOI", "H2HP"] and "H2BOI" in res:
+                        Q = np.array(res["H2BOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["H2BOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_h2
+
+                    if heater_type == "CHP" and "CHP" in res:
+                        E_chp = np.array(res["CHP"].get("P_el", [0] * T))
+                        eta_th = data.decentral_device_data["CHP"]["eta_th"]
+                        eta_el = data.decentral_device_data["CHP"]["eta_el"]
+                        Q_chp = E_chp/eta_el*eta_th
+
+                        Q_kWh = Q_chp.sum() * dt / 3600 / 1000
+                        E_kWh = E_chp.sum() * dt / 3600 / 1000
+                        if Q_kWh > 0:
+                            fuel_input = Q_kWh / eta_th
+                            share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                            fuel_cost_heat += cw * share_heat * fuel_input * price_gas
+
+                    if heater_type == "FC" and "FC" in res:
+                        E_fc = np.array(res["FC"].get("P_el", [0] * T))
+                        eta_th = data.decentral_device_data["FC"]["eta_th"]
+                        eta_el = data.decentral_device_data["FC"]["eta_el"]
+                        Q_fc = E_fc/eta_el*eta_th
+
+                        Q_kWh = Q_fc.sum() * dt / 3600 / 1000
+                        E_kWh = E_fc.sum() * dt / 3600 / 1000
+                        if Q_kWh > 0:
+                            fuel_input = Q_kWh / eta_th
+                            share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                            fuel_cost_heat += cw * share_heat * fuel_input * price_h2
+
+                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH"]:
+                        el_heat_from_grid_cluster = 0.0
+                        for t in range(T):
+                            hp_t = res.get("HP", {}).get("P_el", [0] * T)[t]
+                            eh_t = res.get("EH", {}).get("P_el", [0] * T)[t]
+                            grid_t = res.get("res_load", [0] * T)[t]
+                            el_heat_t = (hp_t + eh_t) * dt / 3600 / 1000
+                            grid_t_kWh = grid_t * dt / 3600 / 1000
+                            el_heat_from_grid_cluster += min(el_heat_t, grid_t_kWh)
+                        el_cost_heat += cw * el_heat_from_grid_cluster * price_el
+
+                # LCOH per building
+                total_cost = (
+                        fixed_cost_heat +
+                        fuel_cost_heat +
+                        el_cost_heat +
+                        dh_cost_heat)
+
+                if Q_total_building > 1e-9:
+                    lcoh = 100.0 * total_cost / Q_total_building
+                else:
+                    lcoh = 0.0
+
+                self.lcoh_year_building[year][n] = lcoh
+
+    def calculateLCOH_EH(self, data):
+        """
+        Calculate the Energy Hub Levelized Cost of Heat (LCOH) in ct/kWh.
+
+        This function computes the average cost per unit of useful heat supplied
+        by the central Energy Hub to all buildings connected to the district
+        heating network for each simulated year.
+
+        For co-generation technologies (CHP, biomass CHP, waste CHP, and fuel
+        cells), fuel costs are allocated between heat and electricity using a
+        price-based allocation method:
+
+            share_heat = (Q * price_dh) / (Q * price_dh + E * price_el)
+
+        Parameters
+        ----------
+        data
+
+        Returns
+        -------
+        None
+        """
+
+        years = self.inputData["simulated_years"]
+        clusters = self.inputData["clusters"]
+        cweights = self.inputData["clusterWeights"]
+        dt = float(data.time["timeResolution"])
+
+        self.lcoh_year_eh = {}
+
+        for year in years:
+
+            eco = data.all_sim_ecoData[year]
+
+            # Energy hub specific prices
+            price_gas = eco.get("price_supply_gas_eh", eco["price_supply_gas"])
+            price_el = eco.get("price_supply_el_eh", eco["price_supply_el"])
+            price_biom = eco.get("price_biomass", 0.0)
+            price_h2 = eco.get("price_hydrogen", 0.0)
+            price_oil = eco.get("price_oil", 0.0)
+            price_waste = eco.get("price_waste", 0.0)
+            price_dh = eco.get("price_district_heat", 0.0)
+
+            self.lcoh_year_eh[year] = {}
+
+            # TOTAL HEAT DELIVERED
+            Q_total_eh = 0.0
+
+            for n in range(len(data.district)):
+                if data.district[n]["buildingFeatures"]["heater"] == "heat_grid":
+                    Q_building = (np.sum(data.district[n]["user"].dhw) + np.sum(data.district[n]["user"].heat)) * dt / 3600 / 1000
+                    Q_total_eh += Q_building
+
+            fuel_cost_heat = 0.0
+            el_cost_heat = 0.0
+            fixed_cost_heat = 0.0
+
+            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC"}
+
+            # Central heat-producing devices only
+            for dev, info in self.central_individual_devices_annualized_cost.items():
+                if dev in heat_devices:
+                    fixed_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
+
+            # Heating network investment
+            fixed_cost_heat += float(data.heat_grid_data["om_costs"]+data.heat_grid_data["ann_costs"])
+
+            # LOOP CLUSTERS
+            for c in range(len(clusters)):
+
+                cw = float(cweights[clusters[c]])
+                cluster = self.inputData["resultsOptimization"][year][c]
+                eh_power = cluster["eh_power"]
+                eh_heat = cluster["eh_heat"]
+                eh_gas = cluster["eh_gas"]
+                eh_h2 = cluster["eh_hydrogen"]
+                eh_biom = cluster["eh_biom"]
+                eh_waste = cluster["eh_waste"]
+
+                T = len(next(iter(eh_power.values())))
+
+                # Gas boilers
+                Q = np.array(eh_heat["BOI"])
+                eta = data.central_device_data["BOI"]["eta_th"]
+                fuel = Q.sum() / eta * dt / 3600 / 1000
+                fuel_cost_heat += cw * fuel * price_gas
+
+                # Biomass boiler
+                Q = np.array(eh_heat["BBOI"])
+                eta = data.central_device_data["BBOI"]["eta_th"]
+                fuel = Q.sum() / eta * dt / 3600 / 1000
+                fuel_cost_heat += cw * fuel * price_biom
+
+                # Waste boiler
+                Q = np.array(eh_heat["WBOI"])
+                eta = data.central_device_data["WBOI"]["eta_th"]
+                fuel = Q.sum() / eta * dt / 3600 / 1000
+                fuel_cost_heat += cw * fuel * price_waste
+
+                # CHP (gas)
+                fuel = np.array(eh_gas.get("CHP", [0] * T))
+                Q = np.array(eh_heat.get("CHP", [0] * T))
+                E = np.array(eh_power.get("CHP", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_gas
+
+                # Waste CHP (WCHP)
+                fuel = np.array(eh_waste.get("WCHP", [0] * T))
+                Q = np.array(eh_heat.get("WCHP", [0] * T))
+                E = np.array(eh_power.get("WCHP", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_waste
+
+                # Biomass CHP (BCHP)
+                fuel = np.array(eh_biom.get("BCHP", [0] * T))
+                Q = np.array(eh_heat.get("BCHP", [0] * T))
+                E = np.array(eh_power.get("BCHP", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_biom
+
+                # Fuel Cell
+                fuel = np.array(eh_h2.get("FC", [0] * T))
+                Q = np.array(eh_heat.get("FC", [0] * T))
+                E = np.array(eh_power.get("FC", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_h2
+
+                # Electricity cost for HP + EB
+                el_heat_from_grid_cluster = 0.0
+                for t in range(T):
+                    hp_t = eh_power.get("HP", [0] * T)[t]
+                    eb_t = eh_power.get("EB", [0] * T)[t]
+                    grid_t =eh_power.get("from_grid", [0] * T)[t]
+                    el_heat_t = (hp_t + eb_t) * dt / 3600 / 1000
+                    grid_kWh = grid_t * dt / 3600 / 1000
+                    el_heat_from_grid_cluster += min(el_heat_t, grid_kWh)
+                el_cost_heat += cw * el_heat_from_grid_cluster * price_el
+
+            # LCOH
+            total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat
+
+            if Q_total_eh > 1e-9:
+                lcoh_eh = 100.0 * total_cost / Q_total_eh
+            else:
+                lcoh_eh = 0.0
+
+            self.lcoh_year_eh[year] = lcoh_eh
+
     def calculateAutonomy(self):
         """
         Calculation of the ratio of operating time in which the local electricity demand is completely covered
@@ -874,6 +1194,8 @@ class KPIs:
         self.calc_total_areas_and_demands(data)
         self.calculateGasolineCosts(data)
         self.calc_total_consumption_and_emissions(data)
+        self.calculateLCOH_buildings(data)
+        self.calculateLCOH_EH(data)
         self.saveKPIs(data.scenario_name, data.resultPath, data.district)
 
     def saveKPIs(self, scenario_name, result_path, buildings):
@@ -1007,7 +1329,7 @@ class KPIs:
         for device_name, device_info in self.central_individual_devices_annualized_cost.items():
             # Determine unit based on device type
             if device_name == "Heat_Grid":
-                unit = "-"  # Heat grid capacity not defined? #TODO: Is this true?
+                unit = "-"
             elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
                 unit = "kWh"
             elif device_name in ["PV", "STC"]:
@@ -1038,6 +1360,35 @@ class KPIs:
         # Create DataFrame for central device costs
         kpi_df_cent_devices = pd.DataFrame(cent_device_data_list) if cent_device_data_list else pd.DataFrame()
 
+        #LCOH Sheet
+        lcoh_rows = []
+
+        #Building-level LCOH
+        for year in years:
+            for b_id, value in self.lcoh_year_building.get(year, {}).items():
+                if abs(value) > 1e-6:  # filter zero values
+                    building_name = buildings[b_id]["unique_name"]
+                    lcoh_rows.append({
+                        "Year": year,
+                        "Level": "Building",
+                        "Name": building_name,
+                        "LCOH (ct/kWh)": round(value, 1)
+                    })
+
+        #Energy Hub LCOH
+        for year, value in self.lcoh_year_eh.items():
+            if abs(value) > 1e-6:  # filter zero values
+                lcoh_rows.append({
+                    "Year": year,
+                    "Level": "Energy Hub",
+                    "Name": "EH",
+                    "LCOH (ct/kWh)": round(value, 1)
+                })
+
+        # Create dataframe
+        kpi_df_lcoh = pd.DataFrame(lcoh_rows) if lcoh_rows else pd.DataFrame(
+            columns=["Year", "Level", "Name", "LCOH (ct/kWh)"])
+
         # Save to Excel with four sheets (or three if no central devices)
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             kpi_df_yearly.to_excel(writer, sheet_name='Yearly KPIs', index=False)
@@ -1045,6 +1396,7 @@ class KPIs:
             kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices Costs', index=False)
             if not kpi_df_cent_devices.empty:
                 kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices Costs', index=False)
+            kpi_df_lcoh.to_excel(writer, sheet_name='LCOH', index=False)
 
         print(f"KPIs saved to: {filename}")
 
@@ -1257,12 +1609,12 @@ class KPIs:
 
         }
         opt_ergebnisse={
-                "CO2-äqui. Emissionen": str(round(sum(self.co2emissions))) + " t/a",
-                "Energiekosten (ohne ice)": str(round(self.operationCosts)) + " \u20AC/a",
+                "CO2-äqui. Emissionen": str(round(sum(self.co2emissions))) + " t/a",          #todo: check
+                "Energiekosten (ohne ice)": str(round(self.operationCosts)) + " \u20AC/a",       #todo: check
                 "Gasolinekosten": str(round(self.gasoline_costs or 0)) + " \u20AC/a",
                 "Decentral Fixed Costs": str(round(self.annual_fixed_costs_decentral)) + " \u20AC/a",
                 "Central Fixed Costs": str(round(self.annual_fixed_costs_central)) + " \u20AC/a",
-                "Spitzenlast (el.)": str(round(self.peakDemand, 2)) + " kW",
+                "Spitzenlast (el.)": str(round(self.peakDemand, 2)) + " kW",             #todo: check
                 "Max. Einspeiseleistung": str(round(self.peakInjection, 2)) + " kW",
                 "Supply-Cover-Faktor": str(round(self.scf_year * 100, 0)) + " %",
                 "Demand-Cover-Faktor": str(round(self.dcf_year * 100, 0)) + " %",

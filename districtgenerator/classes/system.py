@@ -143,7 +143,7 @@ class BES:
                 if buildingFeatures["heater"] == "CHP":
                     eta_el = float(self.decentral_device_data["CHP"]["eta_el"])
                     eta_th = float(self.decentral_device_data["CHP"]["eta_th"])
-                    BES["CHP"] = self.design_load_heating * (eta_el / max(eta_th, 1e-9))
+                    BES["CHP"] = BES["CHP"] = self.design_load_heating
                 else:
                     BES["CHP"] = 0
 
@@ -151,7 +151,7 @@ class BES:
                 if buildingFeatures["heater"] == "FC":
                     eta_el = float(self.decentral_device_data["FC"]["eta_el"])
                     eta_th = float(self.decentral_device_data["FC"]["eta_th"])
-                    BES["FC"] = self.design_load_heating * (eta_el / max(eta_th, 1e-9))
+                    BES["FC"] = self.design_load_heating
                 else:
                     BES["FC"] = 0
 
@@ -277,27 +277,10 @@ class BES:
             return caps
 
         # monovalent (single primary heater)
-        for dev in ("BOI", "BBOI", "OBOI", "H2BOI", "EH"):
+        for dev in ("BOI", "BBOI", "OBOI", "H2BOI", "EH", "CHP", "FC"):
             caps = blank_caps()
             caps[dev] = design
             candidates[dev] = caps
-
-        # CHP / FC as monovalent heat producers
-        eta_chp_el = float(self.decentral_device_data["CHP"]["eta_el"])
-        eta_chp_th = float(self.decentral_device_data["CHP"]["eta_th"])
-        eta_fc_el = float(self.decentral_device_data["FC"]["eta_el"])
-        eta_fc_th = float(self.decentral_device_data["FC"]["eta_th"])
-
-        p_chp_needed_w_el = design * (eta_chp_el / eta_chp_th)
-        p_fc_needed_w_el = design * (eta_fc_el / eta_fc_th)
-
-        caps = blank_caps()
-        caps["CHP"] = p_chp_needed_w_el
-        candidates["CHP"] = caps
-
-        caps = blank_caps()
-        caps["FC"] = p_fc_needed_w_el
-        candidates["FC"] = caps
 
         # heat pump hybrids
         hybrids = {
