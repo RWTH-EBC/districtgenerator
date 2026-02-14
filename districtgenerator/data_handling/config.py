@@ -211,6 +211,11 @@ class EcoConfig(BaseSettings):
     co2_waste: str | list = [0.020]              # Co2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # Co2 emissions for district heat in kg/kWh
 
+    # Legal requirements # New TJA
+    renewable_heat_share: str | list = [0] # Required share of renewable heat in the system (0 to 1), relevant for WPG
+    renewable_el_grid_share: str | list = [0] # Renewable share of electricity from the main grid (0 to 1), relevant for WPG
+    max_biomass_share: str | list = [1] # Maximum allowed share of biomass in the heat supply (0 to 1), relevant for WPG
+
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
 
@@ -220,7 +225,9 @@ class EcoConfig(BaseSettings):
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
-                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
+                     'co2_oil', 'co2_waste', 'co2_district_heat', 
+                     'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
+                     'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
         """Convert input to list of floats"""
@@ -249,7 +256,9 @@ class EcoConfig(BaseSettings):
             'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 
             'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 
+            'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
+            'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -556,13 +565,14 @@ class EHDOConfig(BaseSettings):
     supply_limit_gas: float = 1000000       # Maximum available gas in MWh/year
     enable_supply_limit_gas: bool = False   # Enable limit annual gas import, bool.
 
+
     # Other options
     peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
 
-    
+
 
     # Helper attributes for unit formatting (Remove?)
     unit_placeholder: str = " - "   # used for cases where unit is a placeholder

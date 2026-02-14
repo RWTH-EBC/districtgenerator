@@ -731,13 +731,21 @@ def load_params(data):
                         for year in param["interpolation_points"]}  # kg/kWh
     param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"]
                             for year in param["interpolation_points"]}  # kg/kWh
+    
+    # Legal Emision requirements # new TJA
+    param["renewable_heat_share"] = {year: all_sim_ecoData[year]["renewable_heat_share"]
+                            for year in param["interpolation_points"]}
+    param["renewable_el_grid_share"] = {year: all_sim_ecoData[year]["renewable_el_grid_share"]
+                            for year in param["interpolation_points"]}
+    param["max_biomass_share"] = {year: all_sim_ecoData[year]["max_biomass_share"]
+                            for year in param["interpolation_points"]}
 
     # Optional: CO2 credits for feed-in (if available in all_sim_ecoData)
     param["co2_el_feed_in"] = {year: all_sim_ecoData[year].get("co2_el_feed_in", 0)
                             for year in param["interpolation_points"]}  # kg/kWh
     param["co2_gas_feed_in"] = {year: all_sim_ecoData[year].get("co2_gas_feed_in", 0)
                                 for year in param["interpolation_points"]}  # kg/kWh
-
+    
     ### Taxes ###
     param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"]
                         for year in param["interpolation_points"]}  # EUR/kg

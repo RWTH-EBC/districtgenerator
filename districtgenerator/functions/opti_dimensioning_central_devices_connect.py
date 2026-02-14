@@ -151,6 +151,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.area = pyo.Var(model.area_devs, model.districts, within=pyo.NonNegativeReals, name="roof_area")
 
     # Operational variables for EACH support year and district
+    # Gas/Power/Heat... to/from devices
     model.gas = pyo.Var(model.gas_devs, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.power = pyo.Var(model.power_devs, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.heat = pyo.Var(model.heat_devs, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
@@ -159,6 +160,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.biom = pyo.Var(model.biom_devs, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.waste = pyo.Var(model.waste_devs, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.ch = pyo.Var(model.storage_devs, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Reals)
+
+    # Heat generation of each devive per year
+    model.heat_gen = pyo.Var(model.heat_devs, model.districts, model.support_years, within=pyo.NonNegativeReals) #new for network
+    model.heat_sum = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) #new for network
 
     # Storage SOC uses weekly tracking but indexed by support year and district
     model.soc = pyo.Var(model.storage_devs, model.districts, model.support_years, model.year, model.time_steps,
@@ -611,6 +616,46 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     sum(model.power["to_network", district, y, d, t] for district in model.districts) ==
                     sum(model.power["from_network", district, y, d, t] for district in model.districts)
                 )
+
+    ################################################################################
+    # Legal constraints 
+    ################################################################################
+    for district in model.districts: # new for network
+        param = paramCon[district]
+        devs = devsCon[district]
+        for y in model.support_years:
+            for dev in model.heat_devs:
+                # Calculate total heat generation per device and district per year
+                model.constraints.add(model.heat_gen[dev, district,y] == dt * sum(
+                    model.heat[dev,district,y,d,t] *param["cluster_weights"][d]
+                    for d in model.clusters for t in model.time_steps))
+                
+            # Calculate the sum of heat generation of all devices per district and year
+            model.constraints.add(model.heat_sum[district,y] == sum(model.heat_gen[dev,district, y] for dev in model.heat_devs))
+            # Enforce that the renewable share of heat generation is above the minimum required share
+            renewable_heat_technologies = ["STC", "HP", "BCHP", "BBOI","WCHP", "WBOI"]  # Define which devices are considered renewable for heat generation
+            model.constraints.add(
+                sum(model.heat_gen[dev, district, y] for dev in renewable_heat_technologies)+model.heat_gen["EB", district, y] * param["renewable_el_grid_share"][y]>= param["renewable_heat_share"][y] * model.heat_sum[district,y]
+            )
+
+            # Make sure that heat demand can be met with renewable sorces even if biomass is not allowed
+            if param["enable_supply_biomass"] == False:
+                if param["renewable_heat_share"][y] == 1.0:
+                    if param["renewable_el_grid_share"][y] == 1.0:
+                        model.constraints.add(
+                            model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district] 
+                            + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
+                            + model.cap["WBOI", district] >= param["peak_heat"])
+                    else:
+                            model.constraints.add(
+                            model.cap["STC", district] + model.cap["HP", district] 
+                            + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
+                            + model.cap["WBOI", district] >= param["peak_heat"])
+            # Make sure that biomass share is below the maximum allowed share
+            # Define which devices are considered biomass-based for heat generation
+            biomass_heat_technologies = ["BCHP", "BBOI"]  
+            model.constraints.add(sum(model.heat_gen[dev, district, y] for dev in biomass_heat_technologies) <= param["max_biomass_share"][y] * model.heat_sum[district,y])
+    
 
     ################################################################################
     # Economic constraints - according to VDI 2067 Blatt 1 - annuity method
@@ -1257,9 +1302,11 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         # Heat profiles and maximum heat - store for each support year
         result_dict["heat_profile_by_year"] = {}
         result_dict["heat_kW_by_year"] = {}
+        result_dict["heat_gen_sum_by_year"] = {} # new TJA
         for y in model.support_years:
             result_dict["heat_profile_by_year"][y] = {}
             result_dict["heat_kW_by_year"][y] = {}
+            result_dict["heat_gen_sum_by_year"][y] = {} # new TJA
             for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
                 profile = []
                 for d in model.clusters:
@@ -1267,6 +1314,8 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                         profile.append(safe_value(model.heat, (device, district, y, d, t)))
                 result_dict["heat_profile_by_year"][y][device] = profile
                 result_dict["heat_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+            for device in model.heat_devs: # new TJA
+                result_dict["heat_gen_sum_by_year"][y][device] = safe_value(model.heat_gen, (device, district, y)) # new TJA
 
         # Cooling profiles and maximum cooling - store for each support year
         result_dict["cool_profile_by_year"] = {}
@@ -1482,6 +1531,15 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
             data_to_save.append([f"{device}_ann_inv_cost", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
             data_to_save.append([f"{device}_ann_inv_cost_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])
             data_to_save.append([f"{device}_om_cost", om_costs, "EUR/a"])
+
+    data_to_save.append([])
+    data_to_save.append(["Heat_generation_by_year", "Value", "Unit"])
+    for y in model.support_years:
+        for dev in model.heat_devs:
+            value = result_dict.get("heat_gen_sum_by_year", {}).get(y, {}).get(dev, "")
+            data_to_save.append([f"heat_gen_{dev}_{y}", value, "kWh"])
+            value = result_dict.get("heat_kW_by_year", {}).get(y, {}).get(dev, "")
+            data_to_save.append([f"heat_kW_{dev}_{y}", value, "kW"])
 
     for y in model.support_years:
         data_to_save.append([f"from_el_grid_total_{y}", result_dict.get("from_el_grid_total_by_year", {}).get(y, ""), "MWh"])
