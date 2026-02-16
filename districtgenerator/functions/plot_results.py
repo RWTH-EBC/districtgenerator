@@ -1,6 +1,79 @@
 import matplotlib.pyplot as plt
 import os
 
+def plot_device_capacities(district_name, result_dict, result_dir=None, show=True):
+    """
+    Plots device capacities as a bar chart for a single district.
+    
+    Parameters
+    ----------
+    district_name : str
+        Name of the district
+    result_dict : dict
+        Result dictionary for this specific district containing device capacities
+    result_dir : str, optional
+        Directory where plots will be saved. Default is current directory.
+    show : bool, optional
+        Whether to display the plot. Default is True.
+    
+    Returns
+    -------
+    None
+    """
+    if result_dict is None:
+        raise ValueError("result_dict is required")
+    
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # Extract device capacities
+    devices = []
+    capacities = []
+    
+    # Get all device entries from result_dict and filter those with inst=True and cap>0
+    for device_name, device_data in result_dict.items():
+        if isinstance(device_data, dict):
+            # Check if device is installed and has a capacity
+            if device_data.get("inst", False) and device_data.get("cap", 0) > 0:
+                devices.append(device_name)
+                capacities.append(device_data["cap"])
+    
+    if not devices:
+        print(f"No installed devices with capacity > 0 found for district {district_name}")
+        return
+    
+    # Create bar chart
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(devices, capacities, color='steelblue', edgecolor='navy', linewidth=1.5)
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.2f}',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    
+    plt.xlabel("Device", fontsize=12, fontweight='bold')
+    plt.ylabel("Capacity (kW)", fontsize=12, fontweight='bold')
+    plt.title(f"Device Capacities - {district_name}", fontsize=14, fontweight='bold')
+    plt.grid(axis='y', alpha=0.3, linestyle='--')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    
+    # Save figure
+    filename = f"device_capacities_{district_name}.png"
+    plot_path = os.path.join(plots_dir, filename)
+    plt.savefig(plot_path, dpi=150)
+    
+    print(f"Device capacities plot for {district_name} saved to {plot_path}")
+    
+    if show:
+        plt.show()
+    else:
+        plt.close()
+    
+    return None
+
 def plot_grid_flows(result_dictCon=None,y=None, result_dir=None, show=True):
 
     if result_dictCon is None:

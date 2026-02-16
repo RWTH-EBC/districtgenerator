@@ -67,7 +67,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         scenario_name = district
         result_dict = result_dictCon[scenario_name]
         # Save results to csv
-        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list)
+        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon=demCon)
     
     model_solve_time = time.time() - start_time - model_building_time
 
@@ -620,41 +620,52 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     ################################################################################
     # Legal constraints 
     ################################################################################
-    for district in model.districts: # new for network
-        param = paramCon[district]
-        devs = devsCon[district]
-        for y in model.support_years:
-            for dev in model.heat_devs:
-                # Calculate total heat generation per device and district per year
-                model.constraints.add(model.heat_gen[dev, district,y] == dt * sum(
-                    model.heat[dev,district,y,d,t] *param["cluster_weights"][d]
-                    for d in model.clusters for t in model.time_steps))
-                
-            # Calculate the sum of heat generation of all devices per district and year
-            model.constraints.add(model.heat_sum[district,y] == sum(model.heat_gen[dev,district, y] for dev in model.heat_devs))
-            # Enforce that the renewable share of heat generation is above the minimum required share
-            renewable_heat_technologies = ["STC", "HP", "BCHP", "BBOI","WCHP", "WBOI"]  # Define which devices are considered renewable for heat generation
-            model.constraints.add(
-                sum(model.heat_gen[dev, district, y] for dev in renewable_heat_technologies)+model.heat_gen["EB", district, y] * param["renewable_el_grid_share"][y]>= param["renewable_heat_share"][y] * model.heat_sum[district,y]
-            )
+    if param["enable_legal_requirements"] == True:
+        for district in model.districts: # new for network
+            param = paramCon[district]
+            devs = devsCon[district]
+            for y in model.support_years:
+                for dev in model.heat_devs:
+                    # Calculate total heat generation per device and district per year
+                    model.constraints.add(model.heat_gen[dev, district,y] == dt * sum(
+                        model.heat[dev,district,y,d,t] *param["cluster_weights"][d]
+                        for d in model.clusters for t in model.time_steps))
+                    
+                # Calculate the sum of heat generation of all devices per district and year
+                model.constraints.add(model.heat_sum[district,y] == sum(model.heat_gen[dev,district, y] for dev in model.heat_devs))
+                # Enforce that the renewable share of heat generation is above the minimum required share
+                renewable_heat_technologies = ["STC", "HP", "BCHP", "BBOI","WCHP", "WBOI"]  # Define which devices are considered renewable for heat generation
+                model.constraints.add(
+                    sum(model.heat_gen[dev, district, y] for dev in renewable_heat_technologies)
+                    +model.heat_gen["EB", district, y] * param["renewable_el_grid_share"][y]
+                    >= param["renewable_heat_share"][y] * model.heat_sum[district,y]
+                )
 
-            # Make sure that heat demand can be met with renewable sorces even if biomass is not allowed
-            if param["enable_supply_biomass"] == False:
-                if param["renewable_heat_share"][y] == 1.0:
-                    if param["renewable_el_grid_share"][y] == 1.0:
-                        model.constraints.add(
-                            model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district] 
-                            + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
-                            + model.cap["WBOI", district] >= param["peak_heat"])
-                    else:
-                            model.constraints.add(
-                            model.cap["STC", district] + model.cap["HP", district] 
-                            + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
-                            + model.cap["WBOI", district] >= param["peak_heat"])
-            # Make sure that biomass share is below the maximum allowed share
-            # Define which devices are considered biomass-based for heat generation
-            biomass_heat_technologies = ["BCHP", "BBOI"]  
-            model.constraints.add(sum(model.heat_gen[dev, district, y] for dev in biomass_heat_technologies) <= param["max_biomass_share"][y] * model.heat_sum[district,y])
+
+        for district in model.districts: # new for network
+            param = paramCon[district]
+            devs = devsCon[district]
+            for y in model.support_years:
+                if param["renewable_el_grid_share"][y] == 1.0:
+                    model.constraints.add(
+                        model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district] 
+                        + model.cap["BCHP", district]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
+                        + model.cap["BBOI", district] 
+                        + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
+                        + model.cap["WBOI", district] >= param["peak_heat"])
+                else:
+                    model.constraints.add(
+                    model.cap["STC", district] + model.cap["HP", district]
+                    + model.cap["BCHP", district]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
+                    + model.cap["BBOI", district] 
+                    + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
+                    + model.cap["WBOI", district] >= param["peak_heat"])
+
+                    
+                # Make sure that biomass share is below the maximum allowed share
+                # Define which devices are considered biomass-based for heat generation
+                biomass_heat_technologies = ["BCHP", "BBOI"]  
+                model.constraints.add(sum(model.heat_gen[dev, district, y] for dev in biomass_heat_technologies) <= param["max_biomass_share"][y] * model.heat_sum[district,y])
     
 
     ################################################################################
@@ -1303,17 +1314,24 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         result_dict["heat_profile_by_year"] = {}
         result_dict["heat_kW_by_year"] = {}
         result_dict["heat_gen_sum_by_year"] = {} # new TJA
+        result_dict["heat_profile_energy_kwh_by_year"] = {} # new for test reasons TJA
         for y in model.support_years:
             result_dict["heat_profile_by_year"][y] = {}
             result_dict["heat_kW_by_year"][y] = {}
             result_dict["heat_gen_sum_by_year"][y] = {} # new TJA
+            result_dict["heat_profile_energy_kwh_by_year"][y] = {}  # new for test reasons TJA
             for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
                 profile = []
+                weighted_kwh = 0.0
                 for d in model.clusters:
                     for t in model.time_steps:
-                        profile.append(safe_value(model.heat, (device, district, y, d, t)))
+                        # profile.append(safe_value(model.heat, (device, district, y, d, t))) # original
+                        val = safe_value(model.heat, (device, district, y, d, t)) # New TJA - for weighted sum
+                        profile.append(val)
+                        weighted_kwh += val * param["cluster_weights"][d]
                 result_dict["heat_profile_by_year"][y][device] = profile
                 result_dict["heat_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+                result_dict["heat_profile_energy_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
             for device in model.heat_devs: # new TJA
                 result_dict["heat_gen_sum_by_year"][y][device] = safe_value(model.heat_gen, (device, district, y)) # new TJA
 
@@ -1426,7 +1444,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
     return result_dictCon
 
 
-def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list):
+def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon):
     """
     Saves specific results from result_dict into a CSV file.
 
@@ -1541,6 +1559,13 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
             value = result_dict.get("heat_kW_by_year", {}).get(y, {}).get(dev, "")
             data_to_save.append([f"heat_kW_{dev}_{y}", value, "kW"])
 
+    data_to_save.append([]) 
+    data_to_save.append(["Heat_profile_energy_kwh_by_year", "Value", "Unit"]) # New for test reasons TJA
+    for y in model.support_years:
+        for dev in model.heat_devs:
+            value = result_dict.get("heat_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, "")
+            data_to_save.append([f"heat_profile_energy_kwh_{dev}_{y}", value, "kWh"])
+
     for y in model.support_years:
         data_to_save.append([f"from_el_grid_total_{y}", result_dict.get("from_el_grid_total_by_year", {}).get(y, ""), "MWh"])
         data_to_save.append([f"to_el_grid_total_{y}", result_dict.get("to_el_grid_total_by_year", {}).get(y, ""), "MWh"])
@@ -1560,4 +1585,73 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
         writer.writerows(data_to_save)
 
     print(f"Results saved to {csv_file_path}")
+
+    #if result_dict.get("HP", {}).get("inst", False):
+        #save_heat_timeseries_csv(model, result_dict, scenario_name, "HP", result_dir)
+
+    #save_demand_heat_timeseries_csv(demCon, model, scenario_name, result_dir)
     
+
+
+def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):    
+    # Ensure the result directory exists
+    os.makedirs(result_dir, exist_ok=True)
+    
+    # Define the output file path
+    csv_file_path = os.path.join(result_dir, f"{district}_{device}_heat_timeseries.csv")
+    
+    # Helper function for safe value retrieval
+    def safe_value(var_container, index):
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
+    
+    # Prepare the data
+    data_to_save = [
+        ["Support_Year", "Cluster", "Timestep", "Heat_kW"]  # Header row
+    ]
+    
+    # Iterate over all support years, clusters, and timesteps
+    for y in model.support_years:
+        for d in model.clusters:
+            for t in model.time_steps:
+                heat_value = safe_value(model.heat, (device, district, y, d, t))
+                data_to_save.append([y, d, t, round(heat_value, 3)])
+    
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
+    
+    print(f"Heat timeseries for {device} in {district} saved to {csv_file_path}")
+
+def save_demand_heat_timeseries_csv(demCon, model, district, result_dir):
+        # Ensure the result directory exists
+    os.makedirs(result_dir, exist_ok=True)
+    
+    # Get demand for this district
+    dem = demCon[district]
+    
+    # Define the output file path
+    csv_file_path = os.path.join(result_dir, f"{district}_demand_heat_timeseries.csv")
+    
+    # Prepare the data
+    data_to_save = [
+        ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW"]  # Header row
+    ]
+    
+    # Iterate over all support years, clusters, and timesteps
+    for y in model.support_years:
+        for d in model.clusters:
+            for t in model.time_steps:
+                heat_demand = dem["heat"][y][d][t]
+                data_to_save.append([y, d, t, round(heat_demand, 3)])
+    
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
+    
+    print(f"Heat demand timeseries for {district} saved to {csv_file_path}")

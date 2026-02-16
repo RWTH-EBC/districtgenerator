@@ -749,6 +749,7 @@ def load_params(data):
     ### Taxes ###
     param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"]
                         for year in param["interpolation_points"]}  # EUR/kg
+    
 
     ################################################################
     # INITIALIZE CALCULATION

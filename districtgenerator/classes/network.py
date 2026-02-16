@@ -131,11 +131,14 @@ class Network:
 
         # Filter interconnected districts (optim_dimension == 1) to be optimized together in the network and save them in a dictionary
         # Optimize central devices for non-interconnected districts (optim_dimension == 0) directly
+        #result_dictCon = {}
         for data in self.district:
             if data.params_networkdist['optim_dimension'] == 1:
                 self.interconnected_districts[data.scenario_name] = data
             elif data.params_networkdist['optim_dimension'] == 0:
                 data.designCentralDevices(saveGenerationProfiles)
+                #result_dict = data.designCentralDevices(saveGenerationProfiles)
+                #result_dictCon[data.scenario_name] = result_dict
                 data.finalizeClusterProfiles()
                 print(f"Central devices of Scenario {data.scenario_name} are optimized independently with optim_dimension 0.")
             else:

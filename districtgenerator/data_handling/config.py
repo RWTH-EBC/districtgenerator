@@ -571,8 +571,10 @@ class EHDOConfig(BaseSettings):
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
-
-
+    
+    # Legal requirements for EHDO (New TJA)
+    enable_legal_requirements: bool = True # Whether to enable legal requirements. If False, the requirements are ignored even if the shares are specified. # New TJA
+    
 
     # Helper attributes for unit formatting (Remove?)
     unit_placeholder: str = " - "   # used for cases where unit is a placeholder

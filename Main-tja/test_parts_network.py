@@ -1,6 +1,6 @@
 from districtgenerator.classes import Network, KPIs
 from pathlib import Path
-from districtgenerator.functions.plot_results import plot_grid_flows
+from districtgenerator.functions.plot_results import plot_device_capacities, plot_grid_flows
 import os
 
 if __name__ == '__main__':
@@ -34,9 +34,15 @@ if __name__ == '__main__':
 
     # Folder to save model and results
     result_dir = "optimization_results"
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-    plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
+
+    #if not os.path.exists(result_dir):
+        #os.makedirs(result_dir)
+    #plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
+
+    # Plot device capacities for each district
+    for district_name, result_dict in result_dictCon.items():
+        plot_device_capacities(district_name, result_dict, result_dir=result_dir, show=True)
+
 
     # Can be used if I update opti_central for the network optimization
     # for district in network.interconnected_districts.values():

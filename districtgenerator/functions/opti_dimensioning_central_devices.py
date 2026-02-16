@@ -65,7 +65,7 @@ def run_optim(data, devs, param, dem, result_dict):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    opti_dimensioning_central_devices_connect.save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list)
+    opti_dimensioning_central_devices_connect.save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon=dem)
     model_solve_time = time.time() - start_time - model_building_time
 
     # Total time needed
