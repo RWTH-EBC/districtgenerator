@@ -1332,7 +1332,6 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                 result_dict["heat_profile_by_year"][y][device] = profile
                 result_dict["heat_kW_by_year"][y][device] = int(max(profile)) if profile else 0
                 result_dict["heat_profile_energy_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
-            for device in model.heat_devs: # new TJA
                 result_dict["heat_gen_sum_by_year"][y][device] = safe_value(model.heat_gen, (device, district, y)) # new TJA
 
         # Cooling profiles and maximum cooling - store for each support year

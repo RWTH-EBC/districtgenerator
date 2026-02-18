@@ -151,6 +151,10 @@ def build_model(model, data, devs, param, dem):
     model.waste = pyo.Var(model.waste_devs, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
     model.ch = pyo.Var(model.storage_devs, model.support_years, model.clusters, model.time_steps, within=pyo.Reals)
 
+    # Heat generation of each devive per year
+    model.heat_gen = pyo.Var(model.heat_devs, model.support_years, within=pyo.NonNegativeReals) #new TJA
+    model.heat_sum = pyo.Var(model.support_years, within=pyo.NonNegativeReals) #new TJA
+
     # Storage SOC uses weekly tracking but indexed by support year
     model.soc = pyo.Var(model.storage_devs, model.support_years, model.year, model.time_steps,
                         within=pyo.NonNegativeReals)
@@ -522,6 +526,53 @@ def build_model(model, data, devs, param, dem):
     if param["enable_supply_limit_hydrogen"] == True:
         for y in model.support_years:
             model.constraints.add(model.hydrogen_import_total[y] <= param["supply_limit_hydrogen"])
+    
+    ################################################################################
+    # Legal constraints 
+    ################################################################################
+    # New TJA
+    if param["enable_legal_requirements"] == True: 
+        for y in model.support_years:
+            for dev in model.heat_devs:
+                # Calculate total heat generation per device and years
+                model.constraints.add(model.heat_gen[dev,y] == dt * sum(
+                    model.heat[dev,y,d,t] *param["cluster_weights"][d]
+                    for d in model.clusters for t in model.time_steps))
+                
+            # Calculate the sum of heat generation of all devices and years
+            model.constraints.add(model.heat_sum[y] == sum(model.heat_gen[dev, y] for dev in model.heat_devs))
+            # Enforce that the renewable share of heat generation is above the minimum required share
+            renewable_heat_technologies = ["STC", "HP", "BCHP", "BBOI","WCHP", "WBOI"]  # Define which devices are considered renewable for heat generation
+            model.constraints.add(
+                sum(model.heat_gen[dev, y] for dev in renewable_heat_technologies)
+                +model.heat_gen["EB", y] * param["renewable_el_grid_share"][y]
+                >= param["renewable_heat_share"][y] * model.heat_sum[y]
+                )
+
+
+        for y in model.support_years:
+            if param["renewable_el_grid_share"][y] == 1.0:
+                model.constraints.add(
+                    model.cap["STC"] + model.cap["HP"] + model.cap["EB"] 
+                    + model.cap["BCHP"]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
+                    + model.cap["BBOI"] 
+                    + model.cap["WCHP"]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
+                    + model.cap["WBOI"] >= param["peak_heat"])
+            else:
+                model.constraints.add(
+                model.cap["STC"] + model.cap["HP"]
+                + model.cap["BCHP"]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
+                + model.cap["BBOI"] 
+                + model.cap["WCHP"]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
+                + model.cap["WBOI"] >= param["peak_heat"])
+
+                
+            # Make sure that biomass share is below the maximum allowed share
+            # Define which devices are considered biomass-based for heat generation
+            biomass_heat_technologies = ["BCHP", "BBOI"]  
+            model.constraints.add(sum(model.heat_gen[dev, y] for dev in biomass_heat_technologies) <= param["max_biomass_share"][y] * model.heat_sum[y])
+
+
 
     ################################################################################
     # Economic constraints - according to VDI 2067 Blatt 1 - annuity method
@@ -1062,9 +1113,11 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     # Heat profiles and maximum heat - store for each support year
     result_dict["heat_profile_by_year"] = {}
     result_dict["heat_kW_by_year"] = {}
+    result_dict["heat_gen_sum_by_year"] = {} # new TJA
     for y in model.support_years:
         result_dict["heat_profile_by_year"][y] = {}
         result_dict["heat_kW_by_year"][y] = {}
+        result_dict["heat_gen_sum_by_year"][y] = {} # new TJA
         for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
             profile = []
             for d in model.clusters:
@@ -1072,6 +1125,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                     profile.append(safe_value(model.heat, (device, y, d, t)))
             result_dict["heat_profile_by_year"][y][device] = profile
             result_dict["heat_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+            result_dict["heat_gen_sum_by_year"][y][device] = safe_value(model.heat_gen, (device, y)) # new TJA
 
     # Cooling profiles and maximum cooling - store for each support year
     result_dict["cool_profile_by_year"] = {}
