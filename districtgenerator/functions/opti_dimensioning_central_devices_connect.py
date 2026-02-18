@@ -68,6 +68,9 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         result_dict = result_dictCon[scenario_name]
         # Save results to csv
         save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon=demCon)
+
+    # Save network power timeseries for all districts
+    save_network_power_timeseries_csv(model, result_dir)
     
     model_solve_time = time.time() - start_time - model_building_time
 
@@ -129,6 +132,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     waste_devs_list = ["WCHP", "WBOI", "import"]
     storage_devs_list = ["TES", "CTES", "BAT", "H2S", "GS"]
     area_devs_list = ["PV", "STC"]
+    grid_flows_list = ["from_grid", "to_grid"] # for network
 
     # Add sets to the model for this district
     model.all_devs = pyo.Set(initialize=all_devs_list)
@@ -141,11 +145,13 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.waste_devs = pyo.Set(initialize=waste_devs_list)
     model.storage_devs = pyo.Set(initialize=storage_devs_list)
     model.area_devs = pyo.Set(initialize=area_devs_list)
+    #model.grid_flows = pyo.Set(initialize=grid_flows_list) # for sos constraint
     
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
+    # Sos-Variable for mutual exclusivity of grid import/export
+    #model.sos1= pyo.Var(model.grid_flows, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals) # new for network
     # Capacity variables (same for all years - single investment decision) but indexed by district
     model.cap = pyo.Var( model.all_devs, model.districts, within=pyo.NonNegativeReals, name="nominal_capacity")
     model.area = pyo.Var(model.area_devs, model.districts, within=pyo.NonNegativeReals, name="roof_area")
@@ -181,8 +187,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.grid_limit_el = pyo.Var(model.districts, within=pyo.NonNegativeReals)
     model.grid_limit_gas = pyo.Var(model.districts, within=pyo.NonNegativeReals)
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step
-    model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, 
-                                   within=pyo.Binary) # new for network
+    # model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, 
+    #                               within=pyo.Binary) # new for network
+    # model.allow_import = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
+    # model.allow_export = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
 
     # Yearly total energy flows - indexed by support year and district
     model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
@@ -342,7 +350,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     ################################################################################
     # Energy balances for each time step
     ################################################################################
-    M=1e20  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    # Big_M  =1e20  # Big M for enforcing mutual exclusivity of grid import/export in each time step
     for district in model.districts:
         devs = devsCon[district]
         dem = demCon[district]
@@ -379,28 +387,66 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
 
                     # Biomass supply and demand balance
                     model.constraints.add(model.biom["import", district, y, d, t] == model.biom["BCHP", district, y, d, t] + model.biom["BBOI", district, y, d, t])
-
+ 
                     # Waste supply and demand balance
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
+                    
+                    # # SOS1 Constraint: Nur from_grid ODER to_grid darf > 0 sein, nicht beide
+                 
+                    # model.sos_constraint = pyo.SOSConstraint(
+                    #     var= model.sos1[district, y, d, t],
+                    #     sos=1
+                    # )
 
-                    # #Mutual exclusivity of grid import and export in each time step #new for network
-                    # # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
+
+                    # model.sos1.add(
+                    #     pyo.SOS1([
+                    #         model.power["from_grid", district, y, d, t],
+                    #         model.power["to_grid", district, y, d, t]
+                    #     ])
+                    # )
+
+                    # # Mutual exclusivity of grid import and export in each time step #new for network
+                    # If allow_import = 1 => from_main_grid and from_network can be > 0, otherwise they must be 0
+                    # model.constraints.add(model.power["from_main_grid", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
+                    # model.constraints.add(model.power["from_network", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
+                    # model.constraints.add(model.power["from_grid", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
+                    # If allow_export = 1 => to_main_grid and to_network can be > 0, otherwise they must be 0
+                    # model.constraints.add(model.power["to_main_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
+                    # model.constraints.add(model.power["to_network", district, y, d, t] <=   Big_M * model.allow_export[district, y, d, t])
+                    # model.constraints.add(model.power["to_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
+                    # Only import or export allowed in each time step, not both
+                    # model.constraints.add(model.allow_import[district, y, d, t] + model.allow_export[district, y, d, t] <= 1)
+
+
+
+                    # Mutual exclusivity of grid import and export in each time step #new for network
+                    # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
                     # model.constraints.add(
-                    # model.power["from_main_grid", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
+                    # model.power["from_main_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
                     # )
 
                     # model.constraints.add(
-                    # model.power["from_network", district, y, d, t] <= M * model.grid_import_binary[district, y, d, t]
-                    # )
-
-                    # # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
-                    # model.constraints.add(
-                    #     model.power["to_main_grid", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
+                    # model.power["from_network", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
                     # )
 
                     # model.constraints.add(
-                    #     model.power["to_network", district, y, d, t] <= M * (1 - model.grid_import_binary[district, y, d, t])
+                    #     model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
                     # )
+
+                    # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
+                    # model.constraints.add(
+                    #     model.power["to_main_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
+                    # )
+
+                    # model.constraints.add(
+                    #     model.power["to_network", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
+                    # )
+                    
+                    # model.constraints.add(
+                    #     model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
+                    # )
+
 
 
     ################################################################################
@@ -548,9 +594,6 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                 model.hydrogen_import_total[district, y] == dt * sum(
                     model.hydrogen["import", district, y, d, t] * param["cluster_weights"][d]
                     for d in model.clusters for t in model.time_steps))
-
-
-
 
     ################################################################################
     # Supply limitations (User input)
@@ -1582,13 +1625,15 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file, delimiter=";")
         writer.writerows(data_to_save)
-
+    
     print(f"Results saved to {csv_file_path}")
 
     #if result_dict.get("HP", {}).get("inst", False):
         #save_heat_timeseries_csv(model, result_dict, scenario_name, "HP", result_dir)
 
     #save_demand_heat_timeseries_csv(demCon, model, scenario_name, result_dir)
+
+
     
 
 
@@ -1654,3 +1699,58 @@ def save_demand_heat_timeseries_csv(demCon, model, district, result_dir):
         writer.writerows(data_to_save)
     
     print(f"Heat demand timeseries for {district} saved to {csv_file_path}")
+
+def save_network_power_timeseries_csv(model, result_dir):
+    """
+    Saves power timeseries for to_network and from_network for all districts.
+    
+    Parameters
+    ----------
+    model : pyomo.ConcreteModel
+        The solved optimization model.
+    result_dir : str
+        Directory where the CSV files will be saved.
+        
+    Returns
+    -------
+    None
+    """
+    # Ensure the result directory exists
+    os.makedirs(result_dir, exist_ok=True)
+    
+    # Helper function for safe value retrieval
+    def safe_value(var_container, index):
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
+    
+    # Save timeseries for each district
+    for district in model.districts:
+        # Define the output file path
+        csv_file_path = os.path.join(result_dir, f"{district}_network_and_main_grid_power_timeseries.csv")
+        
+        # Prepare the data
+        data_to_save = [
+            ["Support_Year", "Cluster", "Timestep", "to_network_kW", "from_network_kW", "to_main_grid_kW", "from_main_grid_kW", "to_grid_kW", "from_grid_kW"]  # Header row
+        ]
+        
+        # Iterate over all support years, clusters, and timesteps
+        for y in model.support_years:
+            for d in model.clusters:
+                for t in model.time_steps:
+                    to_network_value = safe_value(model.power, ("to_network", district, y, d, t))
+                    from_network_value = safe_value(model.power, ("from_network", district, y, d, t))
+                    to_main_grid_value = safe_value(model.power, ("to_main_grid", district, y, d, t))
+                    from_main_grid_value = safe_value(model.power, ("from_main_grid", district, y, d, t))
+                    to_grid_value = safe_value(model.power, ("to_grid", district, y, d, t))
+                    from_grid_value = safe_value(model.power, ("from_grid", district, y, d, t))
+                    data_to_save.append([y, d, t, round(to_network_value, 3), round(from_network_value, 3), round(to_main_grid_value, 3), round(from_main_grid_value, 3), round(to_grid_value, 3), round(from_grid_value, 3)])
+        
+        # Write the data to the CSV file
+        with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file, delimiter=";")
+            writer.writerows(data_to_save)
+        
+        print(f"Network and main grid power timeseries for {district} saved to {csv_file_path}")
