@@ -407,41 +407,25 @@ class Envelope:
             })
 
             # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
-            if not np.isnan(u_values).any():
-                for idx, x in enumerate(['wall', 'roof', 'floor']):
-                    self.U["opaque"][x] =  u_values[idx]
+            # Mapping: (Index in u_values, Ziel-Dict, Ziel-Key)
+            mapping = [
+                (0, self.U["opaque"], 'wall'),
+                (1, self.U["opaque"], 'roof'),
+                (2, self.U["opaque"], 'floor'),
+                (3, self.U, 'window')  # Achtung: Hier direkt in self.U
+            ]
 
-                self.U["window"] = u_values[3]
+            for idx, target_dict, key in mapping:
+                # Schutz vor IndexError, falls u_values zu kurz ist
+                if idx < len(u_values):
+                    val = u_values[idx]
+                    if val != 0 and not pd.isna(val):
+                        target_dict[key] = val
 
-                u_row.update({
-                    "wall_given": u_values[0],
-                    "roof_given": u_values[1],
-                    "floor_given": u_values[2],
-                    "window_given": u_values[3]
-                })
-
-                # if no u-value analysis needed, comment rest of the code
-                logs_dir = os.path.join(self.file_path, "logs")
-
-                # Create the logs directory if it does not exist
-                os.makedirs(logs_dir, exist_ok=True)
-
-                # Define the full path to the CSV log file
-                csv_log_path = os.path.join(logs_dir, "u_values_log.csv")
-
-                try:
-                    df_existing = pd.read_csv(csv_log_path)
-                    df_new = pd.concat([df_existing, pd.DataFrame([u_row])], ignore_index=True)
-                except FileNotFoundError:
-                    df_new = pd.DataFrame([u_row])
-
-                # Do not save
-                #df_new.to_csv(csv_log_path, index=False)
-
-                if calcThick:
-                    self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
-                else:
-                    self.thick_req = None
+            if calcThick:
+                self.thick_req = self.compute_insulation_thickness(self.U['opaque'])
+            else:
+                self.thick_req = None
 
 
 

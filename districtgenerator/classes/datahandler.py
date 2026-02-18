@@ -482,30 +482,6 @@ class Datahandler:
             bldg_id = int(bldg_id)
             building = {}
 
-            # Store features of the observed building
-            building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
-
-            # Validate that the sum of PV and STC roof area fractions does not exceed 1
-            f_pv = building["buildingFeatures"].get("f_PV", 0) or 0
-            f_stc = building["buildingFeatures"].get("f_STC", 0) or 0
-            if f_pv + f_stc > 1:
-                warnings.warn(
-                    f"Building {bldg_id} ('{row['building']}'): f_PV ({f_pv}) + f_STC ({f_stc}) = {f_pv + f_stc} > 1. "
-                    f"The combined PV and STC area exceeds the available rooftop area.",
-                    UserWarning
-                )
-
-            # Add thermal transmittance if available
-            if "thermalTransmittanceFacade" in self.scenario.columns:
-                building["buildingFeatures"]["thermalTransmittance"] = (
-                    row["thermalTransmittanceFacade"],
-                    row["thermalTransmittanceRoof"],
-                    row["thermalTransmittanceFloor"],
-                    row["thermalTransmittanceWindow"]
-                )
-            else:
-                building["buildingFeatures"]["thermalTransmittance"] = None
-
             # Create unique building name
             name = f"{bldg_id}_{row['building']}"
 
@@ -517,6 +493,41 @@ class Datahandler:
 
             # Assign the unique name to the building
             building["unique_name"] = name
+
+            # Store features of the observed building
+            building["buildingFeatures"] = row.to_dict()  # Convert row to dictionary
+
+            ## ADDITION AIX HEAT for replacing values with default
+            ## ggf den unique_name hier mit übergeben
+            self.check_values(building["buildingFeatures"])
+
+            # Validate that the sum of PV and STC roof area fractions does not exceed 1
+            f_pv = building["buildingFeatures"].get("f_PV", 0) or 0
+            f_stc = building["buildingFeatures"].get("f_STC", 0) or 0
+            if f_pv + f_stc > 1:
+                warnings.warn(
+                    f"Building {bldg_id} ('{row['building']}'): f_PV ({f_pv}) + f_STC ({f_stc}) = {f_pv + f_stc} > 1. "
+                    f"The combined PV and STC area exceeds the available rooftop area.",
+                    UserWarning
+                )
+
+            # fixed order of values for later use!!
+            target_cols = [
+                "thermalTransmittanceFacade",
+                "thermalTransmittanceRoof",
+                "thermalTransmittanceFloor",
+                "thermalTransmittanceWindow"
+            ]
+
+            values = []
+            for col in target_cols:
+                val = row.get(col)
+                if val is None or pd.isna(val):
+                    values.append(0)
+                else:
+                    values.append(val)
+
+            building["buildingFeatures"]["thermalTransmittance"] = tuple(values)
 
             # Append building to district
             self.district.append(building)
@@ -531,6 +542,70 @@ class Datahandler:
         # Calculate calculation time for the whole district generation
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print(f"This calculation will take about {duration}.")
+
+    def check_values(self, buildingFeatures):
+        """
+        Check if necessary values are present.
+        Parameters
+        ----
+        buildingFeatures: pandas.DataFrame
+        DataFrame containing building features.
+
+        Returns
+        ---
+        building_features: pandas.DataFrame
+        DataFrame containing building features (updated if necessary).
+
+        """
+        # gmlId nur für AIX HEAT!
+        necessary_values = ["area", "building", "year", "gmlId"]
+        optional_values = ["number_of_floors",  "nb_occ", "nb_flats", "thermalTransmittanceRoof",
+                           "thermalTransmittanceFacade", "thermalTransmittanceFloor", "thermalTransmittanceWindow"]
+        specific_values = ["height",  "f_TES", "f_BAT", "heater", "f_PV", "f_STC", "night_setback", "retrofit", "EV", "cooling"]
+
+        default_values = {
+            #optional values
+            "number_of_floors": "random",
+            "nb_occ": "random",
+            "nb_flats": "random",
+            "thermalTransmittanceRoof": "TEASER",
+            "thermalTransmittanceFacade": "TEASER",
+            "thermalTransmittanceFloor": "TEASER",
+            "thermalTransmittanceWindow": "TEASER",
+            # specific values
+            "night_setback": 0,
+            "height": 7.81,
+            "retrofit": 0,
+            "EV": 0,
+            "f_TES": 35,
+            "f_BAT": 1,
+            "heater": "BOI",
+            "f_PV": 0.4,
+            "f_STC": 0.4,
+            "cooling": 0
+        }
+        for val in necessary_values:
+            if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
+                raise ValueError(f"{val} is a necessary value.")
+        for val in optional_values:
+            if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
+                print(f"{buildingFeatures["gmlId"]}: --- {val} is not provided, districtgenerator will default to {default_values[val]}. ---")
+                try:
+                    del buildingFeatures[val]
+                except KeyError:
+                    pass
+        for val in specific_values:
+            if val == "height" and buildingFeatures.get("building") in ["SFH", "TH", "AB", "MFH"]: # ISSUE Todo: was wenn mehr Gebäudetypen?
+                if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
+                    print(f"{buildingFeatures["gmlId"]}: --- {val} set to {default_values[val]}. ---")
+                    buildingFeatures[val] = default_values[val]
+            else:
+                if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
+                    print(f"{buildingFeatures["gmlId"]}: --- {val} set to {default_values[val]}. ---")
+                    buildingFeatures[val] = default_values[val]
+
+        return buildingFeatures
+
 
     def generateBuildings(self):
         """
@@ -569,7 +644,7 @@ class Datahandler:
                 else: construction_data = "tabula_standard" #bugfix
 
                 height = building["buildingFeatures"]["height"]
-                number_of_floors = building["buildingFeatures"]["number_of_floors"]
+                number_of_floors = building["buildingFeatures"].get("number_of_floors", 0)
                 if number_of_floors == 0:
                     # Determining the number of floors in a building based on its type.
                     # The method estimates the number of floors by:
@@ -612,11 +687,6 @@ class Datahandler:
                         height_of_floors = 3.3  # m
                     elif building["buildingFeatures"]["year"] >= 1960:
                         height_of_floors = 2.5  # m
-
-                if building["buildingFeatures"]["year"] < 1960:
-                    height_of_floors = 3.3  # m
-                elif building["buildingFeatures"]["year"] >= 1960:
-                    height_of_floors = 2.5  # m
 
                 # add buildings to TEASER project
                 prj.add_residential(name="ResidentialBuildingTabula",

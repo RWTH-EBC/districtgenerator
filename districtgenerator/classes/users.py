@@ -84,7 +84,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, nb_occ, nb_flats, dict, scenario_name, calcOcc = True, calcOccProf = True):
+    def __init__(self, building, area, year_of_construction, retrofit, dict, scenario_name, nb_occ = None, nb_flats = None, calcOcc = True, calcOccProf = True):
         """
         Constructor of Users class.
 
@@ -123,13 +123,8 @@ class Users:
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
-        if calcOcc:
-            self.nb_occ = []
-            self.nb_flats = None
-            self.generate_number_flats_and_rooms(area)
-            self.generate_number_occupants(area)
-        else:
-            nb_occ_string = nb_occ  # Replace this with the correct variable if it's different
+        if not calcOcc and nb_occ and nb_flats:
+            nb_occ_string = nb_occ
             nb_occ_list = ast.literal_eval(nb_occ_string)
 
             # Ensure it's a list
@@ -142,6 +137,11 @@ class Users:
             if len(self.nb_occ) != self.nb_flats:
                 print("Error: The length of nb_occ does not match nb_flats. Replaces value with 2 per flat.")
                 self.nb_occ = [2] * self.nb_flats
+        else:
+            self.nb_occ = []
+            self.nb_flats = None
+            self.generate_number_flats_and_rooms(area)
+            self.generate_number_occupants(area)
 
         self.generate_annual_el_consumption_residential()
         self.generate_annual_app_el_consumption_non_residential(
