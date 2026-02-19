@@ -15,7 +15,7 @@ if __name__ == '__main__':
     network.initializeDistrictsWithDecentralDevs(
         configs_dir=configs_directory_path, 
         calcUserProfiles=False, 
-        saveUserProfiles=False)
+        saveUserProfiles=True)
     
     result_dictCon=network.optimize_network(saveGenerationProfiles= True)
 
@@ -35,9 +35,9 @@ if __name__ == '__main__':
     # Folder to save model and results
     result_dir = "optimization_results"
 
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-    plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
+    # if not os.path.exists(result_dir):
+    #     os.makedirs(result_dir)
+    # plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
 
     # Plot device capacities for each district
     for district_name, result_dict in result_dictCon.items():

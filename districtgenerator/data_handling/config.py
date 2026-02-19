@@ -911,6 +911,8 @@ class CentralDeviceConfig(BaseSettings):
     # BOI parameters (Boiler)
     BOI__feasible: bool = True  # Should this be considered for the central optimization.
     BOI__inv_base: float = 138  # Unsubsidized investment variable in €/kW.
+    BOI__inv_until_10: float = 54.84  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
+    BOI__inv_10_30: float = 36.50  # Investment variable for 10-30 MWth in €/kW.
     BOI__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     BOI__life_time: int = 25  # Maximum life time in years.
     BOI__cost_om: float = 0.014  # Cost of operation and maintenance as a percentage of investment.
@@ -1024,6 +1026,8 @@ class CentralDeviceConfig(BaseSettings):
     # BBOI parameters (Biomass Boiler)
     BBOI__feasible: bool = False  # Should this be considered for the central optimization.
     BBOI__inv_base: float = 570  # Unsubsidized investment variable in €/kW.
+    BBOI__inv_until_10: float = 54.84  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
+    BBOI__inv_10_30: float = 36.50  # Investment variable for 10-30 MWth in €/kW.
     BBOI__eta_th: float = 0.85  # Thermal efficiency between 0 and 1.
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.

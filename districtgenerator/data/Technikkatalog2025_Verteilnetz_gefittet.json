@@ -1,0 +1,1389 @@
+{
+  "Hinweis": "Funktion über lineare Regression gefittet (Hausstationen/Pumpstationen) oder direkt übernommen (Wärmenetze)",
+  "Wärmenetz 110 °C KMR": {
+    "Kosten Rohrdurchmesser in DN": {
+      "20": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 200.0,
+                "Output_max": 600.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 378.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 70.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 7200.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 840.0
+            }
+          }
+        }
+      },
+      "25": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 315.0,
+                "Output_max": 650.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 378.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 90.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 7200.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 1080.0
+            }
+          }
+        }
+      },
+      "32": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 400.0,
+                "Output_max": 700.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 480.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 100.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 7200.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 1200.0
+            }
+          }
+        }
+      },
+      "40": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 417.0,
+                "Output_max": 750.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 500.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 140.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 1680.0
+            }
+          }
+        }
+      },
+      "50": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 417.0,
+                "Output_max": 800.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 500.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 200.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 2400.0
+            }
+          }
+        }
+      },
+      "65": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 518.0,
+                "Output_max": 850.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 623.0,
+                "Output_max": 2000.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 240.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 2880.0
+            }
+          }
+        }
+      },
+      "80": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 518.0,
+                "Output_max": 900.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 623.0,
+                "Output_max": 2000.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 280.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 3360.0
+            }
+          }
+        }
+      },
+      "100": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 697.0,
+                "Output_max": 1050.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 867.0,
+                "Output_max": 2500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 390.0
+            }
+          }
+        }
+      },
+      "125": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 722.0,
+                "Output_max": 1150.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 867.0,
+                "Output_max": 2500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 560.0
+            }
+          }
+        }
+      },
+      "150": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 722.0,
+                "Output_max": 1250.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+                "Output_min": 867.0,
+                "Output_max": 2500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 33",
+              "Output": 1000.0
+            }
+          }
+        }
+      }
+    },
+    "Lebensdauer": "30.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 33"
+  },
+  "Wärmenetz 70 °C PMR": {
+    "Kosten Rohrdurchmesser in dn": {
+      "25": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 60.0,
+                "Output_max": 200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 150.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 44.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 1200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 7200.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 528.0
+            }
+          }
+        }
+      },
+      "32": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 60.0,
+                "Output_max": 200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 150.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 52.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 1200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 7200.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 624.0
+            }
+          }
+        }
+      },
+      "40": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 60.0,
+                "Output_max": 200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 150.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 67.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 1200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 7200.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 804.0
+            }
+          }
+        }
+      },
+      "50": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 60.0,
+                "Output_max": 200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 150.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 92.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 1104.0
+            }
+          }
+        }
+      },
+      "63": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 60.0,
+                "Output_max": 200.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 150.0,
+                "Output_max": 1500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 121.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 1452.0
+            }
+          }
+        }
+      },
+      "75": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 80.0,
+                "Output_max": 250.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 200.0,
+                "Output_max": 2000.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 136.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 1440.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/Anschluss",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output": 9600.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/Anschluss",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 1632.0
+            }
+          }
+        }
+      },
+      "90": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 80.0,
+                "Output_max": 250.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 200.0,
+                "Output_max": 2000.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 174.0
+            }
+          }
+        }
+      },
+      "110": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 100.0,
+                "Output_max": 300.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 250.0,
+                "Output_max": 2500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 208.0
+            }
+          }
+        }
+      },
+      "125": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 100.0,
+                "Output_max": 300.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 250.0,
+                "Output_max": 2500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 283.0
+            }
+          }
+        }
+      },
+      "160": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 100.0,
+                "Output_max": 300.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+                "Output_min": 250.0,
+                "Output_max": 2500.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 34",
+              "Output": 498.0
+            }
+          }
+        }
+      }
+    },
+    "Lebensdauer": "50.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 34"
+  },
+  "Wärmenetze Kalte Nahwärme": {
+    "Kosten Rohrdurchmesser in dn": {
+      "50": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 130.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 276.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 7.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 118.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 250.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 7.0
+            }
+          }
+        }
+      },
+      "75": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 154.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 317.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 15.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 140.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 287.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 15.0
+            }
+          }
+        }
+      },
+      "90": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 168.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 341.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 21.0
+            }
+          }
+        },
+        "Hausanschlussleitung": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 153.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 308.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 21.0
+            }
+          }
+        }
+      },
+      "100": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 179.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 357.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 26.0
+            }
+          }
+        }
+      },
+      "110": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 189.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 374.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 30.0
+            }
+          }
+        }
+      },
+      "125": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 203.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 398.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 38.0
+            }
+          }
+        }
+      },
+      "140": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 218.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 422.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 47.0
+            }
+          }
+        }
+      },
+      "160": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 237.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 456.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 63.0
+            }
+          }
+        }
+      },
+      "180": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 256.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 489.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 78.0
+            }
+          }
+        }
+      },
+      "200": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 276.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 521.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 96.0
+            }
+          }
+        }
+      },
+      "225": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 300.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 562.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 121.0
+            }
+          }
+        }
+      },
+      "250": {
+        "Hauptleitungstrang": {
+          "Tiefbaukosten": {
+            "unbefestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 324.0
+              }
+            },
+            "befestigt": {
+              "spezInvestition": {
+                "Einheit_Output": "€/m",
+                "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+                "Output": 603.0
+              }
+            }
+          },
+          "Materialkosten": {
+            "spezInvestition": {
+              "Einheit_Output": "€/m",
+              "Literatur": "KWW Technikkatalog Version 2025, Tab 35",
+              "Output": 147.0
+            }
+          }
+        }
+      }
+    },
+    "Lebensdauer": "50.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 35"
+  },
+  "Pumpstationen": {
+    "Gesamtinvestition_max": {
+      "Input": "Leistungsklasse",
+      "Einheit_Input": "W",
+      "Output": {
+        "<= 1000000.0": 276.0,
+        ">= 1000000.0": 104.0
+      },
+      "Einheit_Output": "€/a"
+    },
+    "Lebensdauer": "40.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 36"
+  },
+  "Hausstationen": {
+    "spezGesamtinvestition_max": {
+      "Input": "Leistungsklasse",
+      "Einheit_Input": "kWth",
+      "Min_Input": 15.0,
+      "Max_Input": 1000.0,
+      "Stuetzstellen": {
+        "x": [
+          15.0,
+          30.0,
+          50.0,
+          200.0,
+          500.0,
+          1000.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          10950.0,
+          10650.0,
+          14875.0,
+          29000.0,
+          51875.0,
+          68750.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 89.97817191513926,
+        "b": -0.5213185572205178
+      },
+      "Einheit_Output": "€/W"
+    },
+    "Fixkosten": {
+      "Input": "Leistungsklasse",
+      "Einheit_Input": "W",
+      "Min_Input": 15000.0,
+      "Max_Input": 1000000.0,
+      "Output": {
+        "<30000.0": 50.0,
+        "<50000.0": 50.0,
+        "<200000.0": 100.0,
+        "<500000.0": 150.0,
+        "<1000000.0": 300.0,
+        ">=1000000.0": 500.0
+      },
+      "Einheit_Output": "€/a"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 37"
+  }
+}

@@ -145,13 +145,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.waste_devs = pyo.Set(initialize=waste_devs_list)
     model.storage_devs = pyo.Set(initialize=storage_devs_list)
     model.area_devs = pyo.Set(initialize=area_devs_list)
-    #model.grid_flows = pyo.Set(initialize=grid_flows_list) # for sos constraint
     
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # Sos-Variable for mutual exclusivity of grid import/export
-    #model.sos1= pyo.Var(model.grid_flows, model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals) # new for network
     # Capacity variables (same for all years - single investment decision) but indexed by district
     model.cap = pyo.Var( model.all_devs, model.districts, within=pyo.NonNegativeReals, name="nominal_capacity")
     model.area = pyo.Var(model.area_devs, model.districts, within=pyo.NonNegativeReals, name="roof_area")
@@ -186,11 +183,14 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Grid limits (same for all years - infrastructure decision) indexed by district
     model.grid_limit_el = pyo.Var(model.districts, within=pyo.NonNegativeReals)
     model.grid_limit_gas = pyo.Var(model.districts, within=pyo.NonNegativeReals)
+
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step
-    # model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, 
-    #                               within=pyo.Binary) # new for network
+    model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
     # model.allow_import = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
     # model.allow_export = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
+
+    # Binary Variable to decide if BBOI capacity is <= 10 kW or > 10 kW
+    # model.z_bboi_small = pyo.Var(model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
     model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
@@ -232,6 +232,16 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     ################################################################################
     # Define maximum Capacity of devices Constraints
     ################################################################################
+    # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
+    Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    def grid_binary_rule1(model, district, y, d, t):
+        return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
+    
+    def grid_binary_rule2(model, district, y, d, t):
+        return model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
+    
+    model.grid_binary1 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule1)
+    model.grid_binary2 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule2)
      
     model.constraints = pyo.ConstraintList()
 
@@ -350,7 +360,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     ################################################################################
     # Energy balances for each time step
     ################################################################################
-    # Big_M  =1e20  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    #Big_M  =1e20  # Big M for enforcing mutual exclusivity of grid import/export in each time step
     for district in model.districts:
         devs = devsCon[district]
         dem = demCon[district]
@@ -390,12 +400,26 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
  
                     # Waste supply and demand balance
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
+
+    
+    #model.grid_import_binary
                     
-                    # # SOS1 Constraint: Nur from_grid ODER to_grid darf > 0 sein, nicht beide
+    # SOS1 Constraint: Nur from_grid ODER to_grid darf > 0 sein, nicht beide
+    # Läuft sehr lang
+    # def sos_rule(model, district, y, d, t):
+    #     return [model.power["from_grid", district, y, d, t], model.power["to_grid", district, y, d, t]]
+    
+    # model.grid_logic = pyo.SOSConstraint(
+    #     model.districts, model.support_years, model.clusters, model.time_steps,
+    #     rule= sos_rule,
+    #     sos=1
+    # )
                  
-                    # model.sos_constraint = pyo.SOSConstraint(
-                    #     var= model.sos1[district, y, d, t],
-                    #     sos=1
+                    # model.grid_logic = pyo.SOSConstraint(
+                    #     var= [model.power["from_grid", district, y, d, t],
+                    #         model.power["to_grid", district, y, d, t]],
+                    #     sos=1,
+                    #     weights= [1, 2]
                     # )
 
 
@@ -411,11 +435,11 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     # model.constraints.add(model.power["from_main_grid", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
                     # model.constraints.add(model.power["from_network", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
                     # model.constraints.add(model.power["from_grid", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
-                    # If allow_export = 1 => to_main_grid and to_network can be > 0, otherwise they must be 0
-                    # model.constraints.add(model.power["to_main_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
-                    # model.constraints.add(model.power["to_network", district, y, d, t] <=   Big_M * model.allow_export[district, y, d, t])
+                    # # If allow_export = 1 => to_main_grid and to_network can be > 0, otherwise they must be 0
+                    # # model.constraints.add(model.power["to_main_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
+                    # # model.constraints.add(model.power["to_network", district, y, d, t] <=   Big_M * model.allow_export[district, y, d, t])
                     # model.constraints.add(model.power["to_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
-                    # Only import or export allowed in each time step, not both
+                    # # Only import or export allowed in each time step, not both
                     # model.constraints.add(model.allow_import[district, y, d, t] + model.allow_export[district, y, d, t] <= 1)
 
 
@@ -715,9 +739,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Economic constraints - according to VDI 2067 Blatt 1 - annuity method
     ################################################################################
     for district in model.districts:
-        devs = devsCon[district]
         param = paramCon[district]
-        data = dataCon[district]
         # Electricity costs and revenues (per support year with year-specific prices)
         for y in model.support_years:
             model.constraints.add(model.supply_costs_el[district, y] == model.from_el_main_grid_total[district, y] * param["price_supply_el_eh"][y]+ model.from_network_total[district,y]*param["price_supply_el_network"][y]) # for network
@@ -742,6 +764,47 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         model.constraints.add(model.cap_costs_gas[district] == model.grid_limit_gas[district] * param["price_cap_gas"])
 
         # Investment and operational costs for each device (Annualized)
+        # Test for BBOI
+    
+    # # Upper bound for capacity
+    # CAP_MAX = 300000   
+    # EPS = 1e-3        # used to model "cap > 10000" (strict inequalities are not directly supported)
+    # # Big-M for investment equation switching
+    # M_INV = abs(devs["BBOI"]["inv_until_10"] - devs["BBOI"]["inv_10_30"]) * CAP_MAX + 1.0
+
+    for district in model.districts:
+        devs = devsCon[district]
+        param = paramCon[district]
+        data = dataCon[district]
+        # Capacity regime selection
+        # # If z=1 is active: cap <= 10000 kW
+        # model.constraints.add(
+        #     model.cap["BBOI", district] <= 10000 + CAP_MAX * (1 - model.z_bboi_small[district])
+        # )
+        # # If z=0 is active: cap > 10000 kW
+        # model.constraints.add(
+        #     model.cap["BBOI", district] >= (10000 + EPS) - CAP_MAX * model.z_bboi_small[district]
+        # )   
+        # # If z=1 is active: inv = inv_until_10 * cap
+        # model.constraints.add(
+        #     model.inv["BBOI", district] - devs["BBOI"]["inv_until_10"] * model.cap["BBOI", district]
+        #     <= M_INV * (1 - model.z_bboi_small[district])
+        # )
+        # model.constraints.add(
+        #     model.inv["BBOI", district] - devs["BBOI"]["inv_until_10"] * model.cap["BBOI", district]
+        #     >= -M_INV * (1 - model.z_bboi_small[district])
+        # )
+
+        # # If z=0 is active: inv = inv_10_30 * cap
+        # model.constraints.add(
+        #     model.inv["BBOI", district] - devs["BBOI"]["inv_10_30"] * model.cap["BBOI", district]
+        #     <= M_INV * model.z_bboi_small[district]
+        # )
+        # model.constraints.add(
+        #     model.inv["BBOI", district] - devs["BBOI"]["inv_10_30"] * model.cap["BBOI", district]
+        #     >= -M_INV * model.z_bboi_small[district]
+        # )
+
         for dev in model.all_devs:
             model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
             model.constraints.add(model.inv_base[dev, district] == devs[dev]["inv_base"] * model.cap[dev, district])  # unsubsidized investment costs
@@ -1119,8 +1182,9 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         for k in model.all_devs:
             result_dict[k] = {
                 "cap": round(safe_value(model.cap, (k, district)), 1),
-                "ann_inv_cost": round(safe_value(model.c_inv, (k, district)), 2),
-                "ann_inv_cost_unsubsidized": round(safe_value(model.c_inv_base, (k, district)), 2),
+                "inv": round(safe_value(model.inv, (k, district)), 2),
+                "ann_inv": round(safe_value(model.c_inv, (k, district)), 2),
+                "ann_inv_unsubsidized": round(safe_value(model.c_inv_base, (k, district)), 2),
                 "om_cost": round(safe_value(model.c_om, (k, district)), 2)
             }
 
@@ -1584,12 +1648,14 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
     for device in all_devs_list:
         if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed
             capacity = result_dict.get(device, {}).get("cap", "")  # Get the capacity of the device
-            ann_inv_costs = result_dict.get(device, {}).get("ann_inv_cost", "")  # Get the annualized investment costs of the device
-            ann_inv_costs_unsubsidized = result_dict.get(device, {}).get("ann_inv_cost_unsubsidized", "")
+            inv_costs = result_dict.get(device, {}).get("inv", "")  # Get the investment costs of the device
+            ann_inv_costs = result_dict.get(device, {}).get("ann_inv", "")  # Get the annualized investment costs of the device
+            ann_inv_costs_unsubsidized = result_dict.get(device, {}).get("ann_inv_unsubsidized", "")
             om_costs = result_dict.get(device, {}).get("om_cost", "")
             data_to_save.append([device, capacity,"kW"])  # Add the device name to the CSV file
-            data_to_save.append([f"{device}_ann_inv_cost", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
-            data_to_save.append([f"{device}_ann_inv_cost_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])
+            data_to_save.append([f"{device}_inv", inv_costs, "EUR"])  # Add the investment costs of the device to the CSV file
+            data_to_save.append([f"{device}_ann_inv", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
+            data_to_save.append([f"{device}_ann_inv_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])
             data_to_save.append([f"{device}_om_cost", om_costs, "EUR/a"])
 
     data_to_save.append([])

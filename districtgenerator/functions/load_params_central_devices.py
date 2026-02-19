@@ -202,6 +202,8 @@ def load_params(data):
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
             "inv_base": value.get("inv_base", 0),
+            "inv_until_10": value.get("inv_until_10", 0), # New TJA
+            "inv_10_30": value.get("inv_10_30", 0), # New TJA
             "cost_om": value.get("cost_om", 0) * 100,
             "beta": value.get("beta", 0),
             "gamma": value.get("gamma", 0),
@@ -312,6 +314,8 @@ def load_params(data):
         "feasible": all_models["BOI"]["enabled"],
         "inv_var": all_models["BOI"]["inv_var"],
         "inv_base": all_models["BOI"]["inv_base"],
+        "inv_until_10": all_models["BOI"]["inv_until_10"], # New TJA
+        "inv_10_30": all_models["BOI"]["inv_10_30"], # New TJA
         "eta_th": all_models["BOI"]["eta_th"] / 100,
         "life_time": all_models["BOI"]["life_time"],
         "cost_om": all_models["BOI"]["cost_om"] / 100,
@@ -531,6 +535,8 @@ def load_params(data):
         "feasible": all_models["BBOI"]["enabled"],
         "inv_var": all_models["BBOI"]["inv_var"],
         "inv_base": all_models["BBOI"]["inv_base"],
+        "inv_until_10": all_models["BBOI"]["inv_until_10"], # New TJA
+        "inv_10_30": all_models["BBOI"]["inv_10_30"], # New TJA
         "eta_th": all_models["BBOI"]["eta_th"] / 100,
         "life_time": all_models["BBOI"]["life_time"],
         "cost_om": all_models["BBOI"]["cost_om"] / 100,

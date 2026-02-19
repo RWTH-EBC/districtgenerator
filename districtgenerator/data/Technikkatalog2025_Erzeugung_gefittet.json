@@ -1,0 +1,1099 @@
+{
+  "Hinweis": "Die Funktion wurde über lineare Regression gefittet",
+  "Erdgaskessel (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "10000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          10.0,
+          20.0,
+          30.0,
+          60.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          13700.0,
+          18200.0,
+          21000.0,
+          30600.0,
+          39000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 194.95216512413597,
+        "b": -0.5413185751934408
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "10000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          10.0,
+          20.0,
+          30.0,
+          60.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          130.0,
+          160.0,
+          160.0,
+          270.0,
+          330.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 2.4542872994103786,
+        "b": -0.5778371024479585
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "20.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 5"
+  },
+  "Stromdirektheizung fest eingebaut (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "2000.0",
+      "Max_Input": "30000.0",
+      "Stuetzstellen": {
+        "x": [
+          2.0,
+          5.0,
+          10.0,
+          20.0,
+          30.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          2400.0,
+          4800.0,
+          8000.0,
+          13600.0,
+          18300.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 7.999728068825752,
+        "b": -0.24941638103981612
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "2000.0",
+      "Max_Input": "30000.0",
+      "Stuetzstellen": {
+        "x": [
+          2.0,
+          5.0,
+          10.0,
+          20.0,
+          30.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          20.0,
+          40.0,
+          60.0,
+          110.0,
+          140.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 0.08318508037649153,
+        "b": -0.2785708545413783
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 9"
+  },
+  "Luft-Wasser-Wärmepumpe (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          19800.0,
+          29200.0,
+          46200.0,
+          60000.0,
+          79600.0,
+          94500.0,
+          108000.0,
+          135200.0,
+          155000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 45.27400412664467,
+        "b": -0.29476750935100543
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          350.0,
+          440.0,
+          690.0,
+          900.0,
+          1190.0,
+          1420.0,
+          1620.0,
+          2030.0,
+          2330.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 1.0313091754554686,
+        "b": -0.3333485006317263
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "20.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 10"
+  },
+  "Wasser-Wasser-Wärmepumpe - Grundwasserbrunnen (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "10000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          31900.0,
+          41600.0,
+          51900.0,
+          59600.0,
+          67000.0,
+          73800.0,
+          88800.0,
+          101000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 288.6300280334575,
+        "b": -0.49463499633762664
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "10000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          480.0,
+          620.0,
+          780.0,
+          890.0,
+          1010.0,
+          1110.0,
+          1330.0,
+          1520.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 4.2882061347426905,
+        "b": -0.4936877590087673
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "20.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 11"
+  },
+  "Sole-Wasser-Wärmepumpe - Erdwärmesonden (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          30000.0,
+          46500.0,
+          74600.0,
+          106500.0,
+          134800.0,
+          159500.0,
+          183600.0,
+          229600.0,
+          277000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 46.96510194485144,
+        "b": -0.24866741049255256
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          450.0,
+          700.0,
+          1120.0,
+          1600.0,
+          2020.0,
+          2390.0,
+          2750.0,
+          3440.0,
+          4160.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 0.710236352449476,
+        "b": -0.2494262925440063
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "20.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 12"
+  },
+  "Sole-Wasser-Wärmepumpe - Kollektoren (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          26300.0,
+          39700.0,
+          62600.0,
+          90600.0,
+          115600.0,
+          138000.0,
+          159000.0,
+          200800.0,
+          245000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 38.45794064873682,
+        "b": -0.2435937240214387
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          390.0,
+          600.0,
+          940.0,
+          1360.0,
+          1730.0,
+          2070.0,
+          2390.0,
+          3010.0,
+          3680.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 0.5663754588853663,
+        "b": -0.2418380614851844
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "20.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 13"
+  },
+  "Hybrid-Wärmepumpe (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "20000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          69400.0,
+          79500.0,
+          101200.0,
+          121500.0,
+          135000.0,
+          170400.0,
+          194000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 81.85364896055431,
+        "b": -0.3257161998695206
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "20000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          20.0,
+          30.0,
+          40.0,
+          50.0,
+          60.0,
+          80.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          740.0,
+          830.0,
+          1090.0,
+          1330.0,
+          1480.0,
+          1920.0,
+          2400.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 0.3740906785905921,
+        "b": -0.24382770271665816
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "20.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 14"
+  },
+  "Blockheizkraftwerk (dezentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          40.0,
+          60.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          21400.0,
+          33380.0,
+          52380.0,
+          83160.0,
+          109560.0,
+          155200.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 75.76280323019832,
+        "b": -0.3386410954129889
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "5000.0",
+      "Max_Input": "100000.0",
+      "Stuetzstellen": {
+        "x": [
+          5.0,
+          10.0,
+          20.0,
+          40.0,
+          60.0,
+          100.0
+        ],
+        "einheit_x": "kWth",
+        "y": [
+          540.0,
+          830.0,
+          1310.0,
+          2080.0,
+          2740.0,
+          3880.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 1.924569979460469,
+        "b": -0.3401346801620839
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "15.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 15"
+  },
+  "Kompressionswärmepumpe Luft (zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "300000.0",
+      "Max_Input": "20000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.3,
+          1.0,
+          2.0,
+          5.0,
+          10.0,
+          20.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          393000.0,
+          1110000.0,
+          2020000.0,
+          4450000.0,
+          8100000.0,
+          14800000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 7.302676326431164,
+        "b": -0.13633630660833376
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "300000.0",
+      "Max_Input": "20000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.3,
+          1.0,
+          2.0,
+          5.0,
+          10.0,
+          20.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          15200.0,
+          37500.0,
+          62900.0,
+          124800.0,
+          209600.0,
+          352000.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 1.2166055335138835,
+        "b": -0.2519556923613943
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 23"
+  },
+  "Kompressionswärmepumpe Abwärme (zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "300000.0",
+      "Max_Input": "20000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.3,
+          1.0,
+          2.0,
+          5.0,
+          10.0,
+          20.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          531000.0,
+          1300000.0,
+          2160000.0,
+          4250000.0,
+          7100000.0,
+          11800000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 48.15608018047917,
+        "b": -0.2617204994525242
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "300000.0",
+      "Max_Input": "20000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.3,
+          1.0,
+          2.0,
+          5.0,
+          10.0,
+          20.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          15000.0,
+          35700.0,
+          58900.0,
+          114200.0,
+          188500.0,
+          311000.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 1.6627295587603177,
+        "b": -0.2779520938956499
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 24"
+  },
+  "Kompressionswärmepumpe Gewässer (zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "10000000.0",
+      "Max_Input": "50000000.0",
+      "Stuetzstellen": {
+        "x": [
+          10.0,
+          20.0,
+          50.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          10800000.0,
+          15800000.0,
+          26000000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 1634.8731913897545,
+        "b": -0.45424536484560835
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "10000000.0",
+      "Max_Input": "50000000.0",
+      "Stuetzstellen": {
+        "x": [
+          10.0,
+          20.0,
+          50.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          275500.0,
+          330000.0,
+          418900.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 4145.43850914916,
+        "b": -0.7396347967726601
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 25"
+  },
+  "Kompressionswärmepumpe Klärwasser/Abwasser (zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "1000000.0",
+      "Max_Input": "10000000.0",
+      "Stuetzstellen": {
+        "x": [
+          1.0,
+          2.0,
+          5.0,
+          10.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          1260000.0,
+          2460000.0,
+          5950000.0,
+          11500000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 2.1692583453659653,
+        "b": -0.03918171728123426
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "1000000.0",
+      "Max_Input": "10000000.0",
+      "Stuetzstellen": {
+        "x": [
+          1.0,
+          2.0,
+          5.0,
+          10.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          33600.0,
+          56600.0,
+          112700.0,
+          189700.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 1.03784609454568,
+        "b": -0.2482840333103658
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "22.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 26"
+  },
+  "Erdgaskessel (Spitzenlastabdeckung, zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "500000.0",
+      "Max_Input": "30000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.5,
+          10.0,
+          30.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          69000.0,
+          590000.0,
+          1320000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 5.436480407381542,
+        "b": -0.28012213240576683
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "500000.0",
+      "Max_Input": "30000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.5,
+          10.0,
+          30.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          1000.0,
+          2000.0,
+          6000.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 5.118481002434347,
+        "b": -0.6058821375852229
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 20"
+  },
+  "Solarthermie Flachkollektoren (Freiflächenanlage, zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Kollektoraperturfläche",
+      "Einheit_Input": "m²",
+      "Min_Input": "500.0",
+      "Max_Input": "15000.0",
+      "Stuetzstellen": {
+        "x": [
+          500.0,
+          1000.0,
+          2000.0,
+          5000.0,
+          10000.0,
+          15000.0
+        ],
+        "einheit_x": "m²",
+        "y": [
+          190000.0,
+          360000.0,
+          680000.0,
+          1600000.0,
+          3000000.0,
+          4350000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 620.106429582359,
+        "b": -0.07868542947313928
+      },
+      "Einheit_Output": "€/m²"
+    },
+    "spezFixkosten": {
+      "Input": "Kollektoraperturfläche",
+      "Einheit_Input": "m²",
+      "Min_Input": "500.0",
+      "Max_Input": "15000.0",
+      "Stuetzstellen": {
+        "x": [
+          500.0,
+          1000.0,
+          2000.0,
+          5000.0,
+          10000.0,
+          15000.0
+        ],
+        "einheit_x": "m²",
+        "y": [
+          2300.0,
+          4300.0,
+          8200.0,
+          19200.0,
+          36000.0,
+          52200.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 7.537435571293382,
+        "b": -0.08010125302990176
+      },
+      "Einheit_Output": "€/m²"
+    },
+    "Lebensdauer": "25.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 21"
+  },
+  "Solarthermie Röhrenkollektoren (Freiflächenanlage, zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Kollektoraperturfläche",
+      "Einheit_Input": "m²",
+      "Min_Input": "500.0",
+      "Max_Input": "15000.0",
+      "Stuetzstellen": {
+        "x": [
+          500.0,
+          1000.0,
+          2000.0,
+          5000.0,
+          10000.0,
+          15000.0
+        ],
+        "einheit_x": "m²",
+        "y": [
+          235000.0,
+          440000.0,
+          840000.0,
+          1950000.0,
+          3700000.0,
+          5400000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 757.5929403714675,
+        "b": -0.07771219624703068
+      },
+      "Einheit_Output": "€/m²"
+    },
+    "spezFixkosten": {
+      "Input": "Kollektoraperturfläche",
+      "Einheit_Input": "m²",
+      "Min_Input": "500.0",
+      "Max_Input": "15000.0",
+      "Stuetzstellen": {
+        "x": [
+          500.0,
+          1000.0,
+          2000.0,
+          5000.0,
+          10000.0,
+          15000.0
+        ],
+        "einheit_x": "m²",
+        "y": [
+          2800.0,
+          5300.0,
+          10100.0,
+          23400.0,
+          44400.0,
+          64800.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 9.02533110792632,
+        "b": -0.07683383520430435
+      },
+      "Einheit_Output": "€/m²"
+    },
+    "Lebensdauer": "35.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 22"
+  },
+  "Blockheizkraftwerk (zentral)": {
+    "spezGesamtinvestition": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "300000.0",
+      "Max_Input": "10000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.3,
+          0.5,
+          1.0,
+          2.0,
+          5.0,
+          10.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          305100.0,
+          491500.0,
+          938000.0,
+          1792000.0,
+          4210000.0,
+          8040000.0
+        ],
+        "einheit_y": "€"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 2.36968210353336,
+        "b": -0.06706426061544925
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "spezFixkosten": {
+      "Input": "Leistung",
+      "Einheit_Input": "W_th",
+      "Min_Input": "300000.0",
+      "Max_Input": "10000000.0",
+      "Stuetzstellen": {
+        "x": [
+          0.3,
+          0.5,
+          1.0,
+          2.0,
+          5.0,
+          10.0
+        ],
+        "einheit_x": "MWth",
+        "y": [
+          15000.0,
+          20000.0,
+          23000.0,
+          26000.0,
+          51000.0,
+          112000.0
+        ],
+        "einheit_y": "€/a"
+      },
+      "Formel": "a * leistung ** b",
+      "Fit": {
+        "a": 18.22469209817211,
+        "b": -0.47690440871086415
+      },
+      "Einheit_Output": "€/W_th"
+    },
+    "Lebensdauer": "15.0a",
+    "Literatur": "KWW Technikkatalog Version 10/25, Tab 32"
+  }
+}
