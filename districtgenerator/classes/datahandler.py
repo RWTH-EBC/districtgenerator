@@ -560,7 +560,7 @@ class Datahandler:
         # gmlId nur für AIX HEAT!
         necessary_values = ["area", "building", "year", "gmlId"]
         optional_values = ["number_of_floors",  "nb_occ", "nb_flats", "thermalTransmittanceRoof",
-                           "thermalTransmittanceFacade", "thermalTransmittanceFloor", "thermalTransmittanceWindow"]
+                           "thermalTransmittanceFacade", "thermalTransmittanceFloor", "thermalTransmittanceWindow", "height"]
         specific_values = ["f_TES", "f_BAT", "heater", "f_PV", "f_STC", "night_setback", "retrofit", "EV", "cooling"]
 
         default_values = {
@@ -572,9 +572,9 @@ class Datahandler:
             "thermalTransmittanceFacade": "TEASER",
             "thermalTransmittanceFloor": "TEASER",
             "thermalTransmittanceWindow": "TEASER",
+            "height": "calculate height_of_floors instead",
             # specific values
             "night_setback": 0,
-            "height": 7.81,
             "retrofit": 0,
             "EV": 0,
             "f_TES": 35,
