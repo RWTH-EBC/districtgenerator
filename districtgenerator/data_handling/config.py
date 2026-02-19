@@ -125,7 +125,7 @@ class DesignBuildingConfig(BaseSettings):
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
     ventilation_rate: float = 0.5  # Room ventilation rate in 1/h (per hour)
-    thermal_model_type: str = '5R1C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
+    thermal_model_type: str = '7R2C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
 
     # --- Decentral HPs sink temperature (mean of supply & return) by age class and retrofit level ---
     # retrofit: 0=standard, 1=retrofit, 2=advanced retrofit

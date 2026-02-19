@@ -757,7 +757,7 @@ class KPIs:
             total_ICE_fuel_liters += np.sum(building["user"].ice_carprofile)  # liters per timestep summed over year
 
             # sum all building design heat and cooling loads
-            total_heat_load += building["envelope"].heatload + building["dhwpower"]
+            total_heat_load += building["envelope"].heatload + building["envelope"].dhwpower
             total_cooling_load += max(building["user"].cooling)
 
             # sum all building demands

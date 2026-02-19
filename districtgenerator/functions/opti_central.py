@@ -48,19 +48,10 @@ EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
 
-def run_opti_central(data, year, cluster, sim_ecoData):
+def run_opti_central(data, year, cluster, sim_ecoData, resultPath):
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
     """
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(levelname)s - %(name)s - %(message)s',
-        handlers=[
-            logging.FileHandler('optimization_debug.log'),  # File output
-            # Optional: logging.FileHandler('optimization_debug.log')  # File output
-        ]
-    )
 
     start_time = time.time()
     # build the model
@@ -69,7 +60,7 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
     # solve the model and extract results
-    results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster)
+    results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster, resultPath=resultPath)
     model_solve_time = time.time() - start_time - model_building_time
     if results_dict is not None:
         print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
@@ -1434,12 +1425,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
     return model
 
 
-def solve_model_and_extract_results(model, data, year, cluster):
+def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     """
     Solves the Pyomo model and extracts results in the same format as the original Gurobi code.
     """
     # Folder to save model and results
-    result_dir = "optimization_results"
+    result_dir = os.path.join(resultPath, f"optimization_results")
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 

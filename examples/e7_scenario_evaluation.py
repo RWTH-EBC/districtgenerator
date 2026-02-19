@@ -14,7 +14,7 @@ def example7_scenario_evaluation():
     # Initialize District
     # To use specific parameters, you can provide your own .env.CONFIG file in the data/env folder (see e6)
     # Refer to it like this: Datahandler(env_path=".env.CONFIG.EXAMPLE") and put it in ./data
-    data = Datahandler(scenario_name = "example", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "tabula_test", env_path=".env.CONFIG.EXAMPLE")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -29,7 +29,7 @@ def example7_scenario_evaluation():
     # of the energy central and the economic parameters are read from additional
     # .csv and .json data sources.
 
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=True)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

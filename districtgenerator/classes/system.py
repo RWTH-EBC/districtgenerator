@@ -62,7 +62,7 @@ class BES:
 
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature
-        self.design_load_heating = building["envelope"].heatload + building["dhwpower"]
+        self.design_load_heating = building["envelope"].heatload + building["envelope"].dhwpower
         limit_load_heating = building["envelope"].heatlimit
 
         self.bivalent_load_heating = self.design_load_heating + (limit_load_heating - self.design_load_heating) / (T_heatlimit - T_design) \
