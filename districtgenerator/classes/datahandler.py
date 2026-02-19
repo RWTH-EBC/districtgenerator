@@ -561,7 +561,7 @@ class Datahandler:
         necessary_values = ["area", "building", "year", "gmlId"]
         optional_values = ["number_of_floors",  "nb_occ", "nb_flats", "thermalTransmittanceRoof",
                            "thermalTransmittanceFacade", "thermalTransmittanceFloor", "thermalTransmittanceWindow"]
-        specific_values = ["height",  "f_TES", "f_BAT", "heater", "f_PV", "f_STC", "night_setback", "retrofit", "EV", "cooling"]
+        specific_values = ["f_TES", "f_BAT", "heater", "f_PV", "f_STC", "night_setback", "retrofit", "EV", "cooling"]
 
         default_values = {
             #optional values
@@ -595,14 +595,9 @@ class Datahandler:
                 except KeyError:
                     pass
         for val in specific_values:
-            if val == "height" and buildingFeatures.get("building") in ["SFH", "TH", "AB", "MFH"]: # ISSUE Todo: was wenn mehr Gebäudetypen?
-                if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                    print(f"{buildingFeatures["gmlId"]}: --- {val} set to {default_values[val]}. ---")
-                    buildingFeatures[val] = default_values[val]
-            else:
-                if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                    print(f"{buildingFeatures["gmlId"]}: --- {val} set to {default_values[val]}. ---")
-                    buildingFeatures[val] = default_values[val]
+            if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
+                print(f"{buildingFeatures["gmlId"]}: --- {val} set to {default_values[val]}. ---")
+                buildingFeatures[val] = default_values[val]
 
         return buildingFeatures
 
@@ -643,7 +638,7 @@ class Datahandler:
                     construction_data = 'tabula_de_adv_retrofit'
                 else: construction_data = "tabula_standard" #bugfix
 
-                height = building["buildingFeatures"]["height"]
+                height = building["buildingFeatures"].get("height", 0)
                 number_of_floors = building["buildingFeatures"].get("number_of_floors", 0)
                 if number_of_floors == 0:
                     # Determining the number of floors in a building based on its type.
