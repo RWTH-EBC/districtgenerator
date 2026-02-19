@@ -186,11 +186,9 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
 
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step
     model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
-    # model.allow_import = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
-    # model.allow_export = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
 
     # Binary Variable to decide if BBOI capacity is <= 10 kW or > 10 kW
-    # model.z_bboi_small = pyo.Var(model.districts, within=pyo.Binary)  # new for network
+    model.cap_small = pyo.Var(model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
     model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
@@ -232,17 +230,6 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     ################################################################################
     # Define maximum Capacity of devices Constraints
     ################################################################################
-    # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
-    Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
-    def grid_binary_rule1(model, district, y, d, t):
-        return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
-    
-    def grid_binary_rule2(model, district, y, d, t):
-        return model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
-    
-    model.grid_binary1 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule1)
-    model.grid_binary2 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule2)
-     
     model.constraints = pyo.ConstraintList()
 
     # Add capacity constraints for all devices as specified in devs
@@ -360,7 +347,6 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     ################################################################################
     # Energy balances for each time step
     ################################################################################
-    #Big_M  =1e20  # Big M for enforcing mutual exclusivity of grid import/export in each time step
     for district in model.districts:
         devs = devsCon[district]
         dem = demCon[district]
@@ -401,8 +387,17 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     # Waste supply and demand balance
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
 
+    # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
+    Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    def grid_binary_rule1(model, district, y, d, t):
+        return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
     
-    #model.grid_import_binary
+    def grid_binary_rule2(model, district, y, d, t):
+        return model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
+    
+    model.grid_binary1 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule1)
+    model.grid_binary2 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule2)
+     
                     
     # SOS1 Constraint: Nur from_grid ODER to_grid darf > 0 sein, nicht beide
     # Läuft sehr lang
@@ -414,64 +409,6 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     #     rule= sos_rule,
     #     sos=1
     # )
-                 
-                    # model.grid_logic = pyo.SOSConstraint(
-                    #     var= [model.power["from_grid", district, y, d, t],
-                    #         model.power["to_grid", district, y, d, t]],
-                    #     sos=1,
-                    #     weights= [1, 2]
-                    # )
-
-
-                    # model.sos1.add(
-                    #     pyo.SOS1([
-                    #         model.power["from_grid", district, y, d, t],
-                    #         model.power["to_grid", district, y, d, t]
-                    #     ])
-                    # )
-
-                    # # Mutual exclusivity of grid import and export in each time step #new for network
-                    # If allow_import = 1 => from_main_grid and from_network can be > 0, otherwise they must be 0
-                    # model.constraints.add(model.power["from_main_grid", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
-                    # model.constraints.add(model.power["from_network", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
-                    # model.constraints.add(model.power["from_grid", district, y, d, t] <= Big_M * model.allow_import[district, y, d, t])
-                    # # If allow_export = 1 => to_main_grid and to_network can be > 0, otherwise they must be 0
-                    # # model.constraints.add(model.power["to_main_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
-                    # # model.constraints.add(model.power["to_network", district, y, d, t] <=   Big_M * model.allow_export[district, y, d, t])
-                    # model.constraints.add(model.power["to_grid", district, y, d, t] <= Big_M * model.allow_export[district, y, d, t])
-                    # # Only import or export allowed in each time step, not both
-                    # model.constraints.add(model.allow_import[district, y, d, t] + model.allow_export[district, y, d, t] <= 1)
-
-
-
-                    # Mutual exclusivity of grid import and export in each time step #new for network
-                    # from_main_grid and from_network can only be > 0 if grid_import_binary is 1 (import), otherwise it must be 0
-                    # model.constraints.add(
-                    # model.power["from_main_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
-                    # )
-
-                    # model.constraints.add(
-                    # model.power["from_network", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
-                    # )
-
-                    # model.constraints.add(
-                    #     model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
-                    # )
-
-                    # to_main_grid and to_network can only be > 0 if grid_import_binary is 0 (no import), otherwise it must be 0
-                    # model.constraints.add(
-                    #     model.power["to_main_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
-                    # )
-
-                    # model.constraints.add(
-                    #     model.power["to_network", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
-                    # )
-                    
-                    # model.constraints.add(
-                    #     model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
-                    # )
-
-
 
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
@@ -771,11 +708,33 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # EPS = 1e-3        # used to model "cap > 10000" (strict inequalities are not directly supported)
     # # Big-M for investment equation switching
     # M_INV = abs(devs["BBOI"]["inv_until_10"] - devs["BBOI"]["inv_10_30"]) * CAP_MAX + 1.0
+    Big_M = 1e15  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
+    EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
+    # Constraint 1: If cap_small = 1, then cap <= 10000 kW
+    # def small_bboi_rule(model, district):
+    #     return model.cap["BBOI", district] <= 10000 + Big_M * (1 - model.cap_small[district])
+    
+    # # Constraint 2: If cap_small = 0, then cap > 10000 kW
+    # def large_bboi_rule(model, district):
+    #     return model.cap["BBOI", district] >= (10000 + EPS) - Big_M * model.cap_small[district]
+    
+
+
+
+
 
     for district in model.districts:
         devs = devsCon[district]
         param = paramCon[district]
         data = dataCon[district]
+        # Constraint 1: If cap_small = 1, then cap <= 10000 kW
+        model.constraints.add(model.cap["BBOI", district] <= 10000 + Big_M * (1 - model.cap_small[district]))
+        # Constraint 2: If cap_small = 0, then cap > 10000 kW
+        model.constraints.add(model.cap["BBOI", district] >= (10000 + EPS) - Big_M * model.cap_small[district])
+        # Constraint for investment costs based on capacity regimes
+        model.constraints.add(model.inv["BBOI", district] == devs["BBOI"]["inv_until_10"] * model.cap["BBOI", district] * model.cap_small[district]
+                              + devs["BBOI"]["inv_10_30"] * model.cap["BBOI", district] * (1 - model.cap_small[district])
+                              )
         # Capacity regime selection
         # # If z=1 is active: cap <= 10000 kW
         # model.constraints.add(
