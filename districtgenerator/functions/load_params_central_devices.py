@@ -202,8 +202,9 @@ def load_params(data):
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
             "inv_base": value.get("inv_base", 0),
-            "inv_until_10": value.get("inv_until_10", 0), # New TJA
-            "inv_10_30": value.get("inv_10_30", 0), # New TJA
+            "inv_small": value.get("inv_small", 0), # New TJA
+            "inv_large": value.get("inv_large", 0), # New TJA
+            "inv_cap_switch": value.get("inv_cap_switch", 0), # New TJA
             "cost_om": value.get("cost_om", 0) * 100,
             "beta": value.get("beta", 0),
             "gamma": value.get("gamma", 0),
@@ -301,6 +302,9 @@ def load_params(data):
         "feasible": all_models["CHP"]["enabled"],
         "inv_var": all_models["CHP"]["inv_var"],
         "inv_base": all_models["CHP"]["inv_base"],
+        "inv_small": all_models["CHP"]["inv_small"], # New TJA
+        "inv_large": all_models["CHP"]["inv_large"], # New TJA
+        "inv_cap_switch": all_models["CHP"]["inv_cap_switch"], # New TJA
         "eta_el": all_models["CHP"]["eta_el"] / 100,
         "eta_th": all_models["CHP"]["eta_th"] / 100,
         "life_time": all_models["CHP"]["life_time"],
@@ -314,8 +318,9 @@ def load_params(data):
         "feasible": all_models["BOI"]["enabled"],
         "inv_var": all_models["BOI"]["inv_var"],
         "inv_base": all_models["BOI"]["inv_base"],
-        "inv_until_10": all_models["BOI"]["inv_until_10"], # New TJA
-        "inv_10_30": all_models["BOI"]["inv_10_30"], # New TJA
+        "inv_small": all_models["BOI"]["inv_small"], # New TJA
+        "inv_large": all_models["BOI"]["inv_large"], # New TJA
+        "inv_cap_switch": all_models["BOI"]["inv_cap_switch"], # New TJA
         "eta_th": all_models["BOI"]["eta_th"] / 100,
         "life_time": all_models["BOI"]["life_time"],
         "cost_om": all_models["BOI"]["cost_om"] / 100,
@@ -381,6 +386,9 @@ def load_params(data):
             "feasible": all_models["AirHP"]["enabled"],
             "inv_var": all_models["AirHP"]["inv_var"],
             "inv_base": all_models["AirHP"]["inv_base"],
+            "inv_small": all_models["AirHP"]["inv_small"], # New TJA
+            "inv_large": all_models["AirHP"]["inv_large"], # New TJA
+            "inv_cap_switch": all_models["AirHP"]["inv_cap_switch"], # New TJA
             "life_time": all_models["AirHP"]["life_time"],
             "cost_om": all_models["AirHP"]["cost_om"] / 100,
             "min_cap": all_models["AirHP"]["min_cap"],
@@ -535,8 +543,6 @@ def load_params(data):
         "feasible": all_models["BBOI"]["enabled"],
         "inv_var": all_models["BBOI"]["inv_var"],
         "inv_base": all_models["BBOI"]["inv_base"],
-        "inv_until_10": all_models["BBOI"]["inv_until_10"], # New TJA
-        "inv_10_30": all_models["BBOI"]["inv_10_30"], # New TJA
         "eta_th": all_models["BBOI"]["eta_th"] / 100,
         "life_time": all_models["BBOI"]["life_time"],
         "cost_om": all_models["BBOI"]["cost_om"] / 100,

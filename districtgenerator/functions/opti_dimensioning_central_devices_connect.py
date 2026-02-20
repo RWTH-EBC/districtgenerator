@@ -703,69 +703,45 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         # Investment and operational costs for each device (Annualized)
         # Test for BBOI
     
-    # # Upper bound for capacity
-    # CAP_MAX = 300000   
-    # EPS = 1e-3        # used to model "cap > 10000" (strict inequalities are not directly supported)
-    # # Big-M for investment equation switching
-    # M_INV = abs(devs["BBOI"]["inv_until_10"] - devs["BBOI"]["inv_10_30"]) * CAP_MAX + 1.0
+
     Big_M = 1e15  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
     EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
-    # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-    # def small_bboi_rule(model, district):
-    #     return model.cap["BBOI", district] <= 10000 + Big_M * (1 - model.cap_small[district])
+    # #Constraint 1: If cap_small = 1, then cap <= 10000 kW
+    # def small_boi_rule(model, district):
+    #     return model.cap["BOI", district] <= param["BOI__Cap_switch"] + Big_M * (1 - model.cap_small[district])
     
     # # Constraint 2: If cap_small = 0, then cap > 10000 kW
-    # def large_bboi_rule(model, district):
-    #     return model.cap["BBOI", district] >= (10000 + EPS) - Big_M * model.cap_small[district]
+    # def large_boi_rule(model, district):
+    #     return model.cap["BOI", district] >= (param["BOI__Cap_switch"] + EPS) - Big_M * model.cap_small[district]
     
-
-
-
-
+    # def inv_boi_rule(model, district):
+    #     devs = devsCon[district]
+    #     return model.inv["BOI", district] == devs["BOI"]["inv_small"] * model.cap["BOI", district] * model.cap_small[district] + devs["BOI"]["inv_large"] * model.cap["BOI", district] * (1 - model.cap_small[district])
+    
+    # model.small_boi_constraint = pyo.Constraint(model.districts, rule=small_boi_rule)
+    # model.large_boi_constraint = pyo.Constraint(model.districts, rule=large_boi_rule)
+    # model.inv_boi_constraint = pyo.Constraint(model.districts, rule=inv_boi_rule)
 
     for district in model.districts:
         devs = devsCon[district]
         param = paramCon[district]
         data = dataCon[district]
-        # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-        model.constraints.add(model.cap["BBOI", district] <= 10000 + Big_M * (1 - model.cap_small[district]))
-        # Constraint 2: If cap_small = 0, then cap > 10000 kW
-        model.constraints.add(model.cap["BBOI", district] >= (10000 + EPS) - Big_M * model.cap_small[district])
-        # Constraint for investment costs based on capacity regimes
-        model.constraints.add(model.inv["BBOI", district] == devs["BBOI"]["inv_until_10"] * model.cap["BBOI", district] * model.cap_small[district]
-                              + devs["BBOI"]["inv_10_30"] * model.cap["BBOI", district] * (1 - model.cap_small[district])
-                              )
-        # Capacity regime selection
-        # # If z=1 is active: cap <= 10000 kW
-        # model.constraints.add(
-        #     model.cap["BBOI", district] <= 10000 + CAP_MAX * (1 - model.z_bboi_small[district])
-        # )
-        # # If z=0 is active: cap > 10000 kW
-        # model.constraints.add(
-        #     model.cap["BBOI", district] >= (10000 + EPS) - CAP_MAX * model.z_bboi_small[district]
-        # )   
-        # # If z=1 is active: inv = inv_until_10 * cap
-        # model.constraints.add(
-        #     model.inv["BBOI", district] - devs["BBOI"]["inv_until_10"] * model.cap["BBOI", district]
-        #     <= M_INV * (1 - model.z_bboi_small[district])
-        # )
-        # model.constraints.add(
-        #     model.inv["BBOI", district] - devs["BBOI"]["inv_until_10"] * model.cap["BBOI", district]
-        #     >= -M_INV * (1 - model.z_bboi_small[district])
-        # )
-
-        # # If z=0 is active: inv = inv_10_30 * cap
-        # model.constraints.add(
-        #     model.inv["BBOI", district] - devs["BBOI"]["inv_10_30"] * model.cap["BBOI", district]
-        #     <= M_INV * model.z_bboi_small[district]
-        # )
-        # model.constraints.add(
-        #     model.inv["BBOI", district] - devs["BBOI"]["inv_10_30"] * model.cap["BBOI", district]
-        #     >= -M_INV * model.z_bboi_small[district]
-        # )
-
-        for dev in model.all_devs:
+        for dev in ["BOI", "CHP", "HP"]:
+            # Constraint 1: If cap_small = 1, then cap <= 10000 kW
+            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_cap_switch"] + Big_M * (1 - model.cap_small[district]))
+            # Constraint 2: If cap_small = 0, then cap > 10000 kW
+            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_cap_switch"] + EPS) - Big_M * model.cap_small[district])
+            # Constraint for investment costs based on capacity regimes
+            model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[district]
+                                + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[district])
+                                )
+      
+        for dev in ["PV", "WT", "STC", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
+                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+                     "CTES", "BAT", "GS"]:
             model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
+            
+        for dev in model.all_devs:
             model.constraints.add(model.inv_base[dev, district] == devs[dev]["inv_base"] * model.cap[dev, district])  # unsubsidized investment costs
             model.constraints.add(model.c_inv[dev, district] == model.inv[dev, district] * devs[dev]["ann_factor"])  # annualized investment costs
             model.constraints.add(model.c_inv_base[dev, district] == model.inv_base[dev, district] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs

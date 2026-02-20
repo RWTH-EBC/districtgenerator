@@ -1,16 +1,185 @@
 import matplotlib.pyplot as plt
 import os
+import numpy as np
+import csv
+import re
 
-def plot_device_capacities(district_name, result_dict, result_dir=None, show=True):
+
+
+def _read_device_capacities_from_result_csv(csv_path):
     """
-    Plots device capacities as a bar chart for a single district.
+    Read the 'Device-capacity' section from a semicolon-separated result CSV.
+    Returns dict: {device_name: capacity_kW}.
+    """
+    capacities = {}
+    in_device_section = False
+
+    with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.reader(f, delimiter=";")
+        for row in reader:
+            if not row:
+                continue
+
+            key = (row[0] or "").strip()
+            val = (row[1] or "").strip() if len(row) > 1 else ""
+
+            # Section start
+            if key == "Device-capacity":
+                in_device_section = True
+                continue
+
+            # Stop when next section starts
+            if in_device_section and (
+                key == ""
+                or key.endswith(":")
+                or key in {
+                    "Heat_generation_by_year",
+                    "Heat_profile_energy_kwh_by_year",
+                    "Grid_flows",
+                    "Areas PV and STC",
+                    "volumes of thermal storages",
+                    "Co2_parameter",
+                    "Cost_parameter",
+                }
+            ):
+                if key != "":
+                    break
+                continue
+
+            if not in_device_section:
+                continue
+
+            # Keep only pure device keys (e.g. HP, CHP, TES, PV, STC, WT, EB, ...)
+            # Exclude derived keys like HP_inv, HP_om_cost, ...
+            if "_" in key:
+                continue
+            if not re.fullmatch(r"[A-Z0-9]+", key):
+                continue
+
+            try:
+                cap = float(val)
+            except (TypeError, ValueError):
+                continue
+
+            if np.isfinite(cap) and cap > 0:
+                capacities[key] = cap
+
+    return capacities
+
+
+def plot_device_capacities_from_csv(scenario_name, base_dir=None, result_dir=None, show=True):
+    """
+    Plot device capacities from one or multiple scenario result CSVs:
+    <scenario_name>_results.csv
+
+    Parameters
+    ----------
+    scenario_name : str | list[str]
+        Scenario name(s), without '_results.csv' suffix.
+    base_dir : str, optional
+        Directory of optimization results.
+        Default: ...\\districtgenerator\\Main-tja\\optimization_results
+    result_dir : str, optional
+        Directory where plots folder is created. Default: current directory.
+    show : bool, optional
+        Whether to display the plot.
+
+    Returns
+    -------
+    None
+    """
+    scenario_names = [scenario_name] if isinstance(scenario_name, str) else list(scenario_name)
+    if not scenario_names:
+        raise ValueError("scenario_name must not be empty.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    capacities_by_scenario = {}
+    all_devices = set()
+
+    for sc in scenario_names:
+        csv_path = os.path.join(base_dir, f"{sc}_results.csv")
+        if not os.path.isfile(csv_path):
+            raise FileNotFoundError(f"CSV not found: {csv_path}")
+
+        caps = _read_device_capacities_from_result_csv(csv_path)
+        capacities_by_scenario[sc] = caps
+        all_devices.update(caps.keys())
+
+    if not all_devices:
+        print("No installed devices with finite capacity > 0 found in CSV file(s).")
+        return
+
+    preferred_order = [
+        "HP", "CHP", "TES", "PV", "STC", "WT", "EB", "BOI", "BBOI", "GHP", "CC", "AC",
+        "WAT", "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "CTES", "BAT", "GS"
+    ]
+    devices = [d for d in preferred_order if d in all_devices]
+    devices += sorted([d for d in all_devices if d not in preferred_order])
+
+    label_map = {
+        "HP": "WP",
+        "CHP": "BHKW",
+        "TES": "Speicher",
+        "PV": "PV",
+        "STC": "ST",
+        "WT": "WKA",
+        "EB": "EK",
+    }
+    xtick_labels = [label_map.get(d, d) for d in devices]
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    n_devices = len(devices)
+    n_series = len(scenario_names)
+    x = np.arange(n_devices)
+    width = min(0.8 / max(n_series, 1), 0.35)
+
+    plt.figure(figsize=(12, 6))
+    for idx, sc in enumerate(scenario_names):
+        offset = (idx - (n_series - 1) / 2) * width
+        y_values = [capacities_by_scenario[sc].get(dev, 0.0) for dev in devices]
+        plt.bar(x + offset, y_values, width=width, label=sc)
+
+    plt.ylabel("Capacity (kW)")
+    plt.xticks(x, xtick_labels)
+    plt.grid(axis="y", alpha=0.4)
+    plt.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=max(1, min(4, n_series)),
+        frameon=False,
+    )
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
+
+    if len(scenario_names) == 1:
+        filename = f"device_capacities_{scenario_names[0]}_from_csv.png"
+    else:
+        filename = "device_capacities_compare_from_csv.png"
+
+    plot_path = os.path.join(plots_dir, filename)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Device capacities plot saved to {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return None
+
+def plot_device_capacities(result_dictCon, result_dir=None, show=True):
+    """
+    Plots grouped device capacities for all districts.
+    For each device, one bar per district is shown side-by-side.
     
     Parameters
     ----------
-    district_name : str
-        Name of the district
-    result_dict : dict
-        Result dictionary for this specific district containing device capacities
+    result_dictCon : dict
+        Result dictionary for all districts from network optimization.
     result_dir : str, optional
         Directory where plots will be saved. Default is current directory.
     show : bool, optional
@@ -20,52 +189,84 @@ def plot_device_capacities(district_name, result_dict, result_dir=None, show=Tru
     -------
     None
     """
-    if result_dict is None:
-        raise ValueError("result_dict is required")
+    if result_dictCon is None:
+        raise ValueError("result_dictCon is required")
     
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
-    
-    # Extract device capacities
-    devices = []
-    capacities = []
-    
-    # Get all device entries from result_dict and filter those with inst=True and cap>0
-    for device_name, device_data in result_dict.items():
-        if isinstance(device_data, dict):
-            # Check if device is installed and has a capacity
-            if device_data.get("inst", False) and device_data.get("cap", 0) > 0:
-                devices.append(device_name)
-                capacities.append(device_data["cap"])
-    
-    if not devices:
-        print(f"No installed devices with capacity > 0 found for district {district_name}")
+
+    # Keep district entries only (skip aggregate entries like "network")
+    district_names = [
+        name for name, values in result_dictCon.items()
+        if isinstance(values, dict) and name != "network"
+    ]
+    if not district_names:
+        print("No district results found in result_dictCon.")
         return
-    
-    # Create bar chart
+
+    # Collect capacities by district and device
+    capacities_by_district = {}
+    all_devices = set()
+    for district_name in district_names:
+        district_result = result_dictCon[district_name]
+        capacities_by_district[district_name] = {}
+        for key, value in district_result.items():
+            if isinstance(value, dict) and "cap" in value:
+                cap = value.get("cap", 0)
+                if isinstance(cap, (int, float)) and np.isfinite(cap) and cap > 0:
+                    capacities_by_district[district_name][key] = cap
+                    all_devices.add(key)
+
+    if not all_devices:
+        print("No installed devices with finite capacity > 0 found.")
+        return
+
+    # Deterministic and readable ordering
+    preferred_order = [
+        "HP", "CHP", "TES", "PV", "STC", "WT", "EB", "BOI", "BBOI", "GHP", "CC", "AC",
+        "WAT", "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "CTES", "BAT", "GS"
+    ]
+    devices = [dev for dev in preferred_order if dev in all_devices]
+    devices += sorted([dev for dev in all_devices if dev not in preferred_order])
+
+    label_map = {
+        "HP": "WP",
+        "CHP": "BHKW",
+        "TES": "Speicher",
+        "PV": "PV",
+        "STC": "ST",
+        "WT": "WKA",
+        "EB": "EK",
+    }
+    xtick_labels = [label_map.get(dev, dev) for dev in devices]
+
+    # Grouped bar chart
+    n_devices = len(devices)
+    n_districts = len(district_names)
+    x = np.arange(n_devices)
+    width = min(0.8 / max(n_districts, 1), 0.35)
+
     plt.figure(figsize=(12, 6))
-    bars = plt.bar(devices, capacities, color='steelblue', edgecolor='navy', linewidth=1.5)
-    
-    # Add value labels on bars
-    for bar in bars:
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.2f}',
-                ha='center', va='bottom', fontsize=10, fontweight='bold')
-    
-    plt.xlabel("Device", fontsize=12, fontweight='bold')
-    plt.ylabel("Capacity (kW)", fontsize=12, fontweight='bold')
-    plt.title(f"Device Capacities - {district_name}", fontsize=14, fontweight='bold')
-    plt.grid(axis='y', alpha=0.3, linestyle='--')
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    
-    # Save figure
-    filename = f"device_capacities_{district_name}.png"
+    for idx, district_name in enumerate(district_names):
+        offset = (idx - (n_districts - 1) / 2) * width
+        y_values = [capacities_by_district[district_name].get(dev, 0) for dev in devices]
+        plt.bar(x + offset, y_values, width=width, label=district_name)
+
+    plt.ylabel("Capacity (kW)")
+    plt.xticks(x, xtick_labels)
+    plt.grid(axis='y', alpha=0.4)
+    plt.legend(
+    loc="upper center",
+    bbox_to_anchor=(0.5, -0.15),
+    ncol=max(1, min(4, n_districts)),
+    frameon=False
+    )
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
+
+    filename = "device_capacities_all_districts.png"
     plot_path = os.path.join(plots_dir, filename)
     plt.savefig(plot_path, dpi=150)
-    
-    print(f"Device capacities plot for {district_name} saved to {plot_path}")
+    print(f"Device capacities comparison plot saved to {plot_path}")
     
     if show:
         plt.show()
@@ -230,3 +431,6 @@ def plot_grid_flows(result_dictCon=None,y=None, result_dir=None, show=True):
 
 
     return None
+
+if __name__ == "__main__":
+    plot_device_capacities_from_csv(["example", "example2"], show=True)

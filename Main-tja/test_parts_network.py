@@ -40,8 +40,8 @@ if __name__ == '__main__':
     # plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
 
     # Plot device capacities for each district
-    for district_name, result_dict in result_dictCon.items():
-        plot_device_capacities(district_name, result_dict, result_dir=result_dir, show=True)
+
+    plot_device_capacities(result_dictCon=result_dictCon, result_dir=result_dir, show=True)
 
 
     # Can be used if I update opti_central for the network optimization

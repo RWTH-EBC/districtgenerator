@@ -899,6 +899,9 @@ class CentralDeviceConfig(BaseSettings):
     # CHP parameters (Combined Heat and Power)
     CHP__feasible: bool = True  # Should this be considered for the central optimization.
     CHP__inv_base: float = 1200  # Unsubsidized investment variable in €/kW.
+    CHP__inv_small: float = 832.53  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
+    CHP__inv_large: float = 766.38  # Investment variable for 10-30 MWth in €/kW. # New TJA
+    CHP__inv_cap_switch: float = 4850  # Capacity at which the investment variable switches from small to large in kW. # New TJA
     CHP__eta_el: float = 0.4  # Electrical efficiency between 0 and 1.
     CHP__eta_th: float = 0.5  # Thermal efficiency between 0 and 1.
     CHP__life_time: int = 20  # Maximum life time in years.
@@ -911,8 +914,9 @@ class CentralDeviceConfig(BaseSettings):
     # BOI parameters (Boiler)
     BOI__feasible: bool = True  # Should this be considered for the central optimization.
     BOI__inv_base: float = 138  # Unsubsidized investment variable in €/kW.
-    BOI__inv_until_10: float = 54.84  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
-    BOI__inv_10_30: float = 36.50  # Investment variable for 10-30 MWth in €/kW.
+    BOI__inv_small: float = 54.84  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
+    BOI__inv_large: float = 36.50  # Investment variable for 10-30 MWth in €/kW. # New TJA
+    BOI__inv_cap_switch: float = 10000  # Capacity at which the investment variable switches from small to large in kW. # New TJA
     BOI__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     BOI__life_time: int = 25  # Maximum life time in years.
     BOI__cost_om: float = 0.014  # Cost of operation and maintenance as a percentage of investment.
@@ -952,6 +956,9 @@ class CentralDeviceConfig(BaseSettings):
     AirHP__feasible: bool = True  # Should this be considered for the central optimization.
     AirHP__life_time: int = 25  # Maximum life time in years.
     AirHP__inv_base: float = 1110  # Unsubsidized investment variable in €/kWth.
+    AirHP__inv_small: float = 797.26  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
+    AirHP__inv_large: float = 669.28  # Investment variable for 10-30 MWth in €/kW. # New TJA
+    AirHP__inv_cap_switch: float = 9850  # Capacity at which the investment variable switches from small to large in kW. # New TJA
     AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     AirHP__min_cap: float = 0  # Minimum capacity in kWth.
     AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
@@ -1026,8 +1033,6 @@ class CentralDeviceConfig(BaseSettings):
     # BBOI parameters (Biomass Boiler)
     BBOI__feasible: bool = False  # Should this be considered for the central optimization.
     BBOI__inv_base: float = 570  # Unsubsidized investment variable in €/kW.
-    BBOI__inv_until_10: float = 54.84  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
-    BBOI__inv_10_30: float = 36.50  # Investment variable for 10-30 MWth in €/kW.
     BBOI__eta_th: float = 0.85  # Thermal efficiency between 0 and 1.
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
