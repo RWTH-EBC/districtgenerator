@@ -387,16 +387,16 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     # Waste supply and demand balance
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
 
-    # # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
-    # Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
-    # def grid_binary_rule1(model, district, y, d, t):
-    #     return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
+    # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
+    Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    def grid_binary_rule1(model, district, y, d, t):
+        return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
     
-    # def grid_binary_rule2(model, district, y, d, t):
-    #     return model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
+    def grid_binary_rule2(model, district, y, d, t):
+        return model.power["to_grid", district, y, d, t] <= Big_M * (1 - model.grid_import_binary[district, y, d, t])
     
-    # model.grid_binary1 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule1)
-    # model.grid_binary2 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule2)
+    model.grid_binary1 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule1)
+    model.grid_binary2 = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule2)
      
                     
     # SOS1 Constraint: Nur from_grid ODER to_grid darf > 0 sein, nicht beide
@@ -726,15 +726,15 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         devs = devsCon[district]
         param = paramCon[district]
         data = dataCon[district]
-        # for dev in ["BOI", "CHP", "HP"]:
-            # # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-            # model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_cap_switch"] + Big_M * (1 - model.cap_small[district]))
-            # # Constraint 2: If cap_small = 0, then cap > 10000 kW
-            # model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_cap_switch"] + EPS) - Big_M * model.cap_small[district])
-            # # Constraint for investment costs based on capacity regimes
-            # model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[district]
-            #                     + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[district])
-            #                     )
+        for dev in ["BOI", "CHP", "HP"]:
+            # Constraint 1: If cap_small = 1, then cap <= 10000 kW
+            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_cap_switch"] + Big_M * (1 - model.cap_small[district]))
+            # Constraint 2: If cap_small = 0, then cap > 10000 kW
+            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_cap_switch"] + EPS) - Big_M * model.cap_small[district])
+            # Constraint for investment costs based on capacity regimes
+            model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[district]
+                                + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[district])
+                                )
       
         for dev in ["PV", "WT", "STC", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
                      "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",

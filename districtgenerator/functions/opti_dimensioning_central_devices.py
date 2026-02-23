@@ -171,6 +171,12 @@ def build_model(model, data, devs, param, dem):
     model.grid_limit_el = pyo.Var(within=pyo.NonNegativeReals)
     model.grid_limit_gas = pyo.Var(within=pyo.NonNegativeReals)
 
+    # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step # new TJA
+    model.grid_import_binary = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new TJA
+
+    # Binary Variable to decide if capacity is is below or above inv_cap_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
+    model.cap_small = pyo.Var(within=pyo.Binary)  # new TJA
+
     # Yearly totals - indexed by support year
     model.from_el_grid_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.to_el_grid_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
@@ -351,6 +357,18 @@ def build_model(model, data, devs, param, dem):
 
                 # Waste supply and demand balance
                 model.constraints.add(model.waste["import", y, d, t] == model.waste["WCHP", y, d, t] + model.waste["WBOI", y, d, t])
+
+    # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
+    Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    def grid_binary_rule1(model, y, d, t):
+        return model.power["from_grid", y, d, t] <= Big_M * model.grid_import_binary[y, d, t]
+    
+    def grid_binary_rule2(model, y, d, t):
+        return model.power["to_grid", y, d, t] <= Big_M * (1 - model.grid_import_binary[y, d, t])
+    
+    model.grid_binary1 = pyo.Constraint(model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule1)
+    model.grid_binary2 = pyo.Constraint(model.support_years, model.clusters, model.time_steps, rule=grid_binary_rule2)
+    
 
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
@@ -602,13 +620,29 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.cap_costs_gas == model.grid_limit_gas * param["price_cap_gas"])
 
     # Investment and operational costs for each device (Annualized)
-    for dev in model.all_devs:
-        model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
-        model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
-        model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
-        model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
-        model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
-        model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
+    Big_M = 1e15  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
+    EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
+    for dev in ["BOI", "CHP", "HP"]:
+        # Constraint 1: If cap_small = 1, then cap <= 10000 kW
+        model.constraints.add(model.cap[dev] <= devs[dev]["inv_cap_switch"] + Big_M * (1 - model.cap_small))
+        # Constraint 2: If cap_small = 0, then cap > 10000 kW
+        model.constraints.add(model.cap[dev] >= (devs[dev]["inv_cap_switch"] + EPS) - Big_M * model.cap_small)
+        # Constraint for investment costs based on capacity regimes
+        model.constraints.add(model.inv[dev] == devs[dev]["inv_small"] * model.cap[dev] * model.cap_small
+                            + devs[dev]["inv_large"] * model.cap[dev] * (1 - model.cap_small)
+                            )
+      
+        for dev in ["PV", "WT", "STC", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
+                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+                     "CTES", "BAT", "GS"]:
+            model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+        for dev in model.all_devs:
+            model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+            model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
+            model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
+            model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
+            model.constraints.add(model.c_om[dev] == devs[dev]["cost_om"] * model.inv_base[dev])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
+            model.constraints.add(model.c_total[dev] == model.c_inv[dev] + model.c_om[dev])  # total annualized costs for investment and O&M
 
     # Combined total annualized investment and O&M costs for all devices
     model.constraints.add(model.total_annual_costs_devices == sum(model.c_total[dev] for dev in model.all_devs))
