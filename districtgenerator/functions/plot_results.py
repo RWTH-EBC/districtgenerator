@@ -100,7 +100,7 @@ def plot_device_capacities_from_csv(scenario_name, base_dir=None, result_dir=Non
     all_devices = set()
 
     for sc in scenario_names:
-        csv_path = os.path.join(base_dir, f"{sc}_results.csv")
+        csv_path = os.path.join(base_dir, f"{sc}_network_results.csv")
         if not os.path.isfile(csv_path):
             raise FileNotFoundError(f"CSV not found: {csv_path}")
 
@@ -116,17 +116,18 @@ def plot_device_capacities_from_csv(scenario_name, base_dir=None, result_dir=Non
         "HP", "CHP", "TES", "PV", "STC", "WT", "EB", "BOI", "BBOI", "GHP", "CC", "AC",
         "WAT", "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "CTES", "BAT", "GS"
     ]
-    devices = [d for d in preferred_order if d in all_devices]
+    devices = [d for d in preferred_order if d in all_devices if d!="TES"]
     devices += sorted([d for d in all_devices if d not in preferred_order])
 
     label_map = {
         "HP": "WP",
         "CHP": "BHKW",
-        "TES": "Speicher",
+        "TES": "therm. Speicher",
         "PV": "PV",
         "STC": "ST",
         "WT": "WKA",
         "EB": "EK",
+        "BCHP": "BBHKW",
     }
     xtick_labels = [label_map.get(d, d) for d in devices]
 
@@ -142,9 +143,9 @@ def plot_device_capacities_from_csv(scenario_name, base_dir=None, result_dir=Non
     for idx, sc in enumerate(scenario_names):
         offset = (idx - (n_series - 1) / 2) * width
         y_values = [capacities_by_scenario[sc].get(dev, 0.0) for dev in devices]
-        plt.bar(x + offset, y_values, width=width, label=sc)
+        plt.bar(x + offset, y_values, width=width, label=sc, color='#DD402D' if idx == 0 else 'grey')
 
-    plt.ylabel("Capacity (kW)")
+    plt.ylabel("Anlagenleistung in kW")
     plt.xticks(x, xtick_labels)
     plt.grid(axis="y", alpha=0.4)
     plt.legend(
@@ -325,7 +326,7 @@ def plot_grid_flows(result_dictCon=None,y=None, result_dir=None, show=True):
             if (a > 0 and c > 0) or (a > 0 and d > 0 ) or (b > 0 and c > 0) or (b > 0 and d > 0)
         ]
         for idx in highlight_indices:
-            plt.axvspan(idx - 0.5, idx + 0.5, color="#f50707", alpha=0.4, zorder=0)
+            plt.axvspan(idx - 0.5, idx + 0.5, color="#8a0707c8", alpha=0.4, zorder=0)
         plt.xlabel("Time step")
         plt.ylabel("Power from and to main grid (kW)")
         plt.title(title)
@@ -433,4 +434,4 @@ def plot_grid_flows(result_dictCon=None,y=None, result_dir=None, show=True):
     return None
 
 if __name__ == "__main__":
-    plot_device_capacities_from_csv(["example", "example2"], show=True)
+    plot_device_capacities_from_csv(["rural", "urban"], show=True)

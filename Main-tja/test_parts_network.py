@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     # Plot device capacities for each district
 
-    plot_device_capacities(result_dictCon=result_dictCon, result_dir=result_dir, show=True)
+    # plot_device_capacities(result_dictCon=result_dictCon, result_dir=result_dir, show=True)
 
 
     # Can be used if I update opti_central for the network optimization

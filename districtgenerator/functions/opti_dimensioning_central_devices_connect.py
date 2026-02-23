@@ -49,14 +49,14 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
 
     # Build the model
     model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization_Network")
-    model, all_devs_list = build_model(model, dataCon, devsCon, paramCon, demCon)
+    model, all_devs_list = build_model(model=model, dataCon=dataCon, devsCon=devsCon, paramCon=paramCon, demCon=demCon)
     model_building_time = time.time() - start_time
     
     print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
 
     # Solve the model and extract results
     result_dictCon = solve_model_and_extract_results(dataCon, model, devsCon, paramCon,
-                                                  result_dictCon)
+                                                  result_dictCon, demCon)
 
     # Folder to save model and results
     result_dir = "optimization_results"
@@ -66,8 +66,9 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     for district in model.districts:
         scenario_name = district
         result_dict = result_dictCon[scenario_name]
+        param = paramCon[scenario_name]
         # Save results to csv
-        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon=demCon)
+        save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
 
     # Save network power timeseries for all districts
     save_network_power_timeseries_csv(model, result_dir)
@@ -187,7 +188,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step
     model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
 
-    # Binary Variable to decide if BBOI capacity is <= 10 kW or > 10 kW
+    # Binary Variable to decide if capacity is is below or above inv_cap_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
     model.cap_small = pyo.Var(model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
@@ -875,7 +876,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     return model, all_devs_list
 
 
-def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_dictCon):
+def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_dictCon, demCon):
     """
     Function to capsle solving the Pyomo model and extracting results.
     """
@@ -1111,6 +1112,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         data = dataCon[district]
         devs = devsCon[district]
         param = paramCon[district]
+        dem = demCon[district]
         weights[district]={}
         result_dict["devs"] = devs
 
@@ -1263,6 +1265,10 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             max(safe_value(model.waste, ("import", district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps))
         result_dict["max_hydrogen"] = int(
             max(safe_value(model.hydrogen, ("import", district, y, d, t)) for y in model.support_years for d in model.clusters for t in model.time_steps))
+        
+        # Maximum heat and power demand in the clusterd time series - check across all support years
+        result_dict["max_heat_demand"] = max(dem["heat"][y][d][t] for y in model.support_years for d in model.clusters for t in model.time_steps)
+        result_dict["max_power_demand"] = max(dem["power"][y][d][t] for y in model.support_years for d in model.clusters for t in model.time_steps)
 
         # Energy costs and revenues - per year and total (annualized)
         result_dict["supply_costs_el_by_year"] = {y: int(safe_value(model.supply_costs_el, (district, y))) for y in model.support_years}
@@ -1341,16 +1347,22 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         # Power profiles and maximum power - store for each support year - multi-year adaptation
         result_dict["power_profile_by_year"] = {}
         result_dict["power_kW_by_year"] = {}
+        result_dict["power_profile_energy_kwh_by_year"] = {}
         for y in model.support_years:
             result_dict["power_profile_by_year"][y] = {}
             result_dict["power_kW_by_year"][y] = {}
+            result_dict["power_profile_energy_kwh_by_year"][y] = {}
             for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid", "from_network", "to_network", "from_main_grid", "to_main_grid"]: # new for network
                 profile = []
+                weighted_kwh = 0.0
                 for d in model.clusters:
                     for t in model.time_steps:
-                        profile.append(safe_value(model.power, (device, district, y, d, t)))
+                        val = safe_value(model.power, (device, district, y, d, t))
+                        profile.append(val)
+                        weighted_kwh += val * param["cluster_weights"][d]
                 result_dict["power_profile_by_year"][y][device] = profile
                 result_dict["power_kW_by_year"][y][device] = int(max(profile)) if profile else 0
+                result_dict["power_profile_energy_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
 
         # Heat profiles and maximum heat - store for each support year
         result_dict["heat_profile_by_year"] = {}
@@ -1485,7 +1497,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
     return result_dictCon
 
 
-def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon):
+def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param):
     """
     Saves specific results from result_dict into a CSV file.
 
@@ -1602,12 +1614,32 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
             value = result_dict.get("heat_kW_by_year", {}).get(y, {}).get(dev, "")
             data_to_save.append([f"heat_kW_{dev}_{y}", value, "kW"])
 
+    data_to_save.append([])
+    data_to_save.append(["Peak_demands", "Value", "Unit"])
+    peak_heat_uncl = param["peak_heat"]
+    peak_power_uncl = param["peak_power"]
+    peak_heat_cl = result_dict.get("max_heat_demand", 0)
+    peak_power_cl = result_dict.get("max_power_demand", 0)
+    data_to_save.append([f"peak_heat_uncl", peak_heat_uncl, "kW"])
+    data_to_save.append([f"peak_power_uncl", peak_power_uncl, "kW"])
+    data_to_save.append([f"peak_heat_cl", peak_heat_cl, "kW"])
+    data_to_save.append([f"peak_power_cl", peak_power_cl, "kW"])
+
     data_to_save.append([]) 
     data_to_save.append(["Heat_profile_energy_kwh_by_year", "Value", "Unit"]) # New for test reasons TJA
     for y in model.support_years:
         for dev in model.heat_devs:
             value = result_dict.get("heat_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, "")
             data_to_save.append([f"heat_profile_energy_kwh_{dev}_{y}", value, "kWh"])
+
+    data_to_save.append([])
+    data_to_save.append(["Power_profile_energy_kwh_by_year", "Value", "Unit"]) 
+    for y in model.support_years:
+        for dev in model.power_devs:
+            value = result_dict.get("power_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, "")
+            data_to_save.append([f"power_profile_energy_kwh_{dev}_{y}", value, "kWh"])
+            value = result_dict.get("power_kW_by_year", {}).get(y, {}).get(dev, "")
+            data_to_save.append([f"power_kW_{dev}_{y}", value, "kW"])
 
     for y in model.support_years:
         data_to_save.append([f"from_el_grid_total_{y}", result_dict.get("from_el_grid_total_by_year", {}).get(y, ""), "MWh"])

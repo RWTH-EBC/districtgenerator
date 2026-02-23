@@ -65,7 +65,7 @@ def run_optim(data, devs, param, dem, result_dict):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    opti_dimensioning_central_devices_connect.save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, demCon=dem)
+    opti_dimensioning_central_devices_connect.save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param)
     model_solve_time = time.time() - start_time - model_building_time
 
     # Total time needed
@@ -552,12 +552,12 @@ def build_model(model, data, devs, param, dem):
     if param["enable_legal_requirements"] == True: 
         for y in model.support_years:
             for dev in model.heat_devs:
-                # Calculate total heat generation per device and years
+                # Calculate total heat generation per device and year
                 model.constraints.add(model.heat_gen[dev,y] == dt * sum(
                     model.heat[dev,y,d,t] *param["cluster_weights"][d]
                     for d in model.clusters for t in model.time_steps))
                 
-            # Calculate the sum of heat generation of all devices and years
+            # Calculate the sum of heat generation of all devices and year
             model.constraints.add(model.heat_sum[y] == sum(model.heat_gen[dev, y] for dev in model.heat_devs))
             # Enforce that the renewable share of heat generation is above the minimum required share
             renewable_heat_technologies = ["STC", "HP", "BCHP", "BBOI","WCHP", "WBOI"]  # Define which devices are considered renewable for heat generation
@@ -637,7 +637,6 @@ def build_model(model, data, devs, param, dem):
                      "CTES", "BAT", "GS"]:
             model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
         for dev in model.all_devs:
-            model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
             model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
             model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
             model.constraints.add(model.c_inv_base[dev] == model.inv_base[dev] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
