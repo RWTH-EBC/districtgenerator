@@ -74,79 +74,12 @@ def annualized_device_cost_over_horizon(dev, eco_data, cap, mode):
 
     return float(c_inv + c_om)
 
-def compute_hp_sink_temperature_single_building(building, decentral_device_data, design_building_data, hp_installed):
-    """
-    Single-building Tsink based on age class + retrofit.
-    """
-    temp_levels = design_building_data["hp_sink_temp_levels"]
-    Tsink_target = float(design_building_data["hp_sink_temp_measures_cap"])
-    use_hp_measures = bool(decentral_device_data.get("HP", {}).get("enable_measures", False)) and bool(hp_installed)
-
-    cy = int(building["envelope"].construction_year)
-    r = int(building["envelope"].retrofit)
-
-    if cy >= 2010:
-        key = "2010-"
-    elif 1984 <= cy <= 2009:
-        key = "1984-2009"
-    elif 1979 <= cy <= 1983:
-        key = "1979-1983"
-    elif 1969 <= cy <= 1978:
-        key = "1969-1978"
-    elif 1958 <= cy <= 1968:
-        key = "1958-1968"
-    else:
-        key = "-1957"
-
-    Ts, Tr = temp_levels[key].get(r, temp_levels[key][0])
-    Tsink_original = 0.5 * (float(Ts) + float(Tr))
-
-    applied = False
-    Tsink = Tsink_original
-    if use_hp_measures and Tsink_original > Tsink_target:
-        Tsink = Tsink_target
-        applied = True
-
-    try:
-        building["envelope"].hp_measures = applied
-    except Exception:
-        pass
-
-    return float(Tsink), bool(applied)
-
 # Core operation model
-def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, outdoor_temp_c, pv_gen_w,
+def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, site, pv_gen_w,
     stc_gen_w, capacities, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building, cluster_meta):
     """
     Solve fixed-design operation for a single concept (= one capacities dict).
     """
-
-    # Prepare time series
-    heat_w = np.asarray(demand_heat_w, dtype=float).reshape(-1) + np.asarray(demand_dhw_w, dtype=float).reshape(-1)
-    el_w = np.asarray(demand_el_w, dtype=float).reshape(-1)
-    T_out = np.asarray(outdoor_temp_c, dtype=float).reshape(-1)
-
-    n = int(heat_w.size)
-
-    # Convert to kW / kWh
-    heat_kw = heat_w / 1000.0
-    el_kw = el_w / 1000.0
-    pv_kw_av = np.maximum(np.asarray(pv_gen_w, dtype=float).reshape(-1), 0.0) / 1000.0
-    stc_kw_av = np.maximum(np.asarray(stc_gen_w, dtype=float).reshape(-1), 0.0) / 1000.0
-    ev_kw = np.maximum(np.asarray(ev_on_demand_w, dtype=float).reshape(-1), 0.0) / 1000.0
-    dt_h = float(dt_s) / 3600.0
-
-    # Cluster weighting
-    len_cluster = int(cluster_meta["len_cluster"])
-    cluster_weights = cluster_meta["clusterWeights"]
-    cluster_ids = list(cluster_meta["clusters"])
-
-    # Build weight per timestep depending on which cluster this timestep belongs to
-    weight_t = np.zeros(n, dtype=float)
-    for t in range(n):
-        k = t // len_cluster
-        cid = cluster_ids[k]
-        weight_t[t] = float(cluster_weights[cid])
 
     # Capacity extraction
     def cap_w(dev):
@@ -214,11 +147,48 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
 
     # HP parameters
     hp_grade = dev_param("HP", "grade")
-    Tsink, hp_measures_applied = compute_hp_sink_temperature_single_building(
-        building=building,
-        decentral_device_data=decentral_device_data,
-        design_building_data=design_building_data,
-        hp_installed=hp_installed)
+
+    # Prepare time series
+    heat_w = np.asarray(demand_heat_w, dtype=float).reshape(-1) + np.asarray(demand_dhw_w, dtype=float).reshape(-1)
+    heat_SH_w = np.asarray(demand_heat_w, dtype=float).reshape(-1)
+    heat_DHW_w = np.asarray(demand_dhw_w, dtype=float).reshape(-1)
+    el_w = np.asarray(demand_el_w, dtype=float).reshape(-1)
+    T_out = np.asarray(site["T_e_cluster"], dtype=float).reshape(-1)
+    hc = building["envelope"].heating_curve.get("clustered")
+    Tsink_curve = (np.asarray(hc["Ts_curve"], dtype=float).reshape(-1) + np.asarray(hc["Tr_curve"], dtype=float).reshape(-1))/2
+    Tsink_curve_reduced = (np.asarray(hc["Ts_curve_reduced"], dtype=float).reshape(-1) + np.asarray(hc["Tr_curve_reduced"], dtype=float).reshape(-1))/2
+
+    # Temperature reduction measures are applied only if:
+    # - a heat pump is installed,
+    # - the scenario enables low-temperature measures,
+    # - and the heating curve has reduced DESIGN temperatures
+    T_measures_applied = (hp_installed
+                            and bool(decentral_device_data.get("HP", {}).get("enable_low_temp_measures"))
+                            and hc["low_temp_measures_binding"])
+
+    n = int(heat_w.size)
+
+    # Convert to kW / kWh
+    heat_kw = heat_w / 1000.0
+    heat_SH_kw = heat_SH_w / 1000.0
+    heat_DHW_kw = heat_DHW_w / 1000.0
+    el_kw = el_w / 1000.0
+    pv_kw_av = np.maximum(np.asarray(pv_gen_w, dtype=float).reshape(-1), 0.0) / 1000.0
+    stc_kw_av = np.maximum(np.asarray(stc_gen_w, dtype=float).reshape(-1), 0.0) / 1000.0
+    ev_kw = np.maximum(np.asarray(ev_on_demand_w, dtype=float).reshape(-1), 0.0) / 1000.0
+    dt_h = float(dt_s) / 3600.0
+
+    # Cluster weighting
+    len_cluster = int(cluster_meta["len_cluster"])
+    cluster_weights = cluster_meta["clusterWeights"]
+    cluster_ids = list(cluster_meta["clusters"])
+
+    # Build weight per timestep depending on which cluster this timestep belongs to
+    weight_t = np.zeros(n, dtype=float)
+    for t in range(n):
+        k = t // len_cluster
+        cid = cluster_ids[k]
+        weight_t[t] = float(cluster_weights[cid])
 
     # Fixed annualized costs (CAPEX+O&M)
     def dev_dict(dev_name):
@@ -232,16 +202,16 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         return d
 
     # HP "measures" extra cost (only if enabled + applied)
-    hp_measures_inv_fix = float(decentral_device_data.get("HP", {}).get("measures_inv_fix", 0.0))
+    T_measures_inv_fix = float(decentral_device_data.get("HP", {}).get("measures_inv_fix", 0.0))
     heatload_kw = float(building["envelope"].heatload) / 1000.0
 
-    hp_measures_cost = 0.0
-    if hp_installed and hp_measures_applied and hp_measures_inv_fix > 0:
-        inv_total = hp_measures_inv_fix * heatload_kw
-        hp_measures_cost = annualized_investment_over_horizon(inv_total, eco_data)
+    T_measures_cost = 0.0
+    if hp_installed and T_measures_applied and T_measures_inv_fix > 0:
+        inv_total = T_measures_inv_fix * heatload_kw
+        T_measures_cost = annualized_investment_over_horizon(inv_total, eco_data)
 
     fixed_cost = 0.0
-    fixed_cost += hp_measures_cost
+    fixed_cost += T_measures_cost
 
     # Annualized device costs over horizon (subsidized CAPEX + O&M on unsubsidized CAPEX)
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("HP"), eco_data, cap_HP_kw_th, mode="subsidized")
@@ -349,11 +319,23 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         if cap_HP_kw_th <= 0:
             return mm.q_HP[y, t] == 0.0
 
-        deltaT = float(Tsink - float(T_out[t]))
-        if deltaT <= 0:
-            deltaT = 0.1  # safety clamp
+        # choose sink temperature depending on whether measures are applied
+        Tsink_SH = (float(Tsink_curve_reduced[t]) if T_measures_applied else float(Tsink_curve[t]))
+        Tsink_DHW = 50.0  # °C
+        Tout = float(T_out[t])
 
-        return mm.q_HP[y, t] == mm.p_HP[y, t] * hp_grade * (273.15 + float(Tsink)) / deltaT
+        # weights of SH vs DHW demand
+        denom = float(heat_SH_kw[t] + heat_DHW_kw[t]) + 1e-9
+        alpha_SH = float(heat_SH_kw[t]) / denom
+        alpha_DHW = float(heat_DHW_kw[t]) / denom
+
+        # effective sink temperature and COP
+        Tsink_eff = alpha_SH * Tsink_SH + alpha_DHW * Tsink_DHW
+        dT = max(Tsink_eff - Tout, 0.1)
+
+        COP_eff = hp_grade * (273.15 + Tsink_eff) / dT
+
+        return mm.p_HP[y, t] == mm.q_HP[y, t] / COP_eff
 
     m.hp_conversion = pyo.Constraint(m.Y, m.T, rule=hp_conv_rule)
 
@@ -569,17 +551,15 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         "pv_used_kWh_horizon": float(pv_used_kwh_horizon),
         "stc_used_kWh_horizon": float(stc_used_kwh_horizon),
         "ev_charge_kWh_horizon": float(ev_charge_kwh_horizon),
-
-        "Tsink_C": float(Tsink),
-        "hp_measures_applied": bool(hp_measures_applied),
-        "hp_measures_cost_eur_per_a": float(hp_measures_cost),
+        "T_measures_applied": bool(T_measures_applied),
+        "T_measures_cost_eur_per_a": float(T_measures_cost),
         "heatload_kW": float(heatload_kw),
     }
 
     return res
 
 # Choose cheapest concept (heater="opt")
-def choose_cheapest_heating_concept_fixed_design(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, outdoor_temp_c,
+def choose_cheapest_heating_concept_fixed_design(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, site,
     pv_gen_w, stc_gen_w, candidates, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building, cluster_meta):
     """
     Evaluate each candidate concept with operation optimization and return (best_concept, all_results).
@@ -594,7 +574,7 @@ def choose_cheapest_heating_concept_fixed_design(demand_heat_w, demand_dhw_w, de
             demand_dhw_w=demand_dhw_w,
             demand_el_w=demand_el_w,
             ev_on_demand_w=ev_on_demand_w,
-            outdoor_temp_c=outdoor_temp_c,
+            site=site,
             pv_gen_w=pv_gen_w,
             stc_gen_w=stc_gen_w,
             capacities=caps,

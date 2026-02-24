@@ -650,6 +650,7 @@ class Datahandler:
 
                 building["envelope"] = Envelope(prj=prj,
                                                 building_params=building["buildingFeatures"],
+                                                site=self.site,
                                                 construction_data=construction_data,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
@@ -688,6 +689,7 @@ class Datahandler:
 
                 building["envelope"] = Envelope(prj=nrb_prj,
                                                 building_params=building["buildingFeatures"],
+                                                site=self.site,
                                                 construction_data=construction_type,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
@@ -1638,6 +1640,9 @@ class Datahandler:
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
+        for b in self.district:
+            if "envelope" in b and hasattr(b["envelope"], "compute_heating_curve"):
+                b["envelope"].compute_heating_curve(self.site, mode="clustered")
 
         # clusters
         self.clusters = []

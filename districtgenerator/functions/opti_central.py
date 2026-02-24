@@ -8,7 +8,6 @@ ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 
 import pyomo.environ as pyo
 from pyomo.util.infeasible import log_infeasible_constraints
-import sys
 import os
 from io import StringIO
 import time
@@ -84,50 +83,6 @@ def run_opti_central(data, year, cluster, sim_ecoData):
 
     return results_dict
 
-def compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, design_building):
-
-    temp_levels = design_building["hp_sink_temp_levels"]
-    Tsink_target = design_building["hp_sink_temp_measures_cap"]
-    use_hp_measures = param_dec_devs["HP"].get("enable_measures", False)
-
-    def _age_key(cy: int) -> str:
-        if 2010 <= cy:
-            return "2010-"
-        elif 1984 <= cy <= 2009:
-            return "1984-2009"
-        elif 1979 <= cy <= 1983:
-            return "1979-1983"
-        elif 1969 <= cy <= 1978:
-            return "1969-1978"
-        elif 1958 <= cy <= 1968:
-            return "1958-1968"
-        else:
-            return "-1957"
-
-    T_sink = {}
-    hp_measures_applied = {}
-
-    for n in range(len(buildingData)):
-        cy = buildingData[n]["envelope"].construction_year
-        r = buildingData[n]["envelope"].retrofit  # 0/1/2
-
-        key = _age_key(cy)
-        Ts, Tr = temp_levels[key].get(r, temp_levels[key][0])
-        Tsink_original = 0.5 * (Ts + Tr)
-
-        applied = False
-        Tsink = Tsink_original
-
-        if use_hp_measures and Tsink_original > Tsink_target:
-            Tsink = Tsink_target
-            applied = True
-
-        buildingData[n]["envelope"].hp_measures = applied
-        T_sink[n] = Tsink
-        hp_measures_applied[n] = applied
-
-    return T_sink, hp_measures_applied
-
 def build_model(model, data, year, cluster, sim_ecoData):
     """
     Builds the Pyomo model for the optimization of energy systems in a district.
@@ -158,9 +113,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
         network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
         network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
     except:
-        network_losses_heating = [0] * T_e
-        network_losses_cooling = [0] * T_e
-        network_pump_power = [0] * T_e
+        network_losses_heating = [0] * len(T_e)
+        network_losses_cooling = [0] * len(T_e)
+        network_pump_power = [0] * len(T_e)
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -788,18 +743,41 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ################################################################################
 
     # Heat pump conversion with sink temperature from age class + retrofit (mean supply/return)
-    model.T_sink, model.hp_measures_applied = compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, data.design_building_data)
     def hp_conversion_rule(model, n, t):
         if buildingData[n]["capacities"]["HP"] <= 0:
             return model.heat_dom["HP", n, t] == 0
 
-        Tsink = model.T_sink[n]   # °C
-        deltaT = Tsink - T_e[t]
-        if deltaT <= 0:
-            deltaT = 0.1
+        # heating curve for this building
+        hc = buildingData[n]["envelope"].heating_curve["clustered"]
 
-        return model.heat_dom["HP", n, t] == model.power_dom["HP", n, t] * param_dec_devs["HP"]["grade"] * (
-                    273.15 + Tsink) / deltaT
+        Tsink_curve = 0.5 * (
+                float(hc["Ts_curve"][t]) +
+                float(hc["Tr_curve"][t]))
+
+        Tsink_curve_reduced = 0.5 * (
+                float(hc["Ts_curve_reduced"][t]) +
+                float(hc["Tr_curve_reduced"][t]))
+
+        # apply low-temp measures?
+        measures_on = (
+                bool(param_dec_devs.get("HP", {}).get("enable_low_temp_measures"))
+                and hc.get("low_temp_measures_binding"))
+
+        Tsink_SH = Tsink_curve_reduced if measures_on else Tsink_curve
+        Tsink_DHW = 50.0  # fixed DHW sink temperature
+
+        # SH / DHW weighting
+        Q_SH = float(Q_heating[n][t])
+        Q_DHW_t = float(Q_DHW[n][t])
+        Q_tot = Q_SH + Q_DHW_t
+
+        Tsink_eff = (Q_SH * Tsink_SH + Q_DHW_t * Tsink_DHW) / Q_tot if Q_tot > 0 else Tsink_SH
+
+        dT = max(Tsink_eff - float(T_e[t]), 0.1)
+
+        COP_eff = (param_dec_devs["HP"]["grade"] * (273.15 + Tsink_eff) / dT)
+
+        return model.heat_dom["HP", n, t] == model.power_dom["HP", n, t] * COP_eff
 
     model.hp_conversion = pyo.Constraint(model.n, model.t, rule=hp_conversion_rule,
                                          doc="HP conversion using age+retrofit dependent sink temperature")
@@ -1727,17 +1705,11 @@ def solve_model_and_extract_results(model, data, year, cluster):
     for n in range(nbuildings):
         results_dict[n].setdefault("HP", {})
 
-        Tsink_val = float(model.T_sink[n])
-        results_dict[n]["HP"]["hp_measures_applied"] = bool(model.hp_measures_applied[n])
-
         results_dict[n]["HP"]["COP"] = []
-        results_dict[n]["HP"]["T_sink"] = []
 
         for t in time_steps:
             Pel = pyo.value(model.power_dom["HP", n, t])
             Qth = pyo.value(model.heat_dom["HP", n, t])
-
-            results_dict[n]["HP"]["T_sink"].append(Tsink_val)
 
             if Pel and Pel > 1e-6:
                 results_dict[n]["HP"]["COP"].append(round(Qth / Pel, 3))

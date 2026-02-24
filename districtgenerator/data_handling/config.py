@@ -127,13 +127,13 @@ class DesignBuildingConfig(BaseSettings):
     ventilation_rate: float = 0.5  # Room ventilation rate in 1/h (per hour)
     thermal_model_type: str = '5R1C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
 
-    # --- Decentral HPs sink temperature (mean of supply & return) by age class and retrofit level ---
-    # retrofit: 0=standard, 1=retrofit, 2=advanced retrofit
+    # --- Supply and return temperatures at nominal outdoor temperature (T_ne)
+    #     by construction period and retrofit level ---
+    # retrofit level: 0 = standard (no retrofit); 1 = partial retrofit; 2 = advanced retrofit
     # Source:
     # Wüllhorst et al. (2025), "Impact of hybrid heat pump shares and building envelope
     # retrofit rates on load penetration in German low-voltage grids",
     # DOI: 10.1016/j.apenergy.2025.125530
-    # Temperature levels represent supply/return temperatures
 
     hp_sink_temp_levels: Dict[str, Dict[int, Tuple[float, float]]] = Field(
         default_factory=lambda: {
@@ -146,13 +146,19 @@ class DesignBuildingConfig(BaseSettings):
         }
     )
 
-    # Optional "low-temperature measures" (geringinvasive Maßnahmen) are assumed to
-    # reduce the required sink temperature (e.g. hydraulic balancing, radiator
-    # optimization, control adjustments), improving HP efficiency without full
-    # building refurbishment. If enabled, the sink temperature is capped at 45 °C.
+    # Optional "low-temperature measures" ("geringinvestive Maßnahmen")
+    # These measures represent low-cost system optimizations
+    # (e.g. hydraulic balancing, radiator optimization, control adjustments)
+    # that enable operation at lower system temperatures
+    # WITHOUT building envelope refurbishment.
+    # If enabled (for heat pumps and/or district heating),
+    # these measures REPLACE the nominal supply and return temperatures
+    # at the nominal outdoor temperature used to construct
+    # the heating curve.
     # Source:
     # KWW-Technikkatalog Wärmeplanung
-    hp_sink_temp_measures_cap: float = 45.0
+    low_temp_measures_supply_nom: float = 50.0  # °C
+    low_temp_measures_return_nom: float = 40.0  # °C
 
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
@@ -412,6 +418,8 @@ class HeatGridConfig(BaseSettings):
     topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
     temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
     heuristic: bool = False # selected between: True (heuristic method) and False (optimization method)
+    enable_low_temp_measures: bool = False  # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
+    low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     D_heating_network: float = 1.0      # Distance between the centerlines of the supply and return pipelines in meters.
     T_hot_cooling_network: float = 12.0  # Flow temperature of the cooling network in degrees Celsius.
     T_cold_cooling_network: float = 6.0  # Return temperature of the cooling network in degrees Celsius.
@@ -638,8 +646,8 @@ class DecentralDeviceConfig(BaseSettings):
     HP__inv_base: float = 1660.0  # Unsubsidized investment in €/kWth.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    HP__enable_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
-    HP__measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
+    HP__enable_low_temp_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
+    HP__low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     HP: dict = {}
 
     # EH parameters (Electric Heater)

@@ -84,7 +84,7 @@ class BES:
                 demand_dhw_w=building["user"].dhw_cluster,
                 demand_el_w=building["user"].elec_cluster,
                 ev_on_demand_w=building["user"].EV_carcharging_ondemand_cluster,
-                outdoor_temp_c=site["T_e_cluster"],
+                site=site,
                 pv_gen_w=building["generationPV_cluster"],
                 stc_gen_w=building["generationSTC_cluster"],
                 candidates=candidates,

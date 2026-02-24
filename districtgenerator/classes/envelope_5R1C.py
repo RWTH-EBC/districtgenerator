@@ -36,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, site, construction_data, physics, design_building_data, file_path):
         """
         Constructor of Envelope class.
 
@@ -71,6 +71,7 @@ class Envelope:
         self.loadParams()
         self.loadComponentProperties(prj)
         self.loadAreas(prj)
+        self.compute_heating_curve(site, mode="unclustered")
 
     def loadParams(self):
         """
@@ -341,20 +342,14 @@ class Envelope:
                     dummy = min(2015,
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
-                            elem["building_age_group"][1] and \
-                            elem["construction_data"] == self.construction_data \
-                            + "_1_" + self.usage_short:
+                        elem["building_age_group"][1] and elem["construction_data"] == "tabula_de_standard":
+
                         for lay in elem["layer"].items():
-                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
-                                                               lay[1]["thickness"])
-                            material_prop = self.loadMaterialID(
-                                lay[1]["material"]["material_id"], material_bind)
-                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp],
-                                                                 material_prop[1])
-                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp],
-                                                                    material_prop[2])
-                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp],
-                                                                material_prop[3] * 1000)
+                            self.d["opaque"][comp] = np.append(self.d["opaque"][comp], lay[1]["thickness"])
+                            material_prop = self.loadMaterialID(lay[1]["material"]["material_id"], material_bind)
+                            self.rho["opaque"][comp] = np.append(self.rho["opaque"][comp], material_prop[1])
+                            self.Lambda["opaque"][comp] = np.append(self.Lambda["opaque"][comp], material_prop[2])
+                            self.cp["opaque"][comp] = np.append(self.cp["opaque"][comp], material_prop[3] * 1000)
 
             comp = "window"
             # INTERNAL FLOOR: Materials and U-value
@@ -565,6 +560,100 @@ class Envelope:
 
         else:
             raise TypeError("The provided project is not a TEASER project or a Non-Residential Building Class object.")
+
+    def compute_heating_curve(self, site, mode="unclustered"):
+        """
+        Compute space-heating supply and return temperature curves for a single building
+        using a linear heating curve.
+
+        Boundary conditions:
+        1) Design point:
+           T_out = T_ne  → (Ts, Tr) = (Ts_design, Tr_design)
+
+        2) Heating-limit point:
+           T_out = T_heatlimit → (Ts, Tr) = (Ts_hl, Tr_hl)
+
+        Optional low-temperature measures ("geringinvestive Maßnahmen"):
+        If enabled, the DESIGN temperatures (Ts_design, Tr_design) at T_ne
+        are replaced by reduced values, and the heating curve is recomputed
+        accordingly.
+        """
+
+        if not hasattr(self, "heating_curve") or self.heating_curve is None:
+            self.heating_curve = {}
+
+        temp_levels = self.design_building_data["hp_sink_temp_levels"]
+
+        # Outdoor temperature time series
+        if mode == "unclustered":
+            T_out = np.asarray(site["T_e"], dtype=float).reshape(-1)
+        elif mode == "clustered":
+            T_out = np.asarray(site["T_e_cluster"], dtype=float).reshape(-1)
+
+        # Building age / retrofit class
+        cy = int(self.construction_year)
+        r = int(self.retrofit)
+
+        if cy >= 2010:
+            key = "2010-"
+        elif 1984 <= cy <= 2009:
+            key = "1984-2009"
+        elif 1979 <= cy <= 1983:
+            key = "1979-1983"
+        elif 1969 <= cy <= 1978:
+            key = "1969-1978"
+        elif 1958 <= cy <= 1968:
+            key = "1958-1968"
+        else:
+            key = "-1957"
+
+        # Original  design temperatures at T_ne
+        Ts_design_orig, Tr_design_orig = temp_levels[key].get(r, temp_levels[key][0])
+        Ts_design_orig = float(Ts_design_orig)
+        Tr_design_orig = float(Tr_design_orig)
+
+        # Outdoor temperature anchors
+        T_ne = float(site["T_ne"])
+        T_hl = float(self.T_heatlimit)
+
+        # Indoor reference temperature
+        T_room = float(self.design_building_data["T_set_min"])
+
+        # Heating-limit temperatures (low-load operation)
+        Ts_hl = T_room + 15.0    #
+        Tr_hl = T_room + 5.0
+
+        # Linear interpolation factor
+        f = np.clip((T_hl - T_out) / (T_hl - T_ne), 0.0, 1.0)
+
+        # Heating curves
+        Ts_curve = Ts_hl + f * (Ts_design_orig - Ts_hl)
+        Tr_curve = Tr_hl + f * (Tr_design_orig - Tr_hl)
+
+        # Optional low-temperature measures
+        Ts_design_lt = float(self.design_building_data["low_temp_measures_supply_nom"])
+        Tr_design_lt = float(self.design_building_data["low_temp_measures_return_nom"])
+
+        # Measures are only binding if they actually reduce design temperatures
+        measures_binding = (
+                (Ts_design_lt < Ts_design_orig - 1e-6) or
+                (Tr_design_lt < Tr_design_orig - 1e-6))
+
+        if measures_binding:
+            Ts_curve_reduced = Ts_hl + f * (Ts_design_lt - Ts_hl)
+            Tr_curve_reduced = Tr_hl + f * (Tr_design_lt - Tr_hl)
+        else:
+            Ts_curve_reduced = Ts_curve.copy()
+            Tr_curve_reduced = Tr_curve.copy()
+
+        # Store on envelope
+        self.heating_curve[mode] = {
+            "Ts_curve": Ts_curve,
+            "Tr_curve": Tr_curve,
+            "Ts_curve_reduced": Ts_curve_reduced,
+            "Tr_curve_reduced": Tr_curve_reduced,
+            "low_temp_measures_binding": measures_binding,
+        }
 
     def calcHeatLoad(self, site, night_setback, method="design"):
         """

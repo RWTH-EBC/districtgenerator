@@ -419,9 +419,9 @@ class KPIs:
 
             # HP temperature measures
             # Only count measures if HP exists and sink temperature higher than 45°C
-            if capacities[n]["HP"] > 0 and district[n]["envelope"].hp_measures == True:
+            if capacities[n]["HP"] > 0 and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.decentral_device_data.get("HP", {}).get("enable_low_temp_measures")):
                 heatload_kw = district[n]["envelope"].heatload / 1000  # kW
-                inv_eur_per_kw = data.decentral_device_data["HP"]["measures_inv_fix"]
+                inv_eur_per_kw = data.decentral_device_data["HP"]["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw  # €
 
                 ann_cost_meas = self.calc_annualized_investment(inv_total, data.ecoData)
@@ -890,7 +890,10 @@ class KPIs:
                     fixed_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
 
             # Heating network investment
-            fixed_cost_heat += float(data.heat_grid_data["om_costs"]+data.heat_grid_data["ann_costs"])
+            if hasattr(data, "heat_grid_data") and isinstance(data.heat_grid_data, dict):
+                fixed_cost_heat += (
+                        float(data.heat_grid_data.get("om_costs", 0.0)) +
+                        float(data.heat_grid_data.get("ann_costs", 0.0)))
 
             # LOOP CLUSTERS
             for c in range(len(clusters)):
