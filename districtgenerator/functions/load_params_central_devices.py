@@ -202,6 +202,12 @@ def load_params(data):
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
             "inv_base": value.get("inv_base", 0),
+            "inv_cap1": value.get("inv_cap1", 0), # New TJA
+            "inv_cap2": value.get("inv_cap2", 0), # New TJA
+            "inv_cap3": value.get("inv_cap3", 0), # New TJA
+            "inv_cost1": value.get("inv_cost1", 0), # New TJA
+            "inv_cost2": value.get("inv_cost2", 0), # New TJA
+            "inv_cost3": value.get("inv_cost3", 0), # New TJA
             "inv_small": value.get("inv_small", 0), # New TJA
             "inv_large": value.get("inv_large", 0), # New TJA
             "inv_cap_switch": value.get("inv_cap_switch", 0), # New TJA
@@ -298,13 +304,20 @@ def load_params(data):
     ### Natural gas ###
 
     # CHP
+
     devs["CHP"] = {
         "feasible": all_models["CHP"]["enabled"],
         "inv_var": all_models["CHP"]["inv_var"],
         "inv_base": all_models["CHP"]["inv_base"],
-        "inv_small": all_models["CHP"]["inv_small"], # New TJA
-        "inv_large": all_models["CHP"]["inv_large"], # New TJA
-        "inv_cap_switch": all_models["CHP"]["inv_cap_switch"], # New TJA
+        "inv_cap1": all_models["CHP"]["inv_cap1"], # New TJA
+        "inv_cap2": all_models["CHP"]["inv_cap2"], # New TJA
+        "inv_cap3": all_models["CHP"]["inv_cap3"], # New TJA
+        "inv_cost1": all_models["CHP"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["CHP"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["CHP"]["inv_cost3"], # New TJA
+        # "inv_small": all_models["CHP"]["inv_small"], # New TJA
+        # "inv_large": all_models["CHP"]["inv_large"], # New TJA
+        # "inv_cap_switch": all_models["CHP"]["inv_cap_switch"], # New TJA
         "eta_el": all_models["CHP"]["eta_el"] / 100,
         "eta_th": all_models["CHP"]["eta_th"] / 100,
         "life_time": all_models["CHP"]["life_time"],
@@ -312,21 +325,38 @@ def load_params(data):
         "min_cap": all_models["CHP"]["min_cap"],
         "max_cap": all_models["CHP"]["max_cap"],
     }
+    
+    # Calculate linear investment costs for small and large CHP and capacity at which to switch between them (if applicable)
+    if devs["CHP"]["feasible"]:
+        devs["CHP"]["inv_small"]=(devs["CHP"]["inv_cost2"]-devs["CHP"]["inv_cost1"])/(devs["CHP"]["inv_cap2"]-devs["CHP"]["inv_cap1"])# New TJA
+        devs["CHP"]["inv_large"]=(devs["CHP"]["inv_cost3"]-devs["CHP"]["inv_cost2"])/(devs["CHP"]["inv_cap3"]-devs["CHP"]["inv_cap2"])# New TJA
+        devs["CHP"]["inv_cap_switch"]=devs["CHP"]["inv_cap2"]# New TJA
 
     # Gas boiler
     devs["BOI"] = {
         "feasible": all_models["BOI"]["enabled"],
         "inv_var": all_models["BOI"]["inv_var"],
         "inv_base": all_models["BOI"]["inv_base"],
-        "inv_small": all_models["BOI"]["inv_small"], # New TJA
-        "inv_large": all_models["BOI"]["inv_large"], # New TJA
-        "inv_cap_switch": all_models["BOI"]["inv_cap_switch"], # New TJA
+        "inv_cap1": all_models["BOI"]["inv_cap1"], # New TJA
+        "inv_cap2": all_models["BOI"]["inv_cap2"], # New TJA
+        "inv_cap3": all_models["BOI"]["inv_cap3"], # New TJA
+        "inv_cost1": all_models["BOI"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["BOI"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["BOI"]["inv_cost3"], # New TJA
+        # "inv_small": all_models["BOI"]["inv_small"], # New TJA
+        # "inv_large": all_models["BOI"]["inv_large"], # New TJA
+        # "inv_cap_switch": all_models["BOI"]["inv_cap_switch"], # New TJA
         "eta_th": all_models["BOI"]["eta_th"] / 100,
         "life_time": all_models["BOI"]["life_time"],
         "cost_om": all_models["BOI"]["cost_om"] / 100,
         "min_cap": all_models["BOI"]["min_cap"],
         "max_cap": all_models["BOI"]["max_cap"],
     }
+    # Calculate linear investment costs for small and large boiler and capacity at which to switch between them (if applicable)
+    if devs["BOI"]["feasible"]:
+        devs["BOI"]["inv_small"]=(devs["BOI"]["inv_cost2"]-devs["BOI"]["inv_cost1"])/(devs["BOI"]["inv_cap2"]-devs["BOI"]["inv_cap1"])# New TJA
+        devs["BOI"]["inv_large"]=(devs["BOI"]["inv_cost3"]-devs["BOI"]["inv_cost2"])/(devs["BOI"]["inv_cap3"]-devs["BOI"]["inv_cap2"])# New TJA
+        devs["BOI"]["inv_cap_switch"]=devs["BOI"]["inv_cap2"]# New TJA
 
     # Gas heat pump
     devs["GHP"] = {
@@ -386,9 +416,15 @@ def load_params(data):
             "feasible": all_models["AirHP"]["enabled"],
             "inv_var": all_models["AirHP"]["inv_var"],
             "inv_base": all_models["AirHP"]["inv_base"],
-            "inv_small": all_models["AirHP"]["inv_small"], # New TJA
-            "inv_large": all_models["AirHP"]["inv_large"], # New TJA
-            "inv_cap_switch": all_models["AirHP"]["inv_cap_switch"], # New TJA
+            "inv_cap1": all_models["AirHP"]["inv_cap1"], # New TJA
+            "inv_cap2": all_models["AirHP"]["inv_cap2"], # New TJA
+            "inv_cap3": all_models["AirHP"]["inv_cap3"], # New TJA
+            "inv_cost1": all_models["AirHP"]["inv_cost1"], # New TJA
+            "inv_cost2": all_models["AirHP"]["inv_cost2"], # New TJA
+            "inv_cost3": all_models["AirHP"]["inv_cost3"], # New TJA
+            # "inv_small": all_models["AirHP"]["inv_small"], # New TJA
+            # "inv_large": all_models["AirHP"]["inv_large"], # New TJA
+            # "inv_cap_switch": all_models["AirHP"]["inv_cap_switch"], # New TJA
             "life_time": all_models["AirHP"]["life_time"],
             "cost_om": all_models["AirHP"]["cost_om"] / 100,
             "min_cap": all_models["AirHP"]["min_cap"],
@@ -411,6 +447,11 @@ def load_params(data):
         # Calculate heat pump COPs for each support year (currently the same values for all years since weather is constant) -> May be changed
         COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
         devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+
+        # Calculate linear investment costs for small and large heat pumps and capacity at which to switch between them (if applicable)
+        devs["HP"]["inv_small"]=(devs["HP"]["inv_cost2"]-devs["HP"]["inv_cost1"])/(devs["HP"]["inv_cap2"]-devs["HP"]["inv_cap1"])# New TJA
+        devs["HP"]["inv_large"]=(devs["HP"]["inv_cost3"]-devs["HP"]["inv_cost2"])/(devs["HP"]["inv_cap3"]-devs["HP"]["inv_cap2"])# New TJA
+        devs["HP"]["inv_cap_switch"]=devs["HP"]["inv_cap2"]# New TJA
 
     # Default heat pump
     else:
