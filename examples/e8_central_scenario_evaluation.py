@@ -7,14 +7,12 @@ We reached the final step, to generate our first district: Generate demand profi
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 
-
-
-def example7_scenario_evaluation():
+def example8_central_scenario_evaluation():
 
     # Initialize District
     # To use specific parameters, you can provide your own .env.CONFIG file in the data/env folder (see e6)
     # Refer to it like this: Datahandler(env_path=".env.CONFIG.EXAMPLE") and put it in ./data
-    data = Datahandler(scenario_name = "tabula_test", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "example_central", env_path=".env.CONFIG.EXAMPLE")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -44,6 +42,6 @@ def example7_scenario_evaluation():
 
 
 if __name__ == '__main__':
-    data = example7_scenario_evaluation()
+    data = example8_central_scenario_evaluation()
 
 

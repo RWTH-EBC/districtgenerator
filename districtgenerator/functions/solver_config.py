@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from pyomo.environ import SolverFactory
-import os, sys
-import json
 from districtgenerator.data_handling.config import PyomoConfig
 
 # --- Global constants for solver ---

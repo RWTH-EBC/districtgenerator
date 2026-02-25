@@ -5,9 +5,6 @@ import pyomo.environ as pyo
 import numpy as np
 import districtgenerator.functions.solver_config as solver_config
 import time
-import subprocess
-from pathlib import Path
-
 
 # Implementation of the k-medoids problem, as it is applied in
 # "Selection of typical demand days for CHP optimization"

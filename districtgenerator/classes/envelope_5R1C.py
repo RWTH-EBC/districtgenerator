@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-
-import json
-import os
 import numpy as np
 from teaser.project import Project
 from .non_residential import NonResidential

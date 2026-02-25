@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 def example5_generate_demands():
 
     # Initialize District
-    data = Datahandler(scenario_name = "example", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.EXAMPLE")
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -35,6 +35,7 @@ def example5_generate_demands():
     # The Richardson tool is used to generate stochastic occupancy, internal heat gain and electric load profiles.
     # With an 5R1C thermal building model the space heat profiles and a stochastic model the drinking hot water
     # profiles are calculated.
+    # If you also want to calculate cooling demand profiles, you can set "cooling" within the .csv file to 1
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
     ### ===========================================  Output  =========================================== ###

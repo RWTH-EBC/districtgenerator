@@ -2,10 +2,8 @@
 
 from __future__ import division
 import numpy as np
-import math
 import districtgenerator.functions.k_medoids as k_medoids
 import time
-
 
 def _distances(values, norm=2):
     """

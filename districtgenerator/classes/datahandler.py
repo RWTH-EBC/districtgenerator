@@ -3,13 +3,9 @@
 import json
 import pickle
 import os
-import sys
-import copy
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import random
 import time
-import math
 import warnings
 import numpy as np
 import openpyxl
@@ -95,7 +91,7 @@ class Datahandler:
 
         self.initial_day = None
         self.district = []
-        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example"
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
         self.scenario = None
         self.total_building_area = None
         # Config data

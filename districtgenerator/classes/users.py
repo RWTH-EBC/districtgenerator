@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 import json
 import statistics
-import os, math
+import os
 import random as rd
 import numpy as np
-import pandas as pd
-import openpyxl
 from .profiles import Profiles
 from . import power_simulation_non_residential as wrap_light
 import richardsonpy

@@ -7,19 +7,12 @@ This script is a Pyomo-based translation of the original Gurobi model.
 """
 
 import pyomo.environ as pyo
-import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
-import sys
 from io import StringIO
-import numpy as np
 import time
 from datetime import datetime
 import os
-import matplotlib.pyplot as plt
-import textwrap
-import json
 import districtgenerator.functions.solver_config as solver_config
-
 
 def run_optim(data, devs, param, dem, result_dict):
     """
@@ -656,7 +649,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     Function to capsle solving the Pyomo model and extracting results.
     """
     # Folder to save model and results
-    result_dir = "optimization_results"
+    result_dir = os.path.join(data.resultPath, f"optimization_results")
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 

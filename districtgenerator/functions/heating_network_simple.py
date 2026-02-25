@@ -13,7 +13,7 @@ def heating_network(data):
     heating = np.zeros(len(data.district[0]["user"].heat))
     cooling = np.zeros(len(data.district[0]["user"].cooling))
     dhw = np.zeros(len(data.district[0]["user"].dhw))
-    generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
+    generationSTC = np.zeros(len(data.district[0]["user"].generationSTC))
 
     # LOAD DEMANDS
     for b in range(len(data.district)):
@@ -22,7 +22,7 @@ def heating_network(data):
             heating += data.district[b]["user"].heat / 1000  # kW
             cooling += data.district[b]["user"].cooling / 1000  # kW
             dhw += data.district[b]["user"].dhw / 1000  # kW
-            generationSTC += data.district[b]["generationSTC"] / 1000  # kW
+            generationSTC += data.district[b]["user"].generationSTC / 1000  # kW
 
 
     heat_grid_data["net_heating_demand"] = np.maximum(heating + dhw - generationSTC, 0)  # kW
@@ -156,7 +156,7 @@ def calc_costs(data):
     buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
 
     for building in buildings_connected:
-        substation_capacity = max(building["envelope"].heatload/1000 + building["dhwpower"]/1000, max(building["user"].cooling)/1000)  #kW
+        substation_capacity = max(building["envelope"].heatload/1000 + building["envelope"].dhwpower/1000, max(building["user"].cooling)/1000)  #kW
         substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
         C_substations += substation_costs
 

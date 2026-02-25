@@ -1,5 +1,4 @@
 results/*
-data/scenarios/*
 errorfile.txt
 *.bk
 *.log

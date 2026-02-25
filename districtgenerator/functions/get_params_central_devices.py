@@ -18,12 +18,10 @@ import numpy as np
 import math
 import districtgenerator.functions.clustering_medoid as clustering
 import time
-import os
-import sys
 import copy
 from districtgenerator.classes.solar import Sun
 
-def load_params(data):
+def get_params(data):
 
     result_dict = {}
     # import model parameters
@@ -59,8 +57,8 @@ def load_params(data):
     dhw = np.zeros(len(data.district[0]["user"].dhw))
     electricityAppliances = np.zeros(len(data.district[0]["user"].elec))
     electricityEV = np.zeros(len(data.district[0]["user"].EV_carcharging_ondemand))
-    generationPV = np.zeros(len(data.district[0]["generationPV"]))
-    generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
+    generationPV = np.zeros(len(data.district[0]["user"].generationPV))
+    generationSTC = np.zeros(len(data.district[0]["user"].generationSTC))
 
     for b in range(len(data.district)):
         # Only relevant if buildings are connected to the heat grid
@@ -68,12 +66,12 @@ def load_params(data):
             heating += data.district[b]["user"].heat / 1000 # kW
             cooling += data.district[b]["user"].cooling / 1000 # kW
             dhw += data.district[b]["user"].dhw / 1000 # kW
-            generationSTC += data.district[b]["generationSTC"] / 1000 # kW
+            generationSTC += data.district[b]["user"].generationSTC / 1000 # kW
 
         # Electricity generated or used by the Energy Hub can be used or provided by all buildings
         electricityAppliances += data.district[b]["user"].elec / 1000 # kW
         electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
-        generationPV += data.district[b]["generationPV"] / 1000 # kW
+        generationPV += data.district[b]["user"].generationPV / 1000 # kW
 
     heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
 
@@ -421,14 +419,14 @@ def load_params(data):
                     COP_base[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
-        elif all_models["HP"]["CSV_feasible"]:
-            COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
-            # Cluster COP time series
-            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
-            for d in range(data.time["clusterNumber"]):
-                for t in range(clusterHorizon):
-                    COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
-            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+        #elif all_models["HP"]["CSV_feasible"]:
+        #    COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
+        #    # Cluster COP time series
+        #    COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
+        #    for d in range(data.time["clusterNumber"]):
+        #        for t in range(clusterHorizon):
+        #            COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
+        #    devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Electric boiler
     devs["EB"] = {

@@ -8,7 +8,6 @@ ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 
 import pyomo.environ as pyo
 from pyomo.util.infeasible import log_infeasible_constraints
-import sys
 import os
 from io import StringIO
 import time
@@ -169,8 +168,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
         elec_dem[n] = buildingData[n]["user"].elec_cluster[cluster]
         occ[n] = buildingData[n]["user"].occ_cluster[cluster]
         try:
-            PV_gen[n] = buildingData[n]["generationPV_cluster"][cluster]
-            STC_heat[n] = buildingData[n]["generationSTC_cluster"][cluster]
+            PV_gen[n] = buildingData[n]["user"].generationPV_cluster[cluster]
+            STC_heat[n] = buildingData[n]["user"].generationSTC_cluster[cluster]
         except:
             PV_gen[n] = [0] * len(elec_dem[n])
             STC_heat[n] = [0] * len(elec_dem[n])

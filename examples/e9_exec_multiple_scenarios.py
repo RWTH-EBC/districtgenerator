@@ -31,7 +31,9 @@ def example9_multiple_configs(configs_dir: Path) -> list[Datahandler]:
     # The script will find all files in the 'data' folder that start with
     # '.env' and process them one by one.
 
-    # IMPORTANT: Make sure the configuration files are named correctly, starting with '.env'.
+    # IMPORTANT: Make sure the configuration files are named correctly, starting with '.env'. You also have
+    # to add a scenario .csv file into the 'data/scenarios' folder to distinguish between different scenarios.
+    # The script will use the scenario name to label the output files accordingly.
 
     # You can also place them elsewhere, but you will need to adjust the
     # 'configs_directory_path' variable below to point to the correct directory.

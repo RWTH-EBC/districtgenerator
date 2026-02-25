@@ -1,5 +1,4 @@
 districtgenerator/results/*
-districtgenerator/data/scenarios/*
 errorfile.txt
 build
 *.bk

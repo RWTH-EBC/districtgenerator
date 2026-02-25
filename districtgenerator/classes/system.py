@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
-import districtgenerator.functions.load_params_central_devices as load_params_central_devices
+import districtgenerator.functions.get_params_central_devices as get_params_central_devices
 
 class BES:
     """
@@ -195,7 +195,7 @@ class CES:
         """
 
         # Load parameters of the energy hub
-        param, devs, dem, result_dict = load_params_central_devices.load_params(data)
+        param, devs, dem, result_dict = get_params_central_devices.get_params(data)
 
         # Run optimization
         capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)

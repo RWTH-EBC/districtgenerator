@@ -6,7 +6,6 @@ import numpy as np
 import districtgenerator.functions.clustering_medoid as cm
 import sys
 
-
 def clustering_processing(time, site, district, heat_grid_data, centralDevices, pyomo_config, centralEnergySupply=False):
     """
     Perform time series aggregation for profiles by using the k-medoids clustering algorithm.
