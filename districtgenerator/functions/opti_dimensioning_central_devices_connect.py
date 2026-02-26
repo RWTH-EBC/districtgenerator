@@ -189,7 +189,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
 
     # Binary Variable to decide if capacity is is below or above inv_size_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
-    model.cap_small = pyo.Var(model.districts, within=pyo.Binary)  # new for network
+    piecewise_devs = ["BOI", "CHP", "HP", "STC", "TES"]
+    model.cap_small = pyo.Var(piecewise_devs, model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
     model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
@@ -727,18 +728,18 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         devs = devsCon[district]
         param = paramCon[district]
         data = dataCon[district]
-        for dev in ["BOI", "CHP", "HP", "STC"]:
+        for dev in ["BOI", "CHP", "HP", "STC", "TES"]:
             # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[district]))
+            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[dev, district]))
             # Constraint 2: If cap_small = 0, then cap > 10000 kW
-            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[district])
+            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[dev, district])
             # Constraint for investment costs based on capacity regimes
-            model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[district]
-                                + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[district])
+            model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[dev, district]
+                                + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[dev, district])
                                 )
       
         for dev in ["PV", "WT", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
-                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB",
                      "CTES", "BAT", "GS"]:
             model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
             

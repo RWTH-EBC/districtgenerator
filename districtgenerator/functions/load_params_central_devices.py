@@ -290,9 +290,9 @@ def load_params(data):
         "gamma": all_models["STC"]["gamma"],
         "inv_var": all_models["STC"]["inv_var"],
         "inv_base": all_models["STC"]["inv_base"],
-        "inv_small": all_models["STC"]["inv_small"], # New TJA
-        "inv_large": all_models["STC"]["inv_large"], # New TJA
-        "inv_size_switch": all_models["STC"]["inv_size_switch"], # New TJA
+        "inv_small": all_models["STC"]["inv_small"], # currently EUR/m² from config interpolation New TJA
+        "inv_large": all_models["STC"]["inv_large"],  # currently EUR/m² from config interpolation New TJA
+        "inv_size_switch": all_models["STC"]["inv_size_switch"], # currently m² from config New TJA
         "life_time": all_models["STC"]["life_time"],
         "cost_om": all_models["STC"]["cost_om"] / 100,
         "max_area": all_models["STC"]["max_area"],
@@ -300,6 +300,21 @@ def load_params(data):
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
     }
+
+    # Convert STC piecewise parameters from area-domain (m²) to capacity-domain (kW)
+    stc_kw_per_m2 = devs["STC"]["G_stc"] * devs["STC"]["eta"]  # kW per m²
+    if stc_kw_per_m2 <= 0:
+        raise ValueError("STC conversion factor (G_stc * eta) must be > 0.")
+
+    # keep original values for debugging/output
+    devs["STC"]["inv_size_switch_m2"] = devs["STC"]["inv_size_switch"]
+    devs["STC"]["inv_small_per_m2"] = devs["STC"]["inv_small"]
+    devs["STC"]["inv_large_per_m2"] = devs["STC"]["inv_large"]
+
+    # values used in optimization (cap in kW)
+    devs["STC"]["inv_size_switch"] = devs["STC"]["inv_size_switch"] * stc_kw_per_m2  # m² -> kW
+    devs["STC"]["inv_small"] = devs["STC"]["inv_small"] / stc_kw_per_m2              # EUR/m² -> EUR/kW
+    devs["STC"]["inv_large"] = devs["STC"]["inv_large"] / stc_kw_per_m2              # EUR/m² -> EUR/kW
 
     # calculate theoretical PV and STC generation per m^2
     devs["PV"]["norm_power"], devs["STC"]["norm_power"], devs["PV"]["norm_power_clustered"], devs["STC"]["norm_power_clustered"] = get_PVandSTC_power(devs, param, data)
@@ -680,6 +695,12 @@ def load_params(data):
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "inv_base": all_models["TES"]["inv_base"] / (
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
+        "inv_small": all_models["TES"]["inv_small"]/ (
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        "inv_large": all_models["TES"]["inv_large"]/ (
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kW # New TJA
+        "inv_size_switch": all_models["TES"]["inv_size_switch"] * param["rho_w"] * param["c_w"] * all_models[
+            "TES"]["delta_T"] / 3600,  # kWh # New TJA
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
         "cost_om": all_models["TES"]["cost_om"] / 100,

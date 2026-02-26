@@ -1,11 +1,11 @@
 Optimization results;Value;Unit
-tac_distr;108119;EUR/a
+tac_distr;106973;EUR/a
 co2_distr;1793;t/a
 Cost_parameter;Value;Unit
 co2_tax_total;0;EUR/a
-total_inv_cost;777856;EUR/a
+total_inv_cost;763564;EUR/a
 total_inv_cost_unsubsidized;984558;EUR/a
-total_ann_inv_cost;55603;EUR/a
+total_ann_inv_cost;54456;EUR/a
 total_ann_inv_cost_unsubsidized;71836;EUR/a
 total_om_cost;16498;EUR/a
 supply_costs_el;36018;EUR/a
@@ -80,15 +80,15 @@ BCHP_inv;80600.88;EUR
 BCHP_ann_inv;6467.62;EUR/a
 BCHP_ann_inv_unsubsidized;6467.62;EUR/a
 BCHP_om_cost;2418.03;EUR/a
-TES_inv;56080.44;EUR
-TES_ann_inv;4500.04;EUR/a
+TES_inv;41788.09;EUR
+TES_ann_inv;3353.18;EUR/a
 TES_ann_inv_unsubsidized;4500.04;EUR/a
 TES_om_cost;729.05;EUR/a
 
 Heat_generation_by_year;Value;Unit
-heat_gen_STC_0;126892.94065243244;kWh
+heat_gen_STC_0;126892.94064108576;kWh
 heat_kW_STC_0;313;kW
-heat_gen_HP_0;744214.6636496698;kWh
+heat_gen_HP_0;744214.6636523558;kWh
 heat_kW_HP_0;184;kW
 heat_gen_EB_0;0.0;kWh
 heat_kW_EB_0;0;kW
@@ -100,7 +100,7 @@ heat_gen_BOI_0;0.0;kWh
 heat_kW_BOI_0;0;kW
 heat_gen_GHP_0;0.0;kWh
 heat_kW_GHP_0;0;kW
-heat_gen_BCHP_0;290369.2014340341;kWh
+heat_gen_BCHP_0;290369.2014311472;kWh
 heat_kW_BCHP_0;111;kW
 heat_gen_BBOI_0;0.0;kWh
 heat_kW_BBOI_0;0;kW
@@ -110,9 +110,9 @@ heat_gen_WBOI_0;0.0;kWh
 heat_kW_WBOI_0;0;kW
 heat_gen_FC_0;0.0;kWh
 heat_kW_FC_0;0;kW
-heat_gen_STC_5;126892.9406409982;kWh
+heat_gen_STC_5;126892.94064108677;kWh
 heat_kW_STC_5;313;kW
-heat_gen_HP_5;743635.0236557078;kWh
+heat_gen_HP_5;743635.0236547911;kWh
 heat_kW_HP_5;184;kW
 heat_gen_EB_5;0.0;kWh
 heat_kW_EB_5;0;kW
@@ -124,7 +124,7 @@ heat_gen_BOI_5;0.0;kWh
 heat_kW_BOI_5;0;kW
 heat_gen_GHP_5;0.0;kWh
 heat_kW_GHP_5;0;kW
-heat_gen_BCHP_5;290175.98809890205;kWh
+heat_gen_BCHP_5;290175.98809862445;kWh
 heat_kW_BCHP_5;111;kW
 heat_gen_BBOI_5;0.0;kWh
 heat_kW_BBOI_5;0;kW
@@ -134,9 +134,9 @@ heat_gen_WBOI_5;0.0;kWh
 heat_kW_WBOI_5;0;kW
 heat_gen_FC_5;0.0;kWh
 heat_kW_FC_5;0;kW
-heat_gen_STC_10;126892.94064099777;kWh
+heat_gen_STC_10;126892.94064108668;kWh
 heat_kW_STC_10;313;kW
-heat_gen_HP_10;742585.0936848229;kWh
+heat_gen_HP_10;742585.0936847129;kWh
 heat_kW_HP_10;184;kW
 heat_gen_EB_10;0.0;kWh
 heat_kW_EB_10;0;kW
@@ -148,7 +148,7 @@ heat_gen_BOI_10;0.0;kWh
 heat_kW_BOI_10;0;kW
 heat_gen_GHP_10;0.0;kWh
 heat_kW_GHP_10;0;kW
-heat_gen_BCHP_10;289826.0114419389;kWh
+heat_gen_BCHP_10;289826.0114419318;kWh
 heat_kW_BCHP_10;111;kW
 heat_gen_BBOI_10;0.0;kWh
 heat_kW_BBOI_10;0;kW
@@ -158,9 +158,9 @@ heat_gen_WBOI_10;0.0;kWh
 heat_kW_WBOI_10;0;kW
 heat_gen_FC_10;0.0;kWh
 heat_kW_FC_10;0;kW
-heat_gen_STC_15;126892.94064099785;kWh
+heat_gen_STC_15;126892.94064108688;kWh
 heat_kW_STC_15;313;kW
-heat_gen_HP_15;763571.1644372712;kWh
+heat_gen_HP_15;763571.164441467;kWh
 heat_kW_HP_15;184;kW
 heat_gen_EB_15;0.0;kWh
 heat_kW_EB_15;0;kW
@@ -172,7 +172,7 @@ heat_gen_BOI_15;0.0;kWh
 heat_kW_BOI_15;0;kW
 heat_gen_GHP_15;0.0;kWh
 heat_kW_GHP_15;0;kW
-heat_gen_BCHP_15;268847.21735343576;kWh
+heat_gen_BCHP_15;268847.2173547288;kWh
 heat_kW_BCHP_15;111;kW
 heat_gen_BBOI_15;0.0;kWh
 heat_kW_BBOI_15;0;kW

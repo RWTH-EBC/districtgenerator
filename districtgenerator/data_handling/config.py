@@ -1137,6 +1137,12 @@ class CentralDeviceConfig(BaseSettings):
     # TES parameters (Thermal Energy Storage)
     TES__feasible: bool = True  # Should this be considered for the central optimization.
     TES__inv_base: float = 550  # Unsubsidized investment variable in €/m^3.
+    TES__inv_size1: float = 2.7  # Smallest storage size in cubic meters. # New TJA
+    TES__inv_size2: float = 3.8  # Medium storage size in cubic meters. # New TJA
+    TES__inv_size3: float = 44.0  # Large storage size in cubic meters. # New TJA
+    TES__inv_cost1: float = 2192.67  # Investment cost for small storage size in €. # New TJA
+    TES__inv_cost2: float = 2862.47  # Investment cost for medium storage size in €. # New TJA
+    TES__inv_cost3: float = 19337.64  # Investment cost for large storage size in €. # New TJA
     TES__sto_loss: float = 0.01  # Storage loss per hour as a fraction.
     TES__life_time: int = 20  # Maximum life time in years.
     TES__cost_om: float = 0.013  # Cost of operation and maintenance as a percentage of investment.
