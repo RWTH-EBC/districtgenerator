@@ -290,6 +290,9 @@ def load_params(data):
         "gamma": all_models["STC"]["gamma"],
         "inv_var": all_models["STC"]["inv_var"],
         "inv_base": all_models["STC"]["inv_base"],
+        "inv_small": all_models["STC"]["inv_small"], # New TJA
+        "inv_large": all_models["STC"]["inv_large"], # New TJA
+        "inv_size_switch": all_models["STC"]["inv_size_switch"], # New TJA
         "life_time": all_models["STC"]["life_time"],
         "cost_om": all_models["STC"]["cost_om"] / 100,
         "max_area": all_models["STC"]["max_area"],

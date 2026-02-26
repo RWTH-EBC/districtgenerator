@@ -888,6 +888,12 @@ class CentralDeviceConfig(BaseSettings):
     STC__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     STC__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     STC__inv_base: float = 800  # Unsubsidized investment variable in €/m^2.
+    STC__inv_size1: float = 500.0  # Smallest installation size in square meters. # New TJA
+    STC__inv_size2: float = 2000.0  # Medium installation size in square meters. # New TJA
+    STC__inv_size3: float = 15000.0  # Large installation size in square meters. # New TJA
+    STC__inv_cost1: float = 190000.0  # Investment cost for small installation size in €. # New TJA
+    STC__inv_cost2: float = 680000.0  # Investment cost for medium installation size in €. # New TJA
+    STC__inv_cost3: float = 4350000.0  # Investment cost for large installation size in €. # New TJA
     STC__life_time: int = 20  # Maximum life time in years.
     STC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     STC__max_area: float = 5000  # Maximum installation area in square meters.

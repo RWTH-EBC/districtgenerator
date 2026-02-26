@@ -727,7 +727,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         devs = devsCon[district]
         param = paramCon[district]
         data = dataCon[district]
-        for dev in ["BOI", "CHP", "HP"]:
+        for dev in ["BOI", "CHP", "HP", "STC"]:
             # Constraint 1: If cap_small = 1, then cap <= 10000 kW
             model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[district]))
             # Constraint 2: If cap_small = 0, then cap > 10000 kW
@@ -737,7 +737,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                                 + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[district])
                                 )
       
-        for dev in ["PV", "WT", "STC", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
+        for dev in ["PV", "WT", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
                      "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
                      "CTES", "BAT", "GS"]:
             model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
