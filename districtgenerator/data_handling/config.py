@@ -1151,6 +1151,8 @@ class CentralDeviceConfig(BaseSettings):
     TES__delta_T: float = 30  # Temperature difference between charged and discharged state in Celsius.
     TES__soc_init: float = 0.5  # Initial state of charge between 0 and 1.
     TES__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    TES__inv_subsidy_abs: float = 0.0  # Absolute investment subsidy in €/m^3. # New TJA
+    TES__inv_subsidy_cap: float = 0.0  # Maximum size of TES in m^3 to get inv_subsidy_abs. # New TJA
     TES: dict = {}
 
     # CTES parameters (Cold Thermal Energy Storage)

@@ -234,7 +234,9 @@ def load_params(data):
             "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
-            "enable_heat_diss": value.get("enable_heat_diss", False)
+            "enable_heat_diss": value.get("enable_heat_diss", False),
+            "inv_subsidy_abs": value.get("inv_subsidy_abs", 0), # New TJA
+            "inv_subsidy_cap": value.get("inv_subsidy_cap", 0), # New TJA
         }
 
     devs = {}
@@ -709,6 +711,8 @@ def load_params(data):
         "max_cap": all_models["TES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
             "TES"]["delta_T"] / 3600,  # kWh
         "delta_T": all_models["TES"]["delta_T"],  # K
+        "inv_subsidy_abs": all_models["TES"]["inv_subsidy_abs"], # EUR/m^3, absolute investment subsidy for thermal energy storage 
+        "inv_subsidy_cap": all_models["TES"]["inv_subsidy_cap"], # m^3, maximum size of TES to get subsidy
     }
 
     # Cold thermal energy storage

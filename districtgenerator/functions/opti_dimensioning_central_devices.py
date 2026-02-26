@@ -175,7 +175,10 @@ def build_model(model, data, devs, param, dem):
     model.grid_import_binary = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new TJA
 
     # Binary Variable to decide if capacity is is below or above inv_size_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
-    model.cap_small = pyo.Var(within=pyo.Binary)  # new TJA
+    piecewise_devs = ["BOI", "CHP", "HP", "STC", "TES"]
+    model.cap_small = pyo.Var(piecewise_devs, within=pyo.Binary)  # new TJA
+    # Binary variable to decide if size if TES > 250 m² for KWKG subsidy
+    model.tes_kwkg_binary = pyo.Var(within=pyo.Binary)  # new for network
 
     # Yearly totals - indexed by support year
     model.from_el_grid_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
@@ -622,20 +625,35 @@ def build_model(model, data, devs, param, dem):
     # Investment and operational costs for each device (Annualized)
     Big_M = 1e15  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
     EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
-    for dev in ["BOI", "CHP", "HP"]:
+    for dev in ["BOI", "CHP", "HP", "STC", "TES"]:
         # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-        model.constraints.add(model.cap[dev] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small))
+        model.constraints.add(model.cap[dev] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[dev]))
         # Constraint 2: If cap_small = 0, then cap > 10000 kW
-        model.constraints.add(model.cap[dev] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small)
+        model.constraints.add(model.cap[dev] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[dev])
         # Constraint for investment costs based on capacity regimes
-        model.constraints.add(model.inv[dev] == devs[dev]["inv_small"] * model.cap[dev] * model.cap_small
-                            + devs[dev]["inv_large"] * model.cap[dev] * (1 - model.cap_small)
+        model.constraints.add(model.inv[dev] == devs[dev]["inv_small"] * model.cap[dev] * model.cap_small[dev]
+                            + devs[dev]["inv_large"] * model.cap[dev] * (1 - model.cap_small[dev])
                             )
       
-        for dev in ["PV", "WT", "STC", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
-                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+        for dev in ["PV", "WT", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
+                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB",
                      "CTES", "BAT", "GS"]:
             model.constraints.add(model.inv[dev] == devs[dev]["inv_var"] * model.cap[dev])  # investment costs
+
+        for dev in ["TES"]:
+            # Constraint 1: If tes_kwkg_binary = 1, then cap <= "inv_subsidy_cap" (e.g., 50 m^3)
+            vol_TES = model.cap[dev] / (param["c_w"] * param["rho_w"] * devs[dev]["delta_T"]) * 3600  # Convert thermal capacity to volume capacity in m^3
+            model.constraints.add(
+                 vol_TES <= devs[dev]["inv_subsidy_cap"]+Big_M*(1-model.tes_kwkg_binary)
+              )  # if binary is 0, cap can be very large, if binary is 1, cap is limited to the value corresponding to the maximum subsidy
+            # Constraint 2: If tes_kwkg_binary = 0, then cap > "inv_subsidy_cap" (e.g., 50 m^3)
+            model.constraints.add(
+                vol_TES >= (devs[dev]["inv_subsidy_cap"]+EPS) - Big_M*model.tes_kwkg_binary
+              )  # if binary is 1, cap can be very small, if binary is 0, cap must be larger than the value corresponding to the maximum subsidy
+            # Constraint for investment costs based on subsidy regimes
+            model.constraints.add(model.inv[dev] == (model.inv[dev] - devs[dev]["inv_subsidy_abs"]*vol_TES) * model.tes_kwkg_binary
+                                  + model.inv[dev] * (1 - model.tes_kwkg_binary))  # fixed investment costs for TES, independent of capacity
+        
         for dev in model.all_devs:
             model.constraints.add(model.inv_base[dev] == devs[dev]["inv_base"] * model.cap[dev])  # unsubsidized investment costs
             model.constraints.add(model.c_inv[dev] == model.inv[dev] * devs[dev]["ann_factor"])  # annualized investment costs
