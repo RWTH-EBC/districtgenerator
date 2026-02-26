@@ -188,7 +188,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step
     model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
 
-    # Binary Variable to decide if capacity is is below or above inv_cap_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
+    # Binary Variable to decide if capacity is is below or above inv_size_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
     model.cap_small = pyo.Var(model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
@@ -729,9 +729,9 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         data = dataCon[district]
         for dev in ["BOI", "CHP", "HP"]:
             # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_cap_switch"] + Big_M * (1 - model.cap_small[district]))
+            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[district]))
             # Constraint 2: If cap_small = 0, then cap > 10000 kW
-            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_cap_switch"] + EPS) - Big_M * model.cap_small[district])
+            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[district])
             # Constraint for investment costs based on capacity regimes
             model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[district]
                                 + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[district])
@@ -1595,11 +1595,16 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
     for device in all_devs_list:
         if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed
             capacity = result_dict.get(device, {}).get("cap", "")  # Get the capacity of the device
+            if device in ["WT", "WAT", "CHP", "BOI", "HP", "EB", "CC", "AC", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "SAB", "PV", "STC"]:  # Generation devices
+                data_to_save.append([device, capacity,"kW"])  # Add the device name to the CSV file
+            if device in ["TES", "CTES", "BAT", "H2S", "GS"]:  # Storage devices
+                data_to_save.append([device, capacity,"kWh"])  # Add the device name to the CSV file
+    for device in all_devs_list:
+        if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed    
             inv_costs = result_dict.get(device, {}).get("inv", "")  # Get the investment costs of the device
             ann_inv_costs = result_dict.get(device, {}).get("ann_inv", "")  # Get the annualized investment costs of the device
             ann_inv_costs_unsubsidized = result_dict.get(device, {}).get("ann_inv_unsubsidized", "")
-            om_costs = result_dict.get(device, {}).get("om_cost", "")
-            data_to_save.append([device, capacity,"kW"])  # Add the device name to the CSV file
+            om_costs = result_dict.get(device, {}).get("om_cost", "")    
             data_to_save.append([f"{device}_inv", inv_costs, "EUR"])  # Add the investment costs of the device to the CSV file
             data_to_save.append([f"{device}_ann_inv", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
             data_to_save.append([f"{device}_ann_inv_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])

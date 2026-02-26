@@ -1,5 +1,5 @@
 # Solution file
-# Created: 2026-02-25 14:36:32
+# Created: 2026-02-26 13:37:32
 # Objective value: 144434.49592471472
 # Variable values
 cap[('PV', 'rural')] 0.000000

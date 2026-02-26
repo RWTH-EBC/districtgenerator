@@ -174,7 +174,7 @@ def build_model(model, data, devs, param, dem):
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step # new TJA
     model.grid_import_binary = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new TJA
 
-    # Binary Variable to decide if capacity is is below or above inv_cap_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
+    # Binary Variable to decide if capacity is is below or above inv_size_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
     model.cap_small = pyo.Var(within=pyo.Binary)  # new TJA
 
     # Yearly totals - indexed by support year
@@ -624,9 +624,9 @@ def build_model(model, data, devs, param, dem):
     EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
     for dev in ["BOI", "CHP", "HP"]:
         # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-        model.constraints.add(model.cap[dev] <= devs[dev]["inv_cap_switch"] + Big_M * (1 - model.cap_small))
+        model.constraints.add(model.cap[dev] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small))
         # Constraint 2: If cap_small = 0, then cap > 10000 kW
-        model.constraints.add(model.cap[dev] >= (devs[dev]["inv_cap_switch"] + EPS) - Big_M * model.cap_small)
+        model.constraints.add(model.cap[dev] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small)
         # Constraint for investment costs based on capacity regimes
         model.constraints.add(model.inv[dev] == devs[dev]["inv_small"] * model.cap[dev] * model.cap_small
                             + devs[dev]["inv_large"] * model.cap[dev] * (1 - model.cap_small)
