@@ -9,6 +9,7 @@ import pylightxl as xl
 import richardsonpy.classes.occupancy as occ_residential
 import richardsonpy.functions.change_resolution as cr
 import OpenDHW
+from districtgenerator.classes.non_residential import GenericNonResidential
 import districtgenerator.functions.change_resolution as chres
 
 
@@ -61,8 +62,10 @@ class Profiles:
         # Initialize SIA class and read data
         self.SIA2024 = SIA2024
         self.building = building
-        if self.building in {"OB", "SC", "GS", "RE"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
-            self.building_zones = self.SIA2024[self.building]
+        self.is_residential = self.building in {"SFH", "TH", "MFH", "AB"}
+        if not self.is_residential:
+            self.building_zones = self.SIA2024[self.building] # Non-residential buildings are divided in different zones based on the SIA data
+            self.nwg_config = GenericNonResidential(self.building) # Load configuration for non-residential buildings.
 
         self.activity_profile = []
         self.occ_profile = []
@@ -94,7 +97,7 @@ class Profiles:
         None.
         """
 
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.is_residential:
             activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
             self.activity_profile = activity.occupancy
 
@@ -182,7 +185,7 @@ class Profiles:
 
     def generate_profiles_non_residential(self,holidays):
         """
-         Generate stochastic peaople profiles, devices profiles and month profiles
+         Generate stochastic people profiles, devices profiles and month profiles
          for every zone of the non-residential building
 
          """
@@ -199,12 +202,9 @@ class Profiles:
             sia_week_profile_devices_zone = []
 
             for i in range(7):
-                if self.building in ["GS"]:
-                    is_not_working_day = (i + self.initial_day) % 7 in [6]
-                elif self.building in ["SC", "OB"]:
-                    is_not_working_day = (i + self.initial_day) % 7 in [5, 6]
-                elif self.building == "RE":
-                    is_not_working_day = False  # RE is always working
+                current_day = (i + self.initial_day) % 7
+                # Fetch working days dynamically via getter
+                is_not_working_day = current_day not in self.nwg_config.get_working_days()
 
                 sia_day_profile_people_zone = [0] * 24 if is_not_working_day else data['profile_people']
                 sia_day_profile_devices_zone = [min(data['profile_devices'])] * 24 if is_not_working_day else data['profile_devices']
@@ -220,15 +220,13 @@ class Profiles:
 
             # Consider holidays
             for day in range(self.nb_days):
-                if (day+1 in holidays and self.building in ["SC", "OB", "GS"]):
+                if (day + 1 in holidays) and self.nwg_config.is_affected_by_holidays():
                     sia_profile_people_zone[24 * day: 24 * (day + 1)] = [0] * 24
                     sia_profile_devices_zone[24 * day: 24 * (day + 1)] = [min(data['profile_devices'])] * 24
 
-            # Apply random variation to the people and devices profiles
+            # Apply random variation to the people, devices and monthly profiles
             profile_people_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_people_zone]
             profile_devices_zone = [min(max(np.random.normal(value, value * 0.1), 0), 1) for value in sia_profile_devices_zone]
-
-            # Apply random variation to the monthly profile
             profile_month_zone = [min(max(np.random.normal(value, value * 0.07), 0), 1) for value in data['profile_month']]
 
             # Adjust the people profile to 0 for the months there is no occupation of the corresponding building
@@ -259,40 +257,25 @@ class Profiles:
                                         'profile_month_zone': profile_month_zone}
 
             self.building_profiles[self.building] = zone_profiles
-        if self.building == "OB":
-            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                          # self.number_occupants is the mean number of occupants in a main room
-                                self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])   # self.occ_profile is the occupancy profile in an office room of the many existing in the building
-            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['OB']['Einzel-, Gruppenbüro']['profile_people_zone']])
 
-        elif self.building == "SC":
-            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                     # self.number_occupants is the mean number of occupants in a main room
-                                self.building_profiles['SC']["Schulzimmer"]['profile_people_zone']])   # self.occ_profile is the occupancy profile in a classroom of the many existing in the building
-            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['SC']["Schulzimmer"]['profile_people_zone']])
+        # Fetch the main zone name dynamically via getter
+        main_zone = self.nwg_config.get_main_zone_name()
+        main_zone_profile = self.building_profiles[self.building][main_zone]['profile_people_zone']
 
-        elif self.building == "GS":
-            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                                    # self.number_occupants is the mean number of occupants in a main room
-                                self.building_profiles['GS']["Lebensmittelverkauf"]['profile_people_zone']])
-            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['GS']["Lebensmittelverkauf"]['profile_people_zone']])
-
-        elif self.building == "RE":
-            self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in                                    # self.number_occupants is the mean number of occupants in a main room
-                                self.building_profiles['RE']["Restaurant"]['profile_people_zone']])
-            occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in
-                                         self.building_profiles['RE']["Restaurant"]['profile_people_zone']])
+        self.occ_profile = np.array([math.ceil(a * self.number_occupants) for a in main_zone_profile])
+        occ_profile_building_main_part = np.array([math.ceil(a * self.number_occupants_building) for a in main_zone_profile])
 
         self.occ_profile_building = occ_profile_building_main_part
         max_value = max(occ_profile_building_main_part)
-        timesteps_per_Day = int(86400 / self.time_resolution)
+        timesteps_per_day = int(86400 / self.time_resolution)
+
         # Assume that from 10:00 to 15:00, the occupancy in  the building is equal to the maximum number of occupants
         # in occ_profile_building_main_part, since occ_profile_building_main_part only considers people in main rooms.
         # If the occupants are not in the main room,they may be in the toilet or kitchen, i.e. they are still in the building.
 
         for day in range(self.nb_days):
-            start_index = int(day * timesteps_per_Day + 10 * timesteps_per_Day / 24)  # 10 AM
-            end_index = int(day * timesteps_per_Day + 15 * timesteps_per_Day / 24)  # 3 PM
+            start_index = int(day * timesteps_per_day + 10 * timesteps_per_day / 24)  # 10 AM
+            end_index = int(day * timesteps_per_day + 15 * timesteps_per_day / 24)  # 3 PM
             for i in range(start_index, end_index):
                 if self.occ_profile_building[i] != 0:
                     self.occ_profile_building[i] = max_value
@@ -343,16 +326,26 @@ class Profiles:
         temperature_difference = [T for T in temperature_difference_day for _ in range(24)]
         self.temperature_difference = chres.changeResolution(temperature_difference, 3600, self.time_resolution, "mean")
 
-        dhw_profile = OpenDHW.generate_dhw_profile(
-            s_step=60,
-            categories=1,
-            occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
-            building_type=self.building,
-            weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
-            holidays = holidays,
-            mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"],
-            initial_day = self.initial_day
-        )
+        s_step = 60
+        categories = 1
+        occupancy = self.number_occupants if self.is_residential else self.number_occupants_building
+        building_type = self.building
+        weekend_weekday_factor = 1.2 if self.is_residential else 1
+        mean_drawoff_vol_per_day = building["buildingFeatures"]["mean_drawoff_dhw"]
+
+        try:
+            dhw_profile = OpenDHW.generate_dhw_profile(
+                s_step=s_step,
+                categories=categories,
+                occupancy=occupancy,
+                building_type=building_type,
+                weekend_weekday_factor=weekend_weekday_factor,
+                holidays = holidays,
+                mean_drawoff_vol_per_day= mean_drawoff_vol_per_day,
+                initial_day = self.initial_day
+            )
+        except Exception as e:
+            raise Exception(f"DHW Simulation failed for the following parameters: s_step: {s_step}, categories: {categories}, occupancy: {occupancy}, building_type: {building_type}, weekend_weekday_factor: {weekend_weekday_factor}, holidays: {holidays}, mean_drawoff_vol_per_day: {mean_drawoff_vol_per_day}, initial_day: {self.initial_day}.\n Please check if the required OpenDHW version is installed. Otherwise check if all requried modules are installed: pip install -e .  ")
 
         dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
         dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=self.temperature_difference)
@@ -476,7 +469,7 @@ class Profiles:
 
         return loadcurve
 
-    def generate_el_profile_non_residential(self, irradiance, el_wrapper,annual_demand_app):
+    def generate_el_profile_non_residential(self, irradiance, el_wrapper,annual_demand_app): # TODO: Currently assumed that from 10 - 15 max occupancy. Might be different for different NWG.
         """
         Generate electric load profile for one household
 
@@ -553,7 +546,10 @@ class Profiles:
             self.light_load.append(light_p_curve)
 
         # Perform appliance usage simulation for one year
-        app_p_curve = el_wrapper.power_sim_app(annual_demand_app=annual_demand_app,building_profiles=self.building_profiles, time_resolution=self.time_resolution)
+        try:
+            app_p_curve = el_wrapper.power_sim_app(annual_demand_app=annual_demand_app,building_profiles=self.building_profiles, time_resolution=self.time_resolution)
+        except Exception as e:
+            raise Exception(f"Appliance load simulation failed for the following parameters: building: {self.building} annual_demand_app: {annual_demand_app}, building_profiles: {self.building_profiles}, time_resolution: {self.time_resolution}. Error message: {str(e)}")
         self.app_load.append(app_p_curve)
 
         # Convert to nd-arrays
@@ -655,9 +651,10 @@ class Profiles:
         """
         personGain = 70.0  # [Watt]
         lightGain = 0.80
-        if self.building == "GS":
-            appGain = 0.25
-        else:
+
+        # If not specified we use standard
+        appGain = self.nwg_config.get_app_gain_factor()
+        if appGain is None:
             appGain = 0.80
 
         gains_persons = self.occ_profile_building * personGain
@@ -681,10 +678,58 @@ class Profiles:
                 Fuel consumption of gasoline cars (in liters per timestep).
         """
 
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.is_residential:
             occ_profile = self.occ_profile
-        elif self.building in {"OB"}:
+        else:
             occ_profile = self.occ_profile_building
+
+        # generate number of cars for every flat
+        def generate_nb_ev(number_of_occupancy):
+            if number_of_occupancy <= 0:
+                return 0, 0 # if there are no occupants, there are also no cars and no EVs possible
+
+            ev_ratio = building["buildingFeatures"]["EV"]  # the ratio between EV and total cars
+            if self.is_residential:
+                # Car distribution probabilities (excluding the case of 0 cars)
+                # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
+                # Table A H8
+                car_distribution = {
+                    1: [0.57, 0.02, 0.00],  # 1-person household
+                    2: [0.61, 0.27, 0.01],  # 2-person household
+                    3: [0.40, 0.41, 0.10],  # 3-person household
+                    4: [0.35, 0.48, 0.11],  # 4-person household
+                    5: [0.36, 0.41, 0.15]  # 5+ person household
+                }
+
+                household_size = min(number_of_occupancy, 5)  # 5+ household treated as 5
+
+                # Normalize the distribution to ensure the sum equals 1
+                probabilities = np.array(car_distribution[household_size])
+                probabilities /= probabilities.sum()
+
+                # Define car count categories (1, 2, or 3 cars)
+                car_interval = np.arange(1, 4)
+
+                # Perform random sampling based on probabilities(ICE-cars and EV)
+                total_car = np.random.choice(car_interval, p=probabilities)
+
+                # Number of EV: based on ratio between EV and all cars in input
+                nb_ev = sum(1 for car in range(total_car) if np.random.rand() < ev_ratio)
+
+            else:
+                commute_ratio = self.nwg_config.get_car_commute_ratio() # Use value specified for building if given, otherwise use default value for Germany
+                if commute_ratio is None:
+                    commute_ratio = 0.68 # 68% of people commute to work by car. Source: https://www.destatis.de/DE/Themen/Arbeit/Arbeitsmarkt/Erwerbstaetigkeit/Tabellen/pendler1.html
+
+                total_car = int(np.round(number_of_occupancy * commute_ratio))
+
+                nb_ev = int(np.round(ev_ratio * number_of_occupancy * commute_ratio))
+
+            return nb_ev, total_car
+
+        number_of_ev, total_cars = generate_nb_ev(max(occ_profile))
+        number_of_ice = total_cars - number_of_ev
+        denom = max(total_cars, 1) # avoid zero division if somehow total_cars==0
 
         steps_per_day = int(len(occ_profile) / self.nb_days)
         total_steps = int(len(occ_profile))
@@ -695,11 +740,15 @@ class Profiles:
         on_demand_all_EV_cars_charging = np.zeros(total_steps)
         ice_fuel_profile = np.zeros(total_steps)
 
-        # Determine the charging type for the building
-        charging_type = building["buildingFeatures"]["ev_charging"]
-
         # Profiles consumption_profiles for each car
         individual_car_profiles = []
+
+        # Early break if there are no cars, to avoid unnecessary computations
+        if total_cars == 0:
+            return all_EV_cars_demand_total, on_demand_all_EV_cars_charging, [], ice_fuel_profile, individual_car_profiles
+
+        # Determine the charging type for the building
+        charging_type = building["buildingFeatures"]["ev_charging"]
 
         # Define the possible total driving distances per day (in km)
         # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
@@ -730,49 +779,6 @@ class Profiles:
         # Normalize proportions (ensure sum equals 1)
         total_prob = sum(segment_names_probs)
         normalized_probs = [p / total_prob for p in segment_names_probs]
-
-        # generate number of cars for every flat
-        def generate_nb_ev(number_of_occupancy):
-
-            ev_ratio = building["buildingFeatures"]["EV"]  # the ratio between EV and total cars
-            if self.building in {"SFH", "TH", "MFH", "AB"}:
-                # Car distribution probabilities (excluding the case of 0 cars)
-                # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
-                # Table A H8
-                car_distribution = {
-                    1: [0.57, 0.02, 0.00],  # 1-person household
-                    2: [0.61, 0.27, 0.01],  # 2-person household
-                    3: [0.40, 0.41, 0.10],  # 3-person household
-                    4: [0.35, 0.48, 0.11],  # 4-person household
-                    5: [0.36, 0.41, 0.15]  # 5+ person household
-                }
-
-                household_size = min(number_of_occupancy, 5)  # 5+ household treated as 5
-
-                # Normalize the distribution to ensure the sum equals 1
-                probabilities = np.array(car_distribution[household_size])
-                probabilities /= probabilities.sum()
-
-                # Define car count categories (1, 2, or 3 cars)
-                car_interval = np.arange(1, 4)
-
-                # Perform random sampling based on probabilities(ICE-cars and EV)
-                total_car = np.random.choice(car_interval, p=probabilities)
-
-                # Number of EV: based on ratio between EV and all cars in input
-                nb_ev = sum(1 for car in range(total_car) if np.random.rand() < ev_ratio)
-
-            elif self.building in {"OB"}:
-                # https://www.destatis.de/DE/Themen/Arbeit/Arbeitsmarkt/Erwerbstaetigkeit/Tabellen/pendler1.html
-                total_car = int(np.round(number_of_occupancy * 0.68))        # 68% of people commute to work by car.
-
-                nb_ev = int(np.round(ev_ratio * number_of_occupancy * 0.68)) # 68% of people commute to work by car.
-
-            return nb_ev, total_car
-
-        number_of_ev, total_cars = generate_nb_ev(max(occ_profile))
-        number_of_ice = total_cars - number_of_ev
-        denom = max(total_cars, 1) # avoid zero division if somehow total_cars==0
 
         def _generate_ev_charging_profile_from_consumption(ev_demand, availability_profile, battery_capacity, building_devices_data, total_steps, dt):
             ev_charging_profile = np.zeros(total_steps)
@@ -809,7 +815,7 @@ class Profiles:
             return ev_charging_profile
 
         # --- Residential Buildings ---
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.is_residential:
 
             # --- EV CARS ---
             for car_idx in range(number_of_ev):
@@ -981,10 +987,8 @@ class Profiles:
                     "fuel_profile_l": ice_car_fuel_profile
                 })
 
-
         # --- Non-Residential Buildings ---
-        elif self.building in {"OB"}:
-
+        else:
             # Helper fuction to nudge the arrival time a little each workday so it’s not always the exact first non-zero occupancy index
             def jitter_after(idx, steps_per_day, max_delay_steps=1):
                 if idx is None:
@@ -1014,8 +1018,11 @@ class Profiles:
                 availability_profile = np.zeros(total_steps, dtype=bool)  # Initially not available
 
                 for day in range(self.nb_days):
-                    # Determine if it's a non-working day: Saturday (5), Sunday (6), or a holiday
-                    if (day + self.initial_day) % 7 in (5, 6) or (day + 1) in holidays:
+                    # Determine relevant days for commuting
+                    current_day_of_week = (day + self.initial_day) % 7
+                    is_holiday = (day + 1) in holidays
+
+                    if current_day_of_week not in self.nwg_config.get_working_days() or (is_holiday and self.nwg_config.is_affected_by_holidays()):
                         continue
 
                     # slice occupancy profile for current day
@@ -1031,11 +1038,11 @@ class Profiles:
                     arr_idx = jitter_after(work_idx[0], steps_per_day, max_delay_steps=2) # First person arrives at work
 
                     # One-way commute distance (sampled once per car)
-                    dist_OB = np.random.uniform(
+                    dist_NRB = np.random.uniform(
                         *distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
 
                     # Energy to recharge at work (cap at 90% SoC window)
-                    consumption = min(dist_OB * consumption_per_km,
+                    consumption = min(dist_NRB * consumption_per_km,
                                       battery_capacity * 0.9)  # Wh; Capping it at 90% of the battery capacity (minSoC = 5% and maxSoC = 95%)
 
                     # Assumption the drive to work takes 1 hour
@@ -1052,7 +1059,7 @@ class Profiles:
                     else:
                         ev_demand[arr_idx] += consumption
 
-                    # Charging only possible while at the office
+                    # Charging only possible while at the non-residential building, i.e., between arrival and departure. Assume departure happens at the last non-zero occupancy index (last person leaves work).
                     departure_idx = work_idx[-1] + 1 # Last person leaves work
                     for t in range(arr_idx, departure_idx):
                         availability_profile[start_idx + t] = True
@@ -1070,7 +1077,7 @@ class Profiles:
                 individual_car_profiles.append({
                     "car_id": f"Car_{start_index_car + car_idx}",
                     "type": "EV",
-                    "location": "Office",
+                    "location": f"Non-Residential ({self.building})",
                     "battery_capacity_wh": battery_capacity,
                     "availability_profile": availability_profile,
                     "consumption_profile_wh": ev_demand,
@@ -1078,7 +1085,7 @@ class Profiles:
                     "fuel_profile_l": None
                 })
 
-            # --- ICE gasoline cars in offices: log one-way fuel at arrival to work ---
+            # --- ICE gasoline cars in non-residential buildings: log one-way fuel at arrival to work ---
             for car_idx in range(number_of_ice):
                 segment_data = segments[rd.choices(segment_names, weights=normalized_probs, k=1)[0]]
                 fuel_consumption_l_per_100km = segment_data["consumption_gasoline_l_per_100km"]
@@ -1087,8 +1094,11 @@ class Profiles:
                 ice_car_fuel_profile = np.zeros(total_steps)
 
                 for day in range(self.nb_days):
-                    # Workdays only
-                    if (day + self.initial_day) % 7 in (5, 6) or (day + 1) in holidays:
+                    # Determine relevant days for commuting
+                    current_day_of_week = (day + self.initial_day) % 7
+                    is_holiday = (day + 1) in holidays
+
+                    if current_day_of_week not in self.nwg_config.get_working_days() or (is_holiday and self.nwg_config.is_affected_by_holidays()):
                         continue
 
                     start_idx = day * steps_per_day
@@ -1104,9 +1114,9 @@ class Profiles:
                     arrive_idx = jitter_after(base_arrival_idx, steps_per_day, max_delay_steps=2)
 
                     # One-way commute distance (sampled once per car)
-                    dist_OB = np.random.uniform(
+                    dist_NRB = np.random.uniform(
                         *distance_work[np.random.choice(len(distance_work), p=distance_work_probs)])
-                    fuel_one_way_l = dist_OB * (fuel_consumption_l_per_100km / 100.0)
+                    fuel_one_way_l = dist_NRB * (fuel_consumption_l_per_100km / 100.0)
 
                     if arrive_idx is not None:
                         ice_car_fuel_profile[start_idx + arrive_idx] += fuel_one_way_l
@@ -1121,7 +1131,7 @@ class Profiles:
                 individual_car_profiles.append({
                     "car_id": f"Car_{start_index_car + car_idx + number_of_ev}", # continue numbering after EVs
                     "type": "ICE",
-                    "location": "Office",
+                    "location": f"Non-Residential ({self.building})",
                     "battery_capacity_wh": 0,
                     "availability_profile": ice_car_availability,
                     "consumption_profile_wh": None,

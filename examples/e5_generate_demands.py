@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 def example5_generate_demands():
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_kulmer_str_dg_2", heat_map_berlin = False, env_path=".env.CONFIG.BERLIN")
+    data = Datahandler(scenario_name = "example", heat_map_berlin = False, env_path=".env.CONFIG.BERLIN")
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -58,14 +58,14 @@ def exemplary_plot(data):
 
     # Calculate frequency in hours
     freq_hours = data.time["timeResolution"] / 3600
-    freq_str = f'{freq_hours}H'
+    freq_str = f'{freq_hours}h'
 
     # Create a dataframe that contains the timestamps
     date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq=freq_str)
     df = pd.DataFrame(heat, index=date_range, columns=['Value'])
 
     # Aggregate the data on a monthly basis (totalled value per month)
-    monthly_data = df.resample('M').sum()
+    monthly_data = df.resample('ME').sum()
 
     # Plot as bar chart
     plt.figure(figsize=(10, 6))

@@ -11,7 +11,7 @@ def example7_optimize_heatingnetwork():
     # Initialize District
     # Enter the name of the scenario you wish to use in the folder: data/scenarios
     # The scenario can be first generated with e0_generate_scenario.py
-    data = Datahandler(scenario_name="district_kulmer_str_dg_2", heat_map_berlin=False, env_path=".env.CONFIG.BERLIN")
+    data = Datahandler(scenario_name="example", heat_map_berlin=False, env_path=".env.CONFIG.BERLIN")
 
     # --- Check if building positions are available and valid ---
     missing_positions = (
