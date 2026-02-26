@@ -1203,6 +1203,11 @@ class CentralDeviceConfig(BaseSettings):
                     # Calculate inv_var from inv_base and inv_subsidy_rate
                     if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
                         device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
+                    # Calculate inv_small, inv_large and inv_size_switch # New TJA
+                    if "inv_size1" in device_dict and "inv_cost1" in device_dict and "inv_size2" in device_dict and "inv_cost2" in device_dict and "inv_size3" in device_dict and "inv_cost3" in device_dict:
+                        device_dict['inv_small'] = (device_dict['inv_cost2']-device_dict['inv_cost1']) / (device_dict['inv_size2']-device_dict['inv_size1'])* (1 - device_dict['inv_subsidy_rate'])
+                        device_dict['inv_large'] = (device_dict['inv_cost3']-device_dict['inv_cost2']) / (device_dict['inv_size3']-device_dict['inv_size2'])* (1 - device_dict['inv_subsidy_rate'])
+                        device_dict['inv_size_switch'] = device_dict['inv_size2']
                     
                     # Set the dictionary first
                     setattr(self, field_name, device_dict)
