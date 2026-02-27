@@ -500,6 +500,202 @@ class Datahandler:
         dt = self.time["timeResolution"] / self.time["dataResolution"]
         calculate_soil_temperature(self, dt)
 
+    def is_mixed_building(self, building_type):
+        """
+        Check if a building type is a mixed-use building (contains "+").
+
+        Parameters
+        ----------
+        building_type : str
+            The building type string (e.g., "MFH+RETAIL").
+
+        Returns
+        -------
+        bool
+            True if the building type contains "+", False otherwise.
+        """
+        return "+" in building_type
+
+    def combine_mixed_building_demands(self, saveUserProfiles):
+        """
+        Combine demand profiles from split mixed-use buildings back into a single building.
+        This should be called after generateDemands() but before designDecentralDevices().
+
+        Creates a new combined building with summed demand profiles.
+        Both main and secondary buildings are deleted, replaced by the combined building.
+        An Excel file is created for each combined building showing all demand profiles.
+
+        Returns
+        -------
+        None
+        """
+        # Find all mixed building parts grouped by parent ID
+        mixed_buildings = {}
+        for idx, building in enumerate(self.district):
+            if building["buildingFeatures"].get("is_mixed_part", False):
+                parent_id = building["buildingFeatures"]["mixed_parent_id"]
+                if parent_id not in mixed_buildings:
+                    mixed_buildings[parent_id] = []
+                mixed_buildings[parent_id].append((idx, building))
+
+        if mixed_buildings:
+            print(f"Found {len(mixed_buildings)} mixed-use building groups to recombine.")
+
+        # Combine each group of mixed buildings
+        buildings_to_remove = []
+        buildings_to_add = []
+
+        for parent_id, buildings in mixed_buildings.items():
+            if len(buildings) < 2:
+                continue
+
+            # Find main and secondary buildings
+            main_idx, main_building = None, None
+            secondary_idx, secondary_building = None, None
+
+            for idx, building in buildings:
+                if building["buildingFeatures"]["mixed_role"] == "main":
+                    main_idx, main_building = idx, building
+                elif building["buildingFeatures"]["mixed_role"] == "secondary":
+                    secondary_idx, secondary_building = idx, building
+
+            if main_building is None or secondary_building is None:
+                continue
+
+            # Create a NEW combined building based on the original building features
+            combined_building = {}
+
+            # Copy building features from main building (which has original_bldg_id)
+            combined_building["buildingFeatures"] = main_building["buildingFeatures"].copy()
+
+            # Update building type to show it's mixed
+            main_type = main_building["buildingFeatures"]["building"]
+            secondary_type = secondary_building["buildingFeatures"]["building"]
+            combined_building["buildingFeatures"]["building"] = f"{main_type}+{secondary_type}"
+
+            # Sum up total area from both parts
+            combined_building["buildingFeatures"]["area"] = (
+                main_building["buildingFeatures"]["area"] +
+                secondary_building["buildingFeatures"]["area"])
+
+            # Mark as combined and remove mixed-part flags
+            combined_building["buildingFeatures"]["is_mixed_combined"] = True
+            if "is_mixed_part" in combined_building["buildingFeatures"]:
+                del combined_building["buildingFeatures"]["is_mixed_part"]
+            if "mixed_role" in combined_building["buildingFeatures"]:
+                del combined_building["buildingFeatures"]["mixed_role"]
+            if "mixed_parent_id" in combined_building["buildingFeatures"]:
+                del combined_building["buildingFeatures"]["mixed_parent_id"]
+
+            # Create unique name for combined building
+            combined_building["unique_name"] = f"{self.scenario_name}_{parent_id}_{main_type}+{secondary_type}"
+
+            # Copy envelope and user objects from main building
+            combined_building["envelope"] = main_building["envelope"]
+
+            # Create new user object with combined demands
+            combined_building["user"] = main_building["user"]
+
+            # Combine all demand profiles by summing (element-wise with numpy arrays)
+            combined_building["user"].elec = np.array(np.array(main_building["user"].elec) + np.array(secondary_building["user"].elec))
+            combined_building["user"].dhw = np.array(np.array(main_building["user"].dhw) + np.array(secondary_building["user"].dhw))
+            combined_building["user"].heat = np.array(np.array(main_building["user"].heat) + np.array(secondary_building["user"].heat))
+            combined_building["user"].cooling = np.array(np.array(main_building["user"].cooling) + np.array(secondary_building["user"].cooling))
+            combined_building["user"].gains = np.array(np.array(main_building["user"].gains) + np.array(secondary_building["user"].gains))
+            combined_building["user"].occ = np.array(np.array(main_building["user"].occ) + np.array(secondary_building["user"].occ))
+
+            combined_building["user"].EV_carcharging_ondemand = np.array(np.array(main_building["user"].EV_carcharging_ondemand) + np.array(secondary_building["user"].EV_carcharging_ondemand))
+            combined_building["user"].EV_carprofile = np.array(np.array(main_building["user"].EV_carprofile) + np.array(secondary_building["user"].EV_carprofile))
+            combined_building["user"].ice_carprofile = np.array(np.array(main_building["user"].ice_carprofile) + np.array(secondary_building["user"].ice_carprofile))
+
+            # Combine EV capacities
+            cap_main = main_building["user"].ev_capacity if main_building["user"].ev_capacity is not None else []
+            cap_sec = secondary_building["user"].ev_capacity if secondary_building["user"].ev_capacity is not None else []
+
+            # Ensure values are lists to prevent addition errors
+            if isinstance(cap_main, (int, float)): cap_main = [cap_main]
+            if isinstance(cap_sec, (int, float)): cap_sec = [cap_sec]
+
+            combined_building["user"].ev_capacity = list(cap_main) + list(cap_sec)
+
+            # Combine individual car profiles and reassign unique IDs
+            cars_main = main_building["user"].individual_car_profiles.copy() if hasattr(main_building["user"], "individual_car_profiles") and main_building["user"].individual_car_profiles else []
+            cars_sec = secondary_building["user"].individual_car_profiles.copy() if hasattr(secondary_building["user"], "individual_car_profiles") and secondary_building["user"].individual_car_profiles else []
+
+            combined_building["user"].individual_car_profiles = []
+            new_car_id = 0
+
+            for car in cars_main:
+                car_copy = car.copy()
+                car_copy["car_id"] = new_car_id
+                combined_building["user"].individual_car_profiles.append(car_copy)
+                new_car_id += 1
+
+            for car in cars_sec:
+                car_copy = car.copy()
+                car_copy["car_id"] = new_car_id
+                combined_building["user"].individual_car_profiles.append(car_copy)
+                new_car_id += 1
+
+            # Sum up user counts
+            combined_building["user"].nb_units = main_building["user"].nb_units + secondary_building["user"].nb_units
+            combined_building["user"].nb_occ = np.concatenate((main_building["user"].nb_occ, secondary_building["user"].nb_occ))
+
+            # sum up the design loads for heating and cooling
+            combined_building["envelope"].heatload = main_building["envelope"].heatload + secondary_building["envelope"].heatload
+            combined_building["envelope"].bivalent = main_building["envelope"].bivalent + secondary_building["envelope"].bivalent
+            combined_building["envelope"].heatlimit = main_building["envelope"].heatlimit + secondary_building["envelope"].heatlimit
+            combined_building["envelope"].coolingload = main_building["envelope"].coolingload + secondary_building["envelope"].coolingload
+
+            # Sum up DHW power and generation
+            combined_building["dhwpower"] = main_building["dhwpower"] + secondary_building["dhwpower"]
+
+            print(f"Combined mixed building {parent_id}: "
+                  f"{main_type} + {secondary_type} → NEW combined building")
+
+            # Save combined profiles to Excel file
+            if saveUserProfiles:
+                self.saveProfiles(name=combined_building["unique_name"],
+                                  elec=combined_building["user"].elec,
+                                  dhw=combined_building["user"].dhw,
+                                  occ=combined_building["user"].occ,
+                                  gains=combined_building["user"].gains,
+                                  EV_carcharging_ondemand=combined_building["user"].EV_carcharging_ondemand,
+                                  EV_carprofile=combined_building["user"].EV_carprofile,
+                                  nb_units=combined_building["user"].nb_units,
+                                  nb_occ=combined_building["user"].nb_occ,
+                                  ev_capacity=combined_building["user"].ev_capacity or [0],
+                                  ice_carprofile=combined_building["user"].ice_carprofile,
+                                  heatload=combined_building["envelope"].heatload,
+                                  bivalent=combined_building["envelope"].bivalent,
+                                  heatlimit=combined_building["envelope"].heatlimit,
+                                  coolingload=combined_building["envelope"].coolingload,
+                                  path=os.path.join(self.resultPath, 'demands'),
+                                  individual_car_profiles=combined_building["user"].individual_car_profiles)
+
+            # Mark both buildings for removal
+            buildings_to_remove.append(main_idx)
+            buildings_to_remove.append(secondary_idx)
+
+            # Add new combined building to the list
+            buildings_to_add.append(combined_building)
+
+        # Remove both main and secondary buildings (in reverse order to maintain indices)
+        for idx in sorted(buildings_to_remove, reverse=True):
+            del self.district[idx]
+
+        # Add all new combined buildings to the district
+        for combined_building in buildings_to_add:
+            self.district.append(combined_building)
+
+        # Rebuild building_dict completely for ALL buildings
+        # After removing/adding buildings, indices have shifted
+        self.building_dict = {}
+        for idx, building in enumerate(self.district):
+            if "original_bldg_id" in building["buildingFeatures"]:
+                original_id = building["buildingFeatures"]["original_bldg_id"]
+                self.building_dict[original_id] = idx
+
     def initializeBuildings(self):
         """
         Fill district with buildings from scenario file.
@@ -526,9 +722,10 @@ class Datahandler:
             building = {}
 
             # Store features of the observed building
-            building["buildingFeatures"] = row
+            building["buildingFeatures"] = row.copy()
+            building["buildingFeatures"]["original_bldg_id"] = bldg_id
 
-            # Unique name = "<id>_<building type>"
+            # Unique name = "<scenario>_<id>_<building type>"
             name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
@@ -567,6 +764,106 @@ class Datahandler:
         prj = Project()
         prj.name = self.scenario_name
 
+        # Process mixed buildings: split them based on floor calculation
+        buildings_to_process = []
+        buildings_to_skip = []
+
+        for idx, building in enumerate(self.district):
+            if self.is_mixed_building(building["buildingFeatures"]["building"]):
+                # This building needs to be split - we'll handle it separately
+                buildings_to_skip.append(idx)
+
+                # Split the building type
+                building_types = building["buildingFeatures"]["building"].split("+")
+                main_type = building_types[0]
+                secondary_type = building_types[1]
+
+                total_area = building["buildingFeatures"]["area"]
+
+                # Calculate number of floors for the main building type
+                main_building_long = bldgs["buildings_long"][bldgs["buildings_short"].index(main_type)]
+
+                # Calculate floors based on main building type
+                if main_building_long == "single_family_house":
+                    one_floor_area = rd.randint(62, 115)
+                    total_floors = max(2, round(total_area / one_floor_area))
+                elif main_building_long == "terraced_house":
+                    one_floor_area = rd.randint(50, 73)
+                    total_floors = max(2, round(total_area / one_floor_area))
+                elif main_building_long == "multi_family_house":
+                    one_floor_area = rd.randint(102, 971)
+                    total_floors = max(2, round(total_area / one_floor_area))
+                    if total_floors > 8:
+                        total_floors = 8
+                elif main_building_long == "apartment_block":
+                    one_floor_area = rd.randint(350, 540)
+                    total_floors = max(3, round(total_area / one_floor_area))
+                else:
+                    # For non-residential main buildings, use percentage split
+                    one_floor_area = total_area * 0.25  # Assume 25% for secondary
+                    total_floors = 4  # Default
+
+                # Recalculate one_floor_area based on total area and total floors to ensure consistency
+                one_floor_area = total_area / total_floors
+
+                # Allocate 1 floor to secondary, rest to main (main must have at least 1)
+                secondary_floors = 1
+                main_floors = total_floors - secondary_floors
+
+                # Calculate areas based on floors
+                secondary_area = one_floor_area * secondary_floors
+                main_area = total_area - secondary_area
+
+                # Create main building
+                main_building = {}
+                main_row = building["buildingFeatures"].copy()
+                main_row["building"] = main_type
+                main_row["area"] = main_area
+                main_row["is_mixed_part"] = True
+                main_row["mixed_parent_id"] = building["buildingFeatures"]["original_bldg_id"]
+                main_row["mixed_role"] = "main"
+                main_row["fixed_floors"] = main_floors
+
+                main_building["buildingFeatures"] = main_row
+                main_building["unique_name"] = f"{self.scenario_name}_{idx}_{main_type}_Main"
+                buildings_to_process.append(main_building)
+
+                # Create secondary building
+                secondary_building = {}
+                secondary_row = building["buildingFeatures"].copy()
+                secondary_row["building"] = secondary_type
+                secondary_row["area"] = secondary_area
+                secondary_row["is_mixed_part"] = True
+                secondary_row["mixed_parent_id"] = building["buildingFeatures"]["original_bldg_id"]
+                secondary_row["mixed_role"] = "secondary"
+                secondary_row["fixed_floors"] = secondary_floors
+
+                secondary_building["buildingFeatures"] = secondary_row
+                secondary_building["unique_name"] = f"{self.scenario_name}_{idx}_{secondary_type}_Secondary"
+                buildings_to_process.append(secondary_building)
+
+                print(f"Split mixed building {building['buildingFeatures']['original_bldg_id']}: "
+                      f"{building['buildingFeatures']['building']} (Total: {total_area:.0f} m², {total_floors} floors) -> "
+                      f"{main_type} ({main_area:.0f} m², {main_floors} floors) + "
+                      f"{secondary_type} ({secondary_area:.0f} m², {secondary_floors} floor)")
+
+        # Replace district with processed buildings
+        new_district = []
+        for idx, building in enumerate(self.district):
+            if idx not in buildings_to_skip:
+                new_district.append(building)
+        new_district.extend(buildings_to_process)
+        self.district = new_district
+
+        # Rebuild building_dict
+        self.building_dict = {}
+        for idx, building in enumerate(self.district):
+            if "original_bldg_id" in building["buildingFeatures"]:
+                original_id = building["buildingFeatures"]["original_bldg_id"]
+                # Only map the main building for mixed types, or all regular buildings
+                if building["buildingFeatures"].get("mixed_role") == "main" or not building["buildingFeatures"].get("is_mixed_part", False):
+                    self.building_dict[original_id] = idx
+
         for building in self.district:
 
             # convert short names into designation needed for TEASER
@@ -590,7 +887,10 @@ class Datahandler:
                 # - Calculating the total number of floors by dividing the building’s total floor area
                 #   by the selected single-floor area.
 
-                if building_type == "single_family_house":
+                # Check if floors are already fixed those are used (from mixed building splitting)
+                if "fixed_floors" in building["buildingFeatures"]:
+                    number_of_floors = building["buildingFeatures"]["fixed_floors"]
+                elif building_type == "single_family_house":
                     one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
@@ -654,7 +954,8 @@ class Datahandler:
                                                 construction_data=construction_data,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
-                                                file_path=self.filePath)
+                                                file_path=self.filePath,
+                                                SIA2024=self.SIA2024)
 
             else:
 
@@ -693,7 +994,8 @@ class Datahandler:
                                                 construction_data=construction_type,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
-                                                file_path=self.filePath)
+                                                file_path=self.filePath,
+                                                SIA2024=self.SIA2024)
 
             # %% create user object
             # containing number occupants, electricity demand,...
@@ -767,6 +1069,9 @@ class Datahandler:
 
 
         print("Finished generating demands with multiprocessing!")
+
+        # Combine demand profiles for mixed-use buildings
+        self.combine_mixed_building_demands(saveUserProfiles)
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
         """
@@ -1090,10 +1395,6 @@ class Datahandler:
                 else:
                     data.append(row[0])
             return np.array(data)
-
-        parts = name.split('_')
-        building_id = int(parts[-2])
-        idx = self.building_dict[building_id]
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
         dhw = load_sheet_to_numpy(workbook, 'Hot Water')

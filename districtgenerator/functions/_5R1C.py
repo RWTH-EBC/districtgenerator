@@ -7,6 +7,7 @@ from __future__ import division
 import numpy as np
 import numpy.linalg as linalg
 
+RES_BUILDING_TYPES = {"SFH", "TH", "MFH", "AB"}
 
 def _solve(A, b):
     return linalg.solve(A, b)
@@ -329,7 +330,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
     T_s : ndarray
         Surface temperature for each time step in degree Celsius.
     """
-    if building_type in {"SFH", "TH", "MFH", "AB"}:
+    if building_type in RES_BUILDING_TYPES:
         T_m_init = zoneParameters.T_set_min - 0.5 # [°C] Assumption
     else:
         T_m_init = 16  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
@@ -358,7 +359,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
     T_op = np.zeros(numberTimesteps)
 
     timesteps_per_day = numberTimesteps / 365  # Calculate timesteps per day
-    if building_type in {"SFH", "TH", "MFH", "AB"}:
+    if building_type in RES_BUILDING_TYPES:
         night_hours = list(range(22, 24)) + list(range(0, 6))  # 22:00 to 05:59 Source: E. Sperber et al. (2024), Turn down your thermostats – A contribution to overcoming the European gas crisis? The example of Germany
     else:
         night_hours = list(range(18, 24)) + list(range(0, 5))  # 18:00 to 04:59
@@ -390,7 +391,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
                                                  dt,
                                                  timestep=t)
 
-        if building_type in {"SFH", "TH", "MFH", "AB"}:
+        if building_type in RES_BUILDING_TYPES:
             # Check if the current hour is nighttime
             if hour_of_day in night_hours:
                 current_T_set = T_set_night
@@ -473,7 +474,7 @@ def calc_night_setback(zoneParameters, T_e, calendar, dt, initial_day, building_
 def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
     """
     """
-    if building_type in {"SFH", "TH", "MFH", "AB"}:
+    if building_type in RES_BUILDING_TYPES:
         T_m_init = zoneParameters.T_set_min - 0.4 # [°C] Assumption
     else:
         T_m_init = 16  # [°C] For non-residential buildings, the temperature at the beginning of the year is assumed to be very low since the building wasn't heated during the long holiday
@@ -524,7 +525,7 @@ def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
                                                  dt,
                                                  timestep=t)
 
-        if building_type in {"SFH", "TH", "MFH", "AB"}:
+        if building_type in RES_BUILDING_TYPES:
             current_T_set = T_set
             current_T_set_ub = T_set_ub
             if t_op < current_T_set and heating_season:

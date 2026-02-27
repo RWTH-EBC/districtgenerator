@@ -1,9 +1,11 @@
-# created May 2024 
-# by Felix Rehmann 
+# created Sep 2024
 
 import os
 import json
+from dataclasses import dataclass
+from typing import List
 
+# This Class is responsible for the envelope generation + behavior configuration for non-residential buildings
 
 class NonResidential(object):
     """Base class for each non-residential archetype.
@@ -174,7 +176,7 @@ class NonResidential(object):
                 }
         """
         DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential_envelope', 'suface_estimation_factors.json')
+        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'surface_estimation_factors.json')
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
 
@@ -207,7 +209,7 @@ class NonResidential(object):
             Dictionary with the building data
         """
         DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential_envelope', 'non_residential_envelope.json')
+        DATA_PATH = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_envelope.json')
         with open(DATA_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
 
@@ -229,5 +231,89 @@ class NonResidential(object):
           # If no matching age group is found
         raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.usage}'.")
     
+@dataclass
+class NonResidentialConfig:
+    # Basic configuration parameters to be provided for the generation of a non-residential building
+    working_days: List[int] # List of integers representing the working days of the week (0 for Monday, 1 for Tuesday, ..., 6 for Sunday)
+    main_zone_name: str
+    main_room_zones: List[str] # List of zone names that are considered as main zones for occupancy calculations.
+    affected_by_holidays: bool # if the building schedule is affected by holidays or not.
+    app_gain_factor: float | None # If not specified, the standard value is used. This factor represents the fraction of the electrical power of appliances that is converted into internal heat gains
+    car_commute_ratio: float | None # If not specified, the standard value for Germany is used. This ratio represents the fraction (0–1) of occupants who commute to the building by car. This factor is multiplied by the number of occupants to estimate the number of cars associated with commuting to the building
+    has_ventilation: bool # Indicates whether the building has mechanical ventilation.
+    min_illuminance: int # Minimum required illuminance in lux.
+    max_illuminance: int # Maximum required illuminance in lux.
+    affected_by_school_holidays: bool # if the building occupancy drops during school holidays.
+    lighting_irradiance_threshold_mean: float | None # Mean global irradiance (W/m²) below which lighting is likely to be switched on.
+    lighting_irradiance_threshold_std_dev: float | None  # Standard deviation of the irradiance threshold, representing variability in lighting behavior.
+
+class GenericNonResidential:
+    """
+    Function to handle non-residential buildings. This class defines how a non-residential building behaves.
+    """
+
+    _behavior_data_cache = None
 
 
+    def __init__(self, usage_string: str):
+        self.usage_string = usage_string
+        self.config = self._load_config()
+
+    def _load_config(self) -> NonResidentialConfig:
+        """Load behavior config from cache or file."""
+        DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        data_path = os.path.join(DATA_DIR_PATH, 'data', 'non_residential', 'non_residential_behavior.json')
+        if GenericNonResidential._behavior_data_cache is None:
+            with open(data_path, 'r', encoding='utf-8') as file:
+                GenericNonResidential._behavior_data_cache = json.load(file) # Cache the data after loading it for the first time to avoid redundant file reads in subsequent calls.
+
+        data = GenericNonResidential._behavior_data_cache
+
+        if self.usage_string not in data:
+            raise ValueError(f"NWG '{self.usage_string}' not found in JSON. path: {data_path}")
+
+        return NonResidentialConfig(**data[self.usage_string])
+
+    def get_working_days(self) -> List[int]:
+        """Get the working days for the non-residential building."""
+        return self.config.working_days
+
+    def get_main_zone_name(self) -> str:
+        """Get the main zone name for occupancy calculations."""
+        return self.config.main_zone_name
+
+    def is_affected_by_holidays(self) -> bool:
+        """Check if the building schedule is affected by holidays."""
+        return self.config.affected_by_holidays
+
+    def get_app_gain_factor(self) -> float:
+        """Get the appliance heat gain factor."""
+        return self.config.app_gain_factor
+
+    def get_car_commute_ratio(self) -> float | None:
+        """Get the car commute ratio for non-residential buildings, if specified."""
+        return getattr(self.config, 'car_commute_ratio', None)
+
+    def get_main_room_zones(self) -> List[str]:
+        """Get the list of main room zones for occupancy calculations."""
+        return self.config.main_room_zones
+
+    def get_ventilation(self) -> bool:
+        """Get if building is ventilated"""
+        return self.config.has_ventilation
+
+    def get_min_illuminance(self) -> int:
+        """Get the minimum required illuminance in lux."""
+        return self.config.min_illuminance
+
+    def get_max_illuminance(self) -> int:
+        """Get the maximum required illuminance in lux."""
+        return self.config.max_illuminance
+
+    def is_affected_by_school_holidays(self) -> bool:
+        """Check if the building occupancy drops during school holidays."""
+        return self.config.affected_by_school_holidays
+
+    def get_lighting_irradiance_threshold(self) -> tuple[float, float]:
+        """Get the mean and standard deviation of the global irradiance threshold for lighting in W/m2."""
+        return self.config.lighting_irradiance_threshold_mean, self.config.lighting_irradiance_threshold_std_dev

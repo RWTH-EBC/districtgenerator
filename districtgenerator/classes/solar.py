@@ -493,12 +493,14 @@ class Sun:
             Power profiles of STCs. With given weather data as input the unit is [W].
         """
 
-        # Input validation
-        if usageFactorPV1 + usageFactorPV2 > 1:
+        # Input validation (roof area allocation)
+        total_roof_fraction = usageFactorPV1 + usageFactorPV2 + usageFactorSTC
+        if total_roof_fraction > 1:
             raise ValueError(
-                f"The sum of usageFactorPV1 ({usageFactorPV1}) and usageFactorPV2 ({usageFactorPV2}) "
-                f"is {usageFactorPV1 + usageFactorPV2:.2f}, which exceeds 1. "
-                f"Please ensure their sum does not exceed 1."
+                f"The sum of usage factors exceeds 1: "
+                f"PV1 ({usageFactorPV1}) + PV2 ({usageFactorPV2}) + STC ({usageFactorSTC}) "
+                f"= {total_roof_fraction:.2f} > 1. "
+                f"Please ensure the total allocated roof share does not exceed 1."
             )
 
         # get solar irradiance on PV plant surface

@@ -839,24 +839,30 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     ################################################################################
 
     # --- Robust helper functions for safe value queries ---
-    def safe_value(var_container, index):  # Safe value retrieval for indexed variables
+    def safe_value(var_container, index):
         try:
-            val = pyo.value(var_container[index])
-            return val if val is not None else 0
-        except (KeyError, ValueError):
-            return 0
+            v = var_container[index]
+        except KeyError as e:
+            raise KeyError(
+                f"Invalid index for {var_container.name}: {index}. "
+                f"Valid index example: (dev, y, d, t) depending on variable."
+            ) from e
 
-    def safe_value_single(var):  # Safe value retrieval for single variables
-        try:
-            val = pyo.value(var)
-            return val if val is not None else 0
-        except ValueError:
-            return 0
+        val = pyo.value(v)
+        if val is None:
+            raise RuntimeError(f"Variable {var_container.name}{index} has no value")
+        return val
+
+    def safe_value_single(var):
+        val = pyo.value(var)
+        if val is None:
+            raise RuntimeError(f"Variable {var.name} has no value.")
+        return val
 
     # --- Complete and original filling of the result_dict ---
     result_dict["devs"] = devs
     result_dict["tac"] = int(safe_value_single(model.obj_tac))  # EUR/a
-    result_dict["co2"] = int(safe_value_single(model.obj_co2) / 1000)  # t/a
+    result_dict["co2"] = int(safe_value_single(model.obj_co2))  #  kg over full horizon
 
     for k in model.all_devs:
         result_dict[k] = {
@@ -919,7 +925,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["co2_onsite_emissions"] = int((sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] for y in model.support_years) +
                                                sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] for y in model.support_years) +
                                                sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] for y in model.support_years)) / 1000)
-    result_dict["co2_global_emissions"] = int(result_dict["co2"] / 1000)
+    result_dict["co2_global_emissions"] = int(result_dict["co2"] / 1000) # t over full observation period
     result_dict["co2_credit_feedin"] = int((sum(safe_value(model.to_el_grid_total, y) * param["co2_el_feed_in"][y] for y in model.support_years) +
                                             sum(safe_value(model.to_gas_grid_total, y) * param["co2_gas_feed_in"][y] for y in model.support_years)) / 1000)
     # CO2 tax: Use weighted average
@@ -1067,43 +1073,43 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
     # Heat generation
     for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
-        gen_kwh = dt * sum(safe_value(model.heat, (k, d, t)) * param["cluster_weights"][d]
-                           for d in model.clusters for t in model.time_steps)
+        gen_kwh = dt * sum(safe_value(model.heat, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
+                    for y in model.support_years for d in model.clusters for t in model.time_steps)
         result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Cooling generation
     for k in ["CC", "AC"]:
-        gen_kwh = dt * sum(safe_value(model.cool, (k, d, t)) * param["cluster_weights"][d]
-                           for d in model.clusters for t in model.time_steps)
+        gen_kwh = dt * sum(safe_value(model.cool, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
+                    for y in model.support_years for d in model.clusters for t in model.time_steps)
         result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Power generation
     for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
-        gen_kwh = dt * sum(safe_value(model.power, (k, d, t)) * param["cluster_weights"][d]
-                           for d in model.clusters for t in model.time_steps)
+        gen_kwh = dt * sum(safe_value(model.power, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
+                    for y in model.support_years for d in model.clusters for t in model.time_steps)
         result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Special: Hydrogen generation for ELYZ
-    h2_gen = dt * sum(safe_value(model.power, ("ELYZ", d, t)) * devs["ELYZ"]["eta_el"] * param["cluster_weights"][d]
-                      for d in model.clusters for t in model.time_steps)
-    result_dict["ELYZ"]["gen_H2"] = int(h2_gen / 1000)  # MWh
+    h2_gen = dt * sum(safe_value(model.power, ("ELYZ", y, d, t)) * devs["ELYZ"]["eta_el"] * param["cluster_weights"][d] * weights[y]
+                    for y in model.support_years for d in model.clusters for t in model.time_steps)
+    result_dict["ELYZ"]["gen_H2"] = int(h2_gen / 1000)  # MWh over full horizon
 
     # Gas generation for SAB
     for k in ["SAB"]:
-        gen_kwh = dt * sum(safe_value(model.gas, (k, d, t)) * param["cluster_weights"][d]
-                           for d in model.clusters for t in model.time_steps)
+        gen_kwh = dt * sum(safe_value(model.gas, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
+                    for y in model.support_years for d in model.clusters for t in model.time_steps)
         result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
+        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Calculate full load hours
     for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
               "ELYZ", "FC", "SAB"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:
-            result_dict[k]["hrs"] = int(result_dict[k]["gen_kWh"] / cap_k)
+            result_dict[k]["hrs"] = int((result_dict[k]["gen_kWh"] / param["observation_time"]) / cap_k)
         else:
             result_dict[k]["hrs"] = 0
 
@@ -1115,9 +1121,10 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for k in ["TES", "CTES", "BAT", "H2S", "GS"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:
-            charge_cycles = dt * sum(abs(safe_value(model.ch, (k, d, t))) / 2 * param["cluster_weights"][d]
-                                     for d in model.clusters for t in model.time_steps)
-            result_dict[k]["chc"] = int(charge_cycles / cap_k)
+            charge_cycles = dt * sum(abs(safe_value(model.ch, (k, y, d, t))) / 2 * param["cluster_weights"][d] * weights[y]
+                                     for y in model.support_years for d in model.clusters for t in model.time_steps)
+            annual_throughput = charge_cycles / param["observation_time"]
+            result_dict[k]["chc"] = int(annual_throughput / cap_k)
         else:
             result_dict[k]["chc"] = 0
 
@@ -1141,12 +1148,12 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict[dev]["ch"] = int(max_ch)
 
     # Calculate detailed CO2 emissions by source (weighted sum over all support years with year-specific factors)
-    result_dict["total_co2_el"] = int(sum(safe_value(model.from_el_grid_total, y) * param["co2_el_grid"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_el_feed_in"] = int(sum(safe_value(model.to_el_grid_total, y) * param["co2_el_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_gas"] = int(sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_gas_feed_in"] = int(sum(safe_value(model.to_gas_grid_total, y) * param["co2_gas_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
-    result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, y) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t/a
+    result_dict["total_co2_el"] = int(sum(safe_value(model.from_el_grid_total, y) * param["co2_el_grid"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+    result_dict["total_co2_el_feed_in"] = int(sum(safe_value(model.to_el_grid_total, y) * param["co2_el_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+    result_dict["total_co2_gas"] = int(sum(safe_value(model.from_gas_grid_total, y) * param["co2_gas"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+    result_dict["total_co2_gas_feed_in"] = int(sum(safe_value(model.to_gas_grid_total, y) * param["co2_gas_feed_in"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+    result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+    result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+    result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, y) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
 
     return result_dict

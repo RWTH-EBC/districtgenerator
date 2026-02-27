@@ -125,7 +125,7 @@ class DesignBuildingConfig(BaseSettings):
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
     T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
     ventilation_rate: float = 0.5  # Room ventilation rate in 1/h (per hour)
-    thermal_model_type: str = '5R1C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'
+    thermal_model_type: str = '7R2C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'. 7R2C is only supported for residential buildings; non-residential buildings automatically use 5R1C due to missing parameters for the 7R2C model.
 
     # --- Supply and return temperatures at nominal outdoor temperature (T_ne)
     #     by construction period and retrofit level ---
@@ -162,9 +162,9 @@ class DesignBuildingConfig(BaseSettings):
 
     # Currently not in .env.CONFIG as info is static:
     # Abbreviations of the selectable building types.
-    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "MFH+GR", "AB+GR", "MFH+RE", "AB+RE"])
+    buildings_short: list = field(default_factory=lambda: ["SFH", "MFH", "TH", "AB","OB","SC","GS", "RE", "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP"])
     # Names of the four selectable building types.
-    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "multi_family_house+grocery_store", "apartment_block+grocery_store", "multi_family_house+restaurant", "apartment_block+restaurant"])
+    buildings_long: list = field(default_factory=lambda: ["single_family_house", "multi_family_house", "terraced_house", "apartment_block", "office", "school", "grocery_store", "restaurant", "research_building", "healthcare_building", "cultural_building", "sports_hall", "retail_building", "workshop_building"])
     # Abbreviations of the retrofit levels.
     retrofit_short: list = field(default_factory=lambda: [0, 1, 2])
     # Names of the retrofit levels.
@@ -178,12 +178,12 @@ class DesignBuildingConfig(BaseSettings):
     # Names of the construction types of the non residential buildings
     construction_type_long: list = field(default_factory=lambda: ["Light", "Medium", "Heavy"])
     # The additional power required by the heating system to meet the domestic hot water demand per square meter in the building types:
-    # SFH, MFH, TH, AB, OB, SC, GS, and RE.
+    # SFH, MFH, TH, AB, OB, SC, GS, and RE, and UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP.
     # Source: SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik"
-    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24])
-    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE).
+    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24, 5.8, 6.4, 12, 30.7, 1.9, 0.95])
+    # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE, UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP).
     # Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik for non-residential buildings
-    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8])
+    mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8, 2, 60, 2, 100, 2, 3])
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file 
@@ -219,7 +219,7 @@ class EcoConfig(BaseSettings):
     price_hydrogen: str | list = [0.2990, 0.2938, 0.2886, 0.2834, 0.2782, 0.2730, 0.2678, 0.2626, 0.2574, 0.2522, 0.2470, 0.2418, 0.2366, 0.2314, 0.2262, 0.2210, 0.2176, 0.2142, 0.2108, 0.2074]         # Hydrogen price in €/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
     price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
-    price_oil: str | list = [0.90, 0.94, 0.98, 1.02, 1.06, 1.10, 1.12, 1.14, 1.16, 1.18, 1.20, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34, 1.36, 1.38]           # Oil price in €/kWh
+    price_oil: str | list = [0.09, 0.094, 0.098, 0.102, 0.106, 0.11, 0.112, 0.114, 0.116, 0.118, 0.12, 0.122, 0.124, 0.126, 0.128, 0.13, 0.132, 0.134, 0.136, 0.138] # Oil price in €/kWh
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
 
     # CO2 emission factors in kg/kWh

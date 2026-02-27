@@ -4,7 +4,7 @@ import json
 import os
 import numpy as np
 from teaser.project import Project
-from .non_residential import NonResidential
+from .non_residential import GenericNonResidential, NonResidential
 
 
 class Envelope:
@@ -36,7 +36,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, site, construction_data, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, site, construction_data, physics, design_building_data, file_path, SIA2024 = None):
         """
         Constructor of Envelope class.
 
@@ -66,11 +66,20 @@ class Envelope:
         self.design_building_data = design_building_data
         self.retrofit = building_params["retrofit"]
         self.usage_short = building_params["building"]
+        self.is_residential = self.usage_short in {"SFH", "TH", "MFH", "AB"}
+
+        # Initialize SIA class and read data
+        self.SIA2024 = SIA2024
+        if not self.is_residential:
+            self.building_zones = self.SIA2024[self.usage_short]
+            self.nwg_config = GenericNonResidential(self.usage_short) # Load configuration for non-residential building.
+
         self.file_path = file_path
         self.id = int(building_params.get("id_teaser", building_params["id"]))
         self.loadParams()
         self.loadComponentProperties(prj)
         self.loadAreas(prj)
+        self.setup_ventilation()
         self.compute_heating_curve(site, mode="unclustered")
 
     def loadParams(self):
@@ -97,6 +106,61 @@ class Envelope:
         self.ventilationRate = self.design_building_data["ventilation_rate"]
         self.T_bivalent = self.design_building_data["T_bivalent"]
         self.T_heatlimit = self.design_building_data["T_heatlimit"]
+
+    def setup_ventilation(self):
+        """
+        Calculates ventilation parameters (Airflows, Heat Recovery Efficiency, H_ve)
+        and sets them as class attributes.
+        Sets: self.eta_temp_vent, self.V_dot
+        """
+        if self.is_residential:
+            V_dot_area = self.ventilationRate * self.V  # m³/h
+            V_dot_infiltration = 0
+            V_dot_persons = 0
+            eta_temp_vent = 0  # Assumption: No heat recovery for residential buildings.
+        else: # Non-residential buildings
+            # TODO: Check if logic is applicable, and if the standard deviation values are reasonable.
+            if self.construction_year < 1980 and self.retrofit == 0:
+                mode = 'existing' # existing
+            elif self.retrofit == 2:
+                mode = 'goal' # goal
+            else:
+                mode = 'standard' # standard
+
+            eta_temp_vent = 0
+            if self.nwg_config.get_ventilation():
+                # Determine temperature efficiency of ventilation (eta_temp_vent) based on building standard (existing, standard, goal)
+                main_zone_name = self.nwg_config.get_main_zone_name()
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name == main_zone_name: # Main zone determines the ventilation heat recovery efficiency. Can be problematic if main zone has no heat recovery according to SIA2024, but other zones do. Maybe use weighted average of all zones instead?
+                        eta_temp_vent = data['eta_temp_vent'][mode]
+                        break
+
+            # Ventilation is sum of required ventilation over all zones
+            V_dot_area = 0
+            V_dot_infiltration = 0
+
+            for number, data in self.SIA2024.items():
+                zone_name = data.get('Zone_name_GER')
+                if zone_name:
+                    proportion = self.building_zones.get(zone_name, 0)
+                    if proportion > 0:
+                        zone_area = self.A["f"] * proportion
+
+                        # Ventilation by area
+                        q_v_area = data['airFlow_perA_perh'] # m³/h
+                        V_dot_area += zone_area * q_v_area
+
+                        # Ventilation to balance out Infiltration
+                        q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
+                        V_dot_infiltration += zone_area * q_v_infiltration
+
+            V_dot_persons = 0 # TODO: Add calculation of ventilation airflow based on number of persons in the building and airflow per person from SIA2024 data.
+
+        self.eta_temp_vent = eta_temp_vent
+        self.V_dot = V_dot_area + V_dot_persons
+        self.V_dot_infiltration = V_dot_infiltration
 
     def specificHeatCapacity(self, d, d_iso, density, cp):
         """
@@ -563,20 +627,19 @@ class Envelope:
 
     def compute_heating_curve(self, site, mode="unclustered"):
         """
-        Compute space-heating supply and return temperature curves for a single building
-        using a linear heating curve.
+        Compute space-heating supply and return temperature curves for a single building.
 
         Boundary conditions:
         1) Design point:
            T_out = T_ne  → (Ts, Tr) = (Ts_design, Tr_design)
 
         2) Heating-limit point:
-           T_out = T_heatlimit → (Ts, Tr) = (Ts_hl, Tr_hl)
+           T_out = T_heatlimit → (Ts, Tr) determined from
+           constant mass-flow.
 
         Optional low-temperature measures ("geringinvestive Maßnahmen"):
         If enabled, the DESIGN temperatures (Ts_design, Tr_design) at T_ne
-        are replaced by reduced values, and the heating curve is recomputed
-        accordingly.
+        are replaced by reduced values, and the heating curve is recomputed.
         """
 
         if not hasattr(self, "heating_curve") or self.heating_curve is None:
@@ -607,21 +670,27 @@ class Envelope:
         else:
             key = "-1957"
 
-        # Original  design temperatures at T_ne
+        # Original design temperatures at T_ne
         Ts_design_orig, Tr_design_orig = temp_levels[key].get(r, temp_levels[key][0])
         Ts_design_orig = float(Ts_design_orig)
         Tr_design_orig = float(Tr_design_orig)
 
-        # Outdoor temperature anchors
+        # Outdoor anchors
         T_ne = float(site["T_ne"])
         T_hl = float(self.T_heatlimit)
 
-        # Indoor reference temperature
+        # Indoor temperature
         T_room = float(self.design_building_data["T_set_min"])
 
-        # Heating-limit temperatures (low-load operation)
-        Ts_hl = T_room + 15.0    #
-        Tr_hl = T_room + 5.0
+        # Heating-limit temperatures via constant mass-flow model
+        load_ratio = (T_room - T_hl) / (T_room - T_ne)
+        load_ratio = np.clip(load_ratio, 0.0, 1.0)
+        dT_design = Ts_design_orig - Tr_design_orig
+        Tm_design = 0.5 * (Ts_design_orig + Tr_design_orig) # Simplification
+        dT_hl = dT_design * load_ratio
+        Tm_hl = T_room + (Tm_design - T_room) * load_ratio
+        Ts_hl = Tm_hl + 0.5 * dT_hl
+        Tr_hl = Tm_hl - 0.5 * dT_hl
 
         # Linear interpolation factor
         f = np.clip((T_hl - T_out) / (T_hl - T_ne), 0.0, 1.0)
@@ -640,13 +709,23 @@ class Envelope:
                 (Tr_design_lt < Tr_design_orig - 1e-6))
 
         if measures_binding:
-            Ts_curve_reduced = Ts_hl + f * (Ts_design_lt - Ts_hl)
-            Tr_curve_reduced = Tr_hl + f * (Tr_design_lt - Tr_hl)
+            dT_design_lt = Ts_design_lt - Tr_design_lt
+            Tm_design_lt = 0.5 * (Ts_design_lt + Tr_design_lt)
+
+            dT_hl_lt = dT_design_lt * load_ratio
+            Tm_hl_lt = T_room + (Tm_design_lt - T_room) * load_ratio
+
+            Ts_hl_lt = Tm_hl_lt + 0.5 * dT_hl_lt
+            Tr_hl_lt = Tm_hl_lt - 0.5 * dT_hl_lt
+
+            Ts_curve_reduced = Ts_hl_lt + f * (Ts_design_lt - Ts_hl_lt)
+            Tr_curve_reduced = Tr_hl_lt + f * (Tr_design_lt - Tr_hl_lt)
+
         else:
             Ts_curve_reduced = Ts_curve.copy()
             Tr_curve_reduced = Tr_curve.copy()
 
-        # Store on envelope
+        # Store in envelope
         self.heating_curve[mode] = {
             "Ts_curve": Ts_curve,
             "Tr_curve": Tr_curve,
@@ -722,7 +801,7 @@ class Envelope:
         H["window"] = self.A["window"]["sum"] * (self.U["window"] + U_TB)
         H["roof"] = self.A["opaque"]["roof"] * (self.U["opaque"]["roof"] + U_TB)
         H["floor"] = self.A["opaque"]["floor"] * self.U["opaque"]["floor"]
-        H["vent"] = self.ventilationRate * self.c_p_air * self.rho_air * self.V / 3600
+        H["vent"] = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # Ventilation heat transfer coefficient (W/K), accounting for heat recovery efficiency
         H["envelope_air"] = H["wall"] + H["window"] + H["roof"]
         H["total"] = H["envelope_air"] + H["floor"] + H["vent"]
 
@@ -867,7 +946,7 @@ class Envelope:
         #   Standard value for office usage. Composition approx.:
         #   ~ 6 W/m² from Persons (Sensible heat at ~15 m²/person)
         #   ~ 9 W/m² from Equipment (Laptops/PC) and Lighting.
-        if self.usage_short in ["SFH", "MFH", "TH", "AB"]:
+        if self.is_residential:
             q_int = 5  # Residential
         else:
             q_int = 15  # Non-Residential
@@ -915,7 +994,7 @@ class Envelope:
 
         # Calculate Load
         h_fg = 2500000  # J/kg - latent heat of vaporization
-        m_dot_air = self.ventilationRate * self.rho_air * self.V / 3600
+        m_dot_air = self.rho_air * (self.V_dot + self.V_dot_infiltration) / 3600
 
         if x_out > x_in:
             return m_dot_air * (x_out - x_in) * h_fg
@@ -1011,8 +1090,7 @@ class Envelope:
 
         # thermal transmittance coefficient H_ve [W/K]
         # (DIN EN ISO 13790 2008-09, section 9.3.1, equation 21, page 49)
-        self.H_ve = self.rho_air * self.c_p_air \
-                    * self.ventilationRate * self.V / 3600
+        self.H_ve = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # accounting for ventilation heat recovery for ventilation and not for infiltration
 
         # thermal transmittance coefficient H_tr_is [W/K]
         # (DIN EN ISO 13790 2008-09, section 7.2.2.2, equation 9, page 35)

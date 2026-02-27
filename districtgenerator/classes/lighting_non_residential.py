@@ -10,7 +10,7 @@ from __future__ import division
 import random
 import math
 import csv
-
+from districtgenerator.classes.non_residential import GenericNonResidential
 
 class LightingModelConfiguration():
 
@@ -26,14 +26,25 @@ class LightingModelConfiguration():
             in W/m2 [index 0: mean value; index 1: standard deviation value]
             (default: [60, 30])
         """
+        self.nwg_config = GenericNonResidential(building)
 
         # External global irradiance threshold
-        if building == "SC":
-            self.ext_irr_threshold_mean = 0
-            self.ext_irr_threshold_std_dev = 0
-        else:
-            self.ext_irr_threshold_mean = external_irradiance_threshold[0]
-            self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
+        self.ext_irr_threshold_mean, self.ext_irr_threshold_std_dev = self.nwg_config.get_lighting_irradiance_threshold()
+
+        if self.ext_irr_threshold_mean is None or self.ext_irr_threshold_std_dev is None:
+            # Give warning if one of the two threshold values is specified but not the other one
+            if self.ext_irr_threshold_mean is None and self.ext_irr_threshold_std_dev is not None:
+                print(f"Warning: Mean value of the external irradiance threshold for lighting is not specified. Using default value of {external_irradiance_threshold[0]} W/m2.")
+                self.ext_irr_threshold_mean = external_irradiance_threshold[0]
+
+            elif self.ext_irr_threshold_mean is not None and self.ext_irr_threshold_std_dev is None:
+                print(f"Warning: Standard deviation of the external irradiance threshold for lighting is not specified. Using default value of {external_irradiance_threshold[1]} W/m2.")
+                self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
+
+            # If neither of the two threshold values is specified, use the default values
+            else:
+                self.ext_irr_threshold_mean = external_irradiance_threshold[0]
+                self.ext_irr_threshold_std_dev = external_irradiance_threshold[1]
 
     def relative_bulb_use_weighting(self):
         """
