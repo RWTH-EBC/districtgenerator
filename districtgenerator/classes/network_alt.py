@@ -5,6 +5,7 @@
 # Import the Datahandler class to use the district generator.
 from districtgenerator.classes import Datahandler
 from pathlib import Path
+from .system import CES
 import numpy as np
 import os
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, NetworkDistConfig, PhysicsConfig, EHDOConfig, HeatGridConfig, CalendarConfig
@@ -135,51 +136,9 @@ class Network:
             if data.params_networkdist['optim_dimension'] == 1:
                 self.interconnected_districts[data.scenario_name] = data
             elif data.params_networkdist['optim_dimension'] == 0:
-                # Initialize central devices dictionary
-                data.centralDevices = {}
-
-                # Load parameters of the energy hub
-                param, devs, dem, result_dict = load_params_central_devices.load_params(data)
-
-                # Save parameters of the energy hub for each district
-                data.centralDevices["params"] = param
-                data.centralDevices["devs"] = devs
-                data.centralDevices["dem"] = dem
-                data.centralDevices["result_dict"] = result_dict
-
-                # Put data, param, devs, dem and result_dict in a dictionary for each district to pass it to the optimization function
-                dataSingle = {data.scenario_name: data}
-                paramSingle = {data.scenario_name: param}
-                devsSingle = {data.scenario_name: devs}
-                demSingle = {data.scenario_name: dem}
-                result_dictSingle = {data.scenario_name: result_dict}
-
-                result_dict = opti_dimensioning_central_devices_connect.run_optim_connect(
-                dataCon=dataSingle, devsCon=devsSingle, paramCon=paramSingle, demCon=demSingle, result_dictCon=result_dictSingle
-                )
-                
-                # Assign results to each district
-                scenario_name = data.scenario_name
-                data.centralDevices["capacities"] = result_dict[scenario_name]
-
-                # calculate theoretical PV, STC and Wind generation
-                data.centralDevices["generation"] = {}
-                data.centralDevices["generation"]["PV"] = data.centralDevices["capacities"]["PV_generation_uncl"]
-                data.centralDevices["generation"]["STC"] = data.centralDevices["capacities"]["STC_generation_uncl"]
-                data.centralDevices["generation"]["Wind"] = data.centralDevices["capacities"]["WT_generation_uncl"]
-
-                # optionally save generation profiles
-                if saveGenerationProfiles == True:
-                    np.savetxt(os.path.join(data.resultPath, 'generation', f'centralPV_{data.scenario_name}.csv'),
-                            data.centralDevices["generation"]["PV"],
-                            delimiter=',')
-                    np.savetxt(os.path.join(data.resultPath, 'generation', f'centralSTC_{data.scenario_name}.csv'),
-                            data.centralDevices["generation"]["STC"],
-                            delimiter=',')
-                    np.savetxt(os.path.join(data.resultPath, 'generation', f'centralWind_{data.scenario_name}.csv'),
-                            data.centralDevices["generation"]["Wind"],
-                            delimiter=',')
-
+                data.designCentralDevices(saveGenerationProfiles)
+                #result_dict = data.designCentralDevices(saveGenerationProfiles)
+                #result_dictCon[data.scenario_name] = result_dict
                 data.finalizeClusterProfiles()
                 print(f"Central devices of Scenario {data.scenario_name} are optimized independently with optim_dimension 0.")
             else:
