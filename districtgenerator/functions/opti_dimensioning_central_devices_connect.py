@@ -69,9 +69,10 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         param = paramCon[scenario_name]
         # Save results to csv
         save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
+        save_results_csv_short(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
 
-    # Save network power timeseries for all districts
-    save_network_power_timeseries_csv(model, result_dir)
+    # # Save network power timeseries for all districts
+    # save_network_power_timeseries_csv(model, result_dir)
     
     model_solve_time = time.time() - start_time - model_building_time
 
@@ -1174,6 +1175,11 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             + safe_value(model.annualized_energy_costs, district)
             + safe_value(model.annualized_misc_costs, district)
         )
+        result_dict["total_annual_costs_devices"] = int(safe_value(model.total_annual_costs_devices, district))
+        result_dict["total_connection_costs"] = int(safe_value(model.total_connection_costs, district))
+        result_dict["heat_grid_costs"] = int(safe_value(model.heat_grid_costs, district))
+        result_dict["annualized_energy_costs"] = int(safe_value(model.annualized_energy_costs, district))
+        result_dict["annualized_misc_costs"] = int(safe_value(model.annualized_misc_costs, district))
 
         # Total energy imports and exports - per support year
         result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, (district, y)) / 1000) for y in model.support_years} #MWh 
@@ -1515,298 +1521,359 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
     return result_dictCon
 
 
-def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param):
+def save_results_csv_short(model, result_dict, scenario_name, result_dir, all_devs_list, param):
     """
-    Saves specific results from result_dict into a CSV file.
-
-    Parameters
-    ----------
-    result_dict : dict
-        Dictionary containing the results of the optimization.
-    scenario_name : str
-        Name of the scenario, used to name the CSV file.
-    result_dir : str
-        Directory where the CSV file will be saved.
-
-    Returns
-    -------
-    None
+    Save results to CSV file in a long format for easier analysis and visualization.
     """
-    # Ensure the result directory exists
     os.makedirs(result_dir, exist_ok=True)
+    csv_file_path = os.path.join(result_dir, f"{scenario_name}_network_results_short.csv")
 
-    # Define the output file path
-    csv_file_path = os.path.join(result_dir, f"{scenario_name}_network_results.csv")
+    rows = []
 
-    # Prepare the data to be written to the CSV file
-    data_to_save = [
-        ["Optimization results", "Value", "Unit"],                                                       # Header row cost-parameters
-        ["tac_distr", result_dict.get("tac_sum_distr", ""), "EUR/a"],                                   # Total annualized costs per district
-        ["co2_distr", result_dict.get("co2_sum_distr", ""), "t/a"],                                     # Total CO2 emissions per district
+    def add(category, metric, value, unit="", device="", year=""):
+        rows.append({
+            "scenario": scenario_name,
+            "category": category,
+            "metric": metric,
+            "device": device,
+            "year": year,
+            "value": value if value is not None else "",
+            "unit": unit
+        })
+    # 1) Optimization results
+    add("optimization", "tac_distr", result_dict.get("tac_sum_distr", ""), "EUR/a")
+    add("optimization", "co2_distr", result_dict.get("co2_sum_distr", ""), "t/a")
 
-        ["Cost_parameter", "Value", "Unit"],                                                            # Header row cost-parameters
-        ["co2_tax_total", result_dict.get("co2_tax_total", ""), "EUR/a"],                               # CO2 tax total
-        ["total_inv_cost", result_dict.get("total_inv_cost", ""),"EUR/a"],                              # Total investment cost
-        ["total_inv_cost_unsubsidized", result_dict.get("total_inv_cost_unsubsidized", ""),"EUR/a"],    # Total unsubsidized investment costs
-        ["total_ann_inv_cost", result_dict.get("total_ann_inv_cost", ""),"EUR/a"],                      # Total annual investment cost
-        ["total_ann_inv_cost_unsubsidized", result_dict.get("total_ann_inv_cost_unsubsidized", ""),"EUR/a"],  # Total unsubsidized annual investment cost
-        ["total_om_cost", result_dict.get("total_om_cost", ""),"EUR/a"],                                # Total operation and maintenance costs
-        ["supply_costs_el", result_dict.get("supply_costs_el", ""),"EUR/a"],                            # Supply costs for electricity
-        ["cap_costs_el", result_dict.get("cap_costs_el", ""),"EUR/a"],                                  # Capacity costs for electricity
-        ["total_el_costs", result_dict.get("total_el_costs", ""),"EUR/a"],                              # Total electricity costs
-        ["rev_feed_in_el", result_dict.get("rev_feed_in_el", ""),"EUR/a"],                              # Revenue from electricity feed-in
-        ["supply_costs_gas", result_dict.get("supply_costs_gas", ""),"EUR/a"],                          # Supply costs for gas
-        ["cap_costs_gas", result_dict.get("cap_costs_gas", ""),"EUR/a"],                                # Capacity costs for gas
-        ["total_gas_costs", result_dict.get("total_gas_costs", ""),"EUR/a"],                            # Total gas costs
-        ["rev_feed_in_gas", result_dict.get("rev_feed_in_gas", ""),"EUR/a"],                            # Revenue from gas feed-in
-        ["supply_costs_biom", result_dict.get("supply_costs_biom", ""),"EUR/a"],                        # Supply costs for biomass
-        ["supply_costs_waste", result_dict.get("supply_costs_waste", ""),"EUR/a"],                      # Supply costs for waste
-        ["supply_costs_hydrogen", result_dict.get("supply_costs_hydrogen", ""),"EUR/a"],                # Supply costs for hydrogen
-        [],                                                                                             # Empty row for separation
-        ["Co2_parameter", "Value", "Unit"],                                                             # Header row co2-parameters
-        ["co2_onsite_emissions", result_dict.get("co2_onsite_emissions", ""),"t/a"],    # Onsite CO2 emissions
-        ["co2_credit_feedin", result_dict.get("co2_credit_feedin", ""),"t/a"],          # CO2 credit from feed-in
-        ["total_co2_el", result_dict.get("total_co2_el", ""),"t/a"],                    # Total CO2 emissions from electricity
-        ["total_co2_el_feed_in", result_dict.get("total_co2_el_feed_in", ""),"t/a"],    # Total CO2 emissions from electricity feed-in
-        ["total_co2_gas", result_dict.get("total_co2_gas", ""),"t/a"],                  # Total CO2 emissions from gas
-        ["total_co2_gas_feed_in", result_dict.get("total_co2_gas_feed_in", ""),"t/a"],  # Total CO2 emissions from gas feed-in
-        ["total_co2_biom", result_dict.get("total_co2_biom", ""),"t/a"],                # Total CO2 emissions from biomass
-        ["total_co2_waste", result_dict.get("total_co2_waste", ""),"t/a"],              # Total CO2 emissions from waste
-        ["total_co2_hydrogen", result_dict.get("total_co2_hydrogen", ""),"t/a"],        # Total CO2 emissions from hydrogen
-        [],                                                                             # Empty row for separation
-        ["Grid_flows", "Value", "Unit"],                                                # Header row grid flows
-        ["from_el_grid_total", result_dict.get("from_el_grid_total", ""),"MWh"],  # Total electricity from grid
-        ["to_el_grid_total", result_dict.get("to_el_grid_total", ""),"MWh"],      # Total electricity to grid
-        ["from_el_main_grid_total", result_dict.get("from_el_main_grid_total", ""),"MWh"],  # Total electricity from grid # new for network
-        ["to_el_main_grid_total", result_dict.get("to_el_main_grid_total", ""),"MWh"],      # Total electricity to grid   # new for network
-        ["from_network_total", result_dict.get("from_network_total", ""),"MWh"],            # Total electricity from network
-        ["to_network_total", result_dict.get("to_network_total", ""),"MWh"],                # Total electricity to network
-        ["from_gas_grid_total", result_dict.get("from_gas_grid_total", ""),"MWh"],          # Total gas from grid
-        ["to_gas_grid_total", result_dict.get("to_gas_grid_total", ""),"MWh"],              # Total gas to grid
-        ["biom_import_total", result_dict.get("biom_import_total", ""),"MWh"],              # Total biomass imported
-        ["waste_import_total", result_dict.get("waste_import_total", ""),"MWh"],            # Total waste imported
-        ["hydrogen_import_total", result_dict.get("hydrogen_import_total", ""),"MWh"],      # Total hydrogen imported
-        ["max_el_from_grid", result_dict.get("max_el_from_grid", ""),"kW"],                 # Maximum electricity from grid
-        ["max_el_to_grid", result_dict.get("max_el_to_grid", ""),"kW"],                     # Maximum electricity to grid
-        ["max_el_from_main_grid", result_dict.get("max_el_from_main_grid", ""),"kW"],       # Maximum electricity from main grid #new for network
-        ["max_el_to_main_grid", result_dict.get("max_el_to_main_grid", ""),"kW"],           # Maximum electricity to main grid #new for network
-        ["max_el_from_network", result_dict.get("max_el_from_network", ""),"kW"],           # Maximum electricity from network #new for network
-        ["max_el_to_network", result_dict.get("max_el_to_network", ""),"kW"],               # Maximum electricity to network #new for network
-        ["max_gas_from_grid", result_dict.get("max_gas_from_grid", ""),"kW"],               # Maximum gas from grid
-        ["max_gas_to_grid", result_dict.get("max_gas_to_grid", ""),"kW"],                   # Maximum gas to grid
-        ["max_biom", result_dict.get("max_biom", ""),""],                                   # Maximum biomass import
-        ["max_waste", result_dict.get("max_waste", ""),""],                                 # Maximum waste import
-        ["max_hydrogen", result_dict.get("max_hydrogen", ""),""],                           # Maximum hydrogen import
-        [],                                                                                 # Empty row for separation
-        ["Areas PV and STC", "Value", "Unit"],                                              # Header row generation parameters
-        ["PV", result_dict.get("area", {}).get("PV", ""),"qm"],                             # Area for PV
-        ["STC", result_dict.get("area", {}).get("STC", ""),"qm"],                           # Area for STC
-        [],                                                                                 # Empty row for separation
-        ["volumes of thermal storages", "Value","Unit"],                                    # Header row for storage volumes
-        ["TES", result_dict.get("TES", {}).get("vol_liter", ""),"l"],                       # Volume of TES in liters
-        ["CTES", result_dict.get("CTES", {}).get("vol_liter", ""),"l"],                     # Volume of CTES in liters
-        ["", ""],                                                                           # Empty row for separation
-        ["Device-capacity", "Value", "Unit"],                                               # Header row for device capacities
+    # 2) Cost parameters
+    add("cost", "total_annual_costs_devices", result_dict.get("total_annual_costs_devices", ""), "EUR/a")
+    add("cost", "total_connection_costs", result_dict.get("total_connection_costs", ""), "EUR/a")
+    add("cost", "heat_grid_costs", result_dict.get("heat_grid_costs", ""), "EUR/a")
+    add("cost", "annualized_energy_costs", result_dict.get("annualized_energy_costs", ""), "EUR/a")
+    add("cost", "annualized_misc_costs", result_dict.get("annualized_misc_costs", ""), "EUR/a")
 
+    # 3) Devices parameters
+    for device in all_devs_list:
+        if result_dict.get(device, {}).get("inst", False):
+            cap = result_dict.get(device, {}).get("cap", "")
+            if device in ["WT", "WAT", "CHP", "BOI", "HP", "EB", "CC", "AC", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "SAB", "PV", "STC"]:
+                add("device", "capacity", cap, "kW", device=device)
+            elif device in ["TES", "CTES", "BAT", "H2S", "GS"]:
+                add("device", "capacity", cap, "kWh", device=device)
+     # 4) Yearly totals (all carriers)
+    yearly_maps = [
+        ("from_el_grid_total_by_year", "from_el_grid_total", "MWh"),
+        ("to_el_grid_total_by_year", "to_el_grid_total", "MWh"),
+        ("from_el_main_grid_total_by_year", "from_el_main_grid_total", "MWh"),
+        ("to_el_main_grid_total_by_year", "to_el_main_grid_total", "MWh"),
+        ("from_network_total_by_year", "from_network_total", "MWh"),
+        ("to_network_total_by_year", "to_network_total", "MWh"),
+        ("from_gas_grid_total_by_year", "from_gas_grid_total", "MWh"),
+        ("to_gas_grid_total_by_year", "to_gas_grid_total", "MWh"),
     ]
-    # Add devices to the CSV file if they are installed
-    for device in all_devs_list:
-        if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed
-            capacity = result_dict.get(device, {}).get("cap", "")  # Get the capacity of the device
-            if device in ["WT", "WAT", "CHP", "BOI", "HP", "EB", "CC", "AC", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "SAB", "PV", "STC"]:  # Generation devices
-                data_to_save.append([device, capacity,"kW"])  # Add the device name to the CSV file
-            if device in ["TES", "CTES", "BAT", "H2S", "GS"]:  # Storage devices
-                data_to_save.append([device, capacity,"kWh"])  # Add the device name to the CSV file
-    for device in all_devs_list:
-        if result_dict.get(device, {}).get("inst", False):  # Check if the device is installed    
-            inv_costs = result_dict.get(device, {}).get("inv", "")  # Get the investment costs of the device
-            ann_inv_costs = result_dict.get(device, {}).get("ann_inv", "")  # Get the annualized investment costs of the device
-            ann_inv_costs_unsubsidized = result_dict.get(device, {}).get("ann_inv_unsubsidized", "")
-            om_costs = result_dict.get(device, {}).get("om_cost", "")    
-            data_to_save.append([f"{device}_inv", inv_costs, "EUR"])  # Add the investment costs of the device to the CSV file
-            data_to_save.append([f"{device}_ann_inv", ann_inv_costs, "EUR/a"])  # Add the annualized investment costs of the device to the CSV file
-            data_to_save.append([f"{device}_ann_inv_unsubsidized", ann_inv_costs_unsubsidized, "EUR/a"])
-            data_to_save.append([f"{device}_om_cost", om_costs, "EUR/a"])
+    for map_key, metric, unit in yearly_maps:
+        for y in model.support_years:
+            add("yearly_totals", metric, result_dict.get(map_key, {}).get(y, ""), unit, year=y)
 
-    data_to_save.append([])
-    data_to_save.append(["Heat_generation_by_year", "Value", "Unit"])
-    for y in model.support_years:
-        for dev in model.heat_devs:
-            value = result_dict.get("heat_gen_sum_by_year", {}).get(y, {}).get(dev, "")
-            data_to_save.append([f"heat_gen_{dev}_{y}", value, "kWh"])
-            value = result_dict.get("heat_kW_by_year", {}).get(y, {}).get(dev, "")
-            data_to_save.append([f"heat_kW_{dev}_{y}", value, "kW"])
-
-    data_to_save.append([])
-    data_to_save.append(["Peak_demands", "Value", "Unit"])
-    peak_heat_uncl = param["peak_heat"]
-    peak_power_uncl = param["peak_power"]
-    peak_heat_cl = result_dict.get("max_heat_demand", 0)
-    peak_power_cl = result_dict.get("max_power_demand", 0)
-    data_to_save.append([f"peak_heat_uncl", peak_heat_uncl, "kW"])
-    data_to_save.append([f"peak_power_uncl", peak_power_uncl, "kW"])
-    data_to_save.append([f"peak_heat_cl", peak_heat_cl, "kW"])
-    data_to_save.append([f"peak_power_cl", peak_power_cl, "kW"])
-
-    data_to_save.append([]) 
-    data_to_save.append(["Heat_profile_energy_kwh_by_year", "Value", "Unit"]) # New for test reasons TJA
-    for y in model.support_years:
-        for dev in model.heat_devs:
-            value = result_dict.get("heat_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, "")
-            data_to_save.append([f"heat_profile_energy_kwh_{dev}_{y}", value, "kWh"])
-
-    data_to_save.append([])
-    data_to_save.append(["Power_profile_energy_kwh_by_year", "Value", "Unit"]) 
-    for y in model.support_years:
-        for dev in model.power_devs:
-            value = result_dict.get("power_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, "")
-            data_to_save.append([f"power_profile_energy_kwh_{dev}_{y}", value, "kWh"])
-            value = result_dict.get("power_kW_by_year", {}).get(y, {}).get(dev, "")
-            data_to_save.append([f"power_kW_{dev}_{y}", value, "kW"])
-
-    for y in model.support_years:
-        data_to_save.append([f"from_el_grid_total_{y}", result_dict.get("from_el_grid_total_by_year", {}).get(y, ""), "MWh"])
-        data_to_save.append([f"to_el_grid_total_{y}", result_dict.get("to_el_grid_total_by_year", {}).get(y, ""), "MWh"])
-        data_to_save.append([f"from_el_main_grid_total_{y}", result_dict.get("from_el_main_grid_total_by_year", {}).get(y, ""), "MWh"]) # new for network
-        data_to_save.append([f"to_el_main_grid_total_{y}", result_dict.get("to_el_main_grid_total_by_year", {}).get(y, ""), "MWh"]) # new for network
-        data_to_save.append([f"from_network_total_{y}", result_dict.get("from_network_total_by_year", {}).get(y, ""), "MWh"]) # new for network
-        data_to_save.append([f"to_network_total_{y}", result_dict.get("to_network_total_by_year", {}).get(y, ""), "MWh"]) # new for network
-        data_to_save.append([f"from_gas_grid_total_{y}", result_dict.get("from_gas_grid_total_by_year", {}).get(y, ""), "MWh"])
-        data_to_save.append([f"to_gas_grid_total_{y}", result_dict.get("to_gas_grid_total_by_year", {}).get(y, ""), "MWh"])
-        data_to_save.append([f"biom_import_total_{y}", result_dict.get("biom_import_total_by_year", {}).get(y, ""), "MWh"])
-        data_to_save.append([f"waste_import_total_{y}", result_dict.get("waste_import_total_by_year", {}).get(y, ""), "MWh"])
-        data_to_save.append([f"hydrogen_import_total_{y}", result_dict.get("hydrogen_import_total_by_year", {}).get(y, ""), "MWh"])
-
-    # Write the data to the CSV file
+    # Write CSV
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.writer(csv_file, delimiter=";")
-        writer.writerows(data_to_save)
-    
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=["scenario", "category", "metric", "device", "year", "value", "unit"],
+            delimiter=";"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
     print(f"Results saved to {csv_file_path}")
 
-    #if result_dict.get("HP", {}).get("inst", False):
-        #save_heat_timeseries_csv(model, result_dict, scenario_name, "HP", result_dir)
 
-    #save_demand_heat_timeseries_csv(demCon, model, scenario_name, result_dir)
-
-
-    
-
-
-def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):    
-    # Ensure the result directory exists
-    os.makedirs(result_dir, exist_ok=True)
-    
-    # Define the output file path
-    csv_file_path = os.path.join(result_dir, f"{district}_{device}_heat_timeseries.csv")
-    
-    # Helper function for safe value retrieval
-    def safe_value(var_container, index):
-        try:
-            val = pyo.value(var_container[index])
-            return val if val is not None else 0
-        except (KeyError, ValueError):
-            return 0
-    
-    # Prepare the data
-    data_to_save = [
-        ["Support_Year", "Cluster", "Timestep", "Heat_kW"]  # Header row
-    ]
-    
-    # Iterate over all support years, clusters, and timesteps
-    for y in model.support_years:
-        for d in model.clusters:
-            for t in model.time_steps:
-                heat_value = safe_value(model.heat, (device, district, y, d, t))
-                data_to_save.append([y, d, t, round(heat_value, 3)])
-    
-    # Write the data to the CSV file
-    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.writer(csv_file, delimiter=";")
-        writer.writerows(data_to_save)
-    
-    print(f"Heat timeseries for {device} in {district} saved to {csv_file_path}")
-
-def save_demand_heat_timeseries_csv(demCon, model, district, result_dir):
-        # Ensure the result directory exists
-    os.makedirs(result_dir, exist_ok=True)
-    
-    # Get demand for this district
-    dem = demCon[district]
-    
-    # Define the output file path
-    csv_file_path = os.path.join(result_dir, f"{district}_demand_heat_timeseries.csv")
-    
-    # Prepare the data
-    data_to_save = [
-        ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW"]  # Header row
-    ]
-    
-    # Iterate over all support years, clusters, and timesteps
-    for y in model.support_years:
-        for d in model.clusters:
-            for t in model.time_steps:
-                heat_demand = dem["heat"][y][d][t]
-                data_to_save.append([y, d, t, round(heat_demand, 3)])
-    
-    # Write the data to the CSV file
-    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.writer(csv_file, delimiter=";")
-        writer.writerows(data_to_save)
-    
-    print(f"Heat demand timeseries for {district} saved to {csv_file_path}")
-
-def save_network_power_timeseries_csv(model, result_dir):
+def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param):
     """
-    Saves power timeseries for to_network and from_network for all districts.
-    
-    Parameters
-    ----------
-    model : pyomo.ConcreteModel
-        The solved optimization model.
-    result_dir : str
-        Directory where the CSV files will be saved.
-        
-    Returns
-    -------
-    None
+    Save results to CSV file in a long format for easier analysis and visualization.
     """
-    # Ensure the result directory exists
     os.makedirs(result_dir, exist_ok=True)
-    
-    # Helper function for safe value retrieval
-    def safe_value(var_container, index):
-        try:
-            val = pyo.value(var_container[index])
-            return val if val is not None else 0
-        except (KeyError, ValueError):
-            return 0
-    
-    # Save timeseries for each district
-    for district in model.districts:
-        # Define the output file path
-        csv_file_path = os.path.join(result_dir, f"{district}_network_and_main_grid_power_timeseries.csv")
-        
-        # Prepare the data
-        data_to_save = [
-            ["Support_Year", "Cluster", "Timestep", "to_network_kW", "from_network_kW", "to_main_grid_kW", "from_main_grid_kW", "to_grid_kW", "from_grid_kW"]  # Header row
-        ]
-        
-        # Iterate over all support years, clusters, and timesteps
+    csv_file_path = os.path.join(result_dir, f"{scenario_name}_network_results.csv")
+
+    rows = []
+
+    def add(category, metric, value, unit="", device="", year=""):
+        rows.append({
+            "scenario": scenario_name,
+            "category": category,
+            "metric": metric,
+            "device": device,
+            "year": year,
+            "value": value if value is not None else "",
+            "unit": unit
+        })
+
+    # 1) Optimization results
+    add("optimization", "tac_distr", result_dict.get("tac_sum_distr", ""), "EUR/a")
+    add("optimization", "co2_distr", result_dict.get("co2_sum_distr", ""), "t/a")
+
+    # 2) Cost parameters
+    for k, u in [
+        ("co2_tax_total", "EUR/a"),
+        ("total_inv_cost", "EUR/a"),
+        ("total_inv_cost_unsubsidized", "EUR/a"),
+        ("total_ann_inv_cost", "EUR/a"),
+        ("total_ann_inv_cost_unsubsidized", "EUR/a"),
+        ("total_om_cost", "EUR/a"),
+        ("supply_costs_el", "EUR/a"),
+        ("cap_costs_el", "EUR/a"),
+        ("total_el_costs", "EUR/a"),
+        ("rev_feed_in_el", "EUR/a"),
+        ("supply_costs_gas", "EUR/a"),
+        ("cap_costs_gas", "EUR/a"),
+        ("total_gas_costs", "EUR/a"),
+        ("rev_feed_in_gas", "EUR/a"),
+        ("supply_costs_biom", "EUR/a"),
+        ("supply_costs_waste", "EUR/a"),
+        ("supply_costs_hydrogen", "EUR/a"),
+    ]:
+        add("cost", k, result_dict.get(k, ""), u)
+
+    # 3) CO2 parameters
+    for k, u in [
+        ("co2_onsite_emissions", "t/a"),
+        ("co2_credit_feedin", "t/a"),
+        ("total_co2_el", "t/a"),
+        ("total_co2_el_feed_in", "t/a"),
+        ("total_co2_gas", "t/a"),
+        ("total_co2_gas_feed_in", "t/a"),
+        ("total_co2_biom", "t/a"),
+        ("total_co2_waste", "t/a"),
+        ("total_co2_hydrogen", "t/a"),
+    ]:
+        add("co2", k, result_dict.get(k, ""), u)
+
+    # 4) Grid flows + maxima
+    for k, u in [
+        ("from_el_grid_total", "MWh"),
+        ("to_el_grid_total", "MWh"),
+        ("from_el_main_grid_total", "MWh"),
+        ("to_el_main_grid_total", "MWh"),
+        ("from_network_total", "MWh"),
+        ("to_network_total", "MWh"),
+        ("from_gas_grid_total", "MWh"),
+        ("to_gas_grid_total", "MWh"),
+        ("biom_import_total", "MWh"),
+        ("waste_import_total", "MWh"),
+        ("hydrogen_import_total", "MWh"),
+        ("max_el_from_grid", "kW"),
+        ("max_el_to_grid", "kW"),
+        ("max_el_from_main_grid", "kW"),
+        ("max_el_to_main_grid", "kW"),
+        ("max_el_from_network", "kW"),
+        ("max_el_to_network", "kW"),
+        ("max_gas_from_grid", "kW"),
+        ("max_gas_to_grid", "kW"),
+        ("max_biom", ""),
+        ("max_waste", ""),
+        ("max_hydrogen", ""),
+    ]:
+        add("grid", k, result_dict.get(k, ""), u)
+
+    # 5) Areas
+    add("area", "PV", result_dict.get("area", {}).get("PV", ""), "qm", device="PV")
+    add("area", "STC", result_dict.get("area", {}).get("STC", ""), "qm", device="STC")
+
+    # 6) Storage volumes
+    add("storage_volume", "vol_liter", result_dict.get("TES", {}).get("vol_liter", ""), "l", device="TES")
+    add("storage_volume", "vol_liter", result_dict.get("CTES", {}).get("vol_liter", ""), "l", device="CTES")
+
+    # 7) Device capacity + costs 
+    for device in all_devs_list:
+        if result_dict.get(device, {}).get("inst", False):
+            cap = result_dict.get(device, {}).get("cap", "")
+            if device in ["WT", "WAT", "CHP", "BOI", "HP", "EB", "CC", "AC", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "SAB", "PV", "STC"]:
+                add("device", "capacity", cap, "kW", device=device)
+            elif device in ["TES", "CTES", "BAT", "H2S", "GS"]:
+                add("device", "capacity", cap, "kWh", device=device)
+
+            add("device_cost", "inv", result_dict.get(device, {}).get("inv", ""), "EUR", device=device)
+            add("device_cost", "ann_inv", result_dict.get(device, {}).get("ann_inv", ""), "EUR/a", device=device)
+            add("device_cost", "ann_inv_unsubsidized", result_dict.get(device, {}).get("ann_inv_unsubsidized", ""), "EUR/a", device=device)
+            add("device_cost", "om_cost", result_dict.get(device, {}).get("om_cost", ""), "EUR/a", device=device)
+
+    # 8) Heat generation by year
+    for y in model.support_years:
+        for dev in model.heat_devs:
+            add("heat_by_year", "heat_gen", result_dict.get("heat_gen_sum_by_year", {}).get(y, {}).get(dev, ""), "kWh", device=dev, year=y)
+            add("heat_by_year", "heat_kW", result_dict.get("heat_kW_by_year", {}).get(y, {}).get(dev, ""), "kW", device=dev, year=y)
+
+    # 9) Peak demands
+    add("peak", "peak_heat_uncl", param.get("peak_heat", ""), "kW")
+    add("peak", "peak_power_uncl", param.get("peak_power", ""), "kW")
+    add("peak", "peak_heat_cl", result_dict.get("max_heat_demand", 0), "kW")
+    add("peak", "peak_power_cl", result_dict.get("max_power_demand", 0), "kW")
+
+    # 10) Heat profile energy by year
+    for y in model.support_years:
+        for dev in model.heat_devs:
+            add("heat_profile_energy_by_year", "heat_profile_energy_kwh",
+                result_dict.get("heat_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, ""),
+                "kWh", device=dev, year=y)
+
+    # 11) Power profile energy + peak by year
+    for y in model.support_years:
+        for dev in model.power_devs:
+            add("power_profile_by_year", "power_profile_energy_kwh",
+                result_dict.get("power_profile_energy_kwh_by_year", {}).get(y, {}).get(dev, ""),
+                "kWh", device=dev, year=y)
+            add("power_profile_by_year", "power_kW",
+                result_dict.get("power_kW_by_year", {}).get(y, {}).get(dev, ""),
+                "kW", device=dev, year=y)
+
+    # 12) Yearly totals (all carriers)
+    yearly_maps = [
+        ("from_el_grid_total_by_year", "from_el_grid_total", "MWh"),
+        ("to_el_grid_total_by_year", "to_el_grid_total", "MWh"),
+        ("from_el_main_grid_total_by_year", "from_el_main_grid_total", "MWh"),
+        ("to_el_main_grid_total_by_year", "to_el_main_grid_total", "MWh"),
+        ("from_network_total_by_year", "from_network_total", "MWh"),
+        ("to_network_total_by_year", "to_network_total", "MWh"),
+        ("from_gas_grid_total_by_year", "from_gas_grid_total", "MWh"),
+        ("to_gas_grid_total_by_year", "to_gas_grid_total", "MWh"),
+        ("biom_import_total_by_year", "biom_import_total", "MWh"),
+        ("waste_import_total_by_year", "waste_import_total", "MWh"),
+        ("hydrogen_import_total_by_year", "hydrogen_import_total", "MWh"),
+    ]
+    for map_key, metric, unit in yearly_maps:
         for y in model.support_years:
-            for d in model.clusters:
-                for t in model.time_steps:
-                    to_network_value = safe_value(model.power, ("to_network", district, y, d, t))
-                    from_network_value = safe_value(model.power, ("from_network", district, y, d, t))
-                    to_main_grid_value = safe_value(model.power, ("to_main_grid", district, y, d, t))
-                    from_main_grid_value = safe_value(model.power, ("from_main_grid", district, y, d, t))
-                    to_grid_value = safe_value(model.power, ("to_grid", district, y, d, t))
-                    from_grid_value = safe_value(model.power, ("from_grid", district, y, d, t))
-                    data_to_save.append([y, d, t, round(to_network_value, 3), round(from_network_value, 3), round(to_main_grid_value, 3), round(from_main_grid_value, 3), round(to_grid_value, 3), round(from_grid_value, 3)])
+            add("yearly_totals", metric, result_dict.get(map_key, {}).get(y, ""), unit, year=y)
+
+    # Write CSV
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=["scenario", "category", "metric", "device", "year", "value", "unit"],
+            delimiter=";"
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Results saved to {csv_file_path}")
+
+
+
+ 
+
+
+# def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):    
+#     # Ensure the result directory exists
+#     os.makedirs(result_dir, exist_ok=True)
+    
+#     # Define the output file path
+#     csv_file_path = os.path.join(result_dir, f"{district}_{device}_heat_timeseries.csv")
+    
+#     # Helper function for safe value retrieval
+#     def safe_value(var_container, index):
+#         try:
+#             val = pyo.value(var_container[index])
+#             return val if val is not None else 0
+#         except (KeyError, ValueError):
+#             return 0
+    
+#     # Prepare the data
+#     data_to_save = [
+#         ["Support_Year", "Cluster", "Timestep", "Heat_kW"]  # Header row
+#     ]
+    
+#     # Iterate over all support years, clusters, and timesteps
+#     for y in model.support_years:
+#         for d in model.clusters:
+#             for t in model.time_steps:
+#                 heat_value = safe_value(model.heat, (device, district, y, d, t))
+#                 data_to_save.append([y, d, t, round(heat_value, 3)])
+    
+#     # Write the data to the CSV file
+#     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+#         writer = csv.writer(csv_file, delimiter=";")
+#         writer.writerows(data_to_save)
+    
+#     print(f"Heat timeseries for {device} in {district} saved to {csv_file_path}")
+
+# def save_demand_heat_timeseries_csv(demCon, model, district, result_dir):
+#         # Ensure the result directory exists
+#     os.makedirs(result_dir, exist_ok=True)
+    
+#     # Get demand for this district
+#     dem = demCon[district]
+    
+#     # Define the output file path
+#     csv_file_path = os.path.join(result_dir, f"{district}_demand_heat_timeseries.csv")
+    
+#     # Prepare the data
+#     data_to_save = [
+#         ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW"]  # Header row
+#     ]
+    
+#     # Iterate over all support years, clusters, and timesteps
+#     for y in model.support_years:
+#         for d in model.clusters:
+#             for t in model.time_steps:
+#                 heat_demand = dem["heat"][y][d][t]
+#                 data_to_save.append([y, d, t, round(heat_demand, 3)])
+    
+#     # Write the data to the CSV file
+#     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+#         writer = csv.writer(csv_file, delimiter=";")
+#         writer.writerows(data_to_save)
+    
+#     print(f"Heat demand timeseries for {district} saved to {csv_file_path}")
+
+# def save_network_power_timeseries_csv(model, result_dir):
+#     """
+#     Saves power timeseries for to_network and from_network for all districts.
+    
+#     Parameters
+#     ----------
+#     model : pyomo.ConcreteModel
+#         The solved optimization model.
+#     result_dir : str
+#         Directory where the CSV files will be saved.
         
-        # Write the data to the CSV file
-        with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.writer(csv_file, delimiter=";")
-            writer.writerows(data_to_save)
+#     Returns
+#     -------
+#     None
+#     """
+#     # Ensure the result directory exists
+#     os.makedirs(result_dir, exist_ok=True)
+    
+#     # Helper function for safe value retrieval
+#     def safe_value(var_container, index):
+#         try:
+#             val = pyo.value(var_container[index])
+#             return val if val is not None else 0
+#         except (KeyError, ValueError):
+#             return 0
+    
+#     # Save timeseries for each district
+#     for district in model.districts:
+#         # Define the output file path
+#         csv_file_path = os.path.join(result_dir, f"{district}_network_and_main_grid_power_timeseries.csv")
         
-        print(f"Network and main grid power timeseries for {district} saved to {csv_file_path}")
+#         # Prepare the data
+#         data_to_save = [
+#             ["Support_Year", "Cluster", "Timestep", "to_network_kW", "from_network_kW", "to_main_grid_kW", "from_main_grid_kW", "to_grid_kW", "from_grid_kW"]  # Header row
+#         ]
+        
+#         # Iterate over all support years, clusters, and timesteps
+#         for y in model.support_years:
+#             for d in model.clusters:
+#                 for t in model.time_steps:
+#                     to_network_value = safe_value(model.power, ("to_network", district, y, d, t))
+#                     from_network_value = safe_value(model.power, ("from_network", district, y, d, t))
+#                     to_main_grid_value = safe_value(model.power, ("to_main_grid", district, y, d, t))
+#                     from_main_grid_value = safe_value(model.power, ("from_main_grid", district, y, d, t))
+#                     to_grid_value = safe_value(model.power, ("to_grid", district, y, d, t))
+#                     from_grid_value = safe_value(model.power, ("from_grid", district, y, d, t))
+#                     data_to_save.append([y, d, t, round(to_network_value, 3), round(from_network_value, 3), round(to_main_grid_value, 3), round(from_main_grid_value, 3), round(to_grid_value, 3), round(from_grid_value, 3)])
+        
+#         # Write the data to the CSV file
+#         with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+#             writer = csv.writer(csv_file, delimiter=";")
+#             writer.writerows(data_to_save)
+        
+#         print(f"Network and main grid power timeseries for {district} saved to {csv_file_path}")
