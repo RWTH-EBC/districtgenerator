@@ -193,8 +193,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     piecewise_devs = ["BOI", "CHP", "HP", "STC", "TES"]
     model.cap_small = pyo.Var(piecewise_devs, model.districts, within=pyo.Binary)  # new for network
 
-    # Binary variable to decide if size if TES > 250 m² for KWKG subsidy
-    model.tes_kwkg_binary = pyo.Var(model.districts, within=pyo.Binary)  # new for network
+    ## Binary variable to decide if size if TES > 250 m² for KWKG subsidy
+    # model.tes_kwkg_binary = pyo.Var(model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
     model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
@@ -710,7 +710,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         # Test for BBOI
     
 
-    Big_M = 1e15  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
+    Big_M = 1e8  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
     EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
     # #Constraint 1: If cap_small = 1, then cap <= 10000 kW
     # def small_boi_rule(model, district):
@@ -747,19 +747,19 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                      "CTES", "BAT", "GS"]:
             model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
             
-        for dev in ["TES"]:
-            # Constraint 1: If tes_kwkg_binary = 1, then cap <= "inv_subsidy_cap" (e.g., 50 m^3)
-            vol_TES = model.cap[dev, district] / (param["c_w"] * param["rho_w"] * devs[dev]["delta_T"]) * 3600  # Convert thermal capacity to volume capacity in m^3
-            model.constraints.add(
-                 vol_TES <= devs[dev]["inv_subsidy_cap"]+Big_M*(1-model.tes_kwkg_binary[district])
-              )  # if binary is 0, cap can be very large, if binary is 1, cap is limited to the value corresponding to the maximum subsidy
-            # Constraint 2: If tes_kwkg_binary = 0, then cap > "inv_subsidy_cap" (e.g., 50 m^3)
-            model.constraints.add(
-                vol_TES >= (devs[dev]["inv_subsidy_cap"]+EPS) - Big_M*model.tes_kwkg_binary[district]
-              )  # if binary is 1, cap can be very small, if binary is 0, cap must be larger than the value corresponding to the maximum subsidy
-            # Constraint for investment costs based on subsidy regimes
-            model.constraints.add(model.inv[dev, district] == (model.inv[dev, district] - devs[dev]["inv_subsidy_abs"]*vol_TES) * model.tes_kwkg_binary[district]
-                                  + model.inv[dev, district] * (1 - model.tes_kwkg_binary[district]))  # fixed investment costs for TES, independent of capacity
+        # for dev in ["TES"]:
+        #     # Constraint 1: If tes_kwkg_binary = 1, then cap <= "inv_subsidy_cap" (e.g., 50 m^3)
+        #     vol_TES = model.cap[dev, district] / (param["c_w"] * param["rho_w"] * devs[dev]["delta_T"]) * 3600  # Convert thermal capacity to volume capacity in m^3
+        #     model.constraints.add(
+        #          vol_TES <= devs[dev]["inv_subsidy_cap"]+Big_M*(1-model.tes_kwkg_binary[district])
+        #       )  # if binary is 0, cap can be very large, if binary is 1, cap is limited to the value corresponding to the maximum subsidy
+        #     # Constraint 2: If tes_kwkg_binary = 0, then cap > "inv_subsidy_cap" (e.g., 50 m^3)
+        #     model.constraints.add(
+        #         vol_TES >= (devs[dev]["inv_subsidy_cap"]+EPS) - Big_M*model.tes_kwkg_binary[district]
+        #       )  # if binary is 1, cap can be very small, if binary is 0, cap must be larger than the value corresponding to the maximum subsidy
+        #     # Constraint for investment costs based on subsidy regimes
+        #     model.constraints.add(model.inv[dev, district] == (model.inv[dev, district] - devs[dev]["inv_subsidy_abs"]*vol_TES) * model.tes_kwkg_binary[district]
+        #                           + model.inv[dev, district] * (1 - model.tes_kwkg_binary[district]))  # fixed investment costs for TES, independent of capacity
         
         for dev in model.all_devs:
             model.constraints.add(model.inv_base[dev, district] == devs[dev]["inv_base"] * model.cap[dev, district])  # unsubsidized investment costs
@@ -922,7 +922,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
 
     solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
     solve_start_time = time.time()
-    results = solver.solve(model, tee=False, options=solver_options)
+    results = solver.solve(model, tee=True, options=solver_options)
     print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
 
     ################################################################################

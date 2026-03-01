@@ -1,6 +1,6 @@
 from districtgenerator.classes import Network, KPIs
 from pathlib import Path
-from districtgenerator.functions.plot_results import plot_device_capacities, plot_grid_flows
+# from districtgenerator.functions.plot_results import plot_device_capacities, plot_grid_flows
 import os
 
 if __name__ == '__main__':
@@ -24,7 +24,7 @@ if __name__ == '__main__':
         # Print capacities of central devices
         if "capacities" in district.centralDevices:
             capacities = district.centralDevices["capacities"]
-            print(f"\nCapacities of the central devices in the energy hub of: {district.scenario_name}")
+            print(f"\nCapacities of the central devices of in the energy hub of: {district.scenario_name}")
             for device, details in capacities.items():
                 if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
                     print(f"  {device}: {details['cap']}")

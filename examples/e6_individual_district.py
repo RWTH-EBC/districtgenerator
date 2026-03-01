@@ -49,7 +49,7 @@ def example6_config_file_loading():
     # That is equal to a time resolution of three hours.
 
     # Initialize District
-    data = Datahandler(env_path=".env.CONFIG.SUBURBAN", scenario_name = "suburban")
+    data = Datahandler(env_path=".env.CONFIG.RURAL", scenario_name = "rural")
     # Alternative if you need an absolute path:
     # data = Datahandler(env_path="/path/to/your/.env.CONFIG.FREIBURG")
 

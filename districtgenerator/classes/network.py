@@ -79,7 +79,7 @@ class Network:
             # Design decentral devices for each district
             data.designDecentralDevices(saveGenerationProfiles=True)
             # Print capacities of the decentral devices in all districts
-            print(f"Capacities of the decentral devices in {data.scenario_name}:")
+            print(f"Capacities of the decentral devices in of building 1 in {data.scenario_name}:")
             for device, capacity in data.district[0]["capacities"].items():
                 print(f"  {device}: {capacity}")
             
