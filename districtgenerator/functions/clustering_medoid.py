@@ -320,6 +320,8 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
 
     # Execute optimization model
     y, z, obj = k_medoids.k_medoids(d, number_clusters, time_limit, mip_gap, pyomo_config=pyomo_config)
+    print(f"y {y}")
+    print(f"z {z}")
 
     # Get chosen Medoids
     clusters = [c for c, value in enumerate(y) if value == 1]
