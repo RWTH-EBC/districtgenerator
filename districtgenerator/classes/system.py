@@ -1,14 +1,6 @@
 # -*- coding: utf-8 -*-
-
-import json
-import os
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
-import districtgenerator.functions.load_params_central_devices as load_params_central_devices
-import districtgenerator.functions.heating_network as heating_network
-
-from .solar import Sun
-import numpy as np
-
+import districtgenerator.functions.get_params_central_devices as get_params_central_devices
 
 class BES:
     """
@@ -70,14 +62,14 @@ class BES:
 
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature
-        self.design_load_heating = building["envelope"].heatload + building["dhwpower"]
+        self.design_load_heating = building["envelope"].heatload + building["envelope"].dhwpower
         limit_load_heating = building["envelope"].heatlimit
 
         self.bivalent_load_heating = self.design_load_heating + (limit_load_heating - self.design_load_heating) / (T_heatlimit - T_design) \
                              * (T_bivalent - T_design)
 
         # Design load for cooling
-        self.design_load_cooling = max(building["user"].cooling)
+        self.design_load_cooling = building["envelope"].coolingload
 
         BES = {}
 
@@ -147,7 +139,7 @@ class BES:
                 BES["BAT"] = buildingFeatures["f_BAT"] \
                              * self.decentral_device_data["PV"]["P_nominal"] \
                              * building["envelope"].A["opaque"]["roof"] \
-                             * buildingFeatures["f_PV"]
+                             * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
 
             # electric vehicle (EV)
             if k == "EV":
@@ -159,7 +151,7 @@ class BES:
                 BES["PV"] = {}
                 # f_PV is the fraction of the roof area that is suitable and available for PV installation
                 areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * buildingFeatures["f_PV"]
+                              * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]
@@ -174,7 +166,7 @@ class BES:
         return BES
 
 
-class CES():
+class CES:
     """
     Abstract class for design of the central energy system.
     """
@@ -187,6 +179,7 @@ class CES():
         -------
         None.
         """
+
 
     def designCES(self, data):
         """
@@ -201,11 +194,8 @@ class CES():
             The capacities of the central devices.
         """
 
-        # Load parameters of the heating network
-        data = heating_network.heating_network(data)
-
         # Load parameters of the energy hub
-        param, devs, dem, result_dict = load_params_central_devices.load_params(data)
+        param, devs, dem, result_dict = get_params_central_devices.get_params(data)
 
         # Run optimization
         capacities_centralDevices = opti_dimensioning_central_devices.run_optim(data, devs, param, dem, result_dict)

@@ -1,6 +1,5 @@
-import json, sys, os
+import sys, os
 import gurobipy as gp
-from collections import defaultdict
 from contextlib import contextmanager
 import districtgenerator.functions.opti_central as opti_central
 

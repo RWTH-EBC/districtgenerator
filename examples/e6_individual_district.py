@@ -49,7 +49,8 @@ def example6_config_file_loading():
     # That is equal to a time resolution of three hours.
 
     # Initialize District
-    data = Datahandler(env_path=".env.CONFIG.FREIBURG")
+    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.Freiburg")
+
     # Alternative if you need an absolute path:
     # data = Datahandler(env_path="/path/to/your/.env.CONFIG.FREIBURG")
 
@@ -63,7 +64,7 @@ def example6_config_file_loading():
     data.generateBuildings()
 
     # Now we generate building specific demand profiles with the adjusted assumptions
-    data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
+    data.generateDemands(calcUserProfiles=True, saveUserProfiles=False)
 
     ### ===========================================  Output  =========================================== ###
     # Have a look at the results, e.g. in data.site you can see the changed zip code.
