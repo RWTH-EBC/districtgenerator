@@ -339,8 +339,7 @@ class Envelope:
                                 self.construction_year)  # data available until 2015
                     if elem["building_age_group"][0] <= dummy <= \
                             elem["building_age_group"][1] and \
-                            elem["construction_data"] == self.construction_data \
-                            + "_1_" + self.usage_short:
+                            elem["construction_data"] == "tabula_de_standard":
                         for lay in elem["layer"].items():
                             self.d["opaque"][comp] = np.append(self.d["opaque"][comp],
                                                                lay[1]["thickness"])

@@ -280,7 +280,7 @@ class Datahandler:
         # Determine the all_sim_ecoData which contains prices, co2 factors for each simulated year used for optimizations:
         self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
 
-        self.SIA2024 = SIA.read_SIA_data()
+        self.SIA2024 = SIA.read_SIA_data(self.filePath)
 
     def select_plz_data(self):
         """
