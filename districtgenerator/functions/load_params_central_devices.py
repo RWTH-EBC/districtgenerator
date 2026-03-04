@@ -135,10 +135,18 @@ def load_params(data):
     # For every support year save the clustered demands - #! currently constant demands over the years
     dem = {"heat": {}, "cool": {}, "power": {}}
 
+    # Get retrofit parameters from config # New TJA
+    retrofit_rate = float(param.get("retrofit_rate", 0.0))
+    retrofit_depth_level1 = float(param.get("retrofit_depth_level1", 0.0))
+    retrofit_depth_level2 = float(param.get("retrofit_depth_level2", 0.0))
+
+
     for y in ecoData["interpolation_points"]:
-        dem["heat"][y] = clustered_series[0]
+        dem["heat"][y] = clustered_series[0]*(1-retrofit_rate*retrofit_depth_level1*y) # New TJA
+        # dem["heat"][y] = clustered_series[0]
         dem["cool"][y] = clustered_series[1]
-        dem["power"][y] = clustered_series[2]
+        dem["power"][y] = clustered_series[2]*(1-retrofit_rate*retrofit_depth_level1*y) # New TJA
+
 
     param["T_air"] = clustered_series[3]
     param["GHI"] = clustered_series[4]

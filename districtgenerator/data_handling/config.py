@@ -571,6 +571,11 @@ class EHDOConfig(BaseSettings):
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
+
+    # Retrofit parameters
+    retrofit_rate: float = 0.015 # Annual retrofit rate of buildings in the district (buildings retrofitted per year devided by total number of buildings)
+    retrofit_depth_level1: float = 0.25 # Depth of retrofit level 1 (heat demand after retrofit devided by  heat demand before retrofit)
+    retrofit_depth_level2: float = 0.45 # Depth of retrofit level 2 (heat demand after retrofit devided by  heat demand before retrofit)
     
     # Legal requirements for EHDO (New TJA)
     enable_legal_requirements: bool = True # Whether to enable legal requirements. If False, the requirements are ignored even if the shares are specified. # New TJA

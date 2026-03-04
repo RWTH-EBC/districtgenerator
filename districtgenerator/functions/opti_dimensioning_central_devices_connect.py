@@ -67,9 +67,11 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         scenario_name = district
         result_dict = result_dictCon[scenario_name]
         param = paramCon[scenario_name]
+        dem= demCon[scenario_name]
         # Save results to csv
         save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
         save_results_csv_short(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
+        save_demand_heat_timeseries_csv(dem, model, district, result_dir)
 
     # # Save network power timeseries for all districts
     # save_network_power_timeseries_csv(model, result_dir)
@@ -1760,68 +1762,66 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
  
 
 
-# def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):    
-#     # Ensure the result directory exists
-#     os.makedirs(result_dir, exist_ok=True)
+def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):    
+    # Ensure the result directory exists
+    os.makedirs(result_dir, exist_ok=True)
     
-#     # Define the output file path
-#     csv_file_path = os.path.join(result_dir, f"{district}_{device}_heat_timeseries.csv")
+    # Define the output file path
+    csv_file_path = os.path.join(result_dir, f"{district}_{device}_heat_timeseries.csv")
     
-#     # Helper function for safe value retrieval
-#     def safe_value(var_container, index):
-#         try:
-#             val = pyo.value(var_container[index])
-#             return val if val is not None else 0
-#         except (KeyError, ValueError):
-#             return 0
+    # Helper function for safe value retrieval
+    def safe_value(var_container, index):
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
     
-#     # Prepare the data
-#     data_to_save = [
-#         ["Support_Year", "Cluster", "Timestep", "Heat_kW"]  # Header row
-#     ]
+    # Prepare the data
+    data_to_save = [
+        ["Support_Year", "Cluster", "Timestep", "Heat_kW"]  # Header row
+    ]
     
-#     # Iterate over all support years, clusters, and timesteps
-#     for y in model.support_years:
-#         for d in model.clusters:
-#             for t in model.time_steps:
-#                 heat_value = safe_value(model.heat, (device, district, y, d, t))
-#                 data_to_save.append([y, d, t, round(heat_value, 3)])
+    # Iterate over all support years, clusters, and timesteps
+    for y in model.support_years:
+        for d in model.clusters:
+            for t in model.time_steps:
+                heat_value = safe_value(model.heat, (device, district, y, d, t))
+                data_to_save.append([y, d, t, round(heat_value, 3)])
     
-#     # Write the data to the CSV file
-#     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-#         writer = csv.writer(csv_file, delimiter=";")
-#         writer.writerows(data_to_save)
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
     
-#     print(f"Heat timeseries for {device} in {district} saved to {csv_file_path}")
+    print(f"Heat timeseries for {device} in {district} saved to {csv_file_path}")
 
-# def save_demand_heat_timeseries_csv(demCon, model, district, result_dir):
-#         # Ensure the result directory exists
-#     os.makedirs(result_dir, exist_ok=True)
+def save_demand_heat_timeseries_csv(dem, model, district, result_dir):
+        # Ensure the result directory exists
+    os.makedirs(result_dir, exist_ok=True)
     
-#     # Get demand for this district
-#     dem = demCon[district]
     
-#     # Define the output file path
-#     csv_file_path = os.path.join(result_dir, f"{district}_demand_heat_timeseries.csv")
+    # Define the output file path
+    csv_file_path = os.path.join(result_dir, f"{district}_demand_heat_timeseries.csv")
     
-#     # Prepare the data
-#     data_to_save = [
-#         ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW"]  # Header row
-#     ]
+    # Prepare the data
+    data_to_save = [
+        ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW"]  # Header row
+    ]
     
-#     # Iterate over all support years, clusters, and timesteps
-#     for y in model.support_years:
-#         for d in model.clusters:
-#             for t in model.time_steps:
-#                 heat_demand = dem["heat"][y][d][t]
-#                 data_to_save.append([y, d, t, round(heat_demand, 3)])
+    # Iterate over all support years, clusters, and timesteps
+    for y in model.support_years:
+        for d in model.clusters:
+            for t in model.time_steps:
+                heat_demand = dem["heat"][y][d][t]
+                data_to_save.append([y, d, t, round(heat_demand, 3)])
     
-#     # Write the data to the CSV file
-#     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
-#         writer = csv.writer(csv_file, delimiter=";")
-#         writer.writerows(data_to_save)
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
     
-#     print(f"Heat demand timeseries for {district} saved to {csv_file_path}")
+    print(f"Heat demand timeseries for {district} saved to {csv_file_path}")
 
 # def save_network_power_timeseries_csv(model, result_dir):
 #     """
