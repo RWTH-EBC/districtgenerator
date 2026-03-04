@@ -4,6 +4,7 @@ import numpy as np
 from teaser.project import Project
 from .non_residential import NonResidential
 from typing import Optional, Tuple
+import pandas as pd
 
 
 class Envelope:
@@ -57,7 +58,7 @@ class Envelope:
         self.epsilon = {}
         self.alpha_Sc = {}
 
-        self.thick_req = []
+        #AIX HEAT
         self.thick_req = []
 
         self.prj = prj

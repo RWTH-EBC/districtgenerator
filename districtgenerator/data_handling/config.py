@@ -611,6 +611,14 @@ class ScenarioName(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
+class flags(BaseSettings):
+    calcThick: bool = False
+    calcOcc: bool = True
+    calcOccProf: bool = True
+    model_config = SettingsConfigDict(
+        extra="ignore"
+    )
+
 class DecentralDeviceConfig(BaseSettings):
     """Configuration for decentralized devices in a district energy system.
 
@@ -1243,6 +1251,7 @@ class GlobalConfig(BaseModel):
     central: 'CentralDeviceConfig'
     calendar: 'CalendarConfig'
     scenario_name: ScenarioName
+    flags: flags
 
 class Settings(BaseSettings):
     """
@@ -1308,5 +1317,6 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
-        scenario_name = ScenarioName(_env_file=env_file_path)
+        scenario_name = ScenarioName(_env_file=env_file_path),
+        flags=flags(_env_file=env_file)
     )

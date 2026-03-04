@@ -466,7 +466,7 @@ class Sun:
             Time information from the Datahandler class.
         site : dictionary
             Site information from the Datahandler class.
-        area_roof : float
+        area_roof : list
             Area of the building's roof.
             The unit is [m²].
         devicesType : string, optional
@@ -495,15 +495,17 @@ class Sun:
             Power profiles of STCs. With given weather data as input the unit is [W].
         """
 
-        num_segments = len(areas)
+        num_segments = len(area_roof)
         assert len(betas) == num_segments and len(gammas) == num_segments, \
             'areas, betas, and gammas must be the same length'
 
         # Input validation
-        if usageFactorPV1 + usageFactorPV2 + usageFactorSTC > 1:
+        ## ADDITION AIX HEAT --> IF DATA COMES FROM PLATFORM; WE CANNOT USE PV1, PV2, but PV and STC. Only Issue --> how to assertain the partition (currently 1 / 1)
+        # FOR NOW DONT CHECK IF STC + PV exceeds AREA, BUT NEEDED EVENTUALLY todo
+        if usageFactorPV1 + usageFactorPV2 + usageFactorSTC >= 1.0:
             raise ValueError(
                 f"The sum of usageFactorPV1 ({usageFactorPV1}), usageFactorPV2 ({usageFactorPV2}) and usageFactorSTC ({usageFactorSTC}) "
-                f"is {usageFactorPV1 + usageFactorPV2:.2f}, which exceeds 1. "
+                f"is {usageFactorPV1 + usageFactorPV2 + usageFactorSTC:.2f}, which exceeds 1. "
                 f"Please ensure their sum does not exceed 1."
             )
 
@@ -515,9 +517,9 @@ class Sun:
         generation_STC_total = np.zeros(time_steps)
 
         for i in range(num_segments):
-            area_roof = areas[i]
-            beta = betas[i]
-            gamma = gammas[i]
+            area = area_roof[i]
+            beta = [betas[i]]
+            gamma = [gammas[i]]
 
             # 1. Solar irradiance for this roof segment
             SunRad = self.getSolarGains(
@@ -551,47 +553,45 @@ class Sun:
                 # by Dubey, Swapnil; Sarvaiya, Jatin Narotam; Seshadri, Bharath - 2013
                 # Side 1 of the roof (main side defined by gamma_PV in the input file)
                 eta_PV[t] = devices["PV"]["eta_el_ref"] * \
-                             (
-                                     1 - devices["PV"]["gamma"] * \
-                                     (
-                                             temperatureProfile[t] - devices["PV"]["t_cell_ref"]
-                                             + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
-                                             * (SunRad[0][t] / devices["PV"]["G_noct"])
-                                     )
-                             )
+                            (
+                                    1 - devices["PV"]["gamma"] * \
+                                    (
+                                            temperatureProfile[t] - devices["PV"]["t_cell_ref"]
+                                            + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
+                                            * (SunRad[0][t] / devices["PV"]["G_noct"])
+                                    )
+                            )
 
             # 3. PV power
             generation_PV = np.zeros(time["timeSteps"])
             for t in range(time["timeSteps"]):
-                generation_PV[t] = (area_roof) * (1 - kappa_corr) * (
+                generation_PV[t] = (area) * (1 - kappa_corr) * (
                         eta_PV[t] * SunRad[0][t] * usageFactorPV)
             # Add all AREAS
             generation_PV_total += generation_PV
 
-
-        # 4. STC efficiency
+            # 4. STC efficiency
             temp_diff = np.zeros_like(temperatureProfile)
             for t in range(time["timeSteps"]):
                 temp_diff[t] = devices["STC"]["T_flow"] - temperatureProfile[t]
 
             eta_STC = np.zeros_like(SunRad[0])
             eta_STC[SunRad[0] > 0] = (devices["STC"]["zero_loss"]
-                                       - devices["STC"]["first_order"] * temp_diff[SunRad[0] > 0] / SunRad[0][
-                                           SunRad[0] > 0]
-                                       - devices["STC"]["second_order"] * temp_diff[SunRad[0] > 0] ** 2
-                                       / SunRad[0][SunRad[0] > 0])
+                                      - devices["STC"]["first_order"] * temp_diff[SunRad[0] > 0] / SunRad[0][
+                                          SunRad[0] > 0]
+                                      - devices["STC"]["second_order"] * temp_diff[SunRad[0] > 0] ** 2
+                                      / SunRad[0][SunRad[0] > 0])
             eta_STC[eta_STC <= 0.01] = 0
 
             # calculate STC power
             generation_STC = np.zeros(time["timeSteps"])
             for t in range(time["timeSteps"]):
-                generation_STC[t] = SunRad1[0][t] * eta_STC[t] * usageFactorSTC * area_roof
+                generation_STC[t] = SunRad[0][t] * eta_STC[t] * usageFactorSTC * area
 
             # 5. STC power
             generation_STC_total += generation_STC
 
         return generation_PV_total, generation_STC_total
-
 
     # CALCULATION FROM DEVELOP WITH TWO SIDES OF PV AREA
     # get solar irradiance on PV plant surface

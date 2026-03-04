@@ -84,7 +84,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, dict, scenario_name, nb_occ = None, nb_flats = None, calcOcc = True, calcOccProf = True, SIA2024=None):
+    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, calcOcc = True, calcOccProf = True, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -717,6 +717,7 @@ class Users:
                          building=building,
                          building_devices_data=building_devices_data,
                          holidays=holidays,
+                         srcPath = Path,
                          start_index_car=current_index)
 
                     self.EV_carprofile = self.EV_carprofile + EV_carprofile  # Sum car profiles over all flats in the building

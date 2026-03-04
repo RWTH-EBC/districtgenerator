@@ -60,6 +60,12 @@ class BES:
         T_heatlimit = self.design_building_data["T_heatlimit"]
         T_design = site["T_ne"]  # [°C] outside design temperature
 
+        # AIX HEAT FIX f_PV1, f_PV2 and f_PV
+        if buildingFeatures.get("f_PV1"):
+            buildingFeatures["f_PV"] = buildingFeatures.get("f_PV1")+ buildingFeatures.get("f_PV2", 0)
+        elif not buildingFeatures.get("f_PV"):
+            buildingFeatures["f_PV"] = 0.4
+
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature
         self.design_load_heating = building["envelope"].heatload + building["envelope"].dhwpower
@@ -136,10 +142,11 @@ class BES:
             if k == "BAT":
                 # Factor [Wh / W_PV], [Wh = Wh/W * W/m2 * m2]
                 # design refers to buildable roof area (0.4 * area)
+                # CHANGED FOR AIX HEAT--> Sum f_PV1 and f_PV2 before!
                 BES["BAT"] = buildingFeatures["f_BAT"] \
                              * self.decentral_device_data["PV"]["P_nominal"] \
                              * building["envelope"].A["opaque"]["roof"] \
-                             * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
+                             * buildingFeatures["f_PV"]
 
             # electric vehicle (EV)
             if k == "EV":
@@ -150,8 +157,8 @@ class BES:
             if k == "PV":
                 BES["PV"] = {}
                 # f_PV is the fraction of the roof area that is suitable and available for PV installation
-                areaPV_temp = building["envelope"].A["opaque"]["roof"] \
-                              * (buildingFeatures["f_PV1"] + buildingFeatures["f_PV2"])
+                # CHANGED FOR AIX HEAT--> Sum f_PV1 and f_PV2 before!
+                areaPV_temp = building["envelope"].A["opaque"]["roof"] * buildingFeatures["f_PV"]
                 BES["PV"]["nb_modules"] = int(areaPV_temp / self.decentral_device_data["PV"]["area_real"])  # [-]
                 BES["PV"]["area"] = BES["PV"]["nb_modules"] * self.decentral_device_data["PV"]["area_real"]  # [m²]
                 BES["PV"]["P_ref"] = BES["PV"]["area"] * self.decentral_device_data["PV"]["P_nominal"]  # [W]

@@ -203,8 +203,10 @@ def clustering_processing(time, site, district, heat_grid_data, centralDevices, 
             solar_weight += len(district)
 
     for i in range(len(district)):
-        if (district[i]["buildingFeatures"]["f_PV1"] > 0 or
-                district[i]["buildingFeatures"]["f_PV2"] > 0 or
+        ## CHANGE AIX HEAT (ADDED f_PV and .get)
+        if (district[i]["buildingFeatures"].get("f_PV1",0) > 0 or
+                district[i]["buildingFeatures"].get("f_PV", 0) > 0 or
+                district[i]["buildingFeatures"].get("f_PV2",0) > 0 or
                 district[i]["buildingFeatures"]["f_STC"] > 0):
             solar_weight += 1
 
