@@ -1187,7 +1187,6 @@ class Datahandler:
             total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
         else:
             total_nb_occ = nb_occ
-        # nb_occ_df = pd.DataFrame([total_nb_occ], columns=['occ']) --> brauch ich das noch?
         #nb_occ_list_df = pd.DataFrame([[nb_occ]], columns=['occ list'])
         # todo: idea to save the full list of occupants per building unit for further analysis, does not work properly yet
 
@@ -1202,12 +1201,6 @@ class Datahandler:
             "Heat Limit Heat Load (W)": [heatlimit]
         }
 
-        # Isolationswerte hinzufügen, falls vorhanden
-        if thick_req:
-            building_info_dict["Wall Insulation Thickness"] = [thick_req[0]]
-            building_info_dict["Roof Insulation Thickness"] = [thick_req[1]]
-            building_info_dict["Floor Insulation Thickness"] = [thick_req[2]]
-
         # 3. Das Dictionary mit allen DataFrames erstellen
         # Spaltennamen geben wir direkt bei der Erstellung des DataFrames mit an.
         parquet_data = {
@@ -1218,7 +1211,7 @@ class Datahandler:
 
             # Gebäude-Infos (einzeln)
             'nb_flats': pd.DataFrame([nb_units], columns=['Number of Flats or Main Rooms']),
-            'nb_occ': pd.DataFrame([nb_occ], columns=['occ']),  # PyArrow speichert die Liste direkt nativ
+            'nb_occ': pd.DataFrame([total_nb_occ], columns=['occ']),
             'heatload': pd.DataFrame([heatload], columns=['heatload']),
             'bivalent': pd.DataFrame([bivalent], columns=['bivalent']),
             'heatlimit': pd.DataFrame([heatlimit], columns=['Heat Limit Heat Load (W)']),
@@ -1239,6 +1232,14 @@ class Datahandler:
             'Car_availability_individual': pd.DataFrame(Car_availability_individual),
             'Car_Info': pd.DataFrame(car_info_list)
         }
+        # Isolationswerte hinzufügen, falls vorhanden
+        if thick_req:
+            data = {
+                "wall_ins_df": pd.DataFrame([thick_req[0]], columns=['Wall Insulation Thickness']),
+                "roof_ins_df": pd.DataFrame([thick_req[1]], columns=['Roof Insulation Thickness']),
+                "floor_ins_df": pd.DataFrame([thick_req[2]], columns=['Floor Insulation Thickness'])
+            }
+            parquet_data.update(data)
 
         # 4. In einer Schleife als Parquet speichern
         # Stellt sicher, dass der Zielordner existiert
