@@ -1572,6 +1572,7 @@ class Datahandler:
                     pv_profile, stc_profile = sun.calcPVAndSTCProfile(
                         time=self.time,
                         site=self.site,
+                        devices=self.decentral_device_data,
                         area_roof=area,
                         beta=[tilt],
                         gamma=[azimuth],

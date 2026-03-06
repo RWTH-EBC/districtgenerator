@@ -15,12 +15,12 @@ def run_opti(district_id, config_name):
     # Initialize District
     data = Datahandler(scenario_name = district_id, heat_map_berlin=True, env_path=".env.CONFIG." + config_name)
     topology_option = data.heat_grid_data["topology_option"]
-    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True, topology_option = topology_option)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=True, topology_option = topology_option)
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
 
     # Calculation of the key performance indicators using the devices' operation profiles of clustered time periods
-    data.calculateKPIs()
+    #data.calculateKPIs()
 
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
     # data.KPIs.create_certificate(data=data, result_path=data.resultPath)
