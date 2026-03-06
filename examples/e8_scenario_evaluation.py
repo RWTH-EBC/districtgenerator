@@ -31,7 +31,7 @@ def example8_scenario_evaluation():
 
     topology_option = data.heat_grid_data["topology_option"]
 
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=True, topology_option = topology_option)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

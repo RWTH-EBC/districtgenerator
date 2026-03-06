@@ -2224,15 +2224,59 @@ class Datahandler:
         """
 
         # Mapping-Funktionen definieren
-        def map_building_type(gebaeudetype):
-            """Mappt Gebäudetypen"""
+        def map_building_type(term: str) -> str:
+            """
+            Maps IWU / input building type strings to the project terms.
+
+            Wohngebäude-Regeln (substring match, case-insensitive):
+              - contains "EFH" -> "SFH"
+              - contains "RH"  -> "TH"
+              - contains "MFH" -> "MFH"
+              - contains "GMH" -> "MFH"   (GMH und jede Erweiterung wie GMH_B, X_GMH_C, ...)
+
+            Andere Typen: exaktes Mapping gemäß Screenshots (NWG_*, MN_*).
+            """
+            if term is None:
+                return term
+
+            t = str(term).strip()
+            u = t.upper()
+
+            # Wohngebäude: substring matching
+            if "GMH" in u:
+                return "MFH"
+            if "MFH" in u:
+                return "MFH"
+            if "EFH" in u:
+                return "SFH"
+            if "RH" in u:
+                return "TH"
+
             mapping = {
-                'EFH': 'SFH',  # Einfamilienhaus -> Single Family House
-                'RH': 'TH',  # Reihenhaus -> Terraced House
-                'MFH': 'MFH',  # Mehrfamilienhaus -> Multi Family House
-                'GMH': 'MFH'  # Geschosswohnhaus -> Multi Family House
+                # Nichtwohngebäude (IWU -> Quartiersgenerator)
+                "NWG_TYP_A": "OB",
+                "NWG_TYP_B": "UNI",
+                "NWG_TYP_C": "HOSPITAL",
+                "NWG_TYP_D": "SCHOOL",
+                "NWG_TYP_E": "CULTURE",
+                "NWG_TYP_F": "SPORT",
+                "NWG_TYP_G": "RE",
+                "NWG_TYP_H": "WORKSHOP",
+                "NWG_TYP_I": "RETAIL",
+                "NWG_TYP_J": "-",
+                "NWG_TYP_K": "-",
+                "NWG_TYP_SON": "-",  # case-insensitive handling below
+                "NWG_TYP_son": "-",
+
+                # Mischnutzung (IWU -> Quartiersgenerator)
+                "MN_TYP_A": "RETAIL+MFH",
+                "MN_TYP_B": "MFH",
+                "MN_TYP_C": "MFH+RETAIL",
+                "MN_TYP_D": "MFH+WORKSHOP",
             }
-            return mapping.get(gebaeudetype, None)
+
+            # make exact mapping case-insensitive too
+            return mapping.get(t, mapping.get(u, t))
 
         def map_heater_type(heizsystem):
             """Mappt Heizungstypen - konsistent mit Dictionary-Ansatz"""
@@ -2242,16 +2286,20 @@ class Datahandler:
             # Dictionary-Mapping wie beim building_type
             mapping = {
                 'Gaskessel': 'BOI',
-                'Fernwärme': 'DH',
+                'Fernwärme': 'heat_grid',
                 'Blockheizkraftwerk': 'CHP',
                 'Wärmepumpe': 'HP',
                 'Heat Pump': 'HP',
                 'Biomassekessel': 'BBOI',
                 'Ölkessel': 'OBOI',
                 'Wasserstoffkessel': 'H2BOI',
+                'opt': 'opt',
+                'opt_geg': 'opt_geg',
+                'opt_custom': 'opt_custom',
+                'heat_grid': 'heat_grid',
             }
 
-            return mapping.get(heizsystem, 'BOI')  # Default falls nicht gefunden
+            return mapping.get(heizsystem, 'opt')  # Default falls nicht gefunden
 
         def map_retrofit_status(sanierungszustand):
             """Mappt Sanierungszustand - auch mit Dictionary"""
@@ -2263,7 +2311,7 @@ class Datahandler:
                 'unsaniert': 0,
                 'teilsaniert': 1,
                 'vollsaniert': 2,
-                'saniert': 2  # Falls nur "saniert" ohne "voll" steht
+                'saniert': 2
             }
 
             return mapping.get(sanierungszustand,
@@ -2329,8 +2377,8 @@ class Datahandler:
                 print(f"row {idx}: Invalid heat_relevance: {row.get('heat_relevance')}")
                 return False
             # building_type_simplified vorhanden
-            if map_building_type(row.get('building_type_simplified')) == None:
-                print(f"Invalid building_type_simplified: {row.get('building_type_simplified')}")
+            if map_building_type(row.get('iwu_class')) == None:
+                print(f"Invalid building_type_simplified: {row.get('iwu_class')}")
                 return False
             # construction_year vorhanden
             if safe_convert_year(row.get('construction_year')) == None:
@@ -2351,7 +2399,7 @@ class Datahandler:
             return True
 
         # WKB Daten einlesen
-        wkb_data = pd.read_csv(wkb_file_path, encoding='utf-8', delimiter=',', decimal='.',
+        wkb_data = pd.read_csv(wkb_file_path, encoding='utf-8', delimiter=';', decimal='.',
                                na_values=['NULL', 'null', '', 'nan'])
 
         # Make sure x/y are numeric
@@ -2379,7 +2427,7 @@ class Datahandler:
                         'id': new_id,
                         'alkis_id': row.get('alkis_id'),
                         "position": (row["x_local"], row["y_local"]),
-                        'building': map_building_type(row.get('building_type_simplified')),
+                        'building': map_building_type(row.get('iwu_class')),
                         'year': safe_convert_year(row.get('construction_year')),
                         'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),
                         # Standard: nicht saniert
