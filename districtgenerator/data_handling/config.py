@@ -855,6 +855,19 @@ class CentralDeviceConfig(BaseSettings):
     PV__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     PV__life_time: int = 25  # Maximum life time in years.
     PV__inv_base: float = 1000  # Unsubsidized investment variable in €/m^2.
+
+
+    PV__inv_size1: float = 100.0  # Dummy value first installation size in square meters. # New TJA
+    PV__inv_size2: float = 500.0  # Dummy value second installation size in square meters. # New TJA
+    PV__inv_size3: float = 2000.0  # Dummy value third installation size in square meters. # New TJA
+    PV__inv_size4: float = 15000.0  # Dummy value fourth installation size in square meters. # New TJA
+    PV__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    PV__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    PV__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    PV__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    PV__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
+
+
     PV__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     PV__max_area: float = 10000  # Maximum installation area in square meters.
     PV__min_area: float = 0  # Minimum installation area in square meters.
@@ -865,6 +878,18 @@ class CentralDeviceConfig(BaseSettings):
     # WT parameters (Wind Turbine)
     WT__feasible: bool = False  # Should this be considered for the central optimization.
     WT__inv_base: float = 1500  # Unsubsidized investment variable in €/kW.
+
+    WT__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    WT__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    WT__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    WT__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    WT__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    WT__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    WT__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    WT__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    WT__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
+
+
     WT__life_time: int = 20  # Maximum life time in years.
     WT__cost_om: float = 0.015  # Cost of operation and maintenance as a percentage of investment.
     WT__min_cap: float = 0  # Minimum capacity in kW.
@@ -879,6 +904,15 @@ class CentralDeviceConfig(BaseSettings):
     # WAT parameters (Water Turbine)
     WAT__feasible: bool = False  # Should this be considered for the central optimization.
     WAT__inv_base: float = 2000  # Unsubsidized investment variable in €/kW.
+    WAT__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    WAT__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    WAT__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    WAT__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    WAT__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    WAT__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    WAT__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    WAT__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    WAT__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     WAT__life_time: int = 30  # Maximum life time in years.
     WAT__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
     WAT__min_cap: float = 0  # Minimum capacity in kW.
@@ -893,12 +927,17 @@ class CentralDeviceConfig(BaseSettings):
     STC__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     STC__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     STC__inv_base: float = 800  # Unsubsidized investment variable in €/m^2.
-    STC__inv_size1: float = 500.0  # Smallest installation size in square meters. # New TJA
-    STC__inv_size2: float = 2000.0  # Medium installation size in square meters. # New TJA
-    STC__inv_size3: float = 15000.0  # Large installation size in square meters. # New TJA
-    STC__inv_cost1: float = 190000.0  # Investment cost for small installation size in €. # New TJA
-    STC__inv_cost2: float = 680000.0  # Investment cost for medium installation size in €. # New TJA
-    STC__inv_cost3: float = 4350000.0  # Investment cost for large installation size in €. # New TJA
+
+    STC__inv_size1: float = 100.0  # Dummy value first installation size in square meters. # New TJA
+    STC__inv_size2: float = 500.0  # Dummy value second installation size in square meters. # New TJA
+    STC__inv_size3: float = 2000.0  # Dummy value third installation size in square meters. # New TJA
+    STC__inv_size4: float = 15000.0  # Dummy value fourth installation size in square meters. # New TJA
+    STC__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    STC__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    STC__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    STC__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    STC__lin_feasible: bool = False  # Whether to use piecewise linear costs (True). # New TJA
+
     STC__life_time: int = 20  # Maximum life time in years.
     STC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     STC__max_area: float = 5000  # Maximum installation area in square meters.
@@ -910,12 +949,15 @@ class CentralDeviceConfig(BaseSettings):
     # CHP parameters (Combined Heat and Power)
     CHP__feasible: bool = True  # Should this be considered for the central optimization.
     CHP__inv_base: float = 1200  # Unsubsidized investment variable in €/kW.
-    CHP__inv_size1: float = 300  # Smallest capacity in kW. # New TJA
-    CHP__inv_size2: float = 5000  # Medium capacity in kW. # New TJA
-    CHP__inv_size3: float = 10000  # Large capacity in kW. # New TJA
-    CHP__inv_cost1: float = 305100.0  # Investment cost for small capacity in €. # New TJA
-    CHP__inv_cost2: float = 4210000.0  # Investment cost for medium capacity in €. # New TJA
-    CHP__inv_cost3: float = 8040000.0  # Investment cost for large capacity in €. # New TJA
+    CHP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    CHP__inv_size2: float = 300  # Smallest capacity in kW. # New TJA
+    CHP__inv_size3: float = 5000  # Medium capacity in kW. # New TJA
+    CHP__inv_size4: float = 10000  # Large capacity in kW. # New TJA
+    CHP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    CHP__inv_cost2: float = 305100.0  # Investment cost for small capacity in €. # New TJA
+    CHP__inv_cost3: float = 4210000.0  # Investment cost for medium capacity in €. # New TJA
+    CHP__inv_cost4: float = 8040000.0  # Investment cost for large capacity in €. # New TJA
+    CHP__lin_feasible: bool = True  # Whether to use piecewise linear costs (True). # New TJA
     # CHP__inv_small: float = 832.53  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
     # CHP__inv_large: float = 766.38  # Investment variable for 10-30 MWth in €/kW. # New TJA
     # CHP__inv_size_switch: float = 4850  # Capacity at which the investment variable switches from small to large in kW. # New TJA
@@ -934,12 +976,15 @@ class CentralDeviceConfig(BaseSettings):
     # BOI__inv_small: float = 54.84  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
     # BOI__inv_large: float = 36.50  # Investment variable for 10-30 MWth in €/kW. # New TJA
     # BOI__inv_size_switch: float = 10000  # Capacity at which the investment variable switches from small to large in kW. # New TJA
-    BOI__inv_size1: float = 500  # Smallest capacity in kW. # New TJA
-    BOI__inv_size2: float = 10000  # Medium capacity in kW. # New TJA
-    BOI__inv_size3: float = 30000  # Large capacity in kW. # New TJA
-    BOI__inv_cost1: float = 69000.0  # Investment cost for small capacity in €. # New TJA
-    BOI__inv_cost2: float = 590000.0  # Investment cost for medium capacity in €. # New TJA
-    BOI__inv_cost3: float = 1320000.0  # Investment cost for large capacity in €. # New TJA
+    BOI__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    BOI__inv_size2: float = 500  # Smallest capacity in kW. # New TJA
+    BOI__inv_size3: float = 10000  # Medium capacity in kW. # New TJA
+    BOI__inv_size4: float = 30000  # Large capacity in kW. # New TJA
+    BOI__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    BOI__inv_cost2: float = 69000.0  # Investment cost for small capacity in €. # New TJA
+    BOI__inv_cost3: float = 590000.0  # Investment cost for medium capacity in €. # New TJA
+    BOI__inv_cost4: float = 1320000.0  # Investment cost for large capacity in €. # New TJA
+    BOI__lin_feasible: bool = True  # Whether to use piecewise linear costs (True). # New TJA
     BOI__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     BOI__life_time: int = 25  # Maximum life time in years.
     BOI__cost_om: float = 0.014  # Cost of operation and maintenance as a percentage of investment.
@@ -951,6 +996,15 @@ class CentralDeviceConfig(BaseSettings):
     # GHP parameters (Gas Heat Pump)
     GHP__feasible: bool = False  # Should this be considered for the central optimization.
     GHP__inv_base: float = 1000  # Unsubsidized investment variable in €/kW.
+    GHP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    GHP__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    GHP__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    GHP__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    GHP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    GHP__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    GHP__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    GHP__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    GHP__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     GHP__COP: float = 3.5  # Coefficient of Performance (COP).
     GHP__life_time: int = 20  # Maximum life time in years.
     GHP__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -965,6 +1019,15 @@ class CentralDeviceConfig(BaseSettings):
     HP__ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
     HP__CSV_feasible: bool = False  # Should this be considered for the central optimization (CSV data).
     HP__inv_base: float = 1110  # Unsubsidized investment variable in €/kW.
+    HP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    HP__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    HP__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    HP__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    HP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    HP__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    HP__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    HP__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    HP__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     HP__min_cap: float = 0  # Minimum capacity in kW.
@@ -982,12 +1045,15 @@ class CentralDeviceConfig(BaseSettings):
     # AirHP__inv_small: float = 797.26  # Investment variable for 0.5-10 MWth in €/kW. # New TJA
     # AirHP__inv_large: float = 669.28  # Investment variable for 10-30 MWth in €/kW. # New TJA
     # AirHP__inv_size_switch: float = 9850  # Capacity at which the investment variable switches from small to large in kW. # New TJA
-    AirHP__inv_size1: float = 300  # Smallest capacity in kW. # New TJA
-    AirHP__inv_size2: float = 10000  # Medium capacity in kW. # New TJA
-    AirHP__inv_size3: float = 20000  # Large capacity in kW. # New TJA
-    AirHP__inv_cost1: float = 393000.0  # Investment cost for small capacity in €. # New TJA
-    AirHP__inv_cost2: float = 8100000.0  # Investment cost for medium capacity in €. # New TJA
-    AirHP__inv_cost3: float = 14800000.0  # Investment cost for large capacity in €. # New TJA
+    AirHP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    AirHP__inv_size2: float = 300  # Smallest capacity in kW. # New TJA
+    AirHP__inv_size3: float = 10000  # Medium capacity in kW. # New TJA
+    AirHP__inv_size4: float = 20000  # Large capacity in kW. # New TJA
+    AirHP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    AirHP__inv_cost2: float = 393000.0  # Investment cost for small capacity in €. # New TJA
+    AirHP__inv_cost3: float = 8100000.0  # Investment cost for medium capacity in €. # New TJA
+    AirHP__inv_cost4: float = 14800000.0  # Investment cost for large capacity in €. # New TJA
+    AirHP__lin_feasible: bool = True  # Whether to use piecewise linear costs (True). # New TJA
     AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     AirHP__min_cap: float = 0  # Minimum capacity in kWth.
     AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
@@ -998,6 +1064,15 @@ class CentralDeviceConfig(BaseSettings):
     GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
     GroundHP__life_time: int = 20  # Maximum life time in years.
     GroundHP__inv_base: float = 1000  # Unsubsidized investment variable in €/kWth.
+    GroundHP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    GroundHP__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    GroundHP__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    GroundHP__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    GroundHP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    GroundHP__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    GroundHP__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    GroundHP__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    GroundHP__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     GroundHP__cost_om: float = 0.025  # Cost of operation and maintenance as a percentage of investment.
     GroundHP__min_cap: float = 0  # Minimum capacity in kWth.
     GroundHP__max_cap: float = 500  # Maximum capacity in kWth.
@@ -1007,6 +1082,15 @@ class CentralDeviceConfig(BaseSettings):
     # EB parameters (Electric Boiler)
     EB__feasible: bool = True  # Should this be considered for the central optimization.
     EB__inv_base: float = 32.73  # Unsubsidized investment variable in €/kW.
+    EB__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    EB__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    EB__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    EB__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    EB__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    EB__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    EB__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    EB__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    EB__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     EB__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     EB__life_time: int = 25  # Maximum life time in years.
     EB__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
@@ -1018,6 +1102,15 @@ class CentralDeviceConfig(BaseSettings):
     # CC parameters (Chiller)
     CC__feasible: bool = False  # Should this be considered for the central optimization.
     CC__inv_base: float = 700  # Unsubsidized investment variable in €/kW.
+    CC__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    CC__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    CC__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    CC__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    CC__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    CC__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    CC__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    CC__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    CC__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
     CC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1030,6 +1123,15 @@ class CentralDeviceConfig(BaseSettings):
     AirCC__feasible: bool = False  # Should this be considered for the central optimization.
     AirCC__life_time: int = 20  # Maximum life time in years.
     AirCC__inv_base: float = 700  # Unsubsidized investment variable in €/kW.
+    AirCC__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    AirCC__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    AirCC__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    AirCC__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    AirCC__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    AirCC__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    AirCC__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    AirCC__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    AirCC__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     AirCC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     AirCC__min_cap: float = 0  # Minimum capacity in kW.
     AirCC__max_cap: float = 500  # Maximum capacity in kW.
@@ -1039,6 +1141,15 @@ class CentralDeviceConfig(BaseSettings):
     # AC parameters (Absorption Chiller)
     AC__feasible: bool = False  # Should this be considered for the central optimization.
     AC__inv_base: float = 1000  # Unsubsidized investment variable in €/kW.
+    AC__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    AC__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    AC__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    AC__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    AC__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    AC__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    AC__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    AC__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    AC__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     AC__eta_th: float = 0.75  # Thermal efficiency between 0 and 1.
     AC__life_time: int = 20  # Maximum life time in years.
     AC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1050,6 +1161,15 @@ class CentralDeviceConfig(BaseSettings):
     # BCHP parameters (Biomass Combined Heat and Power)
     BCHP__feasible: bool = False  # Should this be considered for the central optimization.
     BCHP__inv_base: float = 1140  # Unsubsidized investment variable in €/kW.
+    BCHP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    BCHP__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    BCHP__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    BCHP__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    BCHP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    BCHP__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    BCHP__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    BCHP__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    BCHP__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     BCHP__eta_el: float = 0.35  # Electrical efficiency between 0 and 1.
     BCHP__eta_th: float = 0.55  # Thermal efficiency between 0 and 1.
     BCHP__life_time: int = 20  # Maximum life time in years.
@@ -1062,6 +1182,15 @@ class CentralDeviceConfig(BaseSettings):
     # BBOI parameters (Biomass Boiler)
     BBOI__feasible: bool = False  # Should this be considered for the central optimization.
     BBOI__inv_base: float = 570  # Unsubsidized investment variable in €/kW.
+    BBOI__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    BBOI__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    BBOI__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    BBOI__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    BBOI__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    BBOI__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    BBOI__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    BBOI__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    BBOI__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     BBOI__eta_th: float = 0.85  # Thermal efficiency between 0 and 1.
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1073,6 +1202,15 @@ class CentralDeviceConfig(BaseSettings):
     # WCHP parameters (Waste Combined Heat and Power)
     WCHP__feasible: bool = False  # Should this be considered for the central optimization.
     WCHP__inv_base: float = 2000  # Unsubsidized investment variable in €/kW.
+    WCHP__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    WCHP__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    WCHP__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    WCHP__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    WCHP__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    WCHP__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    WCHP__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    WCHP__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    WCHP__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     WCHP__eta_el: float = 0.3  # Electrical efficiency between 0 and 1.
     WCHP__eta_th: float = 0.6  # Thermal efficiency between 0 and 1.
     WCHP__life_time: int = 20  # Maximum life time in years.
@@ -1085,6 +1223,15 @@ class CentralDeviceConfig(BaseSettings):
     # WBOI parameters (Waste Boiler)
     WBOI__feasible: bool = False  # Should this be considered for the central optimization.
     WBOI__inv_base: float = 700  # Unsubsidized investment variable in €/kW.
+    WBOI__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    WBOI__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    WBOI__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    WBOI__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    WBOI__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    WBOI__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    WBOI__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    WBOI__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    WBOI__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     WBOI__eta_th: float = 0.8  # Thermal efficiency between 0 and 1.
     WBOI__life_time: int = 20  # Maximum life time in years.
     WBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1096,6 +1243,15 @@ class CentralDeviceConfig(BaseSettings):
     # ELYZ parameters (Electrolyzer)
     ELYZ__feasible: bool = False  # Should this be considered for the central optimization.
     ELYZ__inv_base: float = 1500  # Unsubsidized investment variable in €/kW.
+    ELYZ__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    ELYZ__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    ELYZ__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    ELYZ__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    ELYZ__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    ELYZ__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    ELYZ__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    ELYZ__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    ELYZ__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     ELYZ__eta_el: float = 0.7  # Electrical efficiency between 0 and 1.
     ELYZ__life_time: int = 20  # Maximum life time in years.
     ELYZ__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
@@ -1107,6 +1263,15 @@ class CentralDeviceConfig(BaseSettings):
     # FC parameters (Fuel Cell)
     FC__feasible: bool = False  # Should this be considered for the central optimization.
     FC__inv_base: float = 1800  # Unsubsidized investment variable in €/kW.
+    FC__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    FC__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    FC__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    FC__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    FC__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    FC__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    FC__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    FC__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    FC__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     FC__eta_el: float = 0.5  # Electrical efficiency between 0 and 1.
     FC__eta_th: float = 0.4  # Thermal efficiency between 0 and 1.
     FC__life_time: int = 20  # Maximum life time in years.
@@ -1120,6 +1285,15 @@ class CentralDeviceConfig(BaseSettings):
     # H2S parameters (Hydrogen Storage)
     H2S__feasible: bool = False  # Should this be considered for the central optimization.
     H2S__inv_base: float = 1200  # Unsubsidized investment variable in €/kWh.
+    H2S__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    H2S__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    H2S__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    H2S__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    H2S__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    H2S__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    H2S__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    H2S__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    H2S__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     H2S__sto_loss: float = 0.0  # Storage loss as a fraction.
     H2S__life_time: int = 20  # Maximum life time in years.
     H2S__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1131,6 +1305,15 @@ class CentralDeviceConfig(BaseSettings):
     # SAB parameters (Sabatier Reactor)
     SAB__feasible: bool = False  # Should this be considered for the central optimization.
     SAB__inv_base: float = 2000  # Unsubsidized investment variable in €/kW.
+    SAB__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    SAB__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    SAB__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    SAB__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    SAB__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    SAB__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    SAB__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    SAB__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    SAB__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     SAB__eta: float = 0.6  # Round-trip efficiency between 0 and 1.
     SAB__life_time: int = 20  # Maximum life time in years.
     SAB__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
@@ -1142,12 +1325,15 @@ class CentralDeviceConfig(BaseSettings):
     # TES parameters (Thermal Energy Storage)
     TES__feasible: bool = True  # Should this be considered for the central optimization.
     TES__inv_base: float = 550  # Unsubsidized investment variable in €/m^3.
-    TES__inv_size1: float = 2.7  # Smallest storage size in cubic meters. # New TJA
-    TES__inv_size2: float = 3.8  # Medium storage size in cubic meters. # New TJA
-    TES__inv_size3: float = 44.0  # Large storage size in cubic meters. # New TJA
-    TES__inv_cost1: float = 2192.67  # Investment cost for small storage size in €. # New TJA
-    TES__inv_cost2: float = 2862.47  # Investment cost for medium storage size in €. # New TJA
-    TES__inv_cost3: float = 19337.64  # Investment cost for large storage size in €. # New TJA
+    TES__inv_size1: float = 1.0  # Dummy value first installation size in m^3. # New TJA
+    TES__inv_size2: float = 2.7  # Smallest storage size in cubic meters. # New TJA
+    TES__inv_size3: float = 3.8  # Medium storage size in cubic meters. # New TJA
+    TES__inv_size4: float = 44.0  # Large storage size in cubic meters. # New TJA
+    TES__inv_cost1: float = 550.0  # Dummy values investment cost for first installation size in €. # New TJA
+    TES__inv_cost2: float = 2192.67  # Investment cost for small storage size in €. # New TJA
+    TES__inv_cost3: float = 2862.47  # Investment cost for medium storage size in €. # New TJA
+    TES__inv_cost4: float = 19337.64  # Investment cost for large storage size in €. # New TJA
+    TES__lin_feasible: bool = True  # Whether to use piecewise linear costs(True). # New TJA
     TES__sto_loss: float = 0.01  # Storage loss per hour as a fraction.
     TES__life_time: int = 20  # Maximum life time in years.
     TES__cost_om: float = 0.013  # Cost of operation and maintenance as a percentage of investment.
@@ -1163,6 +1349,15 @@ class CentralDeviceConfig(BaseSettings):
     # CTES parameters (Cold Thermal Energy Storage)
     CTES__feasible: bool = False  # Should this be considered for the central optimization.
     CTES__inv_base: float = 1300  # Unsubsidized investment variable in €/m^3.
+    CTES__inv_size1: float = 100.0  # Dummy value first installation size in m^3. # New TJA
+    CTES__inv_size2: float = 500.0  # Dummy value second installation size in m^3. # New TJA
+    CTES__inv_size3: float = 2000.0  # Dummy value third installation size in m^3. # New TJA
+    CTES__inv_size4: float = 15000.0  # Dummy value fourth installation size in m^3. # New TJA
+    CTES__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    CTES__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    CTES__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    CTES__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    CTES__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     CTES__sto_loss: float = 0.01  # Storage loss per hour as a fraction.
     CTES__life_time: int = 20  # Maximum life time in years.
     CTES__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
@@ -1175,6 +1370,15 @@ class CentralDeviceConfig(BaseSettings):
     # BAT parameters (Battery Storage)
     BAT__feasible: bool = False  # Should this be considered for the central optimization.
     BAT__inv_base: float = 200  # Unsubsidized investment variable in €/kWh.
+    BAT__inv_size1: float = 100.0  # Dummy value first installation size in kW. # New TJA
+    BAT__inv_size2: float = 500.0  # Dummy value second installation size in kW. # New TJA
+    BAT__inv_size3: float = 2000.0  # Dummy value third installation size in kW. # New TJA
+    BAT__inv_size4: float = 15000.0  # Dummy value fourth installation size in kW. # New TJA
+    BAT__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    BAT__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    BAT__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    BAT__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    BAT__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     BAT__life_time: int = 15  # Maximum life time in years.
     BAT__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     BAT__min_cap: float = 0  # Minimum capacity in kWh.
@@ -1187,6 +1391,15 @@ class CentralDeviceConfig(BaseSettings):
     # GS parameters (Gas Storage)
     GS__feasible: bool = False  # Should this be considered for the central optimization.
     GS__inv_base: float = 150  # Unsubsidized investment variable in €/kWh.
+    GS__inv_size1: float = 100.0  # Dummy value first installation size in kWh. # New TJA
+    GS__inv_size2: float = 500.0  # Dummy value second installation size in kWh. # New TJA
+    GS__inv_size3: float = 2000.0  # Dummy value third installation size in kWh. # New TJA
+    GS__inv_size4: float = 15000.0  # Dummy value fourth installation size in kWh. # New TJA
+    GS__inv_cost1: float = 40000.0  # Dummy value investment cost for first installation size in €. # New TJA
+    GS__inv_cost2: float = 190000.0  # Dummy value investment cost for second installation size in €. # New TJA
+    GS__inv_cost3: float = 680000.0  # Dummy value investment cost for third installation size in €. # New TJA
+    GS__inv_cost4: float = 4350000.0  # Dummy value investment cost for fourth installation size in €. # New TJA
+    GS__lin_feasible: bool = False  # Whether to use piecewise linear costs(True). # New TJA
     GS__life_time: int = 20  # Maximum life time in years.
     GS__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
     GS__min_cap: float = 0  # Minimum capacity in kWh.
@@ -1223,10 +1436,10 @@ class CentralDeviceConfig(BaseSettings):
                     if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
                         device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
                     # Calculate inv_small, inv_large and inv_size_switch # New TJA
-                    if "inv_size1" in device_dict and "inv_cost1" in device_dict and "inv_size2" in device_dict and "inv_cost2" in device_dict and "inv_size3" in device_dict and "inv_cost3" in device_dict:
-                        device_dict['inv_small'] = (device_dict['inv_cost2']-device_dict['inv_cost1']) / (device_dict['inv_size2']-device_dict['inv_size1'])* (1 - device_dict['inv_subsidy_rate'])
-                        device_dict['inv_large'] = (device_dict['inv_cost3']-device_dict['inv_cost2']) / (device_dict['inv_size3']-device_dict['inv_size2'])* (1 - device_dict['inv_subsidy_rate'])
-                        device_dict['inv_size_switch'] = device_dict['inv_size2']
+                    # if "inv_size1" in device_dict and "inv_cost1" in device_dict and "inv_size2" in device_dict and "inv_cost2" in device_dict and "inv_size3" in device_dict and "inv_cost3" in device_dict:
+                    #     device_dict['inv_small'] = (device_dict['inv_cost2']-device_dict['inv_cost1']) / (device_dict['inv_size2']-device_dict['inv_size1'])* (1 - device_dict['inv_subsidy_rate'])
+                    #     device_dict['inv_large'] = (device_dict['inv_cost3']-device_dict['inv_cost2']) / (device_dict['inv_size3']-device_dict['inv_size2'])* (1 - device_dict['inv_subsidy_rate'])
+                    #     device_dict['inv_size_switch'] = device_dict['inv_size2']
                     
                     # Set the dictionary first
                     setattr(self, field_name, device_dict)

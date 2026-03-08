@@ -137,6 +137,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     storage_devs_list = ["TES", "CTES", "BAT", "H2S", "GS"]
     area_devs_list = ["PV", "STC"]
     grid_flows_list = ["from_grid", "to_grid"] # for network
+    segments = ["small", "medium","large"]  # new TJA
+    
 
     # Add sets to the model for this district
     model.all_devs = pyo.Set(initialize=all_devs_list)
@@ -149,6 +151,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.waste_devs = pyo.Set(initialize=waste_devs_list)
     model.storage_devs = pyo.Set(initialize=storage_devs_list)
     model.area_devs = pyo.Set(initialize=area_devs_list)
+    model.segments = pyo.Set(initialize=segments) # new TJA
     
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
@@ -191,9 +194,11 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Variable to make sure that feed in and withdrawal from the grid are mutually exclusive in each time step
     model.grid_import_binary = pyo.Var(model.districts, model.support_years, model.clusters, model.time_steps, within=pyo.Binary) # new for network
 
-    # Binary Variable to decide if capacity is is below or above inv_size_switch for BOI, CHP and HP to apply different investment cost regimes # new TJA
-    piecewise_devs = ["BOI", "CHP", "HP", "STC", "TES"]
-    model.cap_small = pyo.Var(piecewise_devs, model.districts, within=pyo.Binary)  # new for network
+    # Binary Variable to decide if capacity of a device is small, medium or large for cost calculation (new TJA)
+    model.cap_bin = pyo.Var(model.segments, model.all_devs, model.districts, within=pyo.Binary)  # new for network
+
+    # Continuous variable one for each segment to determine the capacity in each segment for cost calculation (new TJA)
+    model.cap_seg = pyo.Var(model.segments, model.all_devs, model.districts, within=pyo.NonNegativeReals)  # new for network
 
     ## Binary variable to decide if size if TES > 250 m² for KWKG subsidy
     # model.tes_kwkg_binary = pyo.Var(model.districts, within=pyo.Binary)  # new for network
@@ -247,6 +252,9 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             if not devs[dev]["feasible"]:  # if device is not feasible, set capacity to 0
                 model.constraints.add(model.cap[dev, district] == 0)
             else:
+                # For devices with linear cost segments, the capacity is determined by the sum of the capacities in each segment
+                if devs[dev]["lin_feasible"]== True:
+                    model.constraints.add(model.cap[dev,district] == sum(model.cap_seg[seg,dev,district] for seg in model.segments))
                 if dev in model.area_devs:
                     continue  # Area constraints are handled separately and no capacity constraints are needed
                 min_cap = devs[dev].get("min_cap")
@@ -734,20 +742,43 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         devs = devsCon[district]
         param = paramCon[district]
         data = dataCon[district]
-        for dev in ["BOI", "CHP", "HP", "STC", "TES"]:
-            # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-            model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[dev, district]))
-            # Constraint 2: If cap_small = 0, then cap > 10000 kW
-            model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[dev, district])
-            # Constraint for investment costs based on capacity regimes
-            model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[dev, district]
-                                + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[dev, district])
-                                )
-      
-        for dev in ["PV", "WT", "WAT", "EB", "CC", "AC", "BBOI", "GHP",
-                     "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB",
-                     "CTES", "BAT", "GS"]:
-            model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
+
+        for dev in model.all_devs:
+            if devs[dev]["lin_feasible"]== True:
+                # Enforce that only one segment can be selected for linearized devices
+                model.constraints.add(sum(model.cap_bin[seg, dev, district] for seg in model.cap_seg[dev, district]) == 1)
+                # Define upper boundries of each segment
+                model.constraints.add(model.cap_seg["small",dev, district]<=model.cap_bin["small",dev, district] * devs[dev]["inv_size2"])
+                model.constraints.add(model.cap_seg["medium",dev, district]<=model.cap_bin["medium",dev, district] * devs[dev]["inv_size3"])
+                #model.constraints.add(model.cap_seg["large",dev, district]<=model.cap_bin["large",dev, district] * devs[dev]["inv_size4"]) # No upper limit
+                # Define lower boundries of each segment
+                model.constraints.add(model.cap_seg["small",dev, district]>=model.cap_bin["small",dev, district] * devs[dev]["inv_size1"])
+                model.constraints.add(model.cap_seg["medium",dev, district]>=model.cap_bin["medium",dev, district] * devs[dev]["inv_size2"])
+                model.constraints.add(model.cap_seg["large",dev, district]>=model.cap_bin["large",dev, district] * devs[dev]["inv_size3"])
+                # Caluclate slope of cost function for each segment
+                slope_small= (devs[dev]["inv_cost2"] - devs[dev]["inv_cost1"]) / (devs[dev]["inv_size2"] - devs[dev]["inv_size1"])
+                slope_medium= (devs[dev]["inv_cost3"] - devs[dev]["inv_cost2"]) / (devs[dev]["inv_size3"] - devs[dev]["inv_size2"])
+                slope_large= (devs[dev]["inv_cost4"] - devs[dev]["inv_cost3"]) / (devs[dev]["inv_size4"] - devs[dev]["inv_size3"])
+                # Define investment costs based on selected segment and capacity
+                model.constraints.add(model.inv[dev, district]== 
+                                      model.cap_bin["small",dev, district]*devs[dev]["inv_cost1"] + slope_small*(model.cap_seg["small",dev, district]-model.cap_bin["small",dev, district] * devs[dev]["inv_size1"]) +
+                                      model.cap_bin["medium",dev, district]*devs[dev]["inv_cost2"] + slope_medium*(model.cap_seg["medium",dev, district]-model.cap_bin["medium",dev, district] * devs[dev]["inv_size2"]) +
+                                      model.cap_bin["large",dev, district]*devs[dev]["inv_cost3"] + slope_large*(model.cap_seg["large",dev, district]-model.cap_bin["large",dev, district] * devs[dev]["inv_size3"]))
+            else:
+                model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
+
+
+
+        # for dev in ["BOI", "CHP", "HP", "STC", "TES"]:
+        #     # Constraint 1: If cap_small = 1, then cap <= 10000 kW
+        #     model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[dev, district]))
+        #     # Constraint 2: If cap_small = 0, then cap > 10000 kW
+        #     model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[dev, district])
+        #     # Constraint for investment costs based on capacity regimes
+        #     model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[dev, district]
+        #                         + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[dev, district])
+        #                         )
+
             
         # for dev in ["TES"]:
         #     # Constraint 1: If tes_kwkg_binary = 1, then cap <= "inv_subsidy_cap" (e.g., 50 m^3)

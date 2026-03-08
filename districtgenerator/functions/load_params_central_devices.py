@@ -213,12 +213,15 @@ def load_params(data):
             "inv_size1": value.get("inv_size1", 0), # New TJA
             "inv_size2": value.get("inv_size2", 0), # New TJA
             "inv_size3": value.get("inv_size3", 0), # New TJA
+            "inv_size4": value.get("inv_size4", 0), # New TJA
             "inv_cost1": value.get("inv_cost1", 0), # New TJA
             "inv_cost2": value.get("inv_cost2", 0), # New TJA
             "inv_cost3": value.get("inv_cost3", 0), # New TJA
-            "inv_small": value.get("inv_small", 0), # New TJA
-            "inv_large": value.get("inv_large", 0), # New TJA
-            "inv_size_switch": value.get("inv_size_switch", 0), # New TJA
+            "inv_cost4": value.get("inv_cost4", 0), # New TJA
+            "lin_feasible": value.get("lin_feasible", False), # New TJA
+            # "inv_small": value.get("inv_small", 0), # New TJA
+            # "inv_large": value.get("inv_large", 0), # New TJA
+            # "inv_size_switch": value.get("inv_size_switch", 0), # New TJA
             "cost_om": value.get("cost_om", 0) * 100,
             "beta": value.get("beta", 0),
             "gamma": value.get("gamma", 0),
@@ -258,6 +261,15 @@ def load_params(data):
         "life_time": all_models["PV"]["life_time"],
         "inv_var": all_models["PV"]["inv_var"],
         "inv_base": all_models["PV"]["inv_base"],
+        "inv_size1": all_models["PV"]["inv_size1"], # New TJA
+        "inv_size2": all_models["PV"]["inv_size2"], # New TJA
+        "inv_size3": all_models["PV"]["inv_size3"], # New TJA
+        "inv_size4": all_models["PV"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["PV"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["PV"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["PV"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["PV"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["PV"]["lin_feasible"], # New TJA
         "cost_om": all_models["PV"]["cost_om"] / 100,
         "max_area": all_models["PV"]["max_area"],
         "min_area": all_models["PV"]["min_area"],
@@ -270,6 +282,15 @@ def load_params(data):
         "feasible": all_models["WT"]["enabled"],
         "inv_var": all_models["WT"]["inv_var"],
         "inv_base": all_models["WT"]["inv_base"],
+        "inv_size1": all_models["WT"]["inv_size1"], # New TJA
+        "inv_size2": all_models["WT"]["inv_size2"], # New TJA
+        "inv_size3": all_models["WT"]["inv_size3"], # New TJA
+        "inv_size4": all_models["WT"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["WT"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["WT"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["WT"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["WT"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["WT"]["lin_feasible"], # New TJA
         "life_time": all_models["WT"]["life_time"],
         "cost_om": all_models["WT"]["cost_om"] / 100,
         "min_cap": all_models["WT"]["min_cap"],
@@ -285,6 +306,15 @@ def load_params(data):
         "feasible": all_models["WAT"]["enabled"],
         "inv_var": all_models["WAT"]["inv_var"],
         "inv_base": all_models["WAT"]["inv_base"],
+        "inv_size1": all_models["WAT"]["inv_size1"], # New TJA
+        "inv_size2": all_models["WAT"]["inv_size2"], # New TJA
+        "inv_size3": all_models["WAT"]["inv_size3"], # New TJA
+        "inv_size4": all_models["WAT"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["WAT"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["WAT"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["WAT"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["WAT"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["WAT"]["lin_feasible"], # New TJA
         "life_time": all_models["WAT"]["life_time"],
         "cost_om": all_models["WAT"]["cost_om"] / 100,
         "min_cap": all_models["WAT"]["min_cap"],
@@ -300,9 +330,18 @@ def load_params(data):
         "gamma": all_models["STC"]["gamma"],
         "inv_var": all_models["STC"]["inv_var"],
         "inv_base": all_models["STC"]["inv_base"],
-        "inv_small": all_models["STC"]["inv_small"], # currently EUR/m² from config interpolation New TJA
-        "inv_large": all_models["STC"]["inv_large"],  # currently EUR/m² from config interpolation New TJA
-        "inv_size_switch": all_models["STC"]["inv_size_switch"], # currently m² from config New TJA
+        "inv_size1": all_models["STC"]["inv_size1"], # New TJA
+        "inv_size2": all_models["STC"]["inv_size2"], # New TJA
+        "inv_size3": all_models["STC"]["inv_size3"], # New TJA
+        "inv_size4": all_models["STC"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["STC"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["STC"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["STC"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["STC"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["STC"]["lin_feasible"], # New TJA
+        # "inv_small": all_models["STC"]["inv_small"], # currently EUR/m² from config interpolation New TJA
+        # "inv_large": all_models["STC"]["inv_large"],  # currently EUR/m² from config interpolation New TJA
+        # "inv_size_switch": all_models["STC"]["inv_size_switch"], # currently m² from config New TJA
         "life_time": all_models["STC"]["life_time"],
         "cost_om": all_models["STC"]["cost_om"] / 100,
         "max_area": all_models["STC"]["max_area"],
@@ -316,15 +355,15 @@ def load_params(data):
     if stc_kw_per_m2 <= 0:
         raise ValueError("STC conversion factor (G_stc * eta) must be > 0.")
 
-    # keep original values for debugging/output
-    devs["STC"]["inv_size_switch_m2"] = devs["STC"]["inv_size_switch"]
-    devs["STC"]["inv_small_per_m2"] = devs["STC"]["inv_small"]
-    devs["STC"]["inv_large_per_m2"] = devs["STC"]["inv_large"]
+    # # keep original values for debugging/output
+    # devs["STC"]["inv_size_switch_m2"] = devs["STC"]["inv_size_switch"]
+    # devs["STC"]["inv_small_per_m2"] = devs["STC"]["inv_small"]
+    # devs["STC"]["inv_large_per_m2"] = devs["STC"]["inv_large"]
 
-    # values used in optimization (cap in kW)
-    devs["STC"]["inv_size_switch"] = devs["STC"]["inv_size_switch"] * stc_kw_per_m2  # m² -> kW
-    devs["STC"]["inv_small"] = devs["STC"]["inv_small"] / stc_kw_per_m2              # EUR/m² -> EUR/kW
-    devs["STC"]["inv_large"] = devs["STC"]["inv_large"] / stc_kw_per_m2              # EUR/m² -> EUR/kW
+    # # values used in optimization (cap in kW)
+    # devs["STC"]["inv_size_switch"] = devs["STC"]["inv_size_switch"] * stc_kw_per_m2  # m² -> kW
+    # devs["STC"]["inv_small"] = devs["STC"]["inv_small"] / stc_kw_per_m2              # EUR/m² -> EUR/kW
+    # devs["STC"]["inv_large"] = devs["STC"]["inv_large"] / stc_kw_per_m2              # EUR/m² -> EUR/kW
 
     # calculate theoretical PV and STC generation per m^2
     devs["PV"]["norm_power"], devs["STC"]["norm_power"], devs["PV"]["norm_power_clustered"], devs["STC"]["norm_power_clustered"] = get_PVandSTC_power(devs, param, data)
@@ -337,15 +376,18 @@ def load_params(data):
         "feasible": all_models["CHP"]["enabled"],
         "inv_var": all_models["CHP"]["inv_var"],
         "inv_base": all_models["CHP"]["inv_base"],
-        # "inv_size1": all_models["CHP"]["inv_size1"], # New TJA
-        # "inv_size2": all_models["CHP"]["inv_size2"], # New TJA
-        # "inv_size3": all_models["CHP"]["inv_size3"], # New TJA
-        # "inv_cost1": all_models["CHP"]["inv_cost1"], # New TJA
-        # "inv_cost2": all_models["CHP"]["inv_cost2"], # New TJA
-        # "inv_cost3": all_models["CHP"]["inv_cost3"], # New TJA
-        "inv_small": all_models["CHP"]["inv_small"], # New TJA
-        "inv_large": all_models["CHP"]["inv_large"], # New TJA
-        "inv_size_switch": all_models["CHP"]["inv_size_switch"], # New TJA
+        "inv_size1": all_models["CHP"]["inv_size1"], # New TJA
+        "inv_size2": all_models["CHP"]["inv_size2"], # New TJA
+        "inv_size3": all_models["CHP"]["inv_size3"], # New TJA
+        "inv_size4": all_models["CHP"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["CHP"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["CHP"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["CHP"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["CHP"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["CHP"]["lin_feasible"], # New TJA
+        # "inv_small": all_models["CHP"]["inv_small"], # New TJA
+        # "inv_large": all_models["CHP"]["inv_large"], # New TJA
+        # "inv_size_switch": all_models["CHP"]["inv_size_switch"], # New TJA
         "eta_el": all_models["CHP"]["eta_el"] / 100,
         "eta_th": all_models["CHP"]["eta_th"] / 100,
         "life_time": all_models["CHP"]["life_time"],
@@ -365,15 +407,18 @@ def load_params(data):
         "feasible": all_models["BOI"]["enabled"],
         "inv_var": all_models["BOI"]["inv_var"],
         "inv_base": all_models["BOI"]["inv_base"],
-        # "inv_size1": all_models["BOI"]["inv_size1"], # New TJA
-        # "inv_size2": all_models["BOI"]["inv_size2"], # New TJA
-        # "inv_size3": all_models["BOI"]["inv_size3"], # New TJA
-        # "inv_cost1": all_models["BOI"]["inv_cost1"], # New TJA
-        # "inv_cost2": all_models["BOI"]["inv_cost2"], # New TJA
-        # "inv_cost3": all_models["BOI"]["inv_cost3"], # New TJA
-        "inv_small": all_models["BOI"]["inv_small"], # New TJA
-        "inv_large": all_models["BOI"]["inv_large"], # New TJA
-        "inv_size_switch": all_models["BOI"]["inv_size_switch"], # New TJA
+        "inv_size1": all_models["BOI"]["inv_size1"], # New TJA
+        "inv_size2": all_models["BOI"]["inv_size2"], # New TJA
+        "inv_size3": all_models["BOI"]["inv_size3"], # New TJA
+        "inv_size4": all_models["BOI"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["BOI"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["BOI"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["BOI"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["BOI"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["BOI"]["lin_feasible"], # New TJA
+        # "inv_small": all_models["BOI"]["inv_small"], # New TJA
+        # "inv_large": all_models["BOI"]["inv_large"], # New TJA
+        # "inv_size_switch": all_models["BOI"]["inv_size_switch"], # New TJA
         "eta_th": all_models["BOI"]["eta_th"] / 100,
         "life_time": all_models["BOI"]["life_time"],
         "cost_om": all_models["BOI"]["cost_om"] / 100,
@@ -391,6 +436,15 @@ def load_params(data):
         "feasible": all_models["GHP"]["enabled"],
         "inv_var": all_models["GHP"]["inv_var"],
         "inv_base": all_models["GHP"]["inv_base"],
+        "inv_size1": all_models["GHP"]["inv_size1"], # New TJA
+        "inv_size2": all_models["GHP"]["inv_size2"], # New TJA
+        "inv_size3": all_models["GHP"]["inv_size3"], # New TJA
+        "inv_size4": all_models["GHP"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["GHP"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["GHP"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["GHP"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["GHP"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["GHP"]["lin_feasible"], # New TJA
         "COP": all_models["GHP"]["COP"],
         "life_time": all_models["GHP"]["life_time"],
         "cost_om": all_models["GHP"]["cost_om"] / 100,
@@ -409,6 +463,15 @@ def load_params(data):
                     "feasible": all_models["GroundHP"]["enabled"],
                     "inv_var": all_models["GroundHP"]["inv_var"],
                     "inv_base": all_models["GroundHP"]["inv_base"],
+                    "inv_size1": all_models["GroundHP"]["inv_size1"], # New TJA
+                    "inv_size2": all_models["GroundHP"]["inv_size2"], # New TJA
+                    "inv_size3": all_models["GroundHP"]["inv_size3"], # New TJA
+                    "inv_size4": all_models["GroundHP"]["inv_size4"], # New TJA
+                    "inv_cost1": all_models["GroundHP"]["inv_cost1"], # New TJA
+                    "inv_cost2": all_models["GroundHP"]["inv_cost2"], # New TJA
+                    "inv_cost3": all_models["GroundHP"]["inv_cost3"], # New TJA
+                    "inv_cost4": all_models["GroundHP"]["inv_cost4"], # New TJA
+                    "lin_feasible": all_models["GroundHP"]["lin_feasible"], # New TJA
                     "life_time": all_models["GroundHP"]["life_time"],
                     "cost_om": all_models["GroundHP"]["cost_om"] / 100,
                     "min_cap": all_models["GroundHP"]["min_cap"],
@@ -444,15 +507,18 @@ def load_params(data):
             "feasible": all_models["AirHP"]["enabled"],
             "inv_var": all_models["AirHP"]["inv_var"],
             "inv_base": all_models["AirHP"]["inv_base"],
-            # "inv_size1": all_models["AirHP"]["inv_size1"], # New TJA
-            # "inv_size2": all_models["AirHP"]["inv_size2"], # New TJA
-            # "inv_size3": all_models["AirHP"]["inv_size3"], # New TJA
-            # "inv_cost1": all_models["AirHP"]["inv_cost1"], # New TJA
-            # "inv_cost2": all_models["AirHP"]["inv_cost2"], # New TJA
-            # "inv_cost3": all_models["AirHP"]["inv_cost3"], # New TJA
-            "inv_small": all_models["AirHP"]["inv_small"], # New TJA
-            "inv_large": all_models["AirHP"]["inv_large"], # New TJA
-            "inv_size_switch": all_models["AirHP"]["inv_size_switch"], # New TJA
+            "inv_size1": all_models["AirHP"]["inv_size1"], # New TJA
+            "inv_size2": all_models["AirHP"]["inv_size2"], # New TJA
+            "inv_size3": all_models["AirHP"]["inv_size3"], # New TJA
+            "inv_size4": all_models["AirHP"]["inv_size4"], # New TJA
+            "inv_cost1": all_models["AirHP"]["inv_cost1"], # New TJA
+            "inv_cost2": all_models["AirHP"]["inv_cost2"], # New TJA
+            "inv_cost3": all_models["AirHP"]["inv_cost3"], # New TJA
+            "inv_cost4": all_models["AirHP"]["inv_cost4"], # New TJA
+            "lin_feasible": all_models["AirHP"]["lin_feasible"], # New TJA
+            # "inv_small": all_models["AirHP"]["inv_small"], # New TJA
+            # "inv_large": all_models["AirHP"]["inv_large"], # New TJA
+            # "inv_size_switch": all_models["AirHP"]["inv_size_switch"], # New TJA
             "life_time": all_models["AirHP"]["life_time"],
             "cost_om": all_models["AirHP"]["cost_om"] / 100,
             "min_cap": all_models["AirHP"]["min_cap"],
@@ -491,6 +557,15 @@ def load_params(data):
             "COP_const": all_models["HP"]["COP_const"],
             "inv_var": all_models["HP"]["inv_var"],
             "inv_base": all_models["HP"]["inv_base"],
+            "inv_size1": all_models["HP"]["inv_size1"], # New TJA
+            "inv_size2": all_models["HP"]["inv_size2"], # New TJA
+            "inv_size3": all_models["HP"]["inv_size3"], # New TJA
+            "inv_size4": all_models["HP"]["inv_size4"], # New TJA
+            "inv_cost1": all_models["HP"]["inv_cost1"], # New TJA
+            "inv_cost2": all_models["HP"]["inv_cost2"], # New TJA
+            "inv_cost3": all_models["HP"]["inv_cost3"], # New TJA
+            "inv_cost4": all_models["HP"]["inv_cost4"], # New TJA
+            "lin_feasible": all_models["HP"]["lin_feasible"], # New TJA
             "life_time": all_models["HP"]["life_time"],
             "cost_om": all_models["HP"]["cost_om"] / 100,
             "min_cap": all_models["HP"]["min_cap"],
@@ -524,6 +599,15 @@ def load_params(data):
         "feasible": all_models["EB"]["enabled"],
         "inv_var": all_models["EB"]["inv_var"],
         "inv_base": all_models["EB"]["inv_base"],
+        "inv_size1": all_models["EB"]["inv_size1"], # New TJA
+        "inv_size2": all_models["EB"]["inv_size2"], # New TJA
+        "inv_size3": all_models["EB"]["inv_size3"], # New TJA
+        "inv_size4": all_models["EB"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["EB"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["EB"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["EB"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["EB"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["EB"]["lin_feasible"], # New TJA
         "eta_th": all_models["EB"]["eta_th"] / 100,
         "life_time": all_models["EB"]["life_time"],
         "cost_om": all_models["EB"]["cost_om"] / 100,
@@ -540,6 +624,15 @@ def load_params(data):
             "feasible": all_models["AirCC"]["enabled"],
             "inv_var": all_models["AirCC"]["inv_var"],
             "inv_base": all_models["AirCC"]["inv_base"],
+            "inv_size1": all_models["AirCC"]["inv_size1"], # New TJA
+            "inv_size2": all_models["AirCC"]["inv_size2"], # New TJA
+            "inv_size3": all_models["AirCC"]["inv_size3"], # New TJA
+            "inv_size4": all_models["AirCC"]["inv_size4"], # New TJA
+            "inv_cost1": all_models["AirCC"]["inv_cost1"], # New TJA
+            "inv_cost2": all_models["AirCC"]["inv_cost2"], # New TJA
+            "inv_cost3": all_models["AirCC"]["inv_cost3"], # New TJA
+            "inv_cost4": all_models["AirCC"]["inv_cost4"], # New TJA
+            "lin_feasible": all_models["AirCC"]["lin_feasible"], # New TJA
             "life_time": all_models["AirCC"]["life_time"],
             "cost_om": all_models["AirCC"]["cost_om"] / 100,
             "min_cap": all_models["AirCC"]["min_cap"],
@@ -569,6 +662,15 @@ def load_params(data):
             "feasible": all_models["CC"]["enabled"],
             "inv_var": all_models["CC"]["inv_var"],
             "inv_base": all_models["CC"]["inv_base"],
+            "inv_size1": all_models["CC"]["inv_size1"], # New TJA
+            "inv_size2": all_models["CC"]["inv_size2"], # New TJA
+            "inv_size3": all_models["CC"]["inv_size3"], # New TJA
+            "inv_size4": all_models["CC"]["inv_size4"], # New TJA
+            "inv_cost1": all_models["CC"]["inv_cost1"], # New TJA
+            "inv_cost2": all_models["CC"]["inv_cost2"], # New TJA
+            "inv_cost3": all_models["CC"]["inv_cost3"], # New TJA
+            "inv_cost4": all_models["CC"]["inv_cost4"], # New TJA
+            "lin_feasible": all_models["CC"]["lin_feasible"], # New TJA
             "COP": all_models["CC"]["COP"],
             "life_time": all_models["CC"]["life_time"],
             "cost_om": all_models["CC"]["cost_om"] / 100,
@@ -585,6 +687,15 @@ def load_params(data):
         "feasible": all_models["AC"]["enabled"],
         "inv_var": all_models["AC"]["inv_var"],
         "inv_base": all_models["AC"]["inv_base"],
+        "inv_size1": all_models["AC"]["inv_size1"], # New TJA
+        "inv_size2": all_models["AC"]["inv_size2"], # New TJA
+        "inv_size3": all_models["AC"]["inv_size3"], # New TJA
+        "inv_size4": all_models["AC"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["AC"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["AC"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["AC"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["AC"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["AC"]["lin_feasible"], # New TJA
         "eta_th": all_models["AC"]["eta_th"],
         "life_time": all_models["AC"]["life_time"],
         "cost_om": all_models["AC"]["cost_om"] / 100,
@@ -599,6 +710,15 @@ def load_params(data):
         "feasible": all_models["BCHP"]["enabled"],
         "inv_var": all_models["BCHP"]["inv_var"],
         "inv_base": all_models["BCHP"]["inv_base"],
+        "inv_size1": all_models["BCHP"]["inv_size1"], # New TJA
+        "inv_size2": all_models["BCHP"]["inv_size2"], # New TJA
+        "inv_size3": all_models["BCHP"]["inv_size3"], # New TJA
+        "inv_size4": all_models["BCHP"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["BCHP"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["BCHP"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["BCHP"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["BCHP"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["BCHP"]["lin_feasible"], # New TJA
         "eta_el": all_models["BCHP"]["eta_el"] / 100,
         "eta_th": all_models["BCHP"]["eta_th"] / 100,
         "life_time": all_models["BCHP"]["life_time"],
@@ -612,6 +732,15 @@ def load_params(data):
         "feasible": all_models["BBOI"]["enabled"],
         "inv_var": all_models["BBOI"]["inv_var"],
         "inv_base": all_models["BBOI"]["inv_base"],
+        "inv_size1": all_models["BBOI"]["inv_size1"], # New TJA
+        "inv_size2": all_models["BBOI"]["inv_size2"], # New TJA
+        "inv_size3": all_models["BBOI"]["inv_size3"], # New TJA
+        "inv_size4": all_models["BBOI"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["BBOI"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["BBOI"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["BBOI"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["BBOI"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["BBOI"]["lin_feasible"], # New TJA
         "eta_th": all_models["BBOI"]["eta_th"] / 100,
         "life_time": all_models["BBOI"]["life_time"],
         "cost_om": all_models["BBOI"]["cost_om"] / 100,
@@ -624,6 +753,15 @@ def load_params(data):
         "feasible": all_models["WCHP"]["enabled"],
         "inv_var": all_models["WCHP"]["inv_var"],
         "inv_base": all_models["WCHP"]["inv_base"],
+        "inv_size1": all_models["WCHP"]["inv_size1"], # New TJA
+        "inv_size2": all_models["WCHP"]["inv_size2"], # New TJA
+        "inv_size3": all_models["WCHP"]["inv_size3"], # New TJA
+        "inv_size4": all_models["WCHP"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["WCHP"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["WCHP"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["WCHP"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["WCHP"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["WCHP"]["lin_feasible"], # New TJA
         "eta_el": all_models["WCHP"]["eta_el"] / 100,
         "eta_th": all_models["WCHP"]["eta_th"] / 100,
         "life_time": all_models["WCHP"]["life_time"],
@@ -637,6 +775,15 @@ def load_params(data):
         "feasible": all_models["WBOI"]["enabled"],
         "inv_var": all_models["WBOI"]["inv_var"],
         "inv_base": all_models["WBOI"]["inv_base"],
+        "inv_size1": all_models["WBOI"]["inv_size1"], # New TJA
+        "inv_size2": all_models["WBOI"]["inv_size2"], # New TJA
+        "inv_size3": all_models["WBOI"]["inv_size3"], # New TJA
+        "inv_size4": all_models["WBOI"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["WBOI"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["WBOI"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["WBOI"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["WBOI"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["WBOI"]["lin_feasible"], # New TJA
         "eta_th": all_models["WBOI"]["eta_th"] / 100,
         "life_time": all_models["WBOI"]["life_time"],
         "cost_om": all_models["WBOI"]["cost_om"] / 100,
@@ -651,6 +798,15 @@ def load_params(data):
         "feasible": all_models["ELYZ"]["enabled"],
         "inv_var": all_models["ELYZ"]["inv_var"],
         "inv_base": all_models["ELYZ"]["inv_base"],
+        "inv_size1": all_models["ELYZ"]["inv_size1"], # New TJA
+        "inv_size2": all_models["ELYZ"]["inv_size2"], # New TJA
+        "inv_size3": all_models["ELYZ"]["inv_size3"], # New TJA
+        "inv_size4": all_models["ELYZ"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["ELYZ"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["ELYZ"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["ELYZ"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["ELYZ"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["ELYZ"]["lin_feasible"], # New TJA
         "eta_el": all_models["ELYZ"]["eta_el"] / 100,
         "life_time": all_models["ELYZ"]["life_time"],
         "cost_om": all_models["ELYZ"]["cost_om"] / 100,
@@ -663,6 +819,15 @@ def load_params(data):
         "feasible": all_models["FC"]["enabled"],
         "inv_var": all_models["FC"]["inv_var"],
         "inv_base": all_models["FC"]["inv_base"],
+        "inv_size1": all_models["FC"]["inv_size1"], # New TJA
+        "inv_size2": all_models["FC"]["inv_size2"], # New TJA
+        "inv_size3": all_models["FC"]["inv_size3"], # New TJA
+        "inv_size4": all_models["FC"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["FC"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["FC"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["FC"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["FC"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["FC"]["lin_feasible"], # New TJA
         "eta_el": all_models["FC"]["eta_el"] / 100,
         "eta_th": all_models["FC"]["eta_th"] / 100,
         "life_time": all_models["FC"]["life_time"],
@@ -677,6 +842,15 @@ def load_params(data):
         "feasible": all_models["H2S"]["enabled"],
         "inv_var": all_models["H2S"]["inv_var"],
         "inv_base": all_models["H2S"]["inv_base"],
+        "inv_size1": all_models["H2S"]["inv_size1"], # New TJA
+        "inv_size2": all_models["H2S"]["inv_size2"], # New TJA
+        "inv_size3": all_models["H2S"]["inv_size3"], # New TJA
+        "inv_size4": all_models["H2S"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["H2S"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["H2S"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["H2S"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["H2S"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["H2S"]["lin_feasible"], # New TJA
         "sto_loss": all_models["H2S"]["sto_loss"] / 100,
         "life_time": all_models["H2S"]["life_time"],
         "cost_om": all_models["H2S"]["cost_om"] / 100,
@@ -689,6 +863,15 @@ def load_params(data):
         "feasible": all_models["SAB"]["enabled"],
         "inv_var": all_models["SAB"]["inv_var"],
         "inv_base": all_models["SAB"]["inv_base"],
+        "inv_size1": all_models["SAB"]["inv_size1"], # New TJA
+        "inv_size2": all_models["SAB"]["inv_size2"], # New TJA
+        "inv_size3": all_models["SAB"]["inv_size3"], # New TJA
+        "inv_size4": all_models["SAB"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["SAB"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["SAB"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["SAB"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["SAB"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["SAB"]["lin_feasible"], # New TJA
         "eta": all_models["SAB"]["eta"] / 100,
         "life_time": all_models["SAB"]["life_time"],
         "cost_om": all_models["SAB"]["cost_om"] / 100,
@@ -705,12 +888,30 @@ def load_params(data):
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "inv_base": all_models["TES"]["inv_base"] / (
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
-        "inv_small": all_models["TES"]["inv_small"]/ (
+        "inv_size1": all_models["TES"]["inv_size1"] * param["rho_w"] * param["c_w"] * all_models[
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+        "inv_size2": all_models["TES"]["inv_size2"] * param["rho_w"] * param["c_w"] * all_models[
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+        "inv_size3": all_models["TES"]["inv_size3"] * param["rho_w"] * param["c_w"] * all_models[
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+        "inv_size4": all_models["TES"]["inv_size4"] * param["rho_w"] * param["c_w"] * all_models[
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+
+        "inv_cost1": all_models["TES"]["inv_cost1"]/ (
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        "inv_large": all_models["TES"]["inv_large"]/ (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kW # New TJA
-        "inv_size_switch": all_models["TES"]["inv_size_switch"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # kWh # New TJA
+        "inv_cost2": all_models["TES"]["inv_cost2"]/ (
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        "inv_cost3": all_models["TES"]["inv_cost3"]/ (
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        "inv_cost4": all_models["TES"]["inv_cost4"]/ (
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        "lin_feasible": all_models["TES"]["lin_feasible"], # New TJA
+        # "inv_small": all_models["TES"]["inv_small"]/ (
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        # "inv_large": all_models["TES"]["inv_large"]/ (
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kW # New TJA
+        # "inv_size_switch": all_models["TES"]["inv_size_switch"] * param["rho_w"] * param["c_w"] * all_models[
+        #     "TES"]["delta_T"] / 3600,  # kWh # New TJA
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
         "cost_om": all_models["TES"]["cost_om"] / 100,
@@ -730,6 +931,15 @@ def load_params(data):
                     param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "inv_base": all_models["CTES"]["inv_base"] / (
                     param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
+        "inv_size1": all_models["CTES"]["inv_size1"], # New TJA
+        "inv_size2": all_models["CTES"]["inv_size2"], # New TJA
+        "inv_size3": all_models["CTES"]["inv_size3"], # New TJA
+        "inv_size4": all_models["CTES"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["CTES"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["CTES"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["CTES"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["CTES"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["CTES"]["lin_feasible"], # New TJA
         "sto_loss": all_models["CTES"]["sto_loss"] / 100,
         "life_time": all_models["CTES"]["life_time"],
         "cost_om": all_models["CTES"]["cost_om"] / 100,
@@ -745,6 +955,15 @@ def load_params(data):
         "feasible": all_models["BAT"]["enabled"],
         "inv_var": all_models["BAT"]["inv_var"],
         "inv_base": all_models["BAT"]["inv_base"],
+        "inv_size1": all_models["BAT"]["inv_size1"], # New TJA
+        "inv_size2": all_models["BAT"]["inv_size2"], # New TJA
+        "inv_size3": all_models["BAT"]["inv_size3"], # New TJA
+        "inv_size4": all_models["BAT"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["BAT"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["BAT"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["BAT"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["BAT"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["BAT"]["lin_feasible"], # New TJA
         "life_time": all_models["BAT"]["life_time"],
         "cost_om": all_models["BAT"]["cost_om"] / 100,
         "min_cap": all_models["BAT"]["min_cap"],
@@ -757,6 +976,15 @@ def load_params(data):
         "feasible": all_models["GS"]["enabled"],
         "inv_var": all_models["GS"]["inv_var"],  # EUR/kWh
         "inv_base": all_models["GS"]["inv_base"],  # EUR/kWh
+        "inv_size1": all_models["GS"]["inv_size1"], # New TJA
+        "inv_size2": all_models["GS"]["inv_size2"], # New TJA
+        "inv_size3": all_models["GS"]["inv_size3"], # New TJA
+        "inv_size4": all_models["GS"]["inv_size4"], # New TJA
+        "inv_cost1": all_models["GS"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["GS"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["GS"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["GS"]["inv_cost4"], # New TJA
+        "lin_feasible": all_models["GS"]["lin_feasible"], # New TJA
         "life_time": all_models["GS"]["life_time"],
         "cost_om": all_models["GS"]["cost_om"] / 100,
         "min_cap": all_models["GS"]["min_cap"],  # kWh

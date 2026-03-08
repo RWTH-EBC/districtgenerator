@@ -28,7 +28,7 @@ if __name__ == '__main__':
             for device, details in capacities.items():
                 if isinstance(details, dict) and "cap" in details and details["cap"] > 0:
                     print(f"  {device}: {details['cap']}")
-        else:
+        else:  
             print(f"No capacities defined in energy hub of: {district.scenario_name}")
 
 
