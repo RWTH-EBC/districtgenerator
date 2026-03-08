@@ -746,13 +746,13 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         for dev in model.all_devs:
             if devs[dev]["lin_feasible"]== True:
                 # Enforce that only one segment can be selected for linearized devices
-                model.constraints.add(sum(model.cap_bin[seg, dev, district] for seg in model.cap_seg[dev, district]) == 1)
+                model.constraints.add(sum(model.cap_bin[seg, dev, district] for seg in model.segments) == 1)
                 # Define upper boundries of each segment
                 model.constraints.add(model.cap_seg["small",dev, district]<=model.cap_bin["small",dev, district] * devs[dev]["inv_size2"])
                 model.constraints.add(model.cap_seg["medium",dev, district]<=model.cap_bin["medium",dev, district] * devs[dev]["inv_size3"])
                 #model.constraints.add(model.cap_seg["large",dev, district]<=model.cap_bin["large",dev, district] * devs[dev]["inv_size4"]) # No upper limit
                 # Define lower boundries of each segment
-                model.constraints.add(model.cap_seg["small",dev, district]>=model.cap_bin["small",dev, district] * devs[dev]["inv_size1"])
+                # model.constraints.add(model.cap_seg["small",dev, district]>=model.cap_bin["small",dev, district] * devs[dev]["inv_size1"]) # No lower limit for the first segment
                 model.constraints.add(model.cap_seg["medium",dev, district]>=model.cap_bin["medium",dev, district] * devs[dev]["inv_size2"])
                 model.constraints.add(model.cap_seg["large",dev, district]>=model.cap_bin["large",dev, district] * devs[dev]["inv_size3"])
                 # Caluclate slope of cost function for each segment
