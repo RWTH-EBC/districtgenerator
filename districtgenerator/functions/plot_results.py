@@ -278,7 +278,7 @@ def plot_heat_generation_by_year_from_csv(
         with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
             for row in reader:
-                if row.get("category") != "heat_by_year" or row.get("metric") != "heat_gen":
+                if row.get("category") != "heat_profile_energy_by_year" or row.get("metric") != "heat_profile_energy_kwh":
                     continue
                 dev = (row.get("device") or "").strip()
                 year_raw = row.get("year")
@@ -602,5 +602,5 @@ def plot_power_import_by_year_from_csv(
 
 if __name__ == "__main__":
     #plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES"], show_percent_box=True, titel="Vergleich der Anlagenleistungen im ländlichen Quartier")
-    #plot_heat_generation_by_year_from_csv("rural", titel="Ländliches Quartier", show=True)
-    plot_power_import_by_year_from_csv("rural", titel="Strombezug", show=True)
+    plot_heat_generation_by_year_from_csv("rural", titel="Ländliches Quartier", show=True)
+    #plot_power_import_by_year_from_csv("rural", titel="Strombezug", show=True)
