@@ -1435,12 +1435,12 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         result_dict["power_profile_devs_by_year"] = {}
         result_dict["power_devs_kW_by_year"] = {}
         result_dict["power_profile_devs_kwh_by_year"] = {}
-        result_dict["total_power_generation_by_year"] = {} # new  TJA
+        result_dict["total_power_supply_by_year"] = {} # new  TJA
         for y in model.support_years:
             result_dict["power_profile_devs_by_year"][y] = {}
             result_dict["power_devs_kW_by_year"][y] = {}
             result_dict["power_profile_devs_kwh_by_year"][y] = {}
-            result_dict["total_power_generation_by_year"][y] = {}
+            result_dict["total_power_supply_by_year"][y] = {}
             for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid", "from_network", "to_network", "from_main_grid", "to_main_grid"]: # new for network
                 profile = []
                 weighted_kwh = 0.0
@@ -1452,19 +1452,13 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                 result_dict["power_profile_devs_by_year"][y][device] = profile
                 result_dict["power_devs_kW_by_year"][y][device] = int(max(profile)) if profile else 0
                 result_dict["power_profile_devs_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
-            result_dict["total_power_generation_by_year"][y] = sum(result_dict["power_profile_devs_kwh_by_year"][y][device]/1000 for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]) # in MWh, new TJA
-
-       # Calculate total charge loss of TES - store for each support year # new TJA
-        result_dict["tes_charge_loss_by_year"] = {}
-        for y in model.support_years:
-            result_dict["tes_charge_loss_by_year"][y] = {}
-            result_dict["tes_charge_loss_by_year"][y] = float(sum(safe_value(model.ch, ("TES", district, y, d, t))* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA   
+            result_dict["total_power_supply_by_year"][y] = sum(result_dict["power_profile_devs_kwh_by_year"][y][device]/1000 for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_main_grid", "from_network"]) # in MWh, new TJA
 
         # Heat profiles and maximum heat - store for each support year
         result_dict["heat_profile_devs_by_year"] = {}
         result_dict["heat_devs_kW_by_year"] = {}
         result_dict["heat_profile_devs_kwh_by_year"] = {} # new for test reasons TJA
-        result_dict["total_heat_generation_by_year"] = {} # new  TJA
+        result_dict["total_heat_supply_by_year"] = {} # new  TJA
         for y in model.support_years:
             result_dict["heat_profile_devs_by_year"][y] = {}
             result_dict["heat_devs_kW_by_year"][y] = {}
@@ -1482,10 +1476,10 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                 result_dict["heat_profile_devs_by_year"][y][device] = profile
                 result_dict["heat_devs_kW_by_year"][y][device] = int(max(profile)) if profile else 0
                 result_dict["heat_profile_devs_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
-            # Total heat generation is the sum of all device generation minus the TES charge (which is not being used in that timeperiod) - in MWh, new TJA 
-            result_dict["total_heat_generation_by_year"][y] = sum(
+            # Total heat generation is the sum of all device generation in MWh, new TJA 
+            result_dict["total_heat_supply_by_year"][y] = sum(
                 result_dict["heat_profile_devs_kwh_by_year"][y][device]/1000 
-                for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])- result_dict["tes_charge_loss_by_year"][y] # in MWh, new TJA
+                for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]) # in MWh, new TJA
 
         
         # Calculate total demand profiles (heat and power) for each support year - new TJA
@@ -1494,8 +1488,15 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         for y in model.support_years:
             result_dict["total_heat_demand_by_year"][y] = {}
             result_dict["total_power_demand_by_year"][y] = {}
-            result_dict["total_heat_demand_by_year"][y] = float(sum(dem["heat"][y][d][t]* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
-            result_dict["total_power_demand_by_year"][y] = float(sum(dem["power"][y][d][t]* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
+            heat_demand_for_dem = float(sum(dem["heat"][y][d][t]* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
+            heat_demand_for_tes= float(sum(safe_value(model.ch, ("TES", district, y, d, t)) * param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
+            heat_demand_ac = float(sum(safe_value(model.heat, ("AC", district, y, d, t)) * param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
+            result_dict["total_heat_demand_by_year"][y] = heat_demand_for_dem + heat_demand_for_tes + heat_demand_ac
+
+            power_demand_for_dem= float(sum(dem["power"][y][d][t]* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
+            power_demand_for_devs = float(sum(result_dict["power_profile_devs_kwh_by_year"][y][device]/1000 for device in ["HP", "EB", "CC", "ELYZ", "to_network", "to_main_grid"])) # in MWh, new TJA
+            power_battery_charging = float(sum(safe_value(model.ch, ("BAT", district, y, d, t)) * param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
+            result_dict["total_power_demand_by_year"][y] = power_demand_for_dem +power_demand_for_devs + power_battery_charging
 
         # # Calculate LCOE - new TJA
         result_dict["LCOE_by_year"] = {}
@@ -1503,7 +1504,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             result_dict["LCOE_by_year"][y] = {}
             result_dict["LCOE_by_year"][y] = (
                 result_dict["tac_per_distr_year"][y] / 
-                (result_dict["total_power_generation_by_year"][y] + result_dict["total_heat_generation_by_year"][y])) # EUR/MWh, new TJA
+                (result_dict["total_power_supply_by_year"][y] + result_dict["total_heat_supply_by_year"][y])) # EUR/MWh, new TJA
 
         # Cooling profiles and maximum cooling - store for each support year
         result_dict["cool_profile_by_year"] = {}
@@ -1843,8 +1844,8 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
         ("hydrogen_import_total_by_year", "hydrogen_import_total", "MWh"),
         ("total_heat_demand_by_year", "total_heat_demand_by_year", "MWh"),
         ("total_power_demand_by_year", "total_power_demand_by_year", "MWh"),
-        ("total_heat_generation_by_year", "total_heat_generation_by_year", "MWh"),
-        ("total_power_generation_by_year", "total_power_generation_by_year", "MWh"),
+        ("total_heat_supply_by_year", "total_heat_supply_by_year", "MWh"),
+        ("total_power_supply_by_year", "total_power_supply_by_year", "MWh"),
         
     ]
     for map_key, metric, unit in yearly_maps:
