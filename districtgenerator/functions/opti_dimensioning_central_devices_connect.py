@@ -864,7 +864,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             interval_length = weights[district][year]
             # Calculate discount factor for this interval using geometric series formula
             if i != 0:  # If interest rate is not zero
-                base_discount = 1 / (q ** year)
+                # base_discount = 1 / (q ** year) # old
+                base_discount = 1 / (q ** (year+1)) # new TJA
                 interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
                 discount_factor = base_discount * interval_factor
             else:  # If interest rate is zero, discount factor is simply the interval length
@@ -1453,6 +1454,12 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                 result_dict["power_profile_devs_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
             result_dict["total_power_generation_by_year"][y] = sum(result_dict["power_profile_devs_kwh_by_year"][y][device]/1000 for device in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]) # in MWh, new TJA
 
+       # Calculate total charge loss of TES - store for each support year # new TJA
+        result_dict["tes_charge_loss_by_year"] = {}
+        for y in model.support_years:
+            result_dict["tes_charge_loss_by_year"][y] = {}
+            result_dict["tes_charge_loss_by_year"][y] = float(sum(safe_value(model.ch, ("TES", district, y, d, t))* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA   
+
         # Heat profiles and maximum heat - store for each support year
         result_dict["heat_profile_devs_by_year"] = {}
         result_dict["heat_devs_kW_by_year"] = {}
@@ -1475,8 +1482,12 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                 result_dict["heat_profile_devs_by_year"][y][device] = profile
                 result_dict["heat_devs_kW_by_year"][y][device] = int(max(profile)) if profile else 0
                 result_dict["heat_profile_devs_kwh_by_year"][y][device] = round(weighted_kwh * dt, 3) # new for test reasons TJA
-            result_dict["total_heat_generation_by_year"][y] = sum(result_dict["heat_profile_devs_kwh_by_year"][y][device]/1000 for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]) # in MWh, new TJA
+            # Total heat generation is the sum of all device generation minus the TES charge (which is not being used in that timeperiod) - in MWh, new TJA 
+            result_dict["total_heat_generation_by_year"][y] = sum(
+                result_dict["heat_profile_devs_kwh_by_year"][y][device]/1000 
+                for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])- result_dict["tes_charge_loss_by_year"][y] # in MWh, new TJA
 
+        
         # Calculate total demand profiles (heat and power) for each support year - new TJA
         result_dict["total_heat_demand_by_year"] = {}
         result_dict["total_power_demand_by_year"] = {}
@@ -1699,6 +1710,7 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
     for y in model.support_years:
         add("optimization", "tac_per_distr_year", result_dict.get("tac_per_distr_year", {}).get(y, ""), "EUR/a", year=y)
         add("optimization", "co2_sum_distr_year", result_dict.get("co2_sum_distr_by_year", {}).get(y, ""), "t/a", year=y) 
+        add("optimization", "LCOE_year", result_dict.get("LCOE_by_year", {}).get(y, ""), "EUR/MWh", year=y)
 
     # 2) Cost parameters
     for k, u in [
@@ -1801,6 +1813,10 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
             add("heat_profile_devs_by_year", "heat_kW",
                 result_dict.get("heat_devs_kW_by_year", {}).get(y, {}).get(dev, ""),
                 "kW", device=dev, year=y)
+        add("tes_charge_loss_by_year", "tes_charge_loss_kwh",
+             result_dict.get("tes_charge_loss_by_year", {}).get(y, ""),             
+             "MWh", device="TES", year=y)
+
             
     # 10) Power profile energy + peak by year
     for y in model.support_years:
