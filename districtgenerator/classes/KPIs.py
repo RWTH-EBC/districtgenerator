@@ -890,7 +890,10 @@ class KPIs:
                     fixed_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
 
             # Heating network investment
-            fixed_cost_heat += float(data.heat_grid_data["om_costs"]+data.heat_grid_data["ann_costs"])
+            if hasattr(data, "heat_grid_data") and isinstance(data.heat_grid_data, dict):
+                fixed_cost_heat += (
+                        float(data.heat_grid_data.get("om_costs", 0.0)) +
+                        float(data.heat_grid_data.get("ann_costs", 0.0)))
 
             # LOOP CLUSTERS
             for c in range(len(clusters)):
