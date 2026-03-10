@@ -2421,39 +2421,37 @@ class Datahandler:
         new_id = 0
 
         for idx, row in wkb_data.iterrows():
-            # Nur Wohngebäude berücksichtigen
-            if row.get('type_of_use') == 'Wohnhaus' or pd.isna(row.get('type_of_use')):
-                if check_all_values(row, idx):
-                    quartier_row = {
-                        'id': new_id,
-                        'alkis_id': row.get('alkis_id'),
-                        "position": (row["x_local"], row["y_local"]),
-                        'building': map_building_type(row.get('iwu_class')),
-                        'year': safe_convert_year(row.get('construction_year')),
-                        'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),
-                        # Standard: nicht saniert
-                        'construction_type': '',  # Leer lassen wie im Original
-                        'night_setback': 0,  # Standard
-                        'area': safe_convert_area(row.get('gross_floor_area')),
-                        'number_of_floors': row.get('number_floors'),
-                        'heater': map_heater_type(row.get('heating_system')),
-                        'cooling': 0,
-                        'EV': 0,  # Standard
-                        'f_TES': 35,  # Wie im Original
-                        'f_BAT': 0,  # Wie im Original
-                        'f_PV1': 0,  # Wie im Original
-                        'f_PV2': 0,  # Wie im Original
-                        'f_STC': 0,  # Wie im Original
-                        'gamma_PV': 0,  # Wie im Original
-                        'ev_charging': 'on_demand',  # Wie im Original
-                    }
-                    quartier_data.append(quartier_row)
+            if check_all_values(row, idx):
+                quartier_row = {
+                    'id': new_id,
+                    'alkis_id': row.get('alkis_id'),
+                    "position": (row["x_local"], row["y_local"]),
+                    'building': map_building_type(row.get('iwu_class')),
+                    'year': safe_convert_year(row.get('construction_year')),
+                    'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),
+                    # Standard: nicht saniert
+                    'construction_type': '2',
+                    'night_setback': 0,  # Standard
+                    'area': safe_convert_area(row.get('gross_floor_area')),
+                    'number_of_floors': row.get('number_floors'),
+                    'heater': map_heater_type(row.get('heating_system')),
+                    'cooling': 0,
+                    'EV': 0,  # Standard
+                    'f_TES': 35,
+                    'f_BAT': 0,
+                    'f_PV1': 0,
+                    'f_PV2': 0,
+                    'f_STC': 0,
+                    'gamma_PV': 0,
+                    'ev_charging': 'on_demand',
+                }
+                quartier_data.append(quartier_row)
 
-                    # Get the original WKB row for reference
-                    wkb_row = row.to_dict()
-                    wkb_row['id'] = new_id  # Add new_id for reference
-                    wkb_data_for_csv.append(wkb_row)
-                    new_id += 1
+                # Get the original WKB row for reference
+                wkb_row = row.to_dict()
+                wkb_row['id'] = new_id  # Add new_id for reference
+                wkb_data_for_csv.append(wkb_row)
+                new_id += 1
 
         # DataFrame erstellen
         quartier_df = pd.DataFrame(quartier_data)
