@@ -135,17 +135,44 @@ def load_params(data):
     # For every support year save the clustered demands - #! currently constant demands over the years
     dem = {"heat": {}, "cool": {}, "power": {}}
 
-    # Get retrofit parameters from config # New TJA
-    retrofit_rate = float(param.get("retrofit_rate", 0.0))
-    retrofit_depth_level1 = float(param.get("retrofit_depth_level1", 0.0))
-    retrofit_depth_level2 = float(param.get("retrofit_depth_level2", 0.0))
+    # # Get retrofit parameters from config # New TJA
+    # retrofit_rate = float(param.get("retrofit_rate", 0.0))
+    # retrofit_depth_level1 = float(param.get("retrofit_depth_level1", 0.0))
+    # retrofit_depth_level2 = float(param.get("retrofit_depth_level2", 0.0))
+    # retrofit_level1_share = float(param.get("retrofit_level1_share", 0.0))
+
+    # for y in ecoData["interpolation_points"]:
+    #     retrofit_depth= retrofit_depth_level1*retrofit_level1_share + retrofit_depth_level2*(1-retrofit_level1_share) # Average retrofit depth across all retrofitted buildings
+    #     dem["heat"][y] = clustered_series[0]*(1-retrofit_rate*retrofit_depth*y) # New TJA
+    #     # dem["heat"][y] = clustered_series[0] # old
+    #     dem["cool"][y] = clustered_series[1]
+    #     dem["power"][y] = clustered_series[2]*(1-retrofit_rate*retrofit_depth*y) # New TJA
+
+    # Get share of each building type
+    # Count building types
+    building_counts = {}
+    total_buildings = len(data.district)
+
+    for b in range(total_buildings):
+        building_type = data.district[b]["buildingFeatures"]["building"]
+        building_counts[building_type] = building_counts.get(building_type, 0) + 1
+
+    # Calculate share of each building type
+    building_shares = {}
+    for building_type, count in building_counts.items():
+        building_shares[building_type] = count / total_buildings
+
+    # Print building type shares
+    for btype, share in building_shares.items():
+        print(f"{btype}: {share:.2%} ({building_counts[btype]} buildings)")
 
 
     for y in ecoData["interpolation_points"]:
-        dem["heat"][y] = clustered_series[0]*(1-retrofit_rate*retrofit_depth_level1*y) # New TJA
-        # dem["heat"][y] = clustered_series[0]
+        
+        dem["heat"][y] = clustered_series[0] # New TJA
+        # dem["heat"][y] = clustered_series[0] # old
         dem["cool"][y] = clustered_series[1]
-        dem["power"][y] = clustered_series[2]*(1-retrofit_rate*retrofit_depth_level1*y) # New TJA
+        dem["power"][y] = clustered_series[2]
 
 
     param["T_air"] = clustered_series[3]
