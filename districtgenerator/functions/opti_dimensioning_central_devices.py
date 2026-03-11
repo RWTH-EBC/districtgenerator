@@ -173,9 +173,9 @@ def build_model(model, data, devs, param, dem):
     model.supply_costs_biom = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.supply_costs_waste = pyo.Var(model.support_years, within=pyo.Reals)
     model.supply_costs_hydrogen = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
-    model.p_loc_to_cons = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)
-    model.to_local_el_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
-    model.rev_local_el = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
+    model.p_loc_to_cons = pyo.Var(model.support_years, model.clusters, model.time_steps, within=pyo.NonNegativeReals)  # Electricity supplied locally from the energy hub to consumers
+    model.to_local_el_total = pyo.Var(model.support_years, within=pyo.NonNegativeReals)  # Total annual amount of locally supplied electricity
+    model.rev_local_el = pyo.Var(model.support_years, within=pyo.NonNegativeReals)  # Annual revenue from selling locally generated electricity
 
     model.total_annual_costs_devices = pyo.Var(within=pyo.NonNegativeReals)                 # Total annual costs for devices (inv and om)
     model.heat_grid_costs = pyo.Var(within=pyo.NonNegativeReals)                            # Total annual costs for heat grid (inv and om)
@@ -338,19 +338,19 @@ def build_model(model, data, devs, param, dem):
                 # Waste supply and demand balance
                 model.constraints.add(model.waste["import", y, d, t] == model.waste["WCHP", y, d, t] + model.waste["WBOI", y, d, t])
 
-    for y in model.support_years:
-        for d in model.clusters:
-            for t in model.time_steps:
+    for y in model.support_years:  # Loop over modeled years
+        for d in model.clusters:  # Loop over representative days / clusters
+            for t in model.time_steps:  # Loop over time steps within each cluster
                 p_loc_gen = sum(
                     model.power[dev, y, d, t]
                     for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]
-                )
+                )  # Total locally generated electricity from all generation technologies
                 model.constraints.add(
                     model.p_loc_to_cons[y, d, t] <= max(dem["power"][y][d][t], 0.0)
-                )
+                )  # Local electricity supply cannot exceed the electricity demand of consumers
                 model.constraints.add(
                     model.p_loc_to_cons[y, d, t] <= p_loc_gen
-                )
+                )  # Local electricity supply cannot exceed locally generated electricity
 
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
@@ -536,6 +536,7 @@ def build_model(model, data, devs, param, dem):
         model.constraints.add(model.supply_costs_el[y] == model.from_el_grid_total[y] * param["price_supply_el_eh"][y])
         model.constraints.add(model.rev_feed_in_el[y] == model.to_el_grid_total[y] * param["revenue_feed_in_el_eh"][y])
 
+        # Total annual locally supplied electricity (cluster-weighted aggregation over all timesteps)
         model.constraints.add(
             model.to_local_el_total[y] == dt * sum(
                 model.p_loc_to_cons[y, d, t] * param["cluster_weights"][d]
@@ -543,6 +544,7 @@ def build_model(model, data, devs, param, dem):
                 for t in model.time_steps
             )
         )
+        # Annual revenue from local electricity sales based on the applied electricity selling price
         model.constraints.add(
             model.rev_local_el[y] ==
             model.to_local_el_total[y] * param.get("price_el_revenue", {}).get(y, 0.0)
@@ -594,7 +596,7 @@ def build_model(model, data, devs, param, dem):
                               + model.supply_costs_hydrogen[y]
                               - model.rev_feed_in_el[y]
                               - model.rev_feed_in_gas[y]
-                              - model.rev_local_el[y])
+                              - model.rev_local_el[y]) # Subtract revenue from locally sold electricity
 
     # CO2 tax term for emissions from gas, biomass, waste for each support year (Usually not paid by consumers, already included in energy prices)
     co2_tax_term={}
@@ -1012,14 +1014,15 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict, dem):
     # Calculate curtailment for renewable sources
     dt = data.time["timeResolution"] / data.time["dataResolution"]
 
-    #Post-Processing: Gebäude-Netzimport
+    # Post-processing: Electricity imported from the public grid by buildings
+    # (residual demand not covered by locally generated electricity supplied from the energy hub)
     result_dict["from_el_grid_buildings_by_year"] = {
         y: int(dt * sum(
             max(dem["power"][y][d][t] - safe_value_single(model.p_loc_to_cons[y, d, t]), 0.0)
             * param["cluster_weights"][d]
             for d in model.clusters
             for t in model.time_steps
-        ) / 1000)  # MWh
+        ) / 1000)  # Annual electricity imported from the grid [MWh]
         for y in model.support_years
     }
 

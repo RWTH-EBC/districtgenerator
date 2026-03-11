@@ -1205,26 +1205,39 @@ class KPIs:
         self.calc_total_consumption_and_emissions(data)
         self.calculateLCOH_buildings(data)
         self.calculateLCOH_EH(data)
-        self.calculateBMKPIs(data)
-        self.saveKPIs(data.scenario_name, data.resultPath, data.district, data)
+        self.calculateBMKPIs(data)  # Calculate business-model-specific KPIs based on simulation results and economic inputs
+        self.saveKPIs(data.scenario_name, data.resultPath, data.district,data)  # Save the calculated KPIs for the current scenario to the result files
 
     def calculateBMKPIs(self, data):
+        # --- Determine the selected business model for the current scenario ---
         bm_key = data.ecoData.get("business_model", "reference")
         self.business_model = bm_key
+
+        # Extract optimization results (device capacities and economic results)
         result = data.centralDevices.get("capacities", {}) or {}
 
+        # --- Retrieve the corresponding business model implementation ---
         BmClass = BM_REGISTRY.get(bm_key)
+
+        # If the business model is not registered, abort KPI calculation
         if BmClass is None:
             print(f"WARNING: Business model {bm_key!r} nicht in BM_REGISTRY.")
+
+            # Set default values (only p_max from input data is kept)
             self.p_min = None
             self.p_max = data.ecoData.get("p_max", None)
             return
 
+        # --- Initialize the business model class ---
+        # The class contains the specific economic logic for KPI calculation
         bm = BmClass(
-            ecoData=data.ecoData,
-            all_sim_ecoData=data.all_sim_ecoData,
-            interpolation_points=data.ecoData["interpolation_points"],
+            ecoData=data.ecoData,  # economic parameters of the current scenario
+            all_sim_ecoData=data.all_sim_ecoData,  # parameters of all simulated scenarios
+            interpolation_points=data.ecoData["interpolation_points"],  # points for price interpolation
         )
+
+        # --- Calculate business-model-specific KPIs ---
+        # The calculation is delegated to the business model implementation
         bm.calculate_kpis(self, data, result)
 
     def saveKPIs(self, scenario_name, result_path, buildings, data=None):
@@ -1340,30 +1353,50 @@ class KPIs:
         kpi_data_static["Total CO2 Emissions District Heat (t)"] = self.total_co2_district_heat
         # kpi_data_static["Total CO2 Emissions ICE Fuel (t)"] = '' #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
 
+        # --- Static KPI information about the analyzed scenario / business model ---
+
+        # Store selected business model used in the simulation
         kpi_data_static["Business Model"] = getattr(self, "business_model", "-")
+
+        # Add economic input parameters from ecoData (if available)
         if data is not None:
-            kpi_data_static["Alpha (-)"] = data.ecoData.get("alpha", "-")
-            kpi_data_static["Interest Rate (-)"] = data.ecoData.get("interest_rate", "-")
-            kpi_data_static["Observation Time (a)"] = data.ecoData.get("observation_time", "-")
+            kpi_data_static["Alpha (-)"] = data.ecoData.get("alpha","-")  # Fraction of retail electricity price used for local electricity trading
+            kpi_data_static["Interest Rate (-)"] = data.ecoData.get("interest_rate","-")  # Discount / interest rate used for economic evaluation
+            kpi_data_static["Observation Time (a)"] = data.ecoData.get("observation_time","-")  # Economic lifetime / evaluation horizon
+
+        # Maximum acceptable heat price (consumer cap price p_max)
         kpi_data_static["p_max (€/kWh)"] = round(self.p_max, 4) if self.p_max is not None else "-"
+
+        # Minimum cost-covering heat price derived from system economics (p_min)
         kpi_data_static["p_min (€/kWh)"] = round(self.p_min, 4) if self.p_min is not None else "-"
+
+        # Economic feasibility indicator: installation is feasible if p_min <= p_max
         kpi_data_static["Feasible (p_min <= p_max)"] = (
             "Yes" if (self.p_min is not None and self.p_max is not None and self.p_min <= self.p_max)
             else "No" if (self.p_min is not None and self.p_max is not None)
             else "-"
         )
 
-        # TAC and Q_heat from optimizer
+        # --- Heat supply results from optimization model ---
+
+        # Total annual heat delivered to consumers
         Q_del = getattr(self, "Q_heat_delivered_kWh", None)
         kpi_data_static["Q_heat_delivered (kWh/a)"] = round(Q_del, 0) if Q_del else "-"
         kpi_data_static["Q_heat_delivered (MWh/a)"] = round(Q_del / 1000, 1) if Q_del else "-"
-        if data is not None and hasattr(data, "centralDevices") and isinstance(data.centralDevices.get("capacities"), dict):
+
+        # --- Economic results of the optimized energy hub design ---
+        if data is not None and hasattr(data, "centralDevices") and isinstance(data.centralDevices.get("capacities"),dict):
             cap = data.centralDevices["capacities"]
+            # Total annualized system cost (objective value of the optimization)
             kpi_data_static["TAC (€/a)"] = cap.get("tac", "-")
+            # Investment related KPIs
             kpi_data_static["Total Investment (€)"] = cap.get("total_inv_cost", "-")
             kpi_data_static["Total Ann. Investment (€/a)"] = cap.get("total_ann_inv_cost", "-")
+            # Operation and maintenance costs
             kpi_data_static["Total O&M (€/a)"] = cap.get("total_om_cost", "-")
+            # Energy procurement costs
             kpi_data_static["Ann. Energy Costs net (€/a)"] = cap.get("supply_costs_el", "-")
+            # Capacity-related electricity and gas costs
             kpi_data_static["Cap Costs El (€/a)"] = cap.get("cap_costs_el", "-")
             kpi_data_static["Cap Costs Gas (€/a)"] = cap.get("cap_costs_gas", "-")
 
