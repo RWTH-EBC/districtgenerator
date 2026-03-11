@@ -13,7 +13,7 @@ from districtgenerator.classes import *
 
 def example4_generate_buildings():
     # Initialize District
-    data = Datahandler(scenario_name = "district_C_buildings_4", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "district_F_buildings_9", env_path=".env.CONFIG.Reference")
 
     # Generate Environment for the District
     data.generateEnvironment()

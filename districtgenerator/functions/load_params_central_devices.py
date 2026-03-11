@@ -23,6 +23,7 @@ import sys
 import copy
 from districtgenerator.classes.solar import Sun
 from districtgenerator.functions.heating_network_opt import heating_curve
+from districtgenerator.business_models import BM_REGISTRY
 
 def load_params(data):
 
@@ -698,6 +699,19 @@ def load_params(data):
                                 for year in param["interpolation_points"]}
     param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
                                     for year in param["interpolation_points"]}
+    # --- Business Model: price_el_revenue via BM_REGISTRY ---
+    bm_key = ecoData.get("business_model", "reference")
+    BmClass = BM_REGISTRY.get(bm_key)
+    if BmClass is not None:
+        bm = BmClass(
+            ecoData=ecoData,
+            all_sim_ecoData=all_sim_ecoData,
+            interpolation_points=ecoData["interpolation_points"],
+        )
+        bm.modify_params(param)
+    else:
+        print(f"WARNING load_params: business_model {bm_key!r} nicht in BM_REGISTRY.")
+        param["price_el_revenue"] = {y: 0.0 for y in ecoData["interpolation_points"]}
 
     # --- Natural Gas ---
     param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"]

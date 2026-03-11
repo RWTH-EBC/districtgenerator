@@ -65,6 +65,8 @@ class LocationConfig(BaseSettings):
     trafoMax_W: float = 500000.0 # Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP. (Watt)
     enable_buildingMax_W: bool = False # Consider per-building maximum import/export at the building PCC.
     buildingMax_W: float = 50000.0  # Per-building maximum import/export at the building PCC. (Watt)
+    auto_size_trafo: bool = True  # If True: auto-size trafoMax_W from DIN 18015-1 + Kerber. If False: use manual trafoMax_W and enable_trafoMax_W from config. Ignored by KundenanlageBM (always sizes the trafo).
+    trafo_kVA_base: float = 630.0  # Reference kVA for inv_trafo cost. The Kundenanlage BM. Scales trafo investment linearly: inv = inv_trafo * (chosen_kVA / trafo_kVA_base).
 
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
@@ -211,6 +213,15 @@ class EcoConfig(BaseSettings):
     price_supply_el_eh: str | list = [0.1590, 0.1554, 0.1518, 0.1482, 0.1446, 0.1410, 0.1394, 0.1378, 0.1362, 0.1346, 0.1330, 0.1302, 0.1274, 0.1246, 0.1218, 0.1190, 0.1190, 0.1190, 0.1190, 0.1190]  # Electricity price for the energy hub in €/kWh
     revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
 
+    # --- Electricity price split (shares of gross retail price) ---
+    # Strompreiszusammensetzung (Quelle: STROM-REPORT, Stand 01|2026)
+    share_el_energy: float = 0.413
+    share_el_grid: float = 0.248
+    share_el_levies: float = 0.179
+    share_el_vat: float = 0.160
+    # Hinweis: share_energy = 1 - 0.248 - 0.179 - 0.160 = 0.413 (implizit)
+
+
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.1230, 0.1218, 0.1206, 0.1194, 0.1182, 0.1170, 0.1198, 0.1226, 0.1254, 0.1282, 0.1310, 0.1338, 0.1366, 0.1394, 0.1422, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450]    # Gas price in €/kWh
     price_supply_gas_eh: str | list = [0.0820, 0.0794, 0.0768, 0.0742, 0.0716, 0.0690, 0.0708, 0.0726, 0.0744, 0.0762, 0.0780, 0.0796, 0.0812, 0.0828, 0.0844, 0.0860, 0.0860, 0.0860, 0.0860, 0.0860] # Gas price for the energy hub in €/kWh
@@ -233,6 +244,13 @@ class EcoConfig(BaseSettings):
 
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
+
+    # --- BM selection ---
+    business_model: str = "reference"  # reference | contracting | cooperative | mieterstrom | kundenanlage
+    # Rabattfaktor für lokalen Stromverkauf
+    alpha: float = 0.8
+    # Maximaler Wärmepreis [€/kWh] – aus Reference-Run befüllen
+    p_max: float = 0.0
 
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
@@ -351,7 +369,7 @@ class PyomoConfig(BaseSettings):
     """
     PyomoConfig class to manage the configuration of the Pyomo optimization solver.
     """
-    solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
+    solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
     solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
@@ -529,6 +547,43 @@ class HeatGridConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
+    )
+
+class ElGridConfig(BaseSettings):
+    """
+    Manages the configuration for the local electricity grid (Kundenanlage / BM 2.4).
+
+    The electricity grid runs along the same streets as the heat network and is
+    sized accordingly using the pipeline lengths from data.pipeline.
+
+    Cost parameters based on Datenblatt 2025 (real EUR, ohne MwSt.):
+
+    Cable (Erdkabel <=1 kV, typisch inkl. Installation):
+        inv_cable_per_m : 130  EUR/m
+        om_cable_per_m  :   0.26 EUR/(m*a)
+        life_cable      :  50 a
+
+    Transformer substation (Umspannstation <=1 kV / >1-30 kV, typisch):
+        inv_trafo       : 80 000 EUR/Stk.
+        om_trafo        :  1 600 EUR/a
+        life_trafo      :  45 a
+
+    Annualisation uses the VDI 2067 method with interest rate and
+    observation time from EcoConfig.
+    """
+
+    # --- Cable (Erdkabel) ---
+    inv_cable_per_m: float = 130.0   # EUR/m, typical investment (<=1 kV Erdkabel, incl. installation)
+    om_cable_per_m: float  = 0.26    # EUR/(m*a), annual O&M fixed cost
+    life_cable: int        = 50      # years, technical lifetime
+
+    # --- Transformer substation ---
+    inv_trafo: float = 80_000.0      # EUR/piece, typical investment (<=1 kV / >1-30 kV)
+    om_trafo: float  = 1_600.0       # EUR/a, annual O&M fixed cost
+    life_trafo: int  = 45            # years, technical lifetime
+
+    model_config = SettingsConfigDict(
+        extra='ignore'
     )
     
 class EHDOConfig(BaseSettings):
@@ -1227,6 +1282,8 @@ class GlobalConfig(BaseModel):
         Configuration parameters for the Pyomo optimization solver.
     heatgrid : HeatGridConfig
         Configuration parameters for the heat grid, including temperatures and heat transfer.
+    elgrid : ElGridConfig
+        Configuration parameters for the local electricity grid (Kundenanlage BM 2.4).
     ehdo : EHDOConfig
         Configuration parameters for the EHDO (Energy and Heat Distribution Optimization) system.
     decentral : DecentralDeviceConfig
@@ -1246,6 +1303,7 @@ class GlobalConfig(BaseModel):
     physics: 'PhysicsConfig'
     pyomo: 'PyomoConfig'
     heatgrid: 'HeatGridConfig'
+    elgrid: 'ElGridConfig'
     ehdo: 'EHDOConfig'
     decentral: 'DecentralDeviceConfig'
     central: 'CentralDeviceConfig'
@@ -1312,6 +1370,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         physics=PhysicsConfig(_env_file=env_file_path),
         pyomo=PyomoConfig(_env_file=env_file_path),
         heatgrid=HeatGridConfig(_env_file=env_file_path),
+        elgrid=ElGridConfig(_env_file=env_file_path),
         ehdo=EHDOConfig(_env_file=env_file_path),
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),

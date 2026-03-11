@@ -14,6 +14,7 @@ from datetime import datetime
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
+from districtgenerator.business_models import BM_REGISTRY
 import pandas as pd
 
 class KPIs:
@@ -69,6 +70,8 @@ class KPIs:
         self.total_cooling_demand = None
         self.total_electricity_demand = None
         self.total_dhw_demand = None
+        self.p_max = None
+        self.p_min = None
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -878,6 +881,9 @@ class KPIs:
                     Q_building = (np.sum(data.district[n]["user"].dhw) + np.sum(data.district[n]["user"].heat)) * dt / 3600 / 1000
                     Q_total_eh += Q_building
 
+            # Store for reuse (business model p_min, Excel export)
+            self.Q_heat_delivered_kWh = Q_total_eh
+
             fuel_cost_heat = 0.0
             el_cost_heat = 0.0
             fixed_cost_heat = 0.0
@@ -1199,9 +1205,29 @@ class KPIs:
         self.calc_total_consumption_and_emissions(data)
         self.calculateLCOH_buildings(data)
         self.calculateLCOH_EH(data)
-        self.saveKPIs(data.scenario_name, data.resultPath, data.district)
+        self.calculateBMKPIs(data)
+        self.saveKPIs(data.scenario_name, data.resultPath, data.district, data)
 
-    def saveKPIs(self, scenario_name, result_path, buildings):
+    def calculateBMKPIs(self, data):
+        bm_key = data.ecoData.get("business_model", "reference")
+        self.business_model = bm_key
+        result = data.centralDevices.get("capacities", {}) or {}
+
+        BmClass = BM_REGISTRY.get(bm_key)
+        if BmClass is None:
+            print(f"WARNING: Business model {bm_key!r} nicht in BM_REGISTRY.")
+            self.p_min = None
+            self.p_max = data.ecoData.get("p_max", None)
+            return
+
+        bm = BmClass(
+            ecoData=data.ecoData,
+            all_sim_ecoData=data.all_sim_ecoData,
+            interpolation_points=data.ecoData["interpolation_points"],
+        )
+        bm.calculate_kpis(self, data, result)
+
+    def saveKPIs(self, scenario_name, result_path, buildings, data=None):
         """
         Save all calculated KPIs in an Excel file with two sheets. Ensure that calculateAllKPIs() has been called before.
 
@@ -1211,11 +1237,22 @@ class KPIs:
         - result_path: Path to save the results
         """
 
+        # Get business model name for filename
+        bm_name = getattr(self, "business_model", "unknown")
+
         if result_path is None:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            filename = os.path.join(src_path, "results", f"KPIs_{scenario_name}.xlsx")
+            # Save to results/KPIs/ subdirectory
+            kpi_dir = os.path.join(src_path, "results", "KPIs")
+            os.makedirs(kpi_dir, exist_ok=True)
+            # Include business model name in filename
+            filename = os.path.join(kpi_dir, f"KPIs_{scenario_name}_{bm_name}.xlsx")
         else:
-            filename = os.path.join(result_path, f"KPIs_{scenario_name}.xlsx")
+            # Save to KPIs/ subdirectory within result_path
+            kpi_dir = os.path.join(result_path, "KPIs")
+            os.makedirs(kpi_dir, exist_ok=True)
+            # Include business model name in filename
+            filename = os.path.join(kpi_dir, f"KPIs_{scenario_name}_{bm_name}.xlsx")
 
         # Get all simulated years
         years = sorted(self.inputData["simulated_years"])
@@ -1302,6 +1339,33 @@ class KPIs:
         kpi_data_static["Total CO2 Emissions Oil (t)"] = self.total_co2_oil
         kpi_data_static["Total CO2 Emissions District Heat (t)"] = self.total_co2_district_heat
         # kpi_data_static["Total CO2 Emissions ICE Fuel (t)"] = '' #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
+
+        kpi_data_static["Business Model"] = getattr(self, "business_model", "-")
+        if data is not None:
+            kpi_data_static["Alpha (-)"] = data.ecoData.get("alpha", "-")
+            kpi_data_static["Interest Rate (-)"] = data.ecoData.get("interest_rate", "-")
+            kpi_data_static["Observation Time (a)"] = data.ecoData.get("observation_time", "-")
+        kpi_data_static["p_max (€/kWh)"] = round(self.p_max, 4) if self.p_max is not None else "-"
+        kpi_data_static["p_min (€/kWh)"] = round(self.p_min, 4) if self.p_min is not None else "-"
+        kpi_data_static["Feasible (p_min <= p_max)"] = (
+            "Yes" if (self.p_min is not None and self.p_max is not None and self.p_min <= self.p_max)
+            else "No" if (self.p_min is not None and self.p_max is not None)
+            else "-"
+        )
+
+        # TAC and Q_heat from optimizer
+        Q_del = getattr(self, "Q_heat_delivered_kWh", None)
+        kpi_data_static["Q_heat_delivered (kWh/a)"] = round(Q_del, 0) if Q_del else "-"
+        kpi_data_static["Q_heat_delivered (MWh/a)"] = round(Q_del / 1000, 1) if Q_del else "-"
+        if data is not None and hasattr(data, "centralDevices") and isinstance(data.centralDevices.get("capacities"), dict):
+            cap = data.centralDevices["capacities"]
+            kpi_data_static["TAC (€/a)"] = cap.get("tac", "-")
+            kpi_data_static["Total Investment (€)"] = cap.get("total_inv_cost", "-")
+            kpi_data_static["Total Ann. Investment (€/a)"] = cap.get("total_ann_inv_cost", "-")
+            kpi_data_static["Total O&M (€/a)"] = cap.get("total_om_cost", "-")
+            kpi_data_static["Ann. Energy Costs net (€/a)"] = cap.get("supply_costs_el", "-")
+            kpi_data_static["Cap Costs El (€/a)"] = cap.get("cap_costs_el", "-")
+            kpi_data_static["Cap Costs Gas (€/a)"] = cap.get("cap_costs_gas", "-")
 
         # Create device data list: Building ID, Device, Capacity [kW], Annualized Cost Subsidized [€/a], Annualized Cost Unsubsidized [€/a]
         dec_device_data_list = []

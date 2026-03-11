@@ -975,11 +975,21 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.ch_dom["BAT", n, t] <= (1 - model.binary_BAT[n, t]) * BIG_M
 
     # Binary constraints for household line
+    per_bldg = siteData.get("buildingMax_W_per_building", {})
+
     def hline_binary1_rule(model, n, t):
-        return model.res_dom_power[n, t] <= model.binary_HLINE[n, t] * (siteData["buildingMax_W"] if siteData["enable_buildingMax_W"] else BIG_M)
+        if siteData["enable_buildingMax_W"]:
+            limit = per_bldg.get(n, siteData["buildingMax_W"])
+        else:
+            limit = BIG_M
+        return model.res_dom_power[n, t] <= model.binary_HLINE[n, t] * limit
 
     def hline_binary2_rule(model, n, t):
-        return model.res_dom_feed[n, t] <= (1 - model.binary_HLINE[n, t]) * (siteData["buildingMax_W"] if siteData["enable_buildingMax_W"] else BIG_M)
+        if siteData["enable_buildingMax_W"]:
+            limit = per_bldg.get(n, siteData["buildingMax_W"])
+        else:
+            limit = BIG_M
+        return model.res_dom_feed[n, t] <= (1 - model.binary_HLINE[n, t]) * limit
 
     # Residual loads of the district
     def residual_power_rule(model, t):

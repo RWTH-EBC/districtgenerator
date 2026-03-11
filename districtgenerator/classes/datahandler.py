@@ -34,7 +34,7 @@ from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, ElGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 from .plots_balances import plot_all
 
 class Datahandler:
@@ -116,6 +116,7 @@ class Datahandler:
         self.ecoData = {}
         self.all_sim_ecoData = {} # Later overwriten with the calculated economic data for the simulated years
         self.heat_grid_data = {}
+        self.el_grid_data = {}
         self.pipe_data = {}
         self.pyomo_config = {}
         # Additional attributes
@@ -147,6 +148,7 @@ class Datahandler:
             central_config=global_config.central,
             calendar_config=global_config.calendar,
             heat_grid_config=global_config.heatgrid,
+            el_grid_config=global_config.elgrid,
             pyomo_config=global_config.pyomo
         )
 
@@ -183,6 +185,7 @@ class Datahandler:
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
                       heat_grid_config: HeatGridConfig,
+                      el_grid_config: ElGridConfig,
                       pyomo_config: PyomoConfig):
         """
         Load all data needed for district generation from configuration files.
@@ -272,6 +275,10 @@ class Datahandler:
         # load heat grid data (used in heating network design and optimization)
         for attr, value in heat_grid_config.__dict__.items():
             self.heat_grid_data[attr] = value
+
+        # load electricity grid data (Kundenanlage BM 2.4)
+        for attr, value in el_grid_config.__dict__.items():  # <-- NEU
+            self.el_grid_data[attr] = value
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
@@ -2090,7 +2097,12 @@ class Datahandler:
         observation_time = self.ecoData["observation_time"]
 
         # select the relevant subset of ecoData for optimization
-        single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
+        single_value_keys = [
+            'num_interpolation_points', 'interpolation_points', 'observation_time',
+            'interest_rate', 'optimization_focus',
+            # BM / constant components
+            'business_model', 'alpha','share_el_energy', 'share_el_grid', 'share_el_levies', 'share_el_vat',
+        ]
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
         # Identify the years that belong to each interpolation segment
@@ -2128,6 +2140,8 @@ class Datahandler:
                 denom = n
 
             for key in ecoData.keys():
+                if key == "p_max":
+                    continue
                 subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 
                 # Calculate present value (PV) of the subset values
