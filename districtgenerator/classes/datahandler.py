@@ -1290,6 +1290,19 @@ class Datahandler:
         # initialization
         self.centralDevices = {}
 
+        # Set heat_grid_data to zero if no heat grid exists. This is necessary to create central devices without any
+        # buildings using heat_grid
+        zeros_series = np.zeros_like(self.district[0]["user"].heat)
+        for series_key in ["total_losses_heating_network", "total_losses_cooling_network", "pump_power"]:
+            if series_key not in self.heat_grid_data:
+                print(f"Setting {series_key} for heat grid to zero because it does not exist.")
+                self.heat_grid_data[series_key] = zeros_series
+
+        for key in ["ann_costs", "om_costs"]:
+            if key not in self.heat_grid_data:
+                print(f"Setting {key} for heat grid to zero because it does not exist.")
+                self.heat_grid_data[key] = 0
+
         # initialize central energy system object
         self.centralDevices["ces_obj"] = CES()
 

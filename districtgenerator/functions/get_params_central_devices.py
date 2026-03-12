@@ -73,6 +73,11 @@ def get_params(data):
         electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
         generationPV += data.district[b]["user"].generationPV / 1000 # kW
 
+        # Add electricity consumed for heating by the buildings. An estimate is made using a fixed COP factor.
+        cop = 3
+        if data.district[b]["buildingFeatures"]["heater"] == "HP":
+            electricityAppliances += (data.district[b]["user"].heat + data.district[b]["user"].dhw) / cop / 1000 # kW
+
     heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
 
     if "total_losses_cooling_network" not in heat_grid_data:
