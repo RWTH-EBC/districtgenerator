@@ -219,6 +219,11 @@ class EcoConfig(BaseSettings):
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
 
+    # Retrofit parameters # New TJA
+    heat_dhw_red_sfh: str | list = [0.118, 0.075, 0.081, 0.088] # Heat and dhw demand reduction compared to last interpolation point for SFH
+    heat_dhw_red_mfh: str | list = [0.115, 0.090, 0.088, 0.096] # Heat and dhw demand reduction compared to last interpolation point for MFH 
+    heat_dhw_red_nrb: str | list = [0.080, 0.086, 0.081, 0.088] # Heat and dhw demand reduction compared to last interpolation point for Non-residential buildings
+
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'price_supply_el_network', 'revenue_feed_in_el_network', # New TJA
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
@@ -227,6 +232,7 @@ class EcoConfig(BaseSettings):
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
                      'co2_oil', 'co2_waste', 'co2_district_heat', 
                      'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
+                     'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb', # New TJA
                      'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
@@ -258,7 +264,8 @@ class EcoConfig(BaseSettings):
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
             'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 
             'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
-            'co2_tax'
+            'co2_tax', 
+            'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb' # New TJA
         ]
         
         for param_name in params_to_expand:
@@ -576,7 +583,8 @@ class EHDOConfig(BaseSettings):
     retrofit_rate: float = 0.015 # Annual retrofit rate of buildings in the district (buildings retrofitted per year devided by total number of buildings)
     retrofit_depth_level1: float = 0.25 # Depth of retrofit level 1 (heat demand after retrofit devided by  heat demand before retrofit)
     retrofit_depth_level2: float = 0.45 # Depth of retrofit level 2 (heat demand after retrofit devided by  heat demand before retrofit)
-    
+    retrofit_level1_share: float = 0.5 # Share of retrofitted buildings that are retrofitted with level 1 measures
+
     # Legal requirements for EHDO (New TJA)
     enable_legal_requirements: bool = True # Whether to enable legal requirements. If False, the requirements are ignored even if the shares are specified. # New TJA
     

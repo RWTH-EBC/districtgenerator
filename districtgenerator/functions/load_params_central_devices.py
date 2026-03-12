@@ -157,20 +157,45 @@ def load_params(data):
         building_type = data.district[b]["buildingFeatures"]["building"]
         building_counts[building_type] = building_counts.get(building_type, 0) + 1
 
+
+
+    # Get heat and dhw demand reduction for each building type and year from config # New TJA
+    param["interpolation_points"] = ecoData["interpolation_points"] 
+    param["heat_dhw_red_sfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_sfh"]
+                                for year in param["interpolation_points"]}
+    param["heat_dhw_red_mfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_mfh"]
+                                for year in param["interpolation_points"]}
+    param["heat_dhw_red_nrb"] = {year: all_sim_ecoData[year]["heat_dhw_red_nrb"]
+                                for year in param["interpolation_points"]}
+
     # Calculate share of each building type
+    building_types = ["SFH", "MFH", "NRB"]
     building_shares = {}
-    for building_type, count in building_counts.items():
-        building_shares[building_type] = count / total_buildings
+
+    for building_type in building_types:
+        count = building_counts.get(building_type, 0)
+        building_shares[building_type] = count / total_buildings if total_buildings > 0 else 0.0
 
     # Print building type shares
-    for btype, share in building_shares.items():
-        print(f"{btype}: {share:.2%} ({building_counts[btype]} buildings)")
+    for btype in building_types:
+        print(f"{btype}: {building_shares[btype]:.2%} ({building_counts.get(btype, 0)} buildings)")
 
 
-    for y in ecoData["interpolation_points"]:
-        
-        dem["heat"][y] = clustered_series[0] # New TJA
-        # dem["heat"][y] = clustered_series[0] # old
+    # Sort interpolation points to ensure correct ordering
+    sorted_years = sorted(ecoData["interpolation_points"])
+
+    for i, y in enumerate(sorted_years):
+        # Calculate reduction of heat and dhw demand
+        heat_dhw_red = (
+            building_shares["SFH"] * param["heat_dhw_red_sfh"][y]
+            + building_shares["MFH"] * param["heat_dhw_red_mfh"][y]
+            + building_shares["NRB"] * param["heat_dhw_red_nrb"][y]
+        )
+
+        # Reference previous year: use year 0 for first point, else previous interpolation point
+        prev_year = 0 if i == 0 else sorted_years[i - 1]
+
+        dem["heat"][y] = dem["heat"][prev_year] * (1 - heat_dhw_red)  # New TJA
         dem["cool"][y] = clustered_series[1]
         dem["power"][y] = clustered_series[2]
 
@@ -1089,6 +1114,7 @@ def load_params(data):
                             for year in param["interpolation_points"]}  # kg/kWh
     param["co2_gas_feed_in"] = {year: all_sim_ecoData[year].get("co2_gas_feed_in", 0)
                                 for year in param["interpolation_points"]}  # kg/kWh
+    
     
     ### Taxes ###
     param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"]
