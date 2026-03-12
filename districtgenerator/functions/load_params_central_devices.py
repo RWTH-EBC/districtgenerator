@@ -191,11 +191,10 @@ def load_params(data):
             + building_shares["MFH"] * param["heat_dhw_red_mfh"][y]
             + building_shares["NRB"] * param["heat_dhw_red_nrb"][y]
         )
-
-        # Reference previous year: use year 0 for first point, else previous interpolation point
-        prev_year = 0 if i == 0 else sorted_years[i - 1]
-
-        dem["heat"][y] = dem["heat"][prev_year] * (1 - heat_dhw_red)  # New TJA
+        if y == 0:
+            dem["heat"][y] = clustered_series[0]  # New TJA
+        else:
+            dem["heat"][y] = clustered_series[0] * (1 - heat_dhw_red)  # New TJA
         dem["cool"][y] = clustered_series[1]
         dem["power"][y] = clustered_series[2]
 

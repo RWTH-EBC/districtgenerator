@@ -19,4 +19,4 @@ districtgenerator/data/weather/*
 *.egg/
 *.eggs
 districtgenerator.egg-info/*
-dgvenv/
+.venv
