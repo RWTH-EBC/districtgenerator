@@ -1133,3 +1133,25 @@ class Profiles:
         ev_capacity = [car["battery_capacity_wh"] for car in individual_car_profiles if car["type"] == "EV"]
         return all_EV_cars_demand_total, on_demand_all_EV_cars_charging, ev_capacity, ice_fuel_profile, individual_car_profiles
 
+    def load_wh_profile(self, name, path, wh_to_elec, E_ges):
+
+        # create array with value from the csv file
+        csv_file = os.path.join(path, name + '.csv')
+        df = pd.read_csv(csv_file, usecols=["Mean_Value"], sep=";", decimal=",")
+        profile = df["Mean_Value"].to_numpy()[1:]
+
+        # adjust array with profile data, in case it is missing entries or has to many of them
+        if len(profile) >= 35040:
+            profile = profile[:35040]
+        else:
+            missing = 35040 - len(profile)
+            profile = np.concatenate([profile, np.full(missing, profile[-1])])  # ADD INTERPOLATION!
+
+        # convert the profile to an hourly profile (original data consists of 15 min steps)
+        hourly_profile = profile.reshape(-1, 4).mean(axis=1)
+
+        # create electricity and waste heat profile
+        elec_profile = hourly_profile * (E_ges / np.sum(hourly_profile))
+        wh_profile = elec_profile * wh_to_elec
+
+        return wh_profile

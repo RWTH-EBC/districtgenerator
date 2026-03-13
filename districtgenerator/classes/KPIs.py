@@ -14,6 +14,7 @@ from datetime import datetime
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
+import pandas as pd
 
 class KPIs:
 
@@ -41,6 +42,7 @@ class KPIs:
         self.supplyCoverFactor = None
         self.demandCoverFactor = None
         self.operationCosts = None
+        self.whCosts = None
         self.co2emissions = None
         self.W_inj_GCP_year = None
         self.W_dem_GCP_year = None
@@ -54,6 +56,8 @@ class KPIs:
         self.scf_year = None
         self.annual_fixed_costs_decentral = None
         self.annual_fixed_costs_central = None
+        self.decentral_individual_devices_annualized_cost = None
+        self.central_individual_devices_annualized_cost = None
         self.total_ICE_fuel_liters = None
         self.gasoline_costs = None
         self.totalarea_residential = None
@@ -101,6 +105,8 @@ class KPIs:
         self.calculateCoverFactors(data)
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
+        self.calculateLCOH_buildings(data)
+        self.calculateLCOH_EH(data)
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateGasolineCosts(data)
@@ -150,8 +156,12 @@ class KPIs:
                 # loop over buildings
                 for bldg_id in data.scenario["id"]:
                     idx = data.building_dict[int(bldg_id)]
-                    self.sum_res_load[year][c, :] += np.array(self.inputData["resultsOptimization"][year][c][idx]["res_load"])
-                    self.sum_res_inj[year][c, :] += np.array(self.inputData["resultsOptimization"][year][c][idx]["res_inj"])
+                    load  = np.array(self.inputData["resultsOptimization"][year][c][idx]["res_load"])
+                    inj = np.array(self.inputData["resultsOptimization"][year][c][idx]["res_inj"])
+                    if load is not None:
+                        self.sum_res_load[year][c, :] += np.array(self.inputData["resultsOptimization"][year][c][idx]["res_load"])
+                    if inj is not None:
+                        self.sum_res_inj[year][c, :] += np.array(self.inputData["resultsOptimization"][year][c][idx]["res_inj"])
 
         ### for central energy unit
 
@@ -227,8 +237,6 @@ class KPIs:
         hydrogen = {}
         oil = {}
         districtHeat = {}
-
-
 
         for year in self.inputData["simulated_years"]:
             # Electricity [kWh] feed into the superordinated grid
@@ -308,6 +316,7 @@ class KPIs:
     def calculateCoverFactors(self, data):
         """
         Calculate the ratio between the self-consumed electricity and the total electricity demand for each year.
+        Only uses residual loads and injections. Does not consider direct consumption within buildings.
 
         Returns
         -------
@@ -388,6 +397,7 @@ class KPIs:
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
+            capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
             capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
@@ -399,28 +409,101 @@ class KPIs:
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
 
         calc_annual_investment = {}
+        calc_annual_investment_unsubsidized = {}
+        self.decentral_individual_devices_annualized_cost = {} #Dictionary to store annualized cost per device and building
         self.annual_fixed_costs_decentral = 0
+        self.annual_fixed_costs_decentral_unsubsidized = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
-        for dev in devices:
-            calc_annual_investment[dev] = 0
-            for n in range(len(district)):
-                try:
-                    calc_annual_investment[dev] += self.calc_annual_cost_device(
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+
+        # Iteration over all buildings and then over all devices
+        for n in range(len(district)):
+            self.decentral_individual_devices_annualized_cost[n] = {}
+            calc_annual_investment[n] = 0
+            calc_annual_investment_unsubsidized[n] = 0
+
+
+            for dev in devices:
+                cap = capacities[n][dev]
+                if cap > 0:
+                    subsidized_cost = self.calc_annual_cost_device(
                         decentral_device_data[dev],
-                        decentral_device_data["inv_data"],
-                        capacities[n][dev])
+                        data.ecoData,
+                        cap,
+                        mode="subsidized")
 
-                except KeyError:
-                    continue
-            self.annual_fixed_costs_decentral += calc_annual_investment[dev]
+                    unsubsidized_cost = self.calc_annual_cost_device(
+                        decentral_device_data[dev],
+                        data.ecoData,
+                        cap,
+                        mode="unsubsidized")
 
+                    # If HP is installed, EH investment is assumed to be included in HP
+                    # → keep EH capacity visible, but set EH annualized costs to 0
+                    if dev == "EH" and capacities[n].get("HP", 0) > 0:
+                        subsidized_cost = 0.0
+                        unsubsidized_cost = 0.0
+
+                    calc_annual_investment[n] += subsidized_cost
+                    calc_annual_investment_unsubsidized[n] += unsubsidized_cost
+                    self.decentral_individual_devices_annualized_cost[n][dev] = {"cap":cap,
+                                                                        "subsidized_annual_cost":subsidized_cost,
+                                                                        "unsubsidized_annual_cost":unsubsidized_cost}
+
+            self.annual_fixed_costs_decentral += calc_annual_investment[n] # Annualized investment costs with subsidies
+            self.annual_fixed_costs_decentral_unsubsidized += calc_annual_investment_unsubsidized[n] # Annualized investment costs without subsidies
+
+        # Central devices individual costs
+        self.central_individual_devices_annualized_cost = {}
         try:
             self.annual_fixed_costs_central = data.centralDevices["capacities"]["total_ann_inv_cost"] + data.centralDevices["capacities"]["total_om_cost"]
+            self.annual_fixed_costs_central_unsubsidized = data.centralDevices["capacities"]["total_ann_inv_cost_unsubsidized"] + data.centralDevices["capacities"]["total_om_cost"]
+
+            # Extract individual device costs from optimization results
+            if hasattr(data, 'centralDevices') and 'capacities' in data.centralDevices:
+                for dev_name, dev_spec in data.centralDevices["capacities"].items():
+                    # Skip non-dict entries (like total_ann_inv_cost, etc.)
+                    if not isinstance(dev_spec, dict):
+                        continue
+                    cap = dev_spec.get("cap", 0)
+                    if cap <= 0:
+                        continue
+
+                    # Get annualized costs directly from optimization results
+                    subsidized_cost = dev_spec.get("ann_inv_cost", 0)
+                    unsubsidized_cost = dev_spec.get("ann_inv_cost_unsubsidized", 0)
+                    om_cost = dev_spec.get("om_cost", 0)
+
+                    # Total costs (investment + O&M)
+                    total_subsidized = subsidized_cost + om_cost
+                    total_unsubsidized = unsubsidized_cost + om_cost
+
+                    # Store in dictionary (similar to decentral devices)
+                    self.central_individual_devices_annualized_cost[dev_name] = {
+                        "cap": cap,
+                        "subsidized_annual_cost": total_subsidized,
+                        "unsubsidized_annual_cost": total_unsubsidized
+                    }
+
+            # Add heat grid costs if available
+            if hasattr(data, 'heat_grid_data') and data.heat_grid_data:
+                heat_grid_ann_cost = data.heat_grid_data.get("ann_costs", 0)
+                heat_grid_om_cost = data.heat_grid_data.get("om_costs", 0)
+                heat_grid_total_cost = data.heat_grid_data.get("costs", 0)
+
+                # Only add if costs exist
+                if heat_grid_total_cost > 0 or (heat_grid_ann_cost + heat_grid_om_cost) > 0:
+                    self.central_individual_devices_annualized_cost["Heat_Grid"] = {
+                        "cap": '',  # Use total investment cost as "capacity" indicator
+                        "subsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost,
+                        "unsubsidized_annual_cost": heat_grid_ann_cost + heat_grid_om_cost  # Same for heat grid (no subsidies)
+                    }
+
         except KeyError:
             self.annual_fixed_costs_central = 0
+            self.annual_fixed_costs_central_unsubsidized = 0
 
-    def calc_annual_cost_device(self, dev, param, cap):
+    def calc_annual_cost_device(self, dev, ecoData, cap, mode="subsidized"):
         """
         Calculation of total investment costs including replacements (based on VDI 2067-1, pages 16-17).
 
@@ -428,8 +511,12 @@ class KPIs:
         ----------
         dev : dictionary
             technology parameter
-        param : dictionary
-            economic parameters
+        ecoData : dictionary
+            economic parameters (interest_rate, observation_time)
+        cap: float
+            installed capacity of the device [kW]
+        mode: str, optional
+            calculation mode. The default is "subsidized". Alternative 'unsubsidized' (without subsidies).
 
         Returns
         -------
@@ -449,9 +536,9 @@ class KPIs:
         # Online available at:
         # https://api.kww-halle.de/fileadmin/user_upload/Technikkatalog_W%C3%A4rmeplanung_Version_1.1_August24.xlsx
 
-        observation_time = param["observation_time"]
-        interest_rate = param["interest_rate"]
-        q = 1 + param["interest_rate"]
+        observation_time = ecoData["observation_time"]
+        interest_rate = ecoData["interest_rate"]
+        q = 1 + ecoData["interest_rate"]
 
         # Calculate capital recovery factor
         CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
@@ -478,14 +565,19 @@ class KPIs:
         # param["CRF"] = CRF
 
         # Total investment costs
-        inv = dev["inv_var"] * cap
+        inv_unsubsidized = dev["inv_base"] * cap
+        inv_subsidized = dev["inv_var"] * cap
         # Annualized investment costs
-        c_inv= inv * ann_factor
+        if mode == "subsidized":
+            c_inv = inv_subsidized * ann_factor
+        elif mode == "unsubsidized":
+            c_inv = inv_unsubsidized * ann_factor
+        else: raise ValueError(f"Mode {mode} for investment cost calculation not recognized. Possible modes are 'subsidized' and 'unsubsidized'.")
 
         c_om = 0 # Operation, maintenance and capacity costs
 
-        if dev.get("cost_om",None) is not None: # operation and maintenance costs [€/(a*€_invested)]
-            c_om += dev["cost_om"] * inv
+        if dev.get("cost_om",None) is not None: # operation and maintenance costs [€/(a*€_invested)] Always use the unsubsidized investment for O&M calculation
+            c_om += dev["cost_om"] * inv_unsubsidized
 
         if dev.get("cap_fee",None) is not None : # if a Capacity fee exists [€/(kW*a)]
             c_om += dev["cap_fee"] * cap
@@ -494,6 +586,19 @@ class KPIs:
         c_total = c_inv + c_om
 
         return c_total
+
+    def calc_annualized_investment(self, inv_total, ecoData):
+        """
+        Annualize a one-time investment (no replacements, no O&M).
+        """
+        observation_time = ecoData["observation_time"]
+        interest_rate = ecoData["interest_rate"]
+        q = 1 + interest_rate
+
+        # Capital recovery factor
+        CRF = ((q ** observation_time) * interest_rate) / ((q ** observation_time) - 1)
+
+        return inv_total * CRF
 
     def calculateOperationCosts(self, data):
         """
@@ -508,21 +613,28 @@ class KPIs:
 
         operationCosts_clusters = {}
         self.operationCosts = {}
+        self.whCosts = {}
+        whCosts_clusters = {}
 
         for year in self.inputData["simulated_years"]:
             operationCosts_clusters[year] = {}
+            whCosts_clusters[year] = {}
             for c in range(len(self.inputData["clusters"])):
                 operationCosts_clusters[year][c] = self.inputData["resultsOptimization"][year][c]["Cost_total"]
+                whCosts_clusters[year][c] = self.inputData["resultsOptimization"][year][c]["waste_heat_total"]
                 #print(f"Operation costs for year {year}, cluster {c}: {operationCosts_clusters[year][c]} €")
 
             # multiply central operation costs of each cluster with the weight of respective cluster
             temp_operationCosts = 0
+            temp_whCosts = 0
             for c in range(len(self.inputData["clusters"])):
                 temp_operationCosts += operationCosts_clusters[year][c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                temp_whCosts += whCosts_clusters[year][c] * self.inputData["clusterWeights"][self.inputData["clusters"][c]]
 
             # central operation costs for each year [€]
             self.operationCosts[year] = round(temp_operationCosts, 0)
-
+            self.whCosts[year] = round(temp_whCosts, 0)
+            print(f"Hier sind die gesamten Abwärmekosten: {self.whCosts[year]}")
 
     def calculateCO2emissions(self, data):
         """
@@ -561,6 +673,327 @@ class KPIs:
                 "co2_oil": co2_oil,
                 "co2_district_heat": co2_district_heat
             }
+
+    def calculateLCOH_buildings(self, data):
+        """
+        Calculate the building-level Levelized Cost of Heat (LCOH) in ct/kWh.
+
+        This function computes the average cost per unit of useful heat delivered
+        to each building for every simulated year. The LCOH includes:
+
+        For co-generation technologies (CHP and fuel cells) producing both heat
+        and electricity, fuel costs are allocated using a price-based allocation
+        method:
+                share_heat = (Q * price_dh) / (Q * price_dh + E * price_el)
+
+        Parameters
+        ----------
+        data
+
+        Returns
+        -------
+        None
+        """
+
+        years = self.inputData["simulated_years"]
+        clusters = self.inputData["clusters"]
+        cweights = self.inputData["clusterWeights"]
+        dt = float(data.time["timeResolution"])
+
+        self.lcoh_year_building = {}
+
+        for year in years:
+            eco = data.all_sim_ecoData[year]
+
+            price_gas = eco["price_supply_gas"]
+            price_el = eco["price_supply_el"]
+            price_biom = eco.get("price_biomass", 0.0)
+            price_h2 = eco.get("price_hydrogen", 0.0)
+            price_oil = eco.get("price_oil", 0.0)
+            price_dh = eco.get("price_district_heat", 0.0)
+
+            self.lcoh_year_building[year] = {}
+
+            # LOOP BUILDINGS
+            for n in range(len(data.district)):
+
+                Q_total_building = (sum(data.district[n]["user"].dhw) + sum(data.district[n]["user"].heat)) * dt / 3600 / 1000
+                fuel_cost_heat = 0.0
+                el_cost_heat = 0.0
+                dh_cost_heat = 0.0
+                fixed_cost_heat = 0.0
+                heater_type = data.district[n]["buildingFeatures"]["heater"]
+
+                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "STC", "T_reduction_measures"}
+
+                # Fixed cost allocation
+                for dev, info in self.decentral_individual_devices_annualized_cost.get(n, {}).items():
+                    if dev in heat_devices:
+                        fixed_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
+
+                # LOOP CLUSTERS
+                for c in range(len(clusters)):
+
+                    cw = float(cweights[clusters[c]])
+                    cluster = self.inputData["resultsOptimization"][year][c]
+                    res = cluster[n]
+                    T = len(res.get("res_load", []))
+
+                    # District Heating
+                    if heater_type == "DH" and "DH" in res:
+                        dh_energy = (np.array(res["DH"].get("Q_th", [0] * T)).sum() * dt / 3600 / 1000)
+                        dh_cost_heat += cw * dh_energy * price_dh
+
+                    # Boilers
+                    if heater_type in ["BOI", "GHP"] and "BOI" in res:
+                        Q = np.array(res["BOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["BOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_gas
+
+                    if heater_type in ["BBOI", "BHP"] and "BBOI" in res:
+                        Q = np.array(res["BBOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["BBOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_biom
+
+                    if heater_type in ["OBOI", "OHP"] and "OBOI" in res:
+                        Q = np.array(res["OBOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["OBOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_oil
+
+                    if heater_type in ["H2BOI", "H2HP"] and "H2BOI" in res:
+                        Q = np.array(res["H2BOI"].get("Q_th", [0] * T))
+                        eta = data.decentral_device_data["H2BOI"]["eta_th"]
+                        fuel = Q.sum() / eta * dt / 3600 / 1000
+                        fuel_cost_heat += cw * fuel * price_h2
+
+                    if heater_type == "CHP" and "CHP" in res:
+                        E_chp = np.array(res["CHP"].get("P_el", [0] * T))
+                        eta_th = data.decentral_device_data["CHP"]["eta_th"]
+                        eta_el = data.decentral_device_data["CHP"]["eta_el"]
+                        Q_chp = E_chp/eta_el*eta_th
+
+                        Q_kWh = Q_chp.sum() * dt / 3600 / 1000
+                        E_kWh = E_chp.sum() * dt / 3600 / 1000
+                        if Q_kWh > 0:
+                            fuel_input = Q_kWh / eta_th
+                            share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                            fuel_cost_heat += cw * share_heat * fuel_input * price_gas
+
+                    if heater_type == "FC" and "FC" in res:
+                        E_fc = np.array(res["FC"].get("P_el", [0] * T))
+                        eta_th = data.decentral_device_data["FC"]["eta_th"]
+                        eta_el = data.decentral_device_data["FC"]["eta_el"]
+                        Q_fc = E_fc/eta_el*eta_th
+
+                        Q_kWh = Q_fc.sum() * dt / 3600 / 1000
+                        E_kWh = E_fc.sum() * dt / 3600 / 1000
+                        if Q_kWh > 0:
+                            fuel_input = Q_kWh / eta_th
+                            share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                            fuel_cost_heat += cw * share_heat * fuel_input * price_h2
+
+                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH"]:
+                        el_heat_from_grid_cluster = 0.0
+                        for t in range(T):
+                            hp_t = res.get("HP", {}).get("P_el", [0] * T)[t]
+                            eh_t = res.get("EH", {}).get("P_el", [0] * T)[t]
+                            grid_t = res.get("res_load", [0] * T)[t]
+                            el_heat_t = (hp_t + eh_t) * dt / 3600 / 1000
+                            grid_t_kWh = grid_t * dt / 3600 / 1000
+                            el_heat_from_grid_cluster += min(el_heat_t, grid_t_kWh)
+                        el_cost_heat += cw * el_heat_from_grid_cluster * price_el
+
+                # LCOH per building
+                total_cost = (
+                        fixed_cost_heat +
+                        fuel_cost_heat +
+                        el_cost_heat +
+                        dh_cost_heat)
+
+                if Q_total_building > 1e-9:
+                    lcoh = 100.0 * total_cost / Q_total_building
+                else:
+                    lcoh = 0.0
+
+                self.lcoh_year_building[year][n] = lcoh
+
+    def calculateLCOH_EH(self, data):
+        """
+        Calculate the Energy Hub Levelized Cost of Heat (LCOH) in ct/kWh.
+
+        This function computes the average cost per unit of useful heat supplied
+        by the central Energy Hub to all buildings connected to the district
+        heating network for each simulated year.
+
+        For co-generation technologies (CHP, biomass CHP, waste CHP, and fuel
+        cells), fuel costs are allocated between heat and electricity using a
+        price-based allocation method:
+
+            share_heat = (Q * price_dh) / (Q * price_dh + E * price_el)
+
+        Parameters
+        ----------
+        data
+
+        Returns
+        -------
+        None
+        """
+
+        years = self.inputData["simulated_years"]
+        clusters = self.inputData["clusters"]
+        cweights = self.inputData["clusterWeights"]
+        dt = float(data.time["timeResolution"])
+
+        self.lcoh_year_eh = {}
+
+        for year in years:
+
+            eco = data.all_sim_ecoData[year]
+
+            # Energy hub specific prices
+            price_gas = eco.get("price_supply_gas_eh", eco["price_supply_gas"])
+            price_el = eco.get("price_supply_el_eh", eco["price_supply_el"])
+            price_biom = eco.get("price_biomass", 0.0)
+            price_h2 = eco.get("price_hydrogen", 0.0)
+            price_oil = eco.get("price_oil", 0.0)
+            price_waste = eco.get("price_waste", 0.0)
+            price_dh = eco.get("price_district_heat", 0.0)
+
+            self.lcoh_year_eh[year] = {}
+
+            # TOTAL HEAT DELIVERED
+            Q_total_eh = 0.0
+
+            for n in range(len(data.district)):
+                if data.district[n]["buildingFeatures"]["heater"] == "heat_grid":
+                    Q_building = (np.sum(data.district[n]["user"].dhw) + np.sum(data.district[n]["user"].heat)) * dt / 3600 / 1000
+                    Q_total_eh += Q_building
+
+            fuel_cost_heat = 0.0
+            el_cost_heat = 0.0
+            fixed_cost_heat = 0.0
+
+            heat_devices = {"TES", "EB", "FC", "WBOI", "WCHP", "BBOI", "BCHP", "HP", "GHP", "BOI", "CHP", "STC"}
+
+            # Central heat-producing devices only
+            for dev, info in self.central_individual_devices_annualized_cost.items():
+                if dev in heat_devices:
+                    fixed_cost_heat += float(info.get("subsidized_annual_cost", 0.0))
+
+            # Heating network investment
+            if hasattr(data, "heat_grid_data") and isinstance(data.heat_grid_data, dict):
+                fixed_cost_heat += (
+                        float(data.heat_grid_data.get("om_costs", 0.0)) +
+                        float(data.heat_grid_data.get("ann_costs", 0.0)))
+
+            # LOOP CLUSTERS
+            for c in range(len(clusters)):
+
+                cw = float(cweights[clusters[c]])
+                cluster = self.inputData["resultsOptimization"][year][c]
+                eh_power = cluster["eh_power"]
+                eh_heat = cluster["eh_heat"]
+                eh_gas = cluster["eh_gas"]
+                eh_h2 = cluster["eh_hydrogen"]
+                eh_biom = cluster["eh_biom"]
+                eh_waste = cluster["eh_waste"]
+
+                T = len(next(iter(eh_power.values())))
+
+                # Gas boilers
+                Q = np.array(eh_heat["BOI"])
+                eta = data.central_device_data["BOI"]["eta_th"]
+                fuel = Q.sum() / eta * dt / 3600 / 1000
+                fuel_cost_heat += cw * fuel * price_gas
+
+                # Biomass boiler
+                Q = np.array(eh_heat["BBOI"])
+                eta = data.central_device_data["BBOI"]["eta_th"]
+                fuel = Q.sum() / eta * dt / 3600 / 1000
+                fuel_cost_heat += cw * fuel * price_biom
+
+                # Waste boiler
+                Q = np.array(eh_heat["WBOI"])
+                eta = data.central_device_data["WBOI"]["eta_th"]
+                fuel = Q.sum() / eta * dt / 3600 / 1000
+                fuel_cost_heat += cw * fuel * price_waste
+
+                # CHP (gas)
+                fuel = np.array(eh_gas.get("CHP", [0] * T))
+                Q = np.array(eh_heat.get("CHP", [0] * T))
+                E = np.array(eh_power.get("CHP", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_gas
+
+                # Waste CHP (WCHP)
+                fuel = np.array(eh_waste.get("WCHP", [0] * T))
+                Q = np.array(eh_heat.get("WCHP", [0] * T))
+                E = np.array(eh_power.get("WCHP", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_waste
+
+                # Biomass CHP (BCHP)
+                fuel = np.array(eh_biom.get("BCHP", [0] * T))
+                Q = np.array(eh_heat.get("BCHP", [0] * T))
+                E = np.array(eh_power.get("BCHP", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_biom
+
+                # Fuel Cell
+                fuel = np.array(eh_h2.get("FC", [0] * T))
+                Q = np.array(eh_heat.get("FC", [0] * T))
+                E = np.array(eh_power.get("FC", [0] * T))
+
+                fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                Q_kWh = Q.sum() * dt / 3600 / 1000
+                E_kWh = E.sum() * dt / 3600 / 1000
+
+                if Q_kWh > 0 and E_kWh > 0:
+                    share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
+                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_h2
+
+                # Electricity cost for HP + EB
+                el_heat_from_grid_cluster = 0.0
+                for t in range(T):
+                    hp_t = eh_power.get("HP", [0] * T)[t]
+                    eb_t = eh_power.get("EB", [0] * T)[t]
+                    grid_t =eh_power.get("from_grid", [0] * T)[t]
+                    el_heat_t = (hp_t + eb_t) * dt / 3600 / 1000
+                    grid_kWh = grid_t * dt / 3600 / 1000
+                    el_heat_from_grid_cluster += min(el_heat_t, grid_kWh)
+                el_cost_heat += cw * el_heat_from_grid_cluster * price_el
+
+            # LCOH
+            total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat
+
+            if Q_total_eh > 1e-9:
+                lcoh_eh = 100.0 * total_cost / Q_total_eh
+            else:
+                lcoh_eh = 0.0
+
+            self.lcoh_year_eh[year] = lcoh_eh
 
     def calculateAutonomy(self):
         """
@@ -643,8 +1076,8 @@ class KPIs:
             total_ICE_fuel_liters += np.sum(building["user"].ice_carprofile)  # liters per timestep summed over year
 
             # sum all building design heat and cooling loads
-            total_heat_load += building["envelope"].heatload + building["dhwpower"]  # copied from system.py
-            total_cooling_load += max(building["user"].cooling) # copied from system.py
+            total_heat_load += building["envelope"].heatload + building["dhwpower"]
+            total_cooling_load += max(building["user"].cooling)
 
             # sum all building demands
             total_heating_demand += sum(building["user"].heat)
@@ -683,6 +1116,52 @@ class KPIs:
         self.total_EV_peak = max(sum_EV_profile)
         self.total_ICE_fuel_liters = float(total_ICE_fuel_liters)
 
+    def calc_total_consumption_and_emissions(self, data):
+        """
+        Calculates:
+        - total consumption of energy carriers in the district
+        - total CO2 emissions of the district for each energy carrier
+
+        Uses year weights to account for the interval that each simulated year represents.
+
+
+        Retuns
+        -------
+        None.
+        """
+        # Calculate year weights (duration each simulated year represents)
+        sorted_years = sorted(self.inputData["simulated_years"])
+        observation_time = data.ecoData["observation_time"]
+        year_weights = {}
+
+        for idx, year in enumerate(sorted_years):
+            if idx < len(sorted_years) - 1:
+                year_weights[year] = sorted_years[idx + 1] - year  # time until next support year
+            else:
+                year_weights[year] = observation_time - year  # time from last support year to end of observation period
+
+        # Calculate total consumption over all years (weighted by interval length)
+        self.total_W_dem_GCP = sum(self.W_dem_GCP_year[year] * year_weights[year] for year in sorted_years) # demand from grid
+        self.total_W_inj_GCP = sum(self.W_inj_GCP_year[year] * year_weights[year] for year in sorted_years) # injection to grid
+        self.total_W_dem_buildings = sum(self.W_dem_buildings_year[year] * year_weights[year] for year in sorted_years) # total residual electricity demand within district by buildings
+        self.total_W_inj_buildings = sum(self.W_inj_buildings_year[year] * year_weights[year] for year in sorted_years) # total residual electricity injection within district by buildings
+        self.total_gas = sum(self.gas_year[year] * year_weights[year] for year in sorted_years) # gas consumption of the district
+        self.total_biomass = sum(self.biomass_year[year] * year_weights[year] for year in sorted_years) # biomass consumption
+        self.total_waste = sum(self.waste_year[year] * year_weights[year] for year in sorted_years) # waste consumption
+        self.total_hydrogen = sum(self.hydrogen_year[year] * year_weights[year] for year in sorted_years) # hydrogen consumption
+        self.total_oil = sum(self.oil_year[year] * year_weights[year] for year in sorted_years) # oil consumption
+        self.total_districtHeat = sum(self.districtHeat_year[year] * year_weights[year] for year in sorted_years) # district heat consumption
+
+        # Calculate total CO2 emissions over all years (weighted by interval length)
+        self.total_co2_all = sum(self.co2emissions[year]["total_co2"] * year_weights[year] for year in sorted_years) # total CO2 emissions
+        self.total_co2_dem_grid = sum(self.co2emissions[year]["co2_dem_grid"] * year_weights[year] for year in sorted_years) # CO2 emissions from electricity from grid
+        self.total_co2_gas = sum(self.co2emissions[year]["co2_gas"] * year_weights[year] for year in sorted_years) # CO2 emissions from gas consumption
+        self.total_co2_biom = sum(self.co2emissions[year]["co2_biom"] * year_weights[year] for year in sorted_years) # CO2 emissions from biomass consumption
+        self.total_co2_waste = sum(self.co2emissions[year]["co2_waste"] * year_weights[year] for year in sorted_years) # CO2 emissions from waste consumption
+        self.total_co2_hydrogen = sum(self.co2emissions[year]["co2_hydrogen"] * year_weights[year] for year in sorted_years) # CO2 emissions from hydrogen consumption
+        self.total_co2_oil = sum(self.co2emissions[year]["co2_oil"] * year_weights[year] for year in sorted_years) # CO2 emissions from oil consumption
+        self.total_co2_district_heat = sum(self.co2emissions[year]["co2_district_heat"] * year_weights[year] for year in sorted_years) # CO2 emissions from district heat consumption
+
     def calculateGasolineCosts(self, data):
         """Compute annual gasoline costs (€) for each simulated year."""
         self.gasoline_costs = {}
@@ -712,6 +1191,342 @@ class KPIs:
         self.calc_annual_cost_total(data)
         self.calc_total_areas_and_demands(data)
         self.calculateGasolineCosts(data)
+        self.calc_total_consumption_and_emissions(data)
+        self.calculateLCOH_buildings(data)
+        self.calculateLCOH_EH(data)
+        input()
+        self.saveKPIs(data.scenario_name, data.resultPath, data.district)
+
+    def dumpdata(self, data):
+        import json
+        path = data.resultPath
+        scenario_name = data.scenario_name
+        json_path = os.path.join(path, "wasteheat", f"{scenario_name}.json")
+
+        A = data.site["area"]
+        total_demand = self.total_heating_demand/1000
+        heating_demand_density = total_demand/A
+
+        TAC = self.operationCosts[0] + self.annual_fixed_costs_decentral_unsubsidized + self.annual_fixed_costs_central_unsubsidized
+        ann_fixed = self.annual_fixed_costs_decentral_unsubsidized + self.annual_fixed_costs_central_unsubsidized
+        ann_op = self.operationCosts[0]
+
+
+
+        if os.path.exists(json_path):
+            print("Hallo")
+            with open(json_path, "r") as f:
+                json_data = json.load(f)
+        else:
+            json_data = {}
+
+        json_data["heating_demand_density"] = heating_demand_density
+
+
+        if "waste_heat_profile" in data.waste_heat_data:
+
+            key = f"{data.waste_heat_data['type']}_{data.waste_heat_data['size']}_{data.ecoData['price_wh'][0]}"
+            distance = data.waste_heat_data["distance"]
+
+            # Quelle anlegen falls nicht vorhanden
+            if key not in json_data:
+                json_data[key] = {"Entfernung": {}}
+
+            # Entfernung speichern
+            json_data[key]["Entfernung"][distance] = {
+                "TAC": TAC,
+                "fixed": ann_fixed,
+                "op": ann_op
+            }
+
+        elif "capacities" in data.centralDevices:
+
+            json_data["zentral_ohne_abwaerme"] = {
+                "TAC": TAC,
+                "fixed": ann_fixed,
+                "op": ann_op
+            }
+
+        else:
+
+            json_data["dezentral"] = {
+                "TAC": TAC,
+                "fixed": ann_fixed,
+                "op": ann_op
+            }
+
+        # JSON speichern
+        with open(json_path, "w") as f:
+            json.dump(json_data, f, indent=4)
+
+
+        #self.plotdata(json_path, f"{data.waste_heat_data['type']}", f"{data.waste_heat_data['size']}")
+
+    def plotdata(self, json_path, wh_type, wh_size):
+        import json
+        import matplotlib.pyplot as plt
+
+        # JSON laden
+        with open(json_path, "r") as f:
+            json_data = json.load(f)
+
+        #heating_demand_density = json_data.get("heating_demand_density", None)
+        heating_demand_density = None  # Entfernen für Test!
+
+        # Figure EINMAL erstellen (OBEN!)
+        fig, ax = plt.subplots(figsize=(10, 6))  # ← Breit von Anfang an!
+
+        # zentral / dezentral (auf ax plotten)
+        TAC_central = json_data.get("zentral_ohne_abwaerme", {}).get("TAC", None)
+        TAC_decentral = json_data.get("dezentral", {}).get("TAC", None)
+
+        if TAC_decentral is not None:
+            ax.axhline(TAC_decentral, linestyle="-", color="green", label="dezentrale Versorgung")
+        if TAC_central is not None:
+            ax.axhline(TAC_central, linestyle="-", color="orange", label="zentrale Versorgung")
+
+        # Farben
+        price_colors = {"0": "red", "0.02": "blue"}
+
+        # Plots
+        for wh_price in ["0", "0.02"]:
+            key = f"{wh_type}_{wh_size}_{wh_price}"
+            if key in json_data:
+                distances = []
+                TAC_values = []
+                for d, values in json_data[key]["Entfernung"].items():
+                    distances.append(float(d))
+                    TAC_values.append(values["TAC"])
+                if distances:
+                    distances, TAC_values = zip(*sorted(zip(distances, TAC_values)))
+                    ax.scatter(distances, TAC_values, color=price_colors[wh_price],
+                               s=80, label=f"{wh_type} ({wh_size} kW) – {wh_price} €/kWh")
+
+        # Labels & Title AUF AX
+        ax.set_xlabel("Entfernung zum Quartier [m]", fontsize=11)
+        ax.set_ylabel("TAC [€/Jahr]", fontsize=11)
+        ax.set_title(f"TAC für {wh_type} in Abhängigkeit der Entfernung und Abwärmepreise",
+                     fontsize=12, pad=20)
+
+        ax.grid(True, alpha=0.3)
+
+        # LEGENDE KLEIN & außen
+        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9,
+                  frameon=True, framealpha=0.95, handlelength=1.5)
+
+        # Text-Box
+        if heating_demand_density is not None:
+            ax.text(0.02, 0.95, f"Wärmebedarfsdichte: {heating_demand_density:.2f} kWh/m²",
+                    transform=ax.transAxes, fontsize=10, verticalalignment='top',
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+
+        # ← FIX: ALLES SICHTBAR
+        plt.tight_layout(pad=2.0)
+
+        plt.savefig("TAC_plot.pdf", bbox_inches='tight', dpi=300, facecolor='white')
+        plt.show()
+
+    def saveKPIs(self, scenario_name, result_path, buildings):
+        """
+        Save all calculated KPIs in an Excel file with two sheets. Ensure that calculateAllKPIs() has been called before.
+
+        Parameters
+        - self: KPICalculator instance
+        - scenario_name: Name of the scenario for file naming
+        - result_path: Path to save the results
+        """
+
+        if result_path is None:
+            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            filename = os.path.join(src_path, "results", f"KPIs_{scenario_name}.xlsx")
+        else:
+            filename = os.path.join(result_path, f"KPIs_{scenario_name}.xlsx")
+
+        # Get all simulated years
+        years = sorted(self.inputData["simulated_years"])
+
+        # Create dictionary for year-dependent KPIs
+        kpi_data_yearly = {}
+        kpi_data_yearly["Peak Demand district (kW)"] = {year: self.peakDemand.get(year, None) for year in years}
+        kpi_data_yearly["Peak Injection district (kW)"] = {year: self.peakInjection.get(year, None) for year in years}
+        kpi_data_yearly["Peak to Valley (kW)"] = {year: self.peakToValley.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Injection to Grid (kWh/a)"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Demand from Grid (kWh/a)"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Gas Consumption (kWh/a)"] = {year: self.gas_year.get(year, None) for year in years}
+        kpi_data_yearly["Biomass Consumption (kWh/a)"] = {year: self.biomass_year.get(year, None) for year in years}
+        kpi_data_yearly["Waste Consumption (kWh/a)"] = {year: self.waste_year.get(year, None) for year in years}
+        kpi_data_yearly["Hydrogen Consumption (kWh/a)"] = {year: self.hydrogen_year.get(year, None) for year in years}
+        kpi_data_yearly["Oil Consumption (kWh/a)"] = {year: self.oil_year.get(year, None) for year in years}
+        kpi_data_yearly["District Heat Consumption (kWh/a)"] = {year: self.districtHeat_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Injection within District (kWh/a)"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Demand within District (kWh/a)"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
+        kpi_data_yearly["Demand Cover Factor (-)"] = {year: self.dcf_year.get(year, None) for year in years}
+        kpi_data_yearly["Supply Cover Factor (-)"] = {year: self.scf_year.get(year, None) for year in years}
+        kpi_data_yearly["Operation Costs (€/a)"] = {year: self.operationCosts.get(year, None) for year in years}
+        kpi_data_yearly["CO2 Emissions (t/a)"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Grid Electricity (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Gas (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Biomass (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Waste (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Oil (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
+        kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
+        kpi_data_yearly["Autonomy (Time Fraction)"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
+        kpi_data_yearly["Gasoline Costs (€/a)"] = {year: self.gasoline_costs.get(year, None) for year in years}
+        # kpi_data_yearly["CO2 Emissions Gasoline "] = #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
+
+        # Create dictionary for year-independent KPIs (same value for all years)
+        kpi_data_static = {}
+        # Not changing due to same demand profiles in each year and same device capacities (electricity, heat, cars)
+        #! This might change in future versions if demand profiles or device capacities vary per year. Then they should be moved to yearly KPIs.
+        kpi_data_static["Sum design Heat Load (kW)"] = self.totalheatload/1000
+        kpi_data_static["Sum design Cooling Load (kW)"] = self.totalcoolingload/1000
+        kpi_data_static["Heating demand (kWh/a)"] = self.total_heating_demand/1000
+        kpi_data_static["Cooling demand (kWh/a)"] = self.total_cooling_demand/1000
+        kpi_data_static["Electricity demand (Plug loads) (kWh/a)"] = self.total_electricity_demand/1000
+        kpi_data_static["EV demand (kWh/a)"] = self.total_EV_demand/1000
+        kpi_data_static["DHW demand (kWh/a)"] = self.total_dhw_demand/1000
+        kpi_data_static["Electricity demand (Plug loads) Peak (kW)"] = self.total_electricity_peak/1000
+        kpi_data_static["Heat demand Peak (kW)"] = self.total_heat_peak/1000
+        kpi_data_static["DHW demand Peak (kW)"] = self.total_dhw_peak/1000
+        kpi_data_static["Cooling demand Peak (kW)"] = self.total_cooling_peak/1000
+        kpi_data_static["EV demand Peak (kW)"] = self.total_EV_peak/1000
+        kpi_data_static["Yearly ICE Fuel Consumption (liters/a)"] = self.total_ICE_fuel_liters # Maybe move to yearly KPIs? Even though currently static.
+        kpi_data_static[""] = '' # Empty row
+
+        # Unless the structure of the district changes, these values are static. Changing devices or capacities would require rework of annualized costs.
+        kpi_data_static["Annualized Fixed Costs Decentral (€/a)"] = self.annual_fixed_costs_decentral
+        kpi_data_static["Annualized Fixed Costs Decentral Unsubsidized (€/a)"] = self.annual_fixed_costs_decentral_unsubsidized
+        kpi_data_static["Annualized Fixed Costs Central (€/a)"] = self.annual_fixed_costs_central
+        kpi_data_static["Annualized Fixed Costs Central Unsubsidized (€/a)"] = self.annual_fixed_costs_central_unsubsidized
+        kpi_data_static["Residential Area (m²)"] = self.totalarea_residential
+        kpi_data_static["Non-Residential Area (m²)"] = self.totalarea_non_residential
+        kpi_data_static["Number of Flats in district (-)"] = self.totalnumberflats
+        kpi_data_static["Number of Occupants in district (-)"] = self.totalnumberocc
+
+        # Add here Total total consumptions and CO2 emissions of each energy carrier.
+        # kpi_data_static["Electricity Consumption (kWh)"] = '' # Not currently calculated.
+        kpi_data_static["Grid Electricity Consumption (MWh)"] = self.total_W_dem_GCP / 1000
+        kpi_data_static["Buildings Electricity Consumption (MWh)"] = self.total_W_dem_buildings / 1000
+        kpi_data_static["Grid Electricity Injection (MWh)"] = self.total_W_inj_GCP / 1000
+        kpi_data_static["Buildings Electricity Injection (MWh)"] = self.total_W_inj_buildings / 1000
+        kpi_data_static["Gas Consumption (MWh)"] = self.total_gas / 1000
+        kpi_data_static["Biomass Consumption (MWh)"] = self.total_biomass / 1000
+        kpi_data_static["Waste Consumption (MWh)"] = self.total_waste / 1000
+        kpi_data_static["Hydrogen Consumption (MWh)"] = self.total_hydrogen / 1000
+        kpi_data_static["Oil Consumption (MWh)"] = self.total_oil / 1000
+        kpi_data_static["District Heat Consumption (MWh)"] = self.total_districtHeat / 1000
+        # kpi_data_static["ICE Fuel Consumption (liters)"] = ''
+
+        kpi_data_static["Total CO2 Emissions (t)"] = self.total_co2_all
+        kpi_data_static["Total CO2 Emissions Grid Electricity (t)"] = self.total_co2_dem_grid
+        kpi_data_static["Total CO2 Emissions Gas (t)"] = self.total_co2_gas
+        kpi_data_static["Total CO2 Emissions Biomass (t)"] = self.total_co2_biom
+        kpi_data_static["Total CO2 Emissions Waste (t)"] = self.total_co2_waste
+        kpi_data_static["Total CO2 Emissions Hydrogen (t)"] = self.total_co2_hydrogen
+        kpi_data_static["Total CO2 Emissions Oil (t)"] = self.total_co2_oil
+        kpi_data_static["Total CO2 Emissions District Heat (t)"] = self.total_co2_district_heat
+        # kpi_data_static["Total CO2 Emissions ICE Fuel (t)"] = '' #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
+
+        # Create device data list: Building ID, Device, Capacity [kW], Annualized Cost Subsidized [€/a], Annualized Cost Unsubsidized [€/a]
+        dec_device_data_list = []
+        for building_id, devices in self.decentral_individual_devices_annualized_cost.items():
+            building = buildings[building_id]
+            for device_name, device_info in devices.items():
+                # Determine unit based on device type
+                if device_name == "TES":
+                    unit = "Liter"
+                elif device_name in ["BAT", "EV"]:
+                    unit = "kWh"
+                elif device_name in ["PV", "STC"]:
+                    unit = "m²"
+                else:
+                    unit = "kW"
+
+                dec_device_data_list.append({
+                    'Building ID': building["unique_name"],
+                    'Device': device_name,
+                    'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
+                    'Unit': unit,
+                    'Annualized Cost (€/a)': round(device_info['subsidized_annual_cost'], 2),
+                    'Annualized Cost Unsubsidized (€/a)': round(device_info['unsubsidized_annual_cost'], 2)
+                })
+
+        # Central Devices capacities and subsidized and unsubsidized annualized costs
+        cent_device_data_list = []
+        for device_name, device_info in self.central_individual_devices_annualized_cost.items():
+            # Determine unit based on device type
+            if device_name == "Heat_Grid":
+                unit = "-"
+            elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
+                unit = "kWh"
+            elif device_name in ["PV", "STC"]:
+                unit = "m²"
+            else:
+                unit = "kW"
+
+            cent_device_data_list.append({
+                'Device': device_name,
+                'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
+                'Unit': unit,
+                'Annualized Cost Subsidized (€/a)': round(device_info['subsidized_annual_cost'], 2),
+                'Annualized Cost Unsubsidized (€/a)': round(device_info['unsubsidized_annual_cost'], 2)
+            })
+
+        # Create DataFrame for year-dependent KPIs
+        kpi_df_yearly = pd.DataFrame.from_dict(kpi_data_yearly, orient='index')
+        kpi_df_yearly.columns = [f"Year {year}" for year in years]
+        kpi_df_yearly.index.name = "KPI"
+        kpi_df_yearly.reset_index(inplace=True)
+
+        # Create DataFrame for year-independent KPIs
+        kpi_df_static = pd.DataFrame(list(kpi_data_static.items()), columns=['KPI', 'Value'])
+
+        # Create DataFrame for device costs
+        kpi_df_dec_devices = pd.DataFrame(dec_device_data_list) if dec_device_data_list else pd.DataFrame()
+
+        # Create DataFrame for central device costs
+        kpi_df_cent_devices = pd.DataFrame(cent_device_data_list) if cent_device_data_list else pd.DataFrame()
+
+        #LCOH Sheet
+        lcoh_rows = []
+
+        #Building-level LCOH
+        for year in years:
+            for b_id, value in self.lcoh_year_building.get(year, {}).items():
+                if abs(value) > 1e-6:  # filter zero values
+                    building_name = buildings[b_id]["unique_name"]
+                    lcoh_rows.append({
+                        "Year": year,
+                        "Level": "Building",
+                        "Name": building_name,
+                        "LCOH (ct/kWh)": round(value, 1)
+                    })
+
+        #Energy Hub LCOH
+        for year, value in self.lcoh_year_eh.items():
+            if abs(value) > 1e-6:  # filter zero values
+                lcoh_rows.append({
+                    "Year": year,
+                    "Level": "Energy Hub",
+                    "Name": "EH",
+                    "LCOH (ct/kWh)": round(value, 1)
+                })
+
+        # Create dataframe
+        kpi_df_lcoh = pd.DataFrame(lcoh_rows) if lcoh_rows else pd.DataFrame(
+            columns=["Year", "Level", "Name", "LCOH (ct/kWh)"])
+
+        # Save to Excel with four sheets (or three if no central devices)
+        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+            kpi_df_yearly.to_excel(writer, sheet_name='Yearly KPIs', index=False)
+            kpi_df_static.to_excel(writer, sheet_name='Static KPIs', index=False)
+            kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices Costs', index=False)
+            if not kpi_df_cent_devices.empty:
+                kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices Costs', index=False)
+            kpi_df_lcoh.to_excel(writer, sheet_name='LCOH', index=False)
+
+        print(f"KPIs saved to: {filename}")
 
     def create_certificate(self, data, result_path):
         """

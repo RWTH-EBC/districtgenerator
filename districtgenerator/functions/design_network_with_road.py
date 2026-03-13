@@ -219,6 +219,103 @@ def orient_network(G, plant):
                 queue.append(neighbor)
     return directed_dict
 
+
+def add_waste_heat_to_network(mutable_network, heat_network_points, wasteheat_info, transformer_node):
+    """
+    Fügt Abwärmequelle am kürzesten Punkt (beliebiger Punkt!) aller Wärmeleitungen hinzu.
+
+    Parameters
+    ----------
+    mutable_network : nx.Graph
+        Bestehendes Netzwerk nach Steiner-Tree
+    heat_network_points : list
+        Alle Punkte im Netzwerk (inkl. Straßenknoten)
+    wasteheat_info : tuple
+        Position der Abwärmequelle (x,y)
+    transformer_node : int
+        Transformer-Node-ID
+
+    Returns
+    -------
+    None (modifiziert mutable_network in-place)
+    """
+    if wasteheat_info is None:
+        return
+
+    waste_pos = tuple(wasteheat_info)
+
+    # STEP 1: Finde kürzesten Punkt auf ALLEN Kanten des Netzwerks
+    min_dist = float('inf')
+    best_edge = None
+    best_point = None
+    best_t = 0
+
+    for u, v, data in mutable_network.edges(data=True):
+        if data.get('kind') == 'connection':  # Nur Hauptröhren, keine Hausanschlüsse
+            continue
+
+        A = heat_network_points[u]
+        B = heat_network_points[v]
+
+        # Projektion WasteHeat → Kante UV
+        proj_pt = closest_point_on_segment(waste_pos, A, B)
+        dist = euclidean(waste_pos, proj_pt)
+
+        if dist < min_dist:
+            min_dist = dist
+            best_edge = (u, v)
+            best_point = proj_pt
+            best_t = np.dot(np.array(waste_pos) - np.array(A), np.array(B) - np.array(A)) / np.dot(
+                np.array(B) - np.array(A), np.array(B) - np.array(A))
+
+    print(f"Optimaler Anschluss: Kante {best_edge}, Punkt {best_point}, Distanz {min_dist:.2f}m")
+
+    # STEP 2: Neuen Knoten für optimalen Punkt einfügen
+    new_node_id = len(heat_network_points)
+    heat_network_points.append(best_point)
+    mutable_network.add_node(new_node_id, pos=best_point)
+    mutable_network.nodes[new_node_id]["role"] = "node"
+
+    # Bestehende Kante aufteilen: u → new → v
+    u, v = best_edge
+    edge_weight = mutable_network[u][v]['weight']
+
+    # Entferne alte Kante
+    mutable_network.remove_edge(u, v)
+
+    # Füge zwei neue Kanten hinzu
+    w1 = euclidean(heat_network_points[u], best_point)
+    w2 = euclidean(best_point, heat_network_points[v])
+
+    mutable_network.add_edge(u, new_node_id, weight=w1)
+    mutable_network.add_edge(new_node_id, v, weight=w2)
+
+    # STEP 3: Abwärmequelle als neues Gebäude hinzufügen
+    waste_node_id = len(heat_network_points)
+    heat_network_points.append(waste_pos)
+    mutable_network.add_node(waste_node_id, pos=waste_pos)
+    mutable_network.nodes[waste_node_id]["role"] = "EH"  # Zweiter Energy Hub
+
+    # Verbindung Waste → optimaler Punkt
+    waste_dist = euclidean(waste_pos, best_point)
+    mutable_network.add_edge(waste_node_id, new_node_id, weight=waste_dist, kind="waste_heat")
+
+
+    # ID-Neuzuweisung (angepasst für neuen EH)
+    counters = {"bldg": 1, "node": 1, "EH": 2}  # Zweiter EH!
+    for n in mutable_network.nodes:
+        role = mutable_network.nodes[n].get("role", "node")
+        if role == "bldg":
+            mutable_network.nodes[n]["id"] = f"bldg{counters['bldg']}"
+            counters["bldg"] += 1
+        elif role == "EH":
+            mutable_network.nodes[n]["id"] = f"EH{counters['EH']}"
+            counters["EH"] += 1
+        else:
+            mutable_network.nodes[n]["id"] = f"node{counters['node']}"
+            counters["node"] += 1
+
+
 def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info):
     """
     Consider road constraints, ensuring all main pipelines are laid beneath roads.
@@ -420,6 +517,9 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
                 mutable_network.nodes[n]["id"] = f"node{counters['node']}"
                 counters["node"] += 1
 
+        # add waste heat source
+        #add_waste_heat_to_network(mutable_network, heat_network_points, wasteheat_info, transformer_node)
+
         # %% STEP FIVE: Plot Network
         # Set image size and resolution
         plt.figure(figsize=(12, 8), dpi=300)
@@ -430,6 +530,10 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         nx.draw_networkx_edges(mutable_network, pos=nx.get_node_attributes(mutable_network, "pos"),
                                edgelist=[(u, v) for u, v, d in mutable_network.edges(data=True) if d.get("kind") == "connection"],
                                alpha=0.5, edge_color='blue', width=2)
+        # Zusätzlich zu bestehenden Edges:
+        #waste_edges = [(u, v) for u, v, d in mutable_network.edges(data=True) if d.get('kind') == 'waste_heat']
+        #nx.draw_networkx_edges(mutable_network, pos=nx.get_node_attributes(mutable_network, "pos"),
+        #                       edgelist=waste_edges, edge_color='blue', width=2, alpha=0.5)
 
         # plot the buildings
         for building in buildings_info:
@@ -475,6 +579,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Orient an undirected graph starting from a plant node
         directed_dict = orient_network(mutable_network, transformer_node)
+        print(f"Hier ist der directed dict: {directed_dict}")
 
         # Write the identifiers of all nodes, their corresponding coordinates,
         # and the entire network's tree structure into a JSON file.
@@ -725,6 +830,8 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Orient an undirected graph starting from a plant node
         directed_dict = orient_network(network, transformer_node)
+        print(f"Hier ist der idekrefef")
+        print(directed_dict)
 
         # Write the identifiers of all nodes, their corresponding coordinates,
         # and the entire network's tree structure into a JSON file.

@@ -32,7 +32,8 @@ def load_params(data):
     heat_grid_data = copy.deepcopy(data.heat_grid_data)
     waste_heat_data = copy.deepcopy(data.waste_heat_data)
     param = copy.deepcopy(data.params_ehdo_model)
-    ecoData = copy.deepcopy(data.ecoData)
+    all_sim_ecoData = copy.deepcopy(data.all_sim_ecoData) # economic data for all simulated years
+    ecoData = copy.deepcopy(data.ecoData) # overall economic data
     param_uncl = {}  # unclustered time series for weather data
 
     ################################################################
@@ -132,10 +133,14 @@ def load_params(data):
 
     print("Design clustering finished. (" + str(time.time()-start) + ")\n")
 
-    dem = {}
-    dem["heat"] = clustered_series[0]
-    dem["cool"] = clustered_series[1]
-    dem["power"] = clustered_series[2]
+    # For every support year save the clustered demands - #! currently constant demands over the years
+    dem = {"heat": {}, "cool": {}, "power": {}}
+
+    for y in ecoData["interpolation_points"]:
+        dem["heat"][y] = clustered_series[0]
+        dem["cool"][y] = clustered_series[1]
+        dem["power"][y] = clustered_series[2]
+
     param["T_air"] = clustered_series[3]
     param["GHI"] = clustered_series[4]
     param["DHI"] = clustered_series[5]
@@ -196,6 +201,7 @@ def load_params(data):
             "eta": value.get("eta", 0) * 100,
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
+            "inv_base": value.get("inv_base", 0),
             "cost_om": value.get("cost_om", 0) * 100,
             "beta": value.get("beta", 0),
             "gamma": value.get("gamma", 0),
@@ -219,18 +225,7 @@ def load_params(data):
             "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
-            "enable_heat_diss": value.get("enable_heat_diss", False),
-
-        }
-
-    # wh_model stores variables from every waste heat source
-    wh_model = {}
-    for key, value in waste_heat_data.items():
-        wh_model[key] = {
-            "enabled": value.get("feasible", False),
-            **{k: v for k, v in value.items() if
-               k != "feasible"}
-
+            "enable_heat_diss": value.get("enable_heat_diss", False)
         }
 
     devs = {}
@@ -243,6 +238,7 @@ def load_params(data):
         "gamma": all_models["PV"]["gamma"],
         "life_time": all_models["PV"]["life_time"],
         "inv_var": all_models["PV"]["inv_var"],
+        "inv_base": all_models["PV"]["inv_base"],
         "cost_om": all_models["PV"]["cost_om"] / 100,
         "max_area": all_models["PV"]["max_area"],
         "min_area": all_models["PV"]["min_area"],
@@ -254,6 +250,7 @@ def load_params(data):
     devs["WT"] = {
         "feasible": all_models["WT"]["enabled"],
         "inv_var": all_models["WT"]["inv_var"],
+        "inv_base": all_models["WT"]["inv_base"],
         "life_time": all_models["WT"]["life_time"],
         "cost_om": all_models["WT"]["cost_om"] / 100,
         "min_cap": all_models["WT"]["min_cap"],
@@ -268,6 +265,7 @@ def load_params(data):
     devs["WAT"] = {
         "feasible": all_models["WAT"]["enabled"],
         "inv_var": all_models["WAT"]["inv_var"],
+        "inv_base": all_models["WAT"]["inv_base"],
         "life_time": all_models["WAT"]["life_time"],
         "cost_om": all_models["WAT"]["cost_om"] / 100,
         "min_cap": all_models["WAT"]["min_cap"],
@@ -282,6 +280,7 @@ def load_params(data):
         "beta": all_models["STC"]["beta"],
         "gamma": all_models["STC"]["gamma"],
         "inv_var": all_models["STC"]["inv_var"],
+        "inv_base": all_models["STC"]["inv_base"],
         "life_time": all_models["STC"]["life_time"],
         "cost_om": all_models["STC"]["cost_om"] / 100,
         "max_area": all_models["STC"]["max_area"],
@@ -299,6 +298,7 @@ def load_params(data):
     devs["CHP"] = {
         "feasible": all_models["CHP"]["enabled"],
         "inv_var": all_models["CHP"]["inv_var"],
+        "inv_base": all_models["CHP"]["inv_base"],
         "eta_el": all_models["CHP"]["eta_el"] / 100,
         "eta_th": all_models["CHP"]["eta_th"] / 100,
         "life_time": all_models["CHP"]["life_time"],
@@ -311,6 +311,7 @@ def load_params(data):
     devs["BOI"] = {
         "feasible": all_models["BOI"]["enabled"],
         "inv_var": all_models["BOI"]["inv_var"],
+        "inv_base": all_models["BOI"]["inv_base"],
         "eta_th": all_models["BOI"]["eta_th"] / 100,
         "life_time": all_models["BOI"]["life_time"],
         "cost_om": all_models["BOI"]["cost_om"] / 100,
@@ -322,6 +323,7 @@ def load_params(data):
     devs["GHP"] = {
         "feasible": all_models["GHP"]["enabled"],
         "inv_var": all_models["GHP"]["inv_var"],
+        "inv_base": all_models["GHP"]["inv_base"],
         "COP": all_models["GHP"]["COP"],
         "life_time": all_models["GHP"]["life_time"],
         "cost_om": all_models["GHP"]["cost_om"] / 100,
@@ -339,6 +341,7 @@ def load_params(data):
         devs["HP"] = {
                     "feasible": all_models["GroundHP"]["enabled"],
                     "inv_var": all_models["GroundHP"]["inv_var"],
+                    "inv_base": all_models["GroundHP"]["inv_base"],
                     "life_time": all_models["GroundHP"]["life_time"],
                     "cost_om": all_models["GroundHP"]["cost_om"] / 100,
                     "min_cap": all_models["GroundHP"]["min_cap"],
@@ -363,8 +366,9 @@ def load_params(data):
         t_h_in = heat_grid["T_cold_heating_network"] + 273.15                            # heat sink (Network fluid) inlet temperature
         dt_h = devs["HP"]["dT_cond"]                                               # heat sink (Network fluid) temperature spread
 
-        # Calculate heat pump COPs
-        devs["HP"]["COP"] = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        # Calculate heat pump COPs for each support year (same values for all years since weather is constant)
+        COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Air source heat pump
     elif all_models["AirHP"]["enabled"]:
@@ -372,6 +376,7 @@ def load_params(data):
         devs["HP"] = {
             "feasible": all_models["AirHP"]["enabled"],
             "inv_var": all_models["AirHP"]["inv_var"],
+            "inv_base": all_models["AirHP"]["inv_base"],
             "life_time": all_models["AirHP"]["life_time"],
             "cost_om": all_models["AirHP"]["cost_om"] / 100,
             "min_cap": all_models["AirHP"]["min_cap"],
@@ -391,8 +396,9 @@ def load_params(data):
         t_h_in = heat_grid["T_cold_heating_network"] + 273.15                                           # heat sink (Network fluid) inlet temperature
         dt_h = devs["HP"]["dT_cond"]                                                                    # heat sink (Network fluid) temperature spread
 
-        # Calculate heat pump COPs
-        devs["HP"]["COP"] = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        # Calculate heat pump COPs for each support year (currently the same values for all years since weather is constant) -> May be changed
+        COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
+        devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Default heat pump
     else:
@@ -403,39 +409,40 @@ def load_params(data):
             "CSV_feasible": all_models["HP"]["CSV_feasible"],
             "COP_const": all_models["HP"]["COP_const"],
             "inv_var": all_models["HP"]["inv_var"],
+            "inv_base": all_models["HP"]["inv_base"],
             "life_time": all_models["HP"]["life_time"],
             "cost_om": all_models["HP"]["cost_om"] / 100,
             "min_cap": all_models["HP"]["min_cap"],
             "max_cap": all_models["HP"]["max_cap"],
         }
 
-        # COP assignment
+        # COP assignment for each support year (same values for all years since weather is constant)
         if all_models["HP"]["CCOP_feasible"]:
-            devs["HP"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["ASHP_feasible"]:
-            COP = np.ones((data.time["clusterNumber"], clusterHorizon))
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
             eta_carnot = all_models["HP"]["ASHP_carnot_eff"]
             for d in range(data.time["clusterNumber"]):
                 for t in range(clusterHorizon):
-                    COP[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
-            devs["HP"]["COP"] = COP
+                    COP_base[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["CSV_feasible"]:
             COP_unclustered = np.loadtxt(os.path.join(os.path.dirname(data.srcPath), 'districtgenerator', 'data', 'coefficient_of_performance.txt'))
             # Cluster COP time series
-            COP = np.ones((data.time["clusterNumber"], clusterHorizon))
+            COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
             for d in range(data.time["clusterNumber"]):
                 for t in range(clusterHorizon):
-                    COP[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
-            devs["HP"]["COP"] = COP
-
-
+                    COP_base[d][t] = COP_unclustered[clusterHorizon * param["typedays"][d] + t]
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Electric boiler
     devs["EB"] = {
         "feasible": all_models["EB"]["enabled"],
         "inv_var": all_models["EB"]["inv_var"],
+        "inv_base": all_models["EB"]["inv_base"],
         "eta_th": all_models["EB"]["eta_th"] / 100,
         "life_time": all_models["EB"]["life_time"],
         "cost_om": all_models["EB"]["cost_om"] / 100,
@@ -451,6 +458,7 @@ def load_params(data):
         devs["CC"] = {
             "feasible": all_models["AirCC"]["enabled"],
             "inv_var": all_models["AirCC"]["inv_var"],
+            "inv_base": all_models["AirCC"]["inv_base"],
             "life_time": all_models["AirCC"]["life_time"],
             "cost_om": all_models["AirCC"]["cost_om"] / 100,
             "min_cap": all_models["AirCC"]["min_cap"],
@@ -470,14 +478,16 @@ def load_params(data):
         t_h_in = param["T_air"] + 273.15                                                                # heat sink (Air) inlet temperature
         dt_h = devs["CC"]["dT_cond"]                                                                    # heat sink (Air) temperature spread
 
-        # Calculate heat pump COPs
-        devs["CC"]["COP"] = calc_COP(data, clusterHorizon, devs, "CC", [t_c_in, dt_c, t_h_in, dt_h])
+        # Calculate compression chiller COPs for each support year (same values for all years since weather is constant)
+        COP_base = calc_COP(data, clusterHorizon, devs, "CC", [t_c_in, dt_c, t_h_in, dt_h])
+        devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Default compression chiller
     else:
         devs["CC"] = {
             "feasible": all_models["CC"]["enabled"],
             "inv_var": all_models["CC"]["inv_var"],
+            "inv_base": all_models["CC"]["inv_base"],
             "COP": all_models["CC"]["COP"],
             "life_time": all_models["CC"]["life_time"],
             "cost_om": all_models["CC"]["cost_om"] / 100,
@@ -485,12 +495,15 @@ def load_params(data):
             "max_cap": all_models["CC"]["max_cap"],
         }
 
-        devs["CC"]["COP"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
+        # COP for each support year (same values for all years since weather is constant)
+        COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["CC"]["COP"]
+        devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
     # Absorption chiller
     devs["AC"] = {
         "feasible": all_models["AC"]["enabled"],
         "inv_var": all_models["AC"]["inv_var"],
+        "inv_base": all_models["AC"]["inv_base"],
         "eta_th": all_models["AC"]["eta_th"],
         "life_time": all_models["AC"]["life_time"],
         "cost_om": all_models["AC"]["cost_om"] / 100,
@@ -499,14 +512,18 @@ def load_params(data):
     }
 
     # Waste Heat Source
-    wh_source = next(iter(data.waste_heat_data))
     devs["WH"] = {
-        key: wh_model[wh_source][key]
-        for key in wh_model[wh_source]
-        if key != "enabled"
+        "inv_var": 0,
+        "inv_base": 0,               # dummy: inv_var is calculated in opti_dimensioning_central_devices
+        "life_time": data.waste_heat_data.get("life_time", 20),
+        "cost_om": 0
     }
-    devs["WH"]["profile"], devs["WH"]["profile_clustered"] = get_wh_profile(devs, param, data)
-    print(devs["WH"])
+    if "waste_heat_profile" in waste_heat_data:
+        devs["WH"]["feasible"] = True
+    else:
+        devs["WH"]["feasible"] = False
+    if "waste_heat_profile" in data.waste_heat_data:
+        devs["WH"]["wh_profile"], devs["WH"]["profile_clustered"], devs["WH"]["HP_clustered"], devs["WH"]["COP_clustered"] = get_wh_profile(devs, param, data)
 
 
 
@@ -516,6 +533,7 @@ def load_params(data):
     devs["BCHP"] = {
         "feasible": all_models["BCHP"]["enabled"],
         "inv_var": all_models["BCHP"]["inv_var"],
+        "inv_base": all_models["BCHP"]["inv_base"],
         "eta_el": all_models["BCHP"]["eta_el"] / 100,
         "eta_th": all_models["BCHP"]["eta_th"] / 100,
         "life_time": all_models["BCHP"]["life_time"],
@@ -528,6 +546,7 @@ def load_params(data):
     devs["BBOI"] = {
         "feasible": all_models["BBOI"]["enabled"],
         "inv_var": all_models["BBOI"]["inv_var"],
+        "inv_base": all_models["BBOI"]["inv_base"],
         "eta_th": all_models["BBOI"]["eta_th"] / 100,
         "life_time": all_models["BBOI"]["life_time"],
         "cost_om": all_models["BBOI"]["cost_om"] / 100,
@@ -535,12 +554,11 @@ def load_params(data):
         "max_cap": all_models["BBOI"]["max_cap"],
     }
 
-
-
     # Waste CHP
     devs["WCHP"] = {
         "feasible": all_models["WCHP"]["enabled"],
         "inv_var": all_models["WCHP"]["inv_var"],
+        "inv_base": all_models["WCHP"]["inv_base"],
         "eta_el": all_models["WCHP"]["eta_el"] / 100,
         "eta_th": all_models["WCHP"]["eta_th"] / 100,
         "life_time": all_models["WCHP"]["life_time"],
@@ -553,6 +571,7 @@ def load_params(data):
     devs["WBOI"] = {
         "feasible": all_models["WBOI"]["enabled"],
         "inv_var": all_models["WBOI"]["inv_var"],
+        "inv_base": all_models["WBOI"]["inv_base"],
         "eta_th": all_models["WBOI"]["eta_th"] / 100,
         "life_time": all_models["WBOI"]["life_time"],
         "cost_om": all_models["WBOI"]["cost_om"] / 100,
@@ -566,6 +585,7 @@ def load_params(data):
     devs["ELYZ"] = {
         "feasible": all_models["ELYZ"]["enabled"],
         "inv_var": all_models["ELYZ"]["inv_var"],
+        "inv_base": all_models["ELYZ"]["inv_base"],
         "eta_el": all_models["ELYZ"]["eta_el"] / 100,
         "life_time": all_models["ELYZ"]["life_time"],
         "cost_om": all_models["ELYZ"]["cost_om"] / 100,
@@ -577,6 +597,7 @@ def load_params(data):
     devs["FC"] = {
         "feasible": all_models["FC"]["enabled"],
         "inv_var": all_models["FC"]["inv_var"],
+        "inv_base": all_models["FC"]["inv_base"],
         "eta_el": all_models["FC"]["eta_el"] / 100,
         "eta_th": all_models["FC"]["eta_th"] / 100,
         "life_time": all_models["FC"]["life_time"],
@@ -590,6 +611,7 @@ def load_params(data):
     devs["H2S"] = {
         "feasible": all_models["H2S"]["enabled"],
         "inv_var": all_models["H2S"]["inv_var"],
+        "inv_base": all_models["H2S"]["inv_base"],
         "sto_loss": all_models["H2S"]["sto_loss"] / 100,
         "life_time": all_models["H2S"]["life_time"],
         "cost_om": all_models["H2S"]["cost_om"] / 100,
@@ -601,6 +623,7 @@ def load_params(data):
     devs["SAB"] = {
         "feasible": all_models["SAB"]["enabled"],
         "inv_var": all_models["SAB"]["inv_var"],
+        "inv_base": all_models["SAB"]["inv_base"],
         "eta": all_models["SAB"]["eta"] / 100,
         "life_time": all_models["SAB"]["life_time"],
         "cost_om": all_models["SAB"]["cost_om"] / 100,
@@ -614,6 +637,8 @@ def load_params(data):
     devs["TES"] = {
         "feasible": all_models["TES"]["enabled"],
         "inv_var": all_models["TES"]["inv_var"] / (
+                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
+        "inv_base": all_models["TES"]["inv_base"] / (
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
@@ -630,6 +655,8 @@ def load_params(data):
         "feasible": all_models["CTES"]["enabled"],
         "inv_var": all_models["CTES"]["inv_var"] / (
                     param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
+        "inv_base": all_models["CTES"]["inv_base"] / (
+                    param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "sto_loss": all_models["CTES"]["sto_loss"] / 100,
         "life_time": all_models["CTES"]["life_time"],
         "cost_om": all_models["CTES"]["cost_om"] / 100,
@@ -644,6 +671,7 @@ def load_params(data):
     devs["BAT"] = {
         "feasible": all_models["BAT"]["enabled"],
         "inv_var": all_models["BAT"]["inv_var"],
+        "inv_base": all_models["BAT"]["inv_base"],
         "life_time": all_models["BAT"]["life_time"],
         "cost_om": all_models["BAT"]["cost_om"] / 100,
         "min_cap": all_models["BAT"]["min_cap"],
@@ -655,6 +683,7 @@ def load_params(data):
     devs["GS"] = {
         "feasible": all_models["GS"]["enabled"],
         "inv_var": all_models["GS"]["inv_var"],  # EUR/kWh
+        "inv_base": all_models["GS"]["inv_base"],  # EUR/kWh
         "life_time": all_models["GS"]["life_time"],
         "cost_om": all_models["GS"]["cost_om"] / 100,
         "min_cap": all_models["GS"]["min_cap"],  # kWh
@@ -662,31 +691,67 @@ def load_params(data):
         "sto_loss": all_models["GS"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
     }
 
-    ################################################################
+    ###############################################################
+    ## Economic parameters (EcoData)
+    ###############################################################
+    #* Structure of ecoData: all_sim_ecoData[year][parameter_name] = value
+
+    ### Time independent parameters ###
+    param["interpolation_points"] = ecoData["interpolation_points"]  # years available in ecoData for interpolation
+    param["optimization_focus"] = ecoData["optimization_focus"]
+    param["observation_time"]   = ecoData["observation_time"]
+    param["interest_rate"]      = ecoData["interest_rate"]
+
     ### Energy costs ###
     # --- Electricity ---
     # Buildings
-    param["price_supply_el_buildings"] = ecoData["price_supply_el"]
-    param["revenue_feed_in_el_buildings"] = ecoData["revenue_feed_in_el"]
+    param["price_supply_el_buildings"] = {year: all_sim_ecoData[year]["price_supply_el"]
+                                        for year in param["interpolation_points"]}
+    param["revenue_feed_in_el_buildings"] = {year: all_sim_ecoData[year]["revenue_feed_in_el"]
+                                            for year in param["interpolation_points"]}
     # Energy Hub
-    param["price_supply_el_eh"] = ecoData["price_supply_el_eh"]
-    param["revenue_feed_in_el_eh"] = ecoData["revenue_feed_in_el_eh"]
+    param["price_supply_el_eh"] = {year: all_sim_ecoData[year]["price_supply_el_eh"]
+                                for year in param["interpolation_points"]}
+    param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
+                                    for year in param["interpolation_points"]}
+
     # --- Natural Gas ---
-    param["price_supply_gas_buildings"] = ecoData["price_supply_gas"]
-    param["price_supply_gas_eh"] = ecoData["price_supply_gas_eh"]
+    param["price_supply_gas_buildings"] = {year: all_sim_ecoData[year]["price_supply_gas"]
+                                        for year in param["interpolation_points"]}
+    param["price_supply_gas_eh"] = {year: all_sim_ecoData[year]["price_supply_gas_eh"]
+                                    for year in param["interpolation_points"]}
+    param["revenue_feed_in_gas"] = {year: all_sim_ecoData[year]["revenue_feed_in_gas"]
+                                    for year in param["interpolation_points"]}
+
     # --- Other fuels ---
-    param["price_biomass"]      = ecoData["price_biomass"]
-    param["price_waste"]        = ecoData["price_waste"]
-    param["price_hydrogen"]     = ecoData["price_hydrogen"]
-    # --- Waste Heat Price ---
-    param["price_wh"] = ecoData["price_wh"]
+    param["price_biomass"] = {year: all_sim_ecoData[year]["price_biomass"]
+                            for year in param["interpolation_points"]}
+    param["price_waste"] = {year: all_sim_ecoData[year]["price_waste"]
+                            for year in param["interpolation_points"]}
+    param["price_hydrogen"] = {year: all_sim_ecoData[year]["price_hydrogen"]
+                            for year in param["interpolation_points"]}
 
     ### Ecological impact ###
-    param["co2_el_grid"]     = ecoData["co2_el_grid"] # kg/kWh
-    param["co2_gas"]         = ecoData["co2_gas"] # kg/kWh
-    param["co2_biom"]        = ecoData["co2_biom"] # kg/kWh
-    param["co2_waste"]       = ecoData["co2_waste"]  # kg/kWh
-    param["co2_hydrogen"]    = ecoData["co2_hydrogen"]  # kg/kWh
+    param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"]
+                            for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_gas"] = {year: all_sim_ecoData[year]["co2_gas"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_biom"] = {year: all_sim_ecoData[year]["co2_biom"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_waste"] = {year: all_sim_ecoData[year]["co2_waste"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"]
+                            for year in param["interpolation_points"]}  # kg/kWh
+
+    # Optional: CO2 credits for feed-in (if available in all_sim_ecoData)
+    param["co2_el_feed_in"] = {year: all_sim_ecoData[year].get("co2_el_feed_in", 0)
+                            for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_gas_feed_in"] = {year: all_sim_ecoData[year].get("co2_gas_feed_in", 0)
+                                for year in param["interpolation_points"]}  # kg/kWh
+
+    ### Taxes ###
+    param["co2_tax"] = {year: all_sim_ecoData[year]["co2_tax"]
+                        for year in param["interpolation_points"]}  # EUR/kg
 
     ################################################################
     # INITIALIZE CALCULATION
@@ -891,7 +956,9 @@ def get_PVandSTC_power(devs, param, data):
     return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
 
 def get_wh_profile(devs, param, data):
-    wh_profile = data.generateWHProfiles(wh_source = "DC")
+    wh_profile = np.array(data.waste_heat_data["waste_heat_profile"])
+    HP_profile = np.array(data.waste_heat_data["HP"])
+    COP_profile = np.array(data.waste_heat_data["COP"])
 
     # Get the corresponding values for the typedays
     chunk_size = len(param["GHI"][0])
@@ -899,15 +966,21 @@ def get_wh_profile(devs, param, data):
 
     # Split both potentialPV and potentialSTC into chunks
     wh_chunks = np.split(wh_profile[:chunk_size * num_chunks], num_chunks)
+    HP_chunks = np.split(HP_profile[:chunk_size * num_chunks], num_chunks)
+    COP_chunks = np.split(COP_profile[:chunk_size * num_chunks], num_chunks)
 
     # Initialize empty arrays with the same shape as the GHI input
     wh_profile_clustered = np.zeros_like(param["GHI"])
+    HP_profile_clustered = np.zeros_like(param["GHI"])
+    COP_profile_clustered = np.zeros_like(param["GHI"])
 
     # Fill both arrays according to the day types
     for i, day_type in enumerate(param["typedays"]):
         wh_profile_clustered[i] = wh_chunks[day_type]
+        HP_profile_clustered[i] = HP_chunks[day_type]
+        COP_profile_clustered[i] = COP_chunks[day_type]
 
-    return (wh_profile, wh_profile_clustered)
+    return wh_profile, wh_profile_clustered, HP_profile_clustered, COP_profile_clustered
 
 
 # %% COP model for ammonia-heat pumps

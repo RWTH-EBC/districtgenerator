@@ -107,11 +107,13 @@ def run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat
         waste_heat = tuple(wasteheat_info)
         node_num = len(heat_network_points) + 1
         weighted_graph.add_node(node_num, pos=waste_heat, role="EH")
+        # get a list of all the nodes in the graph
+        all_points = [transformer] + heat_network_points + [waste_heat]
     else:
         print("Keine Abwärmequelle definiert.")
+        all_points = [transformer] + heat_network_points
 
-    # get a list of all the nodes in the graph
-    all_points = [transformer] + heat_network_points + [waste_heat]
+
     # connect the nodes with edges and generate a complete graph
     for i in range(len(all_points)):
         for j in range(i + 1, len(all_points)):

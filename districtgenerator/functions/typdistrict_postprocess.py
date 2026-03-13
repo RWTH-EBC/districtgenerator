@@ -50,10 +50,20 @@ def scenario_generation():
     None
     """
     # %% STEP ONE: set parameters for the model
+    waste_heat_sources = {"A": "paper industry", "B": "automotive industry", "C": "data center", "D": "wastewater treatment plant", "E": "cold store"}
+
     num_buildings = int(input("\nEnter the number of buildings: "))
-    add_waste_heat = input("\nDo you want to add a waste heat source? (y/n): ").lower() == 'y'
+    add_waste_heat = False
+#    add_waste_heat = input("\nDo you want to add a waste heat source? (y/n): ").lower() == "y"
+
     if add_waste_heat:
-        waste_heat_type = input("Enter the type of the waste heat source ('paper', 'data_center'): ")
+        print("Available waste heat sources:")
+        for key, value in waste_heat_sources.items():
+            print(f"{key}: {value}")
+        waste_heat_type = input("Enter the type of the waste heat source (A-E): ").strip().upper()
+        if waste_heat_type not in waste_heat_sources:
+            print(f"Invalid waste heat source '{waste_heat_type}'. Please choose a valid option (A-E).")
+            exit(1)
         distance_to_district = float(input("Enter the distance to the district (in m): "))
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
     # building_density = 5
@@ -234,29 +244,22 @@ def scenario_generation():
     ### Integrate Waste Heat Source ###
     if add_waste_heat:
         bounds = run_results["district_bounds"]
-        xmin, xmax = bounds["xmin"], bounds["xmax"]
-        ymin, ymax = bounds["ymin"], bounds["ymax"]
+        side = random.choice(['left', 'right', 'bottom', 'top'])
 
-        # Randomly select one side of the rectangle
-        side = np.random.choice(["left", "right", "bottom", "top"])
+        if side == 'left':
+            x = bounds['xmin'] + distance_to_district
+            y = random.uniform(bounds['ymin'], bounds['ymax'])
+        elif side == 'right':
+            x = bounds['xmax'] - distance_to_district
+            y = random.uniform(bounds['ymin'], bounds['ymax'])
+        elif side == 'bottom':
+            y = bounds['ymin'] + distance_to_district
+            x = random.uniform(bounds['xmin'], bounds['xmax'])
+        else:  # top
+            y = bounds['ymax'] - distance_to_district
+            x = random.uniform(bounds['xmin'], bounds['xmax'])
 
-        if side == "left":
-            base_point = (xmin, uniform(ymin, ymax))
-            outward_angle = np.pi
-        elif side == "right":
-            base_point = (xmax, uniform(ymin, ymax))
-            outward_angle = 0.0
-        elif side == "bottom":
-            base_point = (uniform(xmin, xmax), ymin)
-            outward_angle = -np.pi / 2
-        else:  # "top"
-            base_point = (uniform(xmin, xmax), ymax)
-            outward_angle = np.pi / 2
-
-        waste_pos = (
-            base_point[0] + distance_to_district * np.cos(outward_angle),
-            base_point[1] + distance_to_district * np.sin(outward_angle)
-        )
+        waste_pos = (x, y)
 
 
 
@@ -504,7 +507,7 @@ def scenario_generation():
 
     if add_waste_heat:
         ax.plot(waste_pos[0], waste_pos[1], 'gs', markersize=12, label='Abwärmequelle')
-        ax.text(waste_pos[0], waste_pos[1] + 2, waste_heat_type, fontsize=10, ha='center')
+        #ax.text(waste_pos[0], waste_pos[1] + 2, waste_heat_type, fontsize=10, ha='center')
 
     # 4 Create Custom Legend
     # 4.1 Infrastructure(Transformer) legend.
@@ -579,7 +582,8 @@ def scenario_generation():
         waste_heat_json = []
         waste_heat_json.append({
             "type": waste_heat_type,
-            "position": waste_pos})
+            "position": waste_pos
+        })
 
     # Save parameters
     params_filename = os.path.join(save_dir,
@@ -588,8 +592,9 @@ def scenario_generation():
     params_filename_wh = os.path.join(save_dir,
                                    f"wh_source.json")
 
-    with open(params_filename_wh, "w") as f:
-        json.dump(waste_heat_json, f, indent=4, default=convert_to_serializable)
+    if add_waste_heat:
+        with open(params_filename_wh, "w") as f:
+            json.dump(waste_heat_json, f, indent=4, default=convert_to_serializable)
 
     with open(params_filename, 'w') as f:
         json.dump({"parameters": run_results,

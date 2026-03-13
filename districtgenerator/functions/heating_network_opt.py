@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import pyomo.environ as pyo
+from _pytest._code import source
 from pyomo.util.infeasible import log_infeasible_constraints
 import numpy as np
 import math
@@ -9,6 +10,9 @@ import json
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import networkx as nx
+from teaser.logic.buildingobjects import building
+
 import districtgenerator.functions.solver_config as solver_config
 import fluids
 import textwrap
@@ -251,6 +255,7 @@ def load_parameter(data):
     network = data.pipeline_topology
     path = extract_longest_branches(network)
 
+
     # 7 calcaulate the ann_factor
     # pipe
     pipe_lifetime = heat_grid_data["pipe"]["pipe_lifetime"]  # 30a,          pipe lifetime (VDI 2067)
@@ -328,26 +333,12 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
                     building_demand[key] = demand
                     break  # break once found
 
-    if data.waste_heat_data != None:
-        pos_waste_heat = data.waste_heat_data["position"]
-        waste_heat_cluster = data.waste_heat_data["clustered_profile"]
-        waste_heat = data.waste_heat_data["profile"]
-
-        for key, node_info in data.pipeline_nodes.items():
-
-            if node_info["pos"] == pos_waste_heat:
-                building_demand_cluster[key] = -waste_heat_cluster
-                building_demand[key] = -waste_heat
-                break
-
     # 4 aggregate the heat load of every pipe segment
     network = data.pipeline_topology
-    print(network)
-    network_wh = data.pipeline_topology_wh
     pipe_loads_cluster = aggregate_heat_loads(network, building_demand_cluster, heat_loss_pipe_cluster, root="EH1")
     pipe_loads = aggregate_heat_loads(network, building_demand, heat_loss_pipe, root="EH1")
-    pipe_loads_cluster_wh = aggregate_heat_loads_wh(network_wh, building_demand_cluster, waste_heat_cluster, heat_loss_pipe_cluster, root="EH2")
-    #pipe_loads_wh = aggregate_heat_loads_wh(network_wh, building_demand, waste_heat, heat_loss_pipe, root="EH2")
+
+
 
 
     # Iterate through each pipe in pipe_loads_cluster
@@ -410,6 +401,8 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
         json_ready = to_jsonable(data.pipeline)
         with open(save_path, "w") as f:
             json.dump(json_ready, f, indent=4)
+
+
 
     return data, param
 
@@ -654,6 +647,7 @@ def optimization_diameter(data, param):
     def pump_pipe_relation_rule(model, pipe, week, t):
         i = week_to_i[week]
         flow_value = data.pipeline[pipe]["flow_cluster"][i, t]  # m³/s
+        print(f"Hier die shape: {flow_value.shape}")
 
         length = data.pipeline[pipe]["length"]  # m
         m_dot = rho_f * flow_value  # kg/s
@@ -828,7 +822,8 @@ def optimization_diameter(data, param):
     solver_options["IntFeasTol"] = 1e-9
     solver_options["NumericFocus"] = 3
 
-    results = solver.solve(model, tee=True, options=solver_options)
+    solver = pyo.SolverFactory('gurobi')
+    results = solver.solve(model, tee=True)
 
     # get the optimized diameter for each pipe segment
     pipe_candidates = param["pipe_candidates"]
@@ -1049,7 +1044,7 @@ def output_diameter(data, param):
     plt.savefig(base + ".svg")  # SVG
     ax.grid(True, linestyle='--', linewidth=0.3)
 
-    # plt.show()
+    #plt.show()
 
     # ---------- 2. plot Pipeline Map - Diameter ----------
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -1095,7 +1090,7 @@ def output_diameter(data, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    # plt.show()
+    #plt.show()
 
     # ---------- 3. plot Pipeline Map - Maximum velocity (m/s) ----------
     # calculate the max. velocity and the max. pressure drop
@@ -1155,7 +1150,7 @@ def output_diameter(data, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    # plt.show()
+    #plt.show()
 
     # ---------- 4. plot Pipeline Map - Maximum pressure drop (Pa/m) ----------
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -1201,7 +1196,7 @@ def output_diameter(data, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    # plt.show()
+    #plt.show()
 
     # ---------- 5. plot Pipeline Map - Energy_density (MWh/m) ----------
     deltaT = param["deltaT"]
@@ -1255,7 +1250,7 @@ def output_diameter(data, param):
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    # plt.show()
+    #plt.show()
 
     # ---------- 6. plot Pipeline Map - Heat_loss_density (MWh/m) ----------
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -1420,6 +1415,7 @@ def output_diameter(data, param):
 
     # calculate the capacity of the pump
     pump_cap = np.max(pump_power)   # kW
+    print(f"Kapazität: {pump_cap}")
     # print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
 
     # calculate the investment for the pump
@@ -1433,12 +1429,15 @@ def output_diameter(data, param):
 
     # cost of electricity
     pump_energy_total = np.sum(pump_power)  # kWh
+    print(f"gesamte menge: {pump_energy_total}")
     # print(f"The total electricity consumption for the pump is {pump_energy_total:5f}kWh/a.")
     pump_electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"][0]
+    print(f"Und hier der Preis: {pump_electricity_costs}")
 
     # calculate the total cost
     network_om_costs = pipes_om_costs + pump_om_costs + substation_om_costs
     network_ann_costs = pipes_ann_costs + pump_ann_costs + substation_ann_costs
+    print(f"Und hier die Netzkosten: {pipes_ann_costs}")
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
 
@@ -1794,9 +1793,9 @@ def calc_annual_factor(data, life_time):
     annualized fix and variable investment
     """
 
-    observation_time = data.params_ehdo_model["observation_time"]
-    interest_rate = data.params_ehdo_model["interest_rate"]
-    q = 1 + data.params_ehdo_model["interest_rate"]
+    observation_time = data.ecoData["observation_time"]
+    interest_rate = data.ecoData["interest_rate"]
+    q = 1 + interest_rate
 
     # Calculate capital recovery factor
     # Annualized cost = Present value × Capital Recovery Factor (CRF)
@@ -1889,91 +1888,6 @@ def aggregate_heat_loads(network, building_demand, heat_loss_pipe=None, root="EH
     dfs(root)
     return pipe_loads
 
-def aggregate_heat_loads_wh(network_wh, building_demand, waste_heat, heat_loss_pipe=None, root="EH2"):
-    """
-    Aggregate pipe flows from buildings to plant
-
-    Parameters
-    ----------
-    network : dict
-        Network topology, key = parent node, value = list of child nodes
-    building_demand : dict
-        key = building name, value = ndarray of heat loads (W or kW).
-    heat_loss_pipe : dict
-        key = (parent, child), value = ndarray of heat loss on this pipe.
-    root : string
-        Root node name
-
-    Returns
-    -------
-    pipe_loads : dict
-        key= (parent, child), value=ndarray of heat delivered into that pipe AFTER loss deduction.
-    """
-    if heat_loss_pipe is None:
-        heat_loss_pipe = {}
-
-    pipe_loads = {}
-
-    available_wh = building_demand["bldg3"]
-
-    def dfs(node, available_wh):
-        """
-        Returns total *heat demand* from the subtree under this node.
-
-        Parameters
-        ----------
-        node : str
-            Current node being processed in the DFS traversal.
-
-        Returns
-        -------
-        total_load : ndarray, same shape with the value of building_demand
-            Including building load + downstream loads + heat losses
-        """
-
-        total_load = np.zeros_like(available_wh)
-        # If the current node represents a building, add its own flow
-        if node in building_demand:
-
-            # controls if building can be supplied by available waste heat
-            if np.all(available_wh < building_demand[node]):
-                total_load += available_wh
-                return total_load
-            else:
-                total_load += np.minimum(available_wh, building_demand[node])
-
-        # If there are no downstream nodes → this is a terminal node
-        # Return its own flow directly
-        if not network_wh.get(node, []):
-            return total_load, available_wh
-
-
-
-
-
-        # Traverse all child nodes and accumulate their loads
-        for child in network_wh[node]:
-            print(f"Children: {child}")
-            downstream_load, available_wh = dfs(child,available_wh.copy())
-
-            # Deduct pipe heat loss
-            loss = heat_loss_pipe.get((node, child), 0)
-            required = downstream_load + loss
-            supplied = np.minimum(required, available_wh)
-
-
-            # Store the load carried in this pipe
-            pipe_loads[(node, child)] = supplied
-
-            # This node must provide what's delivered onward
-            available_wh -= supplied
-            total_load += supplied
-
-        return total_load, available_wh
-
-    # Start the recursive traversal from the root node (energy hub)
-    dfs(root, available_wh)
-    return pipe_loads
 
 
 # Heat pump COP, part 2: Generalized COP estimation of heat pump processes
