@@ -1,0 +1,308 @@
+{
+    "parameters": {
+        "district_type": "I",
+        "num_buildings": 20,
+        "width": 152.66177306341908,
+        "length": 208.91267724566245,
+        "width_length_ratio": 0.7307444195160192,
+        "area": 3.1892979723748636,
+        "building_density": 6.270972537917896,
+        "building_ground_area": 650,
+        "building_width": 25.495097567963924,
+        "wohneinheiten per building": 10,
+        "house_connection": 6,
+        "num_main_lines": 3,
+        "num_roads": 3,
+        "num_row_roads": 2,
+        "num_column_roads": 2
+    },
+    "values": {
+        "numb_buildings": 20,
+        "buildings_info": [
+            {
+                "id": 0,
+                "type": "Residential",
+                "position": [
+                    65.99701930617685,
+                    28.6644125236675
+                ],
+                "calculated_building_area": 2600,
+                "number_of_floors": 4.0,
+                "construction_year": 1903,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 1,
+                "type": "Residential",
+                "position": [
+                    52.99089960479278,
+                    50.70868320397948
+                ],
+                "calculated_building_area": 1950,
+                "number_of_floors": 3.0,
+                "construction_year": 1905,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 2,
+                "type": "Residential",
+                "position": [
+                    39.98477990340872,
+                    72.75295388429143
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1911,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 3,
+                "type": "Residential",
+                "position": [
+                    26.978660202024656,
+                    94.79722456460341
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1910,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 4,
+                "type": "Craft Shop",
+                "position": [
+                    13.972540500640614,
+                    116.84149524491542
+                ],
+                "calculated_building_area": 2925,
+                "number_of_floors": 4.5,
+                "construction_year": 1945,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 5,
+                "type": "Residential",
+                "position": [
+                    0.9664207992565331,
+                    138.88576592522736
+                ],
+                "calculated_building_area": 1625,
+                "number_of_floors": 2.5,
+                "construction_year": 1916,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 6,
+                "type": "Residential",
+                "position": [
+                    72.27815474904546,
+                    91.80604504321711
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1915,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 7,
+                "type": "Residential",
+                "position": [
+                    59.27203504766137,
+                    113.85031572352908
+                ],
+                "calculated_building_area": 2925,
+                "number_of_floors": 4.5,
+                "construction_year": 1911,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 8,
+                "type": "Residential",
+                "position": [
+                    46.26591534627732,
+                    135.8945864038411
+                ],
+                "calculated_building_area": 1950,
+                "number_of_floors": 3.0,
+                "construction_year": 1921,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 9,
+                "type": "Restaurant",
+                "position": [
+                    33.25979564489327,
+                    157.93885708415303
+                ],
+                "calculated_building_area": 2600,
+                "number_of_floors": 4.0,
+                "construction_year": 1914,
+                "retrofit_level": "Fully Renovated"
+            },
+            {
+                "id": 10,
+                "type": "Office",
+                "position": [
+                    85.92882322586016,
+                    146.7230366238016
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1917,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 11,
+                "type": "Residential",
+                "position": [
+                    123.42392079382407,
+                    18.747548783981962
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1918,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 12,
+                "type": "Residential",
+                "position": [
+                    123.42392079382407,
+                    44.34264635194588
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1918,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 13,
+                "type": "Residential",
+                "position": [
+                    123.42392079382405,
+                    69.93774391990982
+                ],
+                "calculated_building_area": 2600,
+                "number_of_floors": 4.0,
+                "construction_year": 1900,
+                "retrofit_level": "Fully Renovated"
+            },
+            {
+                "id": 14,
+                "type": "Supermarket",
+                "position": [
+                    123.42392079382407,
+                    95.53284148787374
+                ],
+                "calculated_building_area": 1625,
+                "number_of_floors": 2.5,
+                "construction_year": 1926,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 15,
+                "type": "School",
+                "position": [
+                    123.42392079382407,
+                    121.12793905583767
+                ],
+                "calculated_building_area": 3575,
+                "number_of_floors": 5.5,
+                "construction_year": 1902,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 16,
+                "type": "Residential",
+                "position": [
+                    123.42392079382407,
+                    146.7230366238016
+                ],
+                "calculated_building_area": 2600,
+                "number_of_floors": 4.0,
+                "construction_year": 1910,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 17,
+                "type": "Residential",
+                "position": [
+                    18.74754878398196,
+                    18.74754878398196
+                ],
+                "calculated_building_area": 2275,
+                "number_of_floors": 3.5,
+                "construction_year": 1918,
+                "retrofit_level": "Partially Renovated"
+            },
+            {
+                "id": 18,
+                "type": "Residential",
+                "position": [
+                    18.74754878398196,
+                    -18.74754878398196
+                ],
+                "calculated_building_area": 2600,
+                "number_of_floors": 4.0,
+                "construction_year": 1901,
+                "retrofit_level": "Unrenovated"
+            },
+            {
+                "id": 19,
+                "type": "Residential",
+                "position": [
+                    44.34264635194588,
+                    -18.74754878398196
+                ],
+                "calculated_building_area": 4225,
+                "number_of_floors": 6.5,
+                "construction_year": 1911,
+                "retrofit_level": "Fully Renovated"
+            }
+        ],
+        "lines_info": [
+            {
+                "id": 0,
+                "start": [
+                    0.0,
+                    0.0
+                ],
+                "end": [
+                    104.67637200984211,
+                    0.0
+                ],
+                "length": 104.67637200984211
+            },
+            {
+                "id": 1,
+                "start": [
+                    104.67637200984211,
+                    0.0
+                ],
+                "end": [
+                    104.67637200984211,
+                    177.4175796776985
+                ],
+                "length": 177.4175796776985
+            },
+            {
+                "id": 2,
+                "start": [
+                    104.67637200984211,
+                    0.0
+                ],
+                "end": [
+                    0.0,
+                    177.4175796776985
+                ],
+                "length": 205.99548644529898
+            }
+        ],
+        "transformer_station": {
+            "position": [
+                104.67637200984211,
+                0.0
+            ]
+        }
+    }
+}
