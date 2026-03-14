@@ -1,1 +1,11 @@
 include districtgenerator/data/*
+include districtgenerator/data/non_residential_envelope/*
+include districtgenerator/data/pipe/*
+include districtgenerator/data/wind_turbine_models/*
+include districtgenerator/data/weather/*
+include districtgenerator/data/weather/TRY_2015_Jahr/*
+include districtgenerator/data/weather/TRY_2015_Somm/*
+include districtgenerator/data/weather/TRY_2015_Wint/*
+include districtgenerator/data/weather/TRY_2045_Jahr/*
+include districtgenerator/data/weather/TRY_2045_Somm/*
+include districtgenerator/data/weather/TRY_2045_Wint/*

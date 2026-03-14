@@ -58,10 +58,9 @@ class Datahandler:
                  scenario_name = None,
                  resultPath = None,
                  scenario_file_path = None,
-                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 filePath = None,
                  env_path = None,
-                 run_name: str = None):
+                 run_name: str = None,
+                 project_data_path: str = None):
         """
         Constructor of Datahandler class.
 
@@ -87,8 +86,12 @@ class Datahandler:
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
         self.conf_scenario_name = global_config.scenario_name.scenario_name
-        if filePath is None:
-            filePath = os.path.join(srcPath, 'data')
+        
+        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filePath = os.path.join(srcPath, 'data')
+
+        self.srcPath = srcPath
+        self.filePath = filePath
 
         self.initial_day = None
         self.district = []
@@ -117,15 +120,18 @@ class Datahandler:
         self.calcOcc = global_config.flags.calcOcc
         self.calcOccProf = global_config.flags.calcOccProf
         self.building_dict = {} # Dictionary to store Residential Building IDs
-        self.srcPath = srcPath
-        self.filePath = filePath
+        
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
+        elif project_data_path is not None:
+            self.scenario_file_path = os.path.join(project_data_path, "DG", "scenarios")
         else:
             self.scenario_file_path = os.path.join(self.filePath, 'scenarios')
 
         if resultPath is not None:
             self.resultPath = resultPath
+        elif project_data_path is not None:
+            self.resultPath = os.path.join(project_data_path, "DG", "results")
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
