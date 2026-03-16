@@ -139,6 +139,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     area_devs_list = ["PV", "STC"]
     grid_flows_list = ["from_grid", "to_grid"] # for network
     segments = ["small", "medium","large"]  # new TJA
+    segment_devs=["HP","CHP","BOI","TES","STC"]  # new TJA
     
 
     # Add sets to the model for this district
@@ -153,7 +154,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.storage_devs = pyo.Set(initialize=storage_devs_list)
     model.area_devs = pyo.Set(initialize=area_devs_list)
     model.segments = pyo.Set(initialize=segments) # new TJA
-    
+    model.segment_devs = pyo.Set(initialize=segment_devs) # new TJA
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -197,9 +198,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
 
     # Binary Variable to decide if capacity of a device is small, medium or large for cost calculation (new TJA)
     model.cap_bin = pyo.Var(model.segments, model.all_devs, model.districts, within=pyo.Binary)  # new for network
+    # Segment devices
 
     # Continuous variable one for each segment to determine the capacity in each segment for cost calculation (new TJA)
-    model.cap_seg = pyo.Var(model.segments, model.all_devs, model.districts, within=pyo.NonNegativeReals)  # new for network
+    model.cap_seg = pyo.Var(model.segments, model.segment_devs, model.districts, within=pyo.NonNegativeReals)  # new for network
 
     ## Binary variable to decide if size if TES > 250 m² for KWKG subsidy
     # model.tes_kwkg_binary = pyo.Var(model.districts, within=pyo.Binary)  # new for network

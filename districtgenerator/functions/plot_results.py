@@ -193,7 +193,7 @@ def plot_device_capacities_from_csv(
         y_single = [caps_single.get(d, 0.0) for d in devices]
         xtick_labels = [label_map.get(d, d) for d in devices]
 
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(8, 4))
         plt.bar(x - width/2, y_network, width=width, color="#D40000", label="Verbund")
         plt.bar(x + width/2, y_single, width=width, color="#55585C", label="Einzeln")
 
@@ -216,7 +216,7 @@ def plot_device_capacities_from_csv(
                     ha="center",
                     va="bottom",
                     color="white",
-                    fontsize=12,
+                    fontsize=16,
                     bbox=dict(
                         boxstyle="square,pad=0.45",
                         facecolor="#D40000",
@@ -226,15 +226,15 @@ def plot_device_capacities_from_csv(
                     zorder=5,
                 )
 
-        plt.xticks(x, xtick_labels)
-        plt.ylabel("Anlagenleistung in kW")
+        plt.xticks(x, xtick_labels, fontsize=14)
+        plt.ylabel("Anlagenleistung in kW", fontsize=14)
         plt.xlabel("")
-        plt.title(titel or f"Anlagenleistungen im Szenario '{sc}'")
+        plt.title(titel or f"Anlagenleistungen im Szenario '{sc}'", fontsize=16)
         plt.grid(axis="y", alpha=0.4)
         plt.legend()
         plt.tight_layout()
 
-        plot_path = os.path.join(plots_dir, f"device_capacities_compare_{sc}.png")
+        plot_path = os.path.join(plots_dir, titel + ".png") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.png")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -255,7 +255,7 @@ def plot_heat_generation_by_year_from_csv(
     result_dir=None,
     show=True,
     titel=None,
-    base_calendar_year=2026,
+    base_calendar_year=2025,
 ):
     """
     Plot stacked heat generation by year (VB vs EZ) from:
@@ -369,7 +369,7 @@ def plot_heat_generation_by_year_from_csv(
             xticklabels.append(f"{base_calendar_year + y}\nVB")
             xticklabels.append(f"{base_calendar_year + y}\nEZ")
 
-        plt.figure(figsize=(14, 7))
+        plt.figure(figsize=(8, 4))
         bottoms = np.zeros(len(x), dtype=float)
 
         # Fallback-Farben für weitere Devices
@@ -444,7 +444,8 @@ def plot_power_import_by_year_from_csv(
     result_dir=None,
     show=True,
     titel=None,
-    base_calendar_year=2026,
+    base_calendar_year=2025,
+    show_percent_box=False,
 ):
     """
     Plot yearly electricity import (MWh) as paired bars (Verbund vs Einzeln).
@@ -540,7 +541,7 @@ def plot_power_import_by_year_from_csv(
         y_net[0::2] = vals_vb_net
         y_net[1::2] = vals_ez_net
 
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(8, 5))
         width = 0.5
 
         # Hauptnetz-Balken
@@ -584,7 +585,7 @@ def plot_power_import_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0.08, 1, 1])
 
-        plot_path = os.path.join(plots_dir, f"power_import_by_year_compare_{sc}.png")
+        plot_path = os.path.join(plots_dir, titel + ".png")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -600,7 +601,334 @@ def plot_power_import_by_year_from_csv(
     return out
 
 
+def plot_lcoe_by_year_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False, 
+):
+    """
+    Plot yearly LCOE as paired bars (Verbund vs Einzeln).
+
+    Uses rows with:
+    - category == 'optimization'
+    - metric   == 'LCOE_year'
+    """
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_lcoe_year(csv_path):
+        out = {}  # {year: lcoe_value}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "LCOE_year":
+                    continue
+
+                year_raw = row.get("year")
+                if year_raw in (None, ""):
+                    continue
+
+                try:
+                    y = int(year_raw)
+                except Exception:
+                    continue
+
+                v = _parse_value(row.get("value"))
+                try:
+                    out[y] = float(v)
+                except Exception:
+                    continue
+        return out
+
+    def _fmt_pct(p):  # NEU
+        # integernah -> ohne Nachkommastelle, sonst 1 Nachkommastelle (mit deutschem Komma)
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    if scenario_name is None:
+        scenario_names = []
+        for fn in os.listdir(base_dir):
+            if fn.endswith("_network_results.csv"):
+                sc = fn[: -len("_network_results.csv")]
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                    scenario_names.append(sc)
+        scenario_names = sorted(set(scenario_names))
+    else:
+        scenario_names = [scenario_name] if isinstance(scenario_name, str) else list(scenario_name)
+
+    if not scenario_names:
+        raise FileNotFoundError("No scenario pairs found (*_network_results.csv + *_results.csv).")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    out = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
+            print(f"Skip '{sc}': pair not complete.")
+            continue
+
+        vb = _read_lcoe_year(network_path)  # Verbund
+        ez = _read_lcoe_year(single_path)   # Einzeln
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            print(f"Skip '{sc}': no optimization/LCOE_year data found.")
+            continue
+
+        x = np.arange(len(years))
+        width = 0.35
+
+        y_vb = [vb.get(y, 0.0) for y in years]
+        y_ez = [ez.get(y, 0.0) for y in years]
+
+        labels = [str(base_calendar_year + y) for y in years]
+
+        def _fmt_pct(p):  
+            if abs(p - round(p)) < 0.05:
+                s = f"{p:+.0f}%"
+            else:
+                s = f"{p:+.1f}%"
+            return s.replace(".", ",")
+
+        plt.figure(figsize=(8, 4))
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+
+        if show_percent_box:  # NEU
+            ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+            plt.ylim(0, ymax * 1.35)
+            y_offset = ymax * 0.08
+
+            for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+                if ez_val == 0:
+                    text = "n/a" if vb_val == 0 else "+∞"
+                else:
+                    text = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+                plt.text(
+                    x[i] - width / 2,     # über Verbund-Balken
+                    vb_val + y_offset,
+                    text,
+                    ha="center",
+                    va="bottom",
+                    color="white",
+                    fontsize=12,
+                    bbox=dict(
+                        boxstyle="square,pad=0.35",
+                        facecolor="#D40000",
+                        edgecolor="#D40000",
+                        linewidth=1.2,
+                    ),
+                    zorder=5,
+                )
+
+        plt.xticks(x, labels)
+        plt.ylabel("Energiegestehungskosten in €/MWh")
+        plt.xlabel("")
+        plt.title(titel or f"Energiegestehungskosten im Szenario '{sc}'")
+        plt.grid(axis="y", alpha=0.4)
+        plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+        plt.legend()
+        plt.tight_layout()
+
+        plot_path = os.path.join(
+            plots_dir,
+            f"lcoe_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
+        )
+        plt.savefig(plot_path, dpi=150)
+        print(f"Plot saved: {plot_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if not out:
+        print("No plots created.")
+    return out
+
+
+def plot_co2_by_year_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+):
+    """
+    Plot yearly CO2 emissions as paired bars (Verbund vs Einzeln).
+
+    Uses rows with:
+    - category == 'optimization'
+    - metric   == 'co2_sum_distr_year'
+    """
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_co2_year(csv_path):
+        out = {}  # {year: co2_value}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "co2_sum_distr_year":
+                    continue
+
+                year_raw = row.get("year")
+                if year_raw in (None, ""):
+                    continue
+
+                try:
+                    y = int(year_raw)
+                except Exception:
+                    continue
+
+                v = _parse_value(row.get("value"))
+                try:
+                    out[y] = float(v)
+                except Exception:
+                    continue
+        return out
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    if scenario_name is None:
+        scenario_names = []
+        for fn in os.listdir(base_dir):
+            if fn.endswith("_network_results.csv"):
+                sc = fn[: -len("_network_results.csv")]
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                    scenario_names.append(sc)
+        scenario_names = sorted(set(scenario_names))
+    else:
+        scenario_names = [scenario_name] if isinstance(scenario_name, str) else list(scenario_name)
+
+    if not scenario_names:
+        raise FileNotFoundError("No scenario pairs found (*_network_results.csv + *_results.csv).")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    out = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
+            print(f"Skip '{sc}': pair not complete.")
+            continue
+
+        vb = _read_co2_year(network_path)  # Verbund
+        ez = _read_co2_year(single_path)   # Einzeln
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            print(f"Skip '{sc}': no optimization/co2_sum_distr_year data found.")
+            continue
+
+        x = np.arange(len(years))
+        width = 0.35
+
+        y_vb = [vb.get(y, 0.0) for y in years]
+        y_ez = [ez.get(y, 0.0) for y in years]
+        labels = [str(base_calendar_year + y) for y in years]
+
+        plt.figure(figsize=(8, 4))
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+
+        if show_percent_box:
+            ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+            plt.ylim(0, ymax * 1.35)
+            y_offset = ymax * 0.08
+
+            for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+                if ez_val == 0:
+                    text = "n/a" if vb_val == 0 else "+∞"
+                else:
+                    # Prozentuale Abweichung des hell-roten Balkens relativ zum grauen Balken
+                    text = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+                plt.text(
+                    x[i] - width / 2,
+                    vb_val + y_offset,
+                    text,
+                    ha="center",
+                    va="bottom",
+                    color="white",
+                    fontsize=12,
+                    bbox=dict(
+                        boxstyle="square,pad=0.35",
+                        facecolor="#D40000",
+                        edgecolor="#D40000",
+                        linewidth=1.2,
+                    ),
+                    zorder=5,
+                )
+
+        plt.xticks(x, labels)
+        plt.ylabel("CO₂-Emissionen in t/a")
+        plt.xlabel("")
+        plt.title(titel or f"CO₂-Emissionen im Szenario '{sc}'")
+        plt.grid(axis="y", alpha=0.4)
+        plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+        plt.legend()
+        plt.tight_layout()
+
+        plot_name = f"co2_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
+        plot_path = os.path.join(plots_dir, plot_name)
+        plt.savefig(plot_path, dpi=150)
+        print(f"Plot saved: {plot_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if not out:
+        print("No plots created.")
+    return out
+
+
+
+
+
 if __name__ == "__main__":
-    #plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES"], show_percent_box=True, titel="Vergleich der Anlagenleistungen im ländlichen Quartier")
-    plot_heat_generation_by_year_from_csv("rural", titel="Ländliches Quartier", show=True)
-    #plot_power_import_by_year_from_csv("rural", titel="Strombezug", show=True)
+    #plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES", "HP", "STC", "EB", "BCHP"], show_percent_box=True, titel="Vergleich der PV-Leistungen im ländlichen Quartier")
+    #plot_heat_generation_by_year_from_csv("urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
+    #plot_power_import_by_year_from_csv("urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
+    plot_lcoe_by_year_from_csv("rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
+    #plot_co2_by_year_from_csv("rural",titel="CO₂-Emissionen im ländlichen Quartier",show=True,show_percent_box=True,)
