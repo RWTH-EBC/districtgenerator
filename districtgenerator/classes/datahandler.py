@@ -2219,42 +2219,57 @@ class Datahandler:
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
 
-    def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=8):
+    def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=100):
         """
-        Überträgt Daten aus WKB_export Format in Quartier Format und zerlegt diese in so viele Dateien, dass jede Datei max. batch_size Gebäude enthält.
+        Convert data from the WKB export format into the Quartier scenario format.
+
+        The resulting scenario data is written to:
+        - one combined CSV file at `output_file_path`
+        - multiple batch CSV files, each containing at most `batch_size` buildings
+
+        In addition, a reference CSV containing the original WKB rows for all accepted
+        buildings is written by replacing "dg" with "wkb" in `output_file_path`.
+
+        Validation rules:
+        - Buildings with invalid or missing required values are skipped.
+        - If a string-based value cannot be mapped to the target format, the building
+          is skipped and the issue is printed.
         """
 
-        # Mapping-Funktionen definieren
-        def map_building_type(term: str) -> str:
+        def map_building_type(building_type_raw: str) -> str | None:
             """
-            Maps IWU / input building type strings to the project terms.
+            Map IWU/input building type strings to project-specific building types.
 
-            Wohngebäude-Regeln (substring match, case-insensitive):
-              - contains "EFH" -> "SFH"
-              - contains "RH"  -> "TH"
-              - contains "MFH" -> "MFH"
-              - contains "GMH" -> "MFH"   (GMH und jede Erweiterung wie GMH_B, X_GMH_C, ...)
+            Residential building rules use case-insensitive substring matching:
+            - contains "EFH" -> "SFH"
+            - contains "RH"  -> "TH"
+            - contains "MFH" -> "MFH"
+            - contains "GMH" -> "MFH"
 
-            Andere Typen: exaktes Mapping gemäß Screenshots (NWG_*, MN_*).
+            Other building types use exact matching.
+
+            Returns:
+                str | None:
+                    The mapped building type, or None if the value cannot be mapped.
             """
-            if term is None:
-                return term
+            if building_type_raw is None or pd.isna(building_type_raw):
+                return None
 
-            t = str(term).strip()
-            u = t.upper()
+            value = str(building_type_raw).strip()
+            value_upper = value.upper()
 
-            # Wohngebäude: substring matching
-            if "GMH" in u:
+            # Residential buildings: substring-based matching
+            if "GMH" in value_upper:
                 return "MFH"
-            if "MFH" in u:
+            if "MFH" in value_upper:
                 return "MFH"
-            if "EFH" in u:
+            if "EFH" in value_upper:
                 return "SFH"
-            if "RH" in u:
+            if "RH" in value_upper:
                 return "TH"
 
-            mapping = {
-                # Nichtwohngebäude (IWU -> Quartiersgenerator)
+            exact_mapping = {
+                # Non-residential buildings (IWU -> Quartiersgenerator)
                 "NWG_TYP_A": "OB",
                 "NWG_TYP_B": "UNI",
                 "NWG_TYP_C": "HOSPITAL",
@@ -2266,211 +2281,299 @@ class Datahandler:
                 "NWG_TYP_I": "RETAIL",
                 "NWG_TYP_J": "-",
                 "NWG_TYP_K": "-",
-                "NWG_TYP_SON": "-",  # case-insensitive handling below
-                "NWG_TYP_son": "-",
+                "NWG_TYP_SON": "-",
 
-                # Mischnutzung (IWU -> Quartiersgenerator)
+                # Mixed-use buildings (IWU -> Quartiersgenerator)
                 "MN_TYP_A": "RETAIL+MFH",
                 "MN_TYP_B": "MFH",
                 "MN_TYP_C": "MFH+RETAIL",
                 "MN_TYP_D": "MFH+WORKSHOP",
             }
 
-            # make exact mapping case-insensitive too
-            return mapping.get(t, mapping.get(u, t))
+            return exact_mapping.get(value_upper)
 
-        def map_heater_type(heizsystem):
-            """Mappt Heizungstypen - konsistent mit Dictionary-Ansatz"""
-            if pd.isna(heizsystem):
-                return 'BOI'  # Default
+        def map_heater_type(heating_system_raw: str) -> str | None:
+            """
+            Map heating system strings to internal heater type codes.
 
-            # Dictionary-Mapping wie beim building_type
+            Returns:
+                str | None:
+                    The mapped heater type, or None if the value cannot be mapped.
+            """
+            if heating_system_raw is None or pd.isna(heating_system_raw):
+                return "BOI"  # Default value for missing input
+
+            value = str(heating_system_raw).strip()
+
             mapping = {
-                'Gaskessel': 'BOI',
-                'Fernwärme': 'heat_grid',
-                'Blockheizkraftwerk': 'CHP',
-                'Wärmepumpe': 'HP',
-                'Heat Pump': 'HP',
-                'Biomassekessel': 'BBOI',
-                'Ölkessel': 'OBOI',
-                'Wasserstoffkessel': 'H2BOI',
-                'opt': 'opt',
-                'opt_geg': 'opt_geg',
-                'opt_custom': 'opt_custom',
-                'heat_grid': 'heat_grid',
+                "Gaskessel": "BOI",
+                "Fernwärme": "heat_grid",
+                "Blockheizkraftwerk": "CHP",
+                "Wärmepumpe": "HP",
+                "Heat Pump": "HP",
+                "Biomassekessel": "BBOI",
+                "Ölkessel": "OBOI",
+                "Wasserstoffkessel": "H2BOI",
+                "opt": "opt",
+                "opt_geg": "opt_geg",
+                "opt_custom": "opt_custom",
+                "heat_grid": "heat_grid",
             }
 
-            return mapping.get(heizsystem, 'opt')  # Default falls nicht gefunden
+            return mapping.get(value)
 
-        def map_retrofit_status(sanierungszustand):
-            """Mappt Sanierungszustand - auch mit Dictionary"""
-            if pd.isna(sanierungszustand):
-                return 0  # Default
+        def map_retrofit_status(retrofit_status_raw: str) -> int | None:
+            """
+            Map retrofit status strings to integer codes.
 
-            # Dictionary-Mapping
+            Mapping:
+            - unsaniert   -> 0
+            - teilsaniert -> 1
+            - vollsaniert -> 2
+            - saniert     -> 2
+
+            Returns:
+                int | None:
+                    The mapped retrofit code, or None if the value cannot be mapped.
+            """
+            if retrofit_status_raw is None or pd.isna(retrofit_status_raw):
+                return 0  # Default value for missing input
+
+            value = str(retrofit_status_raw).strip()
+
             mapping = {
-                'unsaniert': 0,
-                'teilsaniert': 1,
-                'vollsaniert': 2,
-                'saniert': 2
+                "unsaniert": 0,
+                "teilsaniert": 1,
+                "vollsaniert": 2,
+                "saniert": 2,
             }
 
-            return mapping.get(sanierungszustand,
-                               None)  # Rückgabe None falls nicht gefunden damit diese Zeile später aussortiert wird
+            return mapping.get(value)
 
-        def safe_convert_area(area_value):
-            """Sicher Flächenwerte konvertieren"""
-            if pd.isna(area_value): return None  # None if area_value is NaN
+        def safe_convert_area(area_raw):
+            """
+            Safely convert an area value to a positive integer.
 
-            try:
-                # Komma durch Punkt ersetzen für deutsche Zahlenformate
-                if isinstance(area_value, str):
-                    area_value = area_value.replace(',', '.')
-                    area_value = float(area_value)
-                area_value = int(area_value)
-                if area_value > 0:
-                    return area_value
-                else:
-                    return None
-            except:
+            Supports German decimal notation by replacing commas with dots.
+
+            Returns:
+                int | None:
+                    A positive integer area value, or None if conversion fails
+                    or the value is not positive.
+            """
+            if pd.isna(area_raw):
                 return None
 
-        def safe_convert_year(year_value):
-
-            if pd.isna(year_value):
-                return None  # Default
             try:
-                return int(float(year_value))
-            except:
+                value = area_raw
+                if isinstance(value, str):
+                    value = value.replace(",", ".").strip()
+                    value = float(value)
+
+                value = int(value)
+                return value if value > 0 else None
+            except (ValueError, TypeError):
                 return None
 
-        def check_heat_demand_valid(heat_demand_simulated, heat_demand_measured):
-            """Überprüft, ob beide Energiebedarfe (simuliert und gemessen) gültige Werte haben"""
+        def safe_convert_year(year_raw):
+            """
+            Safely convert a year value to an integer.
+
+            Returns:
+                int | None:
+                    The converted year, or None if conversion fails.
+            """
+            if pd.isna(year_raw):
+                return None
+
             try:
-                simulated = float(heat_demand_simulated)
-                measured = float(heat_demand_measured)
-                if simulated > 0 and measured > 0:
-                    return True
-                else:
-                    return False
-            except:
+                return int(float(year_raw))
+            except (ValueError, TypeError):
+                return None
+
+        def has_valid_heat_demand(simulated_heat_demand_raw, measured_heat_demand_raw):
+            """
+            Check whether both simulated and measured heat demand values are valid.
+
+            A value is considered valid if it can be converted to float and is > 0.
+            """
+            try:
+                simulated = float(simulated_heat_demand_raw)
+                measured = float(measured_heat_demand_raw)
+                return simulated > 0 and measured > 0
+            except (ValueError, TypeError):
                 return False
 
         def convert_to_local_coordinates(df, x_col="x", y_col="y"):
-            """Convert UTM coordinates to a local coordinate system."""
+            """
+            Convert global coordinates into a local coordinate system by shifting
+            the minimum x and y values to zero.
+            """
             min_x = df[x_col].min()
             min_y = df[y_col].min()
             df["x_local"] = df[x_col] - min_x
             df["y_local"] = df[y_col] - min_y
             return df
 
-        def check_all_values(row, idx):
-            """Überprüft, ob alle notwendigen Werte vorhanden sind"""
-            # gross_floor_area > 0
-            if safe_convert_area(row.get('gross_floor_area')) == None:
-                print(f"row {idx}: Invalid gross_floor_area: {row.get('gross_floor_area')}")
-                return False
-            if safe_convert_area(row.get('gross_floor_area')) > 20000:
-                print(f"row {idx}: Building with too large gross_floor_area: {row.get('gross_floor_area')}")
-                return False
-            # heat_relevance
-            if row.get('heat_relevance') != 'wärmerelevant':
-                print(f"row {idx}: Invalid heat_relevance: {row.get('heat_relevance')}")
-                return False
-            # building_type_simplified vorhanden
-            if map_building_type(row.get('iwu_class')) == None:
-                print(f"Invalid building_type_simplified: {row.get('iwu_class')}")
-                return False
-            # construction_year vorhanden
-            if safe_convert_year(row.get('construction_year')) == None:
-                print(f"row {idx}: Invalid construction_year: {row.get('construction_year')}")
-                return False
-            # renovation_state_simulated vorhanden
-            if map_retrofit_status(row.get('renovation_state_simulated')) == None:
-                print(f"row {idx}: Invalid renovation_state_simulated: {row.get('renovation_state_simulated')}")
-                return False
+        def print_row_problem(row_index, alkis_id, field_name, field_value, problem_description):
+            """
+            Print a standardized validation or mapping error for a building row.
+            """
+            print(
+                f"Skipping building at row {row_index}"
+                f"{f' (alkis_id={alkis_id})' if alkis_id is not None else ''}: "
+                f"{problem_description} | field='{field_name}', value='{field_value}'"
+            )
 
-            # for a meaningful comparison, only buldings with a registered heat_demand (simulated and measured) are considered
-            if check_heat_demand_valid(row.get('heat_demand_simulated'), row.get('energy_consumption_sh')) == False:
-                print(
-                    f"row {idx}: Invalid heat_demand_simulated or energy_consumption_sh: {row.get('heat_demand_simulated')}, {row.get('energy_consumption_sh')}")
-                return False
+        def validate_and_transform_row(row, row_index):
+            """
+            Validate a WKB row and transform it into the target scenario format.
 
-            # Only if all checks are passed return true
-            return True
+            Returns:
+                dict | None:
+                    A dictionary with transformed values if the row is valid,
+                    otherwise None.
+            """
+            alkis_id = row.get("alkis_id")
 
-        # WKB Daten einlesen
-        wkb_data = pd.read_csv(wkb_file_path, encoding='utf-8', delimiter=';', decimal='.',
-                               na_values=['NULL', 'null', '', 'nan'])
+            area = safe_convert_area(row.get("gross_floor_area"))
+            if area is None:
+                print_row_problem(
+                    row_index, alkis_id, "gross_floor_area", row.get("gross_floor_area"),
+                    "invalid gross floor area"
+                )
+                return None
+            if area > 20000:
+                print_row_problem(
+                    row_index, alkis_id, "gross_floor_area", row.get("gross_floor_area"),
+                    "gross floor area is implausibly large"
+                )
+                return None
 
-        # Make sure x/y are numeric
+            if row.get("heat_relevance") != "wärmerelevant":
+                print_row_problem(
+                    row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
+                    "building is not heat-relevant"
+                )
+                return None
+
+            building_type = map_building_type(row.get("iwu_class"))
+            if building_type is None:
+                print_row_problem(
+                    row_index, alkis_id, "iwu_class", row.get("iwu_class"),
+                    "unmapped building type"
+                )
+                return None
+
+            construction_year = safe_convert_year(row.get("construction_year"))
+            if construction_year is None:
+                print_row_problem(
+                    row_index, alkis_id, "construction_year", row.get("construction_year"),
+                    "invalid construction year"
+                )
+                return None
+
+            retrofit_status = map_retrofit_status(row.get("renovation_state_simulated"))
+            if retrofit_status is None:
+                print_row_problem(
+                    row_index, alkis_id, "renovation_state_simulated", row.get("renovation_state_simulated"),
+                    "unmapped retrofit status"
+                )
+                return None
+
+            heater_type = map_heater_type(row.get("heating_system"))
+            if heater_type is None:
+                print_row_problem(
+                    row_index, alkis_id, "heating_system", row.get("heating_system"),
+                    "unmapped heating system"
+                )
+                return None
+
+            if not has_valid_heat_demand(row.get("heat_demand_simulated"), row.get("energy_consumption_sh")):
+                print_row_problem(
+                    row_index,
+                    alkis_id,
+                    "heat_demand_simulated / energy_consumption_sh",
+                    f"{row.get('heat_demand_simulated')} / {row.get('energy_consumption_sh')}",
+                    "invalid simulated or measured heat demand"
+                )
+                return None
+
+            return {
+                "alkis_id": alkis_id,
+                "position": (row["x_local"], row["y_local"]),
+                "building": building_type,
+                "year": construction_year,
+                "retrofit": retrofit_status,
+                "construction_type": "2",  # Default: standard construction type
+                "night_setback": 0,  # Default
+                "area": area,
+                "number_of_floors": row.get("number_floors"),
+                "heater": heater_type,
+                "cooling": 0,
+                "EV": 0,  # Default
+                "f_TES": 35,
+                "f_BAT": 0,
+                "f_PV1": 0,
+                "f_PV2": 0,
+                "f_STC": 0,
+                "gamma_PV": 0,
+                "ev_charging": "on_demand",
+            }
+
+        # Read WKB data
+        wkb_data = pd.read_csv(
+            wkb_file_path,
+            encoding="utf-8",
+            delimiter=";",
+            decimal=".",
+            na_values=["NULL", "null", "", "nan"]
+        )
+
+        # Ensure coordinates are numeric
         wkb_data["x"] = pd.to_numeric(wkb_data["x"], errors="coerce")
         wkb_data["y"] = pd.to_numeric(wkb_data["y"], errors="coerce")
 
-        # Convert global EPSG:25833 coords → local coords for our simulation
+        # Convert global EPSG:25833 coordinates to local coordinates for the simulation
         wkb_data = convert_to_local_coordinates(wkb_data, "x", "y")
 
-        # Sort the df by the 'gross_floor_area' key -> Buildings with big areas first to avoid them being last and then not profiting as much as they could from multiprocessing
-        wkb_data['gross_floor_area'] = pd.to_numeric(wkb_data['gross_floor_area'], errors='coerce')
-        wkb_data = wkb_data.sort_values(by='gross_floor_area', ascending=False)
-
-        # Quartier Dataframe erstellen
-        quartier_data = []
-        wkb_data_for_csv = []
+        scenario_rows = []
+        accepted_wkb_rows = []
 
         new_id = 0
 
-        for idx, row in wkb_data.iterrows():
-            if check_all_values(row, idx):
-                quartier_row = {
-                    'id': new_id,
-                    'alkis_id': row.get('alkis_id'),
-                    "position": (row["x_local"], row["y_local"]),
-                    'building': map_building_type(row.get('iwu_class')),
-                    'year': safe_convert_year(row.get('construction_year')),
-                    'retrofit': map_retrofit_status(row.get('renovation_state_simulated')),
-                    # Standard: nicht saniert
-                    'construction_type': '2',
-                    'night_setback': 0,  # Standard
-                    'area': safe_convert_area(row.get('gross_floor_area')),
-                    'number_of_floors': row.get('number_floors'),
-                    'heater': map_heater_type(row.get('heating_system')),
-                    'cooling': 0,
-                    'EV': 0,  # Standard
-                    'f_TES': 35,
-                    'f_BAT': 0,
-                    'f_PV1': 0,
-                    'f_PV2': 0,
-                    'f_STC': 0,
-                    'gamma_PV': 0,
-                    'ev_charging': 'on_demand',
-                }
-                quartier_data.append(quartier_row)
+        for row_index, row in wkb_data.iterrows():
+            transformed_row = validate_and_transform_row(row, row_index)
+            if transformed_row is None:
+                continue
 
-                # Get the original WKB row for reference
-                wkb_row = row.to_dict()
-                wkb_row['id'] = new_id  # Add new_id for reference
-                wkb_data_for_csv.append(wkb_row)
-                new_id += 1
+            transformed_row["id"] = new_id
+            scenario_rows.append(transformed_row)
 
-        # DataFrame erstellen
-        quartier_df = pd.DataFrame(quartier_data)
-        wkb_df = pd.DataFrame(wkb_data_for_csv)
+            # Store the original WKB row for traceability
+            wkb_row = row.to_dict()
+            wkb_row["id"] = new_id
+            accepted_wkb_rows.append(wkb_row)
 
-        # Als CSV speichern
-        num_csv = max(1, (len(quartier_df) + batch_size - 1) // batch_size)  # Berechne Anzahl der benötigten Dateien
-        print(f"Total buildings processed: {len(quartier_df)}. Saving in {num_csv} CSV file(s).")
+            new_id += 1
 
-        for i in range(num_csv):
-            batch_quartier_df = quartier_df.iloc[i * batch_size:(i + 1) * batch_size]
-            quartier_batch_path = output_file_path.replace(".csv", f"_{i}.csv")
-            batch_quartier_df.to_csv(quartier_batch_path, sep=';', index=False)
+        scenario_df = pd.DataFrame(scenario_rows)
+        accepted_wkb_df = pd.DataFrame(accepted_wkb_rows)
 
-        # all_buildings combined CSV files
-        quartier_df.to_csv(output_file_path, sep=';', index=False)
-        wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=';', index=False)
+        # Save batch CSV files
+        num_csv = max(1, (len(scenario_df) + batch_size - 1) // batch_size)
+        print(f"Total valid buildings processed: {len(scenario_df)}. Saving to {num_csv} CSV file(s).")
 
-        return quartier_df
+        for batch_index in range(num_csv):
+            batch_df = scenario_df.iloc[batch_index * batch_size:(batch_index + 1) * batch_size]
+            batch_output_path = output_file_path.replace(".csv", f"_{batch_index}.csv")
+            batch_df.to_csv(batch_output_path, sep=";", index=False)
+
+        # Save combined CSV files
+        scenario_df.to_csv(output_file_path, sep=";", index=False)
+        accepted_wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=";", index=False)
+
+        return scenario_df
     def designNetworkwithNode(self):
         """
         Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.

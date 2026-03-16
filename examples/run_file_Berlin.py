@@ -15,7 +15,7 @@ def run_opti(district_id, config_name):
     # Initialize District
     data = Datahandler(scenario_name = district_id, heat_map_berlin=True, env_path=".env.CONFIG." + config_name)
     topology_option = data.heat_grid_data["topology_option"]
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=True, topology_option = topology_option)
+    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=True, topology_option = topology_option)
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
 
@@ -31,7 +31,7 @@ def run_opti(district_id, config_name):
 
 if __name__ == '__main__':
     # Name the district ID here --> should apply to the name of the csv-Input file
-    district_id = "district_kulmer_str"
+    district_id = "example_wkb"
     # Name the config_name here --> should apply to the name of the .env file in the folder: data/envs
     config_name = "BERLIN"
     data = run_opti(district_id=district_id, config_name=config_name)
