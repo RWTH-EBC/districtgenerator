@@ -84,14 +84,13 @@ class Datahandler:
         -------
         None.
         """
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
 
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
 
         self.initial_day = None
         self.district = []
-        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
+        self.scenario_name = None
         self.scenario = None
         self.total_building_area = None
         # Config data
@@ -125,21 +124,9 @@ class Datahandler:
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
-        self.KPIs = None
-        self.load_all_data(
-            site_config=global_config.location,
-            time_config=global_config.time,
-            design_building_config=global_config.design_building,
-            physics_config=global_config.physics,
-            decentral_config=global_config.decentral,
-            ehdo_config=global_config.ehdo,
-            eco_config=global_config.eco,
-            central_config=global_config.central,
-            calendar_config=global_config.calendar,
-            heat_grid_config=global_config.heatgrid,
-            pyomo_config=global_config.pyomo
-        )
+        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
+        self.KPIs = None
         self.buildings_completed = 0
         self.buildings_total = 0
         self.progress_file = os.path.join(self.resultPath, 'progress.json')
@@ -161,46 +148,26 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self, site_config: LocationConfig,
-                      time_config: TimeConfig,
-                      design_building_config: DesignBuildingConfig,
-                      physics_config: PhysicsConfig,
-                      decentral_config: DecentralDeviceConfig,
-                      ehdo_config: EHDOConfig,
-                      eco_config: EcoConfig,
-                      central_config: CentralDeviceConfig,
-                      calendar_config: CalendarConfig,
-                      heat_grid_config: HeatGridConfig,
-                      pyomo_config: PyomoConfig):
+    def load_all_data(self, env_path, scenario_name):
         """
         Load all data needed for district generation from configuration files.
 
         Parameters
         ----------
-        site_config : LocationConfig
-            Location configuration data.
-        time_config : TimeConfig
-            Time configuration data.
-        design_building_config : DesignBuildingConfig
-            Design building configuration data.
-        physics_config : PhysicsConfig
-            Physics configuration data.
-        decentral_config : DecentralDeviceConfig
-            Decentral device configuration data.
-        ehdo_config : EHDOConfig
-            EHDO model configuration data.
-        eco_config : EcoConfig
-            Economic configuration data.
-        central_config : CentralDeviceConfig
-            Central device configuration data.
-        calendar_config : CalendarConfig
-            Calendar configuration data.
-        heat_grid_config : HeatGridConfig
-            Heat grid configuration data.
+        env_path : str, optional
+            Path to the environment configuration file. If None, it defaults to the global configuration file.
+        scenario_name : str, optional
+            Name of the scenario file
+
         Returns
         -------
         None.
         """
+
+        global_config: GlobalConfig = load_global_config(env_file=env_path)
+
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
+
 
         # %% load scenario file with building information
         self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
@@ -208,50 +175,50 @@ class Datahandler:
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
-        for attr, value in site_config.__dict__.items():
+        for attr, value in global_config.location.__dict__.items():
             self.site[attr] = value
 
         # %% load time information and requirements (used in generateEnvironment)
         # needed for data conversion into the right time format
-        for attr, value in time_config.__dict__.items():
+        for attr, value in global_config.time.__dict__.items():
             self.time[attr] = value
 
         # %% load general building information
         # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        for attr, value in design_building_config.__dict__.items():
+        for attr, value in global_config.design_building.__dict__.items():
             self.design_building_data[attr] = value
 
         # load building physics data (used in envelope and system BES/CES)
-        for attr, value in physics_config.__dict__.items():
+        for attr, value in global_config.physics.__dict__.items():
             self.physics[attr] = value
 
         # Load list of possible devices (used in system BES)
         # Iterate over all attributes of the config instance
-        for attr, value in decentral_config.__dict__.items():
+        for attr, value in global_config.decentral.__dict__.items():
             self.decentral_device_data[attr] = value
 
-        for attr, value in ehdo_config.__dict__.items():
+        for attr, value in global_config.ehdo.__dict__.items():
             self.params_ehdo_model[attr] = value
 
         # load economic and ecologic data (of the district generator) (used in system CES)
-        for attr, value in eco_config.__dict__.items():
+        for attr, value in global_config.eco.__dict__.items():
             self.ecoData[attr] = value
 
         # Load list of possible devices (used in system BES)
         # Iterate over all attributes of the config instance
-        for attr, value in central_config.__dict__.items():
+        for attr, value in global_config.central.__dict__.items():
             self.central_device_data[attr] = value
 
         # load calendar data (used in generateDemands and generateEnvironment)
-        for attr, value in calendar_config.__dict__.items():
+        for attr, value in global_config.calendar.__dict__.items():
             self.calendar[attr] = value
 
         # load pyomo solver data (used in optimization functions)
-        for attr, value in pyomo_config.__dict__.items():
+        for attr, value in global_config.pyomo.__dict__.items():
             self.pyomo_config[attr] = value
 
         # load heat grid data (used in heating network design and optimization)
-        for attr, value in heat_grid_config.__dict__.items():
+        for attr, value in global_config.heatgrid.__dict__.items():
             self.heat_grid_data[attr] = value
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
