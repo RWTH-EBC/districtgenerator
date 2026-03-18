@@ -26,7 +26,7 @@ I   "german": "Mittelalterliche Altstadt",
 
 # Import classes of the districtgenerator to be able to use the district generator.
 # from districtgenerator.classes import *
-from districtgenerator.functions.typdistrict_postprocess import scenario_generation
+from districtgenerator.functions.typdistrict_postprocess_paper2 import scenario_generation
 
 def example0_generate_scenario():
     # To create a district we initialize the datahandler.

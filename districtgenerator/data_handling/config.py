@@ -414,7 +414,7 @@ class HeatGridConfig(BaseSettings):
     physical dimensions, material properties, and costs.
     """
 
-    generation: str = "5th"      # Heating network generation, selected between:"3rd", "4th" and "5th"
+    generation: str = "3rd"      # Heating network generation, selected between:"3rd", "4th", "5th" and "auto". If "auto" is selected the temperatures are determined automatically based on the required supply temperature of connected buildings.
     topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
     temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
     heuristic: bool = False # selected between: True (heuristic method) and False (optimization method)
@@ -476,7 +476,7 @@ class HeatGridConfig(BaseSettings):
     pump: dict = {}
 
     pipe__f_fric: float = 0.025         # Friction factor (dimensionless). (Initial friction factor for iteration)
-    pipe__dp_pipe_max: float = 400.0    # Max pressure gradient in Pa/m.
+    pipe__dp_pipe_max: float = 300.0    # Max pressure gradient in Pa/m.
     pipe__dp_pipe_min: float = 30.0     # Min pressure gradient in Pa/m.
     pipe__pipe_lifetime: int = 30       # Pipe lifetime in years.
     pipe__cost_om_pipe: float = 0.005    # Pipe O&M share (fraction of investment cost per year).

@@ -30,7 +30,8 @@ import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
-from districtgenerator.functions.heating_network_opt import network_optimization
+#from districtgenerator.functions.heating_network_opt import network_optimization
+from districtgenerator.functions.heating_network_opt_new import network_design
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
@@ -274,9 +275,20 @@ class Datahandler:
             self.heat_grid_data[attr] = value
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
-        # select the pipe file based on the generation selection
+        # select the pipe file based on the network generation selection
         # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
-        if self.heat_grid_data["generation"] == "3rd":
+        # AUTO MODE → load all pipe specifications and choose later based on the temperatures
+        if self.heat_grid_data["generation"] == "auto":
+            kmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
+            pmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
+            pe_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
+            self.pipe_data_all = {
+                "3rd": pd.read_csv(kmr_path, sep=";"),
+                "4th": pd.read_csv(pmr_path, sep=";"),
+                "5th": pd.read_csv(pe_path, sep=";")}
+            self.pipe_data = self.pipe_data_all["4th"]  # temporary default
+
+        elif self.heat_grid_data["generation"] == "3rd":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
 
@@ -2308,7 +2320,8 @@ class Datahandler:
         -------
         None.
         """
-        network_optimization(self)
+#        network_optimization(self)
+        network_design(self)
 
 def generate_demands_worker_wrapper(args):
     """

@@ -495,6 +495,13 @@ def get_heating_network_temperatures(data, T_e=None):
     and returns constant temperatures or time-dependent heating-curve values.
     """
     gen = data.heat_grid_data["generation"]               # "3rd", "4th", "5th"
+
+    if gen == "auto":
+        raise ValueError(
+            "Generation='auto' is not supported in the simple heating network method. "
+            "Please select a fixed generation ('3rd', '4th', or '5th') in the configuration."
+        )
+
     mode = data.heat_grid_data["temperature_mode"]        # "constant" or "heating_curve"
 
     # --- CONSTANT MODE ---------------------------------------------------------
