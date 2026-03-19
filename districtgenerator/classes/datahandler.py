@@ -1431,7 +1431,23 @@ class Datahandler:
         interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
 
-        #TODO: Why are CO2 emission factors also considered here?
+
+        # Make sure that only prices are discounted not other time-dependend variables.
+        undiscounted_keys = [
+        'co2_el_grid',
+        'co2_gas',
+        'co2_biom',
+        'co2_hydrogen',
+        'co2_oil',
+        'co2_waste',
+        'co2_district_heat',
+        'renewable_heat_share',
+        'renewable_el_grid_share',
+        'max_biomass_share',
+        'heat_dhw_red_sfh',
+        'heat_dhw_red_mfh',
+        'heat_dhw_red_nrb'
+        ]
 
         for year in simulated_years:
             relevant_years = year_segments[year]
@@ -1447,15 +1463,18 @@ class Datahandler:
                 denom = n
 
             for key in ecoData.keys():
+                
                 subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
+                if key in undiscounted_keys:
+                    all_sim_ecoData[year][key] = ecoData[key][year] if year < len(ecoData[key]) else None
+                else:
+                    # Calculate present value (PV) of the subset values
+                    pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
 
-                # Calculate present value (PV) of the subset values
-                pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
+                    # Calculate effective annualized price
+                    effective_price = pv/denom
 
-                # Calculate effective annualized price
-                effective_price = pv/denom
-
-                all_sim_ecoData[year][key] = effective_price
+                    all_sim_ecoData[year][key] = effective_price
 
             # Add the values in single_value_keys to each year's ecoData
             for key in single_value_keys:
