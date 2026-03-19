@@ -771,7 +771,7 @@ class DecentralDeviceConfig(BaseSettings):
     # BAT parameters (Battery Storage)
     BAT__soc_min: float = 0.0  # Minimum state of charge.
     BAT__soc_max: float = 0.95  # Maximum state of charge.
-    BAT__eta_standby: float = 0.97  # Standby hourly efficiency (accounts for self-discharge).
+    BAT__eta_standby: float = 0.9999  # Standby hourly efficiency (accounts for self-discharge).
     BAT__eta_ch: float = 0.97  # Charging and discharging efficiency.
     BAT__coeff_ch: float = 0.8  # Charging and discharging coefficient in Watt per Watthour.
     BAT__init: float = 0.5  # Initial state of charge.
