@@ -25,21 +25,17 @@ class ContractingBM(BusinessModelBase):
     # modify_params -- called before the optimiser runs
     # ------------------------------------------------------------------
 
-    def modify_params(self, param: dict) -> None:
+    def get_price_el_revenue_by_year(self) -> dict:
         """
-        Set price_el_revenue to the net local electricity revenue [EUR/kWh].
-
-        Network charges, levies, and VAT are deducted from the gross local
-        tariff (alpha * p_ret_cons) because the public grid is used for
-        delivery and the operator must pass these costs on.
-
+        Net Mieterstrom revenue for EH -> consumers.
+        Public-grid charges are deducted.
         """
         alpha = self.ecoData["alpha"]
         share_grid = self.ecoData["share_el_grid"]
         share_levies = self.ecoData["share_el_levies"]
         share_vat = self.ecoData["share_el_vat"]
 
-        param["price_el_revenue"] = {
+        return {
             year: (
                     alpha * self.all_sim_ecoData[year]["price_supply_el"]
                     - share_grid * self.all_sim_ecoData[year]["price_supply_el"]
@@ -47,7 +43,7 @@ class ContractingBM(BusinessModelBase):
                     - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
             )
             for year in self.interpolation_points
-        }  # EUR/kWh
+        }
 
     # ------------------------------------------------------------------
     # calculate_kpis -- called after the optimiser has finished

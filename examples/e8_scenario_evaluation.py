@@ -7,6 +7,7 @@ We reached the final step, to generate our first district: Generate demand profi
 # Import classes of the districtgenerator to be able to use the district generator.
 from districtgenerator.classes import *
 import warnings
+from districtgenerator.classes.plots_balances import plot_all, plot_single_year
 
 
 
@@ -14,7 +15,7 @@ def example8_scenario_evaluation():
     warnings.filterwarnings("ignore", category=FutureWarning)
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_F_buildings_9", env_path=".env.CONFIG.Mietstrom")
+    data = Datahandler(scenario_name = "district_F_buildings_9", env_path=".env.CONFIG.Kundenanlage")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -41,6 +42,10 @@ def example8_scenario_evaluation():
 
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
     # data.KPIs.create_certificate(data=data, result_path=data.resultPath)
+
+    # Create balance plots
+    #plot_single_year(data, year=0)  # zuerst nur ein Stützjahr zum Testen
+    plot_all(data)                 # später: alle Stützjahre
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
     return data

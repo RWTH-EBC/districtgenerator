@@ -251,6 +251,10 @@ class EcoConfig(BaseSettings):
     alpha: float = 0.8
     # Maximaler Wärmepreis [€/kWh] – aus Reference-Run befüllen
     p_max: float = 0.0
+    # NPV des Referenzfalls [€] – aus Reference-Run befüllen (für Option 3)
+    npv_ref: float = 0.0
+    # Bewertungsmethode für Cooperative: 'lcoh' (Option 1) oder 'npv' (Option 3)
+    cooperative_evaluation_method: str = "lcoh"
 
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',

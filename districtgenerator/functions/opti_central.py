@@ -14,6 +14,7 @@ import time
 import districtgenerator.functions.solver_config as solver_config
 from datetime import datetime
 import logging
+from districtgenerator.business_models import BM_REGISTRY
 
 # Sets of energy conversion systems in the buildings
 ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "DHW_dem", "Heating_dem", "FC")
@@ -62,9 +63,34 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     )
 
     start_time = time.time()
+    # --- Business Model specific operational ecoData enrichment ---
+    bm_key = data.ecoData.get("business_model", "reference")
+    BmClass = BM_REGISTRY.get(bm_key)
+
+    if BmClass is not None:
+        bm = BmClass(
+            ecoData=data.ecoData,
+            all_sim_ecoData=data.all_sim_ecoData,
+            interpolation_points=data.ecoData["interpolation_points"],
+        )
+
+        # create local copy so original all_sim_ecoData is not modified in-place
+        sim_ecoData_for_model = dict(sim_ecoData)
+        sim_ecoData_for_model["price_el_revenue"] = bm.get_price_el_revenue_by_year().get(year, 0.0)
+    else:
+        print(f"WARNING run_opti_central: business_model {bm_key!r} not in BM_REGISTRY.")
+        sim_ecoData_for_model = dict(sim_ecoData)
+        sim_ecoData_for_model["price_el_revenue"] = 0.0
+
+    # optional debug output
+    print(
+        f"[run_opti_central] year={year}, cluster={cluster}, "
+        f"business_model={bm_key}, "
+        f"price_el_revenue={sim_ecoData_for_model['price_el_revenue']}"
+    )
     # build the model
     model = pyo.ConcreteModel(name="Device_Operation_Optimization")
-    build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
+    build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData_for_model)
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
     # solve the model and extract results
@@ -1364,7 +1390,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
                 - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
                 + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
-                - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
+                - model.to_grid_total_el_eh * ecoData["price_el_revenue"]
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
                 + model.total_biomass_used * ecoData["price_biomass"]
@@ -1669,6 +1695,14 @@ def solve_model_and_extract_results(model, data, year, cluster):
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_soc",
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
+
+    # Electricity delivered from the energy hub to the internal neighborhood/building grid
+    # This is local EH supply to the quarter, not public-grid feed-in.
+    results_dict["eh_to_buildings"] = []
+    for t in time_steps:
+        results_dict["eh_to_buildings"].append(
+            round(pyo.value(model.eh_power_to_grid[t]), 0)
+        )
 
     ################################################################################
     # Building results

@@ -41,31 +41,25 @@ class MieterstromBM(BusinessModelBase):
     # modify_params -- called before the optimiser runs
     # ------------------------------------------------------------------
 
-    def modify_params(self, param: dict) -> None:
+    def get_price_el_revenue_by_year(self) -> dict:
         """
-        Set price_el_revenue to the NET Mieterstrom revenue for EH->Mieter.
-
-        The optimizer only handles EH electricity delivered to consumers.
-        Since the public grid is used for this delivery, network charges,
-        levies, and VAT must be deducted from the gross tariff p_ms.
-
-        PV behind-the-meter revenue (at full p_ms, no grid fees) is handled
-        separately in post-processing (calculate_kpis).
+        Net Mieterstrom revenue for EH -> consumers.
+        Public-grid charges are deducted.
         """
         alpha = self.ecoData["alpha"]
         share_grid = self.ecoData["share_el_grid"]
         share_levies = self.ecoData["share_el_levies"]
         share_vat = self.ecoData["share_el_vat"]
 
-        param["price_el_revenue"] = {
+        return {
             year: (
-                alpha * self.all_sim_ecoData[year]["price_supply_el"]
-                - share_grid * self.all_sim_ecoData[year]["price_supply_el"]
-                - share_levies * self.all_sim_ecoData[year]["price_supply_el"]
-                - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
+                    alpha * self.all_sim_ecoData[year]["price_supply_el"]
+                    - share_grid * self.all_sim_ecoData[year]["price_supply_el"]
+                    - share_levies * self.all_sim_ecoData[year]["price_supply_el"]
+                    - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
             )
             for year in self.interpolation_points
-        }  # EUR/kWh — net of grid fees for EH->consumer delivery
+        }
 
     # ------------------------------------------------------------------
     # calculate_kpis -- called after the optimiser has finished

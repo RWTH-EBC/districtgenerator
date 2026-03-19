@@ -702,13 +702,14 @@ def load_params(data):
     # --- Business Model: price_el_revenue via BM_REGISTRY ---
     bm_key = ecoData.get("business_model", "reference")
     BmClass = BM_REGISTRY.get(bm_key)
+
     if BmClass is not None:
         bm = BmClass(
             ecoData=ecoData,
             all_sim_ecoData=all_sim_ecoData,
             interpolation_points=ecoData["interpolation_points"],
         )
-        bm.modify_params(param)
+        param["price_el_revenue"] = bm.get_price_el_revenue_by_year()
     else:
         print(f"WARNING load_params: business_model {bm_key!r} nicht in BM_REGISTRY.")
         param["price_el_revenue"] = {y: 0.0 for y in ecoData["interpolation_points"]}

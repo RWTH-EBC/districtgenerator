@@ -72,6 +72,11 @@ class KPIs:
         self.total_dhw_demand = None
         self.p_max = None
         self.p_min = None
+        self.npv_coop = None
+        self.npv_ref = None
+        self.npv_difference = None
+        self.economically_favorable = None
+        self.evaluation_method = None
 
         # initialize input data for calculation of KPIs
         inputData = {}
@@ -1376,6 +1381,16 @@ class KPIs:
             else "No" if (self.p_min is not None and self.p_max is not None)
             else "-"
         )
+        # --- NPV-based evaluation (Option 3) ---
+        if self.evaluation_method == 'npv':
+            kpi_data_static["NPV_coop (€)"] = round(self.npv_coop, 0) if self.npv_coop is not None else "-"
+            kpi_data_static["NPV_ref (€)"] = round(self.npv_ref, 0) if self.npv_ref is not None else "-"
+            kpi_data_static["NPV_difference (€)"] = round(self.npv_difference, 0) if self.npv_difference is not None else "-"
+            kpi_data_static["Feasible (NPV_coop >= NPV_ref)"] = (
+                "Yes" if self.economically_favorable == True
+                else "No" if self.economically_favorable == False
+                else "-"
+            )
 
         # --- Heat supply results from optimization model ---
 

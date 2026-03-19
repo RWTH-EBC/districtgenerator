@@ -35,7 +35,8 @@ from districtgenerator.functions.design_network_with_node import run_pipeline_no
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, ElGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
-from .plots_balances import plot_all
+from .plots_balances import plot_all, plot_single_year
+
 
 class Datahandler:
     """
@@ -2055,6 +2056,68 @@ class Datahandler:
             # print massage that input is not valid
             print('\n Selected plot mode is not valid. So no plot could de generated. \n')
 
+    def plot_results(self, mode='default', years=None):
+        """
+        Create balance/result plots from optimization results.
+
+        Parameters
+        ----------
+        mode : str, optional
+            Plot selection mode. The default is 'default'.
+            Possible modes are:
+            ['default', 'el_buildings', 'th_buildings',
+             'el_all_buildings', 'th_all_buildings',
+             'el_energy_hub', 'th_energy_hub', 'district'].
+        years : list or int, optional
+            Support years to plot. If None, all interpolation_points are used.
+
+        Returns
+        -------
+        None.
+        """
+
+        # Check whether optimization results exist
+        if not hasattr(self, "resultsOptimization") or self.resultsOptimization is None or len(
+                self.resultsOptimization) == 0:
+            print('\n No optimization results found. Run optimizationClusters() first. \n')
+            return
+
+        # Normalize years input
+        if years is None:
+            years_to_plot = list(self.ecoData["interpolation_points"])
+        elif isinstance(years, (int, float)):
+            years_to_plot = [years]
+        else:
+            years_to_plot = list(years)
+
+        valid_plot_types = [
+            'el_buildings',
+            'th_buildings',
+            'el_all_buildings',
+            'th_all_buildings',
+            'el_energy_hub',
+            'th_energy_hub',
+            'district'
+        ]
+
+        if mode == 'default':
+            # Create all available balance plots
+            plot_all(self, years=years_to_plot)
+
+        elif mode in valid_plot_types:
+            # Fallback: for now, call plot_all and let the plot module generate everything
+            # If you later add plot_selected(...), replace this branch accordingly.
+            plot_all(self, years=years_to_plot)
+
+        elif mode == 'single_year':
+            if len(years_to_plot) != 1:
+                print('\n For mode="single_year", please pass exactly one year. \n')
+                return
+            plot_single_year(self, year=years_to_plot[0])
+
+        else:
+            print('\n Selected result plot mode is not valid. So no result plot could be generated. \n')
+
     def optimizationClusters(self):
         """
         Optimize the operation costs for each cluster.
@@ -2140,7 +2203,7 @@ class Datahandler:
                 denom = n
 
             for key in ecoData.keys():
-                if key == "p_max":
+                if key in ("p_max", "npv_ref", "cooperative_evaluation_method"):
                     continue
                 subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 

@@ -89,7 +89,7 @@ class KundenanlageBM(BusinessModelBase):
             din_csv_path=din_csv_path,
             write_back_to_buildings=True,
         )
-        data.site["enable_buildingMax_W"] = True
+        data.site["enable_buildingMax_W"] = False
 
         # ── Step 2: Trafo sizing (always, regardless of auto_size_trafo) ─
         summary = trafo_limit_from_house_connection_limits(
@@ -122,21 +122,22 @@ class KundenanlageBM(BusinessModelBase):
         return summary
 
     # ------------------------------------------------------------------
-    # modify_params -- called before the optimiser runs
+
     # ------------------------------------------------------------------
 
-    def modify_params(self, param: dict) -> None:
+    def get_price_el_revenue_by_year(self) -> dict:
         """
-        Set price_el_revenue = p_ms = alpha * p_ret_cons (full tariff).
-
-        Operator owns the grid -> no network fees deducted here.
-        Optimiser sees full p_ms as revenue per kWh delivered to tenants.
+        Full tenant tariff for local delivery in Kundenanlage.
+        No grid fees deducted because operator owns the local grid.
         """
         alpha = self.ecoData["alpha"]
-        param["price_el_revenue"] = {
-            year: alpha * self.all_sim_ecoData[year]["price_supply_el"]
+        share_vat = self.ecoData["share_el_vat"]
+        return {  year: (
+                    alpha * self.all_sim_ecoData[year]["price_supply_el"]
+                    - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
+            )
             for year in self.interpolation_points
-        }  # EUR/kWh
+        }
 
     # ------------------------------------------------------------------
     # calculate_kpis -- called after the optimiser has finished

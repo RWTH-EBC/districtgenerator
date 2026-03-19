@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 import numpy as np
+import copy
 
 from districtgenerator.functions.din_house_connection_limits import (
     apply_din_house_connection_limits,
@@ -106,7 +107,7 @@ class BusinessModelBase(ABC):
             din_csv_path=din_csv_path,
             write_back_to_buildings=True,
         )
-        data.site["enable_buildingMax_W"] = True
+        data.site["enable_buildingMax_W"] = False
 
         # ── Step 2: Transformer sizing (cascade) ─────────────────────
         auto_size = data.site.get("auto_size_trafo", True)
@@ -274,10 +275,23 @@ class BusinessModelBase(ABC):
     # ------------------------------------------------------------------
 
     @abstractmethod
-    def modify_params(self, param: dict) -> None:
-        """Set param["price_el_revenue"] before the optimiser runs."""
+    def get_price_el_revenue_by_year(self) -> dict:
+        """
+        Return year-specific local electricity revenue:
+        {support_year: price_el_revenue_in_EUR_per_kWh}
+        """
+        pass
 
-    @abstractmethod
+    def apply_operational_ecoData(self, sim_ecoData: dict, year) -> dict:
+        """
+        Return a copy of sim_ecoData enriched with BM-specific operational values
+        needed by opti_central.
+        """
+        eco = copy.deepcopy(sim_ecoData)
+        eco["price_el_revenue"] = self.get_price_el_revenue_by_year().get(year, 0.0)
+        return eco
+
+
     def calculate_kpis(self, kpis, data, result: dict) -> None:
         """
         Compute p_min and p_max after the optimiser has finished.
