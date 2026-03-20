@@ -141,45 +141,6 @@ class Profiles:
 
         return self.occ_profile
 
-    def loadProbabilitiesDhw(self):
-        """
-        Load probabilities of dhw usage.
-
-        Returns
-        -------
-        None.
-        """
-
-        #  Define src path
-        src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        filename = 'dhw_stochastical.xlsx'
-        path_DHW = os.path.join(src_path, 'districtgenerator', 'data', filename)
-
-        # Initialization
-        profiles = {"we": {}, "wd": {}}
-        # book = xlrd.open_workbook(filename)
-        book = xl.readxl(fn=path_DHW)
-        sheetnames = book.ws_names
-
-        # Iterate over all sheets
-        for sheetname in sheetnames:
-            # sheet = xl.readxl(fn=filename, ws=sheetname)
-
-            # Read values
-            values = [book.ws(ws=sheetname).index(row=i, col=1) for i in
-                      range(1, 1441)]  # [sheet.cell_value(i,0) for i in range(1440)]
-
-            # Store values in dictionary
-            if sheetname in ("wd_mw", "we_mw"):
-                profiles[sheetname] = np.array(values)
-            elif sheetname[1] == "e":
-                profiles["we"][int(sheetname[2])] = np.array(values)
-            else:
-                profiles["wd"][int(sheetname[2])] = np.array(values)
-
-        # Load profiles
-        self.prob_profiles_dhw = profiles
-
     def generate_profiles_non_residential(self,holidays):
         """
          Generate stochastic peaople profiles, devices profiles and month profiles
