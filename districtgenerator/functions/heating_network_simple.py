@@ -3,6 +3,7 @@ import math
 import scipy.optimize as opt
 import cmath
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def heating_network(data):
 
@@ -95,6 +96,11 @@ def calc_costs(data):
     # Calculate required Nominal Diameters (DN)
     DN_heating_dist = 21.255 * np.log(linear_heat_density_dist) + 48.064
     DN_heating_serv = 19.983 * np.exp(0.021 * linear_heat_density_serv)
+
+    # Diagnose if the calculated DN values are within the limits of the available pipe data
+    diag_serv = diagnose_pipe_size_limit(data.pipe_data, DN_heating_serv, "heating_service")
+    if not diag_serv["ok"]:
+        raise ValueError(f"Pipe sizing error: {diag_serv}")
 
     # Select Next Larger Available Pipe Size ---
     larger_DN_dist = data.pipe_data[data.pipe_data["Nominal diameter (DN)"] >= DN_heating_dist]
@@ -489,7 +495,7 @@ def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
 
     return T_supply, T_return
 
-def get_heating_network_temperatures(data, T_e=None):
+def get_heating_network_temperatures(data, T_e=None): # New TJA für test reasons
     """
     Reads the correct heating network temperatures from heating_grid.json
     and returns constant temperatures or time-dependent heating-curve values.
@@ -525,3 +531,67 @@ def get_heating_network_temperatures(data, T_e=None):
         return T_supply, T_return
 
     raise ValueError(f"Unknown temperature_mode: {mode}")
+
+def diagnose_pipe_size_limit(pipe_data, required_dn, branch_name="heating_service"):
+    """
+    Prüft, ob required_dn (mm) innerhalb der verfügbaren DN-Werte liegt
+    und liefert detaillierte Diagnoseinfos inkl. Radiusabschätzung.
+
+    Rückgabe:
+        dict mit Vergleichsdaten und Statusflags.
+    """
+    result = {
+        "branch": branch_name,
+        "required_dn_mm": float(required_dn) if np.isfinite(required_dn) else required_dn,
+        "required_radius_est_mm": np.inf if not np.isfinite(required_dn) else float(required_dn) / 2.0,
+        "ok": False,
+        "reason": None,
+    }
+
+    if pipe_data is None or pipe_data.empty:
+        result["reason"] = "pipe_data is empty"
+        return result
+
+    col_dn = "Nominal diameter (DN)"
+    if col_dn not in pipe_data.columns:
+        result["reason"] = f"missing column: {col_dn}"
+        return result
+
+    dn_all = pd.to_numeric(pipe_data[col_dn], errors="coerce").dropna()
+    if dn_all.empty:
+        result["reason"] = f"no numeric values in column: {col_dn}"
+        return result
+
+    max_dn = float(dn_all.max())
+    min_dn = float(dn_all.min())
+
+    result["available_dn_min_mm"] = min_dn
+    result["available_dn_max_mm"] = max_dn
+    result["available_radius_max_est_mm"] = max_dn / 2.0
+    result["dn_excess_mm"] = None if not np.isfinite(required_dn) else float(required_dn - max_dn)
+    result["radius_excess_est_mm"] = None if not np.isfinite(required_dn) else float(required_dn / 2.0 - max_dn / 2.0)
+
+    if not np.isfinite(required_dn):
+        result["reason"] = "required_dn is not finite (NaN/inf), likely due to invalid upstream calculation"
+        return result
+
+    candidates = pipe_data[pd.to_numeric(pipe_data[col_dn], errors="coerce") >= required_dn]
+
+    if candidates.empty:
+        result["reason"] = "required_dn exceeds max available DN"
+        result["ok"] = False
+        # zusätzlich größte verfügbare Zeile zurückgeben
+        max_row = pipe_data.loc[pd.to_numeric(pipe_data[col_dn], errors="coerce").idxmax()]
+        result["largest_available_row"] = max_row.to_dict()
+        return result
+
+    chosen_row = candidates.loc[pd.to_numeric(candidates[col_dn], errors="coerce").idxmin()]
+    chosen_dn = float(chosen_row[col_dn])
+
+    result["ok"] = True
+    result["reason"] = "matching DN available"
+    result["chosen_dn_mm"] = chosen_dn
+    result["chosen_radius_est_mm"] = chosen_dn / 2.0
+    result["chosen_row"] = chosen_row.to_dict()
+
+    return result
