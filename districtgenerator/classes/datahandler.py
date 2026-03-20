@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import multiprocessing
 import pickle
 import os
 import datetime
@@ -669,69 +670,227 @@ class Datahandler:
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+    # def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+    #     self.buildings_total = len(self.district)
+    #     self.buildings_completed = 0
+    #     self.save_progress()
+    #
+    #     results = []
+    #
+    #     # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
+    #     with ThreadPoolExecutor(max_workers=max_threads) as ex:
+    #         future_map = {
+    #             ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars): building[
+    #                 "unique_name"]
+    #             for building in self.district
+    #         }
+    #
+    #         for fut in as_completed(future_map):
+    #             unique_name = future_map[fut]
+    #             #try:
+    #             result = fut.result()
+    #             #except Exception as e:
+    #             #    print(f"Error in building {unique_name}: {e}")
+    #             #    continue
+    #
+    #             self.buildings_completed += 1
+    #             results.append(result)
+    #             self.save_progress()
+    #
+    #             print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
+    #                 f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
+    #
+    #     # Write results back to district objects
+    #     for result in results:
+    #         building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+    #         building["user"].elec = result["elec"]
+    #         building["user"].dhw = result["dhw"]
+    #         building["user"].cooling = result["cooling"]
+    #         building["user"].heat = result["heating"]
+    #
+    #         # IMPORTANT: remove the trailing comma (your current code makes this a 1-tuple)
+    #         building["user"].occ = result["occ"]
+    #
+    #         building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
+    #         building["user"].EV_carprofile = result["EV_carprofile"]
+    #         building["user"].ev_capacity = result.get("ev_capacity")
+    #         building["user"].ice_carprofile = result["ice_carprofile"]
+    #
+    #         building["user"].gains = result["gains"]
+    #         building["user"].nb_units = result["nb_units"]
+    #         building["user"].nb_occ = result["nb_occ"]
+    #         building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
+    #
+    #         # If Envelope is not safely serializable, keep the existing one and only store what you need.
+    #         # If you really need it, keep it, but threads don't require pickling so it's fine.
+    #         building["envelope"] = result["envelope"]
+    #         building_features = building["buildingFeatures"].copy()
+    #         building_features["night_setback"] = result["night_setback"]
+    #         building["buildingFeatures"] = building_features
+    #
+    #     self.save_progress()
+    #
+    #     print("Finished generating demands with threading!")
+    #
+    # def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
+    #     """
+    #     :param building:
+    #     :param calcUserProfiles: bool
+    #         True: calculate new user profiles.
+    #         False: load user profiles from file.
+    #         The default is True.
+    #     :param saveUserProfiles: bool
+    #         True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
+    #         The default is True.
+    #     """
+    #     print(f'starting {building["unique_name"]}')
+    #     warnings.filterwarnings("ignore", category=FutureWarning)
+    #
+    #     # calculate or load user profiles
+    #     if calcUserProfiles:
+    #         building["user"].calcProfiles(site=self.site,
+    #                                       holidays=self.calendar["holidays"],
+    #                                       time_resolution=self.time["timeResolution"],
+    #                                       time_horizon=self.time["dataLength"],
+    #                                       building_devices_data=self.decentral_device_data,
+    #                                       building=building,
+    #                                       path=os.path.join(self.resultPath, 'demands'),
+    #                                       initial_day=self.initial_day,
+    #                                       gen_cars=gen_cars)
+    #
+    #         if saveUserProfiles:
+    #             self.saveProfiles(name=building["unique_name"],
+    #                               elec=building["user"].elec,
+    #                               dhw=building["user"].dhw,
+    #                               occ=building["user"].occ,
+    #                               gains=building["user"].gains,
+    #                               EV_carcharging_ondemand=building["user"].EV_carcharging_ondemand,
+    #                               EV_carprofile=building["user"].EV_carprofile,
+    #                               nb_units=building["user"].nb_units,
+    #                               nb_occ=building["user"].nb_occ,
+    #                               ev_capacity=building["user"].ev_capacity or [0],
+    #                               ice_carprofile=building["user"].ice_carprofile,
+    #                               heatload=building["envelope"].heatload,
+    #                               bivalent=building["envelope"].bivalent,
+    #                               heatlimit=building["envelope"].heatlimit,
+    #                               path=os.path.join(self.resultPath, 'demands'),
+    #                               individual_car_profiles=building["user"].individual_car_profiles)
+    #
+    #     else:
+    #         (building["user"].elec, building["user"].dhw,
+    #          building["user"].occ, building["user"].gains,
+    #          building["user"].EV_carcharging_ondemand, building["user"].EV_carprofile, building["user"].ice_carprofile, building["user"].nb_flats, building["user"].nb_main_rooms,
+    #          building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
+    #          building["envelope"].bivalent,
+    #          building["envelope"].heatlimit,
+    #          building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
+    #                                                              os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
+    #         print("Load demands of building " + building["unique_name"])
+    #
+    #     if building.get("thermal_model") == "5R1C":
+    #         building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+    #     elif building.get("thermal_model") == "7R2C":
+    #         # Compute VDI6007 params
+    #         building["envelope"]._VDI6007_params(self.site["SunRad"])
+    #         # Compute equivalent temperature
+    #         building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+    #     else:
+    #         raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+    #
+    #     night_setback = building["buildingFeatures"]["night_setback"]
+    #
+    #     is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+    #
+    #     # calculate or load heating profiles
+    #     if calcUserProfiles:
+    #         building["user"].calcHeatingProfile(site=self.site,
+    #                                             envelope=building["envelope"],
+    #                                             thermal_model=building["thermal_model"],
+    #                                             night_setback=night_setback,
+    #                                             is_cooled=is_cooled,
+    #                                             calendar=self.calendar,
+    #                                             time_resolution=self.time["timeResolution"],
+    #                                             initial_day=self.initial_day)
+    #
+    #         if saveUserProfiles:
+    #             self.saveHeatingProfile(heat=building["user"].heat,
+    #                                     cooling=building["user"].cooling,
+    #                                     name=building["unique_name"],
+    #                                     path=os.path.join(self.resultPath, 'demands'))
+    #     else:
+    #         heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
+    #                                                  path=os.path.join(self.resultPath, 'demands'))
+    #         building["user"].heat = heat
+    #         building["user"].cooling = cooling
+    #
+    #     return {
+    #         "unique_name": building["unique_name"],
+    #         "elec": building["user"].elec,
+    #         "dhw": building["user"].dhw,
+    #         "cooling": building["user"].cooling,
+    #         "heating": building["user"].heat,
+    #         "occ": building["user"].occ,
+    #         "EV_carcharging_ondemand": building["user"].EV_carcharging_ondemand,
+    #         "EV_carprofile": building["user"].EV_carprofile,
+    #         "ev_capacity": getattr(building["user"], "ev_capacity", None),
+    #         "ice_carprofile": building["user"].ice_carprofile,
+    #         "gains": building["user"].gains,
+    #         "nb_units": building["user"].nb_units,   # or nb_flats/nb_main_rooms depending on your model
+    #         "nb_occ": building["user"].nb_occ,
+    #         "individual_car_profiles": getattr(building["user"], "individual_car_profiles", []),
+    #         "envelope": building["envelope"],
+    #         "night_setback": building["buildingFeatures"]["night_setback"],
+    #     }
+
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True,max_threads=8, gen_cars=True):
+        args_list = [(self, building, calcUserProfiles, saveUserProfiles, gen_cars) for building in self.district]
+
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
-        self.save_progress()
 
         results = []
+        self.save_progress()
 
-        # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
-        with ThreadPoolExecutor(max_workers=max_threads) as ex:
-            future_map = {
-                ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars): building[
-                    "unique_name"]
-                for building in self.district
-            }
-
-            for fut in as_completed(future_map):
-                unique_name = future_map[fut]
-                #try:
-                result = fut.result()
-                #except Exception as e:
-                #    print(f"Error in building {unique_name}: {e}")
-                #    continue
-
+        with multiprocessing.Pool(processes=max_threads) as pool:
+            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
                 self.buildings_completed += 1
                 results.append(result)
+
                 self.save_progress()
 
-                print(f"building {self.buildings_completed}/{self.buildings_total} calculated "
-                    f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {unique_name}")
+                print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
+                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
 
-        # Write results back to district objects
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
-
-            # IMPORTANT: remove the trailing comma (your current code makes this a 1-tuple)
             building["user"].occ = result["occ"]
-
-            building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
+            # building["user"].car = result["car"]
+            building["user"].EV_carcharging_ondemand = result["EV_carcharging_ondemand"]
             building["user"].EV_carprofile = result["EV_carprofile"]
             building["user"].ev_capacity = result.get("ev_capacity")
             building["user"].ice_carprofile = result["ice_carprofile"]
-
             building["user"].gains = result["gains"]
             building["user"].nb_units = result["nb_units"]
             building["user"].nb_occ = result["nb_occ"]
             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
 
-            # If Envelope is not safely serializable, keep the existing one and only store what you need.
-            # If you really need it, keep it, but threads don't require pickling so it's fine.
             building["envelope"] = result["envelope"]
+            # building["clusteringData"] = result["clusteringData"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
 
         self.save_progress()
 
-        print("Finished generating demands with threading!")
+
+        print("Finished generating demands with multiprocessing!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
+
         """
         :param building:
         :param calcUserProfiles: bool
@@ -785,7 +944,6 @@ class Datahandler:
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])
-
         if building.get("thermal_model") == "5R1C":
             building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
         elif building.get("thermal_model") == "7R2C":
@@ -840,8 +998,7 @@ class Datahandler:
             "envelope": building["envelope"],
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
-
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, max_threads=8):
 
         """
         All in one solution for district and demand generation.
@@ -877,7 +1034,7 @@ class Datahandler:
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads)
         self.designDecentralDevices(saveGenerationProfiles=True)
 
         # Check if district uses central energy supply (heat grid)
@@ -1521,3 +1678,11 @@ def parse_position(val):
         return tuple(float(x.strip()) for x in pos_str.strip("()").split(","))
     # For other data types, return the value as is.
     return val
+
+def generate_demands_worker_wrapper(args):
+    """
+    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
+    Args enthält (self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars)
+    """
+    self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
+    return self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars)
