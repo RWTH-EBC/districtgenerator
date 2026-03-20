@@ -97,7 +97,7 @@ def calc_costs(data):
     DN_heating_dist = 21.255 * np.log(linear_heat_density_dist) + 48.064
     DN_heating_serv = 19.983 * np.exp(0.021 * linear_heat_density_serv)
 
-    # Diagnose if the calculated DN values are within the limits of the available pipe data
+    # Diagnose if the calculated DN values are within the limits of the available pipe data # New TJA
     diag_serv = diagnose_pipe_size_limit(data.pipe_data, DN_heating_serv, "heating_service")
     if not diag_serv["ok"]:
         raise ValueError(f"Pipe sizing error: {diag_serv}")
