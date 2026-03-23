@@ -24,6 +24,7 @@ import districtgenerator.functions.solver_config as solver_config
 import numpy as np
 import csv
 from districtgenerator.functions.debug_optimization import run_pre_solve_checks
+from pyomo.opt import TerminationCondition as TC
 
 
 def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
@@ -962,10 +963,84 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
     # If needed, this can be adjusted to allow for different solvers per district.
     data=dataCon[list(dataCon.keys())[0]]
 
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
+    # Start new code TJA
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config)
+    if str(getattr(solver, "name", "")).lower() != "gurobi_persistent":
+        print("Switching solver to gurobi_persistent for IIS support.")
+        solver = pyo.SolverFactory("gurobi_persistent")
+
+    if solver_options is None:
+        solver_options = {}
+
+    pyomo_cfg = data.pyomo_config if isinstance(data.pyomo_config, dict) else {}
+    cfg_options = pyomo_cfg.get("solver_options", {})
+    if isinstance(cfg_options, dict):
+        merged_options = dict(cfg_options)
+        merged_options.update(solver_options)
+        solver_options = merged_options
+
+    # Optional numeric stabilizers
+    solver_options.setdefault("NumericFocus", 1)
+    solver_options.setdefault("Presolve", 2)
+
+    # Required for persistent interface
+    solver.set_instance(model, symbolic_solver_labels=True)
+
     solve_start_time = time.time()
-    results = solver.solve(model, tee=True, options=solver_options)
-    print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+    results = solver.solve(tee=True, options=solver_options)
+    tc = results.solver.termination_condition
+    print(f"Optimization finished in {(time.time() - solve_start_time):.2f} seconds.")
+    # End new code TJA
+
+    # Original Version
+    # solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
+    # solve_start_time = time.time()
+    # results = solver.solve(model, tee=True, options=solver_options)
+    # tc = results.solver.termination_condition # New TJA
+    # print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
+
+    ################################################################################
+    # Find error if model is infeasible or out of bounds and write error file # New TJA
+    ################################################################################
+       
+    # Disambiguate infeasible or unbounded
+    if tc == TC.infeasibleOrUnbounded:
+        print("Termination is infeasibleOrUnbounded -> re-solving with DualReductions=0")
+        solver_options = dict(solver_options)
+        solver_options["DualReductions"] = 0
+        results = solver.solve(tee=True, options=solver_options)
+        tc = results.solver.termination_condition
+
+    # IIS analysis
+    if tc == TC.infeasible:
+        print("Model is infeasible. Computing IIS ...")
+        grb_model = getattr(solver, "_solver_model", None)
+        if grb_model is not None:
+            iis_path = os.path.join(result_dir, "ehdo_model_network.iis.ilp")
+            grb_model.computeIIS()
+            grb_model.write(iis_path)
+            print(f"IIS written to '{iis_path}'.")
+
+            print("\nConstraints in IIS:")
+            for c in grb_model.getConstrs():
+                if c.IISConstr:
+                    print(f"  [LIN] {c.ConstrName}")
+            for qc in grb_model.getQConstrs():
+                if qc.IISQConstr:
+                    print(f"  [QUAD] {qc.QCName}")
+            for sc in grb_model.getSOSs():
+                if sc.IISSOS:
+                    print(f"  [SOS] {sc.SOSName}")
+
+            print("\nVariable bounds in IIS:")
+            for v in grb_model.getVars():
+                if v.IISLB:
+                    print(f"  [LB] {v.VarName} >= {v.LB}")
+                if v.IISUB:
+                    print(f"  [UB] {v.VarName} <= {v.UB}")
+        else:
+            print("Could not access underlying Gurobi model for IIS extraction.")
+
 
     ################################################################################
     # Check and Save Results
