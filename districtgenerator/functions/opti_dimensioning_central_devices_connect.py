@@ -145,6 +145,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     grid_flows_list = ["from_grid", "to_grid"] # for network
     segments = ["small", "medium","large"]  # new TJA
     segment_devs=["HP","CHP","BOI","TES","STC"]  # new TJA
+
     
 
     # Add sets to the model for this district
@@ -160,6 +161,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.area_devs = pyo.Set(initialize=area_devs_list)
     model.segments = pyo.Set(initialize=segments) # new TJA
     model.segment_devs = pyo.Set(initialize=segment_devs) # new TJA
+    model.heat_cap_devs = pyo.Set(initialize=["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"])
+    model.power_cap_devs = pyo.Set(initialize=["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"])
+    model.cool_cap_devs = pyo.Set(initialize=["CC", "AC"])
+    model.gas_cap_devs = pyo.Set(initialize=["SAB"])
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -280,140 +285,282 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                 if min_area is not None: model.constraints.add(model.area[dev, district] >= min_area)
                 if max_area is not None: model.constraints.add(model.area[dev, district] <= max_area)
     
-        # Limited operation based on installed capacity
-        for y in model.support_years:
-            for d in model.clusters:
-                for t in model.time_steps:
-                    # Add constraints for the device operation based on the device capacity
-                    for dev in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
-                        model.constraints.add(model.heat[dev, district, y, d, t] <= model.cap[dev, district])
-                    for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:  # Power devices
-                        model.constraints.add(model.power[dev, district, y, d, t] <= model.cap[dev, district])
-                    for dev in ["CC", "AC"]:  # Cooling devices
-                        model.constraints.add(model.cool[dev, district, y, d, t] <= model.cap[dev, district])
-                    for dev in ["SAB"]:  # Gas devices
-                        model.constraints.add(model.gas[dev, district, y, d, t] <= model.cap[dev, district])
 
-                    # Limitation of power and gas from and to the grid
-                    model.constraints.add(model.power["from_grid", district, y, d, t] <= model.grid_limit_el[district])
-                    model.constraints.add(model.power["to_grid", district, y, d, t] <= model.grid_limit_el[district])
+    # Add constraints for the device operation based on the device capacity
+    # Limited operation based on installed capacity
+    def heat_cap_rule(m, district, dev, y, d, t):
+        return m.heat[dev, district, y, d, t] <= m.cap[dev, district]
 
-                    model.constraints.add(model.power["to_grid", district, y, d, t] == model.power["to_main_grid", district, y, d, t] + model.power["to_network", district, y, d, t]) # for network
-                    model.constraints.add(model.power["from_grid", district, y, d, t] == model.power["from_main_grid", district, y, d, t] + model.power["from_network", district, y, d, t]) # for network
+    def power_cap_rule(m, district, dev, y, d, t):
+        return m.power[dev, district, y, d, t] <= m.cap[dev, district]
 
-                    model.constraints.add(model.gas["from_grid", district, y, d, t] <= model.grid_limit_gas[district])
-                    model.constraints.add(model.gas["to_grid", district, y, d, t] <= model.grid_limit_gas[district])
-        
-        # Correlation to translate area to capacity for PV and STC
-        model.constraints.add(model.cap["PV", district] == model.area["PV", district] * devs["PV"]["G_stc"] * devs["PV"]["eta"])
-        model.constraints.add(model.cap["STC", district]  == model.area["STC", district] * devs["STC"]["G_stc"] * devs["STC"]["eta"])
+    def cool_cap_rule(m, district, dev, y, d, t):
+        return m.cool[dev, district, y, d, t] <= m.cap[dev, district]
 
-        # state of charge < storage capacity
-        for y in model.support_years:
-            for dev in model.storage_devs:
-                for day_y in model.year:
-                    for t in model.time_steps:
-                        model.constraints.add(model.soc[dev, district, y, day_y, t] <= model.cap[dev, district])
+    def gas_cap_rule(m, district, dev, y, d, t):
+        return m.gas[dev, district, y, d, t] <= m.cap[dev, district]
+
+    model.c_heat_cap = pyo.Constraint(
+        model.districts, model.heat_cap_devs, model.support_years, model.clusters, model.time_steps,
+        rule=heat_cap_rule
+    )
+    model.c_power_cap = pyo.Constraint(
+        model.districts, model.power_cap_devs, model.support_years, model.clusters, model.time_steps,
+        rule=power_cap_rule
+    )
+    model.c_cool_cap = pyo.Constraint(
+        model.districts, model.cool_cap_devs, model.support_years, model.clusters, model.time_steps,
+        rule=cool_cap_rule
+    )
+    model.c_gas_cap = pyo.Constraint(
+        model.districts, model.gas_cap_devs, model.support_years, model.clusters, model.time_steps,
+        rule=gas_cap_rule
+    )
+    # ---------- Grid flow constraints ----------
+     # Limitation of power from and to the grid
+    def from_grid_el_limit_rule(m, district, y, d, t):
+        return m.power["from_grid", district, y, d, t] <= m.grid_limit_el[district]
+
+    def to_grid_el_limit_rule(m, district, y, d, t):
+        return m.power["to_grid", district, y, d, t] <= m.grid_limit_el[district]
+    
+    # Network decomposition: to_grid = to_main_grid + to_network
+    def to_grid_decomp_rule(m, district, y, d, t):
+        return m.power["to_grid", district, y, d, t] == \
+            m.power["to_main_grid", district, y, d, t] + m.power["to_network", district, y, d, t]
+    
+    # Network decomposition: from_grid = from_main_grid + from_network
+    def from_grid_decomp_rule(m, district, y, d, t):
+        return m.power["from_grid", district, y, d, t] == \
+            m.power["from_main_grid", district, y, d, t] + m.power["from_network", district, y, d, t]
+
+    def from_grid_gas_limit_rule(m, district, y, d, t):
+        return m.gas["from_grid", district, y, d, t] <= m.grid_limit_gas[district]
+
+    def to_grid_gas_limit_rule(m, district, y, d, t):
+        return m.gas["to_grid", district, y, d, t] <= m.grid_limit_gas[district]
+
+    model.c_from_grid_el_limit = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=from_grid_el_limit_rule)
+    model.c_to_grid_el_limit = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=to_grid_el_limit_rule)
+    model.c_to_grid_decomp = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=to_grid_decomp_rule)
+    model.c_from_grid_decomp = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=from_grid_decomp_rule)
+    model.c_from_grid_gas_limit = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=from_grid_gas_limit_rule)
+    model.c_to_grid_gas_limit = pyo.Constraint(model.districts, model.support_years, model.clusters, model.time_steps, rule=to_grid_gas_limit_rule)
+
+    # Correlation area -> capacity for PV/STC
+    def pv_area_cap_rule(m, district):
+        devs = devsCon[district]
+        return m.cap["PV", district] == m.area["PV", district] * devs["PV"]["G_stc"] * devs["PV"]["eta"]
+
+    def stc_area_cap_rule(m, district):
+        devs = devsCon[district]
+        return m.cap["STC", district] == m.area["STC", district] * devs["STC"]["G_stc"] * devs["STC"]["eta"]
+
+    model.c_pv_area_cap = pyo.Constraint(model.districts, rule=pv_area_cap_rule)
+    model.c_stc_area_cap = pyo.Constraint(model.districts, rule=stc_area_cap_rule)
+
+    # SOC <= storage capacity
+    def soc_cap_rule(m, district, dev, y, day_y, t):
+        return m.soc[dev, district, y, day_y, t] <= m.cap[dev, district]
+
+    model.c_soc_cap = pyo.Constraint(
+        model.districts, model.storage_devs, model.support_years, model.year, model.time_steps,
+        rule=soc_cap_rule
+    )
 
     #################################################################################
-    # Energy Conversion Constraints (Input / Output Relations) (for every time step)
-    #################################################################################        
+    # Energy Conversion Constraints (vectorized)
+    #################################################################################
 
-    for district in model.districts:
+    def pv_limit_rule(m, district, y, d, t):
         devs = devsCon[district]
-        for y in model.support_years:
-            for d in model.clusters:
-                for t in model.time_steps:
-                    # Photovoltaics power limited by clustered norm power
-                    model.constraints.add(
-                        model.power["PV", district, y, d, t] <= devs["PV"]["norm_power_clustered"][d][t] / 1000 * model.area["PV", district])
-                    # Wind turbine power limited by clustered norm power
-                    model.constraints.add(model.power["WT", district, y, d, t] <= devs["WT"]["norm_power_clustered"][d][t] * model.cap["WT",district])
-                    # Hydropower power limited by potential
-                    model.constraints.add(model.power["WAT", district, y, d, t] <= devs["WAT"]["potential"])
-                    # Solar thermal collector heat limited by clustered norm power
-                    model.constraints.add(model.heat["STC", district, y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC", district])
-                    # Electric heat pump correlation between heat and electric power
-                    model.constraints.add(model.heat["HP", district, y, d, t] == model.power["HP", district, y, d, t] * devs["HP"]["COP"][y][d][t])
-                    # Electric boiler correlation between heat and electric power
-                    model.constraints.add(model.heat["EB", district, y, d, t] == model.power["EB",district,  y, d, t] * devs["EB"]["eta_th"])
-                    # Compression chiller correlation between cooling and electric power (time-dependent COP)
-                    model.constraints.add(model.cool["CC", district, y, d, t] == model.power["CC", district, y, d, t] * devs["CC"]["COP"][y][d][t])
-                    # Absorption chiller correlation between cooling and heat power
-                    model.constraints.add(model.cool["AC", district, y, d, t] == model.heat["AC", district, y, d, t] * devs["AC"]["eta_th"])
-                    # Gas CHP correlation between production of power and heat and gas consumption
-                    model.constraints.add(model.power["CHP", district, y, d, t] == model.gas["CHP", district, y, d, t] * devs["CHP"]["eta_el"])
-                    model.constraints.add(model.heat["CHP", district , y, d, t] == model.gas["CHP", district, y, d, t] * devs["CHP"]["eta_th"])
-                    # Gas boiler correlation between heat and gas consumption
-                    model.constraints.add(model.heat["BOI", district, y, d, t] == model.gas["BOI", district, y, d, t] * devs["BOI"]["eta_th"])
-                    # Gas heat pump correlation between heat and gas consumption
-                    model.constraints.add(model.heat["GHP", district, y, d, t] == model.gas["GHP", district, y, d, t] * devs["GHP"]["COP"])
-                    # Biomass CHP correlation between production of power and heat and biomass consumption
-                    model.constraints.add(model.power["BCHP", district, y, d, t] == model.biom["BCHP", district, y, d, t] * devs["BCHP"]["eta_el"])
-                    model.constraints.add(model.heat["BCHP", district, y, d, t] == model.biom["BCHP", district, y, d, t] * devs["BCHP"]["eta_th"])
-                    # Biomass boiler correlation between heat and biomass consumption
-                    model.constraints.add(model.heat["BBOI", district, y, d, t] == model.biom["BBOI", district, y, d, t] * devs["BBOI"]["eta_th"])
-                    # Waste CHP correlation between production of power and heat and waste consumption
-                    model.constraints.add(model.power["WCHP", district, y, d, t] == model.waste["WCHP", district, y, d, t] * devs["WCHP"]["eta_el"])
-                    model.constraints.add(model.heat["WCHP", district, y, d, t] == model.waste["WCHP", district, y, d, t] * devs["WCHP"]["eta_th"])
-                    # Waste boiler correlation between heat and waste consumption
-                    model.constraints.add(model.heat["WBOI", district, y, d, t] == model.waste["WBOI", district, y, d, t] * devs["WBOI"]["eta_th"])
-                    # Electrolyzer correlation between hydrogen production and electric power consumption
-                    model.constraints.add(model.hydrogen["ELYZ", district, y, d, t] == model.power["ELYZ", district, y, d, t] * devs["ELYZ"]["eta_el"])
-                    # Fuel cell correlation between hydrogen consumption and electric power production
-                    model.constraints.add(model.power["FC", district, y, d, t] == model.hydrogen["FC", district, y, d, t] * devs["FC"]["eta_el"])
-                    if devs["FC"]["enable_heat_diss"]:  # Heat can also be dissipated
-                        model.constraints.add(model.heat["FC", district, y, d, t] <= model.hydrogen["FC", district, y, d, t] * devs["FC"]["eta_th"])
-                    else:  # Heat must be used
-                        model.constraints.add(model.heat["FC", district, y, d, t] == model.hydrogen["FC", district, y, d, t] * devs["FC"]["eta_th"])
-                    # Sabatier reactor correlation between hydrogen consumption and gas production
-                    model.constraints.add(model.gas["SAB", district, y, d, t] == model.hydrogen["SAB", district, y, d, t] * devs["SAB"]["eta"])
+        return m.power["PV", district, y, d, t] <= devs["PV"]["norm_power_clustered"][d][t] / 1000 * m.area["PV", district]
+
+    def wt_limit_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.power["WT", district, y, d, t] <= devs["WT"]["norm_power_clustered"][d][t] * m.cap["WT", district]
+
+    def stc_limit_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["STC", district, y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * m.area["STC", district]
+
+    def wat_limit_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.power["WAT", district, y, d, t] <= devs["WAT"]["potential"]
+
+    def hp_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["HP", district, y, d, t] == m.power["HP", district, y, d, t] * devs["HP"]["COP"][y][d][t]
+
+    def eb_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["EB", district, y, d, t] == m.power["EB", district, y, d, t] * devs["EB"]["eta_th"]
+
+    def ghp_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["GHP", district, y, d, t] == m.gas["GHP", district, y, d, t] * devs["GHP"]["COP"]
+
+    def cc_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.cool["CC", district, y, d, t] == m.power["CC", district, y, d, t] * devs["CC"]["COP"][y][d][t]
+
+    def ac_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.cool["AC", district, y, d, t] == m.heat["AC", district, y, d, t] * devs["AC"]["eta_th"]
+
+    def chp_el_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.power["CHP", district, y, d, t] == m.gas["CHP", district, y, d, t] * devs["CHP"]["eta_el"]
+
+    def chp_th_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["CHP", district, y, d, t] == m.gas["CHP", district, y, d, t] * devs["CHP"]["eta_th"]
+
+    def bchp_el_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.power["BCHP", district, y, d, t] == m.biom["BCHP", district, y, d, t] * devs["BCHP"]["eta_el"]
+
+    def bchp_th_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["BCHP", district, y, d, t] == m.biom["BCHP", district, y, d, t] * devs["BCHP"]["eta_th"]
+
+    def wchp_el_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.power["WCHP", district, y, d, t] == m.waste["WCHP", district, y, d, t] * devs["WCHP"]["eta_el"]
+
+    def wchp_th_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["WCHP", district, y, d, t] == m.waste["WCHP", district, y, d, t] * devs["WCHP"]["eta_th"]
+
+    def boi_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["BOI", district, y, d, t] == m.gas["BOI", district, y, d, t] * devs["BOI"]["eta_th"]
+
+    def bboi_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["BBOI", district, y, d, t] == m.biom["BBOI", district, y, d, t] * devs["BBOI"]["eta_th"]
+
+    def wboi_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.heat["WBOI", district, y, d, t] == m.waste["WBOI", district, y, d, t] * devs["WBOI"]["eta_th"]
+
+    def elyz_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.hydrogen["ELYZ", district, y, d, t] == m.power["ELYZ", district, y, d, t] * devs["ELYZ"]["eta_el"]
+
+    def fc_el_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.power["FC", district, y, d, t] == m.hydrogen["FC", district, y, d, t] * devs["FC"]["eta_el"]
+
+    def fc_th_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        if devs["FC"]["enable_heat_diss"]:
+            return m.heat["FC", district, y, d, t] <= m.hydrogen["FC", district, y, d, t] * devs["FC"]["eta_th"]
+        return m.heat["FC", district, y, d, t] == m.hydrogen["FC", district, y, d, t] * devs["FC"]["eta_th"]
+
+    def sab_rule(m, district, y, d, t):
+        devs = devsCon[district]
+        return m.gas["SAB", district, y, d, t] == m.hydrogen["SAB", district, y, d, t] * devs["SAB"]["eta"]
+
+    idx5 = (model.districts, model.support_years, model.clusters, model.time_steps)
+    model.c_pv_limit = pyo.Constraint(*idx5, rule=pv_limit_rule)
+    model.c_wt_limit = pyo.Constraint(*idx5, rule=wt_limit_rule)
+    model.c_stc_limit = pyo.Constraint(*idx5, rule=stc_limit_rule)
+    model.c_wat_limit = pyo.Constraint(*idx5, rule=wat_limit_rule)
+    model.c_hp = pyo.Constraint(*idx5, rule=hp_rule)
+    model.c_eb = pyo.Constraint(*idx5, rule=eb_rule)
+    model.c_ghp = pyo.Constraint(*idx5, rule=ghp_rule)
+    model.c_cc = pyo.Constraint(*idx5, rule=cc_rule)
+    model.c_ac = pyo.Constraint(*idx5, rule=ac_rule)
+    model.c_chp_el = pyo.Constraint(*idx5, rule=chp_el_rule)
+    model.c_chp_th = pyo.Constraint(*idx5, rule=chp_th_rule)
+    model.c_bchp_el = pyo.Constraint(*idx5, rule=bchp_el_rule)
+    model.c_bchp_th = pyo.Constraint(*idx5, rule=bchp_th_rule)
+    model.c_wchp_el = pyo.Constraint(*idx5, rule=wchp_el_rule)
+    model.c_wchp_th = pyo.Constraint(*idx5, rule=wchp_th_rule)
+    model.c_boi = pyo.Constraint(*idx5, rule=boi_rule)
+    model.c_bboi = pyo.Constraint(*idx5, rule=bboi_rule)
+    model.c_wboi = pyo.Constraint(*idx5, rule=wboi_rule)
+    model.c_elyz = pyo.Constraint(*idx5, rule=elyz_rule)
+    model.c_fc_el = pyo.Constraint(*idx5, rule=fc_el_rule)
+    model.c_fc_th = pyo.Constraint(*idx5, rule=fc_th_rule)
+    model.c_sab = pyo.Constraint(*idx5, rule=sab_rule)
 
     ################################################################################
-    # Energy balances for each time step
+    # Energy balances for each time step (vectorized)
     ################################################################################
-    for district in model.districts:
-        devs = devsCon[district]
+
+    def heat_balance_rule(m, district, y, d, t):
         dem = demCon[district]
-        for y in model.support_years:
-            for d in model.clusters:
-                for t in model.time_steps:
-                    # Heat balance
-                    heat_supply = sum(model.heat[dev, district, y, d, t] for dev in
-                                    ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
-                    heat_demand = dem["heat"][y][d][t] + model.heat["AC", district, y, d, t] + model.ch["TES", district, y, d, t]
-                    model.constraints.add(heat_supply == heat_demand)
+        return (
+            sum(m.heat[dev, district, y, d, t] for dev in ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
+            == dem["heat"][y][d][t] + m.heat["AC", district, y, d, t] + m.ch["TES", district, y, d, t]
+        )
 
-                    # Electric power supply and demand balance
-                    power_supply = sum(
-                        model.power[dev, district, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_main_grid", "from_network"]) # new for network
-                    power_demand = dem["power"][y][d][t] + sum(
-                        model.power[dev, district, y, d, t] for dev in ["HP", "EB", "CC", "ELYZ", "to_main_grid", "to_network"]) + model.ch["BAT", district, y, d, t] # new for network
-                    model.constraints.add(power_supply == power_demand)
+    def power_balance_rule(m, district, y, d, t):
+        dem = demCon[district]
+        return (
+            sum(m.power[dev, district, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_main_grid", "from_network"])
+            == dem["power"][y][d][t]
+            + sum(m.power[dev, district, y, d, t] for dev in ["HP", "EB", "CC", "ELYZ", "to_main_grid", "to_network"])
+            + m.ch["BAT", district, y, d, t]
+        )
 
-                    # Cooling supply and demand balance
-                    cool_supply = model.cool["AC", district, y, d, t] + model.cool["CC", district, y, d, t]
-                    cool_demand = dem["cool"][y][d][t] + model.ch["CTES", district, y, d, t]
-                    model.constraints.add(cool_supply == cool_demand)
+    def cool_balance_rule(m, district, y, d, t):
+        dem = demCon[district]
+        return (
+            m.cool["AC", district, y, d, t] + m.cool["CC", district, y, d, t]
+            == dem["cool"][y][d][t] + m.ch["CTES", district, y, d, t]
+        )
 
-                    # Gas supply and demand balance
-                    gas_supply = model.gas["from_grid", district, y, d, t] + model.gas["SAB", district, y, d, t]
-                    gas_demand = sum(model.gas[dev, district, y, d, t] for dev in ["CHP", "BOI", "GHP", "to_grid"]) + model.ch["GS", district, y, d, t]
-                    model.constraints.add(gas_supply == gas_demand)
+    def gas_balance_rule(m, district, y, d, t):
+        return (
+            m.gas["from_grid", district, y, d, t] + m.gas["SAB", district, y, d, t]
+            == sum(m.gas[dev, district, y, d, t] for dev in ["CHP", "BOI", "GHP", "to_grid"])
+            + m.ch["GS", district, y, d, t]
+        )
 
-                    # Hydrogen supply and demand balance
-                    h2_supply = model.hydrogen["ELYZ", district, y, d, t] + model.hydrogen["import", district, y, d, t]
-                    h2_demand = sum(model.hydrogen[dev,district,  y, d, t] for dev in ["FC", "SAB"]) + model.ch["H2S", district, y, d, t]
-                    model.constraints.add(h2_supply == h2_demand)
+    def h2_balance_rule(m, district, y, d, t):
+        return (
+            m.hydrogen["ELYZ", district, y, d, t] + m.hydrogen["import", district, y, d, t]
+            == sum(m.hydrogen[dev, district, y, d, t] for dev in ["FC", "SAB"])
+            + m.ch["H2S", district, y, d, t]
+        )
 
-                    # Biomass supply and demand balance
-                    model.constraints.add(model.biom["import", district, y, d, t] == model.biom["BCHP", district, y, d, t] + model.biom["BBOI", district, y, d, t])
- 
-                    # Waste supply and demand balance
-                    model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
+    def biom_balance_rule(m, district, y, d, t):
+        return (
+            m.biom["import", district, y, d, t]
+            == m.biom["BCHP", district, y, d, t] + m.biom["BBOI", district, y, d, t]
+        )
+
+    def waste_balance_rule(m, district, y, d, t):
+        return (
+            m.waste["import", district, y, d, t]
+            == m.waste["WCHP", district, y, d, t] + m.waste["WBOI", district, y, d, t]
+        )
+
+    model.c_heat_balance = pyo.Constraint(*idx5, rule=heat_balance_rule)
+    model.c_power_balance = pyo.Constraint(*idx5, rule=power_balance_rule)
+    model.c_cool_balance = pyo.Constraint(*idx5, rule=cool_balance_rule)
+    model.c_gas_balance = pyo.Constraint(*idx5, rule=gas_balance_rule)
+    model.c_h2_balance = pyo.Constraint(*idx5, rule=h2_balance_rule)
+    model.c_biom_balance = pyo.Constraint(*idx5, rule=biom_balance_rule)
+    model.c_waste_balance = pyo.Constraint(*idx5, rule=waste_balance_rule)
+
+    # Network power balance
+    def network_balance_rule(m, y, d, t):
+        return (
+            sum(m.power["to_network", district, y, d, t] for district in m.districts)
+            == sum(m.power["from_network", district, y, d, t] for district in m.districts)
+        )
+
+    model.c_network_balance = pyo.Constraint(model.support_years, model.clusters, model.time_steps, rule=network_balance_rule)
 
     # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
-    Big_M = 1e10  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    max_from_grid = max(param["cap_limit_el"] for param in paramCon.values())
+    max_to_grid = max(param["cap_limit_el"] for param in paramCon.values())
+    Big_M = max(max_from_grid, max_to_grid) * 2  
+
     def grid_binary_rule1(model, district, y, d, t):
         return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
     
@@ -636,15 +783,6 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         if param["enable_supply_limit_hydrogen"] == True:
             for y in model.support_years:
                 model.constraints.add(model.hydrogen_import_total[district, y] <= param["supply_limit_hydrogen"])
-
-    # Constraints for energy balance around network
-    for y in model.support_years:
-        for d in model.clusters:
-            for t in model.time_steps:
-                model.constraints.add(
-                    sum(model.power["to_network", district, y, d, t] for district in model.districts) ==
-                    sum(model.power["from_network", district, y, d, t] for district in model.districts)
-                )
 
     ################################################################################
     # Legal constraints 
