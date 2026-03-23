@@ -6,6 +6,8 @@ Pyomo Version
 This script is a Pyomo-based translation of the original Gurobi model.
 """
 
+
+
 import pyomo.environ as pyo
 import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
@@ -21,6 +23,8 @@ import json
 import districtgenerator.functions.solver_config as solver_config
 import numpy as np
 import csv
+from districtgenerator.functions.debug_optimization import run_pre_solve_checks
+
 
 def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     """
@@ -57,7 +61,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
     # Solve the model and extract results
     result_dictCon = solve_model_and_extract_results(dataCon, model, devsCon, paramCon,
                                                   result_dictCon, demCon)
-
+    
     # Folder to save model and results
     result_dir = "optimization_results"
     if not os.path.exists(result_dir):
@@ -2022,3 +2026,4 @@ def save_demand_power_timeseries_csv(dem, model, district, result_dir):
 #             writer.writerows(data_to_save)
         
 #         print(f"Network and main grid power timeseries for {district} saved to {csv_file_path}")
+
