@@ -412,7 +412,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     model.constraints.add(model.waste["import", district, y, d, t] == model.waste["WCHP", district, y, d, t] + model.waste["WBOI", district, y, d, t])
 
     # Enforcing mutual exclusivity of grid import/export in each time step using Big M method
-    Big_M = 1e15  # Big M for enforcing mutual exclusivity of grid import/export in each time step
+    Big_M = 1e10  # Big M for enforcing mutual exclusivity of grid import/export in each time step
     def grid_binary_rule1(model, district, y, d, t):
         return model.power["from_grid", district, y, d, t] <= Big_M * model.grid_import_binary[district, y, d, t]
     
