@@ -874,7 +874,7 @@ class KPIs:
         self.calculateGasolineCosts(data)
         self.calc_total_consumption_and_emissions(data)
 
-    def create_certificate(self, data, result_path):
+    def create_certificate(self, data, result_path, file_name="Quartiersenergieausweis"):
         """
         Generate a certificate as PDF file with a list of KPIs and a list with building information.
 
@@ -1110,9 +1110,9 @@ class KPIs:
 
         if result_path is None:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            filename = os.path.join(src_path, "results", f"Quartiersenergieausweis_{data.scenario_name}.pdf")
+            filename = os.path.join(src_path, "results", f"{file_name}.pdf")
         else:
-            filename = os.path.join(result_path, f"Quartiersenergieausweis_{data.scenario_name}.pdf")
+            filename = os.path.join(result_path, f"{file_name}.pdf")
 
         # initialize certificate
         certificate = canvas.Canvas(filename, pagesize=reportlab.lib.pagesizes.A4)
