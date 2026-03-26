@@ -628,14 +628,9 @@ class Envelope:
     def compute_heating_curve(self, site, mode="unclustered"):
         """
         Compute space-heating supply and return temperature curves for a single building.
+        using a physics-based heating curve (radiator model).
 
-        Boundary conditions:
-        1) Design point:
-           T_out = T_ne  → (Ts, Tr) = (Ts_design, Tr_design)
-
-        2) Heating-limit point:
-           T_out = T_heatlimit → (Ts, Tr) determined from
-           constant mass-flow.
+        Source: Lammle et al. (2022) https://doi.org/10.1016/j.energy.2021.122952
 
         Optional low-temperature measures ("geringinvestive Maßnahmen"):
         If enabled, the DESIGN temperatures (Ts_design, Tr_design) at T_ne
@@ -677,27 +672,28 @@ class Envelope:
 
         # Outdoor anchors
         T_ne = float(site["T_ne"])
-        T_hl = float(self.T_heatlimit)
+        T_hl = 20.0  # Following Lammle et al. (2022) "For the parametrization of the heating curve, a temperature limit of 20°C is considered in contrast to the heating limit of 16.2°C … This corresponds to a more realistic approximation of real heating curves.”
 
         # Indoor temperature
         T_room = float(self.design_building_data["T_set_min"])
 
-        # Heating-limit temperatures via constant mass-flow model
-        load_ratio = (T_room - T_hl) / (T_room - T_ne)
-        load_ratio = np.clip(load_ratio, 0.0, 1.0)
+        # Radiator exponent
+        n = 1.3
+
+        # Part-load ratio
+        Q_rel = (T_hl - T_out) / (T_hl - T_ne)
+        Q_rel = np.clip(Q_rel, 0.0, 1.0)
+
+        # Original heating curve
         dT_design = Ts_design_orig - Tr_design_orig
-        Tm_design = 0.5 * (Ts_design_orig + Tr_design_orig) # Simplification
-        dT_hl = dT_design * load_ratio
-        Tm_hl = T_room + (Tm_design - T_room) * load_ratio
-        Ts_hl = Tm_hl + 0.5 * dT_hl
-        Tr_hl = Tm_hl - 0.5 * dT_hl
+        Tm_design = 0.5 * (Ts_design_orig + Tr_design_orig)
 
-        # Linear interpolation factor
-        f = np.clip((T_hl - T_out) / (T_hl - T_ne), 0.0, 1.0)
+        Ts_curve = (T_room
+                + (Tm_design - T_room) * (Q_rel ** (1.0 / n))
+                + 0.5 * dT_design * Q_rel)
 
-        # Heating curves
-        Ts_curve = Ts_hl + f * (Ts_design_orig - Ts_hl)
-        Tr_curve = Tr_hl + f * (Tr_design_orig - Tr_hl)
+        Tr_curve = Ts_curve - Q_rel * dT_design
+
 
         # Optional low-temperature measures
         Ts_design_lt = float(self.design_building_data["low_temp_measures_supply_nom"])
@@ -712,14 +708,11 @@ class Envelope:
             dT_design_lt = Ts_design_lt - Tr_design_lt
             Tm_design_lt = 0.5 * (Ts_design_lt + Tr_design_lt)
 
-            dT_hl_lt = dT_design_lt * load_ratio
-            Tm_hl_lt = T_room + (Tm_design_lt - T_room) * load_ratio
+            Ts_curve_reduced = (T_room
+                    + (Tm_design_lt - T_room) * (Q_rel ** (1.0 / n))
+                    + 0.5 * dT_design_lt * Q_rel)
 
-            Ts_hl_lt = Tm_hl_lt + 0.5 * dT_hl_lt
-            Tr_hl_lt = Tm_hl_lt - 0.5 * dT_hl_lt
-
-            Ts_curve_reduced = Ts_hl_lt + f * (Ts_design_lt - Ts_hl_lt)
-            Tr_curve_reduced = Tr_hl_lt + f * (Tr_design_lt - Tr_hl_lt)
+            Tr_curve_reduced = Ts_curve_reduced - Q_rel * dT_design_lt
 
         else:
             Ts_curve_reduced = Ts_curve.copy()
