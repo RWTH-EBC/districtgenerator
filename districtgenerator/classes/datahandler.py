@@ -1432,21 +1432,18 @@ class Datahandler:
         q = 1 + interest_factor
 
 
-        # Make sure that only prices are discounted not other time-dependend variables.
+        # No discount of time-dependend variables # New TJA
         undiscounted_keys = [
-        'co2_el_grid',
-        'co2_gas',
-        'co2_biom',
-        'co2_hydrogen',
-        'co2_oil',
-        'co2_waste',
-        'co2_district_heat',
-        'renewable_heat_share',
-        'renewable_el_grid_share',
-        'max_biomass_share',
-        'heat_dhw_red_sfh',
-        'heat_dhw_red_mfh',
-        'heat_dhw_red_nrb'
+        'interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
+        'price_supply_el_network', 'revenue_feed_in_el_network',
+        'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
+        'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
+        'price_biomass', 'price_oil', 'price_district_heat',
+        'co2_tax', 'co2_el_grid', 'co2_gas',
+        'co2_biom', 'co2_hydrogen', 'co2_oil',
+        'co2_waste', 'co2_district_heat', 'co2_el_feed_in', 'co2_gas_feed_in',
+        'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share',
+        'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb'
         ]
 
         for year in simulated_years:

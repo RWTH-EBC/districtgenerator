@@ -211,6 +211,10 @@ class EcoConfig(BaseSettings):
     co2_waste: str | list = [0.020]              # Co2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # Co2 emissions for district heat in kg/kWh
 
+    # CO2 credits for feed-in (negative emissions) in kg/kWh
+    co2_el_feed_in: str | list = [0]       # CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig) # New TJA
+    co2_gas_feed_in: str | list = [0]      # CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig) # New TJA
+
     # Legal requirements # New TJA
     renewable_heat_share: str | list = [0] # Required share of renewable heat in the system (0 to 1), relevant for WPG
     renewable_el_grid_share: str | list = [0] # Renewable share of electricity from the main grid (0 to 1), relevant for WPG
@@ -231,6 +235,7 @@ class EcoConfig(BaseSettings):
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
                      'co2_oil', 'co2_waste', 'co2_district_heat', 
+                     'co2_el_feed_in', 'co2_gas_feed_in', # New TJA
                      'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
                      'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb', # New TJA
                      'co2_tax', mode='before')
@@ -263,6 +268,7 @@ class EcoConfig(BaseSettings):
             'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
             'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 
+            'co2_el_feed_in', 'co2_gas_feed_in', # New TJA
             'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
             'co2_tax', 
             'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb' # New TJA
@@ -575,8 +581,6 @@ class EHDOConfig(BaseSettings):
 
     # Other options
     peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
-    co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
-    co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
 
     # Retrofit parameters
