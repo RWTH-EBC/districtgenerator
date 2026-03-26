@@ -1442,6 +1442,7 @@ class Datahandler:
         'co2_tax', 'co2_el_grid', 'co2_gas',
         'co2_biom', 'co2_hydrogen', 'co2_oil',
         'co2_waste', 'co2_district_heat', 'co2_el_feed_in', 'co2_gas_feed_in',
+        'max_co2_emissions',
         'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share',
         'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb'
         ]

@@ -932,20 +932,20 @@ def plot_co2_by_year_from_csv(
 
 
 if __name__ == "__main__":
-    #plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im ländlichen Quartier")
-    #plot_device_capacities_from_csv(scenario_name="urban", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im städtischen Quartier")
+    plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im ländlichen Quartier")
+    plot_device_capacities_from_csv(scenario_name="urban", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im städtischen Quartier")
 
     plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im ländlichen Quartier", plot_tes_only=True)
     plot_device_capacities_from_csv(scenario_name="urban", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im städtischen Quartier", plot_tes_only=True)
     
-    # plot_heat_generation_by_year_from_csv("rural", titel="Wärmeproduktion im ländlichen Quartier", show=True)
-    # plot_heat_generation_by_year_from_csv("urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
+    plot_heat_generation_by_year_from_csv("rural", titel="Wärmeproduktion im ländlichen Quartier", show=True)
+    plot_heat_generation_by_year_from_csv("urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
     
-    # plot_power_import_by_year_from_csv("rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
-    # plot_power_import_by_year_from_csv("urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv("rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv("urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
     
-    # plot_lcoe_by_year_from_csv("rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
-    # plot_lcoe_by_year_from_csv("urban", titel="Energiegestehungskosten im städtischen Quartier", show=True, show_percent_box=True)
+    plot_lcoe_by_year_from_csv("rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
+    plot_lcoe_by_year_from_csv("urban", titel="Energiegestehungskosten im städtischen Quartier", show=True, show_percent_box=True)
     
-    # plot_co2_by_year_from_csv("rural",titel="CO₂-Emissionen im ländlichen Quartier",show=True,show_percent_box=True)
-    # plot_co2_by_year_from_csv("urban",titel="CO₂-Emissionen im städtischen Quartier",show=True,show_percent_box=True)
+    plot_co2_by_year_from_csv("rural",titel="CO₂-Emissionen im ländlichen Quartier",show=True,show_percent_box=True)
+    plot_co2_by_year_from_csv("urban",titel="CO₂-Emissionen im städtischen Quartier",show=True,show_percent_box=True)

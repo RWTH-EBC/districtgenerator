@@ -808,7 +808,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     >= param["renewable_heat_share"][y] * model.heat_sum[district,y]
                 )
 
-
+        # Enforce that the total installed capacity of heat generation technologies is sufficient to meet the peak heat demand
+        # considering the renewable share requirement
         for district in model.districts: # new for network
             param = paramCon[district]
             devs = devsCon[district]
@@ -1056,10 +1057,24 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             - model.to_gas_grid_total[district, y] * param["co2_gas_feed_in"][y]
         ) * weights[district][y] for y in model.support_years
         )
-    
         # Sum up total CO2 emissions for all districts
         co2_sum_total += co2_sum_distr
 
+        # Enforce CO2-Neutrality 2045
+        if param["enable_legal_requirements"] == True:
+            co2_em={}
+            for y in model.support_years:
+                co2_em[y] = (model.from_el_main_grid_total[district, y] * param["co2_el_grid"][y] # for network
+                    + model.from_gas_grid_total[district, y] * param["co2_gas"][y]
+                    + model.biom_import_total[district, y] * param["co2_biom"][y]
+                    + model.waste_import_total[district, y] * param["co2_waste"][y]
+                    + model.hydrogen_import_total[district, y] * param["co2_hydrogen"][y]
+                    - model.to_el_main_grid_total[district, y] * param["co2_el_feed_in"][y] # for network
+                    - model.to_gas_grid_total[district, y] * param["co2_gas_feed_in"][y]
+                ) * weights[district][y]
+
+                model.constraints.add(co2_em[y] <= param["max_co2_emissions"][y]) # New TJA
+    
     # Total annualized costs for the whole observation period (sum of all districts)
     model.constraints.add(model.obj_tac == tac_sum_total)  
 
@@ -1830,8 +1845,8 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             result_dict[dev]["ch"] = int(max_ch)
 
         # Calculate detailed CO2 emissions by source (weighted sum over all support years with year-specific factors)
-        result_dict["total_co2_el"] = int(sum(safe_value(model.from_el_main_grid_total, (y, district)) * param["co2_el_grid"][y] * weights[district][y] for y in model.support_years) / 1000)  # t/a # new for network
-        result_dict["total_co2_el_feed_in"] = int(sum(safe_value(model.to_el_main_grid_total, (y, district)) * param["co2_el_feed_in"][y] * weights[district][y] for y in model.support_years) / 1000)  # t/a # new for network
+        result_dict["total_co2_el"] = sum(safe_value(model.from_el_main_grid_total, (y, district)) * param["co2_el_grid"][y] * weights[district][y] for y in model.support_years) / 1000 # t/a # new for network
+        result_dict["total_co2_el_feed_in"] = sum(safe_value(model.to_el_main_grid_total, (y, district)) * param["co2_el_feed_in"][y] * weights[district][y] for y in model.support_years) / 1000  # t/a # new for network
         result_dict["total_co2_gas"] = int(sum(safe_value(model.from_gas_grid_total, (y, district)) * param["co2_gas"][y] * weights[district][y] for y in model.support_years) / 1000)  # t/a
         result_dict["total_co2_gas_feed_in"] = int(sum(safe_value(model.to_gas_grid_total, (y, district)) * param["co2_gas_feed_in"][y] * weights[district][y] for y in model.support_years) / 1000)  # t/a
         result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, (y, district)) * param["co2_biom"][y] * weights[district][y] for y in model.support_years) / 1000)  # t/a

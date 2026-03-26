@@ -219,6 +219,7 @@ class EcoConfig(BaseSettings):
     renewable_heat_share: str | list = [0] # Required share of renewable heat in the system (0 to 1), relevant for WPG
     renewable_el_grid_share: str | list = [0] # Renewable share of electricity from the main grid (0 to 1), relevant for WPG
     max_biomass_share: str | list = [1] # Maximum allowed share of biomass in the heat supply (0 to 1), relevant for WPG
+    max_co2_emissions: str | list = [1000000000] # Maximum allowed CO2 emissions for the whole district in t/a, relevant for KSG. Default is a very high value, effectively not limiting emissions. Default value for 2045 is 0 t/a, meaning that in 2045 no CO2 emissions are allowed. # New TJA KSG
 
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
@@ -237,6 +238,7 @@ class EcoConfig(BaseSettings):
                      'co2_oil', 'co2_waste', 'co2_district_heat', 
                      'co2_el_feed_in', 'co2_gas_feed_in', # New TJA
                      'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
+                     'max_co2_emissions', # New TJA KSG
                      'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb', # New TJA
                      'co2_tax', mode='before')
     @classmethod
@@ -270,7 +272,7 @@ class EcoConfig(BaseSettings):
             'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 
             'co2_el_feed_in', 'co2_gas_feed_in', # New TJA
             'renewable_heat_share', 'renewable_el_grid_share', 'max_biomass_share', # New TJA
-            'co2_tax', 
+            'co2_tax', 'max_co2_emissions', # New TJA KSG
             'heat_dhw_red_sfh', 'heat_dhw_red_mfh', 'heat_dhw_red_nrb' # New TJA
         ]
         

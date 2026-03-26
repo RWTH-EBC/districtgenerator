@@ -1107,6 +1107,8 @@ def load_params(data):
                             for year in param["interpolation_points"]}
     param["max_biomass_share"] = {year: all_sim_ecoData[year]["max_biomass_share"]
                             for year in param["interpolation_points"]}
+    param["max_co2_emissions"] = {year: all_sim_ecoData[year]["max_co2_emissions"]
+                            for year in param["interpolation_points"]}
 
     # Optional: CO2 credits for feed-in (if available in all_sim_ecoData)
     param["co2_el_feed_in"] = {year: all_sim_ecoData[year].get("co2_el_feed_in", 0)
