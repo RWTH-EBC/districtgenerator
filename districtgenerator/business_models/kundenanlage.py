@@ -2,30 +2,53 @@
 """
 Kundenanlage Business Model (BM 2.4)
 
-A single operator owns and operates the buildings PV systems, the energy hub,
+A single operator owns and operates the buildings' PV systems, the energy hub,
 the district heating network AND the local electricity grid incl. transformer.
 
-Key difference vs Mieterstrom (BM 2.3):
-  The operator owns the internal grid -> no network usage charges apply.
-  Consequences:
-    1. PV behind-the-meter revenue = full p_ms (no network fee deduction)
-    2. Reststrom spread = p_ms - p_ret_op (no fee deduction)
+KEY DIFFERENCE vs Mieterstrom (BM 2.3):
+=======================================
+The operator owns the internal grid -> NO network usage charges apply for
+any internal electricity delivery!
 
-Grid constraint difference vs all other BMs:
-  The operator connects to the MEDIUM-VOLTAGE grid and owns the MV/LV
-  transformer. The DIN/Kerber sizing determines which transformer the
-  operator must purchase. This is NOT an external DSO constraint but an
-  investment decision whose cost flows into p_min.
+Consequences:
+1. PV btm revenue = p_ms (same as Mieterstrom, no grid fees anyway)
+2. EH → Mieter revenue = p_ms - VAT only (no grid fees, operator owns grid!)
+3. Reststrom margin = p_ms - p_purchase (same as Mieterstrom)
+4. Additional cost: Local grid infrastructure (cables + transformer)
 
-Additional cost vs all other BMs:
-  Annualised investment + O&M of electricity grid (cables + transformer)
-  are added to c_tot and flow into p_min.
-  Cable length estimated from heat network pipeline (same street routing).
-  Transformer cost scales with the DIN-derived kVA size.
+CASH FLOW STRUCTURE (Operator perspective):
+============================================
 
-p_min = (c_tot - rev_pv_btm - rev_pv_export - rev_reststrom) / Q_heat
-  where c_tot = TAC_EH + c_pv_ann + c_elgrid_ann
+COSTS (outflows):
+-----------------
+1. EH capital + O&M                    → in TAC ✓
+2. Heat network capital + O&M          → in TAC ✓
+3. Decentral PV capital + O&M          → NOT in TAC, add in postprocessing
+4. Local electricity grid + trafo      → NOT in TAC, add in postprocessing
+5. Electricity purchase EH             → in TAC (price_supply_el_eh)
+6. Reststrom purchase                  → NOT in TAC! Add in postprocessing
+7. Gas, biomass, etc.                  → in TAC ✓
 
+REVENUES (inflows):
+-------------------
+1. EH → Mieter (electricity)           → in TAC (rev_local_el at p_ms - VAT only!)
+2. PV btm → Mieter                     → NOT in TAC, add in postprocessing
+3. PV → Grid (export)                  → NOT in TAC, add in postprocessing
+4. Reststrom → Mieter                  → NOT in TAC, add in postprocessing
+5. Heat → Mieter                       → This IS p_min (what we're solving for)
+
+ELECTRICITY PRICING:
+====================
+- p_ms = α × p_retail                  (Mieterstrom price to tenants)
+- p_ms_net = p_ms - VAT only!          (No grid fees because operator owns grid)
+
+RESTSTROM:
+==========
+- Operator buys at p_purchase_eh (includes all fees for that voltage level)
+- Operator sells at p_ms (full Mieterstrom price)
+- Margin = p_ms - p_purchase_eh > 0 (positive!)
+
+p_min: minimum cost-covering heat selling price (NPV = 0).
 p_max: read from ecoData["p_max"] (set manually after reference run).
 """
 
@@ -89,7 +112,7 @@ class KundenanlageBM(BusinessModelBase):
             din_csv_path=din_csv_path,
             write_back_to_buildings=True,
         )
-        data.site["enable_buildingMax_W"] = False
+        data.site["enable_buildingMax_W"] = True
 
         # ── Step 2: Trafo sizing (always, regardless of auto_size_trafo) ─
         summary = trafo_limit_from_house_connection_limits(
@@ -122,20 +145,41 @@ class KundenanlageBM(BusinessModelBase):
         return summary
 
     # ------------------------------------------------------------------
-
+    # modify_params -- called before the optimiser runs
     # ------------------------------------------------------------------
 
     def get_price_el_revenue_by_year(self) -> dict:
         """
         Full tenant tariff for local delivery in Kundenanlage.
-        No grid fees deducted because operator owns the local grid.
+        Only VAT deducted because operator owns the local grid.
+
+        p_ms_net = α × p_retail - VAT
+
+        (No grid fees or levies because no DSO grid is used internally)
+
+        NOTE: This is for EH → Mieter delivery via internal grid.
         """
         alpha = self.ecoData["alpha"]
         share_vat = self.ecoData["share_el_vat"]
-        return {  year: (
+
+        return {
+            year: (
                     alpha * self.all_sim_ecoData[year]["price_supply_el"]
                     - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
             )
+            for year in self.interpolation_points
+        }
+
+    def get_price_reststrom_purchase_by_year(self) -> dict:
+        """
+        Reststrom purchase price per year [EUR/kWh].
+
+        Kundenanlage: Operator buys Reststrom at EH price (bulk purchase
+        from higher voltage level). This price already includes all
+        applicable grid fees and levies for that voltage level.
+        """
+        return {
+            year: self.all_sim_ecoData[year]["price_supply_el_eh"]
             for year in self.interpolation_points
         }
 
@@ -145,83 +189,143 @@ class KundenanlageBM(BusinessModelBase):
 
     def calculate_kpis(self, kpis, data, result: dict) -> None:
         """
-        p_min = (TAC + c_pv_ann + c_elgrid_ann - rev_pv_btm - rev_pv_export) / Q_heat
+        Calculate p_min for Kundenanlage business model.
 
-        Cost structure and system boundary:
+        Formula:
+            p_min = (TAC + c_pv_ann + c_elgrid_ann + c_reststrom
+                     - rev_pv_btm - rev_pv_export - rev_reststrom) / Q_heat
 
-        TAC (from the optimizer):
-            Includes only costs and revenues of the central energy hub (EH):
-            - capital and operating costs of EH components
-            - energy procurement costs (electricity, gas, etc.)
-            - revenues from local electricity supply from the EH to consumers
-              (rev_local_el, valued at p_ms)
-            - revenues from EH electricity feed-in to the public grid
-              (rev_feed_in_el)
+        Where:
+            TAC = Total Annual Cost from dimensioning optimizer, includes:
+                  - EH capital + O&M
+                  - Heat network costs
+                  - EH energy procurement (electricity, gas, etc.)
+                  - MINUS: rev_local_el (EH → Mieter at p_ms - VAT)
+                  NOTE: TAC does NOT include Reststrom costs!
 
-            NOT included: decentralized building PV (neither costs nor revenues).
+            c_pv_ann = Annualized cost of decentral PV systems
 
-        Explicitly post-processed terms (not included in the optimizer):
+            c_elgrid_ann = Annualized cost of local electricity grid
+                         = cables + transformer (sized per DIN)
 
-            c_pv_ann:        annualized investment + O&M costs of decentralized PV systems
-            c_elgrid_ann:    annualized cost of the local electricity grid
-                             (cables + transformer)
-            rev_pv_btm:      revenues from PV self-consumption within the building
-                             (valued at p_ms)
-            rev_pv_export:   revenues from PV feed-in to the public grid
-                             (feed-in tariff)
+            c_reststrom = Cost of purchasing Reststrom from public grid
+                        = E_reststrom × p_purchase_eh
+                        The purchase price already includes all grid fees!
 
-        Symmetry principle:
-            Both costs and revenues of decentralized PV are accounted for explicitly.
-            This mirrors the structure used in the tenant electricity model (BM 2.3)
-            and ensures that the allocation remains transparent and consistent.
+            rev_pv_btm = Revenue from PV self-consumption
+                       = E_pv_btm × p_ms (full Mieterstrom price)
 
-        Customer installation specific features:
-            - Own local grid -> no grid fees for EH-to-consumer or PV-to-consumer delivery
-            - p_ms = alpha * p_ret (full tariff, no deductions)
-            - local grid costs (c_elgrid_ann) are included in p_min
+            rev_pv_export = Revenue from PV grid export
+                          = E_pv_export × p_feed_in
+
+            rev_reststrom = Revenue from selling Reststrom to tenants
+                          = E_reststrom × p_ms (FULL Mieterstrom price!)
+
+                          IMPORTANT: Same as Mieterstrom - operator gets full p_ms!
+                          The grid fees are already in the purchase price.
+
+        Net Reststrom margin = rev_reststrom - c_reststrom
+                             = E_reststrom × (p_ms - p_purchase_eh)
+                             > 0 (positive margin!)
         """
-
         support_years = sorted(result["rev_local_el_by_year"].keys())
         weights = self._support_year_weights(support_years)
+        n_obs = int(self.ecoData["observation_time"])
 
-        # --- PV flows from decentral building PV ---
+        alpha = self.ecoData["alpha"]
+
+        # --- PV electricity flows [MWh/a] ---
         pv_flows = self._calc_pv_flows(data, result)
         E_pv_btm_MWh = pv_flows["E_pv_btm_MWh"]
         E_pv_export_MWh = pv_flows["E_pv_export_MWh"]
 
-        # --- Prices [EUR/kWh] ---
-        p_ms_avg = self._weighted_avg_price("price_supply_el", support_years, weights) * self.ecoData["alpha"]
+        # --- Average prices [EUR/kWh] ---
+        p_retail_avg = self._weighted_avg_price("price_supply_el", support_years, weights)
+        p_ms = alpha * p_retail_avg  # Mieterstrom price (what tenant pays)
         p_feedin_avg = self._weighted_avg_price("revenue_feed_in_el", support_years, weights)
 
-        # --- Revenues from decentral PV [EUR/a] ---
-        rev_pv_btm = E_pv_btm_MWh * p_ms_avg * 1000
+        # --- Revenue from PV self-consumption [EUR/a] ---
+        # Tenant pays p_ms for every kWh consumed from building PV
+        # Same as Mieterstrom - no grid fees behind the meter anyway
+        rev_pv_btm = E_pv_btm_MWh * p_ms * 1000
+
+        # --- Revenue from PV grid export [EUR/a] ---
         rev_pv_export = E_pv_export_MWh * p_feedin_avg * 1000
+
+        # --- Reststrom: Purchase cost AND Sale revenue [EUR/a] ---
+        ann_reststrom_MWh = self._calc_reststrom(data, result)
+
+        # Purchase price: Operator buys at EH price (includes all fees for that level)
+        price_purchase_by_year = self.get_price_reststrom_purchase_by_year()
+        p_purchase_avg = sum(
+            price_purchase_by_year[y] * weights[y] for y in support_years
+        ) / n_obs
+
+        # Reststrom costs (purchase) - NOT in TAC, must add here!
+        c_reststrom = ann_reststrom_MWh * p_purchase_avg * 1000
+
+        # Reststrom revenue (sale to tenants at FULL p_ms!)
+        # Same logic as Mieterstrom: operator buys at p_purchase, sells at p_ms
+        rev_reststrom = ann_reststrom_MWh * p_ms * 1000
 
         # --- Additional annual costs [EUR/a] ---
         c_pv_ann = self._calc_decentral_pv_annual_cost(kpis)
         c_elgrid_ann = self._calc_elgrid_annual_cost(data)
 
-        c_tot = result["tac"] + c_pv_ann + c_elgrid_ann - rev_pv_btm - rev_pv_export
+        # --- Total annual cost for heat price calculation ---
+        c_tot = (
+                result["tac"]  # EH + network + EH energy costs - EH electricity revenue
+                + c_pv_ann  # Add: decentral PV costs
+                + c_elgrid_ann  # Add: local electricity grid costs
+                + c_reststrom  # Add: Reststrom purchase costs (NOT in TAC!)
+                - rev_pv_btm  # Subtract: PV self-consumption revenue
+                - rev_pv_export  # Subtract: PV export revenue
+                - rev_reststrom  # Subtract: Reststrom sale revenue (at full p_ms!)
+        )
+
+        # --- Heat delivered to consumers [kWh/a] ---
         Q_heat = self._Q_heat_delivered(data)
 
+        # --- Calculate p_min ---
         kpis.p_min = c_tot / Q_heat if Q_heat > 0 else None
         kpis.p_max = self.ecoData.get("p_max", None)
 
-        # --- Store diagnostics / transparency ---
+        # --- Store diagnostic values for transparency ---
+        kpis.kundenanlage_breakdown = {
+            'tac': result["tac"],
+            'c_pv_ann': c_pv_ann,
+            'c_elgrid_ann': c_elgrid_ann,
+            'c_reststrom': c_reststrom,
+            'rev_pv_btm': rev_pv_btm,
+            'rev_pv_export': rev_pv_export,
+            'rev_reststrom': rev_reststrom,
+            'reststrom_margin': rev_reststrom - c_reststrom,
+            'c_tot': c_tot,
+            'Q_heat_kWh': Q_heat,
+            'E_pv_btm_MWh': E_pv_btm_MWh,
+            'E_pv_export_MWh': E_pv_export_MWh,
+            'E_reststrom_MWh': ann_reststrom_MWh,
+            'p_ms_EUR_kWh': p_ms,
+            'p_purchase_EUR_kWh': p_purchase_avg,
+            'p_feedin_EUR_kWh': p_feedin_avg,
+            'alpha': alpha,
+            'trafo_kVA': data.site.get("kundenanlage_trafo_kVA", None),
+        }
+
+        # Legacy attributes for backward compatibility
         kpis.c_pv_ann = c_pv_ann
         kpis.c_elgrid_ann = c_elgrid_ann
+        kpis.c_reststrom_kundenanlage = c_reststrom
         kpis.kundenanlage_trafo_kVA = data.site.get("kundenanlage_trafo_kVA", None)
-
         kpis.pv_flows_kundenanlage = pv_flows
+        kpis.reststrom_MWh = ann_reststrom_MWh
         kpis.rev_pv_btm_kundenanlage = rev_pv_btm
         kpis.rev_pv_export_kundenanlage = rev_pv_export
-
+        kpis.rev_reststrom_kundenanlage = rev_reststrom
         kpis.rev_local_el = result.get("rev_local_el", None)
         kpis.rev_feed_in_el = result.get("rev_feed_in_el", None)
         kpis.rev_local_el_by_year = result.get("rev_local_el_by_year", {})
         kpis.rev_feed_in_el_by_year = result.get("rev_feed_in_el_by_year", {})
-
-        kpis.reststrom_MWh = self._calc_reststrom(data, result)
 
     # ------------------------------------------------------------------
     # Private helpers

@@ -2,12 +2,28 @@
 """
 Abstract base class for all business models.
 
-Each subclass implements modify_params (sets price_el_revenue before the
-optimizer) and calculate_kpis (computes p_min / p_max from the results).
+Each subclass implements get_price_el_revenue_by_year (sets price_el_revenue
+before the optimizer) and calculate_kpis (computes p_min / p_max from results).
 Optionally, configure_grid_constraints can be overridden for BMs that
 own the local electricity grid (Kundenanlage).
 
 Subclasses are looked up by ecoData["business_model"] via BM_REGISTRY.
+
+=====================================================
+In load_params_central_devices.py:
+    dem["power"] = elec + EV - PV + pump
+
+The PV split used in _calc_pv_flows() is:
+    demand = elec + EV
+    btm = min(PV, demand)
+    export = PV - btm
+
+This is consistent because:
+    dem["power"] = demand - PV + pump
+                 = (btm + residual) - (btm + export) + pump
+                 = residual - export + pump
+
+where residual = demand - btm = electricity demand after on-site PV self-consumption
 """
 
 from abc import ABC, abstractmethod
@@ -28,7 +44,6 @@ from districtgenerator.functions.trafo_sizing import (
 class BusinessModelBase(ABC):
     """
     Abstract base class for business models.
-
     """
 
     def __init__(self, ecoData: dict, all_sim_ecoData: dict, interpolation_points: list):
@@ -107,7 +122,7 @@ class BusinessModelBase(ABC):
             din_csv_path=din_csv_path,
             write_back_to_buildings=True,
         )
-        data.site["enable_buildingMax_W"] = False
+        data.site["enable_buildingMax_W"] = True
 
         # ── Step 2: Transformer sizing (cascade) ─────────────────────
         auto_size = data.site.get("auto_size_trafo", True)
@@ -129,9 +144,9 @@ class BusinessModelBase(ABC):
             # Warn if sizing exceeds largest available NS trafo
             if summary["chosen_transformer_kVA"] >= max(trafo_steps):
                 print(
-                    f"INFO: DIN-basierte Trafogröße "
-                    f"({summary['required_kVA']:.0f} kVA benötigt) erreicht "
-                    f"größte NS-Stufe ({max(trafo_steps)} kVA)."
+                    f"INFO: DIN-based transformer size "
+                    f"({summary['required_kVA']:.0f} kVA required) reaches "
+                    f"the largest LV step ({max(trafo_steps)} kVA)."
                 )
         else:
             # Manual mode: keep trafoMax_W and enable_trafoMax_W from config
@@ -144,7 +159,13 @@ class BusinessModelBase(ABC):
     # ------------------------------------------------------------------
 
     def _support_year_weights(self, support_years: list) -> dict:
+        """
+        Calculate weights for multi-year NPV calculation.
 
+        Each support year represents an interval until the next support year
+        (or end of observation period for the last year).
+
+        """
         n_obs = int(self.ecoData["observation_time"])
         sorted_years = sorted(support_years)
         return {
@@ -201,48 +222,82 @@ class BusinessModelBase(ABC):
         return total
 
     # ------------------------------------------------------------------
-    # electricity flow calculations
+    # Electricity flow calculations
     # ------------------------------------------------------------------
 
     def _calc_pv_flows(self, data, result: dict) -> dict:
         """
-        Decentral PV electricity flows via timestep-accurate matching [MWh/a].
+        Decentral PV electricity flows based on the actual optimiser results [MWh/a].
 
-        For each building and timestep, btm usage is min(PV_gen, demand).
-        The remainder is exported. Profiles are full-year (8760h), so
-        cluster weights do not apply here.
+        For each support year, cluster, building, and time step:
+            pv_btm(t)    = min(PV_actual(t), Elec_dem_actual(t))
+            pv_export(t) = PV_actual(t) - pv_btm(t)
 
-        Returns dict with E_pv_total_MWh, E_pv_btm_MWh, E_pv_export_MWh.
+        Uses:
+            data.resultsOptimization[year][cluster][n]["PV"]["P_el"]
+            data.resultsOptimization[year][cluster][n]["Elec_dem"]["P_el"]
+
+        Clusters are weighted with data.clusterWeights,
+        and years are weighted with the support-year weights over the
+        observation period.
+
+        Returns:
+            dict: E_pv_total_MWh, E_pv_btm_MWh, E_pv_export_MWh
         """
         support_years = sorted(result.get("rev_local_el_by_year", {}).keys())
         if not support_years:
-            return {"E_pv_total_MWh": 0.0, "E_pv_btm_MWh": 0.0, "E_pv_export_MWh": 0.0}
+            return {
+                "E_pv_total_MWh": 0.0,
+                "E_pv_btm_MWh": 0.0,
+                "E_pv_export_MWh": 0.0,
+            }
 
-        weights = self._support_year_weights(support_years)
+        year_weights = self._support_year_weights(support_years)
         n_obs = int(self.ecoData["observation_time"])
-        dt = float(data.time["timeResolution"])
 
-        # Annual PV flows from full-year profiles
-        E_pv_total_Wh = 0.0
-        E_pv_btm_Wh = 0.0
+        dt = float(data.time["timeResolution"])  # [s]
+        factor_W_to_MWh = dt / 3600.0 / 1e6  # W -> MWh per time step
 
-        for n in range(len(data.district)):
-            pv_profile = np.array(data.district[n]["generationPV"], dtype=float)
-            demand_profile = (
-                np.array(data.district[n]["user"].elec, dtype=float) +
-                np.array(data.district[n]["user"].EV_carcharging_ondemand, dtype=float)
-            )
+        clusters = list(getattr(data, "clusters", range(data.time["clusterNumber"])))
+        cluster_weights = data.clusterWeights
 
-            btm = np.minimum(pv_profile, demand_profile)
-            E_pv_total_Wh += float(np.sum(pv_profile)) * dt / 3600.0   # W * s / 3600 = Wh
-            E_pv_btm_Wh += float(np.sum(btm)) * dt / 3600.0
+        E_pv_total_MWh_by_year = {}
+        E_pv_btm_MWh_by_year = {}
 
-        E_pv_total_MWh_annual = E_pv_total_Wh / 1e6
-        E_pv_btm_MWh_annual = E_pv_btm_Wh / 1e6
+        for year in support_years:
+            E_pv_total_MWh_year = 0.0
+            E_pv_btm_MWh_year = 0.0
 
-        # Year-weighted average
-        E_pv_total_MWh = sum(E_pv_total_MWh_annual * weights[y] for y in support_years) / n_obs
-        E_pv_btm_MWh = sum(E_pv_btm_MWh_annual * weights[y] for y in support_years) / n_obs
+            for c in range(len(clusters)):
+                cw = float(cluster_weights[clusters[c]])
+                cluster_result = data.resultsOptimization[year][c]
+
+                for n in range(len(data.district)):
+                    building_result = cluster_result[n]
+
+                    pv_profile = np.array(building_result["PV"]["P_el"], dtype=float)
+                    demand_profile = np.array(building_result["Elec_dem"]["P_el"], dtype=float)
+
+                    T = min(len(pv_profile), len(demand_profile))
+                    pv_profile = np.clip(pv_profile[:T], 0.0, None)
+                    demand_profile = np.clip(demand_profile[:T], 0.0, None)
+
+                    pv_btm = np.minimum(pv_profile, demand_profile)
+
+                    E_pv_total_MWh_year += cw * float(np.sum(pv_profile)) * factor_W_to_MWh
+                    E_pv_btm_MWh_year += cw * float(np.sum(pv_btm)) * factor_W_to_MWh
+
+            E_pv_total_MWh_by_year[year] = E_pv_total_MWh_year
+            E_pv_btm_MWh_by_year[year] = E_pv_btm_MWh_year
+
+        E_pv_total_MWh = sum(
+            E_pv_total_MWh_by_year[y] * year_weights[y] for y in support_years
+        ) / n_obs
+
+        E_pv_btm_MWh = sum(
+            E_pv_btm_MWh_by_year[y] * year_weights[y] for y in support_years
+        ) / n_obs
+
         E_pv_export_MWh = E_pv_total_MWh - E_pv_btm_MWh
 
         return {
@@ -263,11 +318,24 @@ class BusinessModelBase(ABC):
         return sum(yearly[y] * weights[y] for y in support_years) / n_obs
 
     def _calc_reststrom(self, data, result: dict) -> float:
-        """Annual grid electricity purchased by buildings [MWh/a]."""
+        """
+        Annual residual electricity demand of the buildings [MWh/a].
+
+        This is the share of building demand that is not covered by local
+        supply, e.g. PV or electricity provided by the energy hub, and
+        therefore has to be imported from the public grid.
+
+        In the business-model post-processing, this value is used as a proxy
+        for the externally procured residual electricity volume.
+        """
         return self._annualized_yearly_value(result, "from_el_grid_buildings_by_year")
 
     def _calc_eh_to_buildings(self, data, result: dict) -> float:
-        """Annual electricity delivered from Energy Hub to buildings [MWh/a]."""
+        """
+        Annual electricity supplied from the energy hub to the buildings [MWh/a].
+
+        Corresponds to p_loc_to_cons in the optimiser.
+        """
         return self._annualized_yearly_value(result, "to_local_el_total_by_year")
 
     # ------------------------------------------------------------------
@@ -291,7 +359,6 @@ class BusinessModelBase(ABC):
         eco["price_el_revenue"] = self.get_price_el_revenue_by_year().get(year, 0.0)
         return eco
 
-
     def calculate_kpis(self, kpis, data, result: dict) -> None:
         """
         Compute p_min and p_max after the optimiser has finished.
@@ -300,4 +367,24 @@ class BusinessModelBase(ABC):
         kpis.p_max (maximum acceptable price from reference run).
         The result dict contains the optimizer outputs including "tac",
         per-year revenues and energy flows.
+
+        IMPORTANT for subclasses:
+        ========================
+        p_min = C_tot / Q_heat
+
+        where C_tot = TAC + (additional costs) - (additional revenues)
+
+        TAC already includes:
+        - EH capital costs + O&M
+        - heat grid costs
+        - energy procurement costs (EH + buildings)
+        - MINUS: rev_local_el (EH -> consumer revenues)
+        - MINUS: rev_feed_in_el (EH -> grid feed-in revenues)
+
+        Depending on the business model, the following must be added in the
+        post-processing:
+        - Mieterstrom / Kundenanlage: +c_pv_ann, -rev_pv_btm, -rev_pv_export, -rev_reststrom
+        - Kundenanlage additionally: +c_elgrid_ann
+        - Cooperative: +c_pv_ann, -credit_avoided, -credit_pv_feedin
         """
+        pass

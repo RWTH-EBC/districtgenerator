@@ -1390,7 +1390,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
                 - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
                 + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
-                - model.to_grid_total_el_eh * ecoData["price_el_revenue"]
+                - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
                 + model.total_biomass_used * ecoData["price_biomass"]

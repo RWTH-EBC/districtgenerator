@@ -15,7 +15,7 @@ def example8_scenario_evaluation():
     warnings.filterwarnings("ignore", category=FutureWarning)
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_F_buildings_9", env_path=".env.CONFIG.Kundenanlage")
+    data = Datahandler(scenario_name = "district_C_buildings_20", env_path=".env.CONFIG.Mietstrom")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -44,8 +44,8 @@ def example8_scenario_evaluation():
     # data.KPIs.create_certificate(data=data, result_path=data.resultPath)
 
     # Create balance plots
-    #plot_single_year(data, year=0)  # zuerst nur ein Stützjahr zum Testen
-    plot_all(data)                 # später: alle Stützjahre
+    #plot_single_year(data, year=0)
+    plot_all(data)
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
     return data

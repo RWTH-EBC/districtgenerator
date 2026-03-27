@@ -37,7 +37,6 @@ from districtgenerator.functions.heating_network_simple import calculate_soil_te
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, ElGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 from .plots_balances import plot_all, plot_single_year
 
-
 class Datahandler:
     """
     Abstract class for data handling.
@@ -278,7 +277,7 @@ class Datahandler:
             self.heat_grid_data[attr] = value
 
         # load electricity grid data (Kundenanlage BM 2.4)
-        for attr, value in el_grid_config.__dict__.items():  # <-- NEU
+        for attr, value in el_grid_config.__dict__.items():
             self.el_grid_data[attr] = value
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
@@ -2161,8 +2160,7 @@ class Datahandler:
 
         # select the relevant subset of ecoData for optimization
         single_value_keys = [
-            'num_interpolation_points', 'interpolation_points', 'observation_time',
-            'interest_rate', 'optimization_focus',
+            'num_interpolation_points', 'interpolation_points', 'observation_time','interest_rate', 'optimization_focus',
             # BM / constant components
             'business_model', 'alpha','share_el_energy', 'share_el_grid', 'share_el_levies', 'share_el_vat',
         ]

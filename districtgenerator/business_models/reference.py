@@ -23,9 +23,9 @@ import numpy as np
 
 class ReferenceBM(BusinessModelBase):
 
-    def modify_params(self, param: dict) -> None:
-        """No local electricity revenue."""
-        param["price_el_revenue"] = {y: 0.0 for y in self.interpolation_points}
+    def get_price_el_revenue_by_year(self) -> dict:
+        """No local electricity revenue in the reference case."""
+        return {y: 0.0 for y in self.interpolation_points}
 
     def calculate_kpis(self, kpis, data, result: dict) -> None:
         """
@@ -75,15 +75,14 @@ class ReferenceBM(BusinessModelBase):
         Calculate the Net Present Value (NPV) of the reference case.
 
         NPV calculation for decentralized heating system:
-          NPV = -Σ (Annual_Costs_t / (1+r)^t) for t = 0 to observation_time
+          NPV = -Annual_Heat_Costs * pv_factor
 
-        Annual costs include:
-          - Fixed costs: Annualized CAPEX + O&M for decentral devices
-          - Variable costs: Fuel (gas) and electricity for heating
+        Annual heat costs include (consistent with LCOH calculation):
+          - Fixed costs: Annualized CAPEX + O&M for heating devices (BOI, TES)
+          - Variable costs: Fuel (gas) for heating
 
-        Note: NPV is negative because it represents costs (outflows).
-        For comparison: NPV_coop >= NPV_ref means cooperative is better
-        (less negative = lower costs).
+        NOTE: Household electricity is NOT included - this is a heat cost comparison.
+        The NPV should be consistent with p_max (LCOH) calculation.
 
         Returns
         -------
@@ -97,7 +96,8 @@ class ReferenceBM(BusinessModelBase):
         year_weights = self._support_year_weights(support_years)
 
         # --- Fixed costs (annualized CAPEX + O&M) ---
-        # Sum of all decentral device costs for BOI buildings
+        # Only include heat-related devices for BOI buildings
+        heat_devices = {"BOI", "TES", "STC"}
         annual_fixed_costs = 0.0
 
         for n, devs in kpis.decentral_individual_devices_annualized_cost.items():
@@ -105,24 +105,19 @@ class ReferenceBM(BusinessModelBase):
             if heater != "BOI":
                 continue
             for dev, info in devs.items():
-                annual_fixed_costs += float(info.get("subsidized_annual_cost", 0.0))
+                if dev in heat_devices:
+                    annual_fixed_costs += float(info.get("subsidized_annual_cost", 0.0))
 
-        # --- Variable costs (fuel, electricity) ---
-        # Calculate weighted average operation costs across support years
-        # Operation costs include fuel costs for heating
-
-        variable_costs_per_year = {}
+        # --- Variable costs (fuel only, NO household electricity) ---
         dt = float(data.time["timeResolution"])
+        variable_costs_per_year = {}
 
         for year in support_years:
             eco = data.all_sim_ecoData[year]
             price_gas = eco["price_supply_gas"]
-            price_el = eco["price_supply_el"]
 
             fuel_cost = 0.0
-            el_cost = 0.0
 
-            # Loop over clusters
             clusters = list(kpis.inputData["clusters"])
             cweights = kpis.inputData["clusterWeights"]
 
@@ -130,7 +125,6 @@ class ReferenceBM(BusinessModelBase):
                 cw = float(cweights[clusters[c]])
                 cluster_results = kpis.inputData["resultsOptimization"][year][c]
 
-                # Loop over BOI buildings
                 for n in range(len(data.district)):
                     heater = data.district[n]["buildingFeatures"].get("heater", "").upper()
                     if heater != "BOI":
@@ -139,20 +133,14 @@ class ReferenceBM(BusinessModelBase):
                     res = cluster_results[n]
                     T = len(res.get("res_load", []))
 
-                    # Gas consumption for BOI
+                    # Gas consumption for BOI (only fuel cost, no electricity)
                     if "BOI" in res:
                         Q = np.array(res["BOI"].get("Q_th", [0] * T))
                         eta = data.decentral_device_data["BOI"]["eta_th"]
                         fuel = Q.sum() / eta * dt / 3600 / 1000  # kWh
                         fuel_cost += cw * fuel * price_gas
 
-                    # Electricity for auxiliary equipment (pumps, controls)
-                    # This is typically included in res_load
-                    grid_load = np.array(res.get("res_load", [0] * T))
-                    el_kWh = grid_load.sum() * dt / 3600 / 1000
-                    el_cost += cw * el_kWh * price_el
-
-            variable_costs_per_year[year] = fuel_cost + el_cost
+            variable_costs_per_year[year] = fuel_cost
 
         # Calculate weighted average variable costs
         avg_variable_costs = sum(
@@ -160,11 +148,10 @@ class ReferenceBM(BusinessModelBase):
             for y in support_years
         ) / n_obs
 
-        # --- Total annual costs ---
+        # --- Total annual heat costs ---
         annual_cost_ref = annual_fixed_costs + avg_variable_costs
 
         # --- Calculate NPV ---
-        # Present value factor for annuity: (1 - (1+i)^-n) / i
         if i != 0:
             pv_factor = (1 - (1 / q) ** n_obs) / i
         else:

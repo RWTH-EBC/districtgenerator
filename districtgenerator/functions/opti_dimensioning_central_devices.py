@@ -351,7 +351,12 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(
                     model.p_loc_to_cons[y, d, t] <= p_loc_gen
                 )  # Local electricity supply cannot exceed locally generated electricity
-
+                # Consistency: locally generated electricity that is not exported
+                # must be booked as local delivery. This ensures rev_local_el
+                # correctly reflects the physical flow to consumers.
+                model.constraints.add(
+                    model.p_loc_to_cons[y, d, t] >= p_loc_gen - model.power["to_grid", y, d, t]
+                )
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
     ################################################################################

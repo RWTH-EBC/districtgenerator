@@ -14,6 +14,19 @@ use function scenario_generation to generate the district layout
 and save the parameters and plot in districtgenerator/data/scenarios
 '''
 
+def get_next_variant_folder(base_dir, district_type):
+    type_dir = os.path.join(base_dir, f"District_{district_type}")
+    os.makedirs(type_dir, exist_ok=True)
+
+    counter = 1
+    while True:
+        variant_id = f"{district_type}{counter:02d}"
+        variant_dir = os.path.join(type_dir, variant_id)
+        if not os.path.exists(variant_dir):
+            os.makedirs(variant_dir)
+            return variant_id, variant_dir
+        counter += 1
+
 def get_unique_filename(base_path):
     '''
     Generates a unique filename by appending an incremental number if the file already exists
@@ -50,7 +63,7 @@ def scenario_generation():
     None
     """
     # %% STEP ONE: set parameters for the model
-    num_buildings = int(input("\nEnter the number of buildings: "))
+    num_buildings = 30 #int(input("\nEnter the number of buildings: "))
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
     # building_density = 5
     building_density_min = params["gebaeude_pro_ha"]["min"]  # buildings per hectare
@@ -365,6 +378,8 @@ def scenario_generation():
     sum_age = sum(age_percents)
     age_percents = [p / sum_age for p in age_percents]
     counts = [int(round(n_total * p)) for p in age_percents]
+    diff = n_total - sum(counts)
+    counts[-1] += diff #fix for buildings without construction year
     age_list = []
     for cat, count in zip(age_categories, counts):
         age_list.extend([cat] * count)
@@ -496,18 +511,18 @@ def scenario_generation():
 
     # 6 Save the plot and json-file
     current_dir = os.path.dirname(__file__)
-    save_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+    base_dir = os.path.join(current_dir, '..', 'data', 'scenarios')
+
+    variant_id, save_dir = get_next_variant_folder(base_dir, district_type)
     # create the folder if it doesn't exist
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     plot_filename_png = os.path.join(
-        save_dir,
-        f"district_layout_{district_type}_buildings_{len(buildings)}.png"
+        save_dir, "district_layout.png"
     )
     plot_filename_svg = os.path.join(
-        save_dir,
-        f"district_layout_{district_type}_buildings_{len(buildings)}.svg"
+        save_dir, "district_layout.svg"
     )
 
     plt.savefig(plot_filename_png, dpi=300)
@@ -531,8 +546,8 @@ def scenario_generation():
             "retrofit_level": bld["retrofit_level"]})
 
     # Save parameters
-    params_filename = os.path.join(save_dir,
-                                   f"district_{district_type}_buildings_{len(buildings)}.json")
+    params_filename = os.path.join(save_dir, f"{variant_id}.json")
+
     # params_filename = get_unique_filename(params_filename)
 
     with open(params_filename, 'w') as f:
@@ -551,7 +566,7 @@ def scenario_generation():
         "area", "number_of_floors",
         "heater", "cooling", "EV", "f_TES", "f_BAT", "f_PV1", "f_PV2", "f_STC", "gamma_PV", "ev_charging"
     ]
-    csv_filename = params_filename.replace('.json', '.csv')
+    csv_filename = os.path.join(save_dir, f"{variant_id}_bm.csv")
     with open(csv_filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile, delimiter=";")
         writer.writerow(csv_header)
@@ -598,7 +613,7 @@ def scenario_generation():
             ev_val = "0"                    # Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude
             f_TES_val = "35"                # Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage
             f_BAT_val = "0"                 # Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV
-            f_PV1_val = "0.4"               # Zwischen 0 und 1; Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)
+            f_PV1_val = "0.3"               # Zwischen 0 und 1; Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)
             f_PV2_val = "0"                 # ??? Zwischen 0 und 1; Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)
             f_STC_val = "0"                 # Zwischen 0 und 1; Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)
             gamma_PV_val = "0"              # Azimut = Himmelsausrichtung der PV-Anlage, Ausrichtung nach Süden: 0°
