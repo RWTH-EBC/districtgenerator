@@ -8,6 +8,8 @@ This script is a Pyomo-based translation of the original Gurobi model.
 
 
 
+from xml.parsers.expat import model
+
 import pyomo.environ as pyo
 import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
@@ -194,6 +196,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Investment costs (same for all years) indexed by district
     model.inv = pyo.Var(model.all_devs, model.districts, within=pyo.NonNegativeReals)    # subsidized investment costs payed by the investor
     model.inv_base = pyo.Var(model.all_devs, model.districts, within=pyo.NonNegativeReals)  # unsubsidized investment costs
+    model.inv_sub_1tes = pyo.Var(model.districts, within=pyo.NonNegativeReals)  # subsidy amount for TES based on KWKG subsidy, new for network
     model.c_inv = pyo.Var(model.all_devs, model.districts, within=pyo.NonNegativeReals)
     model.c_inv_base = pyo.Var(model.all_devs, model.districts, within=pyo.NonNegativeReals)  # unsubsidized annualized investment costs
     model.c_om = pyo.Var(model.all_devs, model.districts, within=pyo.NonNegativeReals)
@@ -214,7 +217,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     model.cap_seg = pyo.Var(model.segments, model.segment_devs, model.districts, within=pyo.NonNegativeReals)  # new for network
 
     ## Binary variable to decide if size if TES > 250 m² for KWKG subsidy
-    # model.tes_kwkg_binary = pyo.Var(model.districts, within=pyo.Binary)  # new for network
+    model.tes_kwkg_binary = pyo.Var(model.districts, within=pyo.Binary)  # new for network
 
     # Yearly total energy flows - indexed by support year and district
     model.from_el_grid_total = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals) 
@@ -243,6 +246,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Annualized costs and total costs per support year and district
     model.total_annual_costs_devices = pyo.Var(model.districts,within=pyo.NonNegativeReals)                 # Total annual costs for devices (inv and om)
     model.heat_grid_costs = pyo.Var(model.districts,within=pyo.NonNegativeReals)                            # Total annual costs for heat grid (inv and om)
+    model.heat_grid_costs_base = pyo.Var(model.districts,within=pyo.NonNegativeReals)               # Total annual costs for heat grid (inv and om) without subsidy
     model.total_energy_costs = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)    # Total energy costs per year
     model.annualized_energy_costs = pyo.Var(model.districts, within=pyo.NonNegativeReals)                    # Annualized energy costs
     model.misc_costs = pyo.Var(model.districts, model.support_years, within=pyo.NonNegativeReals)            # e.g., CO2 costs, insurance, other taxes etc.
@@ -792,6 +796,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             param = paramCon[district]
             devs = devsCon[district]
             for y in model.support_years:
+                # Enforce legal heating contraints for each device, district, and year
                 for dev in model.heat_devs:
                     # Calculate total heat generation per device and district per year
                     model.constraints.add(model.heat_gen[dev, district,y] == dt * sum(
@@ -807,6 +812,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                     +model.heat_gen["EB", district, y] * param["renewable_el_grid_share"][y]
                     >= param["renewable_heat_share"][y] * model.heat_sum[district,y]
                 )
+            
 
         # Enforce that the total installed capacity of heat generation technologies is sufficient to meet the peak heat demand
         # considering the renewable share requirement
@@ -865,32 +871,10 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         model.constraints.add(model.cap_costs_gas[district] == model.grid_limit_gas[district] * param["price_cap_gas"])
 
         # Investment and operational costs for each device (Annualized)
-        # Test for BBOI
-    
-
-    Big_M = 1e8  # Big M for enforcing conditional constraints on investment costs based on capacity regimes
-    EPS = 1e-3  # Small epsilon to model strict inequalities (e.g., cap > 10000 kW)
-    # #Constraint 1: If cap_small = 1, then cap <= 10000 kW
-    # def small_boi_rule(model, district):
-    #     return model.cap["BOI", district] <= param["BOI__Cap_switch"] + Big_M * (1 - model.cap_small[district])
-    
-    # # Constraint 2: If cap_small = 0, then cap > 10000 kW
-    # def large_boi_rule(model, district):
-    #     return model.cap["BOI", district] >= (param["BOI__Cap_switch"] + EPS) - Big_M * model.cap_small[district]
-    
-    # def inv_boi_rule(model, district):
-    #     devs = devsCon[district]
-    #     return model.inv["BOI", district] == devs["BOI"]["inv_small"] * model.cap["BOI", district] * model.cap_small[district] + devs["BOI"]["inv_large"] * model.cap["BOI", district] * (1 - model.cap_small[district])
-    
-    # model.small_boi_constraint = pyo.Constraint(model.districts, rule=small_boi_rule)
-    # model.large_boi_constraint = pyo.Constraint(model.districts, rule=large_boi_rule)
-    # model.inv_boi_constraint = pyo.Constraint(model.districts, rule=inv_boi_rule)
-
+    # New TJA
+    # Linearization of investment costs for devices with piecewise linear cost functions (e.g., heat pumps, boilers) based on selected capacity segments
     for district in model.districts:
         devs = devsCon[district]
-        param = paramCon[district]
-        data = dataCon[district]
-
         for dev in model.all_devs:
             if devs[dev]["lin_feasible"]== True:
                 # Enforce that only one segment can be selected for linearized devices
@@ -898,7 +882,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                 # Define upper boundries of each segment
                 model.constraints.add(model.cap_seg["small",dev, district]<=model.cap_bin["small",dev, district] * devs[dev]["inv_size2"])
                 model.constraints.add(model.cap_seg["medium",dev, district]<=model.cap_bin["medium",dev, district] * devs[dev]["inv_size3"])
-                #model.constraints.add(model.cap_seg["large",dev, district]<=model.cap_bin["large",dev, district] * devs[dev]["inv_size4"]) # No upper limit
+                # model.constraints.add(model.cap_seg["large",dev, district]<=model.cap_bin["large",dev, district] * devs[dev]["inv_size4"]) # No upper limit
                 # Define lower boundries of each segment
                 # model.constraints.add(model.cap_seg["small",dev, district]>=model.cap_bin["small",dev, district] * devs[dev]["inv_size1"]) # No lower limit for the first segment
                 model.constraints.add(model.cap_seg["medium",dev, district]>=model.cap_bin["medium",dev, district] * devs[dev]["inv_size2"])
@@ -907,43 +891,125 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                 slope_small= (devs[dev]["inv_cost2"] - devs[dev]["inv_cost1"]) / (devs[dev]["inv_size2"] - devs[dev]["inv_size1"])
                 slope_medium= (devs[dev]["inv_cost3"] - devs[dev]["inv_cost2"]) / (devs[dev]["inv_size3"] - devs[dev]["inv_size2"])
                 slope_large= (devs[dev]["inv_cost4"] - devs[dev]["inv_cost3"]) / (devs[dev]["inv_size4"] - devs[dev]["inv_size3"])
-                # Define investment costs based on selected segment and capacity
-                model.constraints.add(model.inv[dev, district]== 
+                # Define base investment costs based on selected segment and capacity
+                model.constraints.add(model.inv_base[dev, district]== 
                                       model.cap_bin["small",dev, district]*devs[dev]["inv_cost1"] + slope_small*(model.cap_seg["small",dev, district]-model.cap_bin["small",dev, district] * devs[dev]["inv_size1"]) +
                                       model.cap_bin["medium",dev, district]*devs[dev]["inv_cost2"] + slope_medium*(model.cap_seg["medium",dev, district]-model.cap_bin["medium",dev, district] * devs[dev]["inv_size2"]) +
                                       model.cap_bin["large",dev, district]*devs[dev]["inv_cost3"] + slope_large*(model.cap_seg["large",dev, district]-model.cap_bin["large",dev, district] * devs[dev]["inv_size3"]))
+
             else:
-                model.constraints.add(model.inv[dev, district] == devs[dev]["inv_var"] * model.cap[dev, district])  # investment costs
+                model.constraints.add(model.inv_base[dev, district] == devs[dev]["inv_base"] * model.cap[dev, district])  # unsubsidized investment costs
+    
+    # New TJA
+    # Subsidies for TES according to KWKG (Germany) - subsidy based on capacity segments (<= 50 m^3, > 50 m^3)
+    Big_M = 1e8  
+    EPS= 1e-6
+    
+    # b= 0 => vol_TES <= 50
+    # b=1 => vol_TES > 50
+    def con_vol_upper_rule(model, district):
+        devs = devsCon[district]
+        param = paramCon[district]
+        # vol_TES <= 50 + M * b
+        # If b=0: vol_TES <= 50 (boundary), if b=1: vol_TES <= 50+ M * b
+        vol_TES = model.cap["TES", district] / (param["c_w"] * param["rho_w"] * devs["TES"]["delta_T"]) * 3600
+        if not devs["TES"]["inv_kwkg_feasible"]:
+            return pyo.Constraint.Skip
+        return vol_TES <= devs["TES"]["inv_subsidy_cap"] + Big_M * (model.tes_kwkg_binary[district])
+    def con_vol_lower_rule(model, district):
+        devs = devsCon[district]
+        param = paramCon[district]
+        # vol_TES >= 50 - M * (1 - b)
+        # If b=0: vol_TES > 50 - M , if b=1: vol_TES > 50 (boundary)
+        vol_TES = model.cap["TES", district] / (param["c_w"] * param["rho_w"] * devs["TES"]["delta_T"]) * 3600
+        if not devs["TES"]["inv_kwkg_feasible"]:
+            return pyo.Constraint.Skip
+        return vol_TES >=(devs["TES"]["inv_subsidy_cap"]+EPS) - Big_M * (1 - model.tes_kwkg_binary[district])
+    
+    # Case 1: vol_TES <= 50
+    # Only active, if b= 0 
+    # inv = inv_base - 250* vol_TES <=> inv- inv_base = - 250*vol_TES
+    def con_inv_case1_upper_rule(model, district):
+        devs = devsCon[district]
+        param = paramCon[district]
+        # inv- inv_base <= - 250 * vol_TES + M * b
+        # If b=0 => inv- inv_base <= - 250 * vol_TES
+        # If b= 1 => inv- inv_base <= - 250 * vol_TES + M (no constraint)
+        vol_TES = model.cap["TES", district] / (param["c_w"] * param["rho_w"] * devs["TES"]["delta_T"]) * 3600
+        if not devs["TES"]["inv_kwkg_feasible"]:
+            return pyo.Constraint.Skip
+        return model.inv_sub_1tes[district] - model.inv_base["TES", district] <= - devs["TES"]["inv_subsidy_abs"] * vol_TES + Big_M * model.tes_kwkg_binary[district]
+    
+    def con_inv_case1_lower_rule(model, district):
+        devs = devsCon[district]
+        param = paramCon[district]
+        # inv- inv_base >= - 250 * vol_TES - M * b
+        # If b=0 => inv- inv_base >= - 250 * vol_TES
+        # If b= 1 => inv- inv_base >= - 250 * vol_TES - M (no constraint)
+        vol_TES = model.cap["TES", district] / (param["c_w"] * param["rho_w"] * devs["TES"]["delta_T"]) * 3600
+        if not devs["TES"]["inv_kwkg_feasible"]:
+            return pyo.Constraint.Skip
+        return model.inv_sub_1tes[district] - model.inv_base["TES", district] >= - devs["TES"]["inv_subsidy_abs"] * vol_TES - Big_M * model.tes_kwkg_binary[district]
 
+    # Case 2: vol_TES > 50
+    # Only active, if b= 1
+    # inv= inv_base*(1-"inv_subsidy_rate_g50") <=> inv - inv_base*(1-"inv_subsidy_rate_g50") = 0
+    def con_inv_case2_upper_rule(model, district):
+        devs = devsCon[district]
+        # inv - inv_base*(1-"inv_subsidy_rate_g50") <= M * (1 - b)
+        if not devs["TES"]["inv_kwkg_feasible"]:
+            return pyo.Constraint.Skip
+        return model.inv_sub_1tes[district] - model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate_g50"]) <= Big_M * (1 - model.tes_kwkg_binary[district])
+    
+    def con_inv_case2_lower_rule(model, district):
+        devs = devsCon[district]
+        if not devs["TES"]["inv_kwkg_feasible"]:
+            return pyo.Constraint.Skip
+        # inv - inv_base*(1-"inv_subsidy_rate_g50") >= - M * (1 - b)
+        return model.inv_sub_1tes[district] - model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate_g50"]) >= - Big_M * (1 - model.tes_kwkg_binary[district])
+    
+    # Add constraints to the model
+    model.con_inv_case1_upper = pyo.Constraint(model.districts, rule=con_inv_case1_upper_rule)
+    model.con_inv_case1_lower = pyo.Constraint(model.districts, rule=con_inv_case1_lower_rule)
+    model.con_vol_upper = pyo.Constraint(model.districts, rule=con_vol_upper_rule)
+    model.con_vol_lower = pyo.Constraint(model.districts, rule=con_vol_lower_rule)
+    model.con_inv_case2_upper = pyo.Constraint(model.districts, rule=con_inv_case2_upper_rule)
+    model.con_inv_case2_lower = pyo.Constraint(model.districts, rule=con_inv_case2_lower_rule)
 
+    # Finale TES-investmentequation per district
+    def con_inv_tes_rule(model, district):
+        devs = devsCon[district]
+        if devs["TES"]["inv_kwkg_feasible"]:
+            if "inv_subsidy_rate" in devs["TES"] and devs["TES"]["inv_subsidy_rate"] is not None:
+                return model.inv["TES", district] == model.inv_sub_1tes[district] * (1 - devs["TES"]["inv_subsidy_rate"])  # New TJA
+            return model.inv["TES", district] == model.inv_sub_1tes[district]
 
-        # for dev in ["BOI", "CHP", "HP", "STC", "TES"]:
-        #     # Constraint 1: If cap_small = 1, then cap <= 10000 kW
-        #     model.constraints.add(model.cap[dev, district] <= devs[dev]["inv_size_switch"] + Big_M * (1 - model.cap_small[dev, district]))
-        #     # Constraint 2: If cap_small = 0, then cap > 10000 kW
-        #     model.constraints.add(model.cap[dev, district] >= (devs[dev]["inv_size_switch"] + EPS) - Big_M * model.cap_small[dev, district])
-        #     # Constraint for investment costs based on capacity regimes
-        #     model.constraints.add(model.inv[dev, district] == devs[dev]["inv_small"] * model.cap[dev, district] * model.cap_small[dev, district]
-        #                         + devs[dev]["inv_large"] * model.cap[dev, district] * (1 - model.cap_small[dev, district])
-        #                         )
+        if (devs["TES"]["inv_kwkg_feasible"]== False and 
+            "inv_subsidy_rate" in devs["TES"] and devs["TES"]["inv_subsidy_rate"] is not None):
+            return model.inv["TES", district] == model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate"])  # subsidy term New TJA
 
-            
-        # for dev in ["TES"]:
-        #     # Constraint 1: If tes_kwkg_binary = 1, then cap <= "inv_subsidy_cap" (e.g., 50 m^3)
-        #     vol_TES = model.cap[dev, district] / (param["c_w"] * param["rho_w"] * devs[dev]["delta_T"]) * 3600  # Convert thermal capacity to volume capacity in m^3
-        #     model.constraints.add(
-        #          vol_TES <= devs[dev]["inv_subsidy_cap"]+Big_M*(1-model.tes_kwkg_binary[district])
-        #       )  # if binary is 0, cap can be very large, if binary is 1, cap is limited to the value corresponding to the maximum subsidy
-        #     # Constraint 2: If tes_kwkg_binary = 0, then cap > "inv_subsidy_cap" (e.g., 50 m^3)
-        #     model.constraints.add(
-        #         vol_TES >= (devs[dev]["inv_subsidy_cap"]+EPS) - Big_M*model.tes_kwkg_binary[district]
-        #       )  # if binary is 1, cap can be very small, if binary is 0, cap must be larger than the value corresponding to the maximum subsidy
-        #     # Constraint for investment costs based on subsidy regimes
-        #     model.constraints.add(model.inv[dev, district] == (model.inv[dev, district] - devs[dev]["inv_subsidy_abs"]*vol_TES) * model.tes_kwkg_binary[district]
-        #                           + model.inv[dev, district] * (1 - model.tes_kwkg_binary[district]))  # fixed investment costs for TES, independent of capacity
-        
+        return model.inv["TES", district] == model.inv_base["TES", district]
+    
+    model.con_inv_tes = pyo.Constraint(model.districts, rule=con_inv_tes_rule)
+
+    for district in model.districts:
+        devs = devsCon[district]
+        param = paramCon[district]
+
         for dev in model.all_devs:
-            model.constraints.add(model.inv_base[dev, district] == devs[dev]["inv_base"] * model.cap[dev, district])  # unsubsidized investment costs
+            if dev == "TES":
+                continue  # TES investment costs are already defined in the previous constraints based on the subsidy regimes
+            if "inv_subsidy_rate" in devs[dev] and devs[dev]["inv_subsidy_rate"] is not None:
+                model.constraints.add( model.inv[dev, district] == model.inv_base[dev, district] * (1 - devs[dev]["inv_subsidy_rate"]))  # subsidy term New TJA
+            else:
+                model.constraints.add(model.inv[dev, district] == model.inv_base[dev, district])  # No subsidy, investment cost equals base cost
+
+
+    for district in model.districts:
+        devs = devsCon[district]
+        param = paramCon[district]
+        data = dataCon[district]
+        for dev in model.all_devs:
             model.constraints.add(model.c_inv[dev, district] == model.inv[dev, district] * devs[dev]["ann_factor"])  # annualized investment costs
             model.constraints.add(model.c_inv_base[dev, district] == model.inv_base[dev, district] * devs[dev]["ann_factor"])  # unsubsidized annualized investment costs
             model.constraints.add(model.c_om[dev, district] == devs[dev]["cost_om"] * model.inv_base[dev, district])  # operation and maintenance costs. Use the unsubsidized costs for O&M calculation
@@ -953,7 +1019,11 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         model.constraints.add(model.total_annual_costs_devices[district] == sum(model.c_total[dev, district] for dev in model.all_devs))
 
         # Heat grid costs
-        model.constraints.add(model.heat_grid_costs[district] == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
+        if param["enable_subsidy_for_heat_grid"]== True:
+            model.constraints.add(model.heat_grid_costs_base[district] == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
+            model.constraints.add(model.heat_grid_costs[district] == data.heat_grid_data["ann_costs"] *(1-param["subsidy_rate_heat_grid"])+ data.heat_grid_data["om_costs"])
+        else:
+            model.constraints.add(model.heat_grid_costs[district] == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
 
         # Connection costs to electricity and gas grid (currently assumed to be a constant annual cost)
         model.constraints.add(model.total_connection_costs[district] == model.cap_costs_el[district] + model.cap_costs_gas[district])
@@ -1409,6 +1479,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             result_dict[k] = {
                 "cap": round(safe_value(model.cap, (k, district)), 1),
                 "inv": round(safe_value(model.inv, (k, district)), 2),
+                "inv_unsubsidized": round(safe_value(model.inv_base, (k, district)), 2),
                 "ann_inv": round(safe_value(model.c_inv, (k, district)), 2),
                 "ann_inv_unsubsidized": round(safe_value(model.c_inv_base, (k, district)), 2),
                 "om_cost": round(safe_value(model.c_om, (k, district)), 2)
@@ -1448,6 +1519,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         result_dict["total_annual_costs_devices"] = int(safe_value(model.total_annual_costs_devices, district))
         result_dict["total_connection_costs"] = int(safe_value(model.total_connection_costs, district))
         result_dict["heat_grid_costs"] = int(safe_value(model.heat_grid_costs, district))
+        result_dict["heat_grid_costs_base"] = int(safe_value(model.heat_grid_costs_base, district))
         result_dict["annualized_energy_costs"] = int(safe_value(model.annualized_energy_costs, district))
         result_dict["annualized_misc_costs"] = int(safe_value(model.annualized_misc_costs, district))
 
@@ -1886,6 +1958,7 @@ def save_results_csv_short(model, result_dict, scenario_name, result_dir, all_de
     add("cost", "total_annual_costs_devices", result_dict.get("total_annual_costs_devices", ""), "EUR/a")
     add("cost", "total_connection_costs", result_dict.get("total_connection_costs", ""), "EUR/a")
     add("cost", "heat_grid_costs", result_dict.get("heat_grid_costs", ""), "EUR/a")
+    add("cost", "heat_grid_costs_base", result_dict.get("heat_grid_costs_base", ""), "EUR/a")
     add("cost", "annualized_energy_costs", result_dict.get("annualized_energy_costs", ""), "EUR/a")
     add("cost", "annualized_misc_costs", result_dict.get("annualized_misc_costs", ""), "EUR/a")
 
@@ -2034,6 +2107,7 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
                 add("device", "capacity", cap, "kWh", device=device)
 
             add("device_cost", "inv", result_dict.get(device, {}).get("inv", ""), "EUR", device=device)
+            add("device_cost", "inv_unsubsidized", result_dict.get(device, {}).get("inv_unsubsidized", ""), "EUR", device=device)
             add("device_cost", "ann_inv", result_dict.get(device, {}).get("ann_inv", ""), "EUR/a", device=device)
             add("device_cost", "ann_inv_unsubsidized", result_dict.get(device, {}).get("ann_inv_unsubsidized", ""), "EUR/a", device=device)
             add("device_cost", "om_cost", result_dict.get(device, {}).get("om_cost", ""), "EUR/a", device=device)

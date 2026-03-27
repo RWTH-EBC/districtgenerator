@@ -487,6 +487,7 @@ class HeatGridConfig(BaseSettings):
     pipe: dict = {}
 
 
+
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'HeatGridConfig':
         """Build all device dictionaries from individual parameters, supporting nested structure."""
@@ -594,6 +595,10 @@ class EHDOConfig(BaseSettings):
     # Legal requirements for EHDO (New TJA)
     enable_legal_requirements: bool = True # Whether to enable legal requirements. If False, the requirements are ignored even if the shares are specified. # New TJA
     
+    # New TJA: Subsidy for heat grid investments
+    enable_subsidy_for_heat_grid: bool = False # Whether to consider subsidies for heat grid investments
+    subsidy_rate_heat_grid: float = 0.4 # Subsidy rate for heat grid investments (fraction of investment cost covered by subsidy) # 0.4 KWKG
+
 
     # Helper attributes for unit formatting (Remove?)
     unit_placeholder: str = " - "   # used for cases where unit is a placeholder
@@ -1356,8 +1361,10 @@ class CentralDeviceConfig(BaseSettings):
     TES__delta_T: float = 30  # Temperature difference between charged and discharged state in Celsius.
     TES__soc_init: float = 0.5  # Initial state of charge between 0 and 1.
     TES__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    TES__inv_kwkg_feasible: bool = False  # Whether to allow investment subsidy for TES according to KWKG. # New TJA
     TES__inv_subsidy_abs: float = 0.0  # Absolute investment subsidy in €/m^3. # New TJA
     TES__inv_subsidy_cap: float = 0.0  # Maximum size of TES in m^3 to get inv_subsidy_abs. # New TJA
+    TES__inv_subsidy_rate_g50: float = 0.0  # Investment subsidy rate for TES sizes up to 50 m^3 as a fraction of investment cost (0 to 1). # New TJA
     TES: dict = {}
 
     # CTES parameters (Cold Thermal Energy Storage)
@@ -1446,14 +1453,10 @@ class CentralDeviceConfig(BaseSettings):
                             dict_key = attr_name[len(prefix):]
                             device_dict[dict_key] = getattr(self, attr_name)
                     
-                    # Calculate inv_var from inv_base and inv_subsidy_rate
-                    if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
-                        device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
-                    # Calculate inv_small, inv_large and inv_size_switch # New TJA
-                    # if "inv_size1" in device_dict and "inv_cost1" in device_dict and "inv_size2" in device_dict and "inv_cost2" in device_dict and "inv_size3" in device_dict and "inv_cost3" in device_dict:
-                    #     device_dict['inv_small'] = (device_dict['inv_cost2']-device_dict['inv_cost1']) / (device_dict['inv_size2']-device_dict['inv_size1'])* (1 - device_dict['inv_subsidy_rate'])
-                    #     device_dict['inv_large'] = (device_dict['inv_cost3']-device_dict['inv_cost2']) / (device_dict['inv_size3']-device_dict['inv_size2'])* (1 - device_dict['inv_subsidy_rate'])
-                    #     device_dict['inv_size_switch'] = device_dict['inv_size2']
+                    # # Calculate inv_var from inv_base and inv_subsidy_rate
+                    # if 'inv_base' in device_dict and 'inv_subsidy_rate' in device_dict:
+                    #     device_dict['inv_var'] = device_dict['inv_base'] * (1 - device_dict['inv_subsidy_rate'])
+
                     
                     # Set the dictionary first
                     setattr(self, field_name, device_dict)

@@ -299,6 +299,9 @@ def load_params(data):
             "enable_heat_diss": value.get("enable_heat_diss", False),
             "inv_subsidy_abs": value.get("inv_subsidy_abs", 0), # New TJA
             "inv_subsidy_cap": value.get("inv_subsidy_cap", 0), # New TJA
+            "inv_subsidy_rate": value.get("inv_subsidy_rate", 0), # New TJA
+            "inv_subsidy_rate_g50": value.get("inv_subsidy_rate_g50", 0), # New TJA
+            "inv_kwkg_feasible": value.get("inv_kwkg_feasible", False), # New TJA, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
         }
 
     devs = {}
@@ -326,6 +329,7 @@ def load_params(data):
         "min_area": all_models["PV"]["min_area"],
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
+        "inv_subsidy_rate": all_models["PV"]["inv_subsidy_rate"], # New TJA
     }
 
     # Wind turbine
@@ -349,6 +353,8 @@ def load_params(data):
         "h_coeff": all_models["WT"]["h_coeff"],  # hellmann_coeff
         "hub_h": all_models["WT"]["hub_h"],
         "ref_h": all_models["WT"]["ref_h"],
+        "inv_subsidy_rate": all_models["WT"]["inv_subsidy_rate"], # New TJA
+        
     }
     devs["WT"]["norm_power"], devs["WT"]["norm_power_clustered"] = calc_WT_power(devs, param, data)  # relative power between 0 and 1
 
@@ -371,6 +377,7 @@ def load_params(data):
         "min_cap": all_models["WAT"]["min_cap"],
         "max_cap": all_models["WAT"]["max_cap"],
         "potential": all_models["WAT"]["potential"],
+        "inv_subsidy_rate": all_models["WAT"]["inv_subsidy_rate"], # New TJA
     }
 
     # Solar thermal collector
@@ -399,6 +406,7 @@ def load_params(data):
         "min_area": all_models["STC"]["min_area"],
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
+        "inv_subsidy_rate": all_models["STC"]["inv_subsidy_rate"], # New TJA
     }
 
     # Convert STC piecewise parameters from area-domain (m²) to capacity-domain (kW)
@@ -445,6 +453,7 @@ def load_params(data):
         "cost_om": all_models["CHP"]["cost_om"] / 100,
         "min_cap": all_models["CHP"]["min_cap"],
         "max_cap": all_models["CHP"]["max_cap"],
+        "inv_subsidy_rate": all_models["CHP"]["inv_subsidy_rate"], # New TJA
     }
     
     # # Calculate linear investment costs for small and large CHP and capacity at which to switch between them (if applicable)
@@ -475,6 +484,7 @@ def load_params(data):
         "cost_om": all_models["BOI"]["cost_om"] / 100,
         "min_cap": all_models["BOI"]["min_cap"],
         "max_cap": all_models["BOI"]["max_cap"],
+        "inv_subsidy_rate": all_models["BOI"]["inv_subsidy_rate"], # New TJA
     }
     # # Calculate linear investment costs for small and large boiler and capacity at which to switch between them (if applicable)
     # if devs["BOI"]["feasible"]:
@@ -501,6 +511,7 @@ def load_params(data):
         "cost_om": all_models["GHP"]["cost_om"] / 100,
         "min_cap": all_models["GHP"]["min_cap"],
         "max_cap": all_models["GHP"]["max_cap"],
+        "inv_subsidy_rate": all_models["GHP"]["inv_subsidy_rate"], # New TJA
     }
 
     ### Heating and cooling ###
@@ -537,7 +548,8 @@ def load_params(data):
                     "COP_max": 7,                                           # ---,  maximum heat pump COP
                     "q_soil": 50,                                           # W/m,   heat flow from soil into bride per meter (VDI 4640, for lambda_soil = 2 W/mK and low full load hours, assumption: no thermal interaction between boreholes)
                     "c_borehole": 90,                                       # EUR/m, borehole costs (BMVBS)
-                    "t_max": 400                                            # m,     maximum borehole depth covered by VDI4640
+                    "t_max": 400,                                           # m,     maximum borehole depth covered by VDI4640
+                    "inv_subsidy_rate": all_models["GroundHP"]["inv_subsidy_rate"], # New TJA
                     }
 
         # Temperatures
@@ -581,6 +593,7 @@ def load_params(data):
             "eta_compr": 0.8,                                                                           # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
             "heatloss_compr": 0.3,                                                                      # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
             "COP_max": 7,                                                                               # ---,  maximum heat pump COP
+            "inv_subsidy_rate": all_models["AirHP"]["inv_subsidy_rate"], # New TJA
         }
 
         # Temperatures
@@ -621,6 +634,7 @@ def load_params(data):
             "cost_om": all_models["HP"]["cost_om"] / 100,
             "min_cap": all_models["HP"]["min_cap"],
             "max_cap": all_models["HP"]["max_cap"],
+            "inv_subsidy_rate": all_models["HP"]["inv_subsidy_rate"], # New TJA
         }
 
         # COP assignment for each support year (same values for all years since weather is constant)
@@ -664,6 +678,7 @@ def load_params(data):
         "cost_om": all_models["EB"]["cost_om"] / 100,
         "min_cap": all_models["EB"]["min_cap"],
         "max_cap": all_models["EB"]["max_cap"],
+        "inv_subsidy_rate": all_models["EB"]["inv_subsidy_rate"], # New TJA
     }
 
     # Compression chiller
@@ -695,6 +710,7 @@ def load_params(data):
             "eta_compr": 0.75,                                                                          # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
             "heatloss_compr": 0.3,                                                                      # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
             "COP_max": 6,                                                                               # ---,  maximum heat pump COP
+            "inv_subsidy_rate": all_models["AirCC"]["inv_subsidy_rate"], # New TJA
         }
 
         # Temperatures
@@ -727,6 +743,7 @@ def load_params(data):
             "cost_om": all_models["CC"]["cost_om"] / 100,
             "min_cap": all_models["CC"]["min_cap"],
             "max_cap": all_models["CC"]["max_cap"],
+            "inv_subsidy_rate": all_models["CC"]["inv_subsidy_rate"], # New TJA
         }
 
         # COP for each support year (same values for all years since weather is constant)
@@ -752,6 +769,7 @@ def load_params(data):
         "cost_om": all_models["AC"]["cost_om"] / 100,
         "min_cap": all_models["AC"]["min_cap"],
         "max_cap": all_models["AC"]["max_cap"],
+        "inv_subsidy_rate": all_models["AC"]["inv_subsidy_rate"], # New TJA
     }
 
     ### Biomass and waste ###
@@ -776,6 +794,7 @@ def load_params(data):
         "cost_om": all_models["BCHP"]["cost_om"] / 100,
         "min_cap": all_models["BCHP"]["min_cap"],
         "max_cap": all_models["BCHP"]["max_cap"],
+        "inv_subsidy_rate": all_models["BCHP"]["inv_subsidy_rate"], # New TJA
     }
 
     # Biomass boiler
@@ -797,6 +816,7 @@ def load_params(data):
         "cost_om": all_models["BBOI"]["cost_om"] / 100,
         "min_cap": all_models["BBOI"]["min_cap"],
         "max_cap": all_models["BBOI"]["max_cap"],
+        "inv_subsidy_rate": all_models["BBOI"]["inv_subsidy_rate"], # New TJA
     }
 
     # Waste CHP
@@ -819,6 +839,7 @@ def load_params(data):
         "cost_om": all_models["WCHP"]["cost_om"] / 100,
         "min_cap": all_models["WCHP"]["min_cap"],
         "max_cap": all_models["WCHP"]["max_cap"],
+        "inv_subsidy_rate": all_models["WCHP"]["inv_subsidy_rate"], # New TJA
     }
 
     # Waste boiler
@@ -840,6 +861,7 @@ def load_params(data):
         "cost_om": all_models["WBOI"]["cost_om"] / 100,
         "min_cap": all_models["WBOI"]["min_cap"],
         "max_cap": all_models["WBOI"]["max_cap"],
+        "inv_subsidy_rate": all_models["WBOI"]["inv_subsidy_rate"], # New TJA
     }
 
     ### Hydrogen ###
@@ -863,6 +885,7 @@ def load_params(data):
         "cost_om": all_models["ELYZ"]["cost_om"] / 100,
         "min_cap": all_models["ELYZ"]["min_cap"],
         "max_cap": all_models["ELYZ"]["max_cap"],
+        "inv_subsidy_rate": all_models["ELYZ"]["inv_subsidy_rate"], # New TJA
     }
 
     # Fuel cell
@@ -886,6 +909,7 @@ def load_params(data):
         "min_cap": all_models["FC"]["min_cap"],
         "max_cap": all_models["FC"]["max_cap"],
         "enable_heat_diss": all_models["FC"]["enable_heat_diss"],
+        "inv_subsidy_rate": all_models["FC"]["inv_subsidy_rate"], # New TJA
     }
 
     # Hydrogen storage
@@ -907,6 +931,7 @@ def load_params(data):
         "cost_om": all_models["H2S"]["cost_om"] / 100,
         "min_cap": all_models["H2S"]["min_cap"],
         "max_cap": all_models["H2S"]["max_cap"],
+        "inv_subsidy_rate": all_models["H2S"]["inv_subsidy_rate"], # New TJA
     }
 
     # Sabatier reactor
@@ -928,6 +953,7 @@ def load_params(data):
         "cost_om": all_models["SAB"]["cost_om"] / 100,
         "min_cap": all_models["SAB"]["min_cap"],
         "max_cap": all_models["SAB"]["max_cap"],
+        "inv_subsidy_rate": all_models["SAB"]["inv_subsidy_rate"], # New TJA
     }
 
     ### Storages ###
@@ -947,22 +973,20 @@ def load_params(data):
             "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
         "inv_size4": all_models["TES"]["inv_size4"] * param["rho_w"] * param["c_w"] * all_models[
             "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
-
-        "inv_cost1": all_models["TES"]["inv_cost1"]/ (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        "inv_cost2": all_models["TES"]["inv_cost2"]/ (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        "inv_cost3": all_models["TES"]["inv_cost3"]/ (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        "inv_cost4": all_models["TES"]["inv_cost4"]/ (
-                    param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        "lin_feasible": all_models["TES"]["lin_feasible"], # New TJA
-        # "inv_small": all_models["TES"]["inv_small"]/ (
+        "inv_cost1": all_models["TES"]["inv_cost1"], # New TJA
+        "inv_cost2": all_models["TES"]["inv_cost2"], # New TJA
+        "inv_cost3": all_models["TES"]["inv_cost3"], # New TJA
+        "inv_cost4": all_models["TES"]["inv_cost4"], # New TJA
+        # "inv_cost1": all_models["TES"]["inv_cost1"]/ (
         #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        # "inv_large": all_models["TES"]["inv_large"]/ (
-        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kW # New TJA
-        # "inv_size_switch": all_models["TES"]["inv_size_switch"] * param["rho_w"] * param["c_w"] * all_models[
-        #     "TES"]["delta_T"] / 3600,  # kWh # New TJA
+        # "inv_cost2": all_models["TES"]["inv_cost2"]/ (
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        # "inv_cost3": all_models["TES"]["inv_cost3"]/ (
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        # "inv_cost4": all_models["TES"]["inv_cost4"]/ (
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        "lin_feasible": all_models["TES"]["lin_feasible"], # New TJA
+
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
         "cost_om": all_models["TES"]["cost_om"] / 100,
@@ -973,6 +997,9 @@ def load_params(data):
         "delta_T": all_models["TES"]["delta_T"],  # K
         "inv_subsidy_abs": all_models["TES"]["inv_subsidy_abs"], # EUR/m^3, absolute investment subsidy for thermal energy storage 
         "inv_subsidy_cap": all_models["TES"]["inv_subsidy_cap"], # m^3, maximum size of TES to get subsidy
+        "inv_subsidy_rate": all_models["TES"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate_g50": all_models["TES"]["inv_subsidy_rate_g50"], # New TJA, subsidy rate for TES larger than 50 m^3
+        "inv_kwkg_feasible": all_models["TES"]["inv_kwkg_feasible"], # New TJA, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
     }
 
     # Cold thermal energy storage
@@ -999,6 +1026,7 @@ def load_params(data):
         "max_cap": all_models["CTES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
             "CTES"]["delta_T"] / 3600,  # kWh
         "delta_T": all_models["CTES"]["delta_T"],  # K,
+        "inv_subsidy_rate": all_models["CTES"]["inv_subsidy_rate"], # New TJA
     }
 
     # Battery
@@ -1020,6 +1048,7 @@ def load_params(data):
         "min_cap": all_models["BAT"]["min_cap"],
         "max_cap": all_models["BAT"]["max_cap"],
         "sto_loss": all_models["BAT"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
+        "inv_subsidy_rate": all_models["BAT"]["inv_subsidy_rate"], # New TJA
     }
 
     # Gas storage
@@ -1041,6 +1070,7 @@ def load_params(data):
         "min_cap": all_models["GS"]["min_cap"],  # kWh
         "max_cap": all_models["GS"]["max_cap"],  # kWh
         "sto_loss": all_models["GS"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
+        "inv_subsidy_rate": all_models["GS"]["inv_subsidy_rate"], # New TJA
     }
 
     ###############################################################
