@@ -1030,12 +1030,8 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    @staticmethod
-    def _debugger_attached():
-        return sys.gettrace() is not None
-
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-        use_multiprocessing = not self._debugger_attached()
+        use_multiprocessing = False #todo: just use while debugging
 
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
@@ -1094,7 +1090,7 @@ class Datahandler:
 
         self.save_progress()
 
-        print(f"Finished generating demands ({'multiprocessing' if use_multiprocessing else 'single process'})!")
+        print("Finished generating demands with multiprocessing!")
 
         # Combine demand profiles for mixed-use buildings
         self.combine_mixed_building_demands(saveUserProfiles)

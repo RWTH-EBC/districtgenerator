@@ -301,7 +301,7 @@ class Profiles:
         # 2. Generate stochastic DHW draw-off profile (minute resolution)
 
         s_step = 60  # seconds
-        categories = 4
+        categories = 1
         occupancy = self.number_occupants if self.is_residential else self.number_occupants_building
         building_type = self.building
         weekend_weekday_factor = 1.2 if self.is_residential else 1
