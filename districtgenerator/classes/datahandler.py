@@ -611,6 +611,7 @@ class Datahandler:
             # Combine all demand profiles by summing (element-wise with numpy arrays)
             combined_building["user"].elec = np.array(np.array(main_building["user"].elec) + np.array(secondary_building["user"].elec))
             combined_building["user"].dhw = np.array(np.array(main_building["user"].dhw) + np.array(secondary_building["user"].dhw))
+            combined_building["user"].dhw_minutely = np.array(np.array(main_building["user"].dhw_minutely) + np.array(secondary_building["user"].dhw_minutely))
             combined_building["user"].heat = np.array(np.array(main_building["user"].heat) + np.array(secondary_building["user"].heat))
             combined_building["user"].cooling = np.array(np.array(main_building["user"].cooling) + np.array(secondary_building["user"].cooling))
             combined_building["user"].gains = np.array(np.array(main_building["user"].gains) + np.array(secondary_building["user"].gains))
@@ -659,9 +660,6 @@ class Datahandler:
             combined_building["envelope"].heatlimit = main_building["envelope"].heatlimit + secondary_building["envelope"].heatlimit
             combined_building["envelope"].coolingload = main_building["envelope"].coolingload + secondary_building["envelope"].coolingload
 
-            # Sum up DHW power and generation
-            combined_building["dhwpower"] = main_building["dhwpower"] + secondary_building["dhwpower"]
-
             print(f"Combined mixed building {parent_id}: "
                   f"{main_type} + {secondary_type} → NEW combined building")
 
@@ -670,6 +668,7 @@ class Datahandler:
                 self.saveProfiles(name=combined_building["unique_name"],
                                   elec=combined_building["user"].elec,
                                   dhw=combined_building["user"].dhw,
+                                  dhw_minutely=combined_building["user"].dhw_minutely,
                                   occ=combined_building["user"].occ,
                                   gains=combined_building["user"].gains,
                                   EV_carcharging_ondemand=combined_building["user"].EV_carcharging_ondemand,
@@ -1025,15 +1024,19 @@ class Datahandler:
             building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent", night_setback = night_setback)
             # at heating limit temperature
             building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit", night_setback = night_setback)
-            # for drinking hot water
-            building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
             # %% calculate design cooling load
             building["envelope"].coolingload = building["envelope"].calcCoolingLoad(site=self.site, nb_occ=np.sum(building["user"].nb_occ))
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
+    @staticmethod
+    def _debugger_attached():
+        return sys.gettrace() is not None
+
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+        use_multiprocessing = not self._debugger_attached()
+
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
 
@@ -1046,9 +1049,20 @@ class Datahandler:
 
         self.save_progress()
 
-        with multiprocessing.Pool(processes=max_threads) as pool:
-            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
-
+        if use_multiprocessing:
+            with multiprocessing.Pool(processes=max_threads) as pool:
+                for result in pool.imap_unordered(generate_demands_worker_wrapper, args_list):
+                    self.buildings_completed += 1
+                    results.append(result)
+                    self.save_progress()
+                    print(
+                        f"building {self.buildings_completed}/{self.buildings_total} calculated "
+                        f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): "
+                        f"{result.get('unique_name', '')}"
+                    )
+        else:
+            for args in args_list:
+                result = generate_demands_worker_wrapper(args)
                 self.buildings_completed += 1
                 results.append(result)
 
@@ -1061,6 +1075,7 @@ class Datahandler:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
+            building["user"].dhw_minutely = result["dhw_minutely"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
             building["user"].occ = result["occ"]
@@ -1079,8 +1094,7 @@ class Datahandler:
 
         self.save_progress()
 
-
-        print("Finished generating demands with multiprocessing!")
+        print(f"Finished generating demands ({'multiprocessing' if use_multiprocessing else 'single process'})!")
 
         # Combine demand profiles for mixed-use buildings
         self.combine_mixed_building_demands(saveUserProfiles)
@@ -1115,6 +1129,7 @@ class Datahandler:
                 self.saveProfiles(name=building["unique_name"],
                                   elec=building["user"].elec,
                                   dhw=building["user"].dhw,
+                                  dhw_minutely=building["user"].dhw_minutely,
                                   occ=building["user"].occ,
                                   gains=building["user"].gains,
                                   EV_carcharging_ondemand=building["user"].EV_carcharging_ondemand,
@@ -1131,7 +1146,7 @@ class Datahandler:
                                   individual_car_profiles=building["user"].individual_car_profiles)
 
         else:
-            (building["user"].elec, building["user"].dhw,
+            (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
              building["user"].occ, building["user"].gains,
              building["user"].EV_carcharging_ondemand,
              building["user"].EV_carprofile,
@@ -1251,7 +1266,7 @@ class Datahandler:
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
-    def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand,
+    def saveProfiles(self, name, elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
                      nb_occ, heatload, bivalent, heatlimit, coolingload, path,
                      individual_car_profiles=None):
@@ -1323,6 +1338,7 @@ class Datahandler:
         data_dict = {
             'Electricity': (pd.DataFrame(elec), ["Electricity Demand (W)"]),
             'Hot Water': (pd.DataFrame(dhw), ["Drinking Hot Water Demand (W)"]),
+            'Hot Water Minute': (pd.DataFrame(dhw_minutely), ["Drinking Hot Water Demand Minute Resolution (W)"]),
             'Occupancy': (pd.DataFrame(occ), ["Number of Occupants"]),
             'Internal Gains': (pd.DataFrame(gains), ["Internal Gains (W)"]),
             'EV_demand_agg': (pd.DataFrame(EV_carprofile), ["Total Electric Vehicle Energy Demand (Wh)"]),
@@ -1410,6 +1426,7 @@ class Datahandler:
 
         elec = load_sheet_to_numpy(workbook, 'Electricity')
         dhw = load_sheet_to_numpy(workbook, 'Hot Water')
+        dhw_minutely = load_sheet_to_numpy(workbook, 'Hot Water Minute')
         occ = load_sheet_to_numpy(workbook, 'Occupancy')
         gains = load_sheet_to_numpy(workbook, 'Internal Gains')
 
@@ -1489,7 +1506,7 @@ class Datahandler:
 
         workbook.close()
 
-        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, individual_car_profiles
+        return elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
@@ -2335,6 +2352,7 @@ def generate_demands_worker_wrapper(args):
         "unique_name": building["unique_name"],
         "elec": building["user"].elec,
         'dhw': building["user"].dhw,
+        "dhw_minutely": building["user"].dhw_minutely,
         'cooling': building["user"].cooling,
         'heating': building["user"].heat,
         'occ': building["user"].occ,
