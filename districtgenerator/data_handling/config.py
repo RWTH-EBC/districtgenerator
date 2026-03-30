@@ -196,7 +196,7 @@ class EcoConfig(BaseSettings):
     # The interpolation points can be either defined by specifying the exact years in interpolation_points or by choosing a number of interpolation points num_interpolation_points.
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
     num_interpolation_points: Optional[int] = None # Number of interpolation points if not None these are used, otherwise the exact position is used
-    interpolation_points: str | list[int] = [0,5,10,15] # Exact interpolation points if num_interpolation_points is None, these points are used for interpolation
+    interpolation_points: str | list[int] = [0,5,10,15] # Explicit years starting each interpolation interval. Must begin with 0. Used if num_interpolation_points is None.
     
 
     # electricity prices and feed-in revenue in €/kWh
@@ -313,7 +313,7 @@ class EcoConfig(BaseSettings):
             # Override interpolation_points with selected points
             self.interpolation_points = selected_points
 
-        else: # Validate if the interpolation points are within the observation time
+        else: # Validate if the interpolation points are within the observation time and that  0 is included.
             invalid_points = []
             for point in self.interpolation_points:
                 if point < 0 or point >= self.observation_time:
@@ -322,6 +322,11 @@ class EcoConfig(BaseSettings):
             if invalid_points:
                 raise ValueError(f"The following interpolation points are invalid for the given observation time of {self.observation_time} years: {invalid_points} (Max is {self.observation_time - 1})")
 
+            if 0 not in self.interpolation_points:
+                raise ValueError(f"Interpolation points must include 0 as the starting point of the first interval. Otherwise it would imply that the first interval starts at a later point in time, which is not intended. Current interpolation points: {self.interpolation_points}")
+        
+        # Sort the list to ensure chronological order for later processing steps
+        self.interpolation_points.sort()
         return self
 
     model_config = SettingsConfigDict(

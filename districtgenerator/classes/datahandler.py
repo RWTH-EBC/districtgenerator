@@ -1045,13 +1045,13 @@ class Datahandler:
                         usage=building["buildingFeatures"]["building"],
                         name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
-                        height_of_floors=height_of_floors,
                         net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
                         total_building_area=(                                          # Total net leased area of building
                             building["buildingFeatures"]["area"] if self.total_building_area is None
                             else self.total_building_area),
                         construction_type=construction_type,
                         retrofit_level=retrofit_level,
+                        number_of_floors=number_of_floors
                         )
 
                 # %% create envelope object
@@ -2202,6 +2202,21 @@ class Datahandler:
 
         end_time = time.time()
         print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+
+        # Check which clusters were unsolvable
+        failed_optimizations = []
+        for year, clusters in self.resultsOptimization.items():
+            for cluster, result in clusters.items():
+                if result is None:
+                    failed_optimizations.append((year, cluster))
+
+        if failed_optimizations:
+            error_message = "The following optimization runs failed:\n"
+            for year, cluster in failed_optimizations:
+                error_message += f"  - Year: {year}, Cluster: {cluster}\n"
+            
+            error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
+            raise Exception(error_message)
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData

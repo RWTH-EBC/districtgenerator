@@ -6,6 +6,7 @@ Pyomo Version
 This script is a Pyomo-based translation of the original Gurobi model.
 """
 
+
 import pyomo.environ as pyo
 import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
@@ -19,6 +20,7 @@ import matplotlib.pyplot as plt
 import textwrap
 import json
 import districtgenerator.functions.solver_config as solver_config
+from contextlib import redirect_stdout
 
 
 def run_optim(data, devs, param, dem, result_dict):
@@ -43,28 +45,23 @@ def run_optim(data, devs, param, dem, result_dict):
     dict
         The populated result dictionary, or the original dict if no solution is found.
     """
-    start_time = time.time()
 
-    # Build the model
+    start_time = time.time()
+    print("Starting Energy Hub Design Optimization...")
+    # build the model
     model = pyo.ConcreteModel(name="Energy_Hub_Design_Optimization")
     build_model(model=model, data=data, devs=devs, param=param, dem=dem)
     model_building_time = time.time() - start_time
-
-    # print(f"Precalculation and model set up done in {model_building_time:.2f} seconds.")
-
-    # Solve the model and extract results
+    print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
+    # solve the model and extract results
     result_dict = solve_model_and_extract_results(data=data, model=model, devs=devs, param=param,
                                                   result_dict=result_dict)
     model_solve_time = time.time() - start_time - model_building_time
-
-    # Total time needed
+    if result_dict is not None:
+        print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
+    # calculate total time
     total_time = time.time() - start_time
 
-    # Maybe record the times into a log file
-
-    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
-    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
-    # print(f" Total time needed: {total_time:.2f} seconds.")
 
     return result_dict
 
@@ -655,184 +652,24 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     """
     Function to capsle solving the Pyomo model and extracting results.
     """
-    # Folder to save model and results
+
     result_dir = "optimization_results"
     if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
+        os.makedirs(result_dir) 
+        
+    model_name = f"ehdo_model"
 
-    lp_filename = os.path.join(result_dir, "ehdo_model.lp")
-    model.write(lp_filename, io_options={"symbolic_solver_labels": True})
-
-    # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, "solver_output_ehdo.log")
-    # Path for error file
-    errorfile_path = os.path.join(result_dir, 'errorfile_ehdo.txt')
-
-    ################################################################################
-    # Solve the Model
-    ################################################################################
-
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
-    solve_start_time = time.time()
-    results = solver.solve(model, tee=False, options=solver_options)
-    # print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
-
-    ################################################################################
-    # Check and Save Results
-    ################################################################################
-
-    # Check if solution is optimal, otherwise write an error file to help find errors
-    if results.solver.termination_condition == pyo.TerminationCondition.infeasible:
-        print(f"Model is infeasible for further analysis see {errorfile_path}")
-        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
-        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
-        with open(errorfile_path, 'w') as f:
-            f.write('Error: Model is infeasible\n')
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"Model Statistics:\n")
-            f.write(f"  - Variables: {n_vars}\n")
-            f.write(f"  - Constraints: {n_cons}\n\n")
-            f.write(f"  - LP File: {lp_filename}\n\n")
-            try:
-                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
-                    f.write("\nSolver Log:\n")
-                    f.write("-" * 40 + "\n")
-                    f.write(log_file.read())
-                    f.write("-" * 40 + "\n")
-                # Remove temporary solver log file
-                os.remove(solver_log_path)
-            except Exception as e:
-                f.write(f"\nCould not read solver log: {e}\n")
-
-        # IIS-Analysis #TODO: Needs a rework to capture the error source correctly
-        try:
-            import logging
-            # Create string buffer to capture logging
-            logging_buffer = StringIO()
-
-            # Store original logging handlers
-            root_logger = logging.getLogger()
-            original_handlers = root_logger.handlers[:]
-            original_level = root_logger.level
-
-            # Clear existing handlers temporarily
-            for handler in original_handlers:
-                root_logger.removeHandler(handler)
-
-            # Add string handler to capture only IIS output
-            string_handler = logging.StreamHandler(logging_buffer)
-            string_handler.setLevel(logging.INFO)
-            root_logger.addHandler(string_handler)
-            root_logger.setLevel(logging.INFO)
-
-            # Run IIS analysis - output goes to buffer
-            log_infeasible_constraints(model, log_expression=True, log_variables=True)
-
-            # Get captured content
-            iis_content = logging_buffer.getvalue()
-
-            # Restore logging
-            root_logger.removeHandler(string_handler)
-            for handler in original_handlers:
-                root_logger.addHandler(handler)
-            root_logger.setLevel(original_level)
-
-            # Write to error file
-            with open(errorfile_path, 'a', encoding='utf-8') as f:
-                f.write("INFEASIBLE CONSTRAINTS:\n")
-                f.write("-" * 40 + "\n")
-                if iis_content.strip():
-                    f.write(iis_content)
-                else:
-                    f.write("No IIS details captured\n")
-                f.write("-" * 40 + "\n")
-
-            print(f"Infeasibility analysis saved to {errorfile_path}")
-
-        except Exception as e:
-            # Ensure logging is restored
-            try:
-                if 'original_handlers' in locals():
-                    root_logger.removeHandler(string_handler)
-                    for handler in original_handlers:
-                        if handler not in root_logger.handlers:
-                            root_logger.addHandler(handler)
-                    root_logger.setLevel(original_level)
-            except:
-                pass
-
-            print(f"IIS analysis failed: {e}")
-
-            with open(errorfile_path, 'a') as f:
-                f.write(f"IIS analysis failed: {e}\n")
-
-        # Using Gurobi to compute a better IIS if Gurobi is available
-        import gurobipy as gp
-        gurobi_available = True
-        try: _ = gp.Env.getEnv()
-        except: gurobi_available = False
-
-        if gurobi_available:
-            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
-            m = gp.read("debug_model.lp")
-            m.optimize()
-            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
-                m.computeIIS()
-                m.write("debug_model.ilp")
-                print("IIS written to debug_model.ilp")
-                raise Exception("Model is infeasible, see errorfile for details.")
-            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
-
+    results = solver_config.execute_and_diagnose(model = model, 
+                                   pyomo_config = data.pyomo_config,
+                                   model_name = model_name,
+                                   result_dir = result_dir)
+    
+    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
 
-    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
-        print("Model is unbounded")
-        with open(errorfile_path, 'w') as f:
-            f.write('Model is unbounded\n')
-        return None
-    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
-        print("Model solved to optimality")
-    else:
-        print(f"Solver status: {results.solver.termination_condition}")
-        with open(errorfile_path, 'w') as f:
-            f.write(f'Solver status: {results.solver.termination_condition}\n')
-        return None
-
-    # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
-
-    # Save all variable values in a solution file:
-    def write_solution_file(model, filename):
-        """
-        Write solution values to a file in a format similar to Gurobi's .sol files
-        """
-        try:
-            with open(filename, 'w') as f:
-                f.write("# Solution file\n")
-                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
-                f.write("# Variable values\n")
-
-                # Write all variable values
-                for var in model.component_objects(pyo.Var, active=True):
-                    if var.is_indexed():
-                        for index in var:
-                            if var[index].value is not None:
-                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
-                    else:
-                        if var.value is not None:
-                            f.write(f"{var.name} {var.value:.6f}\n")
-
-                f.write("# End of solution\n")
-            print(f"Solution written to {filename}")
-
-        except Exception as e:
-            print(f"Warning: Could not write solution file {filename}: {e}")
-        return None
-
-    solution_path = os.path.join(result_dir, 'solution_ehdo_file.txt')
-    write_solution_file(model, solution_path)
+    solver_config.write_solution_file(model = model,
+                                      model_name = model_name,
+                                      result_dir = result_dir)
 
     ################################################################################
     # Post-processing and Result Extraction #! This needs to be adapted to multi-year optimization
@@ -1155,5 +992,20 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["total_co2_biom"] = int(sum(safe_value(model.biom_import_total, y) * param["co2_biom"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
     result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
     result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, y) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
+
+
+
+
+
+
+    # Debug 
+    devices_heat = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+
+    print("Installed heat capacities:")
+    for dev in devices_heat:
+        val = safe_value(model.cap, dev)
+        print(f"  {dev}: {val:.2f} W")
+
+    print(f"Peak heat demand (parameter): {param['peak_heat']} kW")
 
     return result_dict
