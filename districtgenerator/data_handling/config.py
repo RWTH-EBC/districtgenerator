@@ -568,7 +568,7 @@ class EHDOConfig(BaseSettings):
     enable_supply_limit_gas: bool = False   # Enable limit annual gas import, bool.
 
     # Other options
-    peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
+    peak_dem_met_conv: bool = True  # Meet peak demands utilizing fluctuating sources (STC, PV, WT), bool.
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.

@@ -803,6 +803,26 @@ class Datahandler:
         prj = Project()
         prj.name = self.scenario_name
 
+        # Helper function to get floor area range for residential building types based on TABULA typology
+        def get_one_floor_area_range_res(building_type):
+            """
+            Floor area ranges for different residential building types based on the TABULA German Building Typology
+
+            Returns
+            -------
+            tuple
+                A tuple containing the minimum and maximum floor area for one floor of the given building type.
+            """
+            if building_type == "single_family_house":
+                return (62, 115) # Source: TABULA German Building Typology
+            elif building_type == "terraced_house":
+                return (50, 73) # Source: TABULA German Building Typology
+            elif building_type == "multi_family_house":
+                return (102, 971) # Source: TABULA German Building Typology
+            elif building_type == "apartment_block":
+                return (350, 540) # Source: TABULA German Building Typology
+            else: raise ValueError(f"Unknown building type for residential floor area estimation according to TABULA: {building_type}")
+
         # Process mixed buildings: split them based on floor calculation
         buildings_to_process = []
         buildings_to_skip = []
@@ -824,23 +844,39 @@ class Datahandler:
 
                 # Calculate floors based on main building type
                 if main_building_long == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "multi_family_house":
-                    one_floor_area = rd.randint(102, 971)
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                     if total_floors > 8:
                         total_floors = 8
                 elif main_building_long == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
                     total_floors = max(3, round(total_area / one_floor_area))
                 else:
-                    # TODO: For non-residential main buildings, change from percentage-based to a method that considers the actual floor number.
-                    one_floor_area = total_area * 0.25  # Assume 25% for secondary
-                    total_floors = 4  # Default
+                    # Generate a NonResidential building and get number of floors
+                    retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
+                    construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
+
+                    temp_building = NonResidential(
+                        usage=main_type,
+                        name="NonResidentialBuilding",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
+                        total_building_area=(                                          # Total net leased area of building
+                            building["buildingFeatures"]["area"] if self.total_building_area is None
+                            else self.total_building_area),
+                        construction_type=construction_type,
+                        retrofit_level=retrofit_level,
+                        number_of_floors=None
+                        )
+                    total_floors = max(2,int(temp_building.get_number_of_floors())) # If building is split it needs at least two floors
+                    one_floor_area = total_area / total_floors 
+                    del temp_building
 
                 # Recalculate one_floor_area based on total area and total floors to ensure consistency
                 one_floor_area = total_area / total_floors
@@ -930,18 +966,18 @@ class Datahandler:
                 if "fixed_floors" in building["buildingFeatures"]:
                     number_of_floors = building["buildingFeatures"]["fixed_floors"]
                 elif building_type == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type))  
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "multi_family_house":
                     # Generate a valid one-floor area and number of floors in one step
-                    one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type)) # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                     number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                     # Cap the number of floors to a maximum of 8
@@ -949,7 +985,7 @@ class Datahandler:
                         number_of_floors = 8
 
                 elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                     number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -1000,12 +1036,12 @@ class Datahandler:
                 retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
                 construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
 
-                if building["buildingFeatures"]["year"] < 1960:
-                    height_of_floors = 3.3  # m
-                elif building["buildingFeatures"]["year"] >= 1960:
-                    height_of_floors = 2.5  # m
+                if "fixed_floors" in building["buildingFeatures"]:
+                    number_of_floors = building["buildingFeatures"]["fixed_floors"]
+                else:
+                    number_of_floors = None # No information about the number of floors is given
 
-                nrb_prj = NonResidential( #! Add here also the fixed floor number logic?
+                nrb_prj = NonResidential(
                         usage=building["buildingFeatures"]["building"],
                         name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
@@ -1015,7 +1051,8 @@ class Datahandler:
                             building["buildingFeatures"]["area"] if self.total_building_area is None
                             else self.total_building_area),
                         construction_type=construction_type,
-                        retrofit_level=retrofit_level)
+                        retrofit_level=retrofit_level,
+                        )
 
                 # %% create envelope object
                 # containing all physical data of the envelope
@@ -2600,6 +2637,7 @@ class Datahandler:
         accepted_wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=";", index=False)
 
         return scenario_df
+
     def designNetworkwithNode(self):
         """
         Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.

@@ -116,6 +116,7 @@ class Envelope:
             V_dot_area = self.ventilationRate * self.V  # m³/h
             V_dot_infiltration = 0
             eta_temp_vent = 0  # Assumption: No heat recovery for residential buildings.
+
         else: # Non-residential buildings
             # Determine building standard (existing, standard, goal) based on construction year and retrofit level of the building. Based on the SIA2024 categorization.
             if self.construction_year < 1980 and self.retrofit == 0:
@@ -579,7 +580,7 @@ class Envelope:
 
         elif isinstance(prj, NonResidential):
 
-            self.V = prj.volume
+            # self.V = prj.volume # Volume of the building not needed for non-residential buildings with SIA2024 zone-based approach, as the ventilation is calculated based on the area of the zones instead of the volume of the building.
 
             self.A = {}  # in m2
 
