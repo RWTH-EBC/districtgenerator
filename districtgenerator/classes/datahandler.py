@@ -1007,6 +1007,15 @@ class Datahandler:
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
                                     net_leased_area=building["buildingFeatures"]["area"])
+                
+                if building["buildingFeatures"].get("is_mixed_part", False):
+                    if isinstance(prj, Project):
+                        mixed_res_part = prj.buildings[-1]
+                        for r in mixed_res_part.thermal_zones[0].ground_floors:
+                            # Ensure no ground area for the residential part.
+                            r.area = 1e-9 # Set to a very small value to avoid division by zero errors in Envelope calculations
+
+
 
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
                 building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
@@ -1051,7 +1060,8 @@ class Datahandler:
                             else self.total_building_area),
                         construction_type=construction_type,
                         retrofit_level=retrofit_level,
-                        number_of_floors=number_of_floors
+                        number_of_floors=number_of_floors,
+                        is_mixed_part=building["buildingFeatures"].get("is_mixed_part", False)
                         )
 
                 # %% create envelope object

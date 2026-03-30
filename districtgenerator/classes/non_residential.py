@@ -70,7 +70,8 @@ class NonResidential(object):
         # height_of_floors,
         construction_type,
         retrofit_level,
-        number_of_floors = None
+        number_of_floors = None,
+        is_mixed_part = False
     ):
         self.name = name 
         self.year_of_construction = year_of_construction
@@ -81,6 +82,7 @@ class NonResidential(object):
         self.construction_type = construction_type
         self.retrofit_level = retrofit_level
         self.number_of_floors = number_of_floors
+        self.is_mixed_part = is_mixed_part
 
         # Validate construction_type
         valid_construction_types = ["Light", "Medium", "Heavy", "Tabula"]
@@ -170,7 +172,11 @@ class NonResidential(object):
                 self.outer_area[key]["name"] = key
                 self.outer_area[key]["tilt"] = value[0]
                 self.outer_area[key]["orientation"] = value[1]
-                self.outer_area[key]["area"] = (self.facade_estimation_factors["rt1"]/self.facade_estimation_factors["gf1"] * one_floor_area) / len(self._roof_names)
+                if self.is_mixed_part:
+                    # If the building part is a mixed-use part, it is assumed that there is no roof area, as the residential part is located on top of the non-residential part.
+                    self.outer_area[key]["area"] = 0.0
+                else:
+                    self.outer_area[key]["area"] = (self.facade_estimation_factors["rt1"]/self.facade_estimation_factors["gf1"] * one_floor_area) / len(self._roof_names)
 
     # def calculate_volume(self):
     #     return self.net_leased_area * self.height_of_floors
