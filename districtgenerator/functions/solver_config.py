@@ -314,7 +314,14 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                 print("Running Gurobi optimization to determine source of termination...")
                 m.optimize()
 
-                if m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                if m.status == gp.GRB.OPTIMAL or m.status == 2: 
+                    print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
+                    with open(errorfile_path, 'a') as f:
+                        f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
+                        if term_cond == pyo.TerminationCondition.timeLimit:
+                            f.write(f"The original solver reached the time limit. Using Gurobi the runtime was: {m.Runtime:.2f} seconds\n")
+
+                elif m.status == gp.GRB.INFEASIBLE or m.status == 4:
                     m.computeIIS()
                     iis_filename = os.path.join(result_dir, f"iis_{model_name}.ilp")
                     m.write(iis_filename)
@@ -327,6 +334,21 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                     print("Gurobi model is unbounded.")
                     with open(errorfile_path, 'a') as f:
                         f.write("\nGurobi confirmed unbounded.\n")
+
+                elif m.status == gp.GRB.INF_OR_UNBD:
+                    print("Gurobi model is either infeasible or unbounded.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write("\nGurobi returned INF_OR_UNBD. Further diagnostics required.\n")
+
+                elif m.status in [gp.GRB.TIME_LIMIT, gp.GRB.ITERATION_LIMIT, gp.GRB.NODE_LIMIT]:
+                    print(f"Gurobi reached a limit (Code: {m.status}) before finishing.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write(f"\nGurobi stopped due to a limit. Status code: {m.status}\n")
+
+                elif m.status == gp.GRB.NUMERIC:
+                    print("Gurobi encountered numerical issues.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write("\nGurobi stopped due to numeric instability.\n")
 
                 else:
                     print(f"Gurobi resolved with status: {m.status}")

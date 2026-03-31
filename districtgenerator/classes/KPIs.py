@@ -15,6 +15,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
 import pandas as pd
+from districtgenerator.classes.certificate_generator import CertificateBuilder
 
 class KPIs:
 
@@ -1404,6 +1405,19 @@ class KPIs:
         print(f"KPIs saved to: {filename}")
 
     def create_certificate(self, data, result_path):
+            """
+            Generate a certificate as PDF file with a list of KPIs and a list with building information.
+
+            Parameters:
+            - filename: The name of the PDF file to create.
+            - title: The title of the document.
+            - kpis: A list of strings, where each string is a KPI to be written in the document.
+            """
+
+            certGenerator = CertificateBuilder(data = data, kpis=self, result_path=result_path)
+            certGenerator.generate_certificate()
+
+    def create_certificate_old(self, data, result_path):
         """
         Generate a certificate as PDF file with a list of KPIs and a list with building information.
 

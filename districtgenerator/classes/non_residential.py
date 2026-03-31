@@ -136,7 +136,7 @@ class NonResidential(object):
             one_floor_area = self.facade_estimation_factors["gf1"] * self.total_building_area # Use the ground floor estimation factor
         else:
             one_floor_area = self.total_building_area / self.number_of_floors # If the number of floors is given, calculate the area
-            print(f"Calculated one floor area based on total building area and number of floors: {one_floor_area} m2 (Total building area: {self.total_building_area} m2, Number of floors: {self.number_of_floors})")
+            # print(f"Calculated one floor area based on total building area and number of floors: {one_floor_area} m2 (Total building area: {self.total_building_area} m2, Number of floors: {self.number_of_floors})")
 
         # Outer walls
         if self.facade_estimation_factors["ow1"] != 0:

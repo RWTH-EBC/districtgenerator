@@ -34,7 +34,7 @@ from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
 
 class Datahandler:
     """
@@ -121,6 +121,7 @@ class Datahandler:
         self.heat_grid_data = {}
         self.pipe_data = {}
         self.pyomo_config = {}
+        self.report_config = {}
         # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
@@ -152,7 +153,8 @@ class Datahandler:
             central_config=global_config.central,
             calendar_config=global_config.calendar,
             heat_grid_config=global_config.heatgrid,
-            pyomo_config=global_config.pyomo
+            pyomo_config=global_config.pyomo,
+            report_config=global_config.report
         )
 
         self.buildings_completed = 0
@@ -188,7 +190,8 @@ class Datahandler:
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
                       heat_grid_config: HeatGridConfig,
-                      pyomo_config: PyomoConfig):
+                      pyomo_config: PyomoConfig,
+                      report_config: ReportConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -307,6 +310,10 @@ class Datahandler:
         # load pyomo solver data (used in optimization functions)
         for attr, value in pyomo_config.__dict__.items():
             self.pyomo_config[attr] = value
+
+        # load report configuration data
+        for attr, value in report_config.__dict__.items():
+            self.report_config[attr] = value
 
         # load heat grid data (used in heating network design and optimization)
         for attr, value in heat_grid_config.__dict__.items():

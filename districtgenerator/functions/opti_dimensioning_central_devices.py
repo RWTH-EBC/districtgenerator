@@ -993,19 +993,4 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     result_dict["total_co2_waste"] = int(sum(safe_value(model.waste_import_total, y) * param["co2_waste"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
     result_dict["total_co2_hydrogen"] = int(sum(safe_value(model.hydrogen_import_total, y) * param["co2_hydrogen"][y] * weights[y] for y in model.support_years) / 1000)  # t over full horizon
 
-
-
-
-
-
-    # Debug 
-    devices_heat = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
-
-    print("Installed heat capacities:")
-    for dev in devices_heat:
-        val = safe_value(model.cap, dev)
-        print(f"  {dev}: {val:.2f} W")
-
-    print(f"Peak heat demand (parameter): {param['peak_heat']} kW")
-
     return result_dict
