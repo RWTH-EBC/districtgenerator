@@ -20,6 +20,13 @@ from collections import OrderedDict
 import pandas as pd
 import math
 
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.graphics.charts.legends import Legend
+from reportlab.platypus import Flowable
+from reportlab.lib import colors
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+
 
 """
 Info:
@@ -66,7 +73,7 @@ class ThemeManager:
                 'thin': 1
             },
             'spacing': {
-                'large': 20,
+                'large': 10,
                 'medium': 10,
                 'small': 6
             },
@@ -106,6 +113,14 @@ class ThemeManager:
     def get_color(self, color_type:str):
         """Returns the colors defined in the report configuration."""
         return self.colors[color_type]
+    
+    def get_energy_color(self, energy_type:str):
+        """Returns the color for the specified energy type."""
+        return self.colors["energy"][energy_type]
+    
+    def get_source_color(self, source_type:str):
+        """Returns the color for the specified energy source type."""
+        return self.colors["source"][source_type]
     
     def get_font_size(self, font_type:str):
         """Returns the font size for the specified font type."""
@@ -187,17 +202,16 @@ class ThemeManager:
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('INNERGRID', (0, 0), (-1, -1), 0.25, self.colors["text"]),
             ('BOX', (0, 0), (-1, -1), 1, self.colors["text"]),
-            
-            # header row
-            ('BACKGROUND', (0, 0), (-1, 0), self.colors["background"]),
-            ('TEXTCOLOR', (0, 0), (-1, 0), self.colors["text"]),
+            ('TEXTCOLOR', (0, 0), (-1, -1), self.colors["text"]),
+            ('FONTSIZE', (0, 0), (-1, -1), self.fonts["sizes"]["table"]),
+            ('BACKGROUND', (0, 0), (-1, -1), self.colors["background"]),
+
+            # Data rows style
+            ('FONTNAME', (1, 1), (-1, -1), self.fonts["regular"]),
+            # header row bold
             ('FONTNAME', (0, 0), (-1, 0), self.fonts["bold"]),
-            ('FONTSIZE', (0, 0), (-1, 0), self.fonts["sizes"]["table"]),
-            
-            # data rows
-            ('TEXTCOLOR', (0, 1), (-1, -1), self.colors["text"]),
-            ('FONTNAME', (0, 1), (-1, -1), self.fonts["regular"]),
-            ('FONTSIZE', (0, 1), (-1, -1), self.fonts["sizes"]["table"]),
+            # first column bold
+            ('FONTNAME', (0, 1), (0, -1), self.fonts["bold"]),
         ])
 
         styles['input_data'] = TableStyle([
@@ -221,7 +235,27 @@ class ThemeManager:
             ('TOPPADDING', (0, 0), (-1, -1), 0),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
         ])
-        
+
+        styles['listed'] = TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), self.fonts["regular"]),
+            ('FONTSIZE', (0, 0), (-1, -1), self.fonts["sizes"]["table"]),
+            ('TEXTCOLOR', (0, 0), (-1, -1), self.colors["text"]),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+        ])
+
+        styles['layout'] = TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ])
+
         return styles
     
 
@@ -452,15 +486,319 @@ class Header(Flowable, ReportComponent):
 
 class Energiekennwerte(Flowable, ReportComponent):
     """
-    This class generates the Energiekennwerte section of the certificate.
+    Generates the Energiekennwerte section of the certificate.
+    Arranges a summary table on the left, and a pie chart stacked above 
+    a max loads table on the right.
     """
-    pass
+    def __init__(self, kpi_data: dict, availWidth: float):
+        super().__init__()
+        self.style = self.get_style()
+        self.width = availWidth
+        self.height = 0
+        
+        self.district_key_kpis = kpi_data["district_key_kpis"]
+        self.district_operation_kpis = kpi_data["district_operation_kpis"]
+        self.max_loads_data = kpi_data["max_loads_table"]
+        self.energy_pie_data = kpi_data["pie_chart_energy"]
+
+        
+                
+        # Arrange components in a transparent layout table
+        col_w_left = self.width *0.6
+        col_w_right = self.width *0.4
+
+        self.t_summary = self._build_listed_table(self.district_key_kpis)
+        self.t_operation = self._build_listed_table(self.district_operation_kpis)
+        self.pie_chart_flowable = EnergyPieChart(pie_data=self.energy_pie_data, availWidth=col_w_right)
+        self.max_loads_flowable = MaxLoadsBarChart(max_loads_data=self.max_loads_data, availWidth=col_w_right)
+
+        left_column_content = [Spacer(1, self.style.get_padding()),self.t_summary, Spacer(1, 3*self.style.get_padding()), Title("Optimierter Anlagenbetrieb"), Spacer(1, self.style.get_padding()), self.t_operation]
+        right_column_content = [self.pie_chart_flowable, Spacer(1, self.style.get_padding()), self.max_loads_flowable]
+
+        layout_data = [
+            [left_column_content, right_column_content]
+        ]
+        
+        self.layout_table = Table(layout_data, colWidths=[col_w_left, col_w_right])
+        self.layout_table.setStyle(self.style.get_table_styles()['layout']) # No visible styling, just for layout
+    
+    def _build_listed_table(self, data: list) -> Table:
+        """Builds table with listed style."""
+        t = Table(data)
+        t.setStyle(self.style.get_table_styles()['listed'])
+        return t
+    
+    def wrap(self, availWidth, availHeight):
+        """Calculates the needed height based on the pre-built layout table."""
+        _, self.height = self.layout_table.wrap(availWidth, availHeight)
+        return self.width, self.height
+
+    def draw(self):
+        """Draws the layout table onto the canvas."""
+        self.layout_table.drawOn(self.canv, 0, 0)
+
+
+class EnergyPieChart(Flowable, ReportComponent):
+    """
+    Standalone Flowable that generates a pie chart for annual energy demands,
+    using the configured corporate colors.
+    """
+
+    def __init__(self, pie_data: dict, availWidth: float):
+        super().__init__()
+        self.style = self.get_style()
+        self.pie_data = pie_data
+        self.availWidth = availWidth
+
+        self.drawing = self._create_drawing()
+        self.width = self.drawing.width
+        self.height = self.drawing.height
+
+    def _create_drawing(self) -> Drawing:
+        """Constructs the Drawing object containing the Pie and Legend."""
+        width, height = self.availWidth, 150 #TODO: Move away from this fixed size
+        start_legend = 30
+        d = Drawing(width, height)
+        
+        pie = Pie()
+        pie.width = 90
+        pie.height = 90
+        pie.x = (width-pie.width)/2 # Center the pie horizontally
+        pie.y = start_legend + self.style.get_padding()
+        
+        labels = []
+        values = []
+        slice_colors = []
+        
+        # Map pie categories to the specific keys in the colors dictionary
+        color_mapping = {
+            "Strom": self.style.get_energy_color("electricity"), # Directly fetch the color for electricity grid
+            "Wärme": self.style.get_energy_color("heating"),
+            "TWW": self.style.get_energy_color("dhw"),
+            "Kälte": self.style.get_energy_color("cooling"),
+            "EV": self.style.get_energy_color("ev")
+        }
+
+
+        for key, color_rgb in color_mapping.items():
+            val = self.pie_data[key]
+            
+            labels.append(key)
+            values.append(float(val))
+            slice_colors.append(colors.Color(*color_rgb))
+
+        pie.data = values
+        pie.labels = None
+        pie.slices.strokeColor = colors.white
+        pie.slices.strokeWidth = 1
+        pie.slices.labelRadius = 1.5
+        pie.slices[3].labelRadius = 1.2
+        pie.slices.fontName = self.style.get_font(bold=False)
+        
+        for i in range(len(values)):
+            pie.slices[i].fillColor = slice_colors[i]
+        
+        legend = Legend()
+        legend.alignment = 'right'
+        legend.fontName = self.style.get_font(bold=False)
+        legend.fontSize = 10
+        legend.dx = 7
+        legend.dy = 7
+        legend.yGap = 0
+        legend.deltax = 90
+        legend.deltay = 10
+        legend.strokeWidth = 0
+        legend.strokeColor = colors.white
+        legend.columnMaximum = 3
+        legend.boxAnchor = 'nw'
+        legend.y = start_legend
+        
+
+        num_columns = math.ceil(len(labels) / legend.columnMaximum)
+        legend_width = num_columns * legend.deltax
+        legend.x = (width - legend_width) / 2
+        
+        legend.colorNamePairs = [(slice_colors[i], f"{labels[i]}: {round(values[i], 1)}") for i in range(len(labels))]
+        
+        d.add(pie)
+        d.add(legend)
+        return d
+
+    def wrap(self, availWidth, availHeight):
+        # The drawing has fixed dimensions, so we just return them directly
+        return self.width, self.height
+
+    def draw(self):
+        # Draw the internal Drawing onto the Flowable's canvas
+        self.drawing.drawOn(self.canv, 0, 0)
+
+        c = self.canv
+        c.setFont(self.style.get_font(bold=True), self.style.get_font_size('body'))
+        c.setFillColorRGB(*self.style.get_color('text'))
+        c.drawCentredString(self.width / 2.0, self.height - 10, "Energiebedarfe in MWh/a")
+
+        # FOr Debugging: Draw a border around the pie chart
+        # c.setStrokeColor(colors.red)
+        # c.rect(0, 0, self.width, self.height, stroke=1, fill=0)
+
+class MaxLoadsBarChart(Flowable, ReportComponent):
+    """
+    Generates a horizontal bar chart representing maximum loads with values aligned to the right.
+    """
+    def __init__(self, max_loads_data: list, availWidth: float):
+        super().__init__()
+        self.style = self.get_style()
+        self.max_loads_data = max_loads_data
+        self.width = availWidth
+        self.height = 0
+        self.row_height = self.style.get_font_size('body') + 2
+
+        self.title_font = (self.style.get_font(bold=True), self.style.get_font_size('body'))
+        self.text_font = (self.style.get_font(bold=False), self.style.get_font_size('body'))    
+
+        
+    def wrap(self, availWidth, availHeight):
+        """Calculates needed height dynamically based on rows."""
+        self.width = availWidth
+        self.height = len(self.max_loads_data) * self.row_height + self.style.get_spacing('small') + self.title_font[1] # rows + spacing + title
+        return self.width, self.height
+        
+    def draw(self):
+        """Draws labels, scaled bars, and values onto the canvas."""
+        c = self.canv
+        c.saveState()
+        
+        labels = []
+        values_text = []
+        values_num = []
+        
+        # Parse data
+        for row in self.max_loads_data:
+            labels.append(row[0])
+            val_str = str(row[1])
+            values_text.append(val_str)
+            # Extract numerical value for scaling
+            try:
+                num = float(val_str.split()[0])
+            except ValueError:
+                num = 0.0
+            values_num.append(num)
+                
+        max_val = max(values_num) if values_num and max(values_num) > 0 else 1
+        
+        # Title
+        c.setFont(*self.title_font)
+        c.setFillColorRGB(*self.style.get_color('text'))
+        c.drawCentredString(self.width / 2.0, self.height - self.title_font[1], "Maximale Leistungen")
+        
+        # Font settings for body
+        c.setFont(*self.text_font)
+        
+        # Calculate dynamic layout metrics
+        max_label_width = max([c.stringWidth(lbl, *self.text_font) for lbl in labels])
+        max_val_width = max([c.stringWidth(val, *self.text_font) for val in values_text])
+        
+        x_label = 0
+        x_bar = max_label_width + self.style.get_padding()
+        gap_after_bar = self.style.get_spacing('small')
+        
+        available_bar_width = self.width - x_bar - max_val_width - gap_after_bar
+        scale_factor = available_bar_width / max_val 
+        
+        bar_color = self.style.get_color('secondary_color')
+        text_color = self.style.get_color('text')
+        
+        for i in range(len(values_num)):
+            y_pos = self.height - self.title_font[1] - self.style.get_spacing('small') - self.text_font[1] - (self.row_height * i)
+            
+            # Label
+            c.setFillColorRGB(*text_color)
+            c.drawString(x_label, y_pos, labels[i])
+            
+            # Bar
+            bar_w = values_num[i] * scale_factor
+            c.setFillColorRGB(*bar_color)
+            c.rect(x_bar, y_pos, bar_w, 6, stroke=0, fill=1)
+            
+            # Value
+            c.setFillColorRGB(*text_color)
+            c.drawString(x_bar + bar_w + gap_after_bar, y_pos, values_text[i])
+            
+        c.restoreState()
+
+        # FOr Debugging: Draw a border around the pie chart
+        # c.setStrokeColor(colors.red)
+        # c.rect(0, 0, self.width, self.height, stroke=1, fill=0)
+
+class Title(Flowable, ReportComponent):
+    """A simple Flowable to draw a centered bold title."""
+    def __init__(self, title_text: str):
+        super().__init__()
+        self.style = self.get_style()
+        self.title_text = title_text
+        self.font = self.style.get_font(bold=True)
+        self.font_size = self.style.get_font_size('subsection_title')
+        self.color = self.style.get_color('text')
+        self.width = 0
+        self.height = self.font_size + 4 # Kleine Pufferzone
+        
+    def wrap(self, availWidth, availHeight):
+        self.width = availWidth
+        return self.width, self.height
+        
+    def draw(self):
+        c = self.canv
+        c.setFont(self.font, self.font_size)
+        c.setFillColorRGB(*self.color)
+        # Die y-Position ist leicht angehoben, damit es bündig wirkt
+        c.drawString(0, 0, self.title_text)
 
 class Quartiersstruktur(Flowable, ReportComponent):
     """
-    This class generates the Quartiersstruktur section of the certificate.
+    This class generates the Quartiersstruktur section of the certificate providing a summary of the building stock and the neighborhood characteristics.
     """
-    pass
+    def __init__(self, summary_table_data: list, general_info: list) -> None:
+        super().__init__()
+        self.style = self.get_style()
+        self.width = None
+        self.height = None
+
+        # Build the table
+        self.table = Table(summary_table_data)
+        self.table.setStyle(self.style.get_table_styles()['standard'])
+
+        self.info_table = Table(general_info)
+        self.info_table.setStyle(self.style.get_table_styles()['listed'])
+
+    def wrap(self, availWidth, availHeight):
+        self.width = availWidth
+        
+        # Main table width (90% of available space to prevent squeezing)
+        n_cols = len(self.table._cellvalues[0])
+        col_w = (availWidth * 0.9) / n_cols
+        self.table._argW = [col_w, col_w, col_w, col_w] # All columns same width
+        self.table_width, self.table_height = self.table.wrap(availWidth, availHeight)
+
+        # Info table width
+        self.info_table_width, self.info_height = self.info_table.wrap(availWidth, availHeight)
+
+        # Total height: Main Table + Padding + Info Table
+        self.height = self.table_height + self.style.get_padding() + self.info_height
+        return self.width, self.height
+
+    def draw(self):
+        c = self.canv
+        y = self.height
+
+        # Main Table (centered)
+        x_offset = (self.width - self.table_width) / 2.0
+        self.table.drawOn(c, x_offset, y - self.table_height)
+ 
+        y -= self.table_height + self.style.get_padding() 
+
+        # Info Table (centered)
+        x_offset = (self.width - self.info_table_width) / 2.0
+        self.info_table.drawOn(c, x_offset, y - self.info_height)
 
 class Footer(Flowable, ReportComponent):
     """
@@ -549,6 +887,347 @@ class Footer(Flowable, ReportComponent):
         
         return required_height 
 
+class EnergyHub(Flowable, ReportComponent):
+    """
+    Flowable that handles the visual layout of the Energy Hub content.
+    Provides a class method to handle pagination and FrameBox wrapping.
+    """
+    def __init__(self, content_flowable: Flowable):
+        super().__init__()
+        self.style = self.get_style()
+        self.content_flowable = content_flowable 
+        self.width = None
+        self.height = None
+
+    def wrap(self, availWidth, availHeight):
+        self.width = availWidth
+        
+        if hasattr(self.content_flowable, 'table'):
+            target_table = self.content_flowable.table
+        elif isinstance(self.content_flowable, Table):
+            target_table = self.content_flowable
+        else:
+            target_table = None
+
+        if target_table:
+            n_cols = len(target_table._cellvalues[0])
+            target_table._argW = [availWidth / n_cols] * n_cols
+
+        _, self.height = self.content_flowable.wrap(availWidth, availHeight)
+        return self.width, self.height
+
+    def draw(self):
+        # Delegate drawing to the internal content
+        self.content_flowable.drawOn(self.canv, 0, 0)
+
+        # here additional specifics can be added
+
+    @classmethod
+    def create_boxes(cls, data_energyhub: pd.DataFrame, availWidth: float, availHeight: float) -> list:
+        """Creates a list of FrameBox objects for the Energy Hub data."""
+        style = cls.get_style()
+        boxes = []
+
+        # Handle empty data
+        if data_energyhub is None or data_energyhub.empty:
+            box = FrameBox(title="Energy Hub")
+            p = Paragraph("Es wurden keine zentralen Energieanlagen ausgelegt", style.get_paragraph_styles()['Normal'])
+            box.set_content(cls(content_flowable=p))
+            boxes.append(box)
+            return boxes
+
+        # Handle data with pagination
+        eh_tables = PaginatedDataFrameTable.create_all_tables(
+            availWidth=availWidth, 
+            availHeight=availHeight, 
+            input_data=data_energyhub,
+            style_name='standard'
+        )
+
+        # Check if it fits on exactly one page
+        if len(eh_tables) == 1:
+            box = FrameBox(title="Energy Hub")
+            header = data_energyhub.columns.tolist()
+            body = data_energyhub.values.tolist()
+            standard_table = Table([header] + body)
+            standard_table.setStyle(style.get_table_styles()['standard'])
+            
+            box.set_content(cls(content_flowable=standard_table))
+            boxes.append(box)
+            
+        else:
+            for i, eh_table in enumerate(eh_tables, start=1):
+                title = f"Energy Hub ({i}/{len(eh_tables)})"
+                box = FrameBox(title=title)
+                box.set_content(cls(content_flowable=eh_table))
+                boxes.append(box)
+        
+        return boxes
+
+class DecentralSystems(Flowable, ReportComponent):
+    """
+    Flowable that handles the visual layout of the Decentral Systems content.
+    Provides a class method to handle pagination and FrameBox wrapping.
+    """
+    def __init__(self, content_flowable: Flowable):
+        super().__init__()
+        self.style = self.get_style()
+        self.content_flowable = content_flowable 
+        self.width = None
+        self.height = None
+
+    def wrap(self, availWidth, availHeight):
+        self.width = availWidth
+        
+        if hasattr(self.content_flowable, 'table'):
+            target_table = self.content_flowable.table
+        elif isinstance(self.content_flowable, Table):
+            target_table = self.content_flowable
+        else:
+            target_table = None
+
+        if target_table:
+            n_cols = len(target_table._cellvalues[0])
+            target_table._argW = [availWidth / n_cols] * n_cols
+
+        _, self.height = self.content_flowable.wrap(availWidth, availHeight)
+        return self.width, self.height
+
+    def draw(self):
+        # Delegate drawing to the internal content
+        self.content_flowable.drawOn(self.canv, 0, 0)
+
+    @classmethod
+    def create_boxes(cls, data_decentral: pd.DataFrame, availWidth: float, availHeight: float) -> list:
+        """Creates a list of FrameBox objects for the Decentral Systems data."""
+        style = cls.get_style()
+        boxes = []
+
+        # Handle empty data
+        if data_decentral is None or data_decentral.empty:
+            box = FrameBox(title="Dezentrale Energiesysteme")
+            p = Paragraph("Es wurden keine dezentralen Energieanlagen ausgelegt", style.get_paragraph_styles()['Normal'])
+            box.set_content(cls(content_flowable=p))
+            boxes.append(box)
+            return boxes
+
+        # Handle data with pagination
+        dec_tables = PaginatedDataFrameTable.create_all_tables(
+            availWidth=availWidth, 
+            availHeight=availHeight, 
+            input_data=data_decentral,
+            style_name='standard'
+        )
+
+        # Check if it fits on exactly one page
+        if len(dec_tables) == 1:
+            box = FrameBox(title="Dezentrale Energiesysteme")
+            header = data_decentral.columns.tolist()
+            body = data_decentral.values.tolist()
+            standard_table = Table([header] + body)
+            standard_table.setStyle(style.get_table_styles()['standard'])
+            
+            box.set_content(cls(content_flowable=standard_table))
+            boxes.append(box)
+            
+        else:
+            for i, dec_table in enumerate(dec_tables, start=1):
+                title = f"Dezentrale Energiesysteme ({i}/{len(dec_tables)})"
+                box = FrameBox(title=title)
+                box.set_content(cls(content_flowable=dec_table))
+                boxes.append(box)
+        
+        return boxes
+    
+class YearlyStackedBarCharts(Flowable, ReportComponent):
+    """
+    Generates two stacked bar charts side-by-side (Costs and CO2 emissions)
+    for each simulated year, with a shared legend below.
+    """
+    def __init__(self, costs_data: list, co2_data: list, availWidth: float):
+        super().__init__()
+        self.style = self.get_style()
+        self.costs_data = costs_data
+        self.co2_data = co2_data
+        self.availWidth = availWidth
+        
+        self.drawing = self._create_drawing()
+        self.width = self.drawing.width
+        self.height = self.drawing.height
+
+    def _create_drawing(self) -> Drawing:
+        # Extract years and sort them
+        years = sorted([item["Year"] for item in self.costs_data])
+        year_labels = [str(y) for y in years]
+        
+        # Define categories (excluding 'Year')
+        cost_categories = [k for k in self.costs_data[0].keys() if k != "Year"]
+        co2_categories = [k for k in self.co2_data[0].keys() if k != "Year"]
+        
+        # Combine all unique categories for the shared legend
+        all_categories = list(dict.fromkeys(cost_categories + co2_categories))
+        
+        # Format data for ReportLab VerticalBarChart (list of tuples/lists per category across all years)
+        cost_series = []
+        for cat in cost_categories:
+            series = [next(item[cat] for item in self.costs_data if item["Year"] == y) for y in years]
+            cost_series.append(tuple(series))
+            
+        co2_series = []
+        for cat in co2_categories:
+            series = [next(item[cat] for item in self.co2_data if item["Year"] == y) for y in years]
+            co2_series.append(tuple(series))
+
+        # --- Base Metrics ---
+        drawing_width = self.availWidth
+        chart_width = drawing_width - 80 # Leave padding on the sides
+        chart_height = 150
+        x_align = 40
+        
+        # --- Legend Calculations ---
+        # Calculate exactly how much vertical space the legend needs
+        legend_max_cols = 3
+        legend_deltay = 12
+        num_legend_items = len(all_categories)
+        num_legend_rows = math.ceil(num_legend_items / legend_max_cols)
+        
+        # The true height of the legend box
+        actual_legend_height = num_legend_rows * legend_deltay
+        
+        # --- Vertical Layout Planning (from bottom to top) ---
+        bottom_padding = 10
+        legend_y = bottom_padding + actual_legend_height # Legend draws top-down
+        
+        space_above_legend = 30
+        co2_chart_y = legend_y + space_above_legend
+        co2_title_y = co2_chart_y + chart_height + 15
+        
+        gap_between_charts = 40
+        costs_chart_y = co2_title_y + gap_between_charts
+        costs_title_y = costs_chart_y + chart_height + 15
+        
+        top_padding = 10
+        
+        # The total height is exactly the top element's Y coordinate plus padding
+        drawing_height = costs_title_y + top_padding
+        
+        d = Drawing(drawing_width, drawing_height)
+        
+        # Helper function to get color mapping securely
+        def get_cat_color(category):
+            """Returns the color based on the exact dictionary key string."""
+            try:
+                # Direct mapping of your exact keys to the theme color types
+                mapping = {
+                    "Anlagenkosten zentral": "eh_fixed",
+                    "Anlagenkosten dezentral": "decentral_fixed",
+                    "Strom": "electricity",
+                    "Gas": "gas",
+                    "Öl": "oil",
+                    "Abfall": "waste",
+                    "Biomasse": "biomass",
+                    "Fernwärme": "district_heat",
+                    "Wasserstoff": "hydrogen",
+                    "Einspeisung (el.)": "revenue_feed_in_el"
+                }
+                
+                # Check if the exact string exists in our mapping
+                if category in mapping:
+                    color_key = mapping[category]
+                    return self.style.get_source_color(color_key)
+                
+                # Fallback if the string is not in the explicit list
+                return self.style.get_color("secondary_color")
+                
+            except KeyError:
+                # Fallback if the color key itself is missing in the theme config
+                return self.style.get_color("secondary_color")
+
+        # --- Shared Legend ---
+        legend = Legend()
+        legend.fontName = self.style.get_font(bold=False)
+        legend.fontSize = 9
+        legend.dx = 8
+        legend.dy = 8
+        legend.yGap = 0
+        legend.deltay = 12
+        legend.strokeWidth = 0
+        legend.dxTextSpace = self.style.get_spacing('medium')
+        legend.variColumn = True
+        legend.columnMaximum = legend_max_cols
+        legend.alignment = 'right'
+        
+        legend_pairs = [(colors.Color(*get_cat_color(cat)), cat) for cat in all_categories]
+        legend.colorNamePairs = legend_pairs
+        
+        # Center legend
+        num_columns = math.ceil(num_legend_items / legend.columnMaximum)
+        actual_legend_width = num_columns * legend.deltax
+        legend.x = 0
+        legend.y = 0
+        bounds = legend.getBounds() 
+        actual_legend_width = bounds[2] - bounds[0]
+
+        legend.x = (drawing_width - actual_legend_width) / 2
+        legend.y = legend_y # Dein gewünschter Abstand zum unteren Rand
+        
+        d.add(legend)
+
+        axis_label_font = self.style.get_font(bold=False)
+        axis_label_size = self.style.get_font_size('small')
+
+        # --- CO2 Chart (Bottom Chart) ---
+        bc_co2 = VerticalBarChart()
+        bc_co2.x = x_align
+        bc_co2.y = co2_chart_y
+        bc_co2.height = chart_height
+        bc_co2.width = chart_width
+        bc_co2.data = co2_series
+        bc_co2.categoryAxis.categoryNames = year_labels
+        bc_co2.categoryAxis.labels.fontName = self.style.get_font(bold=False)
+        bc_co2.categoryAxis.labels.fontSize = 8
+        bc_co2.valueAxis.labels.fontName = self.style.get_font(bold=False)
+        bc_co2.valueAxis.labels.fontSize = 8
+        bc_co2.categoryAxis.style = 'stacked'
+        
+        for i, cat in enumerate(co2_categories):
+            bc_co2.bars[i].fillColor = colors.Color(*get_cat_color(cat))
+            bc_co2.bars[i].strokeWidth = 0
+
+        d.add(bc_co2)
+        d.add(String(bc_co2.x + chart_width/2, co2_title_y, "CO2-Emissionen (t/a)", fontName=self.style.get_font(bold=True), fontSize=10, textAnchor='middle'))
+        # d.add(String(bc_co2.x + chart_width/2, bc_co2.y - 30, "Stützjahr", fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
+
+        # --- Costs Chart (Top Chart) ---
+        bc_costs = VerticalBarChart()
+        bc_costs.x = x_align
+        bc_costs.y = costs_chart_y
+        bc_costs.height = chart_height
+        bc_costs.width = chart_width
+        bc_costs.data = cost_series
+        bc_costs.categoryAxis.categoryNames = year_labels
+        bc_costs.categoryAxis.labels.fontName = self.style.get_font(bold=False)
+        bc_costs.categoryAxis.labels.fontSize = 8
+        bc_costs.valueAxis.labels.fontName = self.style.get_font(bold=False)
+        bc_costs.valueAxis.labels.fontSize = 8
+        bc_costs.categoryAxis.style = 'stacked'
+        
+        for i, cat in enumerate(cost_categories):
+            bc_costs.bars[i].fillColor = colors.Color(*get_cat_color(cat))
+            bc_costs.bars[i].strokeWidth = 0
+
+        d.add(bc_costs)
+        d.add(String(bc_costs.x + chart_width/2, costs_title_y, "Kosten (€/a)", fontName=self.style.get_font(bold=True), fontSize=10, textAnchor='middle'))
+        # d.add(String(bc_costs.x + chart_width/2, bc_costs.y - 30, "Stützjahr", fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
+
+        return d
+
+    def wrap(self, availWidth, availHeight):
+        return self.width, self.height
+
+    def draw(self):
+        self.drawing.drawOn(self.canv, 0, 0)
+
 class InputDataTable(Flowable, ReportComponent):
     """
     This class generates the Input Data Table section of the certificate.
@@ -577,41 +1256,6 @@ class InputDataTable(Flowable, ReportComponent):
         # Apply the pre-configured TableStyle
         self.table_style = self.style.get_table_styles()['input_data']
         self.table.setStyle(self.table_style)
-
-    def get_rows_that_fit(self, availWidth, availHeight):
-        """
-        Determines which rows of the input data table fit into the available height.
-        Returns a tuple of two DataFrames: (fitting_rows, overspill_rows)
-        """
-
-        if self.input_data is None or self.input_data.empty:
-            return pd.DataFrame(), pd.DataFrame()
-
-        header = self.input_data.columns.tolist()
-        num_cols = len(header)
-        colWidths = [availWidth / num_cols] * num_cols
-
-        num_data_rows_fit = len(self.input_data)
-        # Iteratively reduce estimated number of rows until the real wrapped table
-        while num_data_rows_fit > 0:
-            # Rows for this iteration
-            fitting_rows_df = self.input_data.iloc[:num_data_rows_fit]
-
-            # Create a temporary table to check the wrapped height
-            table_data = [header] + fitting_rows_df.values.tolist()
-            tmp_table = Table(table_data, colWidths=colWidths)
-            tmp_table.setStyle(self.table_style)
-
-            _, wrapped_height = tmp_table.wrap(availWidth, availHeight)
-
-            if wrapped_height <= availHeight:
-                break  # Fits within available height
-            num_data_rows_fit -= 1
-
-        fitting_rows = self.input_data.iloc[:num_data_rows_fit]
-        overspill_rows = self.input_data.iloc[num_data_rows_fit:]
-
-        return fitting_rows, overspill_rows
     
     def wrap(self, availWidth, availHeight):
         # Calculates the column widths to fill out the available width equally
@@ -631,43 +1275,6 @@ class InputDataTable(Flowable, ReportComponent):
     
     def draw(self):
         self.table.drawOn(self.canv, 0, self.height - self.actual_height) #Placement at the top-left corner
-
-    @classmethod
-    def create_all_tables(cls, availWidth, availHeight, input_data:pd.DataFrame):
-        """
-        Creates all input data tables so that the whole content can be displayed.
-        The flowables contain all table rows that fit into the available height.
-        The overflow rows are placed into the next flowable.
-        returns a list of InputDataTable flowables.
-        """
-        if input_data is None or input_data.empty:
-            return []
-
-        flowables = []
-        remaining_data = input_data.copy()
-
-        while not remaining_data.empty:
-            # Create a new InputDataTable with the remaining data
-            test_input_data = cls(input_data=remaining_data)
-            test_input_data.width = availWidth # -> Use the whole available width
-
-            # get the rows that fit into the available height and the overspill rows
-            fitting_rows, overspill_rows = test_input_data.get_rows_that_fit(availWidth=availWidth, availHeight=availHeight)
-
-            if fitting_rows.empty and not overspill_rows.empty:
-                # If no rows fit, but there are overspill rows
-                raise Exception(f"A single row does not fit into the available height. Decrease the needed height. Current available height: {str(availHeight)} and current available width: {str(availWidth)}")
-            elif not fitting_rows.empty:
-                # Create a new InputDataTable with the fitting rows
-                table_flowable = cls(input_data=fitting_rows)
-                flowables.append(table_flowable)
-
-                # Update the remaining data
-                remaining_data = overspill_rows
-            else:
-                break # No more rows to process
-
-        return flowables
 
 class Hinweise(Flowable, ReportComponent):
     """
@@ -886,7 +1493,7 @@ class Hinweise(Flowable, ReportComponent):
         return hinweise
 
 ################################################################################
-# Layout generation as a class
+# Layout generation as classes
 ################################################################################
 
 class CertificateLayout(ReportComponent):
@@ -910,8 +1517,10 @@ class CertificateLayout(ReportComponent):
     def create_energiekennwerte(self, data_energiekennwerte):
         """Creates the Energiekennwerte section and adds it to the story."""
         box = FrameBox(title="Energetische Kennwerte")
-        # energiekennwerte = Energiekennwerte()
-        energiekennwerte = Paragraph("Dies ist ein Platzhalter für die energetischen Kennwerte.", self.paragraph_styles['Normal']) 
+        frame_width, frame_height = self.certificate_builder.get_Framesize(id='TitleContentFrame')
+        avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
+        
+        energiekennwerte = Energiekennwerte(kpi_data=data_energiekennwerte, availWidth=avail_w)
         box.set_content(energiekennwerte)
         self.story.append(box)
         self.add_standard_spacer()
@@ -919,9 +1528,13 @@ class CertificateLayout(ReportComponent):
     def create_quartiersstruktur(self, data_quartiersstruktur):
         """Creates the Quartiersstruktur section and adds it to the story."""
         box = FrameBox(title="Quartiersstruktur")
-        # quartiersstruktur = Quartiersstruktur()
-        quartiersstruktur = Paragraph("Dies ist ein Platzhalter für die Quartiersstruktur.", self.paragraph_styles['Normal']) 
-        box.set_content(quartiersstruktur)
+        
+        quartiersstruktur_flowable = Quartiersstruktur(
+            summary_table_data=data_quartiersstruktur["summary_table"],
+            general_info=data_quartiersstruktur["general_info"]
+        )
+        
+        box.set_content(quartiersstruktur_flowable, full_width=False)
         self.story.append(box)
         self.add_standard_spacer()
 
@@ -930,26 +1543,82 @@ class CertificateLayout(ReportComponent):
         footer = Footer(scenario_name)
         self.story.append(footer)
 
+    
+
     # Energyhub device capacity page
     def create_energyhub_data(self, data_energyhub):
         """Creates the Energyhub Data section and adds it to the story."""
-        # TODO: LOGIC Wise this should move into a seperate class like the Energiekennwerte and Quartiersstruktur!
-        box = FrameBox(title="Energyhub-Daten")
-
-        if data_energyhub is None or data_energyhub.empty:
-            energyhub_data = Paragraph("Es wurden keine zentralen Energieanlagen ausgelegt", self.paragraph_styles['Normal'])
-        else:
-            header = data_energyhub.columns.to_list()
-            body = data_energyhub.values.tolist()
-            table_data = [header] + body
-
-            energyhub_data = Table(table_data)
-            table_style = self.style.get_table_styles()['standard']
-            energyhub_data.setStyle(table_style)
+    
+        # 1. Get the available space from the template frame
+        frame_width, frame_height = self.certificate_builder.get_Framesize(id='EnergyhubDevicesFrame')
+        eh_width, eh_height = FrameBox.get_available_space_content(frame_width, frame_height)
         
-        # Put the content in the FrameBox
-        box.set_content(energyhub_data, full_width=True)
-        self.story.append(box)
+        # 2. Let the EnergyHub factory create all necessary, perfectly sized boxes
+        boxes = EnergyHub.create_boxes(
+            data_energyhub=data_energyhub, 
+            availWidth=eh_width, 
+            availHeight=eh_height
+        )
+        
+        # 3. Add them to the document story
+        self.story.extend(boxes)
+
+    def create_decentral_systems(self, data_decentral):
+        """Creates the Decentral Systems section and adds it to the story."""
+        
+        # 1. Get the available space from the template frame
+        frame_width, frame_height = self.certificate_builder.get_Framesize(id='EnergyhubDevicesFrame')
+        
+        # Calculate how much height is ALREADY consumed by the EnergyHub boxes currently in the story
+        used_height = 0
+        for item in self.story:
+            # Give it a wide dummy width just to ask the Flowables for their height
+            _, h = item.wrap(frame_width, frame_height)
+            used_height += h
+
+        # Available height is the total frame height minus what we've already used
+        remaining_height = max(0, frame_height - used_height)
+        
+        # Get content dimensions
+        dec_width, dec_height = FrameBox.get_available_space_content(frame_width, remaining_height)
+        
+        # 2. Let the DecentralSystems factory create all necessary boxes
+        boxes = DecentralSystems.create_boxes(
+            data_decentral=data_decentral, 
+            availWidth=dec_width, 
+            availHeight=dec_height
+        )
+        
+        # Add spacing before the new section if there are boxes
+        if boxes:
+            self.add_standard_spacer()
+        
+        # 3. Add them to the document story
+        self.story.extend(boxes)
+
+    def create_quartiersstruktur_details(self, data_quartiersstruktur):
+        """Creates the detailed matrix on a landscape page."""
+        df_details = data_quartiersstruktur["df_details"]
+        
+        if df_details.empty:
+            return
+            
+        frame_width, frame_height = self.certificate_builder.get_Framesize(id='InputDataFrame')
+        avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
+        
+        # Use our universal pagination logic with the pre-built DataFrame
+        tables = PaginatedDataFrameTable.create_all_tables(
+            availWidth=avail_w, 
+            availHeight=avail_h, 
+            input_data=df_details,
+            style_name='input_data'
+        )
+        
+        for i, tab in enumerate(tables, start=1):
+            title = "Netto Raumfläche nach Gebäudetyp und Altersklasse" if len(tables) == 1 else f"Netto Raumfläche nach Gebäudetyp und Altersklasse ({i}/{len(tables)})"
+            box = FrameBox(title=title)
+            box.set_content(tab, full_width=True)
+            self.story.append(box)
     
     # Input Data page
     def create_input_data_table(self, data_input):
@@ -957,14 +1626,16 @@ class CertificateLayout(ReportComponent):
         frame_width, frame_height = self.certificate_builder.get_Framesize(id='InputDataFrame')
         input_data_width, input_data_height = FrameBox.get_available_space_content(frame_width, frame_height)
         
-        input_data_tables = InputDataTable.create_all_tables(
+        input_data_tables = PaginatedDataFrameTable.create_all_tables(
             availWidth=input_data_width, 
             availHeight=input_data_height, 
-            input_data=data_input
+            input_data=data_input,
+            style_name='input_data'
         )
         
         for i, input_data_table in enumerate(input_data_tables, start=1):
-            box = FrameBox(title=f"Liste der Gebäude ({i}/{len(input_data_tables)})")
+            name = f"Liste der Gebäude ({i}/{len(input_data_tables)})" if len(input_data_tables) > 1 else "Liste der Gebäude"
+            box = FrameBox(title=name)
             box.set_content(input_data_table)
             self.story.append(box)
         
@@ -983,9 +1654,26 @@ class CertificateLayout(ReportComponent):
         pages_hinweise = len(hinweise)
         
         for i, hinweis in enumerate(hinweise, start=1):
-            box = FrameBox(title=f"Allgemeine Hinweise ({i}/{pages_hinweise})")
+            name = f"Allgemeine Hinweise ({i}/{pages_hinweise})" if pages_hinweise > 1 else "Allgemeine Hinweise"
+            box = FrameBox(title=name)
             box.set_content(hinweis)
             self.story.append(box)
+    
+    def create_yearly_bar_charts(self, kpi_data):
+        """Creates the yearly stacked bar charts and adds them to the story."""
+        costs_data = kpi_data.get("bar_costs_data", [])
+        co2_data = kpi_data.get("bar_co2_data", [])
+        
+        if not costs_data or not co2_data:
+            return
+
+        box = FrameBox(title="Jährliche Entwicklung (Kosten & Emissionen)")
+        frame_width, frame_height = self.certificate_builder.get_Framesize(id='EnergyhubDevicesFrame')
+        avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
+        
+        barcharts_flowable = YearlyStackedBarCharts(costs_data=costs_data, co2_data=co2_data, availWidth=avail_w)
+        box.set_content(barcharts_flowable)
+        self.story.append(box)
 
     def add_standard_spacer(self, size:str='medium'):
         """Adds a standard spacer to the story."""
@@ -1035,7 +1723,7 @@ class CertificateTemplate(BaseDocTemplate, ReportComponent):
 
         title_content_frame = Frame(
             margin_x, 
-            margin_y + footer_height + footer_spacing,  # Startet ÜBER dem Footer
+            margin_y + footer_height,  # Startet ÜBER dem Footer
             width - 2*margin_x, 
             height - 2*margin_y - footer_height - footer_spacing,  # Reduzierte Höhe
             leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, 
@@ -1143,6 +1831,117 @@ class CertificateTemplate(BaseDocTemplate, ReportComponent):
                     return frame._width, frame._height
         raise ValueError(f"No frame with id {id} found.")
 
+class PaginatedDataFrameTable(Flowable, ReportComponent):
+    """
+    Generic class to generate and paginate tables from pandas DataFrames.
+    """
+    def __init__(self, input_data: pd.DataFrame, style_name: str) -> None:
+        super().__init__()
+        self.style = self.get_style()
+        self.style_name = style_name
+
+        self.width = None
+        self.height = None
+        self.actual_height = None
+
+        if input_data is None or input_data.empty:
+            self.input_data = pd.DataFrame()
+            table_data = []
+        else:
+            self.input_data = input_data.copy()
+            self.input_data = self.input_data.fillna("-").astype(str)
+
+            header = self.input_data.columns.tolist()
+            body = self.input_data.values.tolist()
+            table_data = [header] + body
+
+        self.table = Table(table_data)
+
+        # Apply the pre-configured TableStyle directly
+        self.table_style = self.style.get_table_styles()[self.style_name]
+        self.table.setStyle(self.table_style)
+
+    def get_rows_that_fit(self, availWidth, availHeight):
+        """
+        Determines which rows of the data fit into the available height.
+        Returns a tuple of two DataFrames: (fitting_rows, overspill_rows).
+        """
+        if self.input_data is None or self.input_data.empty:
+            return pd.DataFrame(), pd.DataFrame()
+
+        header = self.input_data.columns.tolist()
+        num_cols = len(header)
+        colWidths = [availWidth / num_cols] * num_cols
+
+        num_data_rows_fit = len(self.input_data)
+        
+        # Iteratively reduce estimated number of rows until it fits
+        while num_data_rows_fit > 0:
+            fitting_rows_df = self.input_data.iloc[:num_data_rows_fit]
+
+            table_data = [header] + fitting_rows_df.values.tolist()
+            tmp_table = Table(table_data, colWidths=colWidths)
+            tmp_table.setStyle(self.table_style)
+
+            _, wrapped_height = tmp_table.wrap(availWidth, availHeight)
+
+            if wrapped_height <= availHeight:
+                break 
+            num_data_rows_fit -= 1
+
+        fitting_rows = self.input_data.iloc[:num_data_rows_fit]
+        overspill_rows = self.input_data.iloc[num_data_rows_fit:]
+
+        return fitting_rows, overspill_rows
+    
+    def wrap(self, availWidth, availHeight):
+        if self.input_data is None or self.input_data.empty:
+            self.width = 0
+            self.height = 0
+            return self.width, self.height
+        
+        num_cols = len(self.input_data.columns)
+        col_width = availWidth / num_cols
+        self.table._argW = [col_width] * num_cols
+
+        actual_width, self.actual_height = self.table.wrap(availWidth, availHeight)
+        self.width = availWidth
+        self.height = availHeight
+        return self.width, self.height 
+    
+    def draw(self):
+        # Placement at the top-left corner
+        self.table.drawOn(self.canv, 0, self.height - self.actual_height) 
+
+    @classmethod
+    def create_all_tables(cls, availWidth, availHeight, input_data: pd.DataFrame, style_name: str):
+        """
+        Creates all tables so that the whole content can be displayed.
+        """
+        if input_data is None or input_data.empty:
+            return []
+
+        flowables = []
+        remaining_data = input_data.copy()
+
+        while not remaining_data.empty:
+            test_input_data = cls(input_data=remaining_data, style_name=style_name)
+            test_input_data.width = availWidth 
+
+            fitting_rows, overspill_rows = test_input_data.get_rows_that_fit(availWidth=availWidth, availHeight=availHeight)
+
+            if fitting_rows.empty and not overspill_rows.empty:
+                raise Exception(f"A single row does not fit into the available height. Decrease the needed height. Current available height: {str(availHeight)} and current available width: {str(availWidth)}")
+            elif not fitting_rows.empty:
+                table_flowable = cls(input_data=fitting_rows, style_name=style_name)
+                flowables.append(table_flowable)
+
+                remaining_data = overspill_rows
+            else:
+                break 
+
+        return flowables
+    
 ################################################################################
 # Data Infrastructure for the certificate as a class to extract  and prepare relevant data for the certificate
 ################################################################################
@@ -1166,6 +1965,7 @@ class DataExtractor:
         self.optimization_results = None
         self.district_structure = None
         self.energyhub_df = None
+        self.decentral_df = None
 
         
 
@@ -1181,7 +1981,8 @@ class DataExtractor:
             ("EV", "EV"),
             ("fTES", "f_TES"),
             ("fBAT", "f_BAT"),
-            ("fPV", "f_PV"),
+            ("fPV1", "f_PV1"),
+            ("fPV2", "f_PV2"),
             ("fSTC", "f_STC"),
             ("gammaPV", "gamma_PV"),
             ("EV Charging", "ev_charging")
@@ -1217,23 +2018,24 @@ class DataExtractor:
             ("ab 2016", 0)
         ])
 
-        building_types = ['SFH', 'TH', 'MFH', 'AB', 'OB', 'SC', 'GS', 'RE', 'MFH+GR', 'AB+GR', 'MFH+RE', 'AB+RE']
+        building_types = ['SFH', 'TH', 'MFH', 'AB', 'OB', 'SC', 'GS', 'RE', "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP", "MIXED"] #TODO: Remove hardcoding and get this from config buildings_short and Add Mixed
         
         self.building_stats = {b_type: template_dict.copy() for b_type in building_types}
         building_data_list = []
         for idx, building in enumerate(self.data.district):
             features = building["buildingFeatures"]
             b_type = features["building"]
+            stat_type = "MIXED" if "+" in b_type else b_type
 
-            if b_type in self.building_stats:
+            if stat_type in self.building_stats:
                 # Update building statistics by this building
-                self.building_stats[b_type]["Anzahl"] += 1
-                self.building_stats[b_type]["Gesamtfläche"] += features["area"]
+                self.building_stats[stat_type]["Anzahl"] += 1
+                self.building_stats[stat_type]["Gesamtfläche"] += features["area"]
                 year_category = self._get_year_category(features["year"])
-                self.building_stats[b_type][year_category] += features["area"]
+                self.building_stats[stat_type][year_category] += features["area"]
 
             building_dict = {}
-            building_dict["Gebäude ID"] = idx
+            building_dict["Gebäude ID"] = features["id"]
 
             # Add to the dictionary from the mapping
             building_dict.update({
@@ -1252,55 +2054,222 @@ class DataExtractor:
     
     def _extract_kennwerte(self):
         """Extracts the general key performance indicators."""
-        self.kennwerte = {
-            "Nutzenergiebedarf": f"{round((self.kpis.total_electricity_demand + self.kpis.total_heating_demand + self.kpis.total_cooling_demand + self.kpis.total_dhw_demand + self.kpis.total_EV_demand) / 1000000, 1)} MWh/a",
-            "Norm-Heizlast": f"{round(self.kpis.totalheatload / 1000)} kW",
-            "Bedarfe": (
-                round(self.kpis.total_electricity_demand / 1000000, 2),
-                round(self.kpis.total_heating_demand / 1000000, 2),
-                round(self.kpis.total_dhw_demand / 1000000, 2),
-                round(self.kpis.total_cooling_demand / 1000000, 2),
-                round(self.kpis.total_EV_demand / 1000000, 2)
-            ),
-            "Max. Leistungen": (
-                round(self.kpis.total_electricity_peak / 1000),
-                round(self.kpis.total_heat_peak / 1000),
-                round(self.kpis.total_dhw_peak / 1000),
-                round(self.kpis.total_cooling_peak / 1000)
-            )
-        }
-
-    def _extract_optimization_results(self):
-        """Extracts the results from the operational optimization."""
         years = self.kpis.inputData["simulated_years"]
+        obs_time = self.data.ecoData["observation_time"]
+        to_kW = 1000 # Convert W to kW for power values
+        to_MWh = 1000000 # Convert W to MWh for energy values
 
-        self.optimization_results = {
-            "CO2-äqui. Emissionen": {year: f"{round(self.kpis.co2emissions[year]['total_co2'])} t/a" for year in years},
-            "Energiekosten": {year: f"{round(self.kpis.operationCosts[year])} €/a" for year in years},
-            "Decentral Fixed Costs": f"{round(self.kpis.annual_fixed_costs_decentral)} €/a",
-            "Central Fixed Costs": f"{round(self.kpis.annual_fixed_costs_central)} €/a",
-            "Spitzenlast (el.)": {year: f"{round(self.kpis.peakDemand[year], 2)} kW" for year in years},
-            "Max. Einspeiseleistung": {year: f"{round(self.kpis.peakInjection[year], 2)} kW" for year in years},
-            "Supply-Cover-Faktor": {year: f"{round(self.kpis.scf_year[year] * 100, 0)} %" for year in years},
-            "Demand-Cover-Faktor": {year: f"{round(self.kpis.dcf_year[year] * 100, 0)} %" for year in years},
-            "El-Autonomy-Faktor": {year: f"{round(self.kpis.energy_autonomy_year[year] * 100, 0)} %" for year in years}
+        # Prepare Data -> # TODO: Move to KPIs class
+        avg_autonomy = sum(self.kpis.energy_autonomy_year[y] for y in years) / len(years)
+        avg_scf = sum(self.kpis.scf_year[y] for y in years) / len(years)
+        avg_dcf = sum(self.kpis.dcf_year[y] for y in years) / len(years)
+
+        
+
+        # Overall_summary
+        self.district_key_kpis = [
+            ["Nutzenergiebedarf:", f"{round((self.kpis.total_heating_demand + self.kpis.total_cooling_demand + self.kpis.total_electricity_demand + self.kpis.total_dhw_demand + self.kpis.total_EV_demand) / to_MWh, 2)} MWh/a"],
+            ["Norm-Heizlast", f"{round(self.kpis.totalheatload / to_kW, 1)} kW"],
+        ]
+
+        self.district_operation_kpis = [
+            ["Ø CO2-Emissionen:", f"{round(self.kpis.avg_co2_emissions, 2)} t/a"],
+            ["Ø Energiekosten:", f"{round(self.kpis.avg_operationCosts, 0)} €/a"],
+            ["Anlagenkosten Energy Hub:", f"{round(self.kpis.annual_fixed_costs_central, 0)} €/a"],
+            ["Anlagenkosten Dezentral:", f"{round(self.kpis.annual_fixed_costs_decentral, 0)} €/a"],
+            ["Spitzenlast (el.):", f"{round(max(self.kpis.peakDemand.values()), 1)} kW"],
+            ["Max. Einspeiseleistung:", f"{round(max(self.kpis.peakInjection.values()), 1)} kW"],
+            ["Autarkiegrad:", f"{round(avg_autonomy * 100, 1)} %"],
+            ["Supply-Cover Ratio:", f"{round(avg_scf * 100, 1)} %"],
+            ["Demand-Cover Ratio:", f"{round(avg_dcf * 100, 1)} %"],
+            # ["Elektifizierungsquote Wärme", f"{round(self.kpis.elec_quote_heat * 100, 1)} %"], # TODO: Not currently implemented
+            # ["Elektrifizierungsquote Fahrzeuge:", f"{round(self.kpis.elec_quote_vehicles * 100, 1)} %"]  # TODO: Not currently implemented
+        ]
+
+        # max loads in kW
+        self.max_loads_table = [
+            ["Wärme:", f"{int(round(self.kpis.total_heat_peak / to_kW))} kW"],
+            ["Strom:", f"{int(round(self.kpis.total_electricity_peak / to_kW))} kW"],
+            ["TWW:", f"{int(round(self.kpis.total_dhw_peak / to_kW))} kW"],
+            ["Kälte:", f"{int(round(self.kpis.total_cooling_peak / to_kW))} kW"]
+        ]
+
+        # energy demand in MWh/a
+        self.pie_chart_energy = { #TODO: Check if needs to be divided by obs_time or does it already describe one year?
+            "Strom": round(self.kpis.total_electricity_demand / to_MWh, 2),
+            "Wärme": round(self.kpis.total_heating_demand / to_MWh, 2),
+            "TWW": round(self.kpis.total_dhw_demand / to_MWh, 2),
+            "Kälte": round(self.kpis.total_cooling_demand / to_MWh, 2),
+            "EV": round(self.kpis.total_EV_demand / to_MWh, 2)
         }
+        
+        # Bar charts:
+        self.bar_costs_data = []
+        self.bar_co2_data = []
+        
+        for y in years:
+            # Fetch cost breakdown
+            costs = self.kpis.detailed_costs_year[y]
+            self.bar_costs_data.append({
+                "Year": y,
+                "Anlagenkosten zentral": round(costs["eh_fixed"], 0),
+                "Anlagenkosten dezentral": round(costs["decentral_fixed"], 0),
+                "Strom": round(costs["electricity"], 0),
+                "Gas": round(costs["gas"], 0),
+                "Öl": round(costs["oil"], 0),
+                "Abfall": round(costs["waste"], 0),
+                "Biomasse": round(costs["biomass"], 0),
+                "Fernwärme": round(costs["district_heat"], 0),
+                "Wasserstoff": round(costs["hydrogen"], 0),
+                "Einspeisung (el.)": round(costs["revenue_feed_in_el"], 0)
+            })
+
+            # Fetch CO2 breakdown
+            em = self.kpis.co2emissions[y]
+            self.bar_co2_data.append({
+                "Year": y,
+                "Strom": round(em["co2_dem_grid"], 2),
+                "Gas": round(em["co2_gas"], 2),
+                "Öl": round(em["co2_oil"], 2),
+                "Abfall": round(em["co2_waste"], 2),
+                "Biomasse": round(em["co2_biom"], 2),
+                "Fernwärme": round(em["co2_district_heat"], 2),
+                "Wasserstoff": round(em["co2_hydrogen"], 2)
+            })
+
+            #TODO: Maybe later add also the development of the energy demand over the years as a stacked bar if renovation measures or other changes are implemented in the multi-year simulation.
+
+            self.kennwerte = {
+            "district_key_kpis": self.district_key_kpis,
+            "district_operation_kpis": self.district_operation_kpis,
+            "max_loads_table": self.max_loads_table,
+            "pie_chart_energy": self.pie_chart_energy,
+            "bar_costs_data": self.bar_costs_data,
+            "bar_co2_data": self.bar_co2_data
+            }
+
+
+
+        # DEBUG: 
+        print("Extracted Kennwerte:")
+        print(self.district_key_kpis)
+
+        print(self.max_loads_table)
+        print(self.pie_chart_energy)
+        print(self.bar_costs_data)
+        print(self.bar_co2_data)
+
 
     def _extract_district_structure(self):
-        """Extracts the structural information of the district."""
-        self.district_structure = {
-            "EFH": self.building_stats['SFH'],
-            "MFH": self.building_stats['MFH'],
-            "Reihenhaus": self.building_stats['TH'],
-            "Block": self.building_stats['AB'],
-            "Wohneinheiten gesamt": self.kpis.totalnumberflats,
-            "Bewohner gesamt": self.kpis.totalnumberocc,
-            "Nettowohnfläche gesamt": f"{self.kpis.totalarea_residential} m²",
-            "Nettofläche GHD gesamt": f"{self.kpis.totalarea_non_residential} m²",
-            "Standort (PLZ)": str(self.data.site["zip"]),
-            "Testreferenzjahr": f"{str(self.data.site['TRYYear'])[3:]} / {self.data.site['TRYType']}",
-            "Quartiersname": str(self.data.scenario_name)
+        """Extracts the structural information of the district and prepares tables."""
+        res_types = {'SFH', 'TH', 'MFH', 'AB'}
+        mixed_types = {'MIXED'}
+
+        ghd_types = {'OB', 'SC', 'GS', 'RE', 'UNI', 'HOSPITAL', 'CULTURE', 'SPORT', 'RETAIL', 'WORKSHOP'} # DO not use  -> Use all that are not residential or mixed as GHD
+
+        first_b_type = list(self.building_stats.keys())[0]
+        all_keys = list(self.building_stats[first_b_type].keys())
+        age_classes = all_keys[2:] # TODO: Change to actively exclude Anzahl and Gesamtfläche instead of relying on the order
+
+        agg_stats = {
+            "Wohngebäude": {"Anzahl": 0, "Gesamtfläche": 0},
+            "Mischgebäude": {"Anzahl": 0, "Gesamtfläche": 0},
+            "GHD-Gebäude": {"Anzahl": 0, "Gesamtfläche": 0}
         }
+        for cat in agg_stats:
+            for age in age_classes:
+                agg_stats[cat][age] = 0
+
+        details_rows = []
+
+        # Build the aggregated stats and the details rows at the same time by iterating through the building types only once
+        for b_type, stats in self.building_stats.items():
+            
+            # Map to main category
+            if b_type in res_types:
+                cat = "Wohngebäude"
+            elif b_type in mixed_types:
+                cat = "Mischgebäude"
+            else:
+                cat = "GHD-Gebäude"
+
+            # Sum up for the compact table
+            agg_stats[cat]["Anzahl"] += stats["Anzahl"]
+            agg_stats[cat]["Gesamtfläche"] += stats["Gesamtfläche"]
+            for age in age_classes:
+                agg_stats[cat][age] += stats[age]
+
+            # Detailed row for the landscape page - ALWAYS appended
+            translated_name = self._translate_building_type(b_type)
+            detail_row = {
+                "Gebäudetyp": translated_name,
+                "Anzahl": stats["Anzahl"] if stats["Anzahl"] > 0 else "-"            
+                }
+            for age in age_classes:
+                detail_row[age] = f"{round(stats[age])} m²" if stats[age] > 0 else "-"
+            details_rows.append(detail_row)
+
+        # Summary Table displayed on the first page
+        summary_table_data = [
+            ["", "Wohngebäude", "Mischgebäude", "GHD-Gebäude"],
+            ["Anzahl", 
+             str(agg_stats["Wohngebäude"]["Anzahl"]) if agg_stats["Wohngebäude"]["Anzahl"] > 0 else "-", 
+             str(agg_stats["Mischgebäude"]["Anzahl"]) if agg_stats["Mischgebäude"]["Anzahl"] > 0 else "-", 
+             str(agg_stats["GHD-Gebäude"]["Anzahl"]) if agg_stats["GHD-Gebäude"]["Anzahl"] > 0 else "-"],
+            ["Gesamtfläche", 
+             f"{round(agg_stats['Wohngebäude']['Gesamtfläche'])} m²" if agg_stats["Wohngebäude"]["Gesamtfläche"] > 0 else "-", 
+             f"{round(agg_stats['Mischgebäude']['Gesamtfläche'])} m²" if agg_stats["Mischgebäude"]["Gesamtfläche"] > 0 else "-", 
+             f"{round(agg_stats['GHD-Gebäude']['Gesamtfläche'])} m²" if agg_stats["GHD-Gebäude"]["Gesamtfläche"] > 0 else "-"]
+        ]
+        for age in age_classes:
+            w_area = agg_stats["Wohngebäude"][age]
+            m_area = agg_stats["Mischgebäude"][age]
+            g_area = agg_stats["GHD-Gebäude"][age]
+            
+            summary_table_data.append([
+                age,
+                f"{round(w_area)} m²" if w_area > 0 else "-",
+                f"{round(m_area)} m²" if m_area > 0 else "-",
+                f"{round(g_area)} m²" if g_area > 0 else "-"
+            ])
+
+        # General info to be displayed below the summary table on the first page
+        general_info = [
+            ["Wohneinheiten im Quartier", str(self.kpis.totalnumberflats)],
+            ["Bewohner des Quartiers", str(self.kpis.totalnumberocc)],
+            ["Standort (PLZ)", str(self.data.site["zip"])],
+            ["Quartiersfläche", f"{round(self.data.site['district_area'], 2)} ha"],
+            ["Testreferenzjahr", f"{str(self.data.site['TRYYear'])[3:]} / {self.data.site['TRYType']}"]
+        ]
+
+        # 4. Pack everything into the final structure
+        self.district_structure = {
+            "summary_table": summary_table_data,
+            "general_info": general_info,
+            "df_details": pd.DataFrame(details_rows)
+        }
+        
+
+    def _translate_building_type(self, b_type:str) -> str:
+        """Translates the building type from the data to the display name."""
+        translation_map = {
+            "SFH": "Einfamilienhaus",
+            "TH": "Reihenhaus",
+            "MFH": "Mehrfamilienhaus",
+            "AB": "Apartmentblock",
+            "OB": "Bürogebäude",
+            "SC": "Schulgebäude",
+            "GS": "Lebensmittelgeschäft",
+            "RE": "Restaurantgebäude",
+            "UNI": "Universitätsgebäude",
+            "HOSPITAL": "Krankenhausgebäude",
+            "CULTURE": "Kulturgebäude",
+            "SPORT": "Sportgebäude",
+            "RETAIL": "Handelsgebäude",
+            "WORKSHOP": "Werkstattgebäude",
+            "MIXED": "Mischgebäude"
+        }
+        return translation_map.get(b_type, b_type) # if no translation is found, return the original type
 
     def _extract_energyhub_data(self): # TODO: Add here that all feasible devices are included
         """Extracts the energyhub data for central devices."""
@@ -1324,14 +2293,14 @@ class DataExtractor:
                 else:
                     opt_key = dev
                 
-                cap = 0.0
+                cap = 0
                 annual_cost_sub = "-"
                 annual_cost_unsub = "-"
 
                 if opt_key in capacities:
                     spec = capacities[opt_key]
                     # Strict access: if spec is a dict, it MUST have 'cap'
-                    cap = spec["cap"]
+                    cap = round(spec["cap"], 2)
                 
                     if opt_key in self.kpis.central_individual_devices_annualized_cost:
                         device_cost_info = self.kpis.central_individual_devices_annualized_cost[opt_key]
@@ -1341,10 +2310,15 @@ class DataExtractor:
 
                 # Get the device name and unit
                 name, unit = self.get_central_device_name(dev)
+
+                if cap <= 0:
+                    cap = "not selected"
+                    unit = ""
+
                 # Append dict to the device list
                 device_list.append({
                     "Device": name, 
-                    "Capacity": f"{cap:.2f} {unit}",
+                    "Capacity": f"{cap} {unit}",
                     "Ann. Cost (Sub.)": f"{annual_cost_sub} €/a"#,
                     # "Ann. Cost (Unsub.)": f"{annual_cost_unsub} €/a"
                 })
@@ -1363,13 +2337,72 @@ class DataExtractor:
             else: 
                 raise Exception(f"Error extracting energyhub data. Please check the structure of centralDevices and central_device_data in the input data.\n Caused error: {e}")
 
+    def _extract_decentral_data(self):
+        """Extracts and aggregates decentral device capacities and counts across all buildings, excluding EV."""
+        print("##################################################################################")
+        try:
+            aggregated_data = {}
+
+            # 1. Iterate over all buildings and their decentral devices
+            for b_id, devices in self.kpis.decentral_individual_devices_annualized_cost.items():
+                for dev_name, info in devices.items():
+                    # Skip Electric Vehicles and virtual measures
+                    if dev_name in ["EV", "T_reduction_measures"]:
+                        continue
+
+                    # Direct access to enforce crash on missing keys
+                    cap = info["cap"]
+                    cost = info["subsidized_annual_cost"]
+                    
+                    if cap == '' or cap is None:
+                        cap = 0
+                        
+                    cap_float = float(cap)
+                    cost_float = float(cost)
+
+                    # Initialize dictionary structure for new devices
+                    if dev_name not in aggregated_data:
+                        aggregated_data[dev_name] = {"count": 0, "total_cap": 0.0, "total_cost": 0.0}
+                        
+                    # Add to aggregate sum and increment the count
+                    aggregated_data[dev_name]["count"] += 1
+                    aggregated_data[dev_name]["total_cap"] += cap_float
+                    aggregated_data[dev_name]["total_cost"] += cost_float
+
+            device_list = []
+            
+            # 2. Format the aggregated data into a list of dictionaries for the DataFrame
+            for dev_name, data in aggregated_data.items():
+                name, unit = self.get_decentral_device_name(dev_name)
+                    
+                device_list.append({
+                    "Device": name,
+                    "Count": data["count"],
+                    "Total Power": f"{round(data['total_cap'], 2)} {unit}",
+                    "Annual Costs": f"{round(data['total_cost'], 2)} €/a"
+                })
+
+            # 3. Create the DataFrame
+            if device_list:
+                self.decentral_df = pd.DataFrame(device_list)
+            else:
+                self.decentral_df = None
+
+        except AttributeError as e:
+            print(f"Warning: Decentral device data could not be extracted. {e}")
+            self.decentral_df = None
+
+        print("Extracted decentral device data:")
+        if self.decentral_df is not None:
+            print(self.decentral_df)
+
     def _extract_data(self):
         """Extracts and processes all necessary data for the certificate."""
         self._process_buildings()
         self._extract_kennwerte()
-        self._extract_optimization_results()
         self._extract_district_structure()
         self._extract_energyhub_data()
+        self._extract_decentral_data()
         # Additional data extraction methods can be added here
 
     def get_central_device_name(self, dev: str) -> tuple[str, str]: 
@@ -1487,6 +2520,9 @@ class DataExtractor:
     def get_energyhub_df(self):
         return self.energyhub_df
 
+    def get_decentral_df(self):
+        return self.decentral_df
+
     def get_scenario_name(self):
         return self.data.scenario_name
 
@@ -1554,11 +2590,21 @@ class CertificateBuilder(ReportComponent):
         story.append(NextPageTemplate('EnergyhubDevicesPage'))
         story.append(PageBreak()) 
 
+        self.layout.create_yearly_bar_charts(self.data_object.get_kennwerte()) #TODO: Maybe add own page layout for the bar charts
+        story.extend(self.layout.get_story())
+        self.layout.reset_story()
+        story.append(PageBreak())
+
         self.layout.create_energyhub_data(data_energyhub=self.data_object.get_energyhub_df())
+        self.layout.create_decentral_systems(data_decentral=self.data_object.get_decentral_df())
         story.extend(self.layout.get_story())
         self.layout.reset_story()        
 
         story.append(NextPageTemplate('InputDataPage'))
+        story.append(PageBreak()) 
+        self.layout.create_quartiersstruktur_details(data_quartiersstruktur=self.data_object.get_district_structure())
+        story.extend(self.layout.get_story())
+        self.layout.reset_story()
         story.append(PageBreak()) 
 
         self.layout.create_input_data_table(data_input=self.data_object.get_building_df())

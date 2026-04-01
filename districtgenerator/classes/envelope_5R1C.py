@@ -75,7 +75,10 @@ class Envelope:
             self.nwg_config = GenericNonResidential(self.usage_short) # Load configuration for non-residential building.
 
         self.file_path = file_path
-        self.id = int(building_params.get("id_teaser", building_params["id"]))
+        if self.is_residential:
+            self.id = building_params["id_teaser"]
+        else:
+            self.id = building_params["id"]
         self.loadParams()
         self.loadComponentProperties(prj)
         self.loadAreas(prj)

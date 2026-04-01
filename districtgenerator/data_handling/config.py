@@ -641,6 +641,20 @@ class ReportConfig(BaseSettings):
     colors__energy__cooling: str | Tuple[float, float, float] = "#7ABAD6"
     colors__energy__ev: str | Tuple[float, float, float] = "#663399"
 
+    # Colors for energy sources and cost categories in graphs
+    colors__source__electricity: str | Tuple[float, float, float] = "#00551F" # Grid electricity
+    colors__source__gas: str | Tuple[float, float, float] = "#F39C12" # Natural gas
+    colors__source__oil: str | Tuple[float, float, float] = "#344EFB" # Heating oil
+    colors__source__waste: str | Tuple[float, float, float] = "#8B5A2B" # Waste
+    colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
+    colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B" # District heating
+    colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9" # Hydrogen
+    
+    # Colors for fixed costs and revenues in financial charts
+    colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
+    colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs
+    colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84" # Revenue from electricity feed-in
+
     # --- Fonts Dictionary ---
     fonts: dict = {}
     fonts__regular: str = 'Helvetica'

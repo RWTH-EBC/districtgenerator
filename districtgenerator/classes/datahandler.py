@@ -223,6 +223,7 @@ class Datahandler:
         """
 
         dtype_dict = {
+            'id': str,
             'building': str,
             'year': int,
             'retrofit': int,
@@ -683,7 +684,19 @@ class Datahandler:
                 combined_building["user"].individual_car_profiles.append(car_copy)
                 new_car_id += 1
 
-            # Sum up user counts
+            # Sum up user counts differentiate if residential or non-residential
+            if main_type in {"SFH", "TH", "MFH", "AB"}:
+                combined_building["user"].nb_res_flats = main_building["user"].nb_units
+                combined_building["user"].nb_res_occ = main_building["user"].nb_occ.copy()
+                combined_building["user"].nb_nonres_flats = secondary_building["user"].nb_units
+                combined_building["user"].nb_nonres_occ = secondary_building["user"].nb_occ
+            elif secondary_type in {"SFH", "TH", "MFH", "AB"}:
+                combined_building["user"].nb_res_flats = secondary_building["user"].nb_units
+                combined_building["user"].nb_res_occ = secondary_building["user"].nb_occ.copy()
+                combined_building["user"].nb_nonres_flats = main_building["user"].nb_units
+                combined_building["user"].nb_nonres_occ = main_building["user"].nb_occ
+            else: raise Exception(f"At least one part of the mixed building has to be residential. Please check building types for {combined_building['unique_name']}.")
+
             combined_building["user"].nb_units = main_building["user"].nb_units + secondary_building["user"].nb_units
             combined_building["user"].nb_occ = main_building["user"].nb_occ + secondary_building["user"].nb_occ
 
@@ -764,7 +777,7 @@ class Datahandler:
         # initialize buildings for scenario
         # loop over all buildings
         for bldg_id, row in self.scenario.iterrows():
-            bldg_id = int(bldg_id)
+            bldg_id = str(bldg_id)
             building = {}
 
             # Store features of the observed building
