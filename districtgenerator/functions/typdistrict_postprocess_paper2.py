@@ -680,7 +680,7 @@ def scenario_generation():
             heater_val = "heat_grid"        # ausgewählter Wärmeerzeuger
             cooling_val = "0"               # 0/1, Whether there is a need for cooling?
             ev_val = "0"                    # Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude
-            f_TES_val = "35"                # Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage
+            f_TES_val = "15"                # Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage
             f_BAT_val = "0"                 # Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV
             f_PV1_val = "0.4"               # Zwischen 0 und 1; Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)
             f_PV2_val = "0"                 # ??? Zwischen 0 und 1; Anteil der Dachfläche, die mit Photovoltaic ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)

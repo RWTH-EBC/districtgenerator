@@ -689,11 +689,10 @@ class Envelope:
         Tm_design = 0.5 * (Ts_design_orig + Tr_design_orig)
 
         Ts_curve = (T_room
-                + (Tm_design - T_room) * (Q_rel ** (1.0 / n))
-                + 0.5 * dT_design * Q_rel)
+                    + (Tm_design - T_room) * (Q_rel ** (1.0 / n))
+                    + 0.5 * dT_design * Q_rel)
 
         Tr_curve = Ts_curve - Q_rel * dT_design
-
 
         # Optional low-temperature measures
         Ts_design_lt = float(self.design_building_data["low_temp_measures_supply_nom"])
@@ -709,8 +708,8 @@ class Envelope:
             Tm_design_lt = 0.5 * (Ts_design_lt + Tr_design_lt)
 
             Ts_curve_reduced = (T_room
-                    + (Tm_design_lt - T_room) * (Q_rel ** (1.0 / n))
-                    + 0.5 * dT_design_lt * Q_rel)
+                                + (Tm_design_lt - T_room) * (Q_rel ** (1.0 / n))
+                                + 0.5 * dT_design_lt * Q_rel)
 
             Tr_curve_reduced = Ts_curve_reduced - Q_rel * dT_design_lt
 

@@ -333,20 +333,17 @@ class Profiles:
 
         dhw_timeseries = OpenDHW.resample_water_series(
             dhw_profile,
-            self.time_resolution,
-        )
+            self.time_resolution)
 
         dhw_heat = OpenDHW.compute_heat(
             timeseries_df=dhw_timeseries,
-            temp_dT=dT,
-        )
+            temp_dT=dT)
 
         # OUTPUT
 
         return {
             "dhw_power_timeseries_W_minutely": dhw_heat_minutely["Heat_W"].values,
-            "dhw_power_timeseries_W": dhw_heat["Heat_W"].values
-        }
+            "dhw_power_timeseries_W": dhw_heat["Heat_W"].values}
 
     def generate_el_profile_residential(self, holidays, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """
