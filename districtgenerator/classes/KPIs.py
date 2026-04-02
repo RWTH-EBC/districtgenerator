@@ -50,7 +50,7 @@ class KPIs:
         self.waste_year = None
         self.hydrogen_year = None
         self.oil_year = None
-        self.district_heat_year = None
+        self.districtHeat_year = None
         self.dcf_year = None
         self.scf_year = None
         self.annual_fixed_costs_decentral = None
@@ -376,8 +376,9 @@ class KPIs:
         # Count occurrences in the 'heater' column
         counts = scenario['heater'].value_counts()
 
-        # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
-        counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
+        # Sum the values in the 'TES', 'TES_DHW', 'PV', 'STC', 'EV', and 'BAT' columns
+        counts["TES"] = sum(1 for b in district if b["capacities"].get("TES", 0) > 0)
+        counts["TES_DHW"] = sum( 1 for b in district if b["capacities"].get("TES_DHW", 0) > 0)
         counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
         counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
@@ -400,8 +401,8 @@ class KPIs:
             capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
             capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
             capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
-            capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
-                                    decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] / decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities[n]["TES_DHW"] = (district[n]["capacities"]["TES_DHW"] / physics["rho_water"] / physics["c_p_water"] / decentral_device_data["TES_DHW"]["T_diff_max"] * 3600)
 
         calc_annual_investment = {}
         calc_annual_investment_unsubsidized = {}
@@ -409,7 +410,7 @@ class KPIs:
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES", "TES_DHW"]
 
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
@@ -729,7 +730,7 @@ class KPIs:
                 fixed_cost_heat = 0.0
                 heater_type = data.district[n]["buildingFeatures"]["heater"]
 
-                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "STC", "T_reduction_measures"}
+                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "TES_DHW", "STC", "T_reduction_measures"}
 
                 # Fixed cost allocation
                 for dev, info in self.decentral_individual_devices_annualized_cost.get(n, {}).items():
@@ -1081,7 +1082,7 @@ class KPIs:
             total_ICE_fuel_liters += np.sum(building["user"].ice_carprofile)  # liters per timestep summed over year
 
             # sum all building design heat and cooling loads
-            total_heat_load += building["envelope"].heatload + building["dhwpower"]
+            total_heat_load += building["envelope"].heatload
             total_cooling_load += max(building["user"].cooling)
 
             # sum all building demands
@@ -1254,7 +1255,7 @@ class KPIs:
         kpi_data_static = {}
         # Not changing due to same demand profiles in each year and same device capacities (electricity, heat, cars)
         #! This might change in future versions if demand profiles or device capacities vary per year. Then they should be moved to yearly KPIs.
-        kpi_data_static["Sum design Heat Load (kW)"] = self.totalheatload/1000
+        kpi_data_static["Sum design space Heating Load (kW)"] = self.totalheatload/1000
         kpi_data_static["Sum design Cooling Load (kW)"] = self.totalcoolingload/1000
         kpi_data_static["Heating demand (kWh/a)"] = self.total_heating_demand/1000
         kpi_data_static["Cooling demand (kWh/a)"] = self.total_cooling_demand/1000
@@ -1309,7 +1310,7 @@ class KPIs:
             building = buildings[building_id]
             for device_name, device_info in devices.items():
                 # Determine unit based on device type
-                if device_name == "TES":
+                if device_name in ["TES", "TES_DHW"]:
                     unit = "Liter"
                 elif device_name in ["BAT", "EV"]:
                     unit = "kWh"

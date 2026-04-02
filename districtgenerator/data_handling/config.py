@@ -115,7 +115,7 @@ class DesignBuildingConfig(BaseSettings):
     """
     DesignBuildingConfig class to manage design parameters for all buildings in the district generator.
     This class contains parameters related to building design, such as temperature settings, ventilation rates,
-    building types, retrofit options, and domestic hot water (DHW) load.
+    building types, retrofit options, and domestic hot water (DHW).
     """
     T_set_min: float = 21.0         # Required minimum indoor temperature (for heating load calculation) in degrees Celsius
     T_set_min_night: float = 18.0   # Required minimum indoor temperature at night (for heating load calculation) in degrees Celsius
@@ -123,7 +123,7 @@ class DesignBuildingConfig(BaseSettings):
     T_set_max: float = 24.0         # Required maximum indoor temperature (for cooling load calculation) in degrees Celsius
     T_set_max_night: float = 28.0   # Required maximum indoor temperature at night (for cooling load calculation) in degrees Celsius
     T_bivalent: float = -2.0        # Dual mode temperature (for heat pump design) in degrees Celsius
-    T_heatlimit: float = 15.0       # Limit temperature (for heat pump design)
+    T_heatlimit: float = 16.0       # Limit temperature (for heat pump design)
     ventilation_rate: float = 0.5  # Room ventilation rate in 1/h (per hour)
     thermal_model_type: str = '7R2C'  # Thermal building model type. Possible entries are '5R1C' and '7R2C'. 7R2C is only supported for residential buildings; non-residential buildings automatically use 5R1C due to missing parameters for the 7R2C model.
 
@@ -177,10 +177,6 @@ class DesignBuildingConfig(BaseSettings):
     construction_type_short: list = field(default_factory=lambda: [0, 1, 2])
     # Names of the construction types of the non residential buildings
     construction_type_long: list = field(default_factory=lambda: ["Light", "Medium", "Heavy"])
-    # The additional power required by the heating system to meet the domestic hot water demand per square meter in the building types:
-    # SFH, MFH, TH, AB, OB, SC, GS, and RE, and UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP.
-    # Source: SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik"
-    dhwpower: list = field(default_factory=lambda: [3, 3, 3, 3, 7.1, 8.6, 7.2, 24, 5.8, 6.4, 12, 30.7, 1.9, 0.95])
     # Mean drawoff DHW volume per day and person for each building type (SFH, MFH, TH, AB, OB, SC, GS, RE, UNI, HOSPITAL, CULTURE, SPORT, RETAIL, WORKSHOP).
     # Source: 12831-3/A100 Table NA.4 for residential buildings and SIA2024 Standard-Nutzungsbedingungen für die Energie- und Gebäudetechnik for non-residential buildings
     mean_drawoff_vol_per_day: list = field(default_factory=lambda: [40, 40, 40, 40, 6, 1.5, 1.5, 8, 2, 60, 2, 100, 2, 3])
@@ -436,7 +432,7 @@ class HeatGridConfig(BaseSettings):
     c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)
     dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
-    C_subst: float = 584        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
+    C_subst: float = 510        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
     cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
@@ -653,7 +649,7 @@ class DecentralDeviceConfig(BaseSettings):
     # EH parameters (Electric Heater)
     EH__eta_th: float = 1.0  # Thermal efficiency.
     EH__life_time: int = 25  # Maximum life time in years.
-    EH__inv_base: float = 620.0  # Unsubsidized investment in €/kW.
+    EH__inv_base: float = 530.0  # Unsubsidized investment in €/kW.
     EH__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     EH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EH: dict = {}
@@ -661,7 +657,7 @@ class DecentralDeviceConfig(BaseSettings):
     # BOI parameters (Gas Boiler)
     BOI__eta_th: float = 0.99  # Thermal efficiency.
     BOI__life_time: int = 20  # Maximum life time in years.
-    BOI__inv_base: float = 527.0  # Unsubsidized investment in €/kW.
+    BOI__inv_base: float = 324.0  # Unsubsidized investment in €/kW.
     BOI__cost_om: float = 0.031  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BOI: dict = {}
@@ -669,7 +665,7 @@ class DecentralDeviceConfig(BaseSettings):
     # BBOI parameters (Biomass Boiler)
     BBOI__eta_th: float = 0.90  # Thermal efficiency.
     BBOI__life_time: int = 20  # Maximum life time in years.
-    BBOI__inv_base: float = 2724.0  # Unsubsidized investment in €/kW
+    BBOI__inv_base: float = 1858.0  # Unsubsidized investment in €/kW
     BBOI__cost_om: float = 0.0095  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     BBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BBOI: dict = {}
@@ -677,7 +673,7 @@ class DecentralDeviceConfig(BaseSettings):
     # OBOI parameters (Oil Boiler)
     OBOI__eta_th: float = 0.92  # Thermal efficiency.
     OBOI__life_time: int = 20  # Maximum life time in years.
-    OBOI__inv_base: float = 770.0  # Unsubsidized investment in €/kW.
+    OBOI__inv_base: float = 576.0  # Unsubsidized investment in €/kW.
     OBOI__cost_om: float = 0.036  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     OBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     OBOI: dict = {}
@@ -685,7 +681,7 @@ class DecentralDeviceConfig(BaseSettings):
     # H2BOI parameters (Hydrogen Boiler)
     H2BOI__eta_th: float = 0.994  # Thermal efficiency.
     H2BOI__life_time: int = 20  # Maximum life time in years.
-    H2BOI__inv_base: float = 597.0  # Unsubsidized investment in €/kW.
+    H2BOI__inv_base: float = 450.0  # Unsubsidized investment in €/kW.
     H2BOI__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     H2BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     H2BOI: dict = {}
@@ -694,7 +690,7 @@ class DecentralDeviceConfig(BaseSettings):
     CHP__eta_th: float = 0.62  # Thermal efficiency.
     CHP__eta_el: float = 0.30  # Electrical efficiency.
     CHP__life_time: int = 15  # Maximum life time in years.
-    CHP__inv_base: float = 3338.0  # Unsubsidized investment in €/kW_th
+    CHP__inv_base: float = 2623.0  # Unsubsidized investment in €/kW_th
     CHP__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     CHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CHP: dict = {}
@@ -761,12 +757,27 @@ class DecentralDeviceConfig(BaseSettings):
     TES__eta_ch: float = 1.0  # Charging and discharging efficiency.
     TES__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
     TES__init: float = 0.5  # Initial state of charge.
-    TES__T_diff_max: int = 35  # Maximum temperature difference in degree Celsius.
-    TES__life_time: int = 20  # Maximum life time in years.
+    TES__T_diff_max: int = 15  # Maximum temperature difference in Kelvin.
+    TES__life_time: int = 20  # Lifetime in years.
     TES__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
     TES__cost_om: float = 0.013  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     TES__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     TES: dict = {}
+
+    # TES_DHW parameters (Domestic Hot Water Storage)
+    TES_DHW__soc_min: float = 0.0  # Minimum state of charge.
+    TES_DHW__soc_max: float = 1.0  # Maximum state of charge.
+    TES_DHW__eta_standby: float = 0.97  # Standby hourly efficiency (accounts for self-discharge).
+    TES_DHW__eta_ch: float = 1.0  # Charging and discharging efficiency.
+    TES_DHW__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
+    TES_DHW__init: float = 1.0  # Initial state of charge.
+    TES_DHW__T_diff_max: int = 40 # Maximum temperature difference in Kelvin.
+    TES_DHW__T_DHW_needed: int = 50 # Needed DHW temperature in °C.
+    TES_DHW__life_time: int = 20  # Lifetime in years.
+    TES_DHW__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
+    TES_DHW__cost_om: float = 0.013  # O&M fraction
+    TES_DHW__inv_subsidy_rate: float = 0.0  # Subsidy rate
+    TES_DHW: dict = {}
 
     # BAT parameters (Battery Storage)
     BAT__soc_min: float = 0.0  # Minimum state of charge.

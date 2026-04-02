@@ -114,6 +114,9 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     tes_eta_standby = dev_param("TES", "eta_standby")
     tes_eta_ch = dev_param("TES", "eta_ch")
     tes_coeff = dev_param("TES", "coeff_ch")
+    tes_dhw_eta_standby = dev_param("TES_DHW", "eta_standby")
+    tes_dhw_eta_ch = dev_param("TES_DHW", "eta_ch")
+    tes_dhw_coeff = dev_param("TES_DHW", "coeff_ch")
     bat_eta_standby = dev_param("BAT", "eta_standby")
     bat_eta_ch = dev_param("BAT", "eta_ch")
     bat_coeff = dev_param("BAT", "coeff_ch")
@@ -137,12 +140,17 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     cap_TES_kwh = cap_wh("TES") / 1000.0
     cap_TES_L = cap_TES_kwh / ((1000 * 4180 * float(decentral_device_data["TES"]["T_diff_max"]) * 0.001) / 3.6e6)
 
+    cap_TES_DHW_kwh = cap_wh("TES_DHW") / 1000.0
+    cap_TES_DHW_L = cap_TES_DHW_kwh / ((1000 * 4180 * float(decentral_device_data["TES_DHW"]["T_diff_max"]) * 0.001) / 3.6e6)
+
     cap_BAT_kwh = cap_wh("BAT") / 1000.0
 
     tes_init_frac = float(decentral_device_data.get("TES", {}).get("init"))
+    tes_DHW_init_frac = float(decentral_device_data.get("TES_DHW", {}).get("init"))
     bat_init_frac = float(decentral_device_data.get("BAT", {}).get("init"))
 
     soc_init_TES = cap_TES_kwh * tes_init_frac  # kWh
+    soc_init_TES_DHW = cap_TES_DHW_kwh * tes_DHW_init_frac
     soc_init_BAT = cap_BAT_kwh * bat_init_frac  # kWh
 
     # HP parameters
@@ -155,8 +163,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     el_w = np.asarray(demand_el_w, dtype=float).reshape(-1)
     T_out = np.asarray(site["T_e_cluster"], dtype=float).reshape(-1)
     hc = building["envelope"].heating_curve.get("clustered")
-    Tsink_curve = (np.asarray(hc["Ts_curve"], dtype=float).reshape(-1) + np.asarray(hc["Tr_curve"], dtype=float).reshape(-1))/2
-    Tsink_curve_reduced = (np.asarray(hc["Ts_curve_reduced"], dtype=float).reshape(-1) + np.asarray(hc["Tr_curve_reduced"], dtype=float).reshape(-1))/2
+    Tsink_curve = np.asarray(hc["Ts_curve"], dtype=float).reshape(-1)
+    Tsink_curve_reduced = np.asarray(hc["Ts_curve_reduced"], dtype=float).reshape(-1)
 
     # Temperature reduction measures are applied only if:
     # - a heat pump is installed,
@@ -215,7 +223,10 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
 
     # Annualized device costs over horizon (subsidized CAPEX + O&M on unsubsidized CAPEX)
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("HP"), eco_data, cap_HP_kw_th, mode="subsidized")
-    fixed_cost += annualized_device_cost_over_horizon(dev_dict("EH"), eco_data, cap_EH_kw_th, mode="subsidized")
+    # EH is assumed to be integrated into HP system.
+    # Therefore, no separate EH investment is charged when an HP is installed.
+    if not hp_installed:
+        fixed_cost += annualized_device_cost_over_horizon(dev_dict("EH"), eco_data, cap_EH_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BOI"), eco_data, cap_BOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BBOI"), eco_data, cap_BBOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("OBOI"), eco_data, cap_OBOI_kw_th, mode="subsidized")
@@ -224,6 +235,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("FC"), eco_data, cap_FC_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BAT"), eco_data, cap_BAT_kwh, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("TES"), eco_data, cap_TES_L, mode="subsidized")
+    fixed_cost += annualized_device_cost_over_horizon(dev_dict("TES_DHW"), eco_data, cap_TES_DHW_L, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("PV"), eco_data, area_PV_m2, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("STC"), eco_data, area_STC_m2, mode="subsidized")
 
@@ -236,14 +248,22 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     m.Y = pyo.Set(initialize=support_years, ordered=True)
 
     # Heat outputs (kW_th)
-    m.q_HP = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_EH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_BOI = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_BBOI = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_OBOI = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_H2BOI = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_CHP = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.q_FC = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_HP_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_HP_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_EH_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_EH_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_BOI_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_BOI_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_BBOI_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_BBOI_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_OBOI_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_OBOI_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_H2BOI_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_H2BOI_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_CHP_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_CHP_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_FC_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_FC_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
 
     # Electric outputs (kW_el)
     m.p_HP = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
@@ -256,13 +276,19 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
 
     # PV/STC used
     m.pv_used = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
-    m.stc_used = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.stc_used_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.stc_used_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
 
     # Storages
     m.tes_ch = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.tes_dis = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.soc_TES = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.bin_TES = pyo.Var(m.Y, m.T, within=pyo.Binary)
+
+    m.tes_dhw_ch = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.tes_dhw_dis = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.soc_TES_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.bin_TES_DHW = pyo.Var(m.Y, m.T, within=pyo.Binary)
 
     m.bat_ch = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.bat_dis = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
@@ -273,18 +299,32 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     m.p_EV_ch = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
 
     # constraints
-    m.lim_HP = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_HP[y, t] <= cap_HP_kw_th)
-    m.lim_EH = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_EH[y, t] <= cap_EH_kw_th)
-    m.lim_BOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_BOI[y, t] <= cap_BOI_kw_th)
-    m.lim_BBOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_BBOI[y, t] <= cap_BBOI_kw_th)
-    m.lim_OBOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_OBOI[y, t] <= cap_OBOI_kw_th)
-    m.lim_H2BOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_H2BOI[y, t] <= cap_H2BOI_kw_th)
+
+    def hp_capacity_rule(mm, y, t):
+        if cap_HP_kw_th <= 0:
+            return mm.q_HP_SH[y, t] + mm.q_HP_DHW[y, t] == 0.0
+
+        Tout = float(T_out[t])
+        T_biv = float(design_building_data["T_bivalent"])
+        # Relative slope "a" to consider temperature-dependent HP available heat capacity
+        # Source:https://doi.org/10.1016/j.enbuild.2021.111204
+        a_HP = 0.04  # 1/K
+        Q_max = cap_HP_kw_th * (1 + a_HP * (Tout - T_biv))
+        Q_max = max(Q_max, 0.0)
+        return mm.q_HP_SH[y, t] + mm.q_HP_DHW[y, t] <= Q_max
+
+    m.lim_HP = pyo.Constraint(m.Y, m.T, rule=hp_capacity_rule)
+    m.lim_EH = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_EH_SH[y, t] + mm.q_EH_DHW[y, t] <= cap_EH_kw_th)
+    m.lim_BOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_BOI_SH[y, t] + mm.q_BOI_DHW[y, t] <= cap_BOI_kw_th)
+    m.lim_BBOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_BBOI_SH[y, t] + mm.q_BBOI_DHW[y, t] <= cap_BBOI_kw_th)
+    m.lim_OBOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_OBOI_SH[y, t] + mm.q_OBOI_DHW[y, t] <= cap_OBOI_kw_th)
+    m.lim_H2BOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_H2BOI_SH[y, t] + mm.q_H2BOI_DHW[y, t] <= cap_H2BOI_kw_th)
 
     m.lim_CHP_p = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.p_CHP[y, t] <= cap_CHP_kw_el)
     m.lim_FC_p = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.p_FC[y, t] <= cap_FC_kw_el)
 
     m.lim_pv = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.pv_used[y, t] <= pv_kw_av[t])
-    m.lim_stc = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.stc_used[y, t] <= stc_kw_av[t])
+    m.lim_stc = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.stc_used_SH[y, t] + mm.stc_used_DHW[y, t] <= stc_kw_av[t])
 
     m.ev_on_demand_fix = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.p_EV_ch[y, t] == float(ev_kw[t]))
 
@@ -294,6 +334,13 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     m.tes_soc_min = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.soc_TES[y, t] >= soc_min_TES * cap_TES_kwh)
     m.tes_bin_dis = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_dis[y, t] <= mm.bin_TES[y, t] * BIG_M)
     m.tes_bin_ch = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_ch[y, t] <= (1 - mm.bin_TES[y, t]) * BIG_M)
+
+    soc_min_TES_DHW = float(decentral_device_data.get("TES_DHW", {}).get("soc_min"))
+    soc_max_TES_DHW = float(decentral_device_data.get("TES_DHW", {}).get("soc_max"))
+    m.tes_dhw_soc_max = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.soc_TES_DHW[y, t] <= soc_max_TES_DHW * cap_TES_DHW_kwh)
+    m.tes_dhw_soc_min = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.soc_TES_DHW[y, t] >= soc_min_TES_DHW * cap_TES_DHW_kwh)
+    m.tes_dhw_bin_dis = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_dhw_dis[y, t] <= mm.bin_TES_DHW[y, t] * BIG_M)
+    m.tes_dhw_bin_ch = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_dhw_ch[y, t] <= (1 - mm.bin_TES_DHW[y, t]) * BIG_M)
 
     soc_min_BAT = float(decentral_device_data.get("BAT", {}).get("soc_min"))
     soc_max_BAT = float(decentral_device_data.get("BAT", {}).get("soc_max"))
@@ -306,6 +353,10 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         m.tes_ch_lim = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_ch[y, t] <= tes_coeff * cap_TES_kwh)
         m.tes_dis_lim = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_dis[y, t] <= tes_coeff * cap_TES_kwh)
 
+    if tes_dhw_coeff > 0 and cap_TES_DHW_kwh > 0:
+        m.tes_dhw_ch_lim = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_dhw_ch[y, t] <= tes_dhw_coeff * cap_TES_DHW_kwh)
+        m.tes_dhw_dis_lim = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.tes_dhw_dis[y, t] <= tes_dhw_coeff * cap_TES_DHW_kwh)
+
     if bat_coeff > 0 and cap_BAT_kwh > 0:
         m.bat_ch_lim = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.bat_ch[y, t] <= bat_coeff * cap_BAT_kwh)
         m.bat_dis_lim = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.bat_dis[y, t] <= bat_coeff * cap_BAT_kwh)
@@ -317,38 +368,37 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     # HP conversion
     def hp_conv_rule(mm, y, t):
         if cap_HP_kw_th <= 0:
-            return mm.q_HP[y, t] == 0.0
+            return mm.q_HP_SH[y, t] + mm.q_HP_DHW[y, t] == 0.0
 
         # choose sink temperature depending on whether measures are applied
-        Tsink_SH = (float(Tsink_curve_reduced[t]) if T_measures_applied else float(Tsink_curve[t]))
-        Tsink_DHW = 50.0  # °C
+        Tsink_SH = float(Tsink_curve_reduced[t]) if T_measures_applied else float(Tsink_curve[t])
+        Tsink_DHW = float(decentral_device_data["TES_DHW"]["T_DHW_needed"])
         Tout = float(T_out[t])
 
-        # weights of SH vs DHW demand
-        denom = float(heat_SH_kw[t] + heat_DHW_kw[t]) + 1e-9
-        alpha_SH = float(heat_SH_kw[t]) / denom
-        alpha_DHW = float(heat_DHW_kw[t]) / denom
+        dT_SH = max(Tsink_SH - Tout, 0.1)
+        dT_DHW = max(Tsink_DHW - Tout, 0.1)
 
-        # effective sink temperature and COP
-        Tsink_eff = alpha_SH * Tsink_SH + alpha_DHW * Tsink_DHW
-        dT = max(Tsink_eff - Tout, 0.1)
 
-        COP_eff = hp_grade * (273.15 + Tsink_eff) / dT
+        cop_sh_raw = hp_grade * (273.15 + Tsink_SH) / dT_SH
+        cop_dhw_raw = hp_grade * (273.15 + Tsink_DHW) / dT_DHW
 
-        return mm.p_HP[y, t] == mm.q_HP[y, t] / COP_eff
+        COP_SH = min(cop_sh_raw, 7.0)
+        COP_DHW = min(cop_dhw_raw, 7.0)
+
+        return mm.p_HP[y, t] == (mm.q_HP_SH[y, t] / COP_SH + mm.q_HP_DHW[y, t] / COP_DHW)
 
     m.hp_conversion = pyo.Constraint(m.Y, m.T, rule=hp_conv_rule)
 
     # CHP/FC heat-electric coupling
     m.chp_heat_link = pyo.Constraint(
-        m.Y, m.T, rule=lambda mm, y, t: mm.q_CHP[y, t] == mm.p_CHP[y, t] * (eta_chp_th / eta_chp_el))
+        m.Y, m.T, rule=lambda mm, y, t: mm.q_CHP_SH[y, t] + mm.q_CHP_DHW[y, t] == mm.p_CHP[y, t] * (eta_chp_th / eta_chp_el))
 
     if fc_heat_dissipation_allowed:
         m.fc_heat_link = pyo.Constraint(
-            m.Y, m.T, rule=lambda mm, y, t: mm.q_FC[y, t] <= mm.p_FC[y, t] * (eta_fc_th / eta_fc_el))
+            m.Y, m.T, rule=lambda mm, y, t: mm.q_FC_SH[y, t] + mm.q_FC_DHW[y, t] <= mm.p_FC[y, t] * (eta_fc_th / eta_fc_el))
     else:
         m.fc_heat_link = pyo.Constraint(
-            m.Y, m.T, rule=lambda mm, y, t: mm.q_FC[y, t] == mm.p_FC[y, t] * (eta_fc_th / eta_fc_el))
+            m.Y, m.T, rule=lambda mm, y, t: mm.q_FC_SH[y, t] + mm.q_FC_DHW[y, t] == mm.p_FC[y, t] * (eta_fc_th / eta_fc_el))
 
     # Storage SOC dynamics
     # SOC recursion: reset at the start of each representative period
@@ -359,6 +409,14 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
             soc_prev = mm.soc_TES[y, t - 1]
         return mm.soc_TES[y, t] == soc_prev * (tes_eta_standby ** dt_h) + (mm.tes_ch[y, t] * tes_eta_ch - mm.tes_dis[y, t] / tes_eta_ch) * dt_h
 
+    def tes_dhw_soc_rule(mm, y, t):
+        if (t % len_cluster) == 0:
+            soc_prev = soc_init_TES_DHW
+        else:
+            soc_prev = mm.soc_TES_DHW[y, t - 1]
+
+        return mm.soc_TES_DHW[y, t] == soc_prev * (tes_dhw_eta_standby ** dt_h) + (mm.tes_dhw_ch[y, t] * tes_dhw_eta_ch - mm.tes_dhw_dis[y, t] / tes_dhw_eta_ch) * dt_h
+
     def bat_soc_rule(mm, y, t):
         if (t % len_cluster) == 0:
             soc_prev = soc_init_BAT
@@ -367,6 +425,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         return mm.soc_BAT[y, t] == soc_prev * (bat_eta_standby ** dt_h) + (mm.bat_ch[y, t] * bat_eta_ch - mm.bat_dis[y, t] / bat_eta_ch) * dt_h
 
     m.tes_soc_dyn = pyo.Constraint(m.Y, m.T, rule=tes_soc_rule)
+    m.tes_dhw_soc_dyn = pyo.Constraint(m.Y, m.T, rule=tes_dhw_soc_rule)
     m.bat_soc_dyn = pyo.Constraint(m.Y, m.T, rule=bat_soc_rule)
 
     # End of each representative period returns to initial SOC
@@ -379,6 +438,12 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
             return pyo.Constraint.Skip
         return mm.soc_TES[y, t_last] == soc_init_TES
 
+    def tes_dhw_final_soc_rule(mm, y, c):
+        t_last = c * len_cluster + (len_cluster - 1)
+        if t_last >= n:
+            return pyo.Constraint.Skip
+        return mm.soc_TES_DHW[y, t_last] == soc_init_TES_DHW
+
     def bat_final_soc_rule(mm, y, c):
         t_last = c * len_cluster + (len_cluster - 1)
         if t_last >= n:
@@ -386,25 +451,28 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         return mm.soc_BAT[y, t_last] == soc_init_BAT
 
     m.tes_final_soc = pyo.Constraint(m.Y, m.C, rule=tes_final_soc_rule)
+    m.tes_dhw_final_soc = pyo.Constraint(m.Y, m.C, rule=tes_dhw_final_soc_rule)
     m.bat_final_soc = pyo.Constraint(m.Y, m.C, rule=bat_final_soc_rule)
 
     # Energy balances
     # Heat
-    m.heat_balance = pyo.Constraint(
+    m.heat_balance_SH = pyo.Constraint(
         m.Y, m.T,
-        rule=lambda mm, y, t: (
-            mm.q_HP[y, t] + mm.q_EH[y, t] + mm.q_BOI[y, t] + mm.q_BBOI[y, t] + mm.q_OBOI[y, t] + mm.q_H2BOI[y, t]
-            + mm.q_CHP[y, t] + mm.q_FC[y, t]
-            + mm.stc_used[y, t]
-            + mm.tes_dis[y, t]
-            == float(heat_kw[t]) + mm.tes_ch[y, t]
-        ))
+        rule=lambda mm, y, t:
+        mm.q_HP_SH[y,t] + mm.q_EH_SH[y,t] + mm.q_BOI_SH[y,t] + mm.q_BBOI_SH[y,t] + mm.q_OBOI_SH[y,t] + mm.q_H2BOI_SH[y,t] + mm.q_CHP_SH[y,t] + mm.q_FC_SH[y,t] + mm.stc_used_SH[y,t] + mm.tes_dis[y,t]
+        == float(heat_SH_kw[t]) + mm.tes_ch[y,t])
+
+    m.heat_balance_DHW = pyo.Constraint(
+        m.Y, m.T,
+        rule=lambda mm, y, t:
+        mm.q_HP_DHW[y, t] + mm.q_EH_DHW[y, t] + mm.q_BOI_DHW[y, t] + mm.q_BBOI_DHW[y, t] + mm.q_OBOI_DHW[y, t] + mm.q_H2BOI_DHW[y, t] + mm.q_CHP_DHW[y, t] + mm.q_FC_DHW[y, t] + mm.stc_used_DHW[y, t] + mm.tes_dhw_dis[y, t]
+        == float(heat_DHW_kw[t]) + mm.tes_dhw_ch[y, t])
 
     # Electricity
     def el_balance_rule(mm, y, t):
         return (
             mm.pv_used[y, t] + mm.p_CHP[y, t] + mm.p_FC[y, t] + mm.bat_dis[y, t] + mm.p_grid_in[y, t]
-            == float(el_kw[t]) + mm.p_EV_ch[y, t] + mm.p_HP[y, t] + mm.q_EH[y, t] / eta_eh + mm.bat_ch[y, t] + mm.p_grid_out[y, t])
+            == float(el_kw[t]) + mm.p_EV_ch[y, t] + mm.p_HP[y, t] + (mm.q_EH_SH[y, t] + mm.q_EH_DHW[y, t]) / eta_eh + mm.bat_ch[y, t] + mm.p_grid_out[y, t])
 
     m.el_balance = pyo.Constraint(m.Y, m.T, rule=el_balance_rule)
 
@@ -467,17 +535,17 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
             expr -= w * (mm.p_grid_out[y, t] * dt_h) * r_el_y
 
             # gas: BOI fuel + CHP fuel (by electric output)
-            gas_kw = (mm.q_BOI[y, t] / eta_boi) + (mm.p_CHP[y, t] / eta_chp_el)
+            gas_kw = ((mm.q_BOI_SH[y, t] + mm.q_BOI_DHW[y, t]) / eta_boi) + (mm.p_CHP[y, t] / eta_chp_el)
             expr += w * (gas_kw * dt_h) * p_gas_y
 
             # biomass
-            expr += w * (mm.q_BBOI[y, t] / eta_bboi * dt_h) * p_biom_y
+            expr += w * ((mm.q_BBOI_SH[y, t] + mm.q_BBOI_DHW[y, t]) / eta_bboi * dt_h) * p_biom_y
 
             # oil
-            expr += w * (mm.q_OBOI[y, t] / eta_oboi * dt_h) * p_oil_y
+            expr += w * ((mm.q_OBOI_SH[y, t] + mm.q_OBOI_DHW[y, t]) / eta_oboi * dt_h) * p_oil_y
 
             # hydrogen: H2BOI fuel + FC fuel
-            h2_kw = (mm.q_H2BOI[y, t] / eta_h2boi) + (mm.p_FC[y, t] / eta_fc_el)
+            h2_kw = ((mm.q_H2BOI_SH[y, t] + mm.q_H2BOI_DHW[y, t]) / eta_h2boi) + (mm.p_FC[y, t] / eta_fc_el)
             expr += w * (h2_kw * dt_h) * p_h2_y
 
         return expr  # €/year for that price year
@@ -521,7 +589,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         el_import_kwh_by_year[y] = sum(val(m.p_grid_in[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
         el_export_kwh_by_year[y] = sum(val(m.p_grid_out[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
         pv_used_kwh_by_year[y] = sum(val(m.pv_used[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
-        stc_used_kwh_by_year[y] = sum(val(m.stc_used[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
+        stc_used_kwh_by_year[y] = sum((val(m.stc_used_SH[y, t]) + val(m.stc_used_DHW[y, t])) * dt_h * float(weight_t[t]) for t in range(n))
         ev_charge_kwh_by_year[y] = sum(val(m.p_EV_ch[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
 
     # Totals over whole horizon (kWh over observation time)

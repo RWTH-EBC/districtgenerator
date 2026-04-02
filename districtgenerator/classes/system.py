@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+import numpy as np
 from districtgenerator.functions.opti_dimensioning_decentral_devices import choose_cheapest_heating_concept_fixed_design
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
@@ -57,11 +58,33 @@ class BES:
 
         # %% conduct linear interpolation
         # for optimal design at bivalent temperature
-        self.design_load_heating = building["envelope"].heatload + building["dhwpower"]
+        self.design_load_heating = building["envelope"].heatload
         limit_load_heating = building["envelope"].heatlimit
 
         self.bivalent_load_heating = self.design_load_heating + (limit_load_heating - self.design_load_heating) / (T_heatlimit - T_design) \
                              * (T_bivalent - T_design)
+
+        # %% DHW design power (storage-based smoothing)
+        # 1-minute DHW profiles contain short peaks that should not be used directly for sizing.
+        # Instead of designing the heat generator for these extreme peaks, we assume the presence
+        # of a short-term DHW storage that buffers peak demands.
+        # The design load is therefore based on a 60-minute moving average of the DHW demand.
+        # This corresponds to a storage that can be fully charged within 1 hour by the heat
+        # generator.
+        # Source of the 60-minutes assumption:
+        # Zuschlag et al. (2026),
+        # "How refrigerant cycle modeling shapes the techno-economic analysis
+        #  of centralized vs. decentralized heat supply systems for city districts"
+
+        dhw_minutely = building["user"].dhw_minutely
+
+        window_steps = 60  # 60-minute moving average (1-min timestep)
+
+        kernel = np.ones(window_steps) / window_steps
+        heat_W_rolling = np.convolve(dhw_minutely, kernel, mode="same")
+
+        Q_nom_DHW_W = float(np.max(heat_W_rolling))
+        self.design_load_dhw = Q_nom_DHW_W
 
         # Design load for cooling
         self.design_load_cooling = building["envelope"].coolingload
@@ -131,34 +154,30 @@ class BES:
             if k in ("BOI", "BBOI", "OBOI", "H2BOI", "EH", "DH"):
                 # As the primary heating system
                 if buildingFeatures["heater"] == k:
-                    BES[k] = self.design_load_heating
+                    BES[k] = self.design_load_heating + self.design_load_dhw
                 # As the backup system in a hybrid heat pump system
                 elif buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == k:
-                    BES[k] = (self.design_load_heating - self.bivalent_load_heating)
+                    BES[k] = (self.design_load_heating - self.bivalent_load_heating) + self.design_load_dhw
                 else:
                     BES[k] = 0
 
             # handle CHP/FC separately (co-generation)
             if k == "CHP":
                 if buildingFeatures["heater"] == "CHP":
-                    eta_el = float(self.decentral_device_data["CHP"]["eta_el"])
-                    eta_th = float(self.decentral_device_data["CHP"]["eta_th"])
-                    BES["CHP"] = BES["CHP"] = self.design_load_heating
+                    BES["CHP"] = self.design_load_heating + self.design_load_dhw
                 else:
                     BES["CHP"] = 0
 
             if k == "FC":
                 if buildingFeatures["heater"] == "FC":
-                    eta_el = float(self.decentral_device_data["FC"]["eta_el"])
-                    eta_th = float(self.decentral_device_data["FC"]["eta_th"])
-                    BES["FC"] = self.design_load_heating
+                    BES["FC"] = self.design_load_heating + self.design_load_dhw
                 else:
                     BES["FC"] = 0
 
             # thermal energy storage (TES)
             if k == "TES":
                 # No TES if the system is centralized
-                if buildingFeatures["heater"] == "heat_grid":
+                if buildingFeatures["heater"] in ("heat_grid", "DH"):
                     BES["TES"] = 0
                 else:
                     # f_TES in l per kW design load
@@ -170,6 +189,16 @@ class BES:
                                     * self.physics["c_p_water"] \
                                     * self.decentral_device_data["TES"]["T_diff_max"] \
                                     / 3600
+
+            # DHW storage (separate from SH TES)
+            if k == "TES_DHW":
+                # No TES_DHW if the system is centralized
+                if buildingFeatures["heater"] in ("heat_grid", "DH"):
+                    BES["TES_DHW"] = 0
+                # 1-hour storage of design DHW load
+                else:
+                    tau_DHW = 1  # hour
+                    BES["TES_DHW"] = tau_DHW * self.design_load_dhw  # [Wh]
 
             # compression chiller (CC)
             # A compression chiller is only designed if the building is actively cooled
@@ -235,13 +264,19 @@ class BES:
 
         design = float(self.design_load_heating)
         bivalent = float(self.bivalent_load_heating)
+        design_dhw  = float(self.design_load_dhw)
 
         fixed_common = {}
-        fixed_common["TES"] = (
-            0.0 if bf["heater"] == "heat_grid" else
-            bf["f_TES"] * design / 1000 * self.physics["rho_water"] * self.physics["c_p_water"]
-            * self.decentral_device_data["TES"]["T_diff_max"] / 3600
-        )
+        if bf["heater"] in ("heat_grid", "DH"):
+            fixed_common["TES"] = 0.0
+            fixed_common["TES_DHW"] = 0.0
+        else:
+            # TES
+            fixed_common["TES"] = (bf["f_TES"] * design / 1000 * self.physics["rho_water"] * self.physics["c_p_water"]
+                    * self.decentral_device_data["TES"]["T_diff_max"] / 3600)
+            # TES_DHW
+            tau_DHW = 1  # = 1 hour of storage
+            fixed_common["TES_DHW"] = tau_DHW * design_dhw  # [Wh]
 
         fixed_common["BAT"] = (
                 bf["f_BAT"] * self.decentral_device_data["PV"]["P_nominal"]
@@ -279,7 +314,7 @@ class BES:
         # monovalent (single primary heater)
         for dev in ("BOI", "BBOI", "OBOI", "H2BOI", "EH", "CHP", "FC"):
             caps = blank_caps()
-            caps[dev] = design
+            caps[dev] = design + design_dhw
             candidates[dev] = caps
 
         # heat pump hybrids
@@ -294,7 +329,7 @@ class BES:
         for concept, backup in hybrids.items():
             caps = blank_caps()
             caps["HP"] = bivalent
-            caps[backup] = max(design - bivalent, 0.0)
+            caps[backup] = max(design - bivalent, 0.0) + design_dhw
             candidates[concept] = caps
 
         mode = (mode or "opt").strip().lower()
