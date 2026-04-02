@@ -137,29 +137,28 @@ def load_parameter(data):
         dhw = building["user"].dhw / 1000  # kW
         generationSTC = building["generationSTC"] / 1000  # kW
 
-        heating_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
-        building["user"].heating_demand = heating_demand  # kW
+        net_building_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
+        building["user"].net_building_demand = net_building_demand  # kW
 
         # Additional heat required to cover substation heat losses
-        subst_loss = heating_demand * (h_loss_subst / 100)
+        subst_loss = net_building_demand * (h_loss_subst / 100)
         heat_loss_substation += subst_loss                # kW
 
         # Total heat demand supplied by the network
         # (building demand + substation heat losses)
-        net_heat_demand += heating_demand + subst_loss
+        net_heat_demand += net_building_demand + subst_loss
 
-    # Build temperature requirements and loads per pipeline node (Building)
+    # Build temperature requirements and loads at the substatiom
     T_sup_req_by_node = {}
-    T_ret_req_by_node = {}
+    T_ret_req_by_node_SH = {}
+    T_ret_req_by_node_DHW = {}
+    Q_SH_by_node = {}
+    Q_DHW_by_node = {}
     Q_by_node = {}
 
-    # todo: check later if we have it in the config
     dT_HX_sup = 8.0 # K  minimum temperature difference required between the primary supply (network) and the secondary supply (building heating system)
     dT_HX_ret = 4.0 # K  minimum temperature difference required between the primary return (network) and the secondary return (building heating system)
-
-    # DHW requirements
-    # °C domestic hot water temperature todo: check later if we have it in the config
-    T_dhw_required = 50.0
+    T_dhw_required = float(data.decentral_device_data["TES_DHW"]["T_DHW_needed"])   # °C needed domestic hot water temperature
 
     for building in data.district:
         if building["buildingFeatures"]["heater"] != "heat_grid":
@@ -179,64 +178,39 @@ def load_parameter(data):
         Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve"], dtype=float) + dT_HX_ret
 
         Ts_req_DHW = T_dhw_required + dT_HX_sup
-        Tr_req_DHW = T_dhw_required + dT_HX_ret
+        Tr_req_DHW = 30.0  # Assume the return temperature at the primary side of DHW is 30 °C
 
-        # If domestic hot water is demanded, the network supply
-        # temperature must at least meet the DHW heat exchanger
-        # requirement
+        # The network supply temperature must satisfy both space heating (SH)
+        # and domestic hot water (DHW) requirements. Therefore, the required
+        # supply temperature at the building is defined as the maximum of the
+        # SH and DHW supply temperature levels.
         dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0  # kW
         sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0  # kW
 
         # Supply temperature constraint
-        Ts_req = Ts_req_SH.copy()
-        dhw_mask = dhw_load > 0
-        Ts_req[dhw_mask] = np.maximum(Ts_req_SH[dhw_mask], Ts_req_DHW)
-
-        # Return temperature mixing
-        # The building return temperature is computed as the
-        # mass-flow weighted mixture of the space heating (SH)
-        # and domestic hot water (DHW) return streams.
-        # Mass flows are derived from load / temperature difference
-
-        Tr_req = Tr_req_SH.copy()
-
-        deltaT_SH = Ts_req_SH - Tr_req_SH
-        deltaT_DHW = Ts_req_DHW - Tr_req_DHW
-
-        # Avoid division by zero / invalid ΔT
-        eps_dT = 1e-6  # K
-        eps_m = 1e-12
-        valid_SH = deltaT_SH > eps_dT
-
-        m_SH = np.zeros_like(sh_load, dtype=float)
-        m_DHW = np.zeros_like(dhw_load, dtype=float)
-
-        m_SH[valid_SH] = sh_load[valid_SH] / deltaT_SH[valid_SH]
-        m_DHW = dhw_load / deltaT_DHW
-
-        m_tot = m_SH + m_DHW
-
-        # cases:
-        # - only SH active -> Tr_req already equals Tr_req_SH
-        # - only DHW active -> set to Tr_req_DHW
-        dhw_only = (m_DHW > 0) & (m_SH <= 0)
-        Tr_req[dhw_only] = Tr_req_DHW
-
-        # both active -> mix
-        both = (m_SH > 0) & (m_DHW > 0) & (m_tot > eps_m)
-        Tr_req[both] = (m_SH[both] * Tr_req_SH[both] + m_DHW[both] * Tr_req_DHW) / m_tot[both]
+        Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
 
         # Building heat load
-        Q = np.asarray(building["user"].heating_demand, dtype=float)
-        Q = Q * (1.0 + h_loss_subst / 100.0)
+        #todo: STC are not considered here
+        Q_SH = sh_load * (1.0 + h_loss_subst / 100.0)
+        Q_DHW = dhw_load * (1.0 + h_loss_subst / 100.0)
+        Q_total = Q_SH + Q_DHW
 
         T_sup_req_by_node[node_key] = Ts_req
-        T_ret_req_by_node[node_key] = Tr_req
-        Q_by_node[node_key] = Q
+        T_ret_req_by_node_SH[node_key] = Tr_req_SH
+        T_ret_req_by_node_DHW[node_key] = np.full(T_len, Tr_req_DHW, dtype=float)
+
+        # Loads at the substation
+        Q_SH_by_node[node_key] = Q_SH
+        Q_DHW_by_node[node_key] = Q_DHW
+        Q_by_node[node_key] = Q_total
 
     # store them into param
     param["T_sup_req_by_node"] = T_sup_req_by_node
-    param["T_ret_req_by_node"] = T_ret_req_by_node
+    param["T_ret_req_by_node_SH"] = T_ret_req_by_node_SH
+    param["T_ret_req_by_node_DHW"] = T_ret_req_by_node_DHW
+    param["Q_SH_by_node"] = Q_SH_by_node
+    param["Q_DHW_by_node"] = Q_DHW_by_node
     param["Q_by_node"] = Q_by_node
 
     # Automatic pipe type selection (only if generation="auto")
@@ -333,9 +307,8 @@ def load_parameter(data):
     param["path"] = path
     param["HP_ann_factor"] = HP_ann_factor
 
-    T_sup_cfg, T_ret_cfg = get_configured_network_temperatures(data)
+    T_sup_cfg = get_configured_network_temperatures(data)
     param["T_sup_network_config"] = T_sup_cfg
-    param["T_ret_network_config"] = T_ret_cfg
 
     return data, param
 
@@ -375,10 +348,12 @@ def calc_flow(data, param, save_path=None):
     # Fluid properties
     c_f = data.heat_grid_data["fluid"]["c_f"]  # 4180J/(kg*K), fluid specific heat capacity
     rho_f = data.heat_grid_data["fluid"]["rho_f"]  # 1000kg/m^3,   fluid density
-    h_loss_subst = data.heat_grid_data["h_loss_subst"]         # 5%, Heat losses at the substation
 
     T_sup_req_by_node = param["T_sup_req_by_node"]
-    T_ret_req_by_node = param["T_ret_req_by_node"]
+    T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
+    T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
+    Q_SH_by_node = param["Q_SH_by_node"]
+    Q_DHW_by_node = param["Q_DHW_by_node"]
 
     # Determine the assumed supply temperature used to calculate
     # the mass flows at the building-level in the network.
@@ -406,7 +381,17 @@ def calc_flow(data, param, save_path=None):
         for key, node_info in data.pipeline_nodes.items()
     }
 
-    building_massflow = {}  # kg/s arrays
+    param["building_massflow_SH"] = {}  # kg/s; # Mass flow through the space heating (SH) heat exchanger of the building substation.
+    param["building_massflow_DHW"] = {} # kg/s; # Mass flow through the domestic hot water (DHW) heat exchanger of the building substation.
+    param["building_massflow_HX"] = {}  # kg/s; # Total mass flow passing through all heat exchangers in the building substation. Equal to the sum of SH and DHW heat exchanger flows
+
+    # Store peak mass flows for each building.
+    param["building_massflow_max_SH"] = {}
+    param["building_massflow_max_DHW"] = {}
+
+    # Minimum flow fraction relative to the building's peak flow.
+    # Ensures continuous circulation through the heat exchanger and avoids zero-flow conditions.
+    alpha = 0.15  # minimum flow fraction
 
     # Building demand + building mass flow
     for building in data.district:
@@ -419,27 +404,48 @@ def calc_flow(data, param, save_path=None):
         if node_key is None:
             continue
 
-        # heat demand including substation losses (kW)
-        demand = building["user"].heating_demand * (1 + h_loss_subst / 100)
-        # ignore very small loads (< 50 W)
-        demand = np.where(demand < 0.05, 0.0, demand)
-
         # use the network supply temperature instead of the building-specific
         # supply requirement. Buildings regulate heat extraction via control
         # valves, so the mass flow depends on the available network supply
-        # temperature and the required return temperature of the building.
+        # temperature and the required return temperatures of the building.
         Ts = T_sup_network
-        Tr = T_ret_req_by_node[node_key]
-        deltaT = np.maximum(Ts - Tr, 1.0)
+        Tr_SH = T_ret_req_by_node_SH[node_key]
+        Tr_DHW = T_ret_req_by_node_DHW[node_key]
 
-        # kg/s
-        m_dot = demand * 1000 / (c_f * deltaT)
-        building_massflow[node_key] = m_dot
+        # ignore very small loads (< 10 W)
+        Q_SH = np.where(Q_SH_by_node[node_key] < 0.01, 0.0, Q_SH_by_node[node_key])  # kW
+        Q_DHW = np.where(Q_DHW_by_node[node_key] < 0.01, 0.0, Q_DHW_by_node[node_key])  # kW
+
+        deltaT_SH = np.maximum(Ts - Tr_SH, 1.0)
+        deltaT_DHW = np.maximum(Ts - Tr_DHW, 1.0)
+
+        # kg/s; Mass flows derived from energy balance
+        m_SH = Q_SH * 1000.0 / (c_f * deltaT_SH)
+        m_DHW = Q_DHW * 1000.0 / (c_f * deltaT_DHW)
+
+        # max over time
+        m_SH_max = float(np.max(m_SH))
+        m_DHW_max = float(np.max(m_DHW))
+
+        # Enforce minimum flow as a fraction of peak flow to ensure continuous circulation
+        m_SH = np.maximum(m_SH, alpha * m_SH_max)
+        m_DHW = np.maximum(m_DHW, alpha * m_DHW_max)
+
+        m_dot = m_SH + m_DHW
+
+        # store everything
+        param["building_massflow_max_SH"][node_key] = m_SH_max
+        param["building_massflow_max_DHW"][node_key] = m_DHW_max
+
+        param["building_massflow_SH"][node_key] = m_SH
+        param["building_massflow_DHW"][node_key] = m_DHW
+        param["building_massflow_HX"][node_key] = m_dot
 
     # Aggregate mass flows along the network
     network = data.pipeline_topology
-    building_massflow = enforce_min_leaf_circulation(building_massflow, network, param, root="EH1")
-    pipe_massflows = aggregate_mass_flows(network, building_massflow, root="EH1")
+
+    # Mass flow in each pipe segment , equal to the sum of all downstream building_massflow_HX values.
+    pipe_massflows = aggregate_mass_flows(network, param["building_massflow_HX"], root="EH1")
 
     # Convert to volumetric flows and store
     for (parent, child), massflow_array in pipe_massflows.items():
@@ -458,7 +464,7 @@ def calc_flow(data, param, save_path=None):
         # Pipe length (Euclidean distance)
         length = float(np.linalg.norm(p1 - p2))
 
-        # convert kg/s → m³/s
+        # m³/s; Volumetric flow rate in the pipe segment.
         flow_array = massflow_array / rho_f
 
         mask = flow_array > 1e-9
@@ -595,7 +601,7 @@ def calc_diameter(data, param):
 
     return data, param
 
-def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
+def compute_network_temperatures(data, param, max_iter=20, tol=0.5, relax=0.5, use_twin_pipe=False):
     """
     Solve the supply and return temperature distribution
     in the district heating network for all timesteps.
@@ -608,9 +614,6 @@ def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
     For each timestep a steady-state temperature propagation
     through the network is solved while considering pipe heat losses.
 
-    The solver assumes fixed pipe mass flows (determined earlier
-    during the design stage).
-
     The solver performs a temperature propagation:
 
     Supply Flow:
@@ -619,22 +622,40 @@ def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
     Return Flow:
         Backward propagation from buildings to the plant.
         Return streams from multiple branches are mixed
-        using mass-flow weighted averaging.
 
-    The plant supply temperature is iteratively adjusted until
-    all active buildings receive at least their required supply
-    temperature after accounting for pipe heat losses.
+    Solution strategy:
+
+        Inner iteration:
+            Solves the coupled supply and return temperature field
+            for fixed EH supply temperature and fixed mass flows
+            until convergence of the return temperature at the EH.
+
+        Outer control loop:
+            Adjusts the energy-hub supply temperature and building-level
+            mass flows to satisfy thermal constraints:
+
+            - Supply temperature deficits at buildings are corrected
+              by increasing the plant supply temperature.
+
+            - Return temperature deficits are corrected locally by
+              increasing the mass flow at individual building substations.
+
+            - Hydraulic feasibility is checked locally along the path
+              between the energy hub and the respective building.
+              If the allowable pressure-gradient limit is exceeded
+              in any pipe along this path, the flow increase for that
+              building is rejected.
 
     Returns
     -------
     T_sup_EH : ndarray
-        Required supply temperature at plant.
+        Required supply temperature at Energy hub.
 
     T_ret_EH : ndarray
-        Return temperature arriving at plant.
+        Return temperature arriving at Energy hub.
 
     T_sup_node : dict
-        Supply temperature at each node (after pipe decay).
+        Supply temperature at each node.
 
     T_ret_node : dict
         Mixed return temperature at each node.
@@ -649,13 +670,17 @@ def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
     generation = str(data.heat_grid_data.get("generation", "auto")).lower()
 
     if generation != "auto":
-        return compute_network_temperatures_fixed_generation(data, param)
+        return compute_network_temperatures_fixed_generation(
+            data, param, max_iter=max_iter, tol=tol, relax=relax, use_twin_pipe=use_twin_pipe
+        )
 
     topo = data.pipeline_topology
     pipe_dict = param["pipe_dict"]
 
-    c_f = data.heat_grid_data["fluid"]["c_f"]   # J/kgK
-    rho = data.heat_grid_data["fluid"]["rho_f"] # kg/m3
+    dp_pipe_max = data.heat_grid_data["pipe"]["dp_pipe_max"]
+    nu_f = data.heat_grid_data["fluid"]["nu_f"]
+    c_f = data.heat_grid_data["fluid"]["c_f"]  # J/kgK
+    rho = data.heat_grid_data["fluid"]["rho_f"]  # kg/m3
     k_soil = data.heat_grid_data["k_soil"]
 
     # soil temperature profile
@@ -663,15 +688,14 @@ def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
     T_len = len(T_soil)
 
     T_sup_req_by_node = param["T_sup_req_by_node"]
-    T_ret_req_by_node = param["T_ret_req_by_node"]
+    T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
+    T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
+    Q_SH_by_node = param["Q_SH_by_node"]
+    Q_DHW_by_node = param["Q_DHW_by_node"]
     Q_by_node = param["Q_by_node"]
     root = "EH1"
 
-    # numerical threshold
-    Q_eps = 1e-2  # kW minimum relevant building load
-
     pipes = data.pipeline
-    circ_nodes = param.get("circulation_leaves", [])
 
     # Precompute parent map and topological order
     parent = {}
@@ -684,6 +708,17 @@ def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
             dfs(ch)
 
     dfs(root)
+
+    # Build path from each node to root
+    path_to_root = {}
+    for n in order:
+        path = []
+        cur = n
+        while cur != root:
+            par = parent[cur]
+            path.append((par, cur))
+            cur = par
+        path_to_root[n] = path
 
     # children map
     children_map = {n: topo.get(n, []) for n in order}
@@ -723,394 +758,491 @@ def compute_network_temperatures(data, param, max_iter=20, tol=1e-1, relax=0.5):
     T_sup_pipe_out = {(p["from"], p["to"]): np.zeros(T_len) for p in pipes.values()}
     T_ret_pipe_out = {(p["from"], p["to"]): np.zeros(T_len) for p in pipes.values()}
 
-    # Main timestep loop
-    Q_items = list(Q_by_node.items())
+    # calculated return temperatures at the building substations
+    T_ret_building_SH = {n: np.zeros(T_len) for n in Q_by_node.keys()}
+    T_ret_building_DHW = {n: np.zeros(T_len) for n in Q_by_node.keys()}
 
-    def twin_pipe_step_counterflow(Tsup_in_parent, Tret_in_child, T_soil, m_dot, UA_s, UA_a, c_f):
-        """
-        Compute the outlet temperatures of a twin-pipe district heating segment
-
-        The model describes a buried supply and return pipe exchanging heat with
-        the surrounding soil and with each other.
-
-        Governing energy balances along the pipe:
-
-            m_dot * c_f * dTsup/dx = -q_sup
-            m_dot * c_f * dTret/dx =  q_ret
-
-        Using the DIN EN 13941 heat-loss decomposition:
-
-            q_sup = UA_s * ((Tsup + Tret)/2 - T_soil) + UA_a * ((Tsup - Tret)/2)
-            q_ret = UA_s * ((Tsup + Tret)/2 - T_soil) - UA_a * ((Tsup - Tret)/2)
-
-        where
-
-            UA_s : symmetric heat loss to the soil
-            UA_a : antisymmetric heat exchange between the two pipes
-
-        For the analytical solution the temperatures are written relative to soil:
-
-            θ_sup = Tsup - T_soil
-            θ_ret = Tret - T_soil
-
-        and transformed into
-
-            u = (θ_sup + θ_ret) / 2   -> average pipe temperature above soil
-            v = (θ_sup - θ_ret) / 2   -> half the supply-return temperature difference
-
-        which leads to the coupled system
-
-            u' = -Ka * v
-            v' = -Ks * u
-
-        with
-
-            Ks = UA_s / (m_dot * c_f)
-            Ka = UA_a / (m_dot * c_f)
-
-        Solving this system yields hyperbolic functions (cosh/sinh).
-
-        Counterflow boundary conditions:
-
-            Tsup(0) = Tsup_in_parent
-            Tret(1) = Tret_in_child
-
-        giving the temperatures at the opposite ends:
-
-            Tsup_out_child
-            Tret_out_parent
-
-        Parameters
-        ----------
-        Tsup_in_parent : float
-            Supply temperature entering the pipe at the parent node [°C].
-
-        Tret_in_child : float
-            Return temperature entering the pipe from the child node [°C].
-
-        T_soil : float
-            Soil temperature surrounding the pipe [°C].
-
-        m_dot : float
-            Mass flow rate of the fluid [kg/s].
-
-        UA_s : float
-            Symmetric heat loss coefficient to soil [W/K].
-
-        UA_a : float
-            Antisymmetric heat transfer coefficient between pipes [W/K].
-
-        c_f : float
-            Fluid specific heat capacity [J/(kg*K)].
-
-        Returns
-        -------
-        Tsup_out_child : float
-            Supply temperature at the downstream (child) end of the pipe [°C].
-
-        Tret_out_parent : float
-            Return temperature at the upstream (parent) end of the pipe [°C].
-        """
-
-        # Convert heat-transfer coefficients to decay rates
-        Ks = UA_s / (m_dot * c_f)
-        Ka = UA_a / (m_dot * c_f)
-
-        # Temperatures relative to soil temperature
-        a = float(Tsup_in_parent) - float(T_soil)  # θ_sup at x = 0
-        b = float(Tret_in_child) - float(T_soil)  # θ_ret at x = 1
-
-        # Parameter controlling exponential decay
-        mu = math.sqrt(Ks * Ka)
-
-        # Ratio of symmetric to antisymmetric decay
-        r = math.sqrt(Ks / Ka)
-
-        # Hyperbolic functions from analytical solution
-        sh = math.sinh(mu)
-        ch = math.cosh(mu)
-
-        # Solve integration constants from boundary conditions
-        denom = (1.0 + r * r) * sh + 2.0 * r * ch
-
-        C2 = (b - a * (ch + r * sh)) / denom
-        C1 = a + r * C2
-
-        # Supply temperature at downstream end (child node)
-        Tsup_out_child = float(T_soil) + (
-                C1 * (ch - r * sh) +
-                C2 * (sh - r * ch)
-        )
-
-        # Return temperature arriving at upstream end (parent node)
-        Tret_out_parent = float(T_soil) + (C1 + r * C2)
-
-        return Tsup_out_child, Tret_out_parent
+    # Store original design mass flows once.
+    # These are used as the reference values for later flow scaling in the
+    # outer control loop.
+    param["building_massflow_SH_design"] = {k: v.copy() for k, v in param["building_massflow_SH"].items()}
+    param["building_massflow_DHW_design"] = {k: v.copy() for k, v in param["building_massflow_DHW"].items()}
+    param["building_massflow_HX_design"] = {k: v.copy() for k, v in param["building_massflow_HX"].items()}
 
     # Simulation per timestep
     for t in tqdm(range(T_len), desc="Solving network temperatures", unit="timestep"):
 
-        # Treat below as inactive to avoid numerical noise
-        active_nodes = [n for (n, q) in Q_items if float(q[t]) > Q_eps]
+        # Nodes representing buildings (substations) connected to the network.
+        building_nodes = list(Q_by_node.keys())
 
         # Initial temperature guesses
         # The supply temperature at the energy hub (Ts) is initialized as the
         # maximum required supply temperature among all active buildings at timestep t.
-        # The return temperature (Tr) is initialized as the mean return temperature
-        # requirement of the active buildings.
-        if active_nodes:
-            Ts = max(float(T_sup_req_by_node[n][t]) for n in active_nodes)
-            # for Tr, a safer guess is a load-weighted average, but min is okay if you clamp
-            Tr = float(np.mean([float(T_ret_req_by_node[n][t]) for n in active_nodes]))
-        else:
-            # no demand anywhere: keep a reasonable standby
-            Ts = float(np.mean([float(T_sup_req_by_node[n][t]) for n in T_sup_req_by_node]))
-            Tr = float(np.mean([float(T_ret_req_by_node[n][t]) for n in T_ret_req_by_node]))
+        # The return temperature at the energy hub (Tr) is initialized using a fixed
+        # temperature difference relative to the supply temperature
+        Ts = max(float(T_sup_req_by_node[n][t]) for n in building_nodes)
+        Tr = Ts - 15.0
 
-        Tsoil_t = float(T_soil[t])
+        # The outer control loop adjusts the energy-hub supply temperature and the
+        # building-specific mass flows in order to satisfy thermal constraints.
+        # - Supply temperature deficits are corrected by increasing the
+        #   energy-hub supply temperature.
+        # - Return temperature deficits are corrected locally by increasing the
+        #   mass flow at the affected building substations, as long as the
+        #   hydraulic pressure-drop limit is not exceeded.
+        # - The interaction between thermal and hydraulic effects is explicitly considered:
+        #     * Increasing mass flow reduces pipe heat losses and can improve supply
+        #       temperatures at downstream nodes.
+        #     * Increasing Ts raises both supply and return temperatures across the network.
+        # - The Ts update is adaptively damped based on:
+        #     * whether return-temperature deficits are improving between iterations, and
+        #     * whether further flow increases are hydraulically feasible.
+        flow_scale_by_node = {n: 1.0 for n in building_nodes}
+        flow_increase_factor = 1.10
+        ts_update_factor = 0.50
+        prev_ret_deficit = np.inf
 
-        # Previous iterate segment temperatures used as coupling references
-        Tsup_prev = {}
-        Tret_prev = {}
-        for par, node, pid in supply_edges:
-            Tsup_prev[(par, node)] = Ts
-            Tret_prev[(par, node)] = Tr
+        for control_iter in range(max_iter):
 
-        # Fixed-point iteration for (Ts, Tr)
-        for _ in range(max_iter):
-            Ts_old = Ts
-            Tr_old = Tr
+            flow_blocked = True
 
-            # Forward pass (supply)
-            T_sup_node[root][t] = Ts
+            # Reset building mass flows to their original design values and apply a
+            # building-specific scaling factor. The same scaling factor is applied to
+            # both SH and DHW flows, assuming a single control action (valve opening)
+            # that proportionally affects the total primary-side mass flow through
+            # the substation heat exchanger.
+            for n in building_nodes:
+                scale = flow_scale_by_node[n]
 
-            Tsup_new = {}
+                param["building_massflow_SH"][n][t] = (param["building_massflow_SH_design"][n][t] * scale)
+                param["building_massflow_DHW"][n][t] = (param["building_massflow_DHW_design"][n][t] * scale)
+                param["building_massflow_HX"][n][t] = (
+                        param["building_massflow_SH"][n][t] +
+                        param["building_massflow_DHW"][n][t])
 
-            # propagate along edges
-            for par, node, pid in supply_edges:
-                flow_t = pipes[pid]["flow"][t]  # m3/s
-                m_dot = float(flow_t) * rho  # kg/s
+            # Aggregate the updated building mass flows to pipe mass flows.
+            pipe_massflows = aggregate_mass_flows(
+                topo,
+                param["building_massflow_HX"],
+                root=root
+            )
 
-                T_sup_in = float(T_sup_node[par][t])
+            for (parent_node, child_node), m_arr in pipe_massflows.items():
+                pid = f"{parent_node}->{child_node}"
+                pipes[pid]["flow"][t] = m_arr[t] / rho
 
-                # During the supply propagation, the return temperature in each pipe segment is
-                # temporarily assumed equal to its value from the previous iteration in order
-                # to compute the new supply temperature.
-                T_ret_ref = float(Tret_prev[(par, node)])
+            Tsoil_t = float(T_soil[t])
 
-                Tsup_out_child, _ = twin_pipe_step_counterflow(
-                    Tsup_in_parent=T_sup_in,
-                    Tret_in_child=T_ret_ref,
-                    T_soil=Tsoil_t,
-                    m_dot=m_dot,
-                    UA_s=pipe_UA_s[pid],
-                    UA_a=pipe_UA_a[pid],
-                    c_f=c_f
-                )
+            # Previous iterate segment temperatures used as coupling references
+            if use_twin_pipe:
+                Tret_prev = {}
+                for par, node, pid in supply_edges:
+                    Tret_prev[(par, node)] = Tr
 
-                T_sup_out = Tsup_out_child
+                # Fixed-point iteration for the temperature field at fixed Ts and fixed flows.
+                # In this inner loop, Ts is not changed. Only the coupled supply/return
+                # temperature field is iterated to convergence.
+                for _ in range(max_iter):
+                    Tr_old = Tr
 
-                T_sup_pipe_out[(par, node)][t] = T_sup_out  # the supply temperature at the outlet of the pipe connecting par→node
-                T_sup_node[node][t] = T_sup_out             # the supply temperature assigned to the node itself
-                Tsup_new[(par, node)] = T_sup_out
+                    # Forward pass (supply)
+                    T_sup_node[root][t] = Ts
 
-            # Supply deficit and Ts update target
-            deficit = 0.0
-            for n in active_nodes:
-                req = float(T_sup_req_by_node[n][t])
-                got = float(T_sup_node[n][t])
-                if np.isfinite(got):
-                    deficit = max(deficit, req - got)
+                    Tsup_new = {}
 
-            deficit = max(deficit, 0.0)
-            Ts_new = Ts + deficit
+                    # propagate along edges
+                    for par, node, pid in supply_edges:
+                        flow_t = pipes[pid]["flow"][t]  # m3/s
+                        m_dot = float(flow_t) * rho  # kg/s
 
-            # Backward pass (return)
-            # initialize return temps to current guess
-            for n in order:
-                T_ret_node[n][t] = Tr
+                        T_sup_in = float(T_sup_node[par][t])
 
-            # (A) building return temperatures for active nodes based on energy balance.
-            for bn in active_nodes:
+                        # During the supply propagation, the return temperature in each pipe segment is
+                        # temporarily assumed equal to its value from the previous iteration in order
+                        # to compute the new supply temperature.
+                        T_ret_ref = float(Tret_prev[(par, node)])
 
-                # Identify the pipe feeding the building
-                par = parent.get(bn)
-                pid = pair_to_pid[(par, bn)]
+                        Tsup_out_child, _ = twin_pipe_temperatures(
+                            Tsup_in_parent=T_sup_in,
+                            Tret_in_child=T_ret_ref,
+                            T_soil=Tsoil_t,
+                            m_dot=m_dot,
+                            UA_s=pipe_UA_s[pid],
+                            UA_a=pipe_UA_a[pid],
+                            c_f=c_f)
 
-                flow_t = pipes[pid]["flow"][t]
-                m_dot = flow_t * rho
+                        T_sup_pipe_out[(par, node)][t] = Tsup_out_child  # the supply temperature at the outlet of the pipe connecting par→node
+                        T_sup_node[node][t] = Tsup_out_child  # the supply temperature assigned to the node itself
+                        Tsup_new[(par, node)] = Tsup_out_child
 
-                Q_W = float(Q_by_node[bn][t]) * 1000.0  # W
-                Ts_del = float(T_sup_node[bn][t])
+                    # Backward pass (return)
+                    # initialize return temps to current guess
+                    for n in order:
+                        T_ret_node[n][t] = Tr
 
-                # energy balance return temperature
-                Tr_act = Ts_del - Q_W / (m_dot * c_f)
-                T_ret_node[bn][t] = Tr_act
+                    # building return temperatures for active nodes based on energy balance.
+                    for bn in building_nodes:
 
-                # Diagnostic check: building return below design return temperature
-                Tr_req = float(T_ret_req_by_node[bn][t])
-                dT_HX = 4  # todo:config
-                if Tr_act < Tr_req - dT_HX:
-                    raise ValueError(
-                        f"Return temperature violation at timestep {t}, node {bn}: "
-                        f"{Tr_act:.2f} °C is below required limit "
-                        f"{Tr_req - dT_HX:.2f} °C (design return {Tr_req:.2f} °C)."
-                    )
+                        m_SH = float(param["building_massflow_SH"][bn][t])
+                        m_DHW = float(param["building_massflow_DHW"][bn][t])
+                        m_HX = float(param["building_massflow_HX"][bn][t])
 
-            # (B) Circulation nodes (buildings where minimum circulation flow was enforced earlier).
-            # These nodes have non-zero flow even when the connected building has no heat demand (because of the circulation)
-            # In that case the water does not pass through a heat exchanger but bypasses the building.
-            # Physically this represents a circulation or bypass valve used to
-            # maintain minimum branch flow and avoid stagnation.
-            # Since no heat is extracted (Q = 0), the return temperature must equal the
-            # delivered supply temperature:
-            if circ_nodes:
-                for cn in circ_nodes:
-                    if cn not in active_nodes:
-                        T_ret_node[cn][t] = T_sup_node[cn][t]
+                        Q_SH_W = float(Q_SH_by_node[bn][t]) * 1000.0  # W
+                        Q_DHW_W = float(Q_DHW_by_node[bn][t]) * 1000.0  # W
 
-            # propagate return upstream with pipe cooling + mixing
-            Tret_new = {}
+                        Ts_del = float(T_sup_node[bn][t])
 
-            for node in reversed(order):
-                edges = return_children_edges.get(node)
-                if not edges:
-                    continue
+                        # energy balance return temperature
+                        Tr_SH = Ts_del - Q_SH_W / (m_SH * c_f)
+                        Tr_DHW = Ts_del - Q_DHW_W / (m_DHW * c_f)
 
-                m_sum = 0.0
-                Tmix = 0.0
+                        T_ret_building_SH[bn][t] = Tr_SH
+                        T_ret_building_DHW[bn][t] = Tr_DHW
 
-                for ch, pid in edges:
+                        Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+                        T_ret_node[bn][t] = Tr_HX
+
+                    Tret_new = {}
+
+                    for node in reversed(order):
+                        edges = return_children_edges.get(node)
+                        if not edges:
+                            continue
+
+                        m_sum = 0.0
+                        Tmix = 0.0
+
+                        for ch, pid in edges:
+                            flow_t = pipes[pid]["flow"][t]
+                            m_dot = flow_t * rho
+
+                            T_ret_in = float(T_ret_node[ch][t])
+
+                            # Frozen reference from current supply pass:
+                            # use supply temperature at downstream side of segment
+                            T_sup_ref = float(Tsup_new[(node, ch)])
+
+                            _, Tret_out_parent = twin_pipe_temperatures(
+                                Tsup_in_parent=T_sup_ref,
+                                Tret_in_child=T_ret_in,
+                                T_soil=Tsoil_t,
+                                m_dot=m_dot,
+                                UA_s=pipe_UA_s[pid],
+                                UA_a=pipe_UA_a[pid],
+                                c_f=c_f)
+
+                            T_ret_pipe_out[(node, ch)][t] = Tret_out_parent
+                            Tret_new[(node, ch)] = Tret_out_parent
+
+                            m_sum += m_dot
+                            Tmix += m_dot * Tret_out_parent
+
+                        T_ret_node[node][t] = Tmix / m_sum if m_sum > 0.0 else Tr
+
+                    Tr_new = float(T_ret_node[root][t])
+
+                    # Relaxation
+                    Tr = (1.0 - relax) * Tr + relax * Tr_new
+
+                    # update coupling references for next fixed-point iterate
+                    for edge in Tret_prev:
+                        if edge in Tret_new:
+                            Tret_prev[edge] = (1.0 - relax) * Tret_prev[edge] + relax * Tret_new[edge]
+
+                    if abs(Tr - Tr_old) < tol:
+                        break
+
+            else:
+                # Decoupled single-pipe model: no inner fixed-point iteration needed
+
+                T_sup_node[root][t] = Ts
+                Tsup_new = {}
+
+                for par, node, pid in supply_edges:
                     flow_t = pipes[pid]["flow"][t]
-                    m_dot = flow_t * rho
+                    m_dot = float(flow_t) * rho
+                    T_sup_in = float(T_sup_node[par][t])
 
-                    T_ret_in = float(T_ret_node[ch][t])
-
-                    # Frozen reference from current supply pass:
-                    # use supply temperature at downstream side of segment
-                    T_sup_ref = float(Tsup_new[(node, ch)])
-
-                    _, Tret_out_parent = twin_pipe_step_counterflow(
-                        Tsup_in_parent=T_sup_ref,
-                        Tret_in_child=T_ret_in,
+                    Tsup_out_child = single_pipe_temperature(
+                        T_in=T_sup_in,
                         T_soil=Tsoil_t,
                         m_dot=m_dot,
-                        UA_s=pipe_UA_s[pid],
-                        UA_a=pipe_UA_a[pid],
+                        UA=pipe_UA_s[pid],
                         c_f=c_f
                     )
-                    T_ret_arrive = Tret_out_parent
 
-                    T_ret_pipe_out[(node, ch)][t] = T_ret_arrive
-                    Tret_new[(node, ch)] = T_ret_arrive
+                    T_sup_pipe_out[(par, node)][t] = Tsup_out_child
+                    T_sup_node[node][t] = Tsup_out_child
+                    Tsup_new[(par, node)] = Tsup_out_child
 
-                    m_sum += m_dot
-                    Tmix += m_dot * T_ret_arrive
+                for n in order:
+                    T_ret_node[n][t] = Tr
 
-                if m_sum > 0.0:
-                    T_ret_node[node][t] = Tmix / m_sum
-                else:
-                    T_ret_node[node][t] = Tr
+                for bn in building_nodes:
+                    m_SH = float(param["building_massflow_SH"][bn][t])
+                    m_DHW = float(param["building_massflow_DHW"][bn][t])
+                    m_HX = float(param["building_massflow_HX"][bn][t])
 
-            Tr_new = float(T_ret_node[root][t])
+                    Q_SH_W = float(Q_SH_by_node[bn][t]) * 1000.0
+                    Q_DHW_W = float(Q_DHW_by_node[bn][t]) * 1000.0
+                    Ts_del = float(T_sup_node[bn][t])
 
-            # Relaxation
-            Ts = (1.0 - relax) * Ts + relax * Ts_new
-            Tr = (1.0 - relax) * Tr + relax * Tr_new
+                    Tr_SH = Ts_del - Q_SH_W / (m_SH * c_f)
+                    Tr_DHW = Ts_del - Q_DHW_W / (m_DHW * c_f)
 
-            # update coupling references for next fixed-point iterate
-            Tsup_prev = Tsup_new
-            Tret_prev = Tret_new
+                    T_ret_building_SH[bn][t] = Tr_SH
+                    T_ret_building_DHW[bn][t] = Tr_DHW
 
-            if max(abs(Ts - Ts_old), abs(Tr - Tr_old)) < tol:
+                    Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+                    T_ret_node[bn][t] = Tr_HX
+
+                for node in reversed(order):
+                    edges = return_children_edges.get(node)
+                    if not edges:
+                        continue
+
+                    m_sum = 0.0
+                    Tmix = 0.0
+
+                    for ch, pid in edges:
+                        flow_t = pipes[pid]["flow"][t]
+                        m_dot = flow_t * rho
+                        T_ret_in = float(T_ret_node[ch][t])
+
+                        Tret_out_parent = single_pipe_temperature(
+                            T_in=T_ret_in,
+                            T_soil=Tsoil_t,
+                            m_dot=m_dot,
+                            UA=pipe_UA_s[pid],
+                            c_f=c_f
+                        )
+
+                        T_ret_pipe_out[(node, ch)][t] = Tret_out_parent
+
+                        m_sum += m_dot
+                        Tmix += m_dot * Tret_out_parent
+
+                    T_ret_node[node][t] = Tmix / m_sum if m_sum > 0.0 else Tr
+
+                Tr = float(T_ret_node[root][t])
+
+            # Evaluate deficits after the temperature field has converged
+            sup_deficit = 0.0
+            ret_deficit_by_node = {}
+
+            for n in building_nodes:
+                Ts_req = float(T_sup_req_by_node[n][t])
+                Ts_del = float(T_sup_node[n][t])
+                sup_deficit = max(sup_deficit, Ts_req - Ts_del)
+
+                Tr_req_SH = float(T_ret_req_by_node_SH[n][t])
+                Tr_calc_SH = float(T_ret_building_SH[n][t])
+
+                Tr_req_DHW = float(T_ret_req_by_node_DHW[n][t])
+                Tr_calc_DHW = float(T_ret_building_DHW[n][t])
+
+                ret_def = max(Tr_req_SH - Tr_calc_SH, Tr_req_DHW - Tr_calc_DHW, 0.0)
+
+                ret_deficit_by_node[n] = ret_def
+
+            sup_deficit = max(sup_deficit, 0.0)
+            max_ret_deficit = max(ret_deficit_by_node.values()) if ret_deficit_by_node else 0.0
+
+            # Stop if all temperature constraints are met.
+            if (sup_deficit <= tol) and (max_ret_deficit <= tol):
                 break
+
+            # Correct return-temperature deficits by locally increasing the mass flow
+            # at individual building substations.
+            # The hydraulic feasibility of this increase is then checked along the
+            # path between the energy hub and the respective building. Since the
+            # network is modeled as a tree with demand-driven flow aggregation,
+            # only pipes along this path are affected by the change in flow.
+            # If the allowable pressure-gradient limit is exceeded in any pipe
+            # along this path, the flow increase for this building is rejected.
+            for n in building_nodes:
+
+                if ret_deficit_by_node[n] <= tol:
+                    continue
+
+                # try increasing only for this building
+                proposed_scale = flow_scale_by_node[n] * flow_increase_factor
+
+                # temporarily apply
+                old_scale = flow_scale_by_node[n]
+                flow_scale_by_node[n] = proposed_scale
+
+                # recompute flows
+                for bn in building_nodes:
+                    scale = flow_scale_by_node[bn]
+
+                    param["building_massflow_SH"][bn][t] = (
+                            param["building_massflow_SH_design"][bn][t] * scale)
+                    param["building_massflow_DHW"][bn][t] = (
+                            param["building_massflow_DHW_design"][bn][t] * scale)
+                    param["building_massflow_HX"][bn][t] = (
+                            param["building_massflow_SH"][bn][t] +
+                            param["building_massflow_DHW"][bn][t])
+
+                pipe_massflows = aggregate_mass_flows(
+                    topo,
+                    param["building_massflow_HX"],
+                    root=root)
+
+                # assign temporary flows
+                for (par, ch), m_arr in pipe_massflows.items():
+                    pid = f"{par}->{ch}"
+                    pipes[pid]["flow"][t] = m_arr[t] / rho
+
+                # check only path to this building
+                violation = False
+                for (par, ch) in path_to_root[n]:
+                    pid = f"{par}->{ch}"
+                    pipe = pipes[pid]
+
+                    V = float(pipe["flow"][t])
+                    DN = pipe["DN"]
+
+                    d_i = pipe_dict[DN]["Inner diameter (pipe) (mm)"] / 1000.0
+                    rough = pipe_dict[DN]["Roughness (mm)"] / 1000.0
+
+                    A = np.pi * d_i ** 2 / 4.0
+                    v = V / A if A > 0 else 0.0
+
+                    Re = v * d_i / nu_f if nu_f > 0 else 0.0
+
+                    if Re > 0:
+                        f = fluids.friction.friction_factor(Re=Re, eD=rough / d_i)
+                        dp_per_m = f * rho * v ** 2 / (2.0 * d_i)
+                    else:
+                        dp_per_m = 0.0
+
+                    if dp_per_m > dp_pipe_max:
+                        violation = True
+                        break
+
+                # Accept or reject the proposed flow increase based on hydraulic feasibility.
+                # If the pressure-gradient constraint is violated in any pipe along the path,
+                # the flow increase is rejected and the previous scaling is restored.
+                # Otherwise, the increase is accepted.
+                if violation:
+                    flow_scale_by_node[n] = old_scale  # revert
+                else:
+                    flow_blocked = False
+
+            # Correct supply-temperature deficits by increasing the energy-hub supply temperature (Ts).
+            # The update is adaptively damped to account for the coupled thermo-hydraulic behavior:
+            # - If flow increases are blocked by hydraulic constraints, Ts becomes the only
+            #   remaining control variable and is therefore adjusted more aggressively.
+            # - If return-temperature deficits are improving between iterations, this indicates
+            #   that flow adjustments are effective, so Ts is increased moderately.
+            # - If neither condition is met, a conservative update is applied to avoid overshooting,
+            #   since future flow adjustments may still improve the temperature distribution.
+            # This strategy balances the interaction between flow-driven heat-loss reduction
+            # and direct temperature increase at the energy hub.
+            if sup_deficit > tol:
+                improving = max_ret_deficit < prev_ret_deficit
+                if flow_blocked:
+                    beta = 1.0  # hydraulics limit → must rely on Ts
+                elif improving:
+                    beta = 0.7  # flow helping → moderate Ts increase
+                else:
+                    beta = 0.3  # flow not helping → be conservative
+                Ts += ts_update_factor * beta * sup_deficit
+
+            prev_ret_deficit = max_ret_deficit
+
+        else:
+            print(f"[WARNING] Timestep {t}: control loop not converged")
 
         T_sup_EH[t] = Ts
         T_ret_EH[t] = Tr
 
     data.heat_grid_data["T_supply_EH"] = T_sup_EH
     data.heat_grid_data["T_return_EH"] = T_ret_EH
-    param["T_sup_node"] = T_sup_node
-    param["T_ret_node"] = T_ret_node
     param["T_sup_pipe_out"] = T_sup_pipe_out
     param["T_ret_pipe_out"] = T_ret_pipe_out
+    param["T_sup_node"] = T_sup_node
+    param["T_ret_node"] = T_ret_node
+    param["T_ret_building_SH"] = T_ret_building_SH
+    param["T_ret_building_DHW"] = T_ret_building_DHW
 
     return data, param
 
-def compute_network_temperatures_fixed_generation(data, param, max_iter=20, tol=1e-1, relax=0.5):
+def compute_network_temperatures_fixed_generation(data, param, max_iter=20, tol=0.5, relax=0.5, use_twin_pipe=True):
     """
    Solve the supply and return temperature distribution in the district
    heating network for all timesteps assuming a fixed-generation network.
 
    In this mode the energy hub (EH) supply temperature is predefined by the
    selected network generation (3rd, 4th, or 5th generation) and is therefore
-   not adjusted by the solver. The configured EH supply temperature is applied
-   as a boundary condition and propagated through the network.
+   not adjusted by the solver. The solver evaluates whether
+   the network can operate under these fixed temperature conditions.
 
-   Unlike the automatic mode (`compute_network_temperatures`), the EH supply
-   temperature is not iteratively increased to meet building supply
-   temperature requirements.
+    Solution strategy
+    -----------------
+    For each timestep:
+
+    1. Inner iteration:
+       Solve the coupled supply and return temperature field for fixed
+       EH supply temperature and fixed mass flows until convergence.
+
+    2. Constraint evaluation:
+       - Supply constraint:
+           The delivered supply temperature at each building must meet
+           or exceed the required temperature. If violated, the simulation
+           is terminated with an error.
+
+       - Return constraint:
+           Return temperature deficits are corrected by increasing
+           the mass flow at individual building substations.
+
+           The flow increase is only accepted if the hydraulic pressure-gradient
+           limit is respected along the path between the energy hub and the
+           respective building.
+
+           If the return temperature requirement cannot be met even with the
+           maximum allowable mass flow, the simulation is terminated with an error.
 
    Differences to Auto Mode
-   ------------------------
-   In `compute_network_temperatures` (auto mode):
+    ------------------------
+    In `compute_network_temperatures` (auto mode):
+        - The EH supply temperature is unknown and iteratively adjusted.
+        - Both supply temperature and mass flows are control variables.
 
-       - The EH supply temperature is unknown.
-       - The solver iteratively increases the EH supply temperature until all
-         buildings receive at least their required supply temperature.
-
-   In this function:
-
-       - The EH supply temperature is fixed by the selected generation.
-       - Building supply requirements are checked diagnostically but do not
-         influence the EH temperature.
-
-   Parameters
-   ----------
-   data : datahandler class
-       Contains network topology, pipe properties, fluid parameters,
-       and soil temperature time series.
-
-   param : dict
-       Dictionary containing prepared network parameters such as building
-       heat loads, pipe heat-loss factors, and temperature requirements.
-
-   max_iter : int, optional
-       Maximum number of fixed-point iterations per timestep.
-
-   tol : float, optional
-       Convergence tolerance for the return temperature iteration [K].
-
-   relax : float, optional
-       Relaxation factor applied to the return temperature update to
-       improve numerical stability.
+    In this function:
+        - The EH supply temperature is fixed and not adjusted.
+        - Only mass flows are adjusted to meet return temperature constraints.
+        - Supply temperature violations are treated as infeasible conditions.
 
    Returns
    -------
+   Same as `compute_network_temperatures`.
    """
 
     topo = data.pipeline_topology
     pipe_dict = param["pipe_dict"]
 
-    c_f = data.heat_grid_data["fluid"]["c_f"]   # J/kgK
-    rho = data.heat_grid_data["fluid"]["rho_f"] # kg/m3
+    dp_pipe_max = data.heat_grid_data["pipe"]["dp_pipe_max"]
+    nu_f = data.heat_grid_data["fluid"]["nu_f"]
+    c_f = data.heat_grid_data["fluid"]["c_f"]  # J/kgK
+    rho = data.heat_grid_data["fluid"]["rho_f"]  # kg/m3
     k_soil = data.heat_grid_data["k_soil"]
 
-    T_soil = np.asarray(data.heat_grid_data["T_soil"], dtype=float)
+    T_soil = data.heat_grid_data["T_soil"]  # ndarray [t], °C
     T_len = len(T_soil)
 
     T_sup_req_by_node = param["T_sup_req_by_node"]
-    T_ret_req_by_node = param["T_ret_req_by_node"]
+    T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
+    T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
+    Q_SH_by_node = param["Q_SH_by_node"]
+    Q_DHW_by_node = param["Q_DHW_by_node"]
     Q_by_node = param["Q_by_node"]
     root = "EH1"
 
     T_sup_EH = np.asarray(param["T_sup_network_config"], dtype=float)
-    T_ret_EH_cfg = np.asarray(param["T_ret_network_config"], dtype=float) # only used for the first step in the iteration
-
-    Q_eps = 1e-2
 
     pipes = data.pipeline
-    circ_nodes = param.get("circulation_leaves", [])
 
     # Precompute parent map and topological order
     parent = {}
@@ -1123,6 +1255,18 @@ def compute_network_temperatures_fixed_generation(data, param, max_iter=20, tol=
             dfs(ch)
 
     dfs(root)
+
+    # Build path from each node to root
+    path_to_root = {}
+    for n in order:
+        path = []
+        cur = n
+        while cur != root:
+            par = parent[cur]
+            path.append((par, cur))
+            cur = par
+        path_to_root[n] = path
+
 
     children_map = {n: topo.get(n, []) for n in order}
     pair_to_pid = {(p["from"], p["to"]): pid for pid, p in pipes.items()}
@@ -1149,197 +1293,362 @@ def compute_network_temperatures_fixed_generation(data, param, max_iter=20, tol=
     T_ret_node = {n: np.zeros(T_len) for n in order}
     T_sup_pipe_out = {(p["from"], p["to"]): np.zeros(T_len) for p in pipes.values()}
     T_ret_pipe_out = {(p["from"], p["to"]): np.zeros(T_len) for p in pipes.values()}
+    T_ret_building_SH = {n: np.zeros(T_len) for n in Q_by_node.keys()}
+    T_ret_building_DHW = {n: np.zeros(T_len) for n in Q_by_node.keys()}
 
-    Q_items = list(Q_by_node.items())
-
-    def twin_pipe_step_counterflow(Tsup_in_parent, Tret_in_child, T_soil, m_dot, UA_s, UA_a, c_f):
-        Ks = UA_s / (m_dot * c_f)
-        Ka = UA_a / (m_dot * c_f)
-
-        a = float(Tsup_in_parent) - float(T_soil)
-        b = float(Tret_in_child) - float(T_soil)
-
-        mu = math.sqrt(Ks * Ka)
-        r = math.sqrt(Ks / Ka)
-
-        sh = math.sinh(mu)
-        ch = math.cosh(mu)
-
-        denom = (1.0 + r * r) * sh + 2.0 * r * ch
-
-        C2 = (b - a * (ch + r * sh)) / denom
-        C1 = a + r * C2
-
-        Tsup_out_child = float(T_soil) + (
-            C1 * (ch - r * sh) +
-            C2 * (sh - r * ch)
-        )
-
-        Tret_out_parent = float(T_soil) + (C1 + r * C2)
-
-        return Tsup_out_child, Tret_out_parent
+    # Store original design mass flows once.
+    # These are used as the reference values for later flow scaling in the
+    # outer control loop.
+    param["building_massflow_SH_design"] = {k: v.copy() for k, v in param["building_massflow_SH"].items()}
+    param["building_massflow_DHW_design"] = {k: v.copy() for k, v in param["building_massflow_DHW"].items()}
+    param["building_massflow_HX_design"] = {k: v.copy() for k, v in param["building_massflow_HX"].items()}
 
     for t in tqdm(range(T_len), desc="Solving fixed-generation network temperatures", unit="timestep"):
+
+        building_nodes = list(Q_by_node.keys())
+
         Ts = float(T_sup_EH[t])
-        Tr_guess = float(T_ret_EH_cfg[t])
-        Tsoil_t = float(T_soil[t])
+        Tr_guess = float(T_sup_EH[t]) - 15.0
 
-        active_nodes = [n for (n, q) in Q_items if float(q[t]) > Q_eps]
+        flow_scale_by_node = {n: 1.0 for n in building_nodes}
+        flow_increase_factor = 1.10
 
-        # initialize coupling references
-        Tsup_prev = {}
-        Tret_prev = {}
-        for par, node, pid in supply_edges:
-            Tsup_prev[(par, node)] = Ts
-            Tret_prev[(par, node)] = Tr_guess
+        for control_iter in range(max_iter):
 
-        for _ in range(max_iter):
-            Tr_old = Tr_guess
+            flow_blocked = True
 
-            # forward pass (supply)
-            T_sup_node[root][t] = Ts
-            Tsup_new = {}
+            for n in building_nodes:
+                scale = flow_scale_by_node[n]
 
-            for par, node, pid in supply_edges:
-                flow_t = pipes[pid]["flow"][t]
-                m_dot = float(flow_t) * rho
+                param["building_massflow_SH"][n][t] = (param["building_massflow_SH_design"][n][t] * scale)
+                param["building_massflow_DHW"][n][t] = (param["building_massflow_DHW_design"][n][t] * scale)
+                param["building_massflow_HX"][n][t] = (
+                        param["building_massflow_SH"][n][t] +
+                        param["building_massflow_DHW"][n][t])
 
-                T_sup_in = float(T_sup_node[par][t])
+            # Aggregate the updated building mass flows to pipe mass flows.
+            pipe_massflows = aggregate_mass_flows(
+                topo,
+                param["building_massflow_HX"],
+                root=root
+            )
 
-                # coupled return reference from previous iterate
-                T_ret_ref = float(Tret_prev[(par, node)])
+            for (parent_node, child_node), m_arr in pipe_massflows.items():
+                pid = f"{parent_node}->{child_node}"
+                pipes[pid]["flow"][t] = m_arr[t] / rho
 
-                Tsup_out_child, _ = twin_pipe_step_counterflow(
-                    Tsup_in_parent=T_sup_in,
-                    Tret_in_child=T_ret_ref,
-                    T_soil=Tsoil_t,
-                    m_dot=m_dot,
-                    UA_s=pipe_UA_s[pid],
-                    UA_a=pipe_UA_a[pid],
-                    c_f=c_f
-                )
+            Tsoil_t = float(T_soil[t])
 
-                T_sup_pipe_out[(par, node)][t] = Tsup_out_child
-                T_sup_node[node][t] = Tsup_out_child
-                Tsup_new[(par, node)] = Tsup_out_child
+            # TWIN PIPE
+            if use_twin_pipe:
 
-            # initialize return side
-            for n in order:
-                T_ret_node[n][t] = Tr_guess
+                # initialize coupling references
+                Tret_prev = {}
+                for par, node, pid in supply_edges:
+                    Tret_prev[(par, node)] = Tr_guess
 
-            # building returns
-            for bn in active_nodes:
-                par = parent.get(bn)
-                pid = pair_to_pid[(par, bn)]
-                flow_t = pipes[pid]["flow"][t]
-                m_dot = float(flow_t) * rho
+                # Fixed-point iteration for the temperature field at fixed Ts and fixed flows.
+                # In this inner loop, Ts is not changed. Only the coupled supply/return
+                # temperature field is iterated to convergence.
+                for _ in range(max_iter):
+                    Tr_old = Tr_guess
 
-                Q_W = float(Q_by_node[bn][t]) * 1000.0
-                Ts_del = float(T_sup_node[bn][t])
+                    T_sup_node[root][t] = Ts
+                    Tsup_new = {}
 
-                Tr_act = Ts_del - Q_W / (m_dot * c_f)
-                T_ret_node[bn][t] = Tr_act
+                    for par, node, pid in supply_edges:
+                        flow_t = pipes[pid]["flow"][t]
+                        m_dot = float(flow_t) * rho
 
-            # circulation leaves: bypass
-            for cn in circ_nodes:
-                if cn not in active_nodes:
-                    T_ret_node[cn][t] = T_sup_node[cn][t]
+                        T_sup_in = float(T_sup_node[par][t])
 
-            # backward pass
-            Tret_new = {}
+                        T_ret_ref = float(Tret_prev[(par, node)])
 
-            for node in reversed(order):
-                edges = return_children_edges.get(node)
-                if not edges:
-                    continue
+                        Tsup_out_child, _ = twin_pipe_temperatures(
+                            Tsup_in_parent=T_sup_in,
+                            Tret_in_child=T_ret_ref,
+                            T_soil=Tsoil_t,
+                            m_dot=m_dot,
+                            UA_s=pipe_UA_s[pid],
+                            UA_a=pipe_UA_a[pid],
+                            c_f=c_f
+                        )
 
-                m_sum = 0.0
-                Tmix = 0.0
+                        T_sup_pipe_out[(par, node)][t] = Tsup_out_child
+                        T_sup_node[node][t] = Tsup_out_child
+                        Tsup_new[(par, node)] = Tsup_out_child
 
-                for ch, pid in edges:
+                    for n in order:
+                        T_ret_node[n][t] = Tr_guess
+
+                    for bn in building_nodes:
+                        m_SH = float(param["building_massflow_SH"][bn][t])
+                        m_DHW = float(param["building_massflow_DHW"][bn][t])
+                        m_HX = float(param["building_massflow_HX"][bn][t])
+
+                        Q_SH_W = float(Q_SH_by_node[bn][t]) * 1000.0
+                        Q_DHW_W = float(Q_DHW_by_node[bn][t]) * 1000.0
+
+                        Ts_del = float(T_sup_node[bn][t])
+
+                        Tr_SH = Ts_del - Q_SH_W / (m_SH * c_f)
+                        Tr_DHW = Ts_del - Q_DHW_W / (m_DHW * c_f)
+
+                        T_ret_building_SH[bn][t] = Tr_SH
+                        T_ret_building_DHW[bn][t] = Tr_DHW
+
+                        Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+
+                        T_ret_node[bn][t] = Tr_HX
+
+                    Tret_new = {}
+
+                    for node in reversed(order):
+                        edges = return_children_edges.get(node)
+                        if not edges:
+                            continue
+
+                        m_sum = 0.0
+                        Tmix = 0.0
+
+                        for ch, pid in edges:
+                            flow_t = pipes[pid]["flow"][t]
+                            m_dot = float(flow_t) * rho
+
+                            T_ret_in = float(T_ret_node[ch][t])
+                            T_sup_ref = float(Tsup_new[(node, ch)])
+
+                            _, Tret_out_parent = twin_pipe_temperatures(
+                                Tsup_in_parent=T_sup_ref,
+                                Tret_in_child=T_ret_in,
+                                T_soil=Tsoil_t,
+                                m_dot=m_dot,
+                                UA_s=pipe_UA_s[pid],
+                                UA_a=pipe_UA_a[pid],
+                                c_f=c_f
+                            )
+
+                            T_ret_pipe_out[(node, ch)][t] = Tret_out_parent
+                            Tret_new[(node, ch)] = Tret_out_parent
+
+                            m_sum += m_dot
+                            Tmix += m_dot * Tret_out_parent
+
+                        T_ret_node[node][t] = Tmix / m_sum if m_sum > 0.0 else Tr_guess
+
+                    Tr_new = float(T_ret_node[root][t])
+
+                    # relaxation only on return iteration
+                    Tr_guess = (1.0 - relax) * Tr_guess + relax * Tr_new
+
+                    # update edge-wise return references for next iterate
+                    for edge in Tret_prev:
+                        if edge in Tret_new:
+                            Tret_prev[edge] = (1.0 - relax) * Tret_prev[edge] + relax * Tret_new[edge]
+
+                    if abs(Tr_guess - Tr_old) < tol:
+                        break
+
+            # SINGLE PIPE
+            else:
+
+                # no inner iteration needed
+
+                T_sup_node[root][t] = Ts
+                Tsup_new = {}
+
+                for par, node, pid in supply_edges:
                     flow_t = pipes[pid]["flow"][t]
                     m_dot = float(flow_t) * rho
 
-                    T_ret_in = float(T_ret_node[ch][t])
-                    T_sup_ref = float(Tsup_new[(node, ch)])
+                    T_sup_in = float(T_sup_node[par][t])
 
-                    _, Tret_out_parent = twin_pipe_step_counterflow(
-                        Tsup_in_parent=T_sup_ref,
-                        Tret_in_child=T_ret_in,
+                    Tsup_out_child = single_pipe_temperature(
+                        T_in=T_sup_in,
                         T_soil=Tsoil_t,
                         m_dot=m_dot,
-                        UA_s=pipe_UA_s[pid],
-                        UA_a=pipe_UA_a[pid],
+                        UA=pipe_UA_s[pid],
                         c_f=c_f
                     )
 
-                    T_ret_pipe_out[(node, ch)][t] = Tret_out_parent
-                    Tret_new[(node, ch)] = Tret_out_parent
+                    T_sup_pipe_out[(par, node)][t] = Tsup_out_child
+                    T_sup_node[node][t] = Tsup_out_child
+                    Tsup_new[(par, node)] = Tsup_out_child
 
-                    m_sum += m_dot
-                    Tmix += m_dot * Tret_out_parent
+                for n in order:
+                    T_ret_node[n][t] = Tr_guess
 
-                if m_sum > 0.0:
-                    T_ret_node[node][t] = Tmix / m_sum
+                for bn in building_nodes:
+                    m_SH = float(param["building_massflow_SH"][bn][t])
+                    m_DHW = float(param["building_massflow_DHW"][bn][t])
+                    m_HX = float(param["building_massflow_HX"][bn][t])
+
+                    Q_SH_W = float(Q_SH_by_node[bn][t]) * 1000.0
+                    Q_DHW_W = float(Q_DHW_by_node[bn][t]) * 1000.0
+
+                    Ts_del = float(T_sup_node[bn][t])
+
+                    Tr_SH = Ts_del - Q_SH_W / (m_SH * c_f)
+                    Tr_DHW = Ts_del - Q_DHW_W / (m_DHW * c_f)
+
+                    T_ret_building_SH[bn][t] = Tr_SH
+                    T_ret_building_DHW[bn][t] = Tr_DHW
+
+                    Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+                    T_ret_node[bn][t] = Tr_HX
+
+                for node in reversed(order):
+                    edges = return_children_edges.get(node)
+                    if not edges:
+                        continue
+
+                    m_sum = 0.0
+                    Tmix = 0.0
+
+                    for ch, pid in edges:
+                        flow_t = pipes[pid]["flow"][t]
+                        m_dot = float(flow_t) * rho
+
+                        T_ret_in = float(T_ret_node[ch][t])
+
+                        Tret_out_parent = single_pipe_temperature(
+                            T_in=T_ret_in,
+                            T_soil=Tsoil_t,
+                            m_dot=m_dot,
+                            UA=pipe_UA_s[pid],
+                            c_f=c_f
+                        )
+
+                        T_ret_pipe_out[(node, ch)][t] = Tret_out_parent
+
+                        m_sum += m_dot
+                        Tmix += m_dot * Tret_out_parent
+
+                    T_ret_node[node][t] = Tmix / m_sum if m_sum > 0.0 else Tr_guess
+
+                Tr_guess = float(T_ret_node[root][t])
+
+            # Evaluate deficits after the temperature field has converged
+            sup_deficit = 0.0
+            ret_deficit_by_node = {}
+
+            for n in building_nodes:
+                Ts_req = float(T_sup_req_by_node[n][t])
+                Ts_del = float(T_sup_node[n][t])
+                sup_deficit = max(sup_deficit, Ts_req - Ts_del)
+
+                Tr_req_SH = float(T_ret_req_by_node_SH[n][t])
+                Tr_calc_SH = float(T_ret_building_SH[n][t])
+
+                Tr_req_DHW = float(T_ret_req_by_node_DHW[n][t])
+                Tr_calc_DHW = float(T_ret_building_DHW[n][t])
+
+                ret_def = max(Tr_req_SH - Tr_calc_SH, Tr_req_DHW - Tr_calc_DHW, 0.0)
+
+                ret_deficit_by_node[n] = ret_def
+
+            sup_deficit = max(sup_deficit, 0.0)
+            max_ret_deficit = max(ret_deficit_by_node.values()) if ret_deficit_by_node else 0.0
+
+            # SUPPLY CHECK (no control)
+            if sup_deficit > tol:
+                raise ValueError(
+                    f"Timestep {t}: supply temperature insufficient "
+                    f"(max deficit {sup_deficit:.2f} K)")
+
+            # RETURN CHECK
+            if max_ret_deficit <= tol:
+                break  # all good → exit control loop
+
+            for n in building_nodes:
+
+                if ret_deficit_by_node[n] <= tol:
+                    continue
+
+                # try increasing only for this building
+                proposed_scale = flow_scale_by_node[n] * flow_increase_factor
+
+                # temporarily apply
+                old_scale = flow_scale_by_node[n]
+                flow_scale_by_node[n] = proposed_scale
+
+                # recompute flows
+                for bn in building_nodes:
+                    scale = flow_scale_by_node[bn]
+
+                    param["building_massflow_SH"][bn][t] = (
+                            param["building_massflow_SH_design"][bn][t] * scale)
+                    param["building_massflow_DHW"][bn][t] = (
+                            param["building_massflow_DHW_design"][bn][t] * scale)
+                    param["building_massflow_HX"][bn][t] = (
+                            param["building_massflow_SH"][bn][t] +
+                            param["building_massflow_DHW"][bn][t])
+
+                pipe_massflows = aggregate_mass_flows(
+                    topo,
+                    param["building_massflow_HX"],
+                    root=root)
+
+                # assign temporary flows
+                for (par, ch), m_arr in pipe_massflows.items():
+                    pid = f"{par}->{ch}"
+                    pipes[pid]["flow"][t] = m_arr[t] / rho
+
+                # check only path to this building
+                violation = False
+                for (par, ch) in path_to_root[n]:
+                    pid = f"{par}->{ch}"
+                    pipe = pipes[pid]
+
+                    V = float(pipe["flow"][t])
+                    DN = pipe["DN"]
+
+                    d_i = pipe_dict[DN]["Inner diameter (pipe) (mm)"] / 1000.0
+                    rough = pipe_dict[DN]["Roughness (mm)"] / 1000.0
+
+                    A = np.pi * d_i ** 2 / 4.0
+                    v = V / A if A > 0 else 0.0
+
+                    Re = v * d_i / nu_f if nu_f > 0 else 0.0
+
+                    if Re > 0:
+                        f = fluids.friction.friction_factor(Re=Re, eD=rough / d_i)
+                        dp_per_m = f * rho * v ** 2 / (2.0 * d_i)
+                    else:
+                        dp_per_m = 0.0
+
+                    if dp_per_m > dp_pipe_max:
+                        violation = True
+                        break
+
+                # Accept or reject the proposed flow increase
+                if violation:
+                    flow_scale_by_node[n] = old_scale  # revert
                 else:
-                    T_ret_node[node][t] = Tr_guess
+                    flow_blocked = False
 
-            Tr_new = float(T_ret_node[root][t])
+        else:
+            raise ValueError(
+                f"Timestep {t}: return temperature cannot be met "
+                f"(max deficit {max_ret_deficit:.2f} K) "
+                f"even with maximum allowed mass flow"
+            )
 
-            # relaxation only on return iteration
-            Tr_guess = (1.0 - relax) * Tr_guess + relax * Tr_new
-
-            # update edge-wise return references for next iterate
-            for edge in Tret_prev:
-                if edge in Tret_new:
-                    Tret_prev[edge] = (1.0 - relax) * Tret_prev[edge] + relax * Tret_new[edge]
-
-            Tsup_prev = Tsup_new
-
-            if abs(Tr_guess - Tr_old) < tol:
-                break
-
-        # store converged timestep results
+        # store results
         T_ret_EH[t] = Tr_guess
-
-        # diagnostics after convergence
-        for bn in active_nodes:
-            Ts_req = float(T_sup_req_by_node[bn][t])
-            Tr_req = float(T_ret_req_by_node[bn][t])
-
-            Ts_del = float(T_sup_node[bn][t])
-            Tr_del = float(T_ret_node[bn][t])
-
-            # Diagnostics after convergence
-            if Ts_del < Ts_req:
-                raise ValueError(
-                    f"Supply temperature violation at timestep {t}, node {bn}: "
-                    f"delivered supply {Ts_del:.2f} °C is below required "
-                    f"{Ts_req:.2f} °C. "
-                    f"The fixed generation supply temperature is insufficient "
-                    f"for this building."
-                )
-
-            dT_HX_r = 4.0  # TODO: move to config
-
-            if Tr_del < Tr_req - dT_HX_r:
-                raise ValueError(
-                    f"Return temperature violation at timestep {t}, node {bn}: "
-                    f"delivered return {Tr_del:.2f} °C is below required limit "
-                    f"{Tr_req - dT_HX_r:.2f} °C "
-                    f"(design return {Tr_req:.2f} °C). "
-                )
 
     data.heat_grid_data["T_supply_EH"] = T_sup_EH
     data.heat_grid_data["T_return_EH"] = T_ret_EH
-
-    param["T_sup_node"] = T_sup_node
-    param["T_ret_node"] = T_ret_node
     param["T_sup_pipe_out"] = T_sup_pipe_out
     param["T_ret_pipe_out"] = T_ret_pipe_out
+    param["T_sup_node"] = T_sup_node
+    param["T_ret_node"] = T_ret_node
+    param["T_ret_building_SH"] = T_ret_building_SH
+    param["T_ret_building_DHW"] = T_ret_building_DHW
 
     return data, param
 
+#todo: ab hier
 def calc_heat_loss_pipe(data, param):
     """
     Calculate thermal heat losses for each pipe segment.
@@ -2338,97 +2647,131 @@ def aggregate_mass_flows(network, building_massflow, root="EH1"):
     dfs(root)
     return pipe_massflows
 
-def enforce_min_leaf_circulation(building_massflow, network, param, root="EH1", alpha=0.1):
+def single_pipe_temperature(T_in, T_soil, m_dot, UA, c_f):
+    if m_dot <= 0:
+        return float(T_in)
+    return float(T_soil) + (float(T_in) - float(T_soil)) * np.exp(-UA / (m_dot * c_f))
+
+def twin_pipe_temperatures(Tsup_in_parent, Tret_in_child, T_soil, m_dot, UA_s, UA_a, c_f):
     """
-    Enforce minimum circulation flow at terminal (leaf) nodes.
+    Compute the outlet temperatures of a twin-pipe district heating segment
 
-    For each leaf node a minimum flow requirement is imposed:
+    The model describes a buried supply and return pipe exchanging heat with
+    the surrounding soil and with each other.
 
-        m_leaf >= alpha * m_leaf_max
+    Governing energy balances along the pipe:
 
-    where m_leaf_max is the maximum observed mass flow in that
-    branch. If the current flow falls below this threshold,
-    additional circulation flow is injected.
+        m_dot * c_f * dTsup/dx = -q_sup
+        m_dot * c_f * dTret/dx =  q_ret
 
-    This prevents low-flow conditions and ensures that
-    terminal branches maintain minimum circulation.
+    Using the DIN EN 13941 heat-loss decomposition:
+
+        q_sup = UA_s * ((Tsup + Tret)/2 - T_soil) + UA_a * ((Tsup - Tret)/2)
+        q_ret = UA_s * ((Tsup + Tret)/2 - T_soil) - UA_a * ((Tsup - Tret)/2)
+
+    where
+
+        UA_s : symmetric heat loss to the soil
+        UA_a : antisymmetric heat exchange between the two pipes
+
+    For the analytical solution the temperatures are written relative to soil:
+
+        θ_sup = Tsup - T_soil
+        θ_ret = Tret - T_soil
+
+    and transformed into
+
+        u = (θ_sup + θ_ret) / 2   -> average pipe temperature above soil
+        v = (θ_sup - θ_ret) / 2   -> half the supply-return temperature difference
+
+    which leads to the coupled system
+
+        u' = -Ka * v
+        v' = -Ks * u
+
+    with
+
+        Ks = UA_s / (m_dot * c_f)
+        Ka = UA_a / (m_dot * c_f)
+
+    Solving this system yields hyperbolic functions (cosh/sinh).
+
+    Counterflow boundary conditions:
+
+        Tsup(0) = Tsup_in_parent
+        Tret(1) = Tret_in_child
+
+    giving the temperatures at the opposite ends:
+
+        Tsup_out_child
+        Tret_out_parent
+
+    Parameters
+    ----------
+    Tsup_in_parent : float
+        Supply temperature entering the pipe at the parent node [°C].
+
+    Tret_in_child : float
+        Return temperature entering the pipe from the child node [°C].
+
+    T_soil : float
+        Soil temperature surrounding the pipe [°C].
+
+    m_dot : float
+        Mass flow rate of the fluid [kg/s].
+
+    UA_s : float
+        Symmetric heat loss coefficient to soil [W/K].
+
+    UA_a : float
+        Antisymmetric heat transfer coefficient between pipes [W/K].
+
+    c_f : float
+        Fluid specific heat capacity [J/(kg*K)].
+
+    Returns
+    -------
+    Tsup_out_child : float
+        Supply temperature at the downstream (child) end of the pipe [°C].
+
+    Tret_out_parent : float
+        Return temperature at the upstream (parent) end of the pipe [°C].
     """
 
-    parent = get_parent_map(network, root)
-    leaves = get_leaves(network, root)
+    # Convert heat-transfer coefficients to decay rates
+    Ks = UA_s / (m_dot * c_f)
+    Ka = UA_a / (m_dot * c_f)
 
-    pipe_massflows = aggregate_mass_flows(network, building_massflow, root)
+    # Temperatures relative to soil temperature
+    a = float(Tsup_in_parent) - float(T_soil)  # θ_sup at x = 0
+    b = float(Tret_in_child) - float(T_soil)  # θ_ret at x = 1
 
-    # compute max leaf flows once
-    if "leaf_mdot_max" not in param:
+    # Parameter controlling exponential decay
+    mu = math.sqrt(Ks * Ka)
 
-        leaf_max = {}
+    # Ratio of symmetric to antisymmetric decay
+    r = math.sqrt(Ks / Ka)
 
-        for leaf in leaves:
+    # Hyperbolic functions from analytical solution
+    sh = math.sinh(mu)
+    ch = math.cosh(mu)
 
-            par = parent.get(leaf)
+    # Solve integration constants from boundary conditions
+    denom = (1.0 + r * r) * sh + 2.0 * r * ch
 
-            if par is None:
-                continue
+    C2 = (b - a * (ch + r * sh)) / denom
+    C1 = a + r * C2
 
-            m = pipe_massflows[(par, leaf)]
+    # Supply temperature at downstream end (child node)
+    Tsup_out_child = float(T_soil) + (
+            C1 * (ch - r * sh) +
+            C2 * (sh - r * ch)
+    )
 
-            leaf_max[leaf] = float(np.max(m))
+    # Return temperature arriving at upstream end (parent node)
+    Tret_out_parent = float(T_soil) + (C1 + r * C2)
 
-        param["leaf_mdot_max"] = leaf_max
-
-    leaf_mdot_max = param["leaf_mdot_max"]
-
-    # determine timestep length
-    T = len(param["net_heat_demand"])
-
-    for leaf in leaves:
-
-        par = parent.get(leaf)
-
-        if par is None:
-            continue
-
-        m_current = pipe_massflows[(par, leaf)]
-
-        m_min = alpha * leaf_mdot_max.get(leaf, 0)
-
-        deficit = np.maximum(0.0, m_min - m_current)
-
-        if np.max(deficit) <= 0:
-            continue
-
-        if leaf not in building_massflow:
-            building_massflow[leaf] = np.zeros(T)
-
-        building_massflow[leaf] += deficit
-
-    param["circulation_leaves"] = leaves
-
-    return building_massflow
-
-def get_parent_map(network, root="EH1"):
-    parent = {}
-    stack = [root]
-
-    while stack:
-        node = stack.pop()
-
-        for child in network.get(node, []):
-            parent[child] = node
-            stack.append(child)
-
-    return parent
-
-def get_leaves(network, root="EH1"):
-    nodes = set(network.keys()) | {c for kids in network.values() for c in kids}
-
-    leaves = [
-        n for n in nodes
-        if len(network.get(n, [])) == 0 and n != root
-    ]
-
-    return leaves
+    return Tsup_out_child, Tret_out_parent
 
 def identify_junction_and_bends(data, tol=1e-6):
     """
@@ -2856,7 +3199,7 @@ def calc_COP(devs_param, temperatures):
 
     return COP
 
-def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
+def heating_curve(T_e, T_supply_min, T_supply_max):
     """
     Sliding temperature heating curve (2D version).
 
@@ -2869,28 +3212,16 @@ def heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max):
     -------
     T_supply : np.ndarray, same shape
         Supply temperature [°C]
-    T_return : np.ndarray, same shape
-        Return temperature [°C]
     """
     T_e = np.array(T_e, dtype=float)  # make sure the datatype is ndarray
 
     # the information of the bounds and turning point
-    T_min, T_max = -10, 15
-    # Supply and return water temperature difference at an outdoor temperature of -10°C
-    dT_min = T_supply_min - T_return_min
-    # Supply and return water temperature difference at an outdoor temperature of 15°C
-    dT_max = T_supply_max - T_return_max
+    T_min, T_max = -10, 16
 
     # supply temperature
     T_supply = np.interp(T_e,[T_min, T_max],[T_supply_min, T_supply_max])
 
-    # temperature difference
-    dT = np.interp(T_e,[T_min, T_max],[dT_min, dT_max])
-
-    # return temperature
-    T_return = T_supply - dT
-
-    return T_supply, T_return
+    return T_supply
 
 def get_configured_network_temperatures(data):
     """
@@ -2903,7 +3234,7 @@ def get_configured_network_temperatures(data):
 
     # AUTO mode → temperatures solved later by network model
     if generation == "auto":
-        return None, None
+        return None
 
     if generation not in {"3rd", "4th", "5th"}:
         raise ValueError(
@@ -2917,12 +3248,10 @@ def get_configured_network_temperatures(data):
     if temperature_mode == "constant":
 
         Ts = heat_grid_data["T_hot_heating_network"]["constant"][generation]
-        Tr = heat_grid_data["T_cold_heating_network"]["constant"][generation]
 
         T_supply = np.full(T_len, Ts, dtype=float)
-        T_return = np.full(T_len, Tr, dtype=float)
 
-        return T_supply, T_return
+        return T_supply
 
     # HEATING CURVE MODE
     if temperature_mode == "heating_curve":
@@ -2932,12 +3261,10 @@ def get_configured_network_temperatures(data):
 
         T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
         T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
-        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
-        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
 
-        T_supply, T_return = heating_curve(T_e, T_supply_min, T_supply_max, T_return_min, T_return_max)
+        T_supply = heating_curve(T_e, T_supply_min, T_supply_max)
 
-        return T_supply, T_return
+        return T_supply
 
     raise ValueError(f"Unsupported temperature_mode '{temperature_mode}'.")
 
