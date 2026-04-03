@@ -355,7 +355,7 @@ def build_model(model, data, devs, param, dem):
                 # must be booked as local delivery. This ensures rev_local_el
                 # correctly reflects the physical flow to consumers.
                 model.constraints.add(
-                    model.p_loc_to_cons[y, d, t] >= p_loc_gen - model.power["to_grid", y, d, t]
+                    model.p_loc_to_cons[y, d, t] >= p_loc_gen - model.power["to_grid", y, d, t]          # TODO Rawad: Diese Nebenbedingung ist nicht erforderlich und kann entfernt werden, da die Energiebilanz (Strombilanz) die Verteilung der erzeugten Energie bereits vollständig abbildet. Zudem erzwingt sie eine zu starke Annahme, dass nicht exportierte Erzeugung vollständig lokal verbraucht wird.
                 )
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads

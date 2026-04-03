@@ -45,6 +45,9 @@ class ReferenceBM(BusinessModelBase):
         # Calculate NPV for Option 3 comparison
         kpis.npv_ref = self._calc_npv_reference(kpis, data)
 
+    #todo Rawad: Es scheint, dass hier für p_max ein durchschnittlicher Wert über alle Gebäude verwendet wird.
+    # Das ist problematisch, da dadurch einzelne Gebäude benachteiligt werden könnten.
+    # Stattdessen sollte p_max gebäudespezifisch bestimmt werden, sodass für jedes Gebäude ein eigener Wert berücksichtigt wird.
     def _calc_p_max_from_lcoh(self, kpis, data) -> float:
         """Weighted-average LCOH for all BOI buildings."""
         support_years = list(self.interpolation_points)
@@ -97,7 +100,7 @@ class ReferenceBM(BusinessModelBase):
 
         # --- Fixed costs (annualized CAPEX + O&M) ---
         # Only include heat-related devices for BOI buildings
-        heat_devices = {"BOI", "TES", "STC"}
+        heat_devices = {"BOI", "TES", "STC"}             #todo: kein STC bitte, damit wir am ende die Szenarien gut vergleichen können
         annual_fixed_costs = 0.0
 
         for n, devs in kpis.decentral_individual_devices_annualized_cost.items():
@@ -142,7 +145,10 @@ class ReferenceBM(BusinessModelBase):
 
             variable_costs_per_year[year] = fuel_cost
 
-        # Calculate weighted average variable costs
+        # TODO rawad: Die aktuellen variablen Kosten werden zunächst über die Jahre gemittelt und erst danach diskontiert.
+        # Das ist jedoch keine exakte NPV-Berechnung.
+        # Fachlich korrekter wäre es, die jährlichen Kosten direkt zu diskontieren und anschließend zu summieren
+        # (Discounting vor Aggregation statt danach)
         avg_variable_costs = sum(
             variable_costs_per_year[y] * year_weights[y]
             for y in support_years

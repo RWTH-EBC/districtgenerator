@@ -39,8 +39,8 @@ class ContractingBM(BusinessModelBase):
             year: (
                     alpha * self.all_sim_ecoData[year]["price_supply_el"]
                     - share_grid * self.all_sim_ecoData[year]["price_supply_el"]
-                    - share_levies * self.all_sim_ecoData[year]["price_supply_el"]
-                    - share_vat * self.all_sim_ecoData[year]["price_supply_el"]
+                    - share_levies * self.all_sim_ecoData[year]["price_supply_el"]  #todo Rawad: Hast du geprüft, ob diese wirklcih bei der Nutzung vom Netz bezahlt werden sollen
+                    - share_vat * self.all_sim_ecoData[year]["price_supply_el"]  # TODO Rawad: MwSt. ist eigentlich kein Kostenbestandteil für den Betreiber, # sondern ein durchlaufender Posten. Nur korrekt abzuziehen, wenn # price_supply_el als Bruttopreis (inkl. MwSt.) vorliegt. # Falls Nettopreise verwendet werden → Abzug hier falsch.
             )
             for year in self.interpolation_points
         }

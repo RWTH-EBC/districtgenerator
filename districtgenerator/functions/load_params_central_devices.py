@@ -77,7 +77,7 @@ def load_params(data):
         electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
         generationPV += data.district[b]["generationPV"] / 1000 # kW
 
-    heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
+    heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC #todo Rawad: Diese Berechnung ist fachlich falsch, weil dadurch implizit angenommen wird, dass solarthermische Erträge zwischen Gebäuden geteilt werden können. Korrekt wäre, den Nettowärmebedarf zuerst für jedes Gebäude separat zu berechnen und erst danach über alle Gebäude zu summieren.
 
     if "total_losses_cooling_network" not in heat_grid_data:
         data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
@@ -87,7 +87,7 @@ def load_params(data):
     if "pump_power" not in heat_grid_data:
         data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
     pump_power = data.heat_grid_data["pump_power"]
-    electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
+    electricity_total = electricityAppliances + electricityEV - generationPV + pump_power   #todo Rawad: Diese Berechnung ist fachlich falsch, weil dadurch implizit angenommen wird, dass PV Erträge zwischen Gebäuden geteilt werden können. Korrekt wäre, den Nettostrombedarf zuerst für jedes Gebäude separat zu berechnen und erst danach über alle Gebäude zu summieren.
 
     dem_uncl["heat"] = heating_total
     dem_uncl["cool"] = cooling_total

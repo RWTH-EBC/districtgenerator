@@ -121,7 +121,7 @@ def _we_from_demands(building: Any) -> int:
     raise KeyError("WE nicht gefunden: erwartet building['user'].nb_flats (Demands).")
 
 
-def apply_din_house_connection_limits(
+def apply_din_house_connection_limits(                  #todo Rawad: ist das nur für Wohngebäude oder auch für Nichtwohngebäude
     data: Any,
     enabled: bool,
     din_csv_path: Path | str,

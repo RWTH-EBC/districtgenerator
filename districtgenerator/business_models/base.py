@@ -59,7 +59,7 @@ class BusinessModelBase(ABC):
             self,
             data,
             din_csv_path: Optional[str | Path] = None,
-            cosphi: float = 0.95,
+            cosphi: float = 0.95,                     # todo Rawad: ist das nicht zu hoch?
             safety_factor: float = 1.10,
             g: float = 0.07,
             trafo_steps=DIN_TRAFO_STEPS_KVA,
@@ -173,7 +173,7 @@ class BusinessModelBase(ABC):
             for i, y in enumerate(sorted_years)
         }
 
-    def _weighted_avg_price(self, price_key: str, support_years: list, weights: dict) -> float:
+    def _weighted_avg_price(self, price_key: str, support_years: list, weights: dict) -> float: #Todo Rawad: (siehe anedere Kommentare) Prüfen, ob hier ein einfacher zeitgewichteter Durchschnitt sinnvoll ist oder ob stattdessen eine Diskontierung (Barwertbetrachtung) erforderlich wäre.
         """Time-weighted average of a price across all support years [EUR/kWh]."""
         n_obs = int(self.ecoData["observation_time"])
         return sum(
@@ -231,7 +231,7 @@ class BusinessModelBase(ABC):
 
         For each support year, cluster, building, and time step:
             pv_btm(t)    = min(PV_actual(t), Elec_dem_actual(t))
-            pv_export(t) = PV_actual(t) - pv_btm(t)
+            pv_export(t) = PV_actual(t) - pv_btm(t)                                             #todo Rawad: aber mit dieser Annahme wird werden die Trafo- und Gebäudelimits ignoriert
 
         Uses:
             data.resultsOptimization[year][cluster][n]["PV"]["P_el"]

@@ -92,7 +92,7 @@ class MieterstromBM(BusinessModelBase):
         Reststrom purchase price per year [EUR/kWh].
 
         Mieterstrom: Operator buys Reststrom at EH price (bulk purchase
-        from higher voltage level). This price already includes all
+        from higher voltage level). This price already includes all   #todo Rawad: ein problem damit, ist dass der Reststrom an der Gebäudeebene zum gleichen Preis wie der EH-Strom (price_supply_el_eh) bewertet wird. In der Realität erfolgt der Bezug für Gebäude jedoch auf Niederspannungsebene, während der EH ggf. auf einer anderen Spannungsebene angeschlossen ist. Je nach Tarifstruktur können sich dadurch unterschiedliche Preise ergeben.
         applicable grid fees and levies for that voltage level.
         """
         return {
@@ -143,7 +143,7 @@ class MieterstromBM(BusinessModelBase):
                              = E_reststrom × (p_ms - p_purchase_eh)
                              > 0 (positive margin!)
         """
-        support_years = sorted(result['rev_local_el_by_year'].keys())
+        support_years = sorted(result['rev_local_el_by_year'].keys())               #todo Rawad: du rechnest überall mit "average". Prüfe das bitte
         weights = self._support_year_weights(support_years)
         n_obs = int(self.ecoData["observation_time"])
 

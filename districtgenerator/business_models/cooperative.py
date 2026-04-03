@@ -79,7 +79,7 @@ class CooperativeBM(BusinessModelBase):
         # --- Avoided-cost prices [EUR/kWh] ---
         share_energy = self.ecoData['share_el_energy']
         share_grid = self.ecoData['share_el_grid']
-        p_retail_avg = self._weighted_avg_price('price_supply_el', support_years, weights)
+        p_retail_avg = self._weighted_avg_price('price_supply_el', support_years, weights)      # TODO Rawad: Hier nochmal ein Durchschnitt
 
         p_avoided_eh = p_retail_avg * share_energy
         p_avoided_pv = p_retail_avg * (share_energy + share_grid)
@@ -93,7 +93,7 @@ class CooperativeBM(BusinessModelBase):
         # --- Avoided-cost credit [EUR/a] ---
         credit_avoided = (
                 ann_eh_to_cons_MWh * p_avoided_eh * 1000
-                + E_pv_btm_MWh * p_avoided_pv * 1000
+                + E_pv_btm_MWh * p_avoided_pv * 1000                # TODO Rawad: Falls BTM bedeutet, dass PV-Strom ausschließlich im jeweiligen Gebäude  selbst verbraucht wird (kein Austausch mit anderen Gebäuden oder dem Energy Hub), ist diese Bewertung korrekt. Bei gemeinsamer Nutzung oder Weiterleitung über das Netz müssten Netzentgelte usw. berücksichtigt werden.
         )
 
         # --- Decentral PV feed-in credit [EUR/a] ---
@@ -157,6 +157,10 @@ class CooperativeBM(BusinessModelBase):
         p_feedin_avg = self._weighted_avg_price('revenue_feed_in_el', support_years, weights)
         credit_pv_feedin = E_pv_export_MWh * p_feedin_avg * 1000
 
+        # TODO Rawad: Die Berücksichtigung von credit_avoided ist in der LCOH-Methode
+        # als Bewertungsansatz sinnvoll. Für die NPV-Berechnung ist das jedoch falsch,
+        # da vermiedene Kosten keine realen Cashflows darstellen. Streng genommen sollte
+        # ein NPV nur auf tatsächlichen Zahlungsströmen basieren. oder verstehe ich etwas falsch?
         # --- NPV calculation ---
         annual_net_cost = tac + c_pv_ann - credit_avoided - credit_pv_feedin
 

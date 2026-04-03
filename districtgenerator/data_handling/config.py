@@ -65,9 +65,10 @@ class LocationConfig(BaseSettings):
     trafoMax_W: float = 500000.0 # Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP. (Watt)
     enable_buildingMax_W: bool = False # Consider per-building maximum import/export at the building PCC.
     buildingMax_W: float = 50000.0  # Per-building maximum import/export at the building PCC. (Watt)
-    auto_size_trafo: bool = True  # If True: auto-size trafoMax_W from DIN 18015-1 + Kerber. If False: use manual trafoMax_W and enable_trafoMax_W from config. Ignored by KundenanlageBM (always sizes the trafo).
-    trafo_kVA_base: float = 630.0  # Reference kVA for inv_trafo cost. The Kundenanlage BM. Scales trafo investment linearly: inv = inv_trafo * (chosen_kVA / trafo_kVA_base).
+    auto_size_trafo: bool = True  # If True: auto-size trafoMax_W from DIN 18015-1 + Kerber "#todo Rawad: was meinst du mit Kerber? ist das eine Quelle: Wenn ja bitte link oder doi wenn es ein paper ist". If False: use manual trafoMax_W and enable_trafoMax_W from config. Ignored by KundenanlageBM (always sizes the trafo).
+    trafo_kVA_base: float = 630.0  # Reference kVA for inv_trafo cost. The Kundenanlage "#todo: englische Begriffe finden statt Kundenanlage" BM. Scales trafo investment linearly: inv = inv_trafo * (chosen_kVA / trafo_kVA_base).
 
+    #todo Rawad: ich habe nicht verstanden was auto_size_trafo und trafo_kVA_base machen
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
@@ -250,10 +251,11 @@ class EcoConfig(BaseSettings):
     # Rabattfaktor für lokalen Stromverkauf
     alpha: float = 0.8
     # Maximaler Wärmepreis [€/kWh] – aus Reference-Run befüllen
-    p_max: float = 0.0
+    p_max: float = 0.0 #todo Rawad: Ist es automatisiert, dass in einem Run das Referenzszenario berechnet wird und hier die Zahl importiert wird?
+                       #todo Rawad: Wir können auch ein anderes Referenzszenario mit PV und BOI sowie eines mit PV und Wärmepumpe erstellen. In diesem letzten Fall ist jedoch für die Berechnung der Wärmegestehungskosten der PV-Strom für die Wärmepumpe zu berücksichtigen.
     # NPV des Referenzfalls [€] – aus Reference-Run befüllen (für Option 3)
     npv_ref: float = 0.0
-    # Bewertungsmethode für Cooperative: 'lcoh' (Option 1) oder 'npv' (Option 3)
+    # Bewertungsmethode für Cooperative: 'lcoh' (Option 1) oder 'npv' (Option 3) #todo Rawad: Option 2?
     cooperative_evaluation_method: str = "lcoh"
 
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
@@ -558,11 +560,11 @@ class ElGridConfig(BaseSettings):
     Manages the configuration for the local electricity grid (Kundenanlage / BM 2.4).
 
     The electricity grid runs along the same streets as the heat network and is
-    sized accordingly using the pipeline lengths from data.pipeline.
+    sized accordingly using the pipeline lengths from data.pipeline. #todo Rawad: In den JSON-Dateien der Typquartiere findest du „length“, womit die gesamte Straßennetzlänge des Quartiers gemeint ist. Ich würde diese nutzen und nicht die des Wärmenetzes, die kürzer sein kann.
 
     Cost parameters based on Datenblatt 2025 (real EUR, ohne MwSt.):
 
-    Cable (Erdkabel <=1 kV, typisch inkl. Installation):
+    Cable (Erdkabel <=1 kV, typisch inkl. Installation):  #todo Rawad: Also nimmst du an, dass wir in den Quartieren immer im Niederspannungsbereich sind?
         inv_cable_per_m : 130  EUR/m
         om_cable_per_m  :   0.26 EUR/(m*a)
         life_cable      :  50 a

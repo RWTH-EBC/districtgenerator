@@ -15,7 +15,7 @@ References
     die Einspeisung aus Photovoltaikkleinanlagen", TU München, 2011.
 [2] Reveron Baecker et al., "Generation of low-voltage synthetic grid
     data for energy system modeling with the pylovo tool",
-    Sust. Energy Grids Netw. 41 (2025) 101617.
+    Sust. Energy Grids Netw. 41 (2025) 101617.                                                 #todo Rawad: nutzt du das noch im code?
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 import json
 from math import sqrt
 
-DIN_TRAFO_STEPS_KVA = [100, 160, 250, 400, 630, 800, 1000, 1250]
+DIN_TRAFO_STEPS_KVA = [100, 160, 250, 400, 630, 800, 1000, 1250]  #todo Rawad: sind diese dann aus DIN 42508?
 
 
 def coincidence_factor_kerber(n_we: float, g: float = 0.07) -> float:
@@ -82,7 +82,7 @@ def trafo_limit_from_house_connection_limits(
 
     Procedure:
       1. Sum all non-coincident house-connection limits  [kW]
-      2. Count total Wohneinheiten (WE) across the district
+      2. Count total Wohneinheiten (WE) across the district         #todo Rawad: d. h. das ist nur für Wohngebäude anwendbar? was machst du mit den NWG?
       3. Apply Kerber coincidence factor: Pc = c(WE) * P_sum
       4. Convert to apparent power with cosphi and safety factor
       5. Select smallest DIN 42508 transformer step >= required kVA

@@ -92,7 +92,7 @@ class KundenanlageBM(BusinessModelBase):
 
         2. Transformer sizing: Always performed (auto_size_trafo is ignored).
            The operator MUST know which MV/LV transformer to purchase.
-           However, trafoMax_W is NOT set as a hard optimiser constraint
+           However, trafoMax_W is NOT set as a hard optimiser constraint                # TODO Rawad: Ich sehe hier zwei mögliche Lösungen: Entweder die Trafogröße wird nach der Optimierung basierend auf der tatsächlichen Spitzenlast bestimmt, oder – die bevorzugte Methode – die Trafogröße wird direkt in die Auslegungsoptimierung als variabel integriert. Für beide Ansätze wird jedoch ein kVA-spezifischer Preis für Transformatoren benötigt, anstatt eines fixen Preises. Daher müsste hierfür eine andere Quelle als der Technikkatalog gefunden werden.
            because the operator can choose a larger transformer if needed.
 
         3. The chosen kVA is stored in data.site["kundenanlage_trafo_kVA"]
@@ -349,7 +349,7 @@ class KundenanlageBM(BusinessModelBase):
         """
         Annualised total cost of the local electricity grid [EUR/a].
 
-        Cable length = sum of heat network pipe segments (same streets).
+        Cable length = sum of heat network pipe segments (same streets).  #todo Rawad: hier die Straßenlänge nutzen
         One MV/LV transformer substation per district.
 
         Transformer cost scales with the DIN-derived kVA size relative
@@ -372,7 +372,7 @@ class KundenanlageBM(BusinessModelBase):
         # Transformer: scale investment with chosen kVA
         inv_trafo_base = cfg["inv_trafo"]  # EUR
         om_trafo_base = cfg["om_trafo"]  # EUR/a
-        trafo_kVA_base = cfg.get("trafo_kVA_base", 630.0)  # kVA reference
+        trafo_kVA_base = cfg.get("trafo_kVA_base", 630.0)  # kVA reference          #todo Rawad: woher kommt die 630 kVA. Ich habe nichts dazu im TEchnikkatalog gefunden. Wir sollen eine andere Quelle für €/kVA finden
 
         chosen_kVA = data.site.get("kundenanlage_trafo_kVA", trafo_kVA_base)
         scale = chosen_kVA / trafo_kVA_base
