@@ -9,3 +9,5 @@ include districtgenerator/data/weather/TRY_2015_Wint/*
 include districtgenerator/data/weather/TRY_2045_Jahr/*
 include districtgenerator/data/weather/TRY_2045_Somm/*
 include districtgenerator/data/weather/TRY_2045_Wint/*
+
+include requirements.txt

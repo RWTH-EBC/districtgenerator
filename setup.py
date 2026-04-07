@@ -5,6 +5,7 @@ with open("requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setuptools.setup(name='districtgenerator',
+                 python_requires='~=3.12',
                  version='0.0.1',
                  description='Energy profile generation and '
                              'optimization of districts',
@@ -17,3 +18,10 @@ setuptools.setup(name='districtgenerator',
                  install_requires=requirements,
                  classifiers=("Programming Language :: Python :: 3", ),
                  )
+
+import sys
+
+if sys.version_info >= (3, 13) or sys.version_info < (3,12):
+    print("Aktuelle Python Version:")
+    print(sys.version)
+    sys.exit("Fehler: Python 3.12 wird benötigt.")
