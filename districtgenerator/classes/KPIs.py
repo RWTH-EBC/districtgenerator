@@ -1259,24 +1259,17 @@ class KPIs:
         self.calculateDetailedCostsPerYear(data)
         self.calculateLCOH_buildings(data)
         self.calculateLCOH_EH(data)
-        self.saveKPIs(data.scenario_name, data.resultPath, data.district)
+        self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
 
-    def saveKPIs(self, scenario_name, result_path, buildings):
+    def saveKPIs(self, scenario_name, result_path, buildings, file_format):
         """
-        Save all calculated KPIs in an Excel file with two sheets. Ensure that calculateAllKPIs() has been called before.
+        Save all calculated KPIs in a file. Ensure that calculateAllKPIs() has been called before. Saves as the specified file format (csv/excel)
 
         Parameters
         - self: KPICalculator instance
         - scenario_name: Name of the scenario for file naming
         - result_path: Path to save the results
         """
-
-        if result_path is None:
-            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            filename = os.path.join(src_path, "results", f"KPIs_{scenario_name}.xlsx")
-            raise Warning(f"Result path not provided. Saving KPIs to default location: {filename}")
-        else:
-            filename = os.path.join(result_path, f"KPIs_{scenario_name}.xlsx")
 
         # Get all simulated years
         years = sorted(self.inputData["simulated_years"])
@@ -1452,10 +1445,17 @@ class KPIs:
         # Create dataframe
         kpi_df_lcoh = pd.DataFrame(lcoh_rows) if lcoh_rows else pd.DataFrame(
             columns=["Year", "Level", "Name", "LCOH (ct/kWh)"])
+        
+        if result_path is None:
+            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            result_path = os.path.join(src_path, "results")
+            raise Warning(f"Result path not provided. Saving KPIs to default location: {result_path}")
+        
 
         # Save to Excel with four sheets (or three if no central devices)
-        file_mode = ".csv"
-        if file_mode == ".xlxs":
+        if file_format == "xlsx":
+            filename = os.path.join(result_path, f"KPIs_{scenario_name}.{file_format}")
+
             with pd.ExcelWriter(filename, engine='openpyxl') as writer:
                 kpi_df_yearly.to_excel(writer, sheet_name='Yearly KPIs', index=False)
                 kpi_df_static.to_excel(writer, sheet_name='Static KPIs', index=False)
@@ -1464,7 +1464,9 @@ class KPIs:
                     kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices Costs', index=False)
                 kpi_df_lcoh.to_excel(writer, sheet_name='LCOH', index=False)
 
-        elif file_mode == ".csv":
+            print(f"KPIs saved to: {filename}")
+
+        elif file_format == "csv":
             kpi_df_yearly.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_yearly.csv"), index=False)
             kpi_df_static.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_static.csv"), index=False)
             kpi_df_dec_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_decentral_devices.csv"), index=False)
@@ -1472,7 +1474,14 @@ class KPIs:
                 kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False)
             kpi_df_lcoh.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_lcoh.csv"), index=False)
 
-        print(f"KPIs saved to: {filename}")
+            print(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
+
+        elif file_format == None:
+            print("KPIs not saved to file as no file format specified in report configuration.")
+        else:
+            print(f"Unsupported file format: {file_format}")
+
+        
 
     def create_certificate(self, data, result_path):
             """

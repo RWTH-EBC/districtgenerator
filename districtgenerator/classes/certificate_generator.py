@@ -20,7 +20,7 @@ from collections import OrderedDict
 import pandas as pd
 import math
 
-from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.shapes import Drawing, String, Rect
 from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.charts.legends import Legend
 from reportlab.platypus import Flowable
@@ -50,6 +50,9 @@ Font size names:
 - dense
 - page_number
 """
+
+DEBUG = True # If set to true boxes are drawn around the different components to visualize the layout and available space
+debug_line_width = 0.1 # Line width for the debug boxes
     
 ################################################################################
 # Certificate Style Configuration Class
@@ -95,8 +98,6 @@ class ThemeManager:
         self.pagesize = self.report_config["pagesize"]
         self.colors = self.report_config["colors"]
         self.fonts = self.report_config["fonts"]
-
-        print(f"Report Config: {self.report_config}") #! DEBUG:
 
         available_pagesizes = {"A3", "A4"}
         if self.pagesize not in available_pagesizes:
@@ -280,13 +281,36 @@ class ReportComponent:
         if cls.style is None:
             raise Exception("Theme not set. Please call ReportComponent.apply_style(theme_manager) before creating any components.")
         return cls.style
+    
 
+class BaseReportFlowable(Flowable, ReportComponent):
+    """
+    Base class for all Flowables in the certificate. Includes drawing of the debug frame if DEBUG is set to True
+    """
+
+    def draw(self):
+        self.draw_content()
+
+        if DEBUG:
+            c = self.canv
+            c.saveState()
+            c.setStrokeColor(colors.red)
+            c.setLineWidth(debug_line_width)
+            c.rect(0, 0, self.width, self.height, stroke=1, fill=0)
+            c.restoreState()
+
+    def draw_content(self):
+            """
+            This method should be implemented by all child classes to draw the actual content of the Flowable.
+            The base draw() method will handle the drawing of the debug frame if DEBUG is True.
+            """
+            raise NotImplementedError("Subclasses of BaseReportFlowable must implement the draw_content() method to draw their content.")
 
 ################################################################################
 # Basic Layout is a Framebox around the content
 ################################################################################
 
-class FrameBox(Flowable, ReportComponent):
+class FrameBox(BaseReportFlowable):
     def __init__(self, title: str, content_flowable: Flowable = None) -> None:
         """
         title: title as a string
@@ -365,7 +389,7 @@ class FrameBox(Flowable, ReportComponent):
 
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         """Draw the frame with title and content."""
         c = self.canv # Canvas for frame
         c.saveState()
@@ -439,7 +463,7 @@ class FrameBox(Flowable, ReportComponent):
 # Base elements (Flowables) that can be used in the layout
 ################################################################################
 
-class Header(Flowable, ReportComponent):
+class Header(BaseReportFlowable):
     """
     This class generates the header section of the certificate.
     """
@@ -465,7 +489,7 @@ class Header(Flowable, ReportComponent):
         self.height = self.fontsize + self.line_gap + self.line_width
         return self.width, self.height
     
-    def draw(self):
+    def draw_content(self):
         c = self.canv
         c.saveState()
 
@@ -484,7 +508,7 @@ class Header(Flowable, ReportComponent):
         
         c.restoreState()
 
-class Energiekennwerte(Flowable, ReportComponent):
+class Energiekennwerte(BaseReportFlowable):
     """
     Generates the Energiekennwerte section of the certificate.
     Arranges a summary table on the left, and a pie chart stacked above 
@@ -526,6 +550,12 @@ class Energiekennwerte(Flowable, ReportComponent):
         """Builds table with listed style."""
         t = Table(data)
         t.setStyle(self.style.get_table_styles()['listed'])
+
+        if DEBUG:
+            t.setStyle(TableStyle([
+                ('BOX', (0, 0), (-1, -1), debug_line_width, colors.red)
+            ]))
+
         return t
     
     def wrap(self, availWidth, availHeight):
@@ -533,12 +563,12 @@ class Energiekennwerte(Flowable, ReportComponent):
         _, self.height = self.layout_table.wrap(availWidth, availHeight)
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         """Draws the layout table onto the canvas."""
         self.layout_table.drawOn(self.canv, 0, 0)
 
 
-class EnergyPieChart(Flowable, ReportComponent):
+class EnergyPieChart(BaseReportFlowable):
     """
     Standalone Flowable that generates a pie chart for annual energy demands,
     using the configured corporate colors.
@@ -556,37 +586,73 @@ class EnergyPieChart(Flowable, ReportComponent):
 
     def _create_drawing(self) -> Drawing:
         """Constructs the Drawing object containing the Pie and Legend."""
-        width, height = self.availWidth, 150 #TODO: Move away from this fixed size
-        start_legend = 30
-        d = Drawing(width, height)
-        
-        pie = Pie()
-        pie.width = 90
-        pie.height = 90
-        pie.x = (width-pie.width)/2 # Center the pie horizontally
-        pie.y = start_legend + self.style.get_padding()
+        width = self.availWidth
+        padding = self.style.get_padding()
         
         labels = []
         values = []
         slice_colors = []
+
+        legend_font = self.style.get_font(bold=False)
+        legend_size = self.style.get_font_size('small')
+
+        title_font = self.style.get_font(bold=True)
+        title_size = self.style.get_font_size('body')
+        title_color = colors.Color(*self.style.get_color('text'))
+
         
         # Map pie categories to the specific keys in the colors dictionary
         color_mapping = {
-            "Strom": self.style.get_energy_color("electricity"), # Directly fetch the color for electricity grid
+            "Strom": self.style.get_energy_color("electricity"),
             "Wärme": self.style.get_energy_color("heating"),
             "TWW": self.style.get_energy_color("dhw"),
             "Kälte": self.style.get_energy_color("cooling"),
             "EV": self.style.get_energy_color("ev")
         }
 
-
+        # Enforce crash if key is missing by accessing the dictionary directly
         for key, color_rgb in color_mapping.items():
-            val = self.pie_data[key]
+            val = self.pie_data[key] 
             
             labels.append(key)
             values.append(float(val))
             slice_colors.append(colors.Color(*color_rgb))
 
+        # --- Shared Legend Logic ---
+        legend = Legend()
+        legend.alignment = 'right'
+        legend.fontName = legend_font
+        legend.fontSize = legend_size
+        legend.dx = 7
+        legend.dy = 7
+        legend.yGap = 0
+        legend.deltax = 90
+        legend.deltay = 10
+        legend.strokeWidth = 0
+        legend.strokeColor = colors.white
+        legend.columnMaximum = 3
+        
+        legend.colorNamePairs = [(slice_colors[i], f"{labels[i]}: {round(values[i], 1)}") for i in range(len(labels))]
+        
+        # Place temporarily at (0,0) to calculate the bounding box
+        legend.x = 0
+        legend.y = 0
+        bounds = legend.getBounds() 
+        actual_legend_width = bounds[2] - bounds[0]
+        
+        # Place the legend at the proper position based on the actual size
+        legend.x = (width - actual_legend_width) / 2
+        legend.y = -bounds[1] # Ensures the true bottom rests exactly at the lower bound
+        
+        # --- Pie Chart Logic ---
+        pie = Pie()
+        pie.width = 90
+        pie.height = 90
+        pie.x = (width - pie.width) / 2 
+        
+        # Place pie dynamically above the legend
+        pie.y = legend.y + bounds[3] + padding
+        
         pie.data = values
         pie.labels = None
         pie.slices.strokeColor = colors.white
@@ -597,51 +663,50 @@ class EnergyPieChart(Flowable, ReportComponent):
         
         for i in range(len(values)):
             pie.slices[i].fillColor = slice_colors[i]
+            
+        # Calculate dynamic total height based on pie top position and title space
+        title_y = pie.y + pie.height + self.style.get_spacing('small')
+        dynamic_height = title_y + title_size
         
-        legend = Legend()
-        legend.alignment = 'right'
-        legend.fontName = self.style.get_font(bold=False)
-        legend.fontSize = 10
-        legend.dx = 7
-        legend.dy = 7
-        legend.yGap = 0
-        legend.deltax = 90
-        legend.deltay = 10
-        legend.strokeWidth = 0
-        legend.strokeColor = colors.white
-        legend.columnMaximum = 3
-        legend.boxAnchor = 'nw'
-        legend.y = start_legend
-        
-
-        num_columns = math.ceil(len(labels) / legend.columnMaximum)
-        legend_width = num_columns * legend.deltax
-        legend.x = (width - legend_width) / 2
-        
-        legend.colorNamePairs = [(slice_colors[i], f"{labels[i]}: {round(values[i], 1)}") for i in range(len(labels))]
+        d = Drawing(width, dynamic_height)
         
         d.add(pie)
         d.add(legend)
+
+        
+        d.add(String(width / 2.0, title_y, "Energiebedarfe in MWh/a", 
+                     fontName=title_font, 
+                     fontSize=title_size, 
+                     textAnchor='middle',
+                     fillColor=title_color))
+
+        # Draw debug boxes for internal components
+        if DEBUG:
+            # Pie bounding box
+            d.add(Rect(pie.x, pie.y, pie.width, pie.height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+            
+            # Legend bounding box using exact final bounds
+            final_bounds = legend.getBounds()
+            l_x = final_bounds[0]
+            l_y = final_bounds[1]
+            l_w = final_bounds[2] - final_bounds[0]
+            l_h = final_bounds[3] - final_bounds[1]
+            d.add(Rect(l_x, l_y, l_w, l_h, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+
+            # Title
+            d.add(Rect(0, title_y, width, title_size, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+
         return d
 
     def wrap(self, availWidth, availHeight):
         # The drawing has fixed dimensions, so we just return them directly
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         # Draw the internal Drawing onto the Flowable's canvas
         self.drawing.drawOn(self.canv, 0, 0)
 
-        c = self.canv
-        c.setFont(self.style.get_font(bold=True), self.style.get_font_size('body'))
-        c.setFillColorRGB(*self.style.get_color('text'))
-        c.drawCentredString(self.width / 2.0, self.height - 10, "Energiebedarfe in MWh/a")
-
-        # FOr Debugging: Draw a border around the pie chart
-        # c.setStrokeColor(colors.red)
-        # c.rect(0, 0, self.width, self.height, stroke=1, fill=0)
-
-class MaxLoadsBarChart(Flowable, ReportComponent):
+class MaxLoadsBarChart(BaseReportFlowable):
     """
     Generates a horizontal bar chart representing maximum loads with values aligned to the right.
     """
@@ -655,6 +720,7 @@ class MaxLoadsBarChart(Flowable, ReportComponent):
 
         self.title_font = (self.style.get_font(bold=True), self.style.get_font_size('body'))
         self.text_font = (self.style.get_font(bold=False), self.style.get_font_size('body'))    
+        self.number_font = (self.style.get_font(bold=False), self.style.get_font_size('small'))
 
         
     def wrap(self, availWidth, availHeight):
@@ -663,7 +729,7 @@ class MaxLoadsBarChart(Flowable, ReportComponent):
         self.height = len(self.max_loads_data) * self.row_height + self.style.get_spacing('small') + self.title_font[1] # rows + spacing + title
         return self.width, self.height
         
-    def draw(self):
+    def draw_content(self):
         """Draws labels, scaled bars, and values onto the canvas."""
         c = self.canv
         c.saveState()
@@ -696,7 +762,7 @@ class MaxLoadsBarChart(Flowable, ReportComponent):
         
         # Calculate dynamic layout metrics
         max_label_width = max([c.stringWidth(lbl, *self.text_font) for lbl in labels])
-        max_val_width = max([c.stringWidth(val, *self.text_font) for val in values_text])
+        max_val_width = max([c.stringWidth(val, *self.number_font) for val in values_text])
         
         x_label = 0
         x_bar = max_label_width + self.style.get_padding()
@@ -712,6 +778,7 @@ class MaxLoadsBarChart(Flowable, ReportComponent):
             y_pos = self.height - self.title_font[1] - self.style.get_spacing('small') - self.text_font[1] - (self.row_height * i)
             
             # Label
+            c.setFont(*self.text_font)
             c.setFillColorRGB(*text_color)
             c.drawString(x_label, y_pos, labels[i])
             
@@ -721,16 +788,13 @@ class MaxLoadsBarChart(Flowable, ReportComponent):
             c.rect(x_bar, y_pos, bar_w, 6, stroke=0, fill=1)
             
             # Value
+            c.setFont(*self.number_font)
             c.setFillColorRGB(*text_color)
             c.drawString(x_bar + bar_w + gap_after_bar, y_pos, values_text[i])
             
         c.restoreState()
 
-        # FOr Debugging: Draw a border around the pie chart
-        # c.setStrokeColor(colors.red)
-        # c.rect(0, 0, self.width, self.height, stroke=1, fill=0)
-
-class Title(Flowable, ReportComponent):
+class Title(BaseReportFlowable):
     """A simple Flowable to draw a centered bold title."""
     def __init__(self, title_text: str):
         super().__init__()
@@ -740,20 +804,19 @@ class Title(Flowable, ReportComponent):
         self.font_size = self.style.get_font_size('subsection_title')
         self.color = self.style.get_color('text')
         self.width = 0
-        self.height = self.font_size + 4 # Kleine Pufferzone
+        self.height = self.font_size + 4
         
     def wrap(self, availWidth, availHeight):
         self.width = availWidth
         return self.width, self.height
         
-    def draw(self):
+    def draw_content(self):
         c = self.canv
         c.setFont(self.font, self.font_size)
         c.setFillColorRGB(*self.color)
-        # Die y-Position ist leicht angehoben, damit es bündig wirkt
         c.drawString(0, 0, self.title_text)
 
-class Quartiersstruktur(Flowable, ReportComponent):
+class Quartiersstruktur(BaseReportFlowable):
     """
     This class generates the Quartiersstruktur section of the certificate providing a summary of the building stock and the neighborhood characteristics.
     """
@@ -769,6 +832,14 @@ class Quartiersstruktur(Flowable, ReportComponent):
 
         self.info_table = Table(general_info)
         self.info_table.setStyle(self.style.get_table_styles()['listed'])
+
+        if DEBUG:
+            self.table.setStyle(TableStyle([
+                ('BOX', (0, 0), (-1, -1), debug_line_width, colors.red)
+            ]))
+            self.info_table.setStyle(TableStyle([
+                ('BOX', (0, 0), (-1, -1), debug_line_width, colors.red)
+            ]))
 
     def wrap(self, availWidth, availHeight):
         self.width = availWidth
@@ -786,7 +857,7 @@ class Quartiersstruktur(Flowable, ReportComponent):
         self.height = self.table_height + self.style.get_padding() + self.info_height
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         c = self.canv
         y = self.height
 
@@ -800,7 +871,7 @@ class Quartiersstruktur(Flowable, ReportComponent):
         x_offset = (self.width - self.info_table_width) / 2.0
         self.info_table.drawOn(c, x_offset, y - self.info_height)
 
-class Footer(Flowable, ReportComponent):
+class Footer(BaseReportFlowable):
     """
     This class generates the Footer section of the certificate. Visiable on the bottom of the first page.
     """
@@ -832,7 +903,7 @@ class Footer(Flowable, ReportComponent):
         self.height = max(self.normal_fontsize, self.highlight_fontsize) + 2*self.padding + 2*self.line_width
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         w = self.width
         h = self.height
         c = self.canv
@@ -887,7 +958,7 @@ class Footer(Flowable, ReportComponent):
         
         return required_height 
 
-class EnergyHub(Flowable, ReportComponent):
+class EnergyHub(BaseReportFlowable):
     """
     Flowable that handles the visual layout of the Energy Hub content.
     Provides a class method to handle pagination and FrameBox wrapping.
@@ -916,7 +987,7 @@ class EnergyHub(Flowable, ReportComponent):
         _, self.height = self.content_flowable.wrap(availWidth, availHeight)
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         # Delegate drawing to the internal content
         self.content_flowable.drawOn(self.canv, 0, 0)
 
@@ -964,7 +1035,7 @@ class EnergyHub(Flowable, ReportComponent):
         
         return boxes
 
-class DecentralSystems(Flowable, ReportComponent):
+class DecentralSystems(BaseReportFlowable):
     """
     Flowable that handles the visual layout of the Decentral Systems content.
     Provides a class method to handle pagination and FrameBox wrapping.
@@ -993,7 +1064,7 @@ class DecentralSystems(Flowable, ReportComponent):
         _, self.height = self.content_flowable.wrap(availWidth, availHeight)
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         # Delegate drawing to the internal content
         self.content_flowable.drawOn(self.canv, 0, 0)
 
@@ -1039,32 +1110,35 @@ class DecentralSystems(Flowable, ReportComponent):
         
         return boxes
     
-class YearlyStackedBarCharts(Flowable, ReportComponent):
+class YearlyStackedBarCharts(BaseReportFlowable):
     """
-    Generates two stacked bar charts side-by-side (Costs and CO2 emissions)
-    for each simulated year, with a shared legend below.
+    Generates stacked bar charts for each simulated year, with a shared legend below.
     """
-    def __init__(self, costs_data: list, co2_data: list, availWidth: float):
+    def __init__(self, costs_data: list, co2_data: list, availWidth: float, availHeight: float):
         super().__init__()
         self.style = self.get_style()
         self.costs_data = costs_data
         self.co2_data = co2_data
         self.availWidth = availWidth
+        self.availHeight = availHeight
         
         self.drawing = self._create_drawing()
         self.width = self.drawing.width
         self.height = self.drawing.height
 
     def _create_drawing(self) -> Drawing:
-        # Extract years and sort them
+        # Interpolation points (years) and categories for both charts
         years = sorted([item["Year"] for item in self.costs_data])
+        years_co2 = sorted([item["Year"] for item in self.co2_data])
+        if years != years_co2:
+            raise ValueError(f"Mismatch in years between costs_data and co2_data ({years} vs {years_co2}). Ensure both datasets cover the same years as Simulations are linked.")
         year_labels = [str(y) for y in years]
         
-        # Define categories (excluding 'Year')
+        # Define categories (excluding 'Year' values)
         cost_categories = [k for k in self.costs_data[0].keys() if k != "Year"]
         co2_categories = [k for k in self.co2_data[0].keys() if k != "Year"]
         
-        # Combine all unique categories for the shared legend
+        # Combine all categories for the shared legend
         all_categories = list(dict.fromkeys(cost_categories + co2_categories))
         
         # Format data for ReportLab VerticalBarChart (list of tuples/lists per category across all years)
@@ -1078,44 +1152,56 @@ class YearlyStackedBarCharts(Flowable, ReportComponent):
             series = [next(item[cat] for item in self.co2_data if item["Year"] == y) for y in years]
             co2_series.append(tuple(series))
 
-        # --- Base Metrics ---
-        drawing_width = self.availWidth
-        chart_width = drawing_width - 80 # Leave padding on the sides
-        chart_height = 150
-        x_align = 40
+        # Define order of charts and titles from Bottom to Top
+        charts_config = [
+            {
+                "title": "CO2-Emissionen (t/a)",
+                "series": co2_series,
+                "categories": co2_categories
+            },
+            {
+                "title": "Kosten (€/a)",
+                "series": cost_series,
+                "categories": cost_categories
+            }
+        ]
+
+        # CO2 Emissions in t/a or kg/a
+        max_co2 = max([max(series) for series in co2_series]) if co2_series else 0 # Unit in t/a
+        if max_co2 < 5:
+            co2_series = [tuple(val * 1000 for val in series) for series in co2_series]
+            charts_config[0]["title"] = "CO2-Emissionen (kg/a)"
+            charts_config[0]["series"] = co2_series
+
+        # Costs in t€/a or €/a
+        max_costs = max([max(series) for series in cost_series]) if cost_series else 0 # Unit in €/a
+        if max_costs > 5000:
+            cost_series = [tuple(val / 1000 for val in series) for series in cost_series]
+            charts_config[1]["title"] = "Kosten (Tsd. €/a)"
+            charts_config[1]["series"] = cost_series
         
-        # --- Legend Calculations ---
-        # Calculate exactly how much vertical space the legend needs
+
+        # --- Base Layout ---
+
+        # Fonts
+        title_font = self.style.get_font(bold=True)
+        title_size = self.style.get_font_size('body')
+
+        axis_font = self.style.get_font(bold=False) 
+        axis_size = self.style.get_font_size('axis_values')
+
+        axis_label_font = self.style.get_font(bold=False)
+        axis_label_size = self.style.get_font_size('small')
+
+        legend_font = self.style.get_font(bold=False)
+        legend_size = self.style.get_font_size('small')
+
         legend_max_cols = 3
-        legend_deltay = 12
-        num_legend_items = len(all_categories)
-        num_legend_rows = math.ceil(num_legend_items / legend_max_cols)
-        
-        # The true height of the legend box
-        actual_legend_height = num_legend_rows * legend_deltay
-        
-        # --- Vertical Layout Planning (from bottom to top) ---
-        bottom_padding = 10
-        legend_y = bottom_padding + actual_legend_height # Legend draws top-down
-        
-        space_above_legend = 30
-        co2_chart_y = legend_y + space_above_legend
-        co2_title_y = co2_chart_y + chart_height + 15
-        
-        gap_between_charts = 40
-        costs_chart_y = co2_title_y + gap_between_charts
-        costs_title_y = costs_chart_y + chart_height + 15
-        
-        top_padding = 10
-        
-        # The total height is exactly the top element's Y coordinate plus padding
-        drawing_height = costs_title_y + top_padding
-        
-        d = Drawing(drawing_width, drawing_height)
-        
-        # Helper function to get color mapping securely
+        num_legend_items = len(all_categories)       
+
+        # Helper function to get color mapping
         def get_cat_color(category):
-            """Returns the color based on the exact dictionary key string."""
+            """Returns the color based on the exact dictionary key string.""" #TODO Maybe less hard coding and move mapping to a more central place as names used in multi
             try:
                 # Direct mapping of your exact keys to the theme color types
                 mapping = {
@@ -1137,17 +1223,27 @@ class YearlyStackedBarCharts(Flowable, ReportComponent):
                     return self.style.get_source_color(color_key)
                 
                 # Fallback if the string is not in the explicit list
+                print(f"Warning: Category '{category}' not found in color mapping. Using secondary color as fallback. Check if color {mapping[category]} is defined in the config.")
                 return self.style.get_color("secondary_color")
                 
             except KeyError:
                 # Fallback if the color key itself is missing in the theme config
+                print(f"Warning: Category '{category}' not defined in color mapping. Using secondary color as fallback.")
                 return self.style.get_color("secondary_color")
+ 
+        # --- Placement Calculations ---
+        padding = self.style.get_padding()
+        drawing_width = self.availWidth
+        x_align = 3 * self.style.get_padding()
+        chart_width = drawing_width - 2*x_align # Leave padding on the sides
+
+        d = Drawing(drawing_width, self.availHeight)
 
         # --- Shared Legend ---
         legend = Legend()
-        legend.fontName = self.style.get_font(bold=False)
-        legend.fontSize = 9
-        legend.dx = 8
+        legend.fontName = legend_font
+        legend.fontSize = legend_size
+        legend.dx = 8 
         legend.dy = 8
         legend.yGap = 0
         legend.deltay = 12
@@ -1163,72 +1259,82 @@ class YearlyStackedBarCharts(Flowable, ReportComponent):
         # Center legend
         num_columns = math.ceil(num_legend_items / legend.columnMaximum)
         actual_legend_width = num_columns * legend.deltax
+
+        # Place temporarily at (0,0) to calculate the bounding box and get the actual width and height of the legend
         legend.x = 0
         legend.y = 0
         bounds = legend.getBounds() 
         actual_legend_width = bounds[2] - bounds[0]
+        actual_legend_height = bounds[3] - bounds[1]
 
+        # Place the legend at the proper position based on the actual size
         legend.x = (drawing_width - actual_legend_width) / 2
-        legend.y = legend_y # Dein gewünschter Abstand zum unteren Rand
-        
+        legend.y = padding + actual_legend_height
         d.add(legend)
 
-        axis_label_font = self.style.get_font(bold=False)
-        axis_label_size = self.style.get_font_size('small')
-
-        # --- CO2 Chart (Bottom Chart) ---
-        bc_co2 = VerticalBarChart()
-        bc_co2.x = x_align
-        bc_co2.y = co2_chart_y
-        bc_co2.height = chart_height
-        bc_co2.width = chart_width
-        bc_co2.data = co2_series
-        bc_co2.categoryAxis.categoryNames = year_labels
-        bc_co2.categoryAxis.labels.fontName = self.style.get_font(bold=False)
-        bc_co2.categoryAxis.labels.fontSize = 8
-        bc_co2.valueAxis.labels.fontName = self.style.get_font(bold=False)
-        bc_co2.valueAxis.labels.fontSize = 8
-        bc_co2.categoryAxis.style = 'stacked'
+        # Debugging: Draw bounding box around the legend
+        if DEBUG:
+            d.add(Rect(legend.x, padding, actual_legend_width, actual_legend_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
         
-        for i, cat in enumerate(co2_categories):
-            bc_co2.bars[i].fillColor = colors.Color(*get_cat_color(cat))
-            bc_co2.bars[i].strokeWidth = 0
+        current_y = legend.y + padding # LOWER LIMIT NO element should extend below this!
 
-        d.add(bc_co2)
-        d.add(String(bc_co2.x + chart_width/2, co2_title_y, "CO2-Emissionen (t/a)", fontName=self.style.get_font(bold=True), fontSize=10, textAnchor='middle'))
-        # d.add(String(bc_co2.x + chart_width/2, bc_co2.y - 30, "Stützjahr", fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
+        # --- Dynamic Height Calculation --
+        num_charts = len(charts_config)
+        remaining_space = self.availHeight - current_y
+        remaining_space -= padding * (num_charts - 1) # Account for padding between charts
 
-        # --- Costs Chart (Top Chart) ---
-        bc_costs = VerticalBarChart()
-        bc_costs.x = x_align
-        bc_costs.y = costs_chart_y
-        bc_costs.height = chart_height
-        bc_costs.width = chart_width
-        bc_costs.data = cost_series
-        bc_costs.categoryAxis.categoryNames = year_labels
-        bc_costs.categoryAxis.labels.fontName = self.style.get_font(bold=False)
-        bc_costs.categoryAxis.labels.fontSize = 8
-        bc_costs.valueAxis.labels.fontName = self.style.get_font(bold=False)
-        bc_costs.valueAxis.labels.fontSize = 8
-        bc_costs.categoryAxis.style = 'stacked'
-        
-        for i, cat in enumerate(cost_categories):
-            bc_costs.bars[i].fillColor = colors.Color(*get_cat_color(cat))
-            bc_costs.bars[i].strokeWidth = 0
+        max_block_height = 200 
+        total_chart_height = min(remaining_space / num_charts, max_block_height)
 
-        d.add(bc_costs)
-        d.add(String(bc_costs.x + chart_width/2, costs_title_y, "Kosten (€/a)", fontName=self.style.get_font(bold=True), fontSize=10, textAnchor='middle'))
-        # d.add(String(bc_costs.x + chart_width/2, bc_costs.y - 30, "Stützjahr", fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
+        # Iterate through the charts to draw them according to the defined charts_config
+        for chart in charts_config:            
+            setoff_chart_start = (axis_label_size) + self.style.get_spacing("small") + (axis_size * 1.2)
+            title_height = title_size * 1.2
+            chart_height = total_chart_height - setoff_chart_start - title_height - padding # Leave space for title and axis labels
 
+            bc = VerticalBarChart()
+            bc.x = x_align
+            bc.y = current_y + setoff_chart_start
+            bc.height = chart_height
+            bc.width = chart_width
+            bc.data = chart["series"]
+            bc.categoryAxis.categoryNames = year_labels
+            bc.categoryAxis.labels.fontName = axis_font
+            bc.categoryAxis.labels.fontSize = axis_size
+            bc.valueAxis.labels.fontName = axis_font
+            bc.valueAxis.labels.fontSize = axis_size
+            bc.categoryAxis.style = 'stacked'
+
+            for i, cat in enumerate(chart["categories"]):
+                bc.bars[i].fillColor = colors.Color(*get_cat_color(cat))
+                bc.bars[i].strokeWidth = 0
+
+            d.add(bc)
+
+            title_y = current_y + chart_height + padding + setoff_chart_start
+            d.add(String(bc.x + chart_width/2, title_y, chart["title"], fontName=title_font, fontSize=title_size, textAnchor='middle'))
+            d.add(String(bc.x + chart_width/2, current_y, "Stützjahr", fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
+
+            total_chart_height = title_y - current_y + title_size 
+
+            # For debug purposes: Draw bounding boxes around the charts
+            if DEBUG:
+                d.add(Rect(bc.x, current_y, bc.width, total_chart_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+            
+            
+            current_y += total_chart_height + padding # Next chart starts after the chart height including the title and all text. 
+
+        # Shrink the drawing height to the actual used height
+        d.height = current_y
         return d
 
     def wrap(self, availWidth, availHeight):
         return self.width, self.height
 
-    def draw(self):
+    def draw_content(self):
         self.drawing.drawOn(self.canv, 0, 0)
 
-class InputDataTable(Flowable, ReportComponent):
+class InputDataTable(BaseReportFlowable):
     """
     This class generates the Input Data Table section of the certificate.
     """
@@ -1273,10 +1379,10 @@ class InputDataTable(Flowable, ReportComponent):
         self.height = availHeight
         return self.width, self.height # Takes the whole available space
     
-    def draw(self):
+    def draw_content(self):
         self.table.drawOn(self.canv, 0, self.height - self.actual_height) #Placement at the top-left corner
 
-class Hinweise(Flowable, ReportComponent):
+class Hinweise(BaseReportFlowable):
     """
     This class generates the Allgemeine Hinweise section of the certificate.
     """
@@ -1348,7 +1454,7 @@ class Hinweise(Flowable, ReportComponent):
                 alignment=0,# -> left aligned
                 leftIndent=self.style.get_font_size('small'), # indent for the items
                 firstLineIndent=-self.style.get_font_size('small'), # hanging indent
-                textColor=self.style.get_color('text_light')
+                textColor=self.style.get_color('text')
             )
         }
         self.layout = {'distance_after_title': self.styles['section_title'].fontSize * 0.3, # Distance after the section title
@@ -1404,7 +1510,7 @@ class Hinweise(Flowable, ReportComponent):
         self.height = availHeight
         return self.width, self.height
     
-    def draw(self):
+    def draw_content(self):
         """Only draws the sections that fit on the current page."""
         c = self.canv
         c.saveState()
@@ -1619,6 +1725,11 @@ class CertificateLayout(ReportComponent):
             box = FrameBox(title=title)
             box.set_content(tab, full_width=True)
             self.story.append(box)
+
+    def create_district_layout(self):
+        """Plots the district layout"""
+
+        # TODO: Needs Implementation!
     
     # Input Data page
     def create_input_data_table(self, data_input):
@@ -1671,7 +1782,7 @@ class CertificateLayout(ReportComponent):
         frame_width, frame_height = self.certificate_builder.get_Framesize(id='EnergyhubDevicesFrame')
         avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
         
-        barcharts_flowable = YearlyStackedBarCharts(costs_data=costs_data, co2_data=co2_data, availWidth=avail_w)
+        barcharts_flowable = YearlyStackedBarCharts(costs_data=costs_data, co2_data=co2_data, availWidth=avail_w, availHeight=avail_h)
         box.set_content(barcharts_flowable)
         self.story.append(box)
 
@@ -1747,7 +1858,7 @@ class CertificateTemplate(BaseDocTemplate, ReportComponent):
         )
 
         # Energyhub Devices Page
-        page_id = 'EnergyhubDevicesPage'
+        page_id = 'ContentPage'
         margin_x, margin_y = self.page_margins[page_id]
 
         energyhub_frame = Frame(
@@ -1831,7 +1942,7 @@ class CertificateTemplate(BaseDocTemplate, ReportComponent):
                     return frame._width, frame._height
         raise ValueError(f"No frame with id {id} found.")
 
-class PaginatedDataFrameTable(Flowable, ReportComponent):
+class PaginatedDataFrameTable(BaseReportFlowable):
     """
     Generic class to generate and paginate tables from pandas DataFrames.
     """
@@ -1909,7 +2020,7 @@ class PaginatedDataFrameTable(Flowable, ReportComponent):
         self.height = availHeight
         return self.width, self.height 
     
-    def draw(self):
+    def draw_content(self):
         # Placement at the top-left corner
         self.table.drawOn(self.canv, 0, self.height - self.actual_height) 
 
@@ -2051,6 +2162,8 @@ class DataExtractor:
             building_data_list.append(building_dict)
 
         self.gebaude_df = pd.DataFrame(building_data_list)
+
+        # TODO: Add here dtype casting e.g. ensure area is integer not float ....
     
     def _extract_kennwerte(self):
         """Extracts the general key performance indicators."""
@@ -2068,7 +2181,7 @@ class DataExtractor:
 
         # Overall_summary
         self.district_key_kpis = [
-            ["Nutzenergiebedarf:", f"{round((self.kpis.total_heating_demand + self.kpis.total_cooling_demand + self.kpis.total_electricity_demand + self.kpis.total_dhw_demand + self.kpis.total_EV_demand) / to_MWh, 2)} MWh/a"],
+            ["Nutzenergiebedarf:", f"{round((self.kpis.total_heating_demand + self.kpis.total_cooling_demand + self.kpis.total_electricity_demand + self.kpis.total_dhw_demand + self.kpis.total_EV_demand) / to_MWh, 1)} MWh/a"],
             ["Norm-Heizlast", f"{round(self.kpis.totalheatload / to_kW, 1)} kW"],
         ]
 
@@ -2095,7 +2208,7 @@ class DataExtractor:
         ]
 
         # energy demand in MWh/a
-        self.pie_chart_energy = { #TODO: Check if needs to be divided by obs_time or does it already describe one year?
+        self.pie_chart_energy = {
             "Strom": round(self.kpis.total_electricity_demand / to_MWh, 2),
             "Wärme": round(self.kpis.total_heating_demand / to_MWh, 2),
             "TWW": round(self.kpis.total_dhw_demand / to_MWh, 2),
@@ -2147,18 +2260,6 @@ class DataExtractor:
             "bar_costs_data": self.bar_costs_data,
             "bar_co2_data": self.bar_co2_data
             }
-
-
-
-        # DEBUG: 
-        print("Extracted Kennwerte:")
-        print(self.district_key_kpis)
-
-        print(self.max_loads_table)
-        print(self.pie_chart_energy)
-        print(self.bar_costs_data)
-        print(self.bar_co2_data)
-
 
     def _extract_district_structure(self):
         """Extracts the structural information of the district and prepares tables."""
@@ -2252,23 +2353,31 @@ class DataExtractor:
 
     def _translate_building_type(self, b_type:str) -> str:
         """Translates the building type from the data to the display name."""
-        translation_map = {
-            "SFH": "Einfamilienhaus",
-            "TH": "Reihenhaus",
-            "MFH": "Mehrfamilienhaus",
-            "AB": "Apartmentblock",
-            "OB": "Bürogebäude",
-            "SC": "Schulgebäude",
-            "GS": "Lebensmittelgeschäft",
-            "RE": "Restaurantgebäude",
-            "UNI": "Universitätsgebäude",
-            "HOSPITAL": "Krankenhausgebäude",
-            "CULTURE": "Kulturgebäude",
-            "SPORT": "Sportgebäude",
-            "RETAIL": "Handelsgebäude",
-            "WORKSHOP": "Werkstattgebäude",
-            "MIXED": "Mischgebäude"
-        }
+
+        if self.get_language() == "en":
+            raise NotImplementedError(f"Language {self.get_language()} not supported for building type translation.")
+
+        elif self.get_language() == "de":
+            translation_map = {
+                "SFH": "Einfamilienhaus",
+                "TH": "Reihenhaus",
+                "MFH": "Mehrfamilienhaus",
+                "AB": "Apartmentblock",
+                "OB": "Bürogebäude",
+                "SC": "Schulgebäude",
+                "GS": "Lebensmittelgeschäft",
+                "RE": "Restaurantgebäude",
+                "UNI": "Universitätsgebäude",
+                "HOSPITAL": "Krankenhausgebäude",
+                "CULTURE": "Kulturgebäude",
+                "SPORT": "Sportgebäude",
+                "RETAIL": "Handelsgebäude",
+                "WORKSHOP": "Werkstattgebäude",
+                "MIXED": "Mischgebäude"
+            }
+        
+        else: raise NotImplementedError(f"Language {self.get_language()} not supported for building type translation.")
+        
         return translation_map.get(b_type, b_type) # if no translation is found, return the original type
 
     def _extract_energyhub_data(self): # TODO: Add here that all feasible devices are included
@@ -2312,16 +2421,29 @@ class DataExtractor:
                 name, unit = self.get_central_device_name(dev)
 
                 if cap <= 0:
-                    cap = "not selected"
+                    if self.get_language() == "en":
+                        cap = "not selected"
+                    elif self.get_language() == "de":
+                        cap = "nicht ausgewählt"
+                    else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
                     unit = ""
 
                 # Append dict to the device list
-                device_list.append({
-                    "Device": name, 
-                    "Capacity": f"{cap} {unit}",
-                    "Ann. Cost (Sub.)": f"{annual_cost_sub} €/a"#,
-                    # "Ann. Cost (Unsub.)": f"{annual_cost_unsub} €/a"
-                })
+                if self.get_language() == "en":
+                    device_list.append({
+                        "Device": name, 
+                        "Capacity": f"{cap} {unit}",
+                        "Ann. Cost (Sub.)": f"{annual_cost_sub} €/a"#,
+                        # "Ann. Cost (Unsub.)": f"{annual_cost_unsub} €/a"
+                    })
+                elif self.get_language() == "de":
+                    device_list.append({
+                        "Anlage": name, 
+                        "Kapazität": f"{cap} {unit}",
+                        "Jährl. Kosten (subv.)": f"{annual_cost_sub} €/a"#,
+                        # "Jährl. Kosten (unsubv.)": f"{annual_cost_unsub} €/a"
+                    })
+                else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
 
             # Create the DataFrame only if devices are present
             if device_list:
@@ -2339,7 +2461,6 @@ class DataExtractor:
 
     def _extract_decentral_data(self):
         """Extracts and aggregates decentral device capacities and counts across all buildings, excluding EV."""
-        print("##################################################################################")
         try:
             aggregated_data = {}
 
@@ -2374,13 +2495,26 @@ class DataExtractor:
             # 2. Format the aggregated data into a list of dictionaries for the DataFrame
             for dev_name, data in aggregated_data.items():
                 name, unit = self.get_decentral_device_name(dev_name)
+
+                total_power = f"{round(data['total_cap'], 1)} {unit}"
+                ann_cost = f"{round(data['total_cost'], 2)} €/a"    
                     
-                device_list.append({
-                    "Device": name,
-                    "Count": data["count"],
-                    "Total Power": f"{round(data['total_cap'], 2)} {unit}",
-                    "Annual Costs": f"{round(data['total_cost'], 2)} €/a"
-                })
+                if self.get_language() == "en":
+                    device_list.append({
+                        "Device": name,
+                        "Count": data["count"],
+                        "Total Power": total_power,
+                        "Annual Costs": ann_cost
+                    })
+                elif self.get_language() == "de":
+                    device_list.append({
+                        "Anlage": name,
+                        "Anzahl": data["count"],
+                        "Gesamtleistung": total_power,
+                        "Jährl. Kosten": ann_cost
+                    })
+                else:
+                    raise NotImplementedError(f"Language {self.get_language()} not supported for decentral device table.")
 
             # 3. Create the DataFrame
             if device_list:
@@ -2391,10 +2525,6 @@ class DataExtractor:
         except AttributeError as e:
             print(f"Warning: Decentral device data could not be extracted. {e}")
             self.decentral_df = None
-
-        print("Extracted decentral device data:")
-        if self.decentral_df is not None:
-            print(self.decentral_df)
 
     def _extract_data(self):
         """Extracts and processes all necessary data for the certificate."""
@@ -2416,34 +2546,68 @@ class DataExtractor:
         Returns:
             tuple[str, str]: A tuple consisting of the full name and the unit.
         """
-        device_name_map = {
-            "PV": "Solar Panels",
-            "WT": "Wind Turbine",
-            "WAT": "Water Turbine",
-            "STC": "Solar Thermal Collector",
-            "CHP": "Combined Heat & Power",
-            "AirHP": "Air-source Heat Pump",
-            "GroundHP": "Ground-source Heat Pump",
-            "HP": "Heat Pump",
-            "BOI": "Boiler",
-            "GHP": "Gas Heat Pump",
-            "EB": "Electric Boiler",
-            "AC": "Absorption Chiller",
-            "BCHP": "Biogas CHP",
-            "BBOI": "Biogas Boiler",
-            "WCHP": "Waste Heat CHP",
-            "WBOI": "Waste Heat Boiler",
-            "ELYZ": "Electrolyzer",
-            "FC": "Fuel Cell",
-            "H2S": "Hydrogen Storage",
-            "SAB": "Sabatier Reactor",
-            "TES": "Heat Storage",
-            "CTES": "Cold Storage",
-            "BAT": "Battery",
-            "GS": "Gas Storage",
-            "AirCC": "Air-cooled Chiller",
-            "CC": "Cooling Chiller"
-        }
+        # TODO: Check translations and full names (en & de)
+        if self.get_language() == "en":
+            device_name_map = {
+                "PV": "Solar Panels",
+                "WT": "Wind Turbine",
+                "WAT": "Water Turbine",
+                "STC": "Solar Thermal Collector",
+                "CHP": "Combined Heat & Power",
+                "AirHP": "Air-source Heat Pump",
+                "GroundHP": "Ground-source Heat Pump",
+                "HP": "Heat Pump",
+                "BOI": "Boiler",
+                "GHP": "Gas Heat Pump",
+                "EB": "Electric Boiler",
+                "AC": "Absorption Chiller",
+                "BCHP": "Biogas CHP",
+                "BBOI": "Biogas Boiler",
+                "WCHP": "Waste Heat CHP",
+                "WBOI": "Waste Heat Boiler",
+                "ELYZ": "Electrolyzer",
+                "FC": "Fuel Cell",
+                "H2S": "Hydrogen Storage",
+                "SAB": "Sabatier Reactor",
+                "TES": "Heat Storage",
+                "CTES": "Cold Storage",
+                "BAT": "Battery",
+                "GS": "Gas Storage",
+                "AirCC": "Air-cooled Chiller",
+                "CC": "Cooling Chiller"
+            }
+        elif self.get_language() == "de":
+            device_name_map = {
+                "PV": "Photovoltaik",
+                "WT": "Windkraftanlage",
+                "WAT": "Wasserkraftanlage",
+                "STC": "Solarthermie",
+                "CHP": "Blockheizkraftwerk",
+                "AirHP": "Luftwärmepumpe",
+                "GroundHP": "Erdwärmepumpe",
+                "HP": "Wärmepumpe",
+                "BOI": "Heizkessel",
+                "GHP": "Gaswärmepumpe",
+                "EB": "Elektrokessel",
+                "AC": "Absorpt.-Kältemaschine",
+                "BCHP": "Biogas-BHKW",
+                "BBOI": "Biogaskessel",
+                "WCHP": "Abfall-BHKW",
+                "WBOI": "Abfall-Wärmekessel",
+                "ELYZ": "Elektrolyseur",
+                "FC": "Brennstoffzelle",
+                "H2S": "Wasserstoffspeicher",
+                "SAB": "Sabatier-Reaktor",
+                "TES": "Wärmespeicher",
+                "CTES": "Kältespeicher",
+                "BAT": "Batteriespeicher",
+                "GS": "Gasspeicher",
+                "AirCC": "Luftgekühlte Kältemaschine",
+                "CC": "Kompr.-Kältemaschine"
+            }
+        
+        else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
+
 
         device_unit_map = { # If not specified, default is "kW"
             "H2S": "kWh",
@@ -2466,33 +2630,64 @@ class DataExtractor:
         Returns:
             tuple[str, str]: A tuple consisting of the full name and the unit.
         """
+        # TODO: Check translations and full names (en & de)
+        if self.get_language() == "en":
 
-        device_name_map = {
-            # Heat & Power
-            "HP": "Heat Pump",
-            "EH": "Electric Heater",
-            "CHP": "Combined Heat & Power",
-            "BOI": "Boiler",
-            "BBOI": "Biogas Boiler",
-            "OBOI": "Oil Boiler",
-            "H2BOI": "Hydrogen Boiler",
-            "FC": "Fuel Cell",
-            "heat_grid": "Local District Heating",
-            "PV": "Solar Panels (PV)",
-            "STC": "Solar Thermal Collector",
+            device_name_map = {
+                # Heat & Power
+                "HP": "Heat Pump",
+                "EH": "Electric Heater",
+                "CHP": "Combined Heat & Power",
+                "BOI": "Boiler",
+                "BBOI": "Biogas Boiler",
+                "OBOI": "Oil Boiler",
+                "H2BOI": "Hydrogen Boiler",
+                "FC": "Fuel Cell",
+                "heat_grid": "Local Heat Grid",
+                "PV": "Photovoltaic",
+                "STC": "Solar Thermal Collector",
 
-            # Cooling
-            "CC": "Compression Chiller",
+                # Cooling
+                "CC": "Compression Chiller",
 
-            # Storage
-            "BAT": "Battery Storage",
-            "TES": "Heat Storage",
-            "EV": "Electric Vehicle",
+                # Storage
+                "BAT": "Battery Storage",
+                "TES": "Heat Storage",
+                "EV": "Electric Vehicle",
 
-            # Special Modes of the Heat Pump supply temperature
-            "HP35": "Heat Pump (35°C)",
-            "HP55": "Heat Pump (55°C)",
-        }
+                # Special Modes of the Heat Pump supply temperature
+                "HP35": "Heat Pump (35°C)",
+                "HP55": "Heat Pump (55°C)",
+            }
+        
+        elif self.get_language() == "de":
+            device_name_map = {
+                # Heat & Power
+                "HP": "Wärmepumpe",
+                "EH": "Heizstab",
+                "CHP": "Blockheizkraftwerk",
+                "BOI": "Heizkessel",
+                "BBOI": "Biogas-Heizkessel",
+                "OBOI": "Öl-Heizkessel",
+                "H2BOI": "Wasserstoff-Heizkessel",
+                "FC": "Brennstoffzelle",
+                "heat_grid": "Nahwärmenetz",
+                "PV": "Photovoltaik",
+                "STC": "Solarthermie Kollektor",
+
+                # Cooling
+                "CC": "Kompr.-Kältemaschine",
+
+                # Storage
+                 "BAT": "Batteriespeicher",
+                "TES": "Wärmespeicher",
+                "EV": "Elektrofahrzeug",
+
+                # Special Modes of the Heat Pump supply temperature
+                "HP35": "Wärmepumpe (35°C)",
+                "HP55": "Wärmepumpe (55°C)",
+            }
+        else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
 
         device_unit_map = {  # If not specified, default is "kW"
             "BAT": "kWh",
@@ -2525,6 +2720,9 @@ class DataExtractor:
 
     def get_scenario_name(self):
         return self.data.scenario_name
+    
+    def get_language(self):
+        return self.data.report_config["language"]
 
 ################################################################################
 # Certificate Builder
@@ -2539,6 +2737,7 @@ class CertificateBuilder(ReportComponent):
         self.data_object = DataExtractor(data=data, kpis=kpis)
         self.scenario_name = self.data_object.get_scenario_name()
         self.report_config = self.data_object.report_config
+        self.language = self.data_object.get_language()
 
         # Initialize and apply theme globally
         report_theme = ThemeManager(self.report_config)
@@ -2557,7 +2756,7 @@ class CertificateBuilder(ReportComponent):
         margins = self.style.get_page_margins()
         self.page_margins = {
             "TitlePage": (margins['x'], margins['y']),
-            "EnergyhubDevicesPage": (margins['x'], margins['y']),
+            "ContentPage": (margins['x'], margins['y']),
             "InputDataPage": (margins['small_x'], margins['small_y']),
             "AdditionalInformationPage": (margins['small_x'], margins['small_y']),
         }
@@ -2587,10 +2786,10 @@ class CertificateBuilder(ReportComponent):
         story.extend(self.layout.get_story())
         self.layout.reset_story()
         
-        story.append(NextPageTemplate('EnergyhubDevicesPage'))
+        story.append(NextPageTemplate('ContentPage'))
         story.append(PageBreak()) 
 
-        self.layout.create_yearly_bar_charts(self.data_object.get_kennwerte()) #TODO: Maybe add own page layout for the bar charts
+        self.layout.create_yearly_bar_charts(self.data_object.get_kennwerte())
         story.extend(self.layout.get_story())
         self.layout.reset_story()
         story.append(PageBreak())
@@ -2601,12 +2800,17 @@ class CertificateBuilder(ReportComponent):
         self.layout.reset_story()        
 
         story.append(NextPageTemplate('InputDataPage'))
+        story.append(PageBreak())
+        self.layout.create_district_layout()
+        story.extend(self.layout.get_story())
+        self.layout.reset_story()
+
         story.append(PageBreak()) 
         self.layout.create_quartiersstruktur_details(data_quartiersstruktur=self.data_object.get_district_structure())
         story.extend(self.layout.get_story())
         self.layout.reset_story()
-        story.append(PageBreak()) 
 
+        story.append(PageBreak()) 
         self.layout.create_input_data_table(data_input=self.data_object.get_building_df())
         story.extend(self.layout.get_story())
         self.layout.reset_story()

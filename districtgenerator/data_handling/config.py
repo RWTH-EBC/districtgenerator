@@ -626,6 +626,13 @@ class ReportConfig(BaseSettings):
     # Layout
     pagesize: str = "A4" # Alternatives: A3, A4
 
+    # Language
+    language: str = "de" # Language for the report, selected between: "de" (German) and "en" (English). Currently only german fully implemented. English will raise Errors due to some missing translations
+
+    # KPI Save options
+    kpi_save_type: str = "xlsx" # Format for saving KPIs, selected between: "csv", "xlsx", and "None" to save the KPIs in a CSV file, Excel file, or not save them at all.
+    
+
     # --- Colors Dictionary ---
     colors: dict = {} 
     colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines
@@ -668,8 +675,15 @@ class ReportConfig(BaseSettings):
     fonts__sizes__body: int = 12
     fonts__sizes__small: int = 10
     fonts__sizes__table: float = 11.5
+    fonts__sizes__axis_values: int = 8
     fonts__sizes__dense: int = 7
     fonts__sizes__page_number: int = 9
+
+    def parse_none_string(cls, v):
+        """Convert string 'None' to Python None"""
+        if v == "None" or v == "null" or v == "":
+            return None
+        return v
 
     @model_validator(mode='after')
     def process_config(self) -> 'ReportConfig':
