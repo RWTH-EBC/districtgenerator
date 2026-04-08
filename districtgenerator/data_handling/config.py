@@ -1490,6 +1490,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     script_path = Path(__file__).resolve()
     project_root = script_path.parent.parent
 
+    project_root = Path("D:\\cwu-tja\\districtgenerator\\districtgenerator")
     env_file_path = str(project_root / "data" / env_file)
 
     if not os.path.exists(env_file_path):

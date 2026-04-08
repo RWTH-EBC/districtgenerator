@@ -16,6 +16,7 @@ import openpyxl
 import pandas as pd
 import random as rd
 import holidays as hol
+from pathlib import Path
 from teaser.project import Project
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
@@ -134,12 +135,14 @@ class Datahandler:
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
         else:
-            self.scenario_file_path = os.path.join(self.filePath, 'scenarios')
+            self.scenario_file_path= Path("D:\\cwu-tja\\districtgenerator\\districtgenerator\\data\\scenarios")
+            #self.scenario_file_path = os.path.join(self.filePath, 'scenarios')
 
         if resultPath is not None:
             self.resultPath = resultPath
         else:
-            self.resultPath = os.path.join(self.srcPath, 'results')
+            self.resultPath = Path("D:\\cwu-tja\\districtgenerator\\districtgenerator\\results")
+            #self.resultPath = os.path.join(self.srcPath, 'results')
 
         self.KPIs = None
         self.load_all_data(
