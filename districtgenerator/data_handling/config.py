@@ -1567,6 +1567,7 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     project_root = script_path.parent.parent
 
     env_file_path = str(project_root / "data" / env_file)
+    print(f"Project root: {project_root}")
 
     if not os.path.exists(env_file_path):
         raise FileNotFoundError(
