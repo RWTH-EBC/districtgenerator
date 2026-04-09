@@ -1118,7 +1118,7 @@ class KPIs:
             if building["buildingFeatures"]["building"] in {"SFH", "MFH", "TH", "AB"}:
                 # sum all building areas
                 total_area_residential += building["buildingFeatures"]["area"]
-                total_number_flats += building["user"].nb_flats
+                total_number_flats += building["user"].nb_units
                 for flat in building["user"].nb_occ:
                     total_number_occ += flat
             # Mixed Buildings
