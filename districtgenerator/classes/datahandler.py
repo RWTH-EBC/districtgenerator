@@ -488,6 +488,22 @@ class Datahandler:
         # calculate the soil temperature profile
         dt = self.time["timeResolution"] / self.time["dataResolution"]
         calculate_soil_temperature(self, dt)
+        
+    def is_mixed_building(self, building_type):
+        """
+        Check if a building type is a mixed-use building (contains "+").
+
+        Parameters
+        ----------
+        building_type : str
+            The building type string (e.g., "MFH+RETAIL").
+
+        Returns
+        -------
+        bool
+            True if the building type contains "+", False otherwise.
+        """
+        return "+" in building_type
 
     def combine_mixed_building_demands(self, saveUserProfiles):
         """
@@ -655,6 +671,8 @@ class Datahandler:
                                   bivalent=combined_building["envelope"].bivalent,
                                   heatlimit=combined_building["envelope"].heatlimit,
                                   coolingload=combined_building["envelope"].coolingload,
+                                  dhwpower=combined_building["dhwpower"],
+                                  envelope_areas=combined_building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=combined_building["user"].individual_car_profiles)
 
@@ -708,6 +726,7 @@ class Datahandler:
 
             # Store features of the observed building
             building["buildingFeatures"] = row
+            building["buildingFeatures"]["original_bldg_id"] = bldg_id
 
             # Unique name = "<id>_<building type>"
             #name = f"{self.scenario_name}_{bldg_id}_{row['building']}" # new TJA
@@ -731,6 +750,148 @@ class Datahandler:
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print(f"This calculation will take about {duration}.")
 
+        self.split_mixed_buildings()
+
+    def split_mixed_buildings(self):
+        """
+        Splits mixed-use buildings into main and secondary building parts.
+        """
+        bldgs = self.design_building_data
+
+        buildings_to_process = []
+        buildings_to_skip = []
+
+        for idx, building in enumerate(self.district):
+            if self.is_mixed_building(building["buildingFeatures"]["building"]):
+                # This building needs to be split - we'll handle it separately
+                buildings_to_skip.append(idx)
+
+                # Split the building type
+                building_types = building["buildingFeatures"]["building"].split("+")
+                main_type = building_types[0]
+                secondary_type = building_types[1]
+
+                total_area = building["buildingFeatures"]["area"]
+
+                # Calculate number of floors for the main building type
+                main_building_long = bldgs["buildings_long"][bldgs["buildings_short"].index(main_type)]
+
+                # Calculate floors based on main building type
+                if main_building_long == "single_family_house":
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    total_floors = max(2, round(total_area / one_floor_area))
+                elif main_building_long == "terraced_house":
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    total_floors = max(2, round(total_area / one_floor_area))
+                elif main_building_long == "multi_family_house":
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    total_floors = max(2, round(total_area / one_floor_area))
+                    if total_floors > 8: total_floors = 8
+                elif main_building_long == "apartment_block":
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
+                    total_floors = max(3, round(total_area / one_floor_area))
+                else:
+                    # Generate a NonResidential building and get number of floors
+                    retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
+                    construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
+
+                    try:
+                        temp_building = NonResidential(
+                            usage=main_type,
+                            name="NonResidentialBuilding",
+                            year_of_construction=building["buildingFeatures"]["year"],
+                            net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
+                            total_building_area=(                                          # Total net leased area of building
+                                building["buildingFeatures"]["area"] if self.total_building_area is None
+                                else self.total_building_area),
+                            construction_type=construction_type,
+                            retrofit_level=retrofit_level,
+                            number_of_floors=None
+                            )
+                        total_floors = max(2,int(temp_building.get_number_of_floors())) # If building is split it needs at least two floors
+                        del temp_building
+                    except: total_floors = 2
+
+                # Recalculate one_floor_area based on total area and total floors to ensure consistency
+                one_floor_area = total_area / total_floors
+
+                # Allocate 1 floor to secondary, rest to main (main must have at least 1)
+                secondary_floors = 1
+                main_floors = total_floors - secondary_floors
+
+                # Calculate areas based on floors
+                secondary_area = one_floor_area * secondary_floors
+                main_area = total_area - secondary_area
+
+                # Create main building
+                main_building = {}
+                main_row = building["buildingFeatures"].copy()
+                main_row["building"] = main_type
+                main_row["area"] = main_area
+                main_row["is_mixed_part"] = True
+                main_row["mixed_parent_id"] = building["buildingFeatures"]["original_bldg_id"]
+                main_row["mixed_role"] = "main"
+                main_row["fixed_floors"] = main_floors
+
+                main_building["buildingFeatures"] = main_row
+                main_building["unique_name"] = f"{self.scenario_name}_{idx}_{main_type}_Main"
+                buildings_to_process.append(main_building)
+
+                # Create secondary building
+                secondary_building = {}
+                secondary_row = building["buildingFeatures"].copy()
+                secondary_row["building"] = secondary_type
+                secondary_row["area"] = secondary_area
+                secondary_row["is_mixed_part"] = True
+                secondary_row["mixed_parent_id"] = building["buildingFeatures"]["original_bldg_id"]
+                secondary_row["mixed_role"] = "secondary"
+                secondary_row["fixed_floors"] = secondary_floors
+
+                secondary_building["buildingFeatures"] = secondary_row
+                secondary_building["unique_name"] = f"{self.scenario_name}_{idx}_{secondary_type}_Secondary"
+                buildings_to_process.append(secondary_building)
+
+                print(f"Split mixed building {building['buildingFeatures']['original_bldg_id']}: "
+                      f"{building['buildingFeatures']['building']} (Total: {total_area:.0f} m², {total_floors} floors) -> "
+                      f"{main_type} ({main_area:.0f} m², {main_floors} floors) + "
+                      f"{secondary_type} ({secondary_area:.0f} m², {secondary_floors} floor)")
+
+        # Replace district with processed buildings
+        new_district = []
+        for idx, building in enumerate(self.district):
+            if idx not in buildings_to_skip:
+                new_district.append(building)
+        new_district.extend(buildings_to_process)
+        self.district = new_district
+
+        # Rebuild building_dict
+        self.building_dict = {}
+        for idx, building in enumerate(self.district):
+            if "original_bldg_id" in building["buildingFeatures"]:
+                original_id = building["buildingFeatures"]["original_bldg_id"]
+                # Only map the main building for mixed types, or all regular buildings
+                if building["buildingFeatures"].get("mixed_role") == "main" or not building["buildingFeatures"].get("is_mixed_part", False):
+                    self.building_dict[original_id] = idx
+    # Helper function to get floor area range for residential building types based on TABULA typology
+    def _get_one_floor_area_range_res(self, building_type):
+        """
+        Floor area ranges for different residential building types based on the TABULA German Building Typology
+
+        Returns
+        -------
+        tuple
+            A tuple containing the minimum and maximum floor area for one floor of the given building type.
+        """
+        if building_type == "single_family_house":
+            return (62, 115) # Source: TABULA German Building Typology
+        elif building_type == "terraced_house":
+            return (50, 73) # Source: TABULA German Building Typology
+        elif building_type == "multi_family_house":
+            return (102, 971) # Source: TABULA German Building Typology
+        elif building_type == "apartment_block":
+            return (350, 540) # Source: TABULA German Building Typology
+        else: raise ValueError(f"Unknown building type for residential floor area estimation according to TABULA: {building_type}")
+
     def generateBuildings(self):
         """
         Load building envelope and user data.
@@ -749,8 +910,32 @@ class Datahandler:
         prj = Project(load_data=True)
         prj.name = self.scenario_name
 
-        for building in self.district:
+        # Helper function to get floor area range for residential building types based on TABULA typology
+        def get_one_floor_area_range_res(building_type):
+            """
+            Floor area ranges for different residential building types based on the TABULA German Building Typology
 
+            Returns
+            -------
+            tuple
+                A tuple containing the minimum and maximum floor area for one floor of the given building type.
+            """
+            if building_type == "single_family_house":
+                return (62, 115) # Source: TABULA German Building Typology
+            elif building_type == "terraced_house":
+                return (50, 73) # Source: TABULA German Building Typology
+            elif building_type == "multi_family_house":
+                return (102, 971) # Source: TABULA German Building Typology
+            elif building_type == "apartment_block":
+                return (350, 540) # Source: TABULA German Building Typology
+            else: raise ValueError(f"Unknown building type for residential floor area estimation according to TABULA: {building_type}")
+
+        # Process mixed buildings: split them based on floor calculation
+        buildings_to_process = []
+        buildings_to_skip = []
+
+
+        for building in self.district:
             # convert short names into designation needed for TEASER
             building_type = bldgs["buildings_long"][bldgs["buildings_short"].index(building["buildingFeatures"]["building"])]
 
@@ -890,7 +1075,7 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=18, gen_cars=True):
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
 
@@ -916,6 +1101,15 @@ class Datahandler:
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+            
+            if not calcUserProfiles:
+                if "user" not in building:
+                    building["user"] = DummyUser()
+                if "envelope" not in building:
+                    building["envelope"] = DummyEnvelope()
+                    building["envelope"].construction_year = building["buildingFeatures"]["year"]
+                    building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
+
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
@@ -930,6 +1124,7 @@ class Datahandler:
             building["user"].nb_occ = result["nb_occ"]
             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
             building["envelope"] = result["envelope"]
+            building["dhwpower"] = result["dhwpower"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
@@ -967,6 +1162,28 @@ class Datahandler:
                                           path=os.path.join(self.resultPath, 'demands'),
                                           initial_day=self.initial_day,
                                           gen_cars=gen_cars)
+            if building.get("thermal_model") == "5R1C":
+                building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+            elif building.get("thermal_model") == "7R2C":
+                # Compute VDI6007 params
+                building["envelope"]._VDI6007_params(self.site["SunRad"])
+                # Compute equivalent temperature
+                building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+            else:
+                raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+
+            night_setback = building["buildingFeatures"]["night_setback"]
+
+            is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+            
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                thermal_model=building["thermal_model"],
+                                                night_setback=night_setback,
+                                                is_cooled=is_cooled,
+                                                holidays=self.calendar["holidays"],
+                                                time_resolution=self.time["timeResolution"],
+                                                initial_day=self.initial_day)
 
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
@@ -983,56 +1200,43 @@ class Datahandler:
                                   heatload=building["envelope"].heatload,
                                   bivalent=building["envelope"].bivalent,
                                   heatlimit=building["envelope"].heatlimit,
+                                  dhwpower=building["dhwpower"],
+                                  envelope_areas=building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=building["user"].individual_car_profiles)
+                
+                self.saveHeatingProfile(heat=building["user"].heat,
+                                        cooling=building["user"].cooling,
+                                        name=building["unique_name"],
+                                        path=os.path.join(self.resultPath, 'demands'))
 
         else:
+            # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
+            if "user" not in building:
+                building["user"] = DummyUser()
+            
+            if "envelope" not in building:
+                building["envelope"] = DummyEnvelope()
+                building["envelope"].construction_year = building["buildingFeatures"]["year"]
+                building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
+                    
+
+
             (building["user"].elec, building["user"].dhw,
              building["user"].occ, building["user"].gains,
              building["user"].EV_carcharging_ondemand,
              building["user"].EV_carprofile,
              building["user"].ice_carprofile,
-             building["user"].nb_flats,
+             building["user"].nb_units,
              building["user"].nb_main_rooms,
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
-             building["envelope"].heatlimit, building["envelope"].coolingload,
+             building["envelope"].heatlimit, building["envelope"].coolingload, building["dhwpower"],
+             building["envelope"].A,
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])
 
-        if building.get("thermal_model") == "5R1C":
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-        elif building.get("thermal_model") == "7R2C":
-            # Compute VDI6007 params
-            building["envelope"]._VDI6007_params(self.site["SunRad"])
-            # Compute equivalent temperature
-            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
-        else:
-            raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
-
-        night_setback = building["buildingFeatures"]["night_setback"]
-
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
-
-        # calculate or load heating profiles
-        if calcUserProfiles:
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                thermal_model=building["thermal_model"],
-                                                night_setback=night_setback,
-                                                is_cooled=is_cooled,
-                                                holidays=self.calendar["holidays"],
-                                                time_resolution=self.time["timeResolution"],
-                                                initial_day=self.initial_day)
-
-            if saveUserProfiles:
-                self.saveHeatingProfile(heat=building["user"].heat,
-                                        cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        path=os.path.join(self.resultPath, 'demands'))
-                # building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
-        else:
             heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
@@ -1110,15 +1314,37 @@ class Datahandler:
 
     def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
-                     nb_occ, heatload, bivalent, heatlimit, path,
-                     individual_car_profiles=None):
+                     nb_occ, heatload, bivalent, heatlimit, coolingload, dhwpower,
+                     envelope_areas, path, individual_car_profiles=None):
         """
         Save profiles to csv.
 
         Parameters
         ----------
-        unique_name : string
+        name : string
             Unique building name.
+        elec : list
+            Hourly electricity demand in W.
+        dhw : list
+            Hourly domestic hot water demand in W.
+        occ : list
+            Hourly occupancy of persons.
+        gains : list
+            Hourly internal gains in W.
+        car : list
+            Hourly electricity demand of EV in W.
+        nb_units : int
+            Number of units in the building.
+        nb_occ : list
+            Number of occupants in the building.
+        heatload : float
+            Design heat load in W.
+        bivalent : float
+            Bivalent heat load in W.
+        heatlimit : float
+            Heat limit heat load in W.
+        coolingload : float
+            Design cooling load in W.
         path : string
             Results path.
 
@@ -1174,10 +1400,13 @@ class Datahandler:
                 'EV_capacity_agg': str(ev_capacity)[1:-1],
                 "Design Heat Load (W)": [heatload],
                 "Bivalent Heat Load (W)": [bivalent],
-                "Heat Limit Heat Load (W)": [heatlimit]
+                "Heat Limit Heat Load (W)": [heatlimit],
+                "Design Cooling Load (W)": [coolingload],
+                "DHW Power (W)": [dhwpower],
+                "Envelope Areas": [json.dumps(envelope_areas)]
             }), ["Number of Flats or main Rooms", "Number of Occupants", "EV_capacities",
                  "Design Heat Load (W)", "Bivalent Heat Load (W)",
-                 "Heat Limit Heat Load (W)"])
+                 "Heat Limit Heat Load (W)", "Design Cooling Load (W)", "DHW Power (W)", "Envelope Areas"])
         }
 
         excel_file = os.path.join(path, name + '.xlsx')
@@ -1307,18 +1536,21 @@ class Datahandler:
         # Load building info
         sheet = workbook['Building Info']
         other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
-        nb_flats = int(other_data[0])
-        nb_main_rooms = nb_flats
+        nb_units = int(other_data[0])
+        nb_main_rooms = nb_units
         nb_occ = np.fromstring(other_data[1], dtype=int, sep=',')
         EV_capacity = np.fromstring(other_data[2], dtype=float, sep=',')
         heatload = float(other_data[3])
         bivalent = float(other_data[4])
         heatlimit = float(other_data[5])
         coolingload = float(other_data[6])
+        dhwpower = float(other_data[7])
+        envelope_areas_json = other_data[8]
+        envelope_areas = json.loads(envelope_areas_json)
 
         workbook.close()
 
-        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, individual_car_profiles
+        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_units, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, dhwpower, envelope_areas, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
@@ -1689,19 +1921,76 @@ class Datahandler:
 
     def map_wkb_to_scenario_format(self, wkb_file_path, output_file_path, batch_size=8):
         """
-        Überträgt Daten aus WKB_export Format in Quartier Format und zerlegt diese in so viele Dateien, dass jede Datei max. batch_size Gebäude enthält.
+        Convert data from the WKB export format into the Quartier scenario format.
+
+        The resulting scenario data is written to:
+        - one combined CSV file at `output_file_path`
+        - multiple batch CSV files, each containing at most `batch_size` buildings
+
+        In addition, a reference CSV containing the original WKB rows for all accepted
+        buildings is written by replacing "dg" with "wkb" in `output_file_path`.
+
+        Validation rules:
+        - Buildings with invalid or missing required values are skipped.
+        - If a string-based value cannot be mapped to the target format, the building
+          is skipped and the issue is printed.
         """
 
-        # Mapping-Funktionen definieren
-        def map_building_type(gebaeudetype):
-            """Mappt Gebäudetypen"""
-            mapping = {
-                'EFH': 'SFH',  # Einfamilienhaus -> Single Family House
-                'RH': 'TH',  # Reihenhaus -> Terraced House
-                'MFH': 'MFH',  # Mehrfamilienhaus -> Multi Family House
-                'GMH': 'MFH'  # Geschosswohnhaus -> Multi Family House
+        def map_building_type(building_type_raw: str) -> str | None:
+            """
+            Map IWU/input building type strings to project-specific building types.
+
+            Residential building rules use case-insensitive substring matching:
+            - contains "EFH" -> "SFH"
+            - contains "RH"  -> "TH"
+            - contains "MFH" -> "MFH"
+            - contains "GMH" -> "MFH"
+
+            Other building types use exact matching.
+
+            Returns:
+                str | None:
+                    The mapped building type, or None if the value cannot be mapped.
+            """
+            if building_type_raw is None or pd.isna(building_type_raw):
+                return None
+
+            value = str(building_type_raw).strip()
+            value_upper = value.upper()
+
+            # Residential buildings: substring-based matching
+            if "GMH" in value_upper:
+                return "MFH"
+            if "MFH" in value_upper:
+                return "MFH"
+            if "EFH" in value_upper:
+                return "SFH"
+            if "RH" in value_upper:
+                return "TH"
+
+            exact_mapping = {
+                # Non-residential buildings (IWU -> Quartiersgenerator)
+                "NWG_TYP_A": "OB",
+                "NWG_TYP_B": "UNI",
+                "NWG_TYP_C": "HOSPITAL",
+                "NWG_TYP_D": "SCHOOL",
+                "NWG_TYP_E": "CULTURE",
+                "NWG_TYP_F": "SPORT",
+                "NWG_TYP_G": "RE",
+                "NWG_TYP_H": "WORKSHOP",
+                "NWG_TYP_I": "RETAIL",
+                "NWG_TYP_J": "-",
+                "NWG_TYP_K": "-",
+                "NWG_TYP_SON": "-",
+
+                # Mixed-use buildings (IWU -> Quartiersgenerator)
+                "MN_TYP_A": "RETAIL+MFH",
+                "MN_TYP_B": "MFH",
+                "MN_TYP_C": "MFH+RETAIL",
+                "MN_TYP_D": "MFH+WORKSHOP",
             }
-            return mapping.get(gebaeudetype, None)
+
+            return exact_mapping.get(value_upper)
 
         def map_heater_type(heizsystem):
             """Mappt Heizungstypen - konsistent mit Dictionary-Ansatz"""
@@ -2041,6 +2330,9 @@ class Datahandler:
         None.
         """
         network_optimization(self)
+class DummyUser: pass
+
+class DummyEnvelope: pass
 
 def generate_demands_worker_wrapper(args):
     """
@@ -2065,6 +2357,7 @@ def generate_demands_worker_wrapper(args):
         "nb_units": building["user"].nb_units,
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
+        'dhwpower': building["dhwpower"],
         'night_setback': building["buildingFeatures"]["night_setback"],
         'individual_car_profiles': building["user"].individual_car_profiles
     }

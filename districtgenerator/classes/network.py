@@ -69,9 +69,11 @@ class Network:
             print(f"Initializing buildings for {data.scenario_name}...")
             data.initializeBuildings()
 
-            # Generate more detailed Building models
+            # Generate detailed Building models
             print(f"Generating detailed building models for {data.scenario_name}...")
-            data.generateBuildings()
+            # Only generate the building envelopes and user objects if we need to calculate new profiles.
+            if calcUserProfiles == True:
+                data.generateBuildings()
 
             # Generate building specific demand profiles with the adjusted assumptions
             # Use calcUserProfiles=False to speed up the calculation if user profiles are already calculated
