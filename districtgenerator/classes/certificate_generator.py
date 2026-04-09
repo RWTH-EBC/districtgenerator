@@ -1,7 +1,29 @@
 # -*- coding: utf-8 -*-
 
 """
-This module contains the classes that are used to generate the certificate layout.
+This module contains the classes that are used to generate the certificate layout. 
+
+Basic Structure:
+- The ThemeManager class defines the design parameters and styles for the certificate, such as colors, fonts, spacing, etc.
+- The ReportComponent and BaseReportFlowable bundle important functionalities for generated Classes. The ReportComponent includes the shared theme state, while the BaseReportFlowable includes a debugging functionality for Flowables.
+- FrameBox is a basic layout element that creates a framed box with a title and content.
+- CertificateBuilder
+- DataExtractor
+- CertificateTemplate
+- CertificateLayout
+
+Individual flowables:
+- Header
+- Energiekennwerte
+- EnergyPieChart
+- MaxLoadsBarChart
+- Title
+- Quartiersstruktur
+- Footer
+- EnergyHub
+- DecentralSystems
+- YearlyStackedBarCharts
+- InputDataTable
 
 Version Date: 31.03.2026
 """
@@ -27,29 +49,6 @@ from reportlab.platypus import Flowable
 from reportlab.lib import colors
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 
-
-"""
-Info:
-
-Color Names:
-- primary_color
-- secondary_color
-- background
-- text
-- text_light
-- energy["electricity"], energy["heating"], energy["dhw"], energy["cooling"], energy["ev"]
-
-Font size names:
-- title
-- section_title
-- subsection_title
-- highlighted
-- body
-- small
-- table
-- dense
-- page_number
-"""
 
 DEBUG = True # If set to true boxes are drawn around the different components to visualize the layout and available space
 debug_line_width = 0.1 # Line width for the debug boxes
@@ -1598,6 +1597,51 @@ class Hinweise(BaseReportFlowable):
         
         return hinweise
 
+class DistrictLayout(BaseReportFlowable):
+    def __init__(self, data_district_layout, availWidth: float, availHeight: float) -> None:
+        super().__init__()
+        self.style = self.get_style()
+        self.data_district_layout = data_district_layout
+
+        self.width = availWidth
+        self.height = availHeight
+        self.drawing = self._create_drawing()
+
+    def _create_drawing(self):
+
+        d = Drawing(self.width, self.height)
+
+        # Draw the outer boundary box
+        border = Rect(0, 0, self.width, self.height)
+        border.strokeColor = colors.Color(0.8, 0.8, 0.8)
+        border.strokeWidth = 1
+        border.fillColor = None
+        d.add(border)
+        
+        # Add the placeholder text
+        font_name = self.style.fonts["regular"]
+        font_size = self.style.fonts["sizes"]["body"]
+        text_color_rgb = self.style.colors["text"]
+        
+        text = String(
+            self.width / 2.0, 
+            self.height / 2.0, 
+            "District Layout Plot Area",
+            fontName=font_name,
+            fontSize=font_size,
+            fillColor=colors.Color(*text_color_rgb),
+            textAnchor='middle'
+        )
+        d.add(text)
+
+        return d
+
+    def wrap(self, availWidth, availHeight):
+        return self.width, self.height
+
+    def draw_content(self):
+        self.drawing.drawOn(self.canv, 0, 0)
+
 ################################################################################
 # Layout generation as classes
 ################################################################################
@@ -1712,7 +1756,7 @@ class CertificateLayout(ReportComponent):
         frame_width, frame_height = self.certificate_builder.get_Framesize(id='InputDataFrame')
         avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
         
-        # Use our universal pagination logic with the pre-built DataFrame
+        # Use universal pagination logic
         tables = PaginatedDataFrameTable.create_all_tables(
             availWidth=avail_w, 
             availHeight=avail_h, 
@@ -1726,10 +1770,22 @@ class CertificateLayout(ReportComponent):
             box.set_content(tab, full_width=True)
             self.story.append(box)
 
-    def create_district_layout(self):
+    def create_district_layout(self, data_district_layout):
         """Plots the district layout"""
+        frame_width, frame_height = self.certificate_builder.get_Framesize(id='InputDataFrame')
+        map_width, map_height = FrameBox.get_available_space_content(frame_width, frame_height)
 
-        # TODO: Needs Implementation!
+        
+        district_map = DistrictLayout(
+            data_district_layout=data_district_layout, 
+            availWidth=map_width, 
+            availHeight=map_height
+        )
+
+        name= "Quartierslayout"
+        box = FrameBox(title=name)
+        box.set_content(district_map)
+        self.story.append(box)
     
     # Input Data page
     def create_input_data_table(self, data_input):
@@ -2077,6 +2133,7 @@ class DataExtractor:
         self.district_structure = None
         self.energyhub_df = None
         self.decentral_df = None
+        self.district_layout = None
 
         
 
@@ -2087,7 +2144,7 @@ class DataExtractor:
             ("Sanierung", "retrofit"),
             ("Sp-Masse", "construction_type"),
             ("N-Absenkung", "night_setback"),
-            ("Wohnfläche", "area"),
+            ("Netto-Raumfläche", "area"),
             ("Heizung", "heater"),
             ("EV", "EV"),
             ("fTES", "f_TES"),
@@ -2350,7 +2407,6 @@ class DataExtractor:
             "df_details": pd.DataFrame(details_rows)
         }
         
-
     def _translate_building_type(self, b_type:str) -> str:
         """Translates the building type from the data to the display name."""
 
@@ -2526,6 +2582,62 @@ class DataExtractor:
             print(f"Warning: Decentral device data could not be extracted. {e}")
             self.decentral_df = None
 
+    def _extract_district_layout(self):
+        """Extracts district layout information including building positions, network topology, and installed devices."""
+        layout_data = {
+            "buildings": [],
+            "network_nodes": {},
+            "network_edges": {}
+        }
+
+        # Extract building positions, connectivity status, and devices
+        for building in self.data.district:
+            features = building["buildingFeatures"]
+            
+            # Safely get position
+            if "position" in features and isinstance(features["position"], (tuple, list)) and len(features["position"]) >= 2:
+                pos = features["position"]
+                
+                # Check for installed devices (capacity > 0)
+                installed_devices = []
+                if "capacities" in building:
+                    for device_name, cap in building["capacities"].items():
+                        # Kapazitäten können als Dict {"cap": X} oder direkt als Zahl vorliegen
+                        if isinstance(cap, dict) and "cap" in cap and float(cap["cap"]) > 0:
+                            installed_devices.append(device_name)
+                        elif isinstance(cap, (int, float)) and float(cap) > 0:
+                            installed_devices.append(device_name)
+                
+                # Wenn der heater fest in den Features definiert ist und nicht in capacities steht, fügen wir ihn hinzu
+                main_heater = features["heater"]
+                if main_heater not in installed_devices:
+                    installed_devices.append(main_heater)
+
+                layout_data["buildings"].append({
+                    "id": features["original_bldg_id"],
+                    "name": building["unique_name"],
+                    "x": float(pos[0]),
+                    "y": float(pos[1]),
+                    "type": features["building"],
+                    "is_connected": main_heater == "heat_grid",
+                    "devices": installed_devices
+                })
+
+        # Extract network topology if central heating network was generated
+        if hasattr(self.data, 'pipeline_nodes') and self.data.pipeline_nodes:
+            layout_data["network_nodes"] = self.data.pipeline_nodes
+        
+        if hasattr(self.data, 'pipeline_topology') and self.data.pipeline_topology:
+            layout_data["network_edges"] = self.data.pipeline_topology
+
+        self.district_layout = layout_data
+
+        print(layout_data) # Debug print to check the extracted layout data
+
+        debug_plot_district(layout_data)
+
+
+
     def _extract_data(self):
         """Extracts and processes all necessary data for the certificate."""
         self._process_buildings()
@@ -2533,6 +2645,7 @@ class DataExtractor:
         self._extract_district_structure()
         self._extract_energyhub_data()
         self._extract_decentral_data()
+        self._extract_district_layout()
         # Additional data extraction methods can be added here
 
     def get_central_device_name(self, dev: str) -> tuple[str, str]: 
@@ -2717,6 +2830,9 @@ class DataExtractor:
 
     def get_decentral_df(self):
         return self.decentral_df
+    
+    def get_district_layout(self):
+        return self.district_layout
 
     def get_scenario_name(self):
         return self.data.scenario_name
@@ -2801,7 +2917,7 @@ class CertificateBuilder(ReportComponent):
 
         story.append(NextPageTemplate('InputDataPage'))
         story.append(PageBreak())
-        self.layout.create_district_layout()
+        self.layout.create_district_layout(data_district_layout=self.data_object.get_district_layout())
         story.extend(self.layout.get_story())
         self.layout.reset_story()
 
@@ -2826,6 +2942,76 @@ class CertificateBuilder(ReportComponent):
         
         self.doc.build(story)
         print(f"Certificate saved to {self.outputpath}")
+
+#! TEMP:
+
+import matplotlib.pyplot as plt
+
+def debug_plot_district(layout_data):
+    """
+    Plottet das Quartierslayout zum Debuggen.
+    Zeichnet Gebäude, Energy Hubs und das Rohrnetz.
+    """
+    plt.close('all')
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    nodes = layout_data.get('network_nodes', {})
+    edges = layout_data.get('network_edges', {})
+    buildings = layout_data.get('buildings', [])
+
+    # 1. Rohre (Edges) zeichnen
+    pipe_labeled = False
+    for source, targets in edges.items():
+        if source in nodes:
+            x1, y1 = nodes[source]['pos']
+            for target in targets:
+                if target in nodes:
+                    x2, y2 = nodes[target]['pos']
+                    # Label nur einmal hinzufügen, damit die Legende nicht überläuft
+                    label = "Wärmenetz (Rohre)" if not pipe_labeled else ""
+                    ax.plot([x1, x2], [y1, y2], color='blue', linestyle='-', linewidth=2, alpha=0.6, zorder=1, label=label)
+                    pipe_labeled = True
+
+    # 2. Energy Hubs zeichnen
+    eh_labeled = False
+    for node_id, node_data in nodes.items():
+        if node_data.get('role') == 'EH':
+            x, y = node_data['pos']
+            label = "Energy Hub" if not eh_labeled else ""
+            ax.plot(x, y, marker='^', color='red', markersize=12, zorder=3, label=label)
+            ax.text(x, y+5, node_id, ha='center', fontsize=10, fontweight='bold', color='red')
+            eh_labeled = True
+
+    # 3. Gebäude zeichnen
+    bldg_labeled = False
+    for b in buildings:
+        x, y = b['x'], b['y']
+        b_type = b['type']
+        b_id = b['id']
+        
+        # Farbe abhängig davon, ob angeschlossen oder nicht
+        color = 'green' if b.get('is_connected', False) else 'gray'
+        
+        label = "Gebäude" if not bldg_labeled else ""
+        ax.plot(x, y, marker='o', color=color, markersize=8, markeredgecolor='black', zorder=2, label=label)
+        
+        # Text-Label für den Gebäudetyp leicht versetzt zeichnen
+        ax.text(x, y-7, f"{b_type}\n({b_id})", ha='center', va='top', fontsize=8, zorder=4)
+        bldg_labeled = True
+
+    # Plot Einstellungen
+    ax.set_aspect('equal', adjustable='box') # Verhindert, dass die Karte verzerrt wird
+    ax.set_title("Quartierslayout - Debug Plot", fontsize=14, fontweight='bold')
+    ax.set_xlabel("X Koordinaten (m)")
+    ax.set_ylabel("Y Koordinaten (m)")
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.legend(loc='upper right')
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 if __name__ == "__main__":
     print("All imports successful.")

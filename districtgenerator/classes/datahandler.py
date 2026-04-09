@@ -641,7 +641,7 @@ class Datahandler:
             combined_building["unique_name"] = f"{self.scenario_name}_{parent_id}_{main_type}+{secondary_type}"
 
             # Copy envelope and user objects from main building
-            combined_building["envelope"] = main_building["envelope"]
+            combined_building["envelope"] = main_building["envelope"] #TODO: Envelope areas should be dealt with, as they are used later for e.g. solar potential!
 
             # Create new user object with combined demands
             combined_building["user"] = main_building["user"]
@@ -732,6 +732,8 @@ class Datahandler:
                                   bivalent=combined_building["envelope"].bivalent,
                                   heatlimit=combined_building["envelope"].heatlimit,
                                   coolingload=combined_building["envelope"].coolingload,
+                                  dhwpower=combined_building["dhwpower"],
+                                  envelope_areas=combined_building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=combined_building["user"].individual_car_profiles)
 
@@ -1154,6 +1156,15 @@ class Datahandler:
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+            
+            if not calcUserProfiles:
+                if "user" not in building:
+                    building["user"] = DummyUser()
+                if "envelope" not in building:
+                    building["envelope"] = DummyEnvelope()
+                    building["envelope"].construction_year = building["buildingFeatures"]["year"]
+                    building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
+
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
@@ -1168,6 +1179,7 @@ class Datahandler:
             building["user"].nb_occ = result["nb_occ"]
             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
             building["envelope"] = result["envelope"]
+            building["dhwpower"] = result["dhwpower"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
@@ -1205,6 +1217,29 @@ class Datahandler:
                                           path=os.path.join(self.resultPath, 'demands'),
                                           initial_day=self.initial_day,
                                           gen_cars=gen_cars)
+                
+            if building.get("thermal_model") == "5R1C":
+                building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+            elif building.get("thermal_model") == "7R2C":
+                # Compute VDI6007 params
+                building["envelope"]._VDI6007_params(self.site["SunRad"])
+                # Compute equivalent temperature
+                building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+            else:
+                raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+
+            night_setback = building["buildingFeatures"]["night_setback"]
+
+            is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                thermal_model=building["thermal_model"],
+                                                night_setback=night_setback,
+                                                is_cooled=is_cooled,
+                                                calendar=self.calendar,
+                                                time_resolution=self.time["timeResolution"],
+                                                initial_day=self.initial_day)
 
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
@@ -1222,55 +1257,42 @@ class Datahandler:
                                   bivalent=building["envelope"].bivalent,
                                   heatlimit=building["envelope"].heatlimit,
                                   coolingload=building["envelope"].coolingload,
+                                  dhwpower=building["dhwpower"],
+                                  envelope_areas=building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=building["user"].individual_car_profiles)
+                
+                self.saveHeatingProfile(heat=building["user"].heat,
+                                        cooling=building["user"].cooling,
+                                        name=building["unique_name"],
+                                        path=os.path.join(self.resultPath, 'demands'))
 
         else:
+            # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
+            if "user" not in building:
+                building["user"] = DummyUser()
+            
+            if "envelope" not in building:
+                building["envelope"] = DummyEnvelope()
+                building["envelope"].construction_year = building["buildingFeatures"]["year"]
+                building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
+                    
+
             (building["user"].elec, building["user"].dhw,
              building["user"].occ, building["user"].gains,
              building["user"].EV_carcharging_ondemand,
              building["user"].EV_carprofile,
              building["user"].ice_carprofile,
-             building["user"].nb_flats,
+             building["user"].nb_units,
              building["user"].nb_main_rooms,
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
-             building["envelope"].heatlimit, building["envelope"].coolingload,
+             building["envelope"].heatlimit, building["envelope"].coolingload, building["dhwpower"],
+             building["envelope"].A,
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])
 
-        if building.get("thermal_model") == "5R1C":
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-        elif building.get("thermal_model") == "7R2C":
-            # Compute VDI6007 params
-            building["envelope"]._VDI6007_params(self.site["SunRad"])
-            # Compute equivalent temperature
-            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
-        else:
-            raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
-
-        night_setback = building["buildingFeatures"]["night_setback"]
-
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
-
-        # calculate or load heating profiles
-        if calcUserProfiles:
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                thermal_model=building["thermal_model"],
-                                                night_setback=night_setback,
-                                                is_cooled=is_cooled,
-                                                calendar=self.calendar,
-                                                time_resolution=self.time["timeResolution"],
-                                                initial_day=self.initial_day)
-
-            if saveUserProfiles:
-                self.saveHeatingProfile(heat=building["user"].heat,
-                                        cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        path=os.path.join(self.resultPath, 'demands'))
-        else:
             heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
@@ -1310,7 +1332,10 @@ class Datahandler:
         """
         self.generateEnvironment()
         self.initializeBuildings()
-        self.generateBuildings()
+
+        if calcUserProfiles: # Only generate the building envelopes and user objects if we need to calculate new profiles.
+            self.generateBuildings() 
+
         self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
         self.designDecentralDevices(saveGenerationProfiles=True)
 
@@ -1348,8 +1373,8 @@ class Datahandler:
 
     def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
-                     nb_occ, heatload, bivalent, heatlimit, coolingload, path,
-                     individual_car_profiles=None):
+                     nb_occ, heatload, bivalent, heatlimit, coolingload, dhwpower,
+                     envelope_areas, path, individual_car_profiles=None):
         """
         Save profiles to csv.
 
@@ -1367,8 +1392,8 @@ class Datahandler:
             Hourly internal gains in W.
         car : list
             Hourly electricity demand of EV in W.
-        nb_flats : int
-            Number of flats in the building.
+        nb_units : int
+            Number of units in the building.
         nb_occ : list
             Number of occupants in the building.
         heatload : float
@@ -1436,9 +1461,11 @@ class Datahandler:
                 "Bivalent Heat Load (W)": [bivalent],
                 "Heat Limit Heat Load (W)": [heatlimit],
                 "Design Cooling Load (W)": [coolingload],
+                "DHW Power (W)": [dhwpower],
+                "Envelope Areas": [json.dumps(envelope_areas)]
             }), ["Number of Flats or main Rooms", "Number of Occupants", "EV_capacities",
                  "Design Heat Load (W)", "Bivalent Heat Load (W)",
-                 "Heat Limit Heat Load (W)", "Design Cooling Load (W)"])
+                 "Heat Limit Heat Load (W)", "Design Cooling Load (W)", "DHW Power (W)", "Envelope Areas"])
         }
 
         excel_file = os.path.join(path, name + '.xlsx')
@@ -1573,18 +1600,21 @@ class Datahandler:
         # Load building info
         sheet = workbook['Building Info']
         other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
-        nb_flats = int(other_data[0])
-        nb_main_rooms = nb_flats
+        nb_units = int(other_data[0])
+        nb_main_rooms = nb_units
         nb_occ = np.fromstring(other_data[1], dtype=int, sep=',')
         EV_capacity = np.fromstring(other_data[2], dtype=float, sep=',')
         heatload = float(other_data[3])
         bivalent = float(other_data[4])
         heatlimit = float(other_data[5])
         coolingload = float(other_data[6])
+        dhwpower = float(other_data[7])
+        envelope_areas_json = other_data[8]
+        envelope_areas = json.loads(envelope_areas_json)
 
         workbook.close()
 
-        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, individual_car_profiles
+        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_units, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, dhwpower, envelope_areas, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
@@ -2835,6 +2865,10 @@ class Datahandler:
         """
         network_optimization(self)
 
+class DummyUser: pass
+
+class DummyEnvelope: pass
+
 def generate_demands_worker_wrapper(args):
     """
     Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
@@ -2858,6 +2892,7 @@ def generate_demands_worker_wrapper(args):
         "nb_units": building["user"].nb_units,
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
+        'dhwpower': building["dhwpower"],
         'night_setback': building["buildingFeatures"]["night_setback"],
         'individual_car_profiles': building["user"].individual_car_profiles
     }
