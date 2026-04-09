@@ -807,45 +807,14 @@ class Datahandler:
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print(f"This calculation will take about {duration}.")
 
-    def generateBuildings(self):
-        """
-        Load building envelope and user data.
+        self.split_mixed_buildings()
 
-        Returns
-        -------
-        None.
+    def split_mixed_buildings(self):
         """
-
-        # %% load general building information
-        # contains definitions and parameters that affect all buildings
+        Splits mixed-use buildings into main and secondary building parts.
+        """
         bldgs = self.design_building_data
 
-        # %% create TEASER project
-        # create one project for the whole district
-        prj = Project()
-        prj.name = self.scenario_name
-
-        # Helper function to get floor area range for residential building types based on TABULA typology
-        def get_one_floor_area_range_res(building_type):
-            """
-            Floor area ranges for different residential building types based on the TABULA German Building Typology
-
-            Returns
-            -------
-            tuple
-                A tuple containing the minimum and maximum floor area for one floor of the given building type.
-            """
-            if building_type == "single_family_house":
-                return (62, 115) # Source: TABULA German Building Typology
-            elif building_type == "terraced_house":
-                return (50, 73) # Source: TABULA German Building Typology
-            elif building_type == "multi_family_house":
-                return (102, 971) # Source: TABULA German Building Typology
-            elif building_type == "apartment_block":
-                return (350, 540) # Source: TABULA German Building Typology
-            else: raise ValueError(f"Unknown building type for residential floor area estimation according to TABULA: {building_type}")
-
-        # Process mixed buildings: split them based on floor calculation
         buildings_to_process = []
         buildings_to_skip = []
 
@@ -866,18 +835,17 @@ class Datahandler:
 
                 # Calculate floors based on main building type
                 if main_building_long == "single_family_house":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "terraced_house":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "multi_family_house":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
-                    if total_floors > 8:
-                        total_floors = 8
+                    if total_floors > 8: total_floors = 8
                 elif main_building_long == "apartment_block":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(main_building_long))
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(3, round(total_area / one_floor_area))
                 else:
                     # Generate a NonResidential building and get number of floors
@@ -897,7 +865,6 @@ class Datahandler:
                         number_of_floors=None
                         )
                     total_floors = max(2,int(temp_building.get_number_of_floors())) # If building is split it needs at least two floors
-                    one_floor_area = total_area / total_floors 
                     del temp_building
 
                 # Recalculate one_floor_area based on total area and total floors to ensure consistency
@@ -961,6 +928,44 @@ class Datahandler:
                 if building["buildingFeatures"].get("mixed_role") == "main" or not building["buildingFeatures"].get("is_mixed_part", False):
                     self.building_dict[original_id] = idx
 
+    # Helper function to get floor area range for residential building types based on TABULA typology
+    def _get_one_floor_area_range_res(self, building_type):
+        """
+        Floor area ranges for different residential building types based on the TABULA German Building Typology
+
+        Returns
+        -------
+        tuple
+            A tuple containing the minimum and maximum floor area for one floor of the given building type.
+        """
+        if building_type == "single_family_house":
+            return (62, 115) # Source: TABULA German Building Typology
+        elif building_type == "terraced_house":
+            return (50, 73) # Source: TABULA German Building Typology
+        elif building_type == "multi_family_house":
+            return (102, 971) # Source: TABULA German Building Typology
+        elif building_type == "apartment_block":
+            return (350, 540) # Source: TABULA German Building Typology
+        else: raise ValueError(f"Unknown building type for residential floor area estimation according to TABULA: {building_type}")
+
+    def generateBuildings(self):
+        """
+        Load building envelope and user data.
+
+        Returns
+        -------
+        None.
+        """
+
+        # %% load general building information
+        # contains definitions and parameters that affect all buildings
+        bldgs = self.design_building_data
+
+        # %% create TEASER project
+        # create one project for the whole district
+        prj = Project()
+        prj.name = self.scenario_name
+
         for building in self.district:
 
             # convert short names into designation needed for TEASER
@@ -988,18 +993,18 @@ class Datahandler:
                 if "fixed_floors" in building["buildingFeatures"]:
                     number_of_floors = building["buildingFeatures"]["fixed_floors"]
                 elif building_type == "single_family_house":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type))  
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "multi_family_house":
                     # Generate a valid one-floor area and number of floors in one step
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type)) # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type)) # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                     number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                     # Cap the number of floors to a maximum of 8
@@ -1007,7 +1012,7 @@ class Datahandler:
                         number_of_floors = 8
 
                 elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(*get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                     number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
