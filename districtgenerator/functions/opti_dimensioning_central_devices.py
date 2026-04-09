@@ -337,7 +337,7 @@ def build_model(model, data, devs, param, dem):
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
     ################################################################################
 
-    if param["peak_dem_met_conv"] == False:
+    if param["peak_dem_met_conv"]:
         # Heating (conventional - only controllable devices)
         model.constraints.add(model.cap["HP"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
