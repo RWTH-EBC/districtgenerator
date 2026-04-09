@@ -224,7 +224,10 @@ class EcoConfig(BaseSettings):
     co2_oil: str | list = [0.310]              # CO2 emissions for burning oil in kg/kWh
     co2_waste: str | list = [0.020]              # CO2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # CO2 emissions for district heat in kg/kWh
-
+    
+    # CO2 credits for feed-in (negative emissions) in kg/kWh
+    co2_el_feed_in: str | list = [0]       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
+    co2_gas_feed_in: str | list = [0]     #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
 
@@ -232,6 +235,7 @@ class EcoConfig(BaseSettings):
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
                      'price_biomass', 'price_oil', 'price_district_heat',
+                     'co2_el_feed_in', 'co2_gas_feed_in', # New TJA
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
                      'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
     @classmethod
@@ -260,7 +264,8 @@ class EcoConfig(BaseSettings):
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax',
+            'co2_el_feed_in', 'co2_gas_feed_in', # New TJA
         ]
         
         for param_name in params_to_expand:
@@ -574,8 +579,6 @@ class EHDOConfig(BaseSettings):
 
     # Other options
     peak_dem_met_conv: bool = True  # Meet peak demands utilizing fluctuating sources (STC, PV, WT), bool.
-    co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
-    co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
 
     # Helper attributes for unit formatting (Remove?)

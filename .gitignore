@@ -28,5 +28,7 @@ __pycache__/
 *.egg-info/
 *.egg/
 *.eggs
+.venv
+
 
 .gitlab-ci.yml
