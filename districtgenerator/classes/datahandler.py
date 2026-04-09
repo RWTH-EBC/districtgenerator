@@ -638,10 +638,10 @@ class Datahandler:
             combined_building["unique_name"] = f"{self.scenario_name}_{parent_id}_{main_type}+{secondary_type}"
 
             # Copy envelope and user objects from main building
-            combined_building["envelope"] = main_building["envelope"] #TODO: Envelope areas should be dealt with, as they are used later for e.g. solar potential!
+            combined_building["envelope"] = copy.deepcopy(main_building["envelope"])
 
             # Create new user object with combined demands
-            combined_building["user"] = main_building["user"]
+            combined_building["user"] = copy.deepcopy(main_building["user"])
 
             # Combine all demand profiles by summing (element-wise with numpy arrays)
             combined_building["user"].elec = np.array(np.array(main_building["user"].elec) + np.array(secondary_building["user"].elec))
@@ -705,6 +705,27 @@ class Datahandler:
             combined_building["envelope"].bivalent = main_building["envelope"].bivalent + secondary_building["envelope"].bivalent
             combined_building["envelope"].heatlimit = main_building["envelope"].heatlimit + secondary_building["envelope"].heatlimit
             combined_building["envelope"].coolingload = main_building["envelope"].coolingload + secondary_building["envelope"].coolingload
+
+            # Adjust areas from envelope:
+            combined_building["envelope"].A = {}
+
+            main_A = main_building["envelope"].A
+            sec_A = secondary_building["envelope"].A
+
+            # 1. Sum total area:
+            combined_building["envelope"].A['f'] = main_A['f']+ sec_A['f']
+
+            # 2. Sum up all opaque areas (walls, roof, floor, etc.)
+            combined_building["envelope"].A['opaque'] = {}
+            all_keys = set(main_A.get('opaque', {}).keys()).union(set(sec_A.get('opaque', {}).keys()))
+            for key in all_keys:
+                combined_building["envelope"].A['opaque'][key] = main_A['opaque'].get(key, 0) + sec_A['opaque'].get(key, 0)
+
+            # 3. Sum up all window areas
+            combined_building["envelope"].A['window'] = {}
+            all_keys = set(main_A.get('window', {}).keys()).union(set(sec_A.get('window', {}).keys()))
+            for key in all_keys:
+                combined_building["envelope"].A['window'][key] = main_A['window'].get(key, 0) + sec_A['window'].get(key, 0)
 
             # Sum up DHW power and generation
             combined_building["dhwpower"] = main_building["dhwpower"] + secondary_building["dhwpower"]
