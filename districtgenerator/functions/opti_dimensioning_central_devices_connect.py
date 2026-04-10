@@ -146,7 +146,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     area_devs_list = ["PV", "STC"]
     grid_flows_list = ["from_grid", "to_grid"] # for network
     segments = ["small", "medium","large"]  # new TJA
-    segment_devs=["HP","CHP","BOI","TES","STC"]  # new TJA
+    segment_devs=["HP","CHP","BOI","TES","STC","EB", "BBOI", "BCHP"]  # new TJA
 
     
 
