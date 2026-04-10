@@ -620,7 +620,7 @@ class ReportConfig(BaseSettings):
     ReportConfig class to manage the configuration for report generation in the districtgenerator.
     Configuration parameters for the generation of the Quartiersenergieausweis (PDF certificate).
     Change Layout, as well as colors and fonts to match corporate design.
-    COlors can be defined as HEX codes or RGB tuples. HEX codes will be automatically converted to RGB tupels. RGB tuples should be in the range 0-255 for each value.
+    Colors can be defined as HEX codes or RGB tuples. HEX codes will be automatically converted to RGB tupels. RGB tuples should be in the range 0-255 for each value.
     """
 
     # Layout
@@ -661,6 +661,25 @@ class ReportConfig(BaseSettings):
     colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
     colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs
     colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84" # Revenue from electricity feed-in
+
+    # Colors for district layout:
+    colors__layout__building_connected: str | Tuple[float, float, float] = "#2ECC71" # Color for buildings connected to the heatgrid
+    colors__layout__building_not_connected: str | Tuple[float, float, float] = "#95A5A6" # Color for buildings that are not connected to the heatgrid
+    colors__layout__eh: str | Tuple[float, float, float] = "#E74C3C" # Color for the energy hub
+    colors__layout__pipe: str | Tuple[float, float, float] = "#3498DB" # Color for the pipes in the district layout graph
+
+    # Sizes of the elements in the district layout visualization
+    sizes: dict = {}
+    sizes__building: float = 7 # Radius of the circles representing buildings
+    sizes__eh: float = 10 # Radius of the circle representing the energy hub
+    sizes__pipe: float = 5 # Thickness of the lines representing the pipes in the district layout graph
+    sizes__label: int = 8 # Font size for labels in the district layout graph
+    sizes__legend_text: int = 9 # Font size for text in legends in the district layout graph
+
+    # Options to show or hide elements in the district layout visualization
+    layout_options: dict = {}
+    layout_options__show_building_labels: bool = True # Whether to show the labels for the buildings and the Energy Hub in the district layout graph, bool
+    layout_options__show_pipe_labels: bool = True # Whether to show labels for the pipes in the district layout graph, bool
 
     # --- Fonts Dictionary ---
     fonts: dict = {}

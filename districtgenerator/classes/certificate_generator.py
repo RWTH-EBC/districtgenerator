@@ -42,7 +42,7 @@ from collections import OrderedDict
 import pandas as pd
 import math
 
-from reportlab.graphics.shapes import Drawing, String, Rect
+from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle, Polygon, Group
 from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.charts.legends import Legend
 from reportlab.platypus import Flowable
@@ -50,7 +50,7 @@ from reportlab.lib import colors
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 
 
-DEBUG = True # If set to true boxes are drawn around the different components to visualize the layout and available space
+DEBUG = False # If set to true boxes are drawn around the different components to visualize the layout and available space
 debug_line_width = 0.1 # Line width for the debug boxes
     
 ################################################################################
@@ -112,19 +112,52 @@ class ThemeManager:
     # --- Getters for Styles ---
     def get_color(self, color_type:str):
         """Returns the colors defined in the report configuration."""
-        return self.colors[color_type]
+        try:
+            return self.colors[color_type]
+        except KeyError:
+            raise KeyError(f"Color type '{color_type}' not found. Available options: {list(self.colors.keys())}")
     
     def get_energy_color(self, energy_type:str):
         """Returns the color for the specified energy type."""
-        return self.colors["energy"][energy_type]
+        try:
+            return self.colors["energy"][energy_type]
+        except KeyError:
+            raise KeyError(f"Energy type '{energy_type}' not found. Available options: {list(self.colors['energy'].keys())}")
     
     def get_source_color(self, source_type:str):
         """Returns the color for the specified energy source type."""
-        return self.colors["source"][source_type]
+        try:
+            return self.colors["source"][source_type]
+        except KeyError:
+            raise KeyError(f"Source type '{source_type}' not found. Available options: {list(self.colors['source'].keys())}")
+    
+    def get_layout_color(self, layout_type: str):
+        """Returns the color for district layout elements (connected, eh, etc.)."""
+        try:
+            return self.colors["layout"][layout_type]
+        except KeyError:
+            raise KeyError(f"Layout type '{layout_type}' not found. Available options: {list(self.colors['layout'].keys())}")
+
+    def get_layout_size(self, size_type: str):
+        """Returns the size for layout elements."""
+        try:
+            return self.report_config["sizes"][size_type]
+        except KeyError:
+            raise KeyError(f"Size type '{size_type}' not found. Available options: {list(self.report_config['sizes'].keys())}")
+    
+    def get_layout_options(self, option_type: str):
+        """Returns the boolean value for the specified layout option."""
+        try:
+            return self.report_config["layout_options"][option_type]
+        except KeyError:
+            raise KeyError(f"Layout option type '{option_type}' not found. Available options: {list(self.report_config['layout_options'].keys())}")
     
     def get_font_size(self, font_type:str):
         """Returns the font size for the specified font type."""
-        return self.fonts["sizes"][font_type]
+        try:
+            return self.fonts["sizes"][font_type]
+        except KeyError:
+            raise KeyError(f"Font type '{font_type}' not found. Available options: {list(self.fonts['sizes'].keys())}")
     
     def get_font(self, bold:bool=False):
         """Returns the font name based on whether bold is True or False."""
@@ -132,11 +165,17 @@ class ThemeManager:
     
     def get_line_width(self, line_type:str):
         """Returns the line width for the specified line type."""
-        return self.layout['line_width'][line_type]
+        try:
+            return self.layout['line_width'][line_type]
+        except KeyError:
+            raise KeyError(f"Line type '{line_type}' not found. Available options: {list(self.layout['line_width'].keys())}")
     
     def get_spacing(self, spacing_type:str):
         """Returns the spacing for the specified spacing type."""
-        return self.layout['spacing'][spacing_type]
+        try:
+            return self.layout['spacing'][spacing_type]
+        except KeyError:
+            raise KeyError(f"Spacing type '{spacing_type}' not found. Available options: {list(self.layout['spacing'].keys())}")
     
     def get_padding(self):
         """Returns the padding for the current pagesize."""
@@ -1200,7 +1239,7 @@ class YearlyStackedBarCharts(BaseReportFlowable):
 
         # Helper function to get color mapping
         def get_cat_color(category):
-            """Returns the color based on the exact dictionary key string.""" #TODO Maybe less hard coding and move mapping to a more central place as names used in multi
+            """Returns the color based on the exact dictionary key string."""
             try:
                 # Direct mapping of your exact keys to the theme color types
                 mapping = {
@@ -1605,34 +1644,416 @@ class DistrictLayout(BaseReportFlowable):
 
         self.width = availWidth
         self.height = availHeight
-        self.drawing = self._create_drawing()
+        
+        self.legend_width = self.width * 0.3
+        self.legend_height = 0
+        self.map_width = self.width - self.legend_width
+        self.scale = None
+        
 
-    def _create_drawing(self):
+        self.legend_position = "left"
+        if self.legend_position == "right":
+            self.map_offset_x = 0
+            self.legend_offset_x = self.map_width
+        else: # left
+            self.legend_offset_x = 0
+            self.map_offset_x = self.legend_width
 
-        d = Drawing(self.width, self.height)
+        self.map = self._create_map()
+        self.legend = self._create_legend()
 
-        # Draw the outer boundary box
-        border = Rect(0, 0, self.width, self.height)
-        border.strokeColor = colors.Color(0.8, 0.8, 0.8)
+    def _create_map(self):
+
+        d = Drawing(self.map_width, self.height)
+
+        # Draw the outer boundary box #! Maybe remove later
+        border = Rect(0, 0, self.map_width, self.height)
+        border.strokeColor = colors.Color(1, 1, 1) # 1,1,1 is white (not visible), 0,0,0 would be black. Maybe use a light grey for better visibility of the layout elements? colors.Color(0.8, 0.8, 0.8)
         border.strokeWidth = 1
         border.fillColor = None
+        # border.fillColor = colors.Color(247/255, 232/255, 197/255)
         d.add(border)
+
+
+        nodes = self.data_district_layout.get('network_nodes', {})
+        edges = self.data_district_layout.get('network_edges', {})
+        buildings = self.data_district_layout.get('buildings', [])
+        pipeline_data = self.data_district_layout.get('pipeline_data', {})
+
+        if not buildings: 
+            font_name = self.style.get_font(bold=False)
+            font_size = self.style.get_font_size('subsection_title')
+            text_color = colors.Color(*self.style.colors["text"])
+            d.add(String(self.map_width / 2.0, self.height / 2.0, "Kein Quartierslayout verfügbar", 
+                         fontName=font_name, fontSize=font_size, fillColor=text_color, textAnchor='middle'))
+            return d
         
-        # Add the placeholder text
-        font_name = self.style.fonts["regular"]
-        font_size = self.style.fonts["sizes"]["body"]
-        text_color_rgb = self.style.colors["text"]
+        # All positions of nodes and buildings
+        all_x = []
+        all_y = []
+        for n in nodes.values():
+            all_x.append(n['pos'][0])
+            all_y.append(n['pos'][1])
+        for b in buildings:
+            all_x.append(b['x'])
+            all_y.append(b['y'])
+
+        min_x, max_x = min(all_x), max(all_x)
+        min_y, max_y = min(all_y), max(all_y)
+        range_x = max_x - min_x
+        range_y = max_y - min_y
+
+        distance_to_border = self.style.get_padding() + 2 * self.style.get_layout_size('label')
+
+        avail_w = self.map_width - 2 * distance_to_border
+        avail_h = self.height - 2 * distance_to_border
+
+        scale_x = avail_w / range_x if range_x > 0 else float('inf')
+        scale_y = avail_h / range_y if range_y > 0 else float('inf')
         
-        text = String(
-            self.width / 2.0, 
-            self.height / 2.0, 
-            "District Layout Plot Area",
-            fontName=font_name,
-            fontSize=font_size,
-            fillColor=colors.Color(*text_color_rgb),
-            textAnchor='middle'
-        )
-        d.add(text)
+        self.scale = min(scale_x, scale_y)
+        if self.scale == float('inf'):
+            self.scale = 1.0 
+
+        def transform(x, y):
+            """Translate the relative coordinates to the coordinates in the drawing based on the calculated scale and offsets."""
+            tx = (self.map_width - (range_x * self.scale)) / 2.0 + (x - min_x) * self.scale
+            ty = (self.height - (range_y * self.scale)) / 2.0 + (y - min_y) * self.scale
+            return tx, ty
+
+        # Draw elements, order determines which element is on top of which
+        network_group = Group()
+
+        self._draw_pipes(network_group, pipeline_data, transform)
+        self._draw_energy_hub(network_group, nodes, transform)
+        self._draw_buildings(network_group, buildings, transform)
+
+        d.add(network_group)
+        return d
+    
+    def _draw_pipes(self, group, pipeline_data, transform):
+        """Draws the pipes between the nodes"""
+        if not pipeline_data:
+            return # If no heat_grid is present, skip drawing pipes
+        
+        line_color = colors.Color(*self.style.get_layout_color("pipe"))
+        max_pipe_width = self.style.get_layout_size('pipe')
+        min_pipe_width = self.style.get_layout_size('pipe')/10 # Minimum line width for visibility, can be adjusted as needed
+        label_size = self.style.get_layout_size('label')
+        text_color = colors.Color(*self.style.get_color("text"))
+
+        dn_values = [pipe_info["DN"] for pipe_info in pipeline_data.values()]
+
+        max_dn = max(dn_values)
+
+        for pipe in pipeline_data.values():
+            x1, y1 = transform(*pipe["from_pos"])
+            x2, y2 = transform(*pipe["to_pos"])
+
+            dn = pipe["DN"]
+
+            if max_dn > 0:
+                ratio = dn / float(max_dn)
+                lw = max_pipe_width * ratio
+
+                if lw < min_pipe_width:
+                    lw = min_pipe_width
+            else:
+                lw = max_pipe_width
+
+            pipe_line = Line(x1, y1, x2, y2)
+            pipe_line.strokeColor = line_color
+            pipe_line.strokeWidth = lw
+            group.add(pipe_line)
+
+            if self.style.get_layout_options("show_pipe_labels"):
+                # Label for the pipe diameter
+                mid_x = (x1 + x2) / 2.0
+                mid_y = (y1 + y2) / 2.0
+
+                # Placement of the label based on the angle of the pipe
+                pipe_angle = math.atan2(y2 - y1, x2 - x1)
+                if pipe_angle > math.pi / 2.0:
+                    pipe_angle -= math.pi
+                elif pipe_angle < -math.pi / 2.0:
+                    pipe_angle += math.pi
+
+                nx = -math.sin(pipe_angle)
+                ny = math.cos(pipe_angle)
+                offset_dist = (lw / 2.0) + 2 
+
+                label_x = mid_x + nx * offset_dist
+                label_y = mid_y + ny * offset_dist
+
+                if pipe_angle > math.pi / 6.0:
+                    text_anchor = 'end'
+                elif pipe_angle < -math.pi / 6.0:
+                    text_anchor = 'start'
+                else:
+                    text_anchor = 'middle'
+
+                dn_label = String(
+                    label_x, label_y, 
+                    f"DN-{dn}", 
+                    fontName=self.style.get_font(bold=False), 
+                    fontSize=label_size, 
+                    fillColor=text_color, 
+                    textAnchor=text_anchor
+                )
+                group.add(dn_label)
+
+    def _draw_energy_hub(self, group, nodes, transform):
+        """Draws the energy hub"""
+        eh_color = colors.Color(*self.style.get_layout_color("eh"))
+        for node_id, node_data in nodes.items():
+            if node_data.get('role') == 'EH':
+                hx, hy = transform(*node_data['pos'])
+                r = self.style.get_layout_size('eh')
+                h_triangle = math.sqrt(3) * r
+                y_top = hy + (h_triangle * (2.0/3.0))
+                y_bottom = hy - (h_triangle * (1.0/3.0))
+                
+                eh_shape = Polygon([
+                    hx, y_top,
+                    hx - r, y_bottom,
+                    hx + r, y_bottom
+                ])
+                eh_shape.fillColor = eh_color
+                eh_shape.strokeColor = colors.black
+                eh_shape.strokeWidth = 0.5
+                group.add(eh_shape)
+
+                if self.style.get_layout_options("show_building_labels"):
+                    label = String(hx, hy + r + 4, node_id, fontName=self.style.get_font(bold=True), 
+                                   fontSize=self.style.get_layout_size('label')*1.5, fillColor=eh_color, textAnchor='middle')
+                    group.add(label)
+
+    def _draw_buildings(self, group, buildings, transform):
+        """Draws the buildings"""
+        connected_color = colors.Color(*self.style.get_layout_color("building_connected"))
+        disconnected_color = colors.Color(*self.style.get_layout_color("building_not_connected"))
+        text_color = colors.Color(*self.style.colors["text"])
+
+        for b in buildings:
+            bx, by = transform(b['x'], b['y'])
+            b_color = connected_color if b.get('is_connected', False) else disconnected_color
+            
+            radius = self.style.get_layout_size('building')
+            b_circle = Circle(bx, by, r=radius)
+            b_circle.fillColor = b_color
+            b_circle.strokeColor = colors.black
+            b_circle.strokeWidth = 0.5
+            group.add(b_circle)
+
+            if self.style.get_layout_options("show_building_labels"):
+                type_text = f"{b['type']}"
+                type_label = String(bx, by - radius - self.style.get_layout_size('label'), type_text, fontName=self.style.get_font(bold=True), 
+                               fontSize=self.style.get_layout_size('label'), fillColor=text_color, textAnchor='middle')
+                group.add(type_label)
+
+                id_text = f"({b['id']})"
+                id_label = String(bx, by - radius - 2* self.style.get_layout_size('label'), id_text, fontName=self.style.get_font(bold=False),
+                            fontSize=self.style.get_layout_size('label'), fillColor=text_color, textAnchor='middle')
+                group.add(id_label)
+
+    def _create_legend(self):
+        d = Drawing(self.legend_width, self.height)
+
+        padding = self.style.get_padding()
+        size_elements = 10
+
+        # X- Starting points (from left to right)
+        start_x = padding
+        sym_x = start_x + size_elements # Center of the symbols
+        text_x = sym_x + size_elements + self.style.get_spacing('medium') # Start of the text, after symbol and some spacing
+        
+
+
+
+        text_color = colors.Color(*self.style.get_color("text"))
+        legend_font_size = self.style.get_layout_size("legend_text")
+        y_text_offset = legend_font_size / 3.0
+
+        distance_entries = self.style.get_spacing('medium')
+
+        # Y- Starting point (from top to bottom)
+        current_y = self.height - padding
+
+        # Scale:
+        max_scale_width = self.legend_width - 2 * padding
+
+        allowed_real_meters = []
+        for power in range(0, 4): 
+            allowed_real_meters.extend([1 * 10**power, 2.5 * 10**power, 5 * 10**power])
+        
+        # Find the best fitting scale value that is the closest to but smaller than the maximum width
+        best_real_meters = 10 
+        for val in reversed(allowed_real_meters):
+            if val * self.scale <= max_scale_width:
+                best_real_meters = val
+                break
+                
+        drawn_length = best_real_meters * self.scale 
+
+        scale_y = current_y - size_elements
+        scale_start_x = start_x
+        
+        bar_height = 5            # Height of the scale bar
+        num_segments = 4          # Number of blocks in the scale (e.g., 4 blocks for 0, 25%, 50%, 75%, 100%)
+        seg_length = drawn_length / num_segments
+        
+        # Draw the scale segments
+        for i in range(num_segments):
+            seg_x = scale_start_x + i * seg_length
+            is_black = (i % 2 == 0)
+            
+            seg_rect = Rect(seg_x, scale_y, seg_length, bar_height)
+            seg_rect.strokeColor = colors.black
+            seg_rect.strokeWidth = 0.5
+            seg_rect.fillColor = colors.black if is_black else colors.white
+            d.add(seg_rect)
+
+        # Placement of the labels for the scale
+        label_y = scale_y + bar_height + 2
+        label_size = self.style.get_layout_size("label")
+        
+        # "0" at the beginning of the scale
+        d.add(String(scale_start_x, label_y, "0", 
+                     fontName=self.style.get_font(bold=False), fontSize=label_size, 
+                     fillColor=text_color, textAnchor='middle'))
+        
+        # Halfway value in the middle
+        half_meters = best_real_meters / 2.0
+        d.add(String(scale_start_x + drawn_length / 2.0, label_y, f"{half_meters:g}", 
+                     fontName=self.style.get_font(bold=False), fontSize=label_size, 
+                     fillColor=text_color, textAnchor='middle'))
+                     
+        # End value with unit ("m") at the end
+        d.add(String(scale_start_x + drawn_length, label_y, f"{best_real_meters:g} m", 
+                     fontName=self.style.get_font(bold=False), fontSize=label_size, 
+                     fillColor=text_color, textAnchor='middle'))
+
+        #Start of the legend, below the scale
+        box_start_y = scale_y - padding
+
+        current_y = box_start_y - padding
+
+        # Legend Title
+        # font_size_title = self.style.get_font_size("subsection_title")
+        # current_y -= font_size_title
+        # d.add(String(start_x, current_y, "Legende", fontName=self.style.get_font(bold=True), fontSize=font_size_title, fillColor=text_color))
+        # current_y -= distance_entries
+
+        # Energy Hub
+        current_y -= size_elements # Move to center of the symbol
+        eh_color = colors.Color(*self.style.get_layout_color("eh"))
+        h_triangle = math.sqrt(3) * size_elements
+        
+        y_top = current_y + (h_triangle * (2.0/3.0))
+        y_bottom = current_y - (h_triangle * (1.0/3.0))
+        
+        eh_shape = Polygon([
+            sym_x, y_top,                                 # Top
+            sym_x - size_elements, y_bottom,              # Bottom left
+            sym_x + size_elements, y_bottom               # Bottom right
+        ])
+        eh_shape.fillColor = eh_color
+        eh_shape.strokeColor = colors.black
+        eh_shape.strokeWidth = 0.5
+        d.add(eh_shape)
+
+        
+        d.add(String(text_x, current_y- y_text_offset, "Energiezentrale", 
+                     fontName=self.style.get_font(bold=False), 
+                     fontSize=legend_font_size, 
+                     fillColor=text_color,
+                     textAnchor = 'start'))
+
+        current_y -= size_elements + distance_entries
+
+        # Pipes
+        current_y -= size_elements / 2.0 
+        pipe_color = colors.Color(*self.style.get_layout_color("pipe"))
+        pipe_width = 2*size_elements/10 
+
+        y_text_line1 = current_y
+        y_text_line2 = current_y - legend_font_size * 1.2
+
+        y_center_of_texts = (y_text_line1 + y_text_line2) / 2.0
+
+        # Linie zeichnen: Zentriert um sym_x, Länge entspricht 2 * size_elements
+        pipe_line = Line(sym_x - size_elements, y_center_of_texts, sym_x + size_elements, y_center_of_texts)
+        pipe_line.strokeColor = pipe_color
+        pipe_line.strokeWidth = pipe_width
+        d.add(pipe_line)
+
+        d.add(String(sym_x, y_center_of_texts + pipe_width/2 + 2, "DN-X", 
+                     fontName=self.style.get_font(bold=False), 
+                     fontSize=legend_font_size * 0.8, 
+                     fillColor=text_color, textAnchor='middle'))
+
+        d.add(String(text_x, y_text_line1, "Rohre des Wärmenetzes", 
+                     fontName=self.style.get_font(bold=False), 
+                     fontSize=legend_font_size, 
+                     fillColor=text_color,
+                     textAnchor='start'))
+
+        explanation_color = colors.Color(*self.style.get_color("text_light"))
+        d.add(String(text_x, y_text_line2, "(DN-X = Nenndurchmesser in mm)", 
+                     fontName=self.style.get_font(bold=False), 
+                     fontSize=legend_font_size * 0.85, 
+                     fillColor=explanation_color,
+                     textAnchor='start'))
+        current_y = y_text_line2 - distance_entries
+
+        # Buildings connected to the heat grid
+        current_y -= size_elements # Move to center of the symbol
+        conn_color = colors.Color(*self.style.get_layout_color("building_connected"))
+        b_conn = Circle(sym_x, current_y, r=size_elements)
+        b_conn.fillColor = conn_color
+        b_conn.strokeColor = colors.black
+        b_conn.strokeWidth = 0.5
+        d.add(b_conn)
+
+        d.add(String(text_x, current_y - y_text_offset, "angeschlossene Gebäude", 
+                     fontName=self.style.get_font(bold=False), 
+                     fontSize=legend_font_size, 
+                     fillColor=text_color,
+                     textAnchor='start'))
+
+        current_y -= size_elements + distance_entries
+
+
+        # Buildings not connected to the heat grid
+        current_y -= size_elements # Move to center of the symbol
+        not_conn_color = colors.Color(*self.style.get_layout_color("building_not_connected"))
+        b_not_conn = Circle(sym_x, current_y, r=size_elements)
+        b_not_conn.fillColor = not_conn_color
+        b_not_conn.strokeColor = colors.black
+        b_not_conn.strokeWidth = 0.5
+        d.add(b_not_conn)
+
+        d.add(String(text_x, current_y - y_text_offset, "nicht angeschlossene Gebäude", 
+                     fontName=self.style.get_font(bold=False), 
+                     fontSize=legend_font_size, 
+                     fillColor=text_color,
+                     textAnchor='start'))
+        
+        current_y -= size_elements
+
+        # Box around the legend entries
+        current_y -= padding
+        box_height = box_start_y - current_y
+        legend_box = Rect(0, current_y, self.legend_width, box_height)
+        legend_box.strokeColor = colors.Color(0.2, 0.2, 0.2)
+        legend_box.strokeWidth = 1
+        legend_box.fillColor = None
+
+        d.add(legend_box)
+
+        self.legend_height = self.height - current_y
+
+        # Reduce the drawing height to the actual used height for the legend
 
         return d
 
@@ -1640,7 +2061,8 @@ class DistrictLayout(BaseReportFlowable):
         return self.width, self.height
 
     def draw_content(self):
-        self.drawing.drawOn(self.canv, 0, 0)
+        self.map.drawOn(self.canv, self.map_offset_x, 0)
+        self.legend.drawOn(self.canv, self.legend_offset_x, self.legend_height - self.height)
 
 ################################################################################
 # Layout generation as classes
@@ -2186,7 +2608,7 @@ class DataExtractor:
             ("ab 2016", 0)
         ])
 
-        building_types = ['SFH', 'TH', 'MFH', 'AB', 'OB', 'SC', 'GS', 'RE', "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP", "MIXED"] #TODO: Remove hardcoding and get this from config buildings_short and Add Mixed
+        building_types = ['SFH', 'TH', 'MFH', 'AB', 'OB', 'SC', 'GS', 'RE', "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP", "MIXED"]
         
         self.building_stats = {b_type: template_dict.copy() for b_type in building_types}
         building_data_list = []
@@ -2220,7 +2642,7 @@ class DataExtractor:
 
         self.gebaude_df = pd.DataFrame(building_data_list)
 
-        # TODO: Add here dtype casting e.g. ensure area is integer not float ....
+        # TODO: Maybe add here dtype casting e.g. ensure area is integer not float ....
     
     def _extract_kennwerte(self):
         """Extracts the general key performance indicators."""
@@ -2252,8 +2674,8 @@ class DataExtractor:
             ["Autarkiegrad:", f"{round(avg_autonomy * 100, 1)} %"],
             ["Supply-Cover Ratio:", f"{round(avg_scf * 100, 1)} %"],
             ["Demand-Cover Ratio:", f"{round(avg_dcf * 100, 1)} %"],
-            # ["Elektifizierungsquote Wärme", f"{round(self.kpis.elec_quote_heat * 100, 1)} %"], # TODO: Not currently implemented
-            # ["Elektrifizierungsquote Fahrzeuge:", f"{round(self.kpis.elec_quote_vehicles * 100, 1)} %"]  # TODO: Not currently implemented
+            # ["Elektifizierungsquote Wärme", f"{round(self.kpis.elec_quote_heat * 100, 1)} %"], # Not currently implemented -> Maybe add later
+            # ["Elektrifizierungsquote Fahrzeuge:", f"{round(self.kpis.elec_quote_vehicles * 100, 1)} %"]  # Not currently implemented -> Maybe add later
         ]
 
         # max loads in kW
@@ -2307,7 +2729,7 @@ class DataExtractor:
                 "Wasserstoff": round(em["co2_hydrogen"], 2)
             })
 
-            #TODO: Maybe later add also the development of the energy demand over the years as a stacked bar if renovation measures or other changes are implemented in the multi-year simulation.
+            # Maybe later add also the development of the energy demand over the years as a stacked bar if renovation measures or other changes are implemented in the multi-year simulation.
 
             self.kennwerte = {
             "district_key_kpis": self.district_key_kpis,
@@ -2327,7 +2749,7 @@ class DataExtractor:
 
         first_b_type = list(self.building_stats.keys())[0]
         all_keys = list(self.building_stats[first_b_type].keys())
-        age_classes = all_keys[2:] # TODO: Change to actively exclude Anzahl and Gesamtfläche instead of relying on the order
+        age_classes = all_keys[2:] # Change to actively exclude Anzahl and Gesamtfläche instead of relying on the order
 
         agg_stats = {
             "Wohngebäude": {"Anzahl": 0, "Gesamtfläche": 0},
@@ -2436,7 +2858,7 @@ class DataExtractor:
         
         return translation_map.get(b_type, b_type) # if no translation is found, return the original type
 
-    def _extract_energyhub_data(self): # TODO: Add here that all feasible devices are included
+    def _extract_energyhub_data(self):
         """Extracts the energyhub data for central devices."""
         try:
             capacities = self.data.centralDevices["capacities"]
@@ -2587,7 +3009,8 @@ class DataExtractor:
         layout_data = {
             "buildings": [],
             "network_nodes": {},
-            "network_edges": {}
+            "network_edges": {},
+            "pipeline_data": {}
         }
 
         # Extract building positions, connectivity status, and devices
@@ -2630,13 +3053,10 @@ class DataExtractor:
         if hasattr(self.data, 'pipeline_topology') and self.data.pipeline_topology:
             layout_data["network_edges"] = self.data.pipeline_topology
 
+        if hasattr(self.data, 'pipeline') and self.data.pipeline:
+            layout_data["pipeline_data"] = self.data.pipeline
+
         self.district_layout = layout_data
-
-        print(layout_data) # Debug print to check the extracted layout data
-
-        debug_plot_district(layout_data)
-
-
 
     def _extract_data(self):
         """Extracts and processes all necessary data for the certificate."""
@@ -2942,76 +3362,6 @@ class CertificateBuilder(ReportComponent):
         
         self.doc.build(story)
         print(f"Certificate saved to {self.outputpath}")
-
-#! TEMP:
-
-import matplotlib.pyplot as plt
-
-def debug_plot_district(layout_data):
-    """
-    Plottet das Quartierslayout zum Debuggen.
-    Zeichnet Gebäude, Energy Hubs und das Rohrnetz.
-    """
-    plt.close('all')
-    fig, ax = plt.subplots(figsize=(10, 10))
-
-    nodes = layout_data.get('network_nodes', {})
-    edges = layout_data.get('network_edges', {})
-    buildings = layout_data.get('buildings', [])
-
-    # 1. Rohre (Edges) zeichnen
-    pipe_labeled = False
-    for source, targets in edges.items():
-        if source in nodes:
-            x1, y1 = nodes[source]['pos']
-            for target in targets:
-                if target in nodes:
-                    x2, y2 = nodes[target]['pos']
-                    # Label nur einmal hinzufügen, damit die Legende nicht überläuft
-                    label = "Wärmenetz (Rohre)" if not pipe_labeled else ""
-                    ax.plot([x1, x2], [y1, y2], color='blue', linestyle='-', linewidth=2, alpha=0.6, zorder=1, label=label)
-                    pipe_labeled = True
-
-    # 2. Energy Hubs zeichnen
-    eh_labeled = False
-    for node_id, node_data in nodes.items():
-        if node_data.get('role') == 'EH':
-            x, y = node_data['pos']
-            label = "Energy Hub" if not eh_labeled else ""
-            ax.plot(x, y, marker='^', color='red', markersize=12, zorder=3, label=label)
-            ax.text(x, y+5, node_id, ha='center', fontsize=10, fontweight='bold', color='red')
-            eh_labeled = True
-
-    # 3. Gebäude zeichnen
-    bldg_labeled = False
-    for b in buildings:
-        x, y = b['x'], b['y']
-        b_type = b['type']
-        b_id = b['id']
-        
-        # Farbe abhängig davon, ob angeschlossen oder nicht
-        color = 'green' if b.get('is_connected', False) else 'gray'
-        
-        label = "Gebäude" if not bldg_labeled else ""
-        ax.plot(x, y, marker='o', color=color, markersize=8, markeredgecolor='black', zorder=2, label=label)
-        
-        # Text-Label für den Gebäudetyp leicht versetzt zeichnen
-        ax.text(x, y-7, f"{b_type}\n({b_id})", ha='center', va='top', fontsize=8, zorder=4)
-        bldg_labeled = True
-
-    # Plot Einstellungen
-    ax.set_aspect('equal', adjustable='box') # Verhindert, dass die Karte verzerrt wird
-    ax.set_title("Quartierslayout - Debug Plot", fontsize=14, fontweight='bold')
-    ax.set_xlabel("X Koordinaten (m)")
-    ax.set_ylabel("Y Koordinaten (m)")
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.legend(loc='upper right')
-
-    plt.tight_layout()
-    plt.show()
-
-
-
 
 if __name__ == "__main__":
     print("All imports successful.")
