@@ -148,15 +148,39 @@ def load_params(data):
     #     dem["cool"][y] = clustered_series[1]
     #     dem["power"][y] = clustered_series[2]*(1-retrofit_rate*retrofit_depth*y) # New TJA
 
-    # Get share of each building type
-    # Count building types
-    building_counts = {}
+
+    # Get share of each building type (grouped):
+    # MFH := MFH, AB, TH
+    # SFH := SFH
+    # NRB := all others
     total_buildings = len(data.district)
 
-    for b in range(total_buildings):
-        building_type = data.district[b]["buildingFeatures"]["building"]
-        building_counts[building_type] = building_counts.get(building_type, 0) + 1
+    grouped_type_map = {
+        "SFH": "SFH",
+        "MFH": "MFH",
+        "AB": "MFH",
+        "TH": "MFH",
+    }
 
+    def to_grouped_type(raw_type: str) -> str:
+        return grouped_type_map.get(raw_type, "NRB")
+
+    building_types = ["SFH", "MFH", "NRB"]
+    building_counts = {bt: 0 for bt in building_types}
+
+    for b in range(total_buildings):
+        raw_type = data.district[b]["buildingFeatures"]["building"]
+        grouped_type = to_grouped_type(raw_type)
+        building_counts[grouped_type] += 1
+
+    building_shares = {
+        bt: (building_counts[bt] / total_buildings if total_buildings > 0 else 0.0)
+        for bt in building_types
+    }
+
+    # Print building type shares
+    for btype in building_types:
+        print(f"{btype}: {building_shares[btype]:.2%} ({building_counts[btype]} buildings)")
 
 
     # Get heat and dhw demand reduction for each building type and year from config # New TJA
@@ -167,18 +191,6 @@ def load_params(data):
                                 for year in param["interpolation_points"]}
     param["heat_dhw_red_nrb"] = {year: all_sim_ecoData[year]["heat_dhw_red_nrb"]
                                 for year in param["interpolation_points"]}
-
-    # Calculate share of each building type
-    building_types = ["SFH", "MFH", "NRB"]
-    building_shares = {}
-
-    for building_type in building_types:
-        count = building_counts.get(building_type, 0)
-        building_shares[building_type] = count / total_buildings if total_buildings > 0 else 0.0
-
-    # Print building type shares
-    for btype in building_types:
-        print(f"{btype}: {building_shares[btype]:.2%} ({building_counts.get(btype, 0)} buildings)")
 
 
     # Sort interpolation points to ensure correct ordering
