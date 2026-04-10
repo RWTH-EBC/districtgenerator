@@ -34,8 +34,8 @@ def clustering_processing(time, site, district, heat_grid_data, centralDevices, 
         adjProfiles[i]["occ"] = b["user"].occ[0:lengthArray]
         adjProfiles[i]["EV_carcharging_ondemand"] = b["user"].EV_carcharging_ondemand[0:lengthArray]
         adjProfiles[i]["EV_carprofile"] = b["user"].EV_carprofile[0:lengthArray]
-        adjProfiles[i]["generationPV"] = b["user"].generationPV[0:lengthArray]
-        adjProfiles[i]["generationSTC"] = b["user"].generationSTC[0:lengthArray]
+        adjProfiles[i]["generationPV"] = b["generationPV"][0:lengthArray]
+        adjProfiles[i]["generationSTC"] = b["generationSTC"][0:lengthArray]
 
         # Individual car profiles
         adjProfiles[i]["individual_cars"] = []
@@ -239,8 +239,8 @@ def clustering_processing(time, site, district, heat_grid_data, centralDevices, 
         district[i]["user"].occ_cluster = newProfiles[index_house * i + 4]
         district[i]["user"].EV_carcharging_ondemand_cluster = newProfiles[index_house * i + 5]
         district[i]["user"].EV_carprofile_cluster = newProfiles[index_house * i + 6]
-        district[i]["user"].generationPV_cluster = newProfiles[index_house * i + 7]
-        district[i]["user"].generationSTC_cluster = newProfiles[index_house * i + 8]
+        district[i]["generationPV_cluster"] = newProfiles[index_house * i + 7]
+        district[i]["generationSTC_cluster"] = newProfiles[index_house * i + 8]
 
     # Get individual car profiles
     profile_counter = index_individual_cars_start

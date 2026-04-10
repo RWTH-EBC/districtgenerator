@@ -590,57 +590,58 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
     ################################################################################
     for district in model.districts:
-        devs = devsCon[district]
-        param = paramCon[district]
-        if param["peak_dem_met_conv"] == False:
-            # Heating (conventional - only controllable devices)
-            model.constraints.add(model.cap["HP", district] + model.cap["EB", district]
-                                + model.cap["CHP", district] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
-                                + model.cap["BOI", district]
-                                + model.cap["GHP", district]
-                                + model.cap["BCHP", district] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
-                                + model.cap["BBOI", district]
-                                + model.cap["WCHP", district] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
-                                + model.cap["WBOI", district]
-                                + model.cap["FC", district] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
-                                >= param["peak_heat"])
+        for y in model.support_years:
+            devs = devsCon[district]
+            param = paramCon[district]
+            if param["peak_dem_met_conv"] == False:
+                # Heating (conventional - only controllable devices)
+                model.constraints.add(model.cap["HP", district] + model.cap["EB", district]
+                                    + model.cap["CHP", district] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
+                                    + model.cap["BOI", district]
+                                    + model.cap["GHP", district]
+                                    + model.cap["BCHP", district] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                                    + model.cap["BBOI", district]
+                                    + model.cap["WCHP", district] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+                                    + model.cap["WBOI", district]
+                                    + model.cap["FC", district] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+                                    >= param["peak_heat"][y]) # New TJA
 
-            # Cooling
-            model.constraints.add(model.cap["CC", district] + model.cap["AC", district] >= param["peak_cool"])
+                # Cooling
+                model.constraints.add(model.cap["CC", district] + model.cap["AC", district] >= param["peak_cool"])
 
-            # Power
-            model.constraints.add(
-                model.cap["CHP", district] + model.cap["BCHP", district] + model.cap["WCHP", district] + model.cap["FC", district] + model.grid_limit_el[district] >= param[
-                    "peak_power"])
+                # Power
+                model.constraints.add(
+                    model.cap["CHP", district] + model.cap["BCHP", district] + model.cap["WCHP", district] + model.cap["FC", district] + model.grid_limit_el[district] >= param[
+                        "peak_power"])
 
-            # Hydrogen
-            if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
-                model.constraints.add(model.cap["ELYZ", district] >= param["peak_hydrogen"])
+                # Hydrogen
+                if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
+                    model.constraints.add(model.cap["ELYZ", district] >= param["peak_hydrogen"])
 
-        else:  # With STC, PV, WIND, HYDROPOWER (WAT)
-            # Heating (with renewable sources)
-            model.constraints.add(model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district]
-                                + model.cap["CHP", district] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
-                                + model.cap["BOI", district]
-                                + model.cap["GHP", district]
-                                + model.cap["BCHP", district] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
-                                + model.cap["BBOI", district]
-                                + model.cap["WCHP", district] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
-                                + model.cap["WBOI", district]
-                                + model.cap["FC", district] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
-                                >= param["peak_heat"])
+            else:  # With STC, PV, WIND, HYDROPOWER (WAT)
+                # Heating (with renewable sources)
+                model.constraints.add(model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district]
+                                    + model.cap["CHP", district] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
+                                    + model.cap["BOI", district]
+                                    + model.cap["GHP", district]
+                                    + model.cap["BCHP", district] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+                                    + model.cap["BBOI", district]
+                                    + model.cap["WCHP", district] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+                                    + model.cap["WBOI", district]
+                                    + model.cap["FC", district] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+                                    >= param["peak_heat"][y]) # New TJA
 
-            # Cooling
-            model.constraints.add(model.cap["CC", district] + model.cap["AC", district] >= param["peak_cool"])
+                # Cooling
+                model.constraints.add(model.cap["CC", district] + model.cap["AC", district] >= param["peak_cool"])
 
-            # Power (with renewable sources)
-            model.constraints.add(
-                model.cap["PV", district] + model.cap["WT", district] + model.cap["WAT", district] + model.cap["CHP", district] + model.cap["BCHP", district] + model.cap[
-                    "WCHP", district] + model.cap["FC", district] + model.grid_limit_el[district] >= param["peak_power"])
+                # Power (with renewable sources)
+                model.constraints.add(
+                    model.cap["PV", district] + model.cap["WT", district] + model.cap["WAT", district] + model.cap["CHP", district] + model.cap["BCHP", district] + model.cap[
+                        "WCHP", district] + model.cap["FC", district] + model.grid_limit_el[district] >= param["peak_power"])
 
-            # Hydrogen
-            if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
-                model.constraints.add(model.cap["ELYZ", district] >= param["peak_hydrogen"])
+                # Hydrogen
+                if (param["enable_supply_hydrogen"] == False) and devs["ELYZ"]["feasible"]:
+                    model.constraints.add(model.cap["ELYZ", district] >= param["peak_hydrogen"])
 
 
     ################################################################################
@@ -820,20 +821,13 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             param = paramCon[district]
             devs = devsCon[district]
             for y in model.support_years:
-                if param["renewable_el_grid_share"][y] == 1.0:
-                    model.constraints.add(
-                        model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district] 
-                        + model.cap["BCHP", district]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
-                        + model.cap["BBOI", district] 
-                        + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
-                        + model.cap["WBOI", district] >= param["peak_heat"])
-                else:
-                    model.constraints.add(
-                    model.cap["STC", district] + model.cap["HP", district]
+                model.constraints.add(
+                    model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district] * param["renewable_el_grid_share"][y]
                     + model.cap["BCHP", district]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
                     + model.cap["BBOI", district] 
                     + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
-                    + model.cap["WBOI", district] >= param["peak_heat"])
+                    + model.cap["WBOI", district] >= param["peak_heat"][y])
+
 
                     
                 # Make sure that biomass share is below the maximum allowed share

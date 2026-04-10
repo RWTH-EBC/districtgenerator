@@ -88,13 +88,76 @@ def load_params(data):
     pump_power = data.heat_grid_data["pump_power"]
     electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
 
+
     dem_uncl["heat"] = heating_total
     dem_uncl["cool"] = cooling_total
     dem_uncl["power"] = electricity_total
-    for k in ["heat", "cool", "power"]:
+    for k in ["cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
 
+
+    # Get share of each building type (grouped):
+    # MFH := MFH, AB, TH
+    # SFH := SFH
+    # NRB := all others
+    total_buildings = len(data.district)
+
+    grouped_type_map = {
+        "SFH": "SFH",
+        "MFH": "MFH",
+        "AB": "MFH",
+        "TH": "MFH",
+    }
+
+    def to_grouped_type(raw_type: str) -> str:
+        return grouped_type_map.get(raw_type, "NRB")
+
+    building_types = ["SFH", "MFH", "NRB"]
+    building_counts = {bt: 0 for bt in building_types}
+
+    for b in range(total_buildings):
+        raw_type = data.district[b]["buildingFeatures"]["building"]
+        grouped_type = to_grouped_type(raw_type)
+        building_counts[grouped_type] += 1
+
+    building_shares = {
+        bt: (building_counts[bt] / total_buildings if total_buildings > 0 else 0.0)
+        for bt in building_types
+    }
+
+    # Print building type shares
+    for btype in building_types:
+        print(f"{btype}: {building_shares[btype]:.2%} ({building_counts[btype]} buildings)")
+
+    # Get heat and dhw demand reduction for each building type and year from config # New TJA
+    param["interpolation_points"] = ecoData["interpolation_points"] 
+    param["heat_dhw_red_sfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_sfh"]
+                                for year in param["interpolation_points"]}
+    param["heat_dhw_red_mfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_mfh"]
+                                for year in param["interpolation_points"]}
+    param["heat_dhw_red_nrb"] = {year: all_sim_ecoData[year]["heat_dhw_red_nrb"]
+                                for year in param["interpolation_points"]}
+
+
+    # Sort interpolation points to ensure correct ordering
+    sorted_years = sorted(ecoData["interpolation_points"])
+    
+        # Calculate reduction of heat and dhw demand
+    heat_dhw_red = {}
+    for y in sorted_years:
+        heat_dhw_red[y] = (
+            building_shares["SFH"] * param["heat_dhw_red_sfh"][y]
+            + building_shares["MFH"] * param["heat_dhw_red_mfh"][y]
+            + building_shares["NRB"] * param["heat_dhw_red_nrb"][y]
+        )
+    
+    param["peak_heat"] = {}
+
+    for i, y in enumerate(sorted_years):
+        param["peak_heat"][y] = float(np.max(dem_uncl["heat"]) * (1.0 - heat_dhw_red[y]))
+        print(f"Peak heat demand for year {y} after applying heat and DHW demand reduction: {param['peak_heat'][y]:.2f} kW (reduction: {heat_dhw_red[y]:.2%})")
+    
     ################################################################
     # DESIGN CLUSTERING
 
@@ -132,81 +195,17 @@ def load_params(data):
 
     print("Design clustering finished. (" + str(time.time()-start) + ")\n")
 
-    # For every support year save the clustered demands - #! currently constant demands over the years
+    # For every support year save the clustered demands 
     dem = {"heat": {}, "cool": {}, "power": {}}
 
-    # # Get retrofit parameters from config # New TJA
-    # retrofit_rate = float(param.get("retrofit_rate", 0.0))
-    # retrofit_depth_level1 = float(param.get("retrofit_depth_level1", 0.0))
-    # retrofit_depth_level2 = float(param.get("retrofit_depth_level2", 0.0))
-    # retrofit_level1_share = float(param.get("retrofit_level1_share", 0.0))
 
-    # for y in ecoData["interpolation_points"]:
-    #     retrofit_depth= retrofit_depth_level1*retrofit_level1_share + retrofit_depth_level2*(1-retrofit_level1_share) # Average retrofit depth across all retrofitted buildings
-    #     dem["heat"][y] = clustered_series[0]*(1-retrofit_rate*retrofit_depth*y) # New TJA
-    #     # dem["heat"][y] = clustered_series[0] # old
-    #     dem["cool"][y] = clustered_series[1]
-    #     dem["power"][y] = clustered_series[2]*(1-retrofit_rate*retrofit_depth*y) # New TJA
-
-
-    # Get share of each building type (grouped):
-    # MFH := MFH, AB, TH
-    # SFH := SFH
-    # NRB := all others
-    total_buildings = len(data.district)
-
-    grouped_type_map = {
-        "SFH": "SFH",
-        "MFH": "MFH",
-        "AB": "MFH",
-        "TH": "MFH",
-    }
-
-    def to_grouped_type(raw_type: str) -> str:
-        return grouped_type_map.get(raw_type, "NRB")
-
-    building_types = ["SFH", "MFH", "NRB"]
-    building_counts = {bt: 0 for bt in building_types}
-
-    for b in range(total_buildings):
-        raw_type = data.district[b]["buildingFeatures"]["building"]
-        grouped_type = to_grouped_type(raw_type)
-        building_counts[grouped_type] += 1
-
-    building_shares = {
-        bt: (building_counts[bt] / total_buildings if total_buildings > 0 else 0.0)
-        for bt in building_types
-    }
-
-    # Print building type shares
-    for btype in building_types:
-        print(f"{btype}: {building_shares[btype]:.2%} ({building_counts[btype]} buildings)")
-
-
-    # Get heat and dhw demand reduction for each building type and year from config # New TJA
-    param["interpolation_points"] = ecoData["interpolation_points"] 
-    param["heat_dhw_red_sfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_sfh"]
-                                for year in param["interpolation_points"]}
-    param["heat_dhw_red_mfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_mfh"]
-                                for year in param["interpolation_points"]}
-    param["heat_dhw_red_nrb"] = {year: all_sim_ecoData[year]["heat_dhw_red_nrb"]
-                                for year in param["interpolation_points"]}
-
-
-    # Sort interpolation points to ensure correct ordering
-    sorted_years = sorted(ecoData["interpolation_points"])
-
+    # Reduction of heat and dhw demand because of retrofit # New TJA
     for i, y in enumerate(sorted_years):
-        # Calculate reduction of heat and dhw demand
-        heat_dhw_red = (
-            building_shares["SFH"] * param["heat_dhw_red_sfh"][y]
-            + building_shares["MFH"] * param["heat_dhw_red_mfh"][y]
-            + building_shares["NRB"] * param["heat_dhw_red_nrb"][y]
-        )
         if y == 0:
             dem["heat"][y] = clustered_series[0]  # New TJA
         else:
-            dem["heat"][y] = clustered_series[0] * (1 - heat_dhw_red)  # New TJA
+            dem["heat"][y] = clustered_series[0] * (1 - heat_dhw_red[y])  # New TJA
+
         dem["cool"][y] = clustered_series[1]
         dem["power"][y] = clustered_series[2]
 
