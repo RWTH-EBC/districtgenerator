@@ -146,7 +146,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     area_devs_list = ["PV", "STC"]
     grid_flows_list = ["from_grid", "to_grid"] # for network
     segments = ["small", "medium","large"]  # new TJA
-    segment_devs=["HP","TES","STC","EB", "BBOI", "BCHP","PV"]  # new TJA
+    segment_devs=["HP","EB", "BBOI", "BCHP", "PV", "TES"]  # new TJA
 
     
 
@@ -608,6 +608,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
 
                 # Cooling
                 model.constraints.add(model.cap["CC", district] + model.cap["AC", district] >= param["peak_cool"])
+
 
                 # Power
                 model.constraints.add(
