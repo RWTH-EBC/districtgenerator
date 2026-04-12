@@ -146,7 +146,7 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
     area_devs_list = ["PV", "STC"]
     grid_flows_list = ["from_grid", "to_grid"] # for network
     segments = ["small", "medium","large"]  # new TJA
-    segment_devs=["HP","CHP","BOI","TES","STC","EB", "BBOI", "BCHP"]  # new TJA
+    segment_devs=["HP","TES","STC","EB", "BBOI", "BCHP","PV"]  # new TJA
 
     
 
@@ -1199,6 +1199,8 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
     # Optional numeric stabilizers
     solver_options.setdefault("NumericFocus", 1)
     solver_options.setdefault("Presolve", 2)
+    solver_options["LogFile"] = solver_log_path
+    solver_options["Method"] = 3
 
     # Required for persistent interface
     solver.set_instance(model, symbolic_solver_labels=True)
@@ -1282,7 +1284,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
                     f.write(log_file.read())
                     f.write("-" * 40 + "\n")
                 # Remove temporary solver log file
-                os.remove(solver_log_path)
+                #os.remove(solver_log_path)
             except Exception as e:
                 f.write(f"\nCould not read solver log: {e}\n")
 
@@ -1381,8 +1383,9 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
         return None
 
     # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
+    #if os.path.exists(solver_log_path):
+        #os.remove(solver_log_path)
+        
 
     # Save all variable values in a solution file:
     def write_solution_file(model, filename):
