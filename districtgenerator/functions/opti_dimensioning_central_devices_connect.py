@@ -1200,7 +1200,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
     solver_options.setdefault("NumericFocus", 1)
     solver_options.setdefault("Presolve", 2)
     solver_options["LogFile"] = solver_log_path
-    solver_options["Method"] = 3
+
 
     # Required for persistent interface
     solver.set_instance(model, symbolic_solver_labels=True)
