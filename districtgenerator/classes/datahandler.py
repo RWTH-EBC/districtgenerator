@@ -230,7 +230,6 @@ class Datahandler:
             'construction_type': int,
             'night_setback': int,
             'area': float,
-            'number_of_floors': int,
             'heater': str,
             'cooling': int,
             'EV': float,

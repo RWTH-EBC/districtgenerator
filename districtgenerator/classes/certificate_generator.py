@@ -1039,7 +1039,7 @@ class EnergyHub(BaseReportFlowable):
 
         # Handle empty data
         if data_energyhub is None or data_energyhub.empty:
-            box = FrameBox(title="Energy Hub")
+            box = FrameBox(title="Energiesysteme des Energy Hubs")
             p = Paragraph("Es wurden keine zentralen Energieanlagen ausgelegt", style.get_paragraph_styles()['Normal'])
             box.set_content(cls(content_flowable=p))
             boxes.append(box)
@@ -1055,7 +1055,7 @@ class EnergyHub(BaseReportFlowable):
 
         # Check if it fits on exactly one page
         if len(eh_tables) == 1:
-            box = FrameBox(title="Energy Hub")
+            box = FrameBox(title="Energiesysteme des Energy Hubs")
             header = data_energyhub.columns.tolist()
             body = data_energyhub.values.tolist()
             standard_table = Table([header] + body)
@@ -1066,7 +1066,7 @@ class EnergyHub(BaseReportFlowable):
             
         else:
             for i, eh_table in enumerate(eh_tables, start=1):
-                title = f"Energy Hub ({i}/{len(eh_tables)})"
+                title = f"Energiesysteme des Energy Hubs ({i}/{len(eh_tables)})"
                 box = FrameBox(title=title)
                 box.set_content(cls(content_flowable=eh_table))
                 boxes.append(box)
@@ -1252,7 +1252,7 @@ class YearlyStackedBarCharts(BaseReportFlowable):
                     "Biomasse": "biomass",
                     "Fernwärme": "district_heat",
                     "Wasserstoff": "hydrogen",
-                    "Einspeisung (el.)": "revenue_feed_in_el"
+                    "Einspeiseerlöse (el.)": "revenue_feed_in_el"
                 }
                 
                 # Check if the exact string exists in our mapping
@@ -1436,42 +1436,51 @@ class Hinweise(BaseReportFlowable):
 
         # This dict contains the text that is displayed in the Hinweise section
         self.hinweise_content = {
+            "Energetische Kennwerte":{
+                    "Nutzenergiebedarf": "Über alle Gebäude aufsummierter Nutzenergiebedarf (Haushaltsstrom, Wärme, Trinkwarmwasser, Kälte und EV-Strom)",
+                    "Norm-Heizlast": "Über alle Gebäude aufsummierte Norm-Heizlast nach DIN EN ISO 13790",
+                    "Energiebedarfe (MWh)": "Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom, Trinkwarmwasser (TWW) und Elektroautos (EV))",
+                    "Maximale Leistungen": "Maximale Leistungen in kW im Quartier auf Basis der aufsummierten Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)"
+                },
+            "Optimierter Anlagenbetrieb":{
+                    "Ø CO2-Emissionen": "Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten Betrieb (Gasbedarf und Strombedarf)",
+                    "Ø Energiekosten": "Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der Betriebsoptimierung",
+                    "Anlagenkosten": "Annuitätische Fixkosten aller installierten Energieanlagen. Dies beinhaltet die umgelegten Investitionskosten (CAPEX) abzüglich Subventionen sowie feste Betriebs- und Wartungskosten (O&M).",
+                    "Spitzenlast (el.)": "Maximaler Strombezug des gesamten Quartiers aus übergeordnetem Stromnetz auf Basis der Betriebsoptimierung",
+                    "Max. Einspeiseleistung": "Maximale Stromeinspeisung des gesamten Quartiers in übergeordnetes Stromnetz auf Basis der Betriebsoptimierung",
+                    "Einspeiseerlöse (el.)": "Erlöse durch die Einspeisung von lokal erzeugtem Strom in das übergeordnete Stromnetz auf Basis der Betriebsoptimierung in €/a",
+                    "Autarkiegrad": "Anteil der Betriebszeit, in der der lokale Strombedarf vollständig durch die Stromerzeugung im Quartier gedeckt wird (Werte zwischen 0 % und 100 %)",
+                    "Supply-Cover-Faktor": "Anteil des aus den Gebäuden des Quartiers ins lokale Netz eingespeisten Stroms, der für den Eigenverbrauch innerhalb des Quartiers durch andere Gebäude genutzt wird (Werte zwischen 0 % und 100 %)",
+                    "Demand-Cover-Faktor": "Anteil des residualen Strombedarfs im Quartier, der durch den von den Gebäuden im Quartier erzeugten und ins lokale Netz eingespeisten Stroms gedeckt wird (Werte zwischen 0 % und 100 %)"
+                },
+            "Bezeichnungen für die Quartierstruktur und das Quartierslayout":
+                {
+                    "GHD-Gebäude": "Gewerbe-, Handels- und Dienstleistungsgebäude",
+                    "Mischgebäude": "Gebäude mit einer gemischten Nutzung aus Wohnen und GHD",
+                    "Quartiersfläche": "Gesamte Fläche des Quartiers in Hektar (ha)",
+                    "Testreferenzjahr": "Verwendetes Referenzjahr für die Bedarfsermittlung sowie die Erzeugung von Erneuerbaren Energiequellen anhand von Wetterdaten",
+                    "Energy Hub": "Zentrale Energieerzeugungsanlage, die das Wärmenetz des Quartiers speist",
+                    "DN (Nenndurchmesser)": "Innendurchmesser der verlegten Rohrleitungen des Wärmenetzes in Millimetern"
+                },
             "Bezeichnungen in der Liste der Gebäude": 
                 {
-                    "Gebäude ID": "Gebäudenummer zur Identifizierung",
-                    "Gebäudetyp": "SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, TH = Reihenhaus, AB = Wohnblock, OB = Bürogebäude, SC = Schule, GS = Lebensmittelgeschäft, RE = Restaurant, MFH+GR = Mehrfamilienhaus+Lebensmittelgeschäft, AB+GR = Wohnblock+Lebensmittelgeschäft, MFH+RE = Mehrfamilienhaus+Restaurant, AB+RE = Wohnblock+Restaurant",
+                    "Gebäude ID": "ID des Gebäudes zur eindeutigen Identifizierung",
+                    "Gebäudetyp": "SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, TH = Reihenhaus, AB = Wohnblock, OB = Bürogebäude, SC = Schule, GS = Lebensmittelgeschäft, RE = Restaurant, UNI = Universitätsgebäude, HOSPITAL = Krankenhaus, CULTURE = Kulturgebäude, SPORT = Sportgebäude, RETAIL = Handelsgebäude, WORKSHOP = Werkstattgebäude. Ein '+' (z. B. MFH+RETAIL) kennzeichnet ein Mischgebäude",
                     "Baujahr": "Baualtersklasse (vor 1969, 1968-1978, 1979-1983, 1984-1994, 1995-2001, 2002-2009, 2010-2015, ab 2016)",
                     "Sanierung für Wohngebäude": "0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55",
                     "Sanierung für Nichtwohngebäude": "0 = Nichtsaniert, 1 = Teilsaniert (nur Fenster und Wände), 2 = Vollsaniert (Decke, Fenster, Dach und Wände)",
                     "Sp-Masse": "Gebäudespeichermasse: 0 = Leichtbau, 1 = Mittelbau, 2 = Massivbau",
                     "N-Absenkung": "Nachtabsenkung: 0 = keine Nachtabsenkung, 1 = mit Nachtabsenkung",
-                    "Wohnfläche": "Nettoraumfläche in m²",
+                    "NRF": "Nettoraumfläche in m²",
                     "Heizung": "ausgewählter Wärmeerzeuger",
                     "EV": "Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude",
                     "fTES": "Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage",
-                    "fBAT": "Größe des Batteriespeichers in abhängigkeit der Leistung der PV-Anlage in Wh/W_PV",
-                    "fPV1": "Anteil der gesamten Dachfläche, der auf Dachseite 1 mit Photovoltaik belegt ist. Dachseite 1 ist dabei die Seite, für die der Azimutwinkel gammaPV vergegeben wird (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)",
+                    "fBAT": "Größe des Batteriespeichers in Abhängigkeit der Leistung der PV-Anlage in Wh/W_PV",
+                    "fPV1": "Anteil der gesamten Dachfläche, der auf Dachseite 1 mit Photovoltaik belegt ist. Dachseite 1 ist dabei die Seite, für die der Azimutwinkel gammaPV vergeben wird (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)",
                     "fPV2": 'Anteil der gesamten Dachfläche, der auf Dachseite 2 mit Photovoltaik belegt ist. Der Azimutwinkel von Dachseite 2 wird als 180° zu gammaPV gedreht ("gegenüberliegend") berechnet.',
                     "fSTC": "Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)",
                     "gammaPV": "Azimut = Himmelsausrichtung von Dachseite 1, Ausrichtung nach Süden entspricht 0°",
                     "EV Charging": "Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)"
-                },
-            
-            "Energetische Kennwerte":{
-                    "Nutzenergiebedarf": "Über alle Gebäude aufsummierter Nutzenergiebedarf (Haushaltsstrom, Wärme, Trinkwarmwasser, Kälte und EV-Strom)",
-                    "Norm-Heizlast": "Über alle Gebäude aufsummierte Norm-Heizlast nach DIN EN ISO 13790",
-                    "Energiebedarfe (MWh)": "Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom, Trinkwarmwasser und Elektroautos)",
-                    "Maximale Leistungen": "Maximale Leistungen in kW im Quartier auf Basis der aufsummierten Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)"
-                },
-            "Optimierter Anlagenbetrieb":{
-                    "CO2-äqui. Emissionen": "Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten Betrieb (Gasbedarf und Strombedarf)",
-                    "Energiekosten": "Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der Betriebsoptimierung",
-                    "Fixed Costs": "total fixed, annualized cost of all installed energy assets, including capital expenditures (CAPEX) and fixed operation & maintenance (O&M) costs",
-                    "Spitzenlast (el.)": "Maximaler Strombezug des gesamten Quartiers aus übergeordnetem Stromnetz auf Basis der Betriebsoptimierung",
-                    "Max. Einspeiseleistung": "Maximale Stromeinspeisung des gesamten Quartiers in übergeordnetes Stromnetz auf Basis der Betriebsoptimierung",
-                    "Supply-Cover-Faktor": "Anteil des aus den Gebäuden des Quartiers ins lokale Netz eingespeisten Stroms, der für den Eigenverbrauch innerhalb des Quartiers durch andere Gebäude genutzt wird (Werte zwischen 0 % und 100 %)",
-                    "Demand-Cover-Faktor": "Anteil des residualen Strombedarfs im Quartier, der durch den von den Gebäuden im Quartier erzeugten und ins lokale Netz eingespeisten Stroms gedeckt wird (Werte zwischen 0 % und 100 %)",
-                    "El-Autonomy-Faktor": "Anteil der Betriebszeit, in der der lokale Strombedarf vollständig durch die Stromerzeugung im Quartier gedeckt wird (Werte zwischen 0 % und 100 %)"
                 }
             }
         
@@ -1963,7 +1972,7 @@ class DistrictLayout(BaseReportFlowable):
         d.add(eh_shape)
 
         
-        d.add(String(text_x, current_y- y_text_offset, "Energiezentrale", 
+        d.add(String(text_x, current_y- y_text_offset, "Energy Hub", 
                      fontName=self.style.get_font(bold=False), 
                      fontSize=legend_font_size, 
                      fillColor=text_color,
@@ -1976,35 +1985,56 @@ class DistrictLayout(BaseReportFlowable):
         pipe_color = colors.Color(*self.style.get_layout_color("pipe"))
         pipe_width = 2*size_elements/10 
 
-        y_text_line1 = current_y
-        y_text_line2 = current_y - legend_font_size * 1.2
+        if self.style.get_layout_options("show_pipe_labels"):
+            y_text_line1 = current_y
+            y_text_line2 = current_y - legend_font_size * 1.2
+            y_center_of_texts = (y_text_line1 + y_text_line2) / 2.0
 
-        y_center_of_texts = (y_text_line1 + y_text_line2) / 2.0
+            # Draw line centered between the two text lines
+            pipe_line = Line(sym_x - size_elements, y_center_of_texts, sym_x + size_elements, y_center_of_texts)
+            pipe_line.strokeColor = pipe_color
+            pipe_line.strokeWidth = pipe_width
+            d.add(pipe_line)
 
-        # Linie zeichnen: Zentriert um sym_x, Länge entspricht 2 * size_elements
-        pipe_line = Line(sym_x - size_elements, y_center_of_texts, sym_x + size_elements, y_center_of_texts)
-        pipe_line.strokeColor = pipe_color
-        pipe_line.strokeWidth = pipe_width
-        d.add(pipe_line)
+            # Draw DN-X label above the line
+            d.add(String(sym_x, y_center_of_texts + pipe_width/2 + 2, "DN-X", 
+                         fontName=self.style.get_font(bold=False), 
+                         fontSize=legend_font_size * 0.8, 
+                         fillColor=text_color, textAnchor='middle'))
 
-        d.add(String(sym_x, y_center_of_texts + pipe_width/2 + 2, "DN-X", 
-                     fontName=self.style.get_font(bold=False), 
-                     fontSize=legend_font_size * 0.8, 
-                     fillColor=text_color, textAnchor='middle'))
+            # Draw main text
+            d.add(String(text_x, y_text_line1, "Rohre des Wärmenetzes", 
+                         fontName=self.style.get_font(bold=False), 
+                         fontSize=legend_font_size, 
+                         fillColor=text_color,
+                         textAnchor='start'))
 
-        d.add(String(text_x, y_text_line1, "Rohre des Wärmenetzes", 
-                     fontName=self.style.get_font(bold=False), 
-                     fontSize=legend_font_size, 
-                     fillColor=text_color,
-                     textAnchor='start'))
+            # Draw explanation text
+            explanation_color = colors.Color(*self.style.get_color("text_light"))
+            d.add(String(text_x, y_text_line2, "(DN-X = Nenndurchmesser in mm)", 
+                         fontName=self.style.get_font(bold=False), 
+                         fontSize=legend_font_size * 0.85, 
+                         fillColor=explanation_color,
+                         textAnchor='start'))
+            
+            current_y = y_text_line2 - distance_entries
 
-        explanation_color = colors.Color(*self.style.get_color("text_light"))
-        d.add(String(text_x, y_text_line2, "(DN-X = Nenndurchmesser in mm)", 
-                     fontName=self.style.get_font(bold=False), 
-                     fontSize=legend_font_size * 0.85, 
-                     fillColor=explanation_color,
-                     textAnchor='start'))
-        current_y = y_text_line2 - distance_entries
+        else:
+            # Draw simple line without labels
+            pipe_line = Line(sym_x - size_elements, current_y, sym_x + size_elements, current_y)
+            pipe_line.strokeColor = pipe_color
+            pipe_line.strokeWidth = pipe_width
+            d.add(pipe_line)
+
+            # Draw single main text
+            d.add(String(text_x, current_y - y_text_offset, "Rohre des Wärmenetzes", 
+                         fontName=self.style.get_font(bold=False), 
+                         fontSize=legend_font_size, 
+                         fillColor=text_color,
+                         textAnchor='start'))
+
+            current_y -= size_elements + distance_entries
+
 
         # Buildings connected to the heat grid
         current_y -= size_elements # Move to center of the symbol
@@ -2566,7 +2596,7 @@ class DataExtractor:
             ("Sanierung", "retrofit"),
             ("Sp-Masse", "construction_type"),
             ("N-Absenkung", "night_setback"),
-            ("Netto-Raumfläche", "area"),
+            ("NRF", "area"),
             ("Heizung", "heater"),
             ("EV", "EV"),
             ("fTES", "f_TES"),
@@ -2713,7 +2743,7 @@ class DataExtractor:
                 "Biomasse": round(costs["biomass"], 0),
                 "Fernwärme": round(costs["district_heat"], 0),
                 "Wasserstoff": round(costs["hydrogen"], 0),
-                "Einspeisung (el.)": round(costs["revenue_feed_in_el"], 0)
+                "Einspeiseerlöse (el.)": round(costs["revenue_feed_in_el"], 0)
             })
 
             # Fetch CO2 breakdown
@@ -2918,7 +2948,7 @@ class DataExtractor:
                     device_list.append({
                         "Anlage": name, 
                         "Kapazität": f"{cap} {unit}",
-                        "Jährl. Kosten (subv.)": f"{annual_cost_sub} €/a"#,
+                        "Anlagenkosten (subv.)": f"{annual_cost_sub} €/a"#,
                         # "Jährl. Kosten (unsubv.)": f"{annual_cost_unsub} €/a"
                     })
                 else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
@@ -2989,7 +3019,7 @@ class DataExtractor:
                         "Anlage": name,
                         "Anzahl": data["count"],
                         "Gesamtleistung": total_power,
-                        "Jährl. Kosten": ann_cost
+                        "Anlagenkosten": ann_cost
                     })
                 else:
                     raise NotImplementedError(f"Language {self.get_language()} not supported for decentral device table.")
