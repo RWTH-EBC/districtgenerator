@@ -948,20 +948,20 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
 
     # Case 2: vol_TES > 50
     # Only active, if b= 1
-    # inv= inv_base*(1-"inv_subsidy_rate_g50") <=> inv - inv_base*(1-"inv_subsidy_rate_g50") = 0
+    # inv= inv_base*(1-"inv_subsidy_rate_max") <=> inv - inv_base*(1-"inv_subsidy_rate_max") = 0
     def con_inv_case2_upper_rule(model, district):
         devs = devsCon[district]
-        # inv - inv_base*(1-"inv_subsidy_rate_g50") <= M * (1 - b)
+        # inv - inv_base*(1-"inv_subsidy_rate_max") <= M * (1 - b)
         if not devs["TES"]["inv_kwkg_feasible"]:
             return pyo.Constraint.Skip
-        return model.inv_sub_1tes[district] - model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate_g50"]) <= Big_M * (1 - model.tes_kwkg_binary[district])
+        return model.inv_sub_1tes[district] - model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate_max"]) <= Big_M * (1 - model.tes_kwkg_binary[district])
     
     def con_inv_case2_lower_rule(model, district):
         devs = devsCon[district]
         if not devs["TES"]["inv_kwkg_feasible"]:
             return pyo.Constraint.Skip
-        # inv - inv_base*(1-"inv_subsidy_rate_g50") >= - M * (1 - b)
-        return model.inv_sub_1tes[district] - model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate_g50"]) >= - Big_M * (1 - model.tes_kwkg_binary[district])
+        # inv - inv_base*(1-"inv_subsidy_rate_max") >= - M * (1 - b)
+        return model.inv_sub_1tes[district] - model.inv_base["TES", district] * (1 - devs["TES"]["inv_subsidy_rate_max"]) >= - Big_M * (1 - model.tes_kwkg_binary[district])
     
     # Add constraints to the model
     model.con_inv_case1_upper = pyo.Constraint(model.districts, rule=con_inv_case1_upper_rule)
@@ -1016,8 +1016,9 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
         # Heat grid costs
         if param["enable_subsidy_for_heat_grid"]== True:
             model.constraints.add(model.heat_grid_costs_base[district] == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
-            model.constraints.add(model.heat_grid_costs[district] == data.heat_grid_data["ann_costs"] *(1-param["subsidy_rate_heat_grid"])+ data.heat_grid_data["om_costs"])
+            model.constraints.add(model.heat_grid_costs[district] == data.heat_grid_data["ann_costs"] *(param["subsidy_rate_heat_grid"])+ data.heat_grid_data["om_costs"])
         else:
+            model.constraints.add(model.heat_grid_costs_base[district] == model.heat_grid_costs[district])
             model.constraints.add(model.heat_grid_costs[district] == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
 
         # Connection costs to electricity and gas grid (currently assumed to be a constant annual cost)

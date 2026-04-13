@@ -311,7 +311,7 @@ def load_params(data):
             "inv_subsidy_abs": value.get("inv_subsidy_abs", 0), # New TJA
             "inv_subsidy_cap": value.get("inv_subsidy_cap", 0), # New TJA
             "inv_subsidy_rate": value.get("inv_subsidy_rate", 0), # New TJA
-            "inv_subsidy_rate_g50": value.get("inv_subsidy_rate_g50", 0), # New TJA
+            "inv_subsidy_rate_max": value.get("inv_subsidy_rate_max", 0), # New TJA
             "inv_kwkg_feasible": value.get("inv_kwkg_feasible", False), # New TJA, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
         }
 
@@ -1009,7 +1009,7 @@ def load_params(data):
         "inv_subsidy_abs": all_models["TES"]["inv_subsidy_abs"], # EUR/m^3, absolute investment subsidy for thermal energy storage 
         "inv_subsidy_cap": all_models["TES"]["inv_subsidy_cap"], # m^3, maximum size of TES to get subsidy
         "inv_subsidy_rate": all_models["TES"]["inv_subsidy_rate"], # New TJA
-        "inv_subsidy_rate_g50": all_models["TES"]["inv_subsidy_rate_g50"], # New TJA, subsidy rate for TES larger than 50 m^3
+        "inv_subsidy_rate_max": all_models["TES"]["inv_subsidy_rate_max"], # New TJA, subsidy rate for TES larger than 50 m^3
         "inv_kwkg_feasible": all_models["TES"]["inv_kwkg_feasible"], # New TJA, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
     }
 
