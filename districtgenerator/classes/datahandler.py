@@ -275,38 +275,14 @@ class Datahandler:
             self.heat_grid_data[attr] = value
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
-        # select the pipe file based on the network generation selection
-        # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
-        # AUTO MODE → load all pipe specifications and choose later based on the temperatures
-        if self.heat_grid_data["generation"] == "auto":
-            kmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
-            pmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
-            pe_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
-            self.pipe_data_all = {
-                "3rd": pd.read_csv(kmr_path, sep=";"),
-                "4th": pd.read_csv(pmr_path, sep=";"),
-                "5th": pd.read_csv(pe_path, sep=";")}
-            self.pipe_data = self.pipe_data_all["4th"]  # temporary default
-
-        elif self.heat_grid_data["generation"] == "3rd":
-            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
-            self.pipe_data = pd.read_csv(csv_path, sep=";")
-
-        elif self.heat_grid_data["generation"] == "4th":
-            pmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
-            pmr_data = pd.read_csv(pmr_path, sep=";")
-            # add KMR pipes for DN > 150
-            kmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
-            kmr_data = pd.read_csv(kmr_path, sep=";")
-            kmr_data = kmr_data[kmr_data["Nominal diameter (DN)"] > 150]
-            self.pipe_data = pd.concat([pmr_data, kmr_data], ignore_index=True)
-
-        elif self.heat_grid_data["generation"] == "5th":
-            csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
-            self.pipe_data = pd.read_csv(csv_path, sep=";")
-            pass
-        else:
-            print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
+        #load all pipe specifications
+        kmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_KMR.csv')
+        pmr_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PMR.csv')
+        pe_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
+        self.pipe_data_all = {
+            "KMR": pd.read_csv(kmr_path, sep=";"),
+            "PMR": pd.read_csv(pmr_path, sep=";"),
+            "PE": pd.read_csv(pe_path, sep=";")}
 
         # Determine the all_sim_ecoData which contains prices, co2 factors for each simulated year used for optimizations:
         self.all_sim_ecoData = self.calculate_ecoData_per_cluster()

@@ -410,10 +410,12 @@ class HeatGridConfig(BaseSettings):
     physical dimensions, material properties, and costs.
     """
 
-    generation: str = "3rd"      # Heating network generation, selected between:"3rd", "4th", "5th" and "auto". If "auto" is selected the temperatures are determined automatically based on the required supply temperature of connected buildings.
+    supply_temperature: str | float = "auto"  # Network supply temperature in °C: "auto" = determined from buildings heating curves; float = fixed value (constant mode) or upper bound (heating curve mode)
+    delta_T: float = 15.0  # Temperature spread in K between max and min supply temperatures, used only in heating_curve mode
     topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
     temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
     heuristic: bool = False # selected between: True (heuristic method) and False (optimization method)
+    min_flow_fraction: float = 0.15  # Minimum fraction of peak mass flow to enforce circulation (dimensionless)
     enable_low_temp_measures: bool = False  # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
     low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
     D_heating_network: float = 1.0      # Distance between the centerlines of the supply and return pipelines in meters.
@@ -436,29 +438,6 @@ class HeatGridConfig(BaseSettings):
     cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
-
-    T_hot_heating_network__constant__3rd: float = 80.0  # Supply temperature of 3rd generation heat grid in degrees Celsius.
-    T_hot_heating_network__constant__4th: float = 55.0  # Supply temperature of 4th generation heat grid in degrees Celsius.
-    T_hot_heating_network__constant__5th: float = 18.0  # Supply temperature of 5th generation heat grid in degrees Celsius.
-    T_hot_heating_network__heating_curve__max__3rd: float = 75.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_hot_heating_network__heating_curve__max__4th: float = 50.0  # Supply temperature of 4th generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_hot_heating_network__heating_curve__max__5th: float = 18.0  # Supply temperature of 5th generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__3rd: float = 85.0  # Supply temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__4th: float = 65.0  # Supply temperature of 4th generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_hot_heating_network__heating_curve__min__5th: float = 14.0  # Supply temperature of 5th generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_hot_heating_network: dict = {}
-
-    T_cold_heating_network__constant__3rd: float = 50.0  # Return temperature of 3rd generation heat grid in degrees Celsius.
-    T_cold_heating_network__constant__4th: float = 35.0  # Return temperature of 4th generation heat grid in degrees Celsius.
-    T_cold_heating_network__constant__5th: float = 11.0  # Return temperature of 5th generation heat grid in degrees Celsius.
-    T_cold_heating_network__heating_curve__max__3rd: float = 45.0  # Return temperature of 3rd generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_cold_heating_network__heating_curve__max__4th: float = 30.0  # Return temperature of 4th generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_cold_heating_network__heating_curve__max__5th: float = 11.0  # Return temperature of 5th generation heat grid when outdoor temperature is high in degrees Celsius.
-    T_cold_heating_network__heating_curve__min__3rd: float = 50.0  # Return temperature of 3rd generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_cold_heating_network__heating_curve__min__4th: float = 40.0  # Return temperature of 4th generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_cold_heating_network__heating_curve__min__5th: float = 7.0   # Return temperature of 5th generation heat grid when outdoor temperature is low in degrees Celsius.
-    T_cold_heating_network: dict = {}
-
 
     fluid__c_f: float = 4180.0      # Specific heat capacity of the fluid in J/(kg*K).
     fluid__rho_f: float = 1000.0    # Density of the fluid in kg/m3.
