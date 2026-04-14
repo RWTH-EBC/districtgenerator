@@ -82,10 +82,7 @@ def load_params(data):
         data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
     total_losses_cooling_network = data.heat_grid_data["total_losses_cooling_network"]
     cooling_total = cooling + total_losses_cooling_network
-
-    if "pump_power" not in heat_grid_data:
-        data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
-    pump_power = data.heat_grid_data["pump_power"]
+    pump_power = data.heat_grid_data["P_pump"]/1000  # kW
     electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
 
     dem_uncl["heat"] = heating_total
@@ -94,6 +91,8 @@ def load_params(data):
     for k in ["heat", "cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
+    param_uncl["T_supply_EH"] = data.heat_grid_data["T_supply_EH"]
+    param_uncl["T_return_EH"] = data.heat_grid_data["T_return_EH"]
 
     ################################################################
     # DESIGN CLUSTERING
@@ -109,7 +108,7 @@ def load_params(data):
     # Collect the time series to be clustered
     time_series = [dem_uncl["heat"][0:adjustedHorizon], dem_uncl["cool"][0:adjustedHorizon], dem_uncl["power"][0:adjustedHorizon],
                    param_uncl["T_air"][0:adjustedHorizon], param_uncl["GHI"][0:adjustedHorizon], param_uncl["DHI"][0:adjustedHorizon],
-                   param_uncl["wind_speed"][0:adjustedHorizon]]
+                   param_uncl["wind_speed"][0:adjustedHorizon], param_uncl["T_supply_EH"][0:adjustedHorizon], param_uncl["T_return_EH"][0:adjustedHorizon]]
 
     # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
     inputs = np.array(time_series)
@@ -172,24 +171,8 @@ def load_params(data):
     heat_grid["T_cold_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_cooling_network"]
     heat_grid["delta_T_heatTransfer"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["delta_T_heatTransfer"]
 
-    generation = heat_grid_data["generation"]
-    temperature_mode = heat_grid_data["temperature_mode"]
-    if temperature_mode == "heating_curve":
-        # Variable-constant operation mode (Heating curve)
-        T_supply_min = heat_grid_data["T_hot_heating_network"]["heating_curve"]["min"][generation]
-        T_supply_max = heat_grid_data["T_hot_heating_network"]["heating_curve"]["max"][generation]
-        T_return_min = heat_grid_data["T_cold_heating_network"]["heating_curve"]["min"][generation]
-        T_return_max = heat_grid_data["T_cold_heating_network"]["heating_curve"]["max"][generation]
-        T_supply, T_return = heating_curve(param["T_air"], T_supply_min, T_supply_max, T_return_min, T_return_max)
-    elif temperature_mode == "constant":
-        # constant operation mode
-        T_supply_const = heat_grid_data["T_hot_heating_network"]["constant"][generation]
-        T_return_const = heat_grid_data["T_cold_heating_network"]["constant"][generation]
-        T_supply = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_supply_const  # °C
-        T_return = np.ones((data.time["clusterNumber"], clusterHorizon)) * T_return_const  # °C
-
-    heat_grid["T_hot_heating_network"] = T_supply
-    heat_grid["T_cold_heating_network"] = T_return
+    heat_grid["T_hot_heating_network"] = clustered_series[7]     # °C
+    heat_grid["T_cold_heating_network"] = clustered_series[8]    # °C
 
     all_models = {}
     for key, value in central_device_data.items():

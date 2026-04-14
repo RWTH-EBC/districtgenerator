@@ -1007,7 +1007,7 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-        use_multiprocessing = False #todo: False while debugging
+        use_multiprocessing = True #todo: False while debugging
 
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
@@ -1700,7 +1700,7 @@ class Datahandler:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
-            adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
+            adjProfiles["pump_power"] = self.heat_grid_data["P_pump"][0:lengthArray]/1000
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
                 adjProfiles["generationCentralWT"] = self.centralDevices["generation"]["Wind"][0:lengthArray]

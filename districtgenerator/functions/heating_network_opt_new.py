@@ -11,7 +11,6 @@ import textwrap
 from scipy.interpolate import interp1d
 from tqdm import tqdm
 import pandas as pd
-# from districtgenerator.functions.load_params_central_devices import calc_COP
 
 def network_design(data):
     """
@@ -66,7 +65,7 @@ def network_design(data):
     # 3. Size pipe diameters
     data, param = calc_diameter(data, param)
 
-    # 4. Compute pump power
+    # 4. Size pump
     data, param = compute_pump_power(data, param)
 
     # 5. Solve network temperatures
@@ -754,8 +753,6 @@ def compute_pump_power(data, param):
     # Pump electrical power
     pump_power = Vdot_total_profile * dp_total / (eta_pump * 1000.0)  # kW
 
-    data.heat_grid_data["pump_power"] = pump_power
-
     # Pump design electrical power
     data.heat_grid_data["pump_power_design"] = float(np.max(pump_power)) * 1.3 # kW #todo: Sicherheitsfaktoren benötigt?
 
@@ -1135,7 +1132,8 @@ def compute_network_temperatures_given(data, param, max_iter=20, relax=0.3):
     return_children_edges = shared["return_children_edges"]
     pipe_UA_s = shared["pipe_UA_s"]
 
-    T_sup_EH = np.asarray(param["T_sup_network_config"], dtype=float)
+    T_sup_EH = shared["T_sup_EH"]
+    T_sup_EH[:] = np.asarray(param["T_sup_network_config"], dtype=float)
     T_ret_EH = shared["T_ret_EH"]
     T_sup_node = shared["T_sup_node"]
     T_ret_node = shared["T_ret_node"]
@@ -1350,7 +1348,6 @@ def compute_network_temperatures_given(data, param, max_iter=20, relax=0.3):
 
     return _finalize_network_temperature_solver(data, param, shared)
 
-#todo: ab hier
 def calc_heat_loss_pipe(data, param):
     """
     Calculate thermal heat losses for each pipe segment.
@@ -1430,14 +1427,10 @@ def plot_network_results(data, param):
     dir_result = param["dir_result"]
 
     # calculate heat loss
-    # save heat loss(yearly profile) in data.heat_grid_data["total_losses_heating_network"]
     # load heat loss in substation
-    heat_loss_substation = param.get("heat_loss_substation", param.get("heat_loss_substation_heating", 0.0))
+    heat_loss_substation = param.get("heat_loss_substation", param.get("heat_loss_substation_heating"))
     # load cooling loss in substation (5th gen only, safe default otherwise)
-    cool_loss_substation = param.get("cool_loss_substation", param.get("heat_loss_substation_cooling", 0.0))
-
-    # calculate heat loss in every pipe segment
-    # data, heat_loss_pipe, heat_loss_pipe_cluster = calc_heat_loss_pipe(data, param)
+    cool_loss_substation = param.get("cool_loss_substation", param.get("heat_loss_substation_cooling"))
 
     # sum the heat loss in the network and calculate the heat loss density
     heat_loss_network = np.zeros_like(heat_loss_substation)
@@ -1789,7 +1782,7 @@ def compute_and_save_network_costs(data, param):
     buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
     C_substations = 0
     for building in buildings_connected:
-        substation_capacity = building["envelope"].heatload/1000 + building["dhwpower"]/1000  #kW
+        substation_capacity = building["bes_obj"].design_load_heating/1000 + building["bes_obj"].design_load_dhw/1000  #kW
         substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
         C_substations += substation_costs
     substation_lifetime = data.heat_grid_data["lifetime_subst"]
@@ -1814,7 +1807,7 @@ def compute_and_save_network_costs(data, param):
     # print(f"Pipes O&M cost per year: {pipes_om_costs:.2f} €")
 
     # calculate the capacity of the pump
-    pump_cap = np.max(data.heat_grid_data["pump_power"])   # kW
+    pump_cap = data.heat_grid_data["pump_power_design"]   # kW
     # print(f"The capacity of the pump should be bigger than {pump_cap:5f}kW.")
 
     # calculate the investment for the pump
@@ -1827,7 +1820,7 @@ def compute_and_save_network_costs(data, param):
     # print(f"Pump O&M cost per year: {pump_om_costs:.2f} €")
 
     # electricity cost of the circulation pump
-    pump_energy_total = np.sum(data.heat_grid_data["pump_power"])  # kWh
+    pump_energy_total = np.sum(data.heat_grid_data["P_pump"])/1000  # kWh
     # print(f"The total electricity consumption for the pump is {pump_energy_total:5f}kWh/a.")
     pump_electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"][0]
 
@@ -1837,37 +1830,7 @@ def compute_and_save_network_costs(data, param):
     data.heat_grid_data["om_costs"] = network_om_costs
     data.heat_grid_data["ann_costs"] = network_ann_costs
 
-    # get cost of heat loss
-    # calculate capacity
-    cap_HP = np.max(data.heat_grid_data["total_losses_heating_network"])
-    # calculate investment, o&m cost and electricity cost
-    HP_inv_costs = cap_HP * data.central_device_data["AirHP"]["inv_var"]
-    HP_ann_costs = HP_inv_costs * param["HP_ann_factor"]
-    HP_om_costs = HP_inv_costs * data.central_device_data["AirHP"]["cost_om"]
-
-    deltaT_EH = data.heat_grid_data["T_supply_EH"] - data.heat_grid_data["T_return_EH"]
-
-    # calculate yearly COP profile and the electricity cost for the HP
-    devs_param = {
-        "feasible": True,
-        "dT_evap": 10,      # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
-        "dT_cond": deltaT_EH,  # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
-        "dT_pinch_cond": 2, # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
-        "dT_pinch_evap": 5, # K,    temperature difference between both fluids in the evaporator at pinch point
-        "eta_compr": 0.8,   # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
-        "heatloss_compr": 0.3, # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
-        "COP_max": 7,       # ---,  maximum heat pump COP
-    }
-    # Temperatures
-    t_c_in = data.site["T_e"] + 273.15  # heat source inlet (Air)
-    dt_c = devs_param["dT_evap"]  # heat source temperature difference
-    t_h_in = data.heat_grid_data["T_return_EH"] + 273.15  # heat sink (Network fluid) inlet temperature
-    dt_h = devs_param["dT_cond"]
-    # call the calculation function
-    COP_HP = calc_COP(devs_param, [t_c_in, dt_c, t_h_in, dt_h])
-    HP_electricity_costs = np.sum(data.heat_grid_data["total_losses_heating_network"]/ COP_HP) * data.ecoData["price_supply_el_eh"][0]
-
-    # ---------- 9. plot cost in stacked bar chart ----------
+    # plot costs in stacked bar chart
     costs = {
         "Annualized investment for substations": substation_ann_costs,
         "Operation and maintenance cost for substations": substation_om_costs,
@@ -1876,9 +1839,6 @@ def compute_and_save_network_costs(data, param):
         "Annualized investment for the pump": pump_ann_costs,
         "Operation and maintenance cost for the pump": pump_om_costs,
         "Electricity costs for the pump": pump_electricity_costs,
-        "Annualized investment for the heatpump": HP_ann_costs,
-        "Operation and maintenance cost for the heatpump": HP_om_costs,
-        "Electricity costs for the heatpump": HP_electricity_costs,
     }
 
     # --- Unpack data ---
@@ -1905,8 +1865,8 @@ def compute_and_save_network_costs(data, param):
         for label in labels
     ]
 
-    # --- Axis labels, title, ticks ---
-    ax.set_ylabel("Annual Costs [EUR/a]")
+    # Axis labels, title, ticks
+    ax.set_ylabel("Annual Costs in (€/a)")
     ax.set_title("Annual Cost Stacked Chart")
     ax.set_xticks(x)
     ax.set_xticklabels([f"{data.scenario_name}"])
@@ -1921,7 +1881,7 @@ def compute_and_save_network_costs(data, param):
 
 #    plt.show()
 
-    # ---------- 10. save parameters, energy-consumption and costs to a json-file ----------
+    # save parameters, energy-consumption and costs to a json-file
     # output average temperatures for validation of the heat loss
     T_soil = data.heat_grid_data["T_soil"]
     T_soil_mean = np.mean(T_soil)
@@ -2030,35 +1990,20 @@ def compute_and_save_network_costs(data, param):
             "unit": "€",
             "description": "Electricity cost for the pump"
         },
-        "HP_ann_costs": {
-            "value": float(HP_ann_costs),
-            "unit": "€",
-            "description": "Annualized investment for the heat pump for covering heat loss"
-        },
-        "HP_om_costs": {
-            "value": float(HP_om_costs),
-            "unit": "€",
-            "description": "O&M cost for the heat pump for covering heat loss"
-        },
-        "HP_electricity_costs": {
-            "value": float(HP_electricity_costs),
-            "unit": "€",
-            "description": "Electricity cost for the heat pump for covering heat loss"
-        },
         "network_ann_costs": {
             "value": float(network_ann_costs),
             "unit": "€",
-            "description": "Total annualized investment for the heating network (excluding cost for pump electricity and heat loss)"
+            "description": "Total annualized investment for the heating network (excluding cost for pump electricity)"
         },
         "network_om_costs": {
             "value": float(network_om_costs),
             "unit": "€",
-            "description": "Total O&M cost for the heating network (excluding cost for pump electricity and heat loss)"
+            "description": "Total O&M cost for the heating network (excluding cost for pump electricity)"
         },
         "network_total_costs": {
-            "value": float(network_ann_costs + network_om_costs + pump_electricity_costs + HP_ann_costs + HP_om_costs + HP_electricity_costs),
+            "value": float(network_ann_costs + network_om_costs + pump_electricity_costs),
             "unit": "€",
-            "description": "Total annual cost for the heating network (including cost for pump electricity and heat loss)"
+            "description": "Total annual cost for the heating network (including cost for pump electricity)"
         }
     }
 
@@ -3082,75 +3027,6 @@ def _finalize_network_temperature_solver(data, param, shared):
 
 def single_pipe_temperature(T_in, T_soil, m_dot, UA, c_f):
     return float(T_soil) + (float(T_in) - float(T_soil)) * np.exp(-UA / (m_dot * c_f))
-
-def calc_COP(devs_param, temperatures):
-    """
-    calculate COP of Heat Pump
-
-    Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
-    Heat pump COP, part 2: Generalized COP estimation of heat pump processes
-    DOI: 10.18462/iir.gl.2018.1386
-
-    Parameters
-    ----------
-    devs_param: dict
-        parameters of the heat pump
-    temperatures: lst
-        temperatures of the heat source and heat sink ([t_c_in, dt_c, t_h_in, dt_h])
-
-    Returns
-    -------
-    COP: np.array
-        COP array of same shape as input temperature
-    """
-    # get temperature parameters
-    t_c_in = temperatures[0]
-    dt_c = temperatures[1]
-    t_h_in = temperatures[2]
-    dt_h = temperatures[3]
-
-    # device parameters
-    dt_pp_cond = devs_param["dT_pinch_cond"]  # pinch point temperature difference in the condenser
-    dt_pp_evap = devs_param["dT_pinch_evap"]  # pinch point temperature difference in the evaporator
-
-    eta_is = devs_param["eta_compr"]  # isentropic compression efficiency
-    f_Q = devs_param["heatloss_compr"]  # heat loss rate during compression
-
-    # Entropic mean temperautures (or Logarithmic mean temperatures) of the heat sink and heat source
-    t_h_s = dt_h / np.log((t_h_in + dt_h) / t_h_in)
-    t_c_s = dt_c / np.log(t_c_in / (t_c_in - dt_c))
-
-    # Next 3 paragraphs increase the robustness of the method to handel 5G Network temperatures which can lead to Temp_in_air > Temp_heat_sink which is equivalent to free heating
-    COP_max = devs_param["COP_max"]
-    eps = 1e-6
-
-    # Avoid division by 0 in valid region, therefore replaced by dummy value 1.0 (which prevents crashes) if not valid
-    delta = np.where((t_h_s - t_c_s) > eps, (t_h_s - t_c_s), 1.0)
-
-    # Lorentz-COP (only meaningful where valid)
-    COP_Lor = t_h_s / delta
-
-    # linear model equations; Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
-    dt_r_H = 0.2 * (t_h_in + dt_h - (
-                t_c_in - dt_c) + (dt_pp_cond + dt_pp_evap)) + 0.2 * dt_h + 0.016  # mean entropic heat difference in condenser deducting dt_pp and assuming an ammonia heat pump
-    w_is = 0.0014 * (t_h_in + dt_h - (
-                t_c_in - dt_c) + (dt_pp_cond + dt_pp_evap)) - 0.0015 * dt_h + 0.039  # ratio of isentropic expansion work to isentropic compression work and assuming an ammonia heat pump
-
-    # help values
-    num = 1 + (dt_r_H + dt_pp_cond) / t_h_s
-    denom = 1 + (dt_r_H + 0.5 * dt_c + (dt_pp_cond + dt_pp_evap)) / (t_h_s - t_c_s)
-
-    # COP
-    COP = COP_Lor * num / denom * eta_is * (1 - w_is) + 1 - eta_is - f_Q
-
-    # limit COP's
-    #COP_max = devs_param["COP_max"]
-
-    # In invalid region set COP to COP_max
-    COP = np.where((t_h_s - t_c_s) > eps, COP, COP_max)
-    COP = np.clip(COP, 0, COP_max)
-
-    return COP
 
 def prepare_result_folder(data, param):
     """
