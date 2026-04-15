@@ -34,7 +34,7 @@ from districtgenerator.functions.heating_network_opt import network_optimization
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
-from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
+from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
 
 class Datahandler:
     """
@@ -121,6 +121,7 @@ class Datahandler:
         self.heat_grid_data = {}
         self.pipe_data = {}
         self.pyomo_config = {}
+        self.report_config = {}
         # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
@@ -152,7 +153,8 @@ class Datahandler:
             central_config=global_config.central,
             calendar_config=global_config.calendar,
             heat_grid_config=global_config.heatgrid,
-            pyomo_config=global_config.pyomo
+            pyomo_config=global_config.pyomo,
+            report_config=global_config.report
         )
 
         self.buildings_completed = 0
@@ -188,7 +190,8 @@ class Datahandler:
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
                       heat_grid_config: HeatGridConfig,
-                      pyomo_config: PyomoConfig):
+                      pyomo_config: PyomoConfig,
+                      report_config: ReportConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -219,13 +222,17 @@ class Datahandler:
         None.
         """
 
+        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
+                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
+                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
+
         # %% load scenario file with building information
         if self.heat_map_berlin:
             # %% load heat map berlin formatted scenario file
             self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
                                             self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
-                                         converters={"position": parse_position}).set_index("id", drop=False))
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
             self.pv_stc_potential = pd.read_csv(
                 self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
                 delimiter=';',
@@ -234,7 +241,7 @@ class Datahandler:
         else:
             # %% load normal formatted scenario file
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                         converters={"position": parse_position}).set_index("id", drop=False))
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
 
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
 
@@ -286,6 +293,10 @@ class Datahandler:
         # load pyomo solver data (used in optimization functions)
         for attr, value in pyomo_config.__dict__.items():
             self.pyomo_config[attr] = value
+
+        # load report configuration data
+        for attr, value in report_config.__dict__.items():
+            self.report_config[attr] = value
 
         # load heat grid data (used in heating network design and optimization)
         for attr, value in heat_grid_config.__dict__.items():
@@ -609,10 +620,10 @@ class Datahandler:
             combined_building["unique_name"] = f"{self.scenario_name}_{parent_id}_{main_type}+{secondary_type}"
 
             # Copy envelope and user objects from main building
-            combined_building["envelope"] = main_building["envelope"]
+            combined_building["envelope"] = copy.deepcopy(main_building["envelope"])
 
             # Create new user object with combined demands
-            combined_building["user"] = main_building["user"]
+            combined_building["user"] = copy.deepcopy(main_building["user"])
 
             # Combine all demand profiles by summing (element-wise with numpy arrays)
             combined_building["user"].elec = np.array(np.array(main_building["user"].elec) + np.array(secondary_building["user"].elec))
@@ -655,7 +666,19 @@ class Datahandler:
                 combined_building["user"].individual_car_profiles.append(car_copy)
                 new_car_id += 1
 
-            # Sum up user counts
+            # Sum up user counts differentiate if residential or non-residential
+            if main_type in {"SFH", "TH", "MFH", "AB"}:
+                combined_building["user"].nb_res_flats = main_building["user"].nb_units
+                combined_building["user"].nb_res_occ = main_building["user"].nb_occ.copy()
+                combined_building["user"].nb_nonres_flats = secondary_building["user"].nb_units
+                combined_building["user"].nb_nonres_occ = secondary_building["user"].nb_occ
+            elif secondary_type in {"SFH", "TH", "MFH", "AB"}:
+                combined_building["user"].nb_res_flats = secondary_building["user"].nb_units
+                combined_building["user"].nb_res_occ = secondary_building["user"].nb_occ.copy()
+                combined_building["user"].nb_nonres_flats = main_building["user"].nb_units
+                combined_building["user"].nb_nonres_occ = main_building["user"].nb_occ
+            else: raise Exception(f"At least one part of the mixed building has to be residential. Please check building types for {combined_building['unique_name']}.")
+
             combined_building["user"].nb_units = main_building["user"].nb_units + secondary_building["user"].nb_units
             combined_building["user"].nb_occ = main_building["user"].nb_occ + secondary_building["user"].nb_occ
 
@@ -664,6 +687,27 @@ class Datahandler:
             combined_building["envelope"].bivalent = main_building["envelope"].bivalent + secondary_building["envelope"].bivalent
             combined_building["envelope"].heatlimit = main_building["envelope"].heatlimit + secondary_building["envelope"].heatlimit
             combined_building["envelope"].coolingload = main_building["envelope"].coolingload + secondary_building["envelope"].coolingload
+
+            # Adjust areas from envelope:
+            combined_building["envelope"].A = {}
+
+            main_A = main_building["envelope"].A
+            sec_A = secondary_building["envelope"].A
+
+            # 1. Sum total area:
+            combined_building["envelope"].A['f'] = main_A['f']+ sec_A['f']
+
+            # 2. Sum up all opaque areas (walls, roof, floor, etc.)
+            combined_building["envelope"].A['opaque'] = {}
+            all_keys = set(main_A.get('opaque', {}).keys()).union(set(sec_A.get('opaque', {}).keys()))
+            for key in all_keys:
+                combined_building["envelope"].A['opaque'][key] = main_A['opaque'].get(key, 0) + sec_A['opaque'].get(key, 0)
+
+            # 3. Sum up all window areas
+            combined_building["envelope"].A['window'] = {}
+            all_keys = set(main_A.get('window', {}).keys()).union(set(sec_A.get('window', {}).keys()))
+            for key in all_keys:
+                combined_building["envelope"].A['window'][key] = main_A['window'].get(key, 0) + sec_A['window'].get(key, 0)
 
             # Sum up DHW power and generation
             combined_building["dhwpower"] = main_building["dhwpower"] + secondary_building["dhwpower"]
@@ -688,6 +732,8 @@ class Datahandler:
                                   bivalent=combined_building["envelope"].bivalent,
                                   heatlimit=combined_building["envelope"].heatlimit,
                                   coolingload=combined_building["envelope"].coolingload,
+                                  dhwpower=combined_building["dhwpower"],
+                                  envelope_areas=combined_building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=combined_building["user"].individual_car_profiles)
 
@@ -736,7 +782,7 @@ class Datahandler:
         # initialize buildings for scenario
         # loop over all buildings
         for bldg_id, row in self.scenario.iterrows():
-            bldg_id = int(bldg_id)
+            bldg_id = str(bldg_id)
             building = {}
 
             # Store features of the observed building
@@ -754,7 +800,7 @@ class Datahandler:
             self.district.append(building)
             self.building_dict[bldg_id] = len(self.district) - 1
 
-            # Count for time estimate
+            # Count for time estimate #* Does not account for mixed-use and non-residential buildings
             if row["building"] in ("SFH", "TH"):
                 num_sfh += 1
             elif row["building"] in ("MFH", "AB"):
@@ -764,25 +810,14 @@ class Datahandler:
         duration += datetime.timedelta(seconds=3 * num_sfh + 12 * num_mfh)
         print(f"This calculation will take about {duration}.")
 
-    def generateBuildings(self):
-        """
-        Load building envelope and user data.
+        self.split_mixed_buildings()
 
-        Returns
-        -------
-        None.
+    def split_mixed_buildings(self):
         """
-
-        # %% load general building information
-        # contains definitions and parameters that affect all buildings
+        Splits mixed-use buildings into main and secondary building parts.
+        """
         bldgs = self.design_building_data
 
-        # %% create TEASER project
-        # create one project for the whole district
-        prj = Project()
-        prj.name = self.scenario_name
-
-        # Process mixed buildings: split them based on floor calculation
         buildings_to_process = []
         buildings_to_skip = []
 
@@ -803,23 +838,37 @@ class Datahandler:
 
                 # Calculate floors based on main building type
                 if main_building_long == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
                 elif main_building_long == "multi_family_house":
-                    one_floor_area = rd.randint(102, 971)
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(2, round(total_area / one_floor_area))
-                    if total_floors > 8:
-                        total_floors = 8
+                    if total_floors > 8: total_floors = 8
                 elif main_building_long == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(main_building_long))
                     total_floors = max(3, round(total_area / one_floor_area))
                 else:
-                    # For non-residential main buildings, use percentage split
-                    one_floor_area = total_area * 0.25  # Assume 25% for secondary
-                    total_floors = 4  # Default
+                    # Generate a NonResidential building and get number of floors
+                    retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
+                    construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
+
+                    temp_building = NonResidential(
+                        usage=main_type,
+                        name="NonResidentialBuilding",
+                        year_of_construction=building["buildingFeatures"]["year"],
+                        net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
+                        total_building_area=(                                          # Total net leased area of building
+                            building["buildingFeatures"]["area"] if self.total_building_area is None
+                            else self.total_building_area),
+                        construction_type=construction_type,
+                        retrofit_level=retrofit_level,
+                        number_of_floors=None
+                        )
+                    total_floors = max(2,int(temp_building.get_number_of_floors())) # If building is split it needs at least two floors
+                    del temp_building
 
                 # Recalculate one_floor_area based on total area and total floors to ensure consistency
                 one_floor_area = total_area / total_floors
@@ -882,6 +931,44 @@ class Datahandler:
                 if building["buildingFeatures"].get("mixed_role") == "main" or not building["buildingFeatures"].get("is_mixed_part", False):
                     self.building_dict[original_id] = idx
 
+    # Helper function to get floor area range for residential building types based on TABULA typology
+    def _get_one_floor_area_range_res(self, building_type):
+        """
+        Floor area ranges for different residential building types based on the TABULA German Building Typology
+
+        Returns
+        -------
+        tuple
+            A tuple containing the minimum and maximum floor area for one floor of the given building type.
+        """
+        if building_type == "single_family_house":
+            return (62, 115) # Source: TABULA German Building Typology
+        elif building_type == "terraced_house":
+            return (50, 73) # Source: TABULA German Building Typology
+        elif building_type == "multi_family_house":
+            return (102, 971) # Source: TABULA German Building Typology
+        elif building_type == "apartment_block":
+            return (350, 540) # Source: TABULA German Building Typology
+        else: raise ValueError(f"Unknown building type for residential floor area estimation according to TABULA: {building_type}")
+
+    def generateBuildings(self):
+        """
+        Load building envelope and user data.
+
+        Returns
+        -------
+        None.
+        """
+
+        # %% load general building information
+        # contains definitions and parameters that affect all buildings
+        bldgs = self.design_building_data
+
+        # %% create TEASER project
+        # create one project for the whole district
+        prj = Project()
+        prj.name = self.scenario_name
+
         for building in self.district:
 
             # convert short names into designation needed for TEASER
@@ -909,18 +996,18 @@ class Datahandler:
                 if "fixed_floors" in building["buildingFeatures"]:
                     number_of_floors = building["buildingFeatures"]["fixed_floors"]
                 elif building_type == "single_family_house":
-                    one_floor_area = rd.randint(62, 115)  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "terraced_house":
-                    one_floor_area = rd.randint(50, 73)  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
                 elif building_type == "multi_family_house":
                     # Generate a valid one-floor area and number of floors in one step
-                    one_floor_area = rd.randint(102, 971) # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type)) # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 2
                     number_of_floors = max(2, round(building["buildingFeatures"]["area"] / one_floor_area))
                     # Cap the number of floors to a maximum of 8
@@ -928,7 +1015,7 @@ class Datahandler:
                         number_of_floors = 8
 
                 elif building_type == "apartment_block":
-                    one_floor_area = rd.randint(350, 540)  # Source: TABULA German Building Typology
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  # Source: TABULA German Building Typology
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 3
                     number_of_floors = max(3, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -950,6 +1037,13 @@ class Datahandler:
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
                                     net_leased_area=building["buildingFeatures"]["area"])
+
+                if building["buildingFeatures"].get("is_mixed_part", False):
+                    if isinstance(prj, Project):
+                        mixed_res_part = prj.buildings[-1]
+                        for r in mixed_res_part.thermal_zones[0].ground_floors:
+                            # Ensure no ground area for the residential part.
+                            r.area = 1e-9 # Set to a very small value to avoid division by zero errors in Envelope calculations
 
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
                 building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
@@ -979,22 +1073,24 @@ class Datahandler:
                 retrofit_level = bldgs["retrofit_long_non_residential"][bldgs["retrofit_short_non_residential"].index(building["buildingFeatures"]["retrofit"])]
                 construction_type = bldgs["construction_type_long"][bldgs["construction_type_short"].index(building["buildingFeatures"]["construction_type"])]
 
-                if building["buildingFeatures"]["year"] < 1960:
-                    height_of_floors = 3.3  # m
-                elif building["buildingFeatures"]["year"] >= 1960:
-                    height_of_floors = 2.5  # m
+                if "fixed_floors" in building["buildingFeatures"]:
+                    number_of_floors = building["buildingFeatures"]["fixed_floors"]
+                else:
+                    number_of_floors = None # No information about the number of floors is given
 
                 nrb_prj = NonResidential(
                         usage=building["buildingFeatures"]["building"],
                         name="NonResidentialBuilding",
                         year_of_construction=building["buildingFeatures"]["year"],
-                        height_of_floors=height_of_floors,
                         net_leased_area=building["buildingFeatures"]["area"],          # Total net leased area of the building, or of the building part if it is a mixed-use building.
                         total_building_area=(                                          # Total net leased area of building
                             building["buildingFeatures"]["area"] if self.total_building_area is None
                             else self.total_building_area),
                         construction_type=construction_type,
-                        retrofit_level=retrofit_level)
+                        retrofit_level=retrofit_level,
+                        number_of_floors=number_of_floors,
+                        is_mixed_part=building["buildingFeatures"].get("is_mixed_part", False)
+                        )
 
                 # %% create envelope object
                 # containing all physical data of the envelope
@@ -1038,6 +1134,8 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+        use_multiprocessing = True #todo: False while debugging
+
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
 
@@ -1050,9 +1148,20 @@ class Datahandler:
 
         self.save_progress()
 
-        with multiprocessing.Pool(processes=max_threads) as pool:
-            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
-
+        if use_multiprocessing:
+            with multiprocessing.Pool(processes=max_threads) as pool:
+                for result in pool.imap_unordered(generate_demands_worker_wrapper, args_list):
+                    self.buildings_completed += 1
+                    results.append(result)
+                    self.save_progress()
+                    print(
+                        f"building {self.buildings_completed}/{self.buildings_total} calculated "
+                        f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): "
+                        f"{result.get('unique_name', '')}"
+                    )
+        else:
+            for args in args_list:
+                result = generate_demands_worker_wrapper(args)
                 self.buildings_completed += 1
                 results.append(result)
 
@@ -1063,6 +1172,15 @@ class Datahandler:
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
+
+            if not calcUserProfiles:
+                if "user" not in building:
+                    building["user"] = DummyUser()
+                if "envelope" not in building:
+                    building["envelope"] = DummyEnvelope()
+                    building["envelope"].construction_year = building["buildingFeatures"]["year"]
+                    building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
+
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
             building["user"].cooling = result["cooling"]
@@ -1077,6 +1195,7 @@ class Datahandler:
             building["user"].nb_occ = result["nb_occ"]
             building["user"].individual_car_profiles = result.get("individual_car_profiles", [])
             building["envelope"] = result["envelope"]
+            building["dhwpower"] = result["dhwpower"]
             building_features = building["buildingFeatures"].copy()
             building_features["night_setback"] = result["night_setback"]
             building["buildingFeatures"] = building_features
@@ -1115,6 +1234,29 @@ class Datahandler:
                                           initial_day=self.initial_day,
                                           gen_cars=gen_cars)
 
+            if building.get("thermal_model") == "5R1C":
+                building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
+            elif building.get("thermal_model") == "7R2C":
+                # Compute VDI6007 params
+                building["envelope"]._VDI6007_params(self.site["SunRad"])
+                # Compute equivalent temperature
+                building["envelope"].calc_theta_eq(self.site, building["user"].gains)
+            else:
+                raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
+
+            night_setback = building["buildingFeatures"]["night_setback"]
+
+            is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
+
+            building["user"].calcHeatingProfile(site=self.site,
+                                                envelope=building["envelope"],
+                                                thermal_model=building["thermal_model"],
+                                                night_setback=night_setback,
+                                                is_cooled=is_cooled,
+                                                calendar=self.calendar,
+                                                time_resolution=self.time["timeResolution"],
+                                                initial_day=self.initial_day)
+
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
                                   elec=building["user"].elec,
@@ -1131,55 +1273,41 @@ class Datahandler:
                                   bivalent=building["envelope"].bivalent,
                                   heatlimit=building["envelope"].heatlimit,
                                   coolingload=building["envelope"].coolingload,
+                                  dhwpower=building["dhwpower"],
+                                  envelope_areas=building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=building["user"].individual_car_profiles)
 
+                self.saveHeatingProfile(heat=building["user"].heat,
+                                        cooling=building["user"].cooling,
+                                        name=building["unique_name"],
+                                        path=os.path.join(self.resultPath, 'demands'))
+
         else:
+            # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
+            if "user" not in building:
+                building["user"] = DummyUser()
+
+            if "envelope" not in building:
+                building["envelope"] = DummyEnvelope()
+                building["envelope"].construction_year = building["buildingFeatures"]["year"]
+                building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
+
+
             (building["user"].elec, building["user"].dhw,
              building["user"].occ, building["user"].gains,
              building["user"].EV_carcharging_ondemand,
              building["user"].EV_carprofile,
              building["user"].ice_carprofile,
-             building["user"].nb_flats,
+             building["user"].nb_units,
              building["user"].nb_main_rooms,
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
-             building["envelope"].heatlimit, building["envelope"].coolingload,
+             building["envelope"].heatlimit, building["envelope"].coolingload, building["dhwpower"], building["envelope"].A,
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])
 
-        if building.get("thermal_model") == "5R1C":
-            building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
-        elif building.get("thermal_model") == "7R2C":
-            # Compute VDI6007 params
-            building["envelope"]._VDI6007_params(self.site["SunRad"])
-            # Compute equivalent temperature
-            building["envelope"].calc_theta_eq(self.site, building["user"].gains)
-        else:
-            raise ValueError(f"Unknown thermal_model_type: {self.design_building_data['thermal_model_type']}")
-
-        night_setback = building["buildingFeatures"]["night_setback"]
-
-        is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
-
-        # calculate or load heating profiles
-        if calcUserProfiles:
-            building["user"].calcHeatingProfile(site=self.site,
-                                                envelope=building["envelope"],
-                                                thermal_model=building["thermal_model"],
-                                                night_setback=night_setback,
-                                                is_cooled=is_cooled,
-                                                calendar=self.calendar,
-                                                time_resolution=self.time["timeResolution"],
-                                                initial_day=self.initial_day)
-
-            if saveUserProfiles:
-                self.saveHeatingProfile(heat=building["user"].heat,
-                                        cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        path=os.path.join(self.resultPath, 'demands'))
-        else:
             heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
                                                      path=os.path.join(self.resultPath, 'demands'))
             building["user"].heat = heat
@@ -1219,7 +1347,10 @@ class Datahandler:
         """
         self.generateEnvironment()
         self.initializeBuildings()
-        self.generateBuildings()
+
+        if calcUserProfiles: # Only generate the building envelopes and user objects if we need to calculate new profiles.
+            self.generateBuildings()
+
         self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
         self.designDecentralDevices(saveGenerationProfiles=True)
 
@@ -1257,8 +1388,8 @@ class Datahandler:
 
     def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
-                     nb_occ, heatload, bivalent, heatlimit, coolingload, path,
-                     individual_car_profiles=None):
+                     nb_occ, heatload, bivalent, heatlimit, coolingload, dhwpower,
+                     envelope_areas, path, individual_car_profiles=None):
         """
         Save profiles to csv.
 
@@ -1276,8 +1407,8 @@ class Datahandler:
             Hourly internal gains in W.
         car : list
             Hourly electricity demand of EV in W.
-        nb_flats : int
-            Number of flats in the building.
+        nb_units : int
+            Number of units in the building.
         nb_occ : list
             Number of occupants in the building.
         heatload : float
@@ -1345,9 +1476,11 @@ class Datahandler:
                 "Bivalent Heat Load (W)": [bivalent],
                 "Heat Limit Heat Load (W)": [heatlimit],
                 "Design Cooling Load (W)": [coolingload],
+                "DHW Power (W)": [dhwpower],
+                "Envelope Areas": [json.dumps(envelope_areas)]
             }), ["Number of Flats or main Rooms", "Number of Occupants", "EV_capacities",
                  "Design Heat Load (W)", "Bivalent Heat Load (W)",
-                 "Heat Limit Heat Load (W)", "Design Cooling Load (W)"])
+                 "Heat Limit Heat Load (W)", "Design Cooling Load (W)", "DHW Power (W)", "Envelope Areas"])
         }
 
         excel_file = os.path.join(path, name + '.xlsx')
@@ -1482,18 +1615,21 @@ class Datahandler:
         # Load building info
         sheet = workbook['Building Info']
         other_data = [cell for cell in sheet.iter_rows(min_row=2, max_row=2, values_only=True)][0]  # Extracts first row
-        nb_flats = int(other_data[0])
-        nb_main_rooms = nb_flats
+        nb_units = int(other_data[0])
+        nb_main_rooms = nb_units
         nb_occ = np.fromstring(other_data[1], dtype=int, sep=',')
         EV_capacity = np.fromstring(other_data[2], dtype=float, sep=',')
         heatload = float(other_data[3])
         bivalent = float(other_data[4])
         heatlimit = float(other_data[5])
         coolingload = float(other_data[6])
+        dhwpower = float(other_data[7])
+        envelope_areas_json = other_data[8]
+        envelope_areas = json.loads(envelope_areas_json)
 
         workbook.close()
 
-        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, individual_car_profiles
+        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_units, nb_main_rooms, nb_occ, EV_capacity, heatload, bivalent, heatlimit, coolingload, dhwpower, envelope_areas, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
@@ -2145,6 +2281,21 @@ class Datahandler:
         end_time = time.time()
         print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
 
+        # Check which clusters were unsolvable
+        failed_optimizations = []
+        for year, clusters in self.resultsOptimization.items():
+            for cluster, result in clusters.items():
+                if result is None:
+                    failed_optimizations.append((year, cluster))
+
+        if failed_optimizations:
+            error_message = "The following optimization runs failed:\n"
+            for year, cluster in failed_optimizations:
+                error_message += f"  - Year: {year}, Cluster: {cluster}\n"
+
+            error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
+            raise Exception(error_message)
+
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData
         simulated_years = self.ecoData["interpolation_points"]
@@ -2153,6 +2304,11 @@ class Datahandler:
         # select the relevant subset of ecoData for optimization
         single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
+
+        # All keys that have co2 in name are undiscounted
+        undiscounted_keys = set()
+        co2_keys = set([k for k in ecoData.keys() if 'co2' in k.lower()])
+        undiscounted_keys.update(co2_keys)
 
         # Identify the years that belong to each interpolation segment
         year_segments = {k: [] for k in simulated_years}
@@ -2172,16 +2328,14 @@ class Datahandler:
 
         interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
-
-        #TODO: Why are CO2 emission factors also considered here?
+        if q < 1:
+                print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
 
         for year in simulated_years:
             relevant_years = year_segments[year]
             all_sim_ecoData[year] = {}  # Initialize dictionary for this year
 
             n = len(relevant_years)
-            if q < 1:
-                print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
 
             if q!=1:
                 denom = sum(1/(q**idx) for idx in range(n))
@@ -2192,10 +2346,12 @@ class Datahandler:
                 subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 
                 # Calculate present value (PV) of the subset values
-                pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
-
-                # Calculate effective annualized price
-                effective_price = pv/denom
+                if key in undiscounted_keys:
+                    pv = sum(subset_values)  # No discounting for these keys
+                    effective_price = pv / n  # For undiscounted values, the effective value is just the average over the years in the segment
+                else:
+                    pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
+                    effective_price = pv/denom
 
                 all_sim_ecoData[year][key] = effective_price
 
@@ -2574,6 +2730,7 @@ class Datahandler:
         accepted_wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=";", index=False)
 
         return scenario_df
+
     def designNetworkwithNode(self):
         """
         Ignore road restrictions and connect all building nodes and energy center nodes via the shortest path.
@@ -2723,6 +2880,10 @@ class Datahandler:
         """
         network_optimization(self)
 
+class DummyUser: pass
+
+class DummyEnvelope: pass
+
 def generate_demands_worker_wrapper(args):
     """
     Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
@@ -2746,6 +2907,7 @@ def generate_demands_worker_wrapper(args):
         "nb_units": building["user"].nb_units,
         'nb_occ': building["user"].nb_occ,
         'envelope': building["envelope"],
+        'dhwpower': building["dhwpower"],
         'night_setback': building["buildingFeatures"]["night_setback"],
         'individual_car_profiles': building["user"].individual_car_profiles
     }

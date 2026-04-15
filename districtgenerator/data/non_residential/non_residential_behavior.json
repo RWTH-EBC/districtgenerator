@@ -71,7 +71,7 @@
     "UNI": {
         "working_days": [0, 1, 2, 3, 4],
         "affected_by_holidays": true,
-        "affected_by_school_holidays": false,
+        "affected_by_school_holidays": true,
         "main_zone_name": "Hörsaal",
         "main_room_zones": ["Einzel-, Gruppenbüro", "Bibliothek", "Hörsaal", "Laborraum"],
         "app_gain_factor": 0.80,

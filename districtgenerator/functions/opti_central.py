@@ -15,6 +15,7 @@ import time
 import districtgenerator.functions.solver_config as solver_config
 from datetime import datetime
 import logging
+from contextlib import redirect_stdout
 
 # Sets of energy conversion systems in the buildings
 ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "DHW_dem", "Heating_dem", "FC")
@@ -51,20 +52,27 @@ BIG_M = 1e8  # big M for linearization of product of binary and continuous varia
 def run_opti_central(data, year, cluster, sim_ecoData):
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
-    """
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(levelname)s - %(name)s - %(message)s',
-        handlers=[
-            logging.FileHandler('optimization_debug.log'),  # File output
-            # Optional: logging.FileHandler('optimization_debug.log')  # File output
-        ]
-    )
+    Parameters
+    ----------
+    data : Datahandler object
+        The data handler object containing all the necessary data for the optimization.
+    year : int
+        The index of the year for which the optimization should be run.
+    cluster : int
+        The index of the cluster for which the optimization should be run.
+    sim_ecoData : dict
+        The economic data for the simulation.
+
+    Returns
+    -------
+    dict
+        The dictionary containing the optimization results.
+    """
 
     start_time = time.time()
     # build the model
-    model = pyo.ConcreteModel(name="Device_Operation_Optimization")
+    model = pyo.ConcreteModel(name=f"Device_Operation_Optimization_Year_{year}_Cluster_{cluster}")
     build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
@@ -76,11 +84,6 @@ def run_opti_central(data, year, cluster, sim_ecoData):
     # calculate total time
     total_time = time.time() - start_time
 
-    # maybe record the times into a log file
-
-    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
-    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
-    # print(f" Total time needed: {total_time:.2f} seconds.")
 
     return results_dict
 
@@ -1414,175 +1417,24 @@ def solve_model_and_extract_results(model, data, year, cluster):
     """
     Solves the Pyomo model and extracts results in the same format as the original Gurobi code.
     """
-    # Folder to save model and results
+
     result_dir = "optimization_results"
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    lp_filename = os.path.join(result_dir, f"opti_central_model_year_{year}_cluster_{cluster}.lp")
-    model.write(lp_filename, io_options={'symbolic_solver_labels': True})
+    model_name = f"opti_central_model_year_{year}_cluster_{cluster}"
 
-    # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, f"solver_output_year_{year}_cluster_{cluster}.log")
-    # Path for error file
-    errorfile_path = os.path.join(result_dir, f"errorfile_opti_central_year_{year}_cluster_{cluster}.txt")
+    results = solver_config.execute_and_diagnose(model = model,
+                                   pyomo_config = data.pyomo_config,
+                                   model_name = model_name,
+                                   result_dir = result_dir)
 
-    # Solve the model
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config,)
-    results = solver.solve(model, tee=False, options=solver_options)
-
-    # Check if solution is optimal, otherwise write an error file
-    term_cond = results.solver.termination_condition
-    if term_cond == pyo.TerminationCondition.infeasible:
-        print(f"Model is infeasible for further analysis see {errorfile_path}")
-        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
-        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
-        with open(errorfile_path, 'w') as f:
-            f.write('Error: Model is infeasible\n')
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"Model Statistics:\n")
-            f.write(f"  - Variables: {n_vars}\n")
-            f.write(f"  - Constraints: {n_cons}\n\n")
-            f.write(f"  - LP File: {lp_filename}\n\n")
-            try:
-                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
-                    f.write("\nSolver Log:\n")
-                    f.write("-" * 40 + "\n")
-                    f.write(log_file.read())
-                    f.write("-" * 40 + "\n")
-                # Remove temporary solver log file
-                os.remove(solver_log_path)
-            except Exception as e:
-                f.write(f"\nCould not read solver log: {e}\n")
-
-        # IIS-Analysis
-        try:
-            # Create string buffer to capture logging
-            logging_buffer = StringIO()
-
-            # Store original logging handlers
-            root_logger = logging.getLogger()
-            original_handlers = root_logger.handlers[:]
-            original_level = root_logger.level
-
-            # Clear existing handlers temporarily
-            for handler in original_handlers:
-                root_logger.removeHandler(handler)
-
-            # Add string handler to capture only IIS output
-            string_handler = logging.StreamHandler(logging_buffer)
-            string_handler.setLevel(logging.INFO)
-            root_logger.addHandler(string_handler)
-            root_logger.setLevel(logging.INFO)
-
-            # Run IIS analysis - output goes to buffer
-            log_infeasible_constraints(model, log_expression=True, log_variables=True)
-
-            # Get captured content
-            iis_content = logging_buffer.getvalue()
-
-            # Restore logging
-            root_logger.removeHandler(string_handler)
-            for handler in original_handlers:
-                root_logger.addHandler(handler)
-            root_logger.setLevel(original_level)
-
-            # Write to error file
-            with open(errorfile_path, 'a', encoding='utf-8') as f:
-                f.write("INFEASIBLE CONSTRAINTS:\n")
-                f.write("-" * 40 + "\n")
-                if iis_content.strip():
-                    f.write(iis_content)
-                else:
-                    f.write("No IIS details captured\n")
-                f.write("-" * 40 + "\n")
-
-            print(f"Infeasibility analysis saved to {errorfile_path}")
-
-        except Exception as e:
-            # Ensure logging is restored
-            try:
-                if 'original_handlers' in locals():
-                    root_logger.removeHandler(string_handler)
-                    for handler in original_handlers:
-                        if handler not in root_logger.handlers:
-                            root_logger.addHandler(handler)
-                    root_logger.setLevel(original_level)
-            except:
-                pass
-
-            print(f"IIS analysis failed: {e}")
-
-            with open(errorfile_path, 'a') as f:
-                f.write(f"IIS analysis failed: {e}\n")
-
-        # Using Gurobi to compute a better IIS if Gurobi is available
-        import gurobipy as gp
-        gurobi_available = True
-        try: _ = gp.Env.getEnv()
-        except: gurobi_available = False
-
-        if gurobi_available:
-            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
-            m = gp.read("debug_model.lp")
-            m.optimize()
-            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
-                m.computeIIS()
-                m.write("debug_model.ilp")
-                print("IIS written to debug_model.ilp")
-                raise Exception("Model is infeasible, see errorfile for details.")
-            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
-
+    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
 
-    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
-        print("Model is unbounded")
-        with open('errorfile.txt', 'w') as f:
-            f.write('Model is unbounded\n')
-        return None
-    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
-        pass
-    else:
-        print(f"Solver status: {results.solver.termination_condition}")
-        with open('errorfile.txt', 'w') as f:
-            f.write(f'Solver status: {results.solver.termination_condition}\n')
-        return None
-
-    # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
-
-    # Save all variable values in a solution file:
-    def write_solution_file(model, filename):
-        """
-        Write solution values to a file in a format similar to Gurobi's .sol files
-        """
-        try:
-            with open(filename, 'w') as f:
-                f.write("# Solution file\n")
-                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
-                f.write("# Variable values\n")
-
-                # Write all variable values
-                for var in model.component_objects(pyo.Var, active=True):
-                    if var.is_indexed():
-                        for index in var:
-                            if var[index].value is not None:
-                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
-                    else:
-                        if var.value is not None:
-                            f.write(f"{var.name} {var.value:.6f}\n")
-
-                f.write("# End of solution\n")
-            print(f"Solution written to {filename}")
-
-        except Exception as e:
-            print(f"Warning: Could not write solution file {filename}: {e}")
-        return None
-
-    solution_file = os.path.join(result_dir, f'solution_file_year_{year}_cluster_{cluster}.txt')
-    write_solution_file(model, solution_file)
+    solver_config.write_solution_file(model = model,
+                                      model_name = model_name,
+                                      result_dir = result_dir)
 
     # Extract results
     timeData = data.time
@@ -1785,8 +1637,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
         for ice_map in ice_mapping
     }
 
-    ev_ids = model.EVs.value_list
-    ice_ids = model.ICEs.value_list
+    ev_ids = list(model.EVs.ordered_data())
+    ice_ids = list(model.ICEs.ordered_data())
 
     # Electric Vehicles
     for n in range(nbuildings):
@@ -1863,7 +1715,7 @@ def _get_vehicle_mapping(buildingData, nbuildings):
     return all_individual_evs_map, all_individual_ices_map
 
 
-def remove_previous_models_and_solutions():
+def remove_previous_models_and_solutions(model_name_prefix="opti_central_model_"):
     """
     Remove previous solution and error files to avoid confusion with new runs.
     """
@@ -1873,7 +1725,7 @@ def remove_previous_models_and_solutions():
 
     # Remove model files
     for filename in os.listdir(result_dir):
-        if filename.startswith("opti_central_model_year_") and filename.endswith(".lp"):
+        if filename.startswith(model_name_prefix) and filename.endswith(".lp"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
@@ -1882,7 +1734,7 @@ def remove_previous_models_and_solutions():
 
     # Remove solution files
     for filename in os.listdir(result_dir):
-        if filename.startswith("solution_file_year_") and filename.endswith(".txt"):
+        if filename.startswith(f"solution_file_{model_name_prefix}") and filename.endswith(".txt"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
@@ -1891,7 +1743,7 @@ def remove_previous_models_and_solutions():
 
     # Remove error files
     for filename in os.listdir(result_dir):
-        if filename.startswith("errorfile_opti_central_year_") and filename.endswith(".txt"):
+        if filename.startswith(f"errorfile_{model_name_prefix}") and filename.endswith(".txt"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
