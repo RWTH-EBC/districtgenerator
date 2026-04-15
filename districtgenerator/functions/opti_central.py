@@ -465,7 +465,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.power_waste_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
-    # total energy amounts taken from grid
+    # total energy amounts used
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy imported from the external grid by the neighborhood")
     model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy exported from the neighborhood to the external grid")
     model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals, doc="Sum of all buildings electricity exports to the internal neighborhood grid")
@@ -478,6 +478,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.total_waste_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_oil_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_district_heat_used = pyo.Var(within=pyo.NonNegativeReals)
+    model.total_seasonal_dch = pyo.Var(within=pyo.NonNegativeReals)
+    model.total_seasonal_dch_potential = pyo.Var(within=pyo.NonNegativeReals)
 
     # daily peak
     model.daily_peak = pyo.Var(model.days, within=pyo.Reals)
@@ -1307,6 +1309,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     def total_district_heat_used_rule(model):
         return model.total_district_heat_used == dt * sum(model.power_district_heating_import[t] for t in model.t) / 1000
+    
+    def total_seasonal_dch_rule(model):
+        return model.total_seasonal_dch == dt * sum(model.eh_seasonal_dch[t] for t in model.t) / 1000
+    
+    def total_seasonal_dch_potential_rule(model):
+        return model.total_seasonal_dch_potential == dt * sum(model.seasonal_storage_max_W[t] for t in model.t) / 1000
 
     def to_grid_total_el_buildings_rule(model):
         return model.to_grid_total_el_buildings == dt * sum(model.res_dom_feed[n, t] for n in model.n for t in model.t) / 1000
@@ -1332,6 +1340,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.to_grid_total_el_eh_constraint = pyo.Constraint(rule=to_grid_total_el_eh_rule, doc="to_grid_total_el_eh")
     model.from_grid_total_el_eh_constraint = pyo.Constraint(rule=from_grid_total_el_eh_rule, doc="from_grid_total_el_eh")
     model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
+    model.total_seasonal_dch_constraint = pyo.Constraint(rule=total_seasonal_dch_rule, doc="total_seasonal_dch")
+    model.total_seasonal_dch_potential_constraint = pyo.Constraint(rule=total_seasonal_dch_potential_rule, doc="total_seasonal_dch_potential")
 
     ################################################################################
     # Daily Peak Calculation
@@ -1475,6 +1485,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
     results_dict["total_waste_used"] = pyo.value(model.total_waste_used)
     results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
+    results_dict["total_seasonal_dch"] = pyo.value(model.total_seasonal_dch)
+    results_dict["total_seasonal_dch_potential"] = pyo.value(model.total_seasonal_dch_potential)
     results_dict["from_grid_total_el_buildings"] = pyo.value(model.from_grid_total_el_buildings)
     results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
     results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
@@ -1513,16 +1525,6 @@ def solve_model_and_extract_results(model, data, year, cluster):
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)
     results_dict["Emission_total"] = pyo.value(model.co2_total)
-
-
-    # Seasonal storage utilization
-    total_potential_Wh = sum(pyo.value(model.seasonal_storage_max_W[t]) for t in time_steps) * dt
-    total_used_Wh = sum(results_dict["P_seasonal_storage_used"]) * dt
-    
-    if total_potential_Wh > 0:
-        results_dict["seasonal_storage_utilization"] = total_used_Wh / total_potential_Wh
-    else:
-        results_dict["seasonal_storage_utilization"] = None
 
     ################################################################################
     # Energy Hub results

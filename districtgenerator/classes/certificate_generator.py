@@ -1451,7 +1451,8 @@ class Hinweise(BaseReportFlowable):
                     "Einspeiseerlöse (el.)": "Erlöse durch die Einspeisung von lokal erzeugtem Strom in das übergeordnete Stromnetz auf Basis der Betriebsoptimierung in €/a",
                     "Autarkiegrad": "Anteil der Betriebszeit, in der der lokale Strombedarf vollständig durch die Stromerzeugung im Quartier gedeckt wird (Werte zwischen 0 % und 100 %)",
                     "Supply-Cover-Faktor": "Anteil des aus den Gebäuden des Quartiers ins lokale Netz eingespeisten Stroms, der für den Eigenverbrauch innerhalb des Quartiers durch andere Gebäude genutzt wird (Werte zwischen 0 % und 100 %)",
-                    "Demand-Cover-Faktor": "Anteil des residualen Strombedarfs im Quartier, der durch den von den Gebäuden im Quartier erzeugten und ins lokale Netz eingespeisten Stroms gedeckt wird (Werte zwischen 0 % und 100 %)"
+                    "Demand-Cover-Faktor": "Anteil des residualen Strombedarfs im Quartier, der durch den von den Gebäuden im Quartier erzeugten und ins lokale Netz eingespeisten Stroms gedeckt wird (Werte zwischen 0 % und 100 %)",
+                    "Saisonaler Speicher": "Zur verfügung stehende Jährliche Entnahmeleistung aus saisonalen Speichern in MWh/a. Es wird eine konstante Entnahmeleistung über das Jahr angenommen."
                 },
             "Bezeichnungen für die Quartierstruktur und das Quartierslayout":
                 {
@@ -2704,6 +2705,8 @@ class DataExtractor:
             ["Autarkiegrad:", f"{round(avg_autonomy * 100, 1)} %"],
             ["Supply-Cover Ratio:", f"{round(avg_scf * 100, 1)} %"],
             ["Demand-Cover Ratio:", f"{round(avg_dcf * 100, 1)} %"],
+            # ["Pot. saisonaler Speicher:", f"{round(self.kpis.avg_seasonal_storage_potential/1000, 1)} MWh/a"],
+            # ["Ausnutzungsgrad saisonaler Speicher:", f"{round(self.kpis.avg_seasonal_storage_utilization * 100, 1)} %"]
             # ["Elektifizierungsquote Wärme", f"{round(self.kpis.elec_quote_heat * 100, 1)} %"], # Not currently implemented -> Maybe add later
             # ["Elektrifizierungsquote Fahrzeuge:", f"{round(self.kpis.elec_quote_vehicles * 100, 1)} %"]  # Not currently implemented -> Maybe add later
         ]
@@ -2926,32 +2929,55 @@ class DataExtractor:
                         annual_cost_unsub = round(device_cost_info["unsubsidized_annual_cost"], 2)
 
                 # Get the device name and unit
-                name, unit = self.get_central_device_name(dev)
+                name, base_unit = self.get_central_device_name(dev)
+
+                display_cap, display_unit = self._determine_unit(cap=cap,base_unit= base_unit)
 
                 if cap <= 0:
                     if self.get_language() == "en":
-                        cap = "not selected"
+                        display_cap = "not selected"
                     elif self.get_language() == "de":
-                        cap = "nicht ausgewählt"
+                        display_cap = "nicht ausgewählt"
                     else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
-                    unit = ""
 
                 # Append dict to the device list
                 if self.get_language() == "en":
                     device_list.append({
                         "Device": name, 
-                        "Capacity": f"{cap} {unit}",
+                        "Capacity": f"{display_cap} {display_unit}".strip(),
                         "Ann. Cost (Sub.)": f"{annual_cost_sub} €/a"#,
                         # "Ann. Cost (Unsub.)": f"{annual_cost_unsub} €/a"
                     })
                 elif self.get_language() == "de":
                     device_list.append({
                         "Anlage": name, 
-                        "Kapazität": f"{cap} {unit}",
+                        "Kapazität": f"{display_cap} {display_unit}".strip(),
                         "Anlagenkosten (subv.)": f"{annual_cost_sub} €/a"#,
                         # "Jährl. Kosten (unsubv.)": f"{annual_cost_unsub} €/a"
                     })
                 else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
+
+            seasonal_pot_kWh_a = self.data.heat_grid_data.get('seasonal_storage_kWh_a', 0)
+
+            display_cap, display_unit = self._determine_unit(cap=seasonal_pot_kWh_a, base_unit="Wh")
+
+            if seasonal_pot_kWh_a > 0:
+                
+                annual_cost_sub_seasonal = "-" 
+                
+                if self.get_language() == "en":
+                    device_list.append({
+                        "Device": "Seasonal Heat Storage", 
+                        "Capacity": f"{display_cap} {display_unit}/a".strip(),
+                        "Ann. Cost (Sub.)": f"{annual_cost_sub_seasonal}"
+                    })
+                elif self.get_language() == "de":
+                    device_list.append({
+                        "Anlage": "Saisonaler Speicher", 
+                        "Kapazität": f"{display_cap} {display_unit}/a".strip(),
+                        "Anlagenkosten (subv.)": f"{annual_cost_sub_seasonal} €/a"
+                    })
+
 
             # Create the DataFrame only if devices are present
             if device_list:
@@ -2976,7 +3002,7 @@ class DataExtractor:
             for b_id, devices in self.kpis.decentral_individual_devices_annualized_cost.items():
                 for dev_name, info in devices.items():
                     # Skip Electric Vehicles and virtual measures
-                    if dev_name in ["EV", "T_reduction_measures"]:
+                    if dev_name in ["T_reduction_measures"]:
                         continue
 
                     # Direct access to enforce crash on missing keys
@@ -2994,7 +3020,18 @@ class DataExtractor:
                         aggregated_data[dev_name] = {"count": 0, "total_cap": 0.0, "total_cost": 0.0}
                         
                     # Add to aggregate sum and increment the count
-                    aggregated_data[dev_name]["count"] += 1
+                    if dev_name == "EV":
+                        ev_caps = self.data.district[int(b_id)]["user"].ev_capacity
+                        if ev_caps is None:
+                            ev_caps = []
+                        elif isinstance(ev_caps, (int, float)):
+                            ev_caps = [ev_caps]
+
+                        ev_count = sum(1 for x in ev_caps if float(x) > 0)
+                        aggregated_data[dev_name]["count"] += ev_count
+                    else:
+                        aggregated_data[dev_name]["count"] += 1
+
                     aggregated_data[dev_name]["total_cap"] += cap_float
                     aggregated_data[dev_name]["total_cost"] += cost_float
 
@@ -3002,23 +3039,24 @@ class DataExtractor:
             
             # 2. Format the aggregated data into a list of dictionaries for the DataFrame
             for dev_name, data in aggregated_data.items():
-                name, unit = self.get_decentral_device_name(dev_name)
+                name, base_unit = self.get_decentral_device_name(dev_name)
 
-                total_power = f"{round(data['total_cap'], 1)} {unit}"
+                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=data['total_cap'], base_unit=base_unit)
+                total_power = f"{total_cap_adjusted} {total_unit_adjusted}".strip()
                 ann_cost = f"{round(data['total_cost'], 2)} €/a"    
                     
                 if self.get_language() == "en":
                     device_list.append({
                         "Device": name,
                         "Count": data["count"],
-                        "Total Power": total_power,
+                        "Total Capacity": total_power,
                         "Annual Costs": ann_cost
                     })
                 elif self.get_language() == "de":
                     device_list.append({
                         "Anlage": name,
                         "Anzahl": data["count"],
-                        "Gesamtleistung": total_power,
+                        "Gesamtkapazität": total_power,
                         "Anlagenkosten": ann_cost
                     })
                 else:
@@ -3172,16 +3210,16 @@ class DataExtractor:
         else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
 
 
-        device_unit_map = { # If not specified, default is "kW"
-            "H2S": "kWh",
-            "TES": "kWh",
-            "CTES": "kWh",
-            "BAT": "kWh",
-            "GS": "kWh"
+        device_unit_map = { # If not specified, default is "W"
+            "H2S": "Wh",
+            "TES": "Wh",
+            "CTES": "Wh",
+            "BAT": "Wh",
+            "GS": "Wh"
         }
 
         name = device_name_map[dev]
-        unit = device_unit_map.get(dev, "kW")
+        unit = device_unit_map.get(dev, "W")
 
         return name, unit
     
@@ -3191,7 +3229,7 @@ class DataExtractor:
         Args:
             dev (str): device key (e.g. "HP", "PV", "OBOI").
         Returns:
-            tuple[str, str]: A tuple consisting of the full name and the unit.
+            tuple[str, str]: A tuple consisting of the full name and the base unit (W or Wh) without any prefixes.
         """
         # TODO: Check translations and full names (en & de)
         if self.get_language() == "en":
@@ -3209,6 +3247,7 @@ class DataExtractor:
                 "heat_grid": "Local Heat Grid",
                 "PV": "Photovoltaic",
                 "STC": "Solar Thermal Collector",
+                "EV": "Electric Vehicle",
 
                 # Cooling
                 "CC": "Compression Chiller",
@@ -3237,6 +3276,7 @@ class DataExtractor:
                 "heat_grid": "Nahwärmenetz",
                 "PV": "Photovoltaik",
                 "STC": "Solarthermie Kollektor",
+                "EV": "Elektrofahrzeug",
 
                 # Cooling
                 "CC": "Kompr.-Kältemaschine",
@@ -3252,16 +3292,49 @@ class DataExtractor:
             }
         else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
 
-        device_unit_map = {  # If not specified, default is "kW"
-            "BAT": "kWh",
-            "TES": "kWh",
-            "EV": "kWh",
+        device_unit_map = {  # If not specified, default is "W"
+            "BAT": "Wh",
+            "TES": "Wh",
+            "EV": "Wh",
         }
 
         # All devices
         name = device_name_map.get(dev, dev)
-        unit = device_unit_map.get(dev, "kW")
-        return name, unit
+        base_unit = device_unit_map.get(dev, "W")
+        return name, base_unit
+    
+    @staticmethod
+    def _determine_unit(cap: float, base_unit: str) -> tuple[float, str]:
+        """
+        Determines the appropriate unit (kW, MW, kWh, MWh) based on the capacity value and the base unit. Input cap is expected to be in kW or kWh.
+
+        Args:
+            cap (float): The capacity value.
+            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh").
+
+        Returns:
+            tuple[float, str]: A tuple containing the adjusted capacity and the appropriate unit.
+        """
+
+        
+        if cap <= 0:
+            adjusted_cap = cap
+            adjusted_unit = ""  # No prefix for zero or negative values
+        elif cap >= 1000000:
+            adjusted_cap = round(cap / 1000000, 2)
+            adjusted_unit = "G" + base_unit  # Giga
+        elif cap >= 1000:
+            adjusted_cap = round(cap / 1000, 2)
+            adjusted_unit = "M" + base_unit  # Mega
+        elif cap >= 1:
+            adjusted_cap = round(cap, 2)
+            adjusted_unit = "k" + base_unit  # Kilo
+        else:
+            adjusted_cap = round(cap * 1000, 2)
+            adjusted_unit = base_unit
+
+        return adjusted_cap, adjusted_unit
+
 
     def get_kennwerte(self):
         return self.kennwerte

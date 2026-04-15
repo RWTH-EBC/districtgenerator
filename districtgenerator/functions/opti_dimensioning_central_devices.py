@@ -579,15 +579,15 @@ def build_model(model, data, devs, param, dem):
         else:
             weights[year] = n - year # time from last support year to end of observation period
 
-    # Calculate the NPV for energy and miscellaneous costs
+    # Calculate the NPV for energy and miscellaneous costs (According to VDI 2067 Blatt 1)
     # Use geometric series formula: sum(1/q^(year+k) for k in 0..n-1) = (1/q^year) * (1 - (1/q)^n) / (1 - 1/q)
     npv_energy = 0
     npv_misc = 0
     for idx, year in enumerate(sorted_years):
         interval_length = weights[year]
         # Calculate discount factor for this interval using geometric series formula
-        if i != 0:  # If interest rate is not zero
-            base_discount = 1 / (q ** year)
+        if i != 0:
+            base_discount = 1 / (q ** (year+1)) # Use year+1 as norm refers to the first year with index 1, but here the index starts with 0. This means that the year i refers to the year i+1 in the norm and an index shift of 1 is needed
             interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
             discount_factor = base_discount * interval_factor
         else:  # If interest rate is zero, discount factor is simply the interval length
@@ -605,7 +605,7 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.annualized_energy_costs == npv_energy * annuity_factor)
     model.constraints.add(model.annualized_misc_costs == npv_misc * annuity_factor)
 
-    # Total annual costs (According to VDI 2067 Blatt 1:)
+    # Total annual costs (According to VDI 2067 Blatt 1)
     # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
     model.constraints.add(model.obj_tac == model.total_annual_costs_devices  # Cost associated with devices (inv and om)
                           + model.total_connection_costs  # Cost for connection to el and gas grid
