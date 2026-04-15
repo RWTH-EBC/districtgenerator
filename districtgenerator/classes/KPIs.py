@@ -420,7 +420,7 @@ class KPIs:
 
             # HP temperature measures
             # Only count measures if HP exists and low temperature measures applied
-            if capacities[n]["HP"] > 0 and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.decentral_device_data.get("HP", {}).get("enable_low_temp_measures")):
+            if (capacities[n]["HP"] > 0 and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.decentral_device_data.get("HP", {}).get("enable_low_temp_measures"))):
                 heatload_kw = district[n]["envelope"].heatload / 1000  # kW
                 inv_eur_per_kw = data.decentral_device_data["HP"]["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw  # €
@@ -432,6 +432,23 @@ class KPIs:
                 calc_annual_investment_unsubsidized[n] += ann_cost_meas
 
                 self.decentral_individual_devices_annualized_cost[n]["T_reduction_measures"] = {
+                    "cap": heatload_kw,
+                    "subsidized_annual_cost": ann_cost_meas,
+                    "unsubsidized_annual_cost": ann_cost_meas,
+                }
+
+            # Low-temperature measures for heat-grid buildings
+            if (district[n]["buildingFeatures"]["heater"] == "heat_grid" and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
+                heatload_kw = district[n]["envelope"].heatload / 1000
+                inv_eur_per_kw = data.heat_grid_data["low_temp_measures_inv_fix"]
+                inv_total = inv_eur_per_kw * heatload_kw
+
+                ann_cost_meas = self.calc_annualized_investment(inv_total, data.ecoData)
+
+                calc_annual_investment[n] += ann_cost_meas
+                calc_annual_investment_unsubsidized[n] += ann_cost_meas
+
+                self.decentral_individual_devices_annualized_cost[n]["T_reduction_measures_heat_grid"] = {
                     "cap": heatload_kw,
                     "subsidized_annual_cost": ann_cost_meas,
                     "unsubsidized_annual_cost": ann_cost_meas,
@@ -730,7 +747,7 @@ class KPIs:
                 fixed_cost_heat = 0.0
                 heater_type = data.district[n]["buildingFeatures"]["heater"]
 
-                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "TES_DHW", "STC", "T_reduction_measures"}
+                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "TES_DHW", "STC", "T_reduction_measures", "T_reduction_measures_heat_grid"}
 
                 # Fixed cost allocation
                 for dev, info in self.decentral_individual_devices_annualized_cost.get(n, {}).items():

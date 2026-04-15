@@ -11,6 +11,34 @@ import textwrap
 from tqdm import tqdm
 
 def network_operation(data, param):
+    """
+       Perform steady-state operation of the district heating network.
+
+       Based on the previously designed network (fixed topology and pipe diameters),
+       this function computes thermal and economic performance during operation.
+
+       Steps
+       -----
+       1. Solve network temperatures along all pipes and nodes
+       2. Calculate heat losses in each pipe segment
+       3. Generate plots of network performance
+       4. Compute and store network-related costs
+
+       Parameters
+       ----------
+       data : object
+           Main data container holding network topology, building demands,
+           and design results.
+       param : dict
+           Dictionary containing model parameters and intermediate results
+           from the design phase.
+
+       Returns
+       -------
+       data : object
+           Updated data object including temperatures, heat losses,
+           and cost results.
+   """
 
     # 1. Solve network temperatures
     data, param = compute_network_temperatures(data, param)

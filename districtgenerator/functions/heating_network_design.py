@@ -147,8 +147,12 @@ def load_parameter(data):
         buildings_heating_curve = building["envelope"].heating_curve["unclustered"]
 
         # Required supply and return temperatures
-        Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve"], dtype=float) + dT_HX_sup
-        Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve"], dtype=float) + dT_HX_ret
+        if data.heat_grid_data["enable_low_temp_measures"] == True:
+            Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve_reduced"], dtype=float) + dT_HX_sup
+            Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve_reduced"], dtype=float) + dT_HX_ret
+        else:
+            Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve"], dtype=float) + dT_HX_sup
+            Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve"], dtype=float) + dT_HX_ret
 
         Ts_req_DHW = T_dhw_required + dT_HX_sup
         Tr_req_DHW = 30.0  # Assume the return temperature at the primary side of DHW is 30 °C
