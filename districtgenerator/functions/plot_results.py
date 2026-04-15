@@ -928,10 +928,151 @@ def plot_co2_by_year_from_csv(
     return out
 
 
+def plot_tac_sum_from_three_scenarios(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    show_percent_box=False,
+):
+    """
+    Plot TAC-Summe (3 Quartiere) für Verbund vs. Einzeloptimierung.
+
+    Erwartet:
+    - scenario_names: Liste/Tuple mit genau 3 Szenario-Namen
+    - Dateien je Szenario:
+      - <scenario>_network_results.csv  (Verbund)
+      - <scenario>_results.csv          (Einzeln)
+
+    CSV-Filter:
+    - category == "optimization"
+    - metric   == "tac_distr"
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_tac(csv_path):
+        tac_sum = 0.0
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "tac_distr":
+                    continue
+                v = _parse_value(row.get("value"))
+                try:
+                    tac_sum += float(v)
+                except Exception:
+                    continue
+        return tac_sum
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    total_vb = 0.0
+    total_ez = 0.0
+    details = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+        if not os.path.isfile(network_path):
+            raise FileNotFoundError(f"Missing file: {network_path}")
+        if not os.path.isfile(single_path):
+            raise FileNotFoundError(f"Missing file: {single_path}")
+
+        vb = _read_tac(network_path)
+        ez = _read_tac(single_path)
+
+        total_vb += vb
+        total_ez += ez
+        details[sc] = {"network": vb, "single": ez}
+
+    x = np.arange(2)
+    y = [total_vb, total_ez]
+    labels = ["Verbund", "Einzeln"]
+    colors = ["#D40000", "#55585C"]
+
+    plt.figure(figsize=(7, 4.5))
+    bars = plt.bar(x, y, color=colors, width=0.55)
+
+    if show_percent_box:
+        ymax = max(max(y), 1.0)
+        plt.ylim(0, ymax * 1.30)
+        y_offset = ymax * 0.06
+
+        if total_ez == 0:
+            text = "n/a" if total_vb == 0 else "+∞"
+        else:
+            text = _fmt_pct((total_vb - total_ez) / total_ez * 100.0)
+
+        plt.text(
+            bars[0].get_x() + bars[0].get_width() / 2,
+            total_vb + y_offset,
+            text,
+            ha="center",
+            va="bottom",
+            color="white",
+            fontsize=12,
+            bbox=dict(
+                boxstyle="square,pad=0.35",
+                facecolor="#D40000",
+                edgecolor="#D40000",
+                linewidth=1.2,
+            ),
+            zorder=5,
+        )
+
+    plt.xticks(x, labels)
+    plt.ylabel("TAC-Summe [€]")
+    plt.title(titel or "TAC-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
+    plt.grid(axis="y", alpha=0.4)
+    plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+    plt.tight_layout()
+
+    plot_name = "tac_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return {
+        "scenario_names": list(scenario_names),
+        "network_sum": total_vb,
+        "single_sum": total_ez,
+        "details": details,
+        "plot_path": plot_path,
+    }
+
+
+
 
 
 
 if __name__ == "__main__":
+    plot_tac_sum_from_three_scenarios(scenario_names=["1rural", "6urban", "4zb"],show=True,show_percent_box=True,titel="TAC Summe 3 Quartiere",
+)
     # plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im ländlichen Quartier")
     # plot_device_capacities_from_csv(scenario_name="urban", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im städtischen Quartier")
 
@@ -941,9 +1082,9 @@ if __name__ == "__main__":
     # plot_heat_generation_by_year_from_csv("rural", titel="Wärmeproduktion im ländlichen Quartier", show=True)
     # plot_heat_generation_by_year_from_csv("urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
     
-    plot_power_import_by_year_from_csv("1rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv("urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv("4zb", titel="Strombezug im Quartier Zeilenbebauung", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv("1rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv("urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv("4zb", titel="Strombezug im Quartier Zeilenbebauung", show=True, show_percent_box=True)
     
     # plot_lcoe_by_year_from_csv("rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
     # plot_lcoe_by_year_from_csv("urban", titel="Energiegestehungskosten im städtischen Quartier", show=True, show_percent_box=True)
