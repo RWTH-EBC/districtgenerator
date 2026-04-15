@@ -1040,7 +1040,7 @@ class EnergyHub(BaseReportFlowable):
         # Handle empty data
         if data_energyhub is None or data_energyhub.empty:
             box = FrameBox(title="Energiesysteme des Energy Hubs")
-            p = Paragraph("Es wurden keine zentralen Energieanlagen ausgelegt", style.get_paragraph_styles()['Normal'])
+            p = Paragraph("Es wurden keine zentralen Energiesysteme ausgelegt", style.get_paragraph_styles()['Normal'])
             box.set_content(cls(content_flowable=p))
             boxes.append(box)
             return boxes
@@ -1115,7 +1115,7 @@ class DecentralSystems(BaseReportFlowable):
         # Handle empty data
         if data_decentral is None or data_decentral.empty:
             box = FrameBox(title="Dezentrale Energiesysteme")
-            p = Paragraph("Es wurden keine dezentralen Energieanlagen ausgelegt", style.get_paragraph_styles()['Normal'])
+            p = Paragraph("Es wurden keine dezentralen Energiesysteme ausgelegt", style.get_paragraph_styles()['Normal'])
             box.set_content(cls(content_flowable=p))
             boxes.append(box)
             return boxes
@@ -2962,7 +2962,7 @@ class DataExtractor:
 
         except (KeyError, AttributeError) as e:
             # If no central devices are defined, set energyhub_df to None
-            if self.data.centralDevices is None: # if truly no central devices are defined
+            if "capacities" not in self.data.centralDevices: # if truly no central devices are defined
                 self.energyhub_df = None
             else: 
                 raise Exception(f"Error extracting energyhub data. Please check the structure of centralDevices and central_device_data in the input data.\n Caused error: {e}")

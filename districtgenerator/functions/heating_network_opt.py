@@ -358,9 +358,25 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
         loads_array = pipe_loads[(parent, child)]
         flow_array = loads_array * 1000 / (c_f * deltaT * rho_f)  # m³/s
         # Retrieve the maximum and minimum flow rates, and convert the data type to float.
-        flow_max = float(np.max(flow_array[flow_array > 1e-6]))   # m³/s
-        flow_min = float(np.min(flow_array[flow_array > 1e-6]))   # m³/s
-
+        try:
+            flow_max = float(np.max(flow_array[flow_array > 1e-6]))   # m³/s
+            flow_min = float(np.min(flow_array[flow_array > 1e-6]))   # m³/s
+        except ValueError:
+            raw_max = float(np.max(flow_array)) if len(flow_array) > 0 else "Array is empty"
+            raw_min = float(np.min(flow_array)) if len(flow_array) > 0 else "Array is empty"
+            array_length = len(flow_array)
+            error_msg = (
+                f"All flow values are zero or negative (<= 1e-6) for pipe {pipe_id}.\n"
+                f"The pipe connects node {parent} (pos: {pos_parent}) and node {child} (pos: {pos_child}) with length {length:.2f} m.\n"
+                f"Additional Debug information for the flow_array:\n"
+                f"  - max Value:  {raw_max}\n"
+                f"  - min Value:  {raw_min}\n"
+                f"  - Number of Values: {array_length}\n"
+                f"Please check the input data and especially if two buildings are located at the same position.\n"
+                f"{'='*50}"
+            )
+            raise ValueError(error_msg)
+        
         # store into data.pipeline
         if pipe_id not in data.pipeline:
             # first time to create a new distionary

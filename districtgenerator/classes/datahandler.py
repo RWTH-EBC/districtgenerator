@@ -2716,22 +2716,18 @@ class Datahandler:
         scenario_rows = []
         accepted_wkb_rows = []
 
-        new_id = 0
-
         for row_index, row in wkb_data.iterrows():
             transformed_row = validate_and_transform_row(row, row_index)
             if transformed_row is None:
                 continue
 
-            transformed_row["id"] = new_id
+            transformed_row["id"] = transformed_row.get("alkis_id", f"building_row_{row_index}")
             scenario_rows.append(transformed_row)
 
             # Store the original WKB row for traceability
             wkb_row = row.to_dict()
-            wkb_row["id"] = new_id
+            wkb_row["id"] = transformed_row.get("alkis_id", f"building_row_{row_index}")
             accepted_wkb_rows.append(wkb_row)
-
-            new_id += 1
 
         scenario_df = pd.DataFrame(scenario_rows)
         accepted_wkb_df = pd.DataFrame(accepted_wkb_rows)
@@ -2768,7 +2764,8 @@ class Datahandler:
         for building in self.district:
             if building["buildingFeatures"]["heater"] == "heat_grid":
                 pos = building["buildingFeatures"]["position"]
-                building_dict = {"building": building["unique_name"],
+                building_dict = {"id": building["buildingFeatures"]["id"],
+                                 "building": building["unique_name"],
                                  "position": pos}
                 buildings_info.append(building_dict)
 
@@ -2815,15 +2812,12 @@ class Datahandler:
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
-        i = 0
         for building in self.district:
             if building["buildingFeatures"]["heater"] == "heat_grid":
-                pos = building["buildingFeatures"]["position"]
-                building_dict = {"id": i,
+                building_dict = {"id": building["buildingFeatures"]["id"],
                                  "building": building["unique_name"],
-                                 "position": pos}
+                                 "position": building["buildingFeatures"]["position"]}
                 buildings_info.append(building_dict)
-                i += 1
 
         with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
