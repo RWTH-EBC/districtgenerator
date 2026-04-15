@@ -2153,7 +2153,7 @@ class Datahandler:
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
             self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-            self.heat_grid_data["seasonal_storage_cluster"] = newProfiles[index_central + 2]
+            self.heat_grid_data["seasonal_storage_cluster_kW"] = newProfiles[index_central + 2]
             self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 3]
             self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 4]
             self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 5]
