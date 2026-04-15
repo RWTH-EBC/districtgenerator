@@ -605,6 +605,168 @@ def plot_power_import_by_year_from_csv(
         print("No plots created.")
     return out
 
+def plot_power_export_by_year_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+):
+    """
+    Plot yearly electricity import (MWh) as paired bars (Verbund vs Einzeln).
+
+    Metrics (category='yearly_totals'):
+    - to_el_main_grid_total  -> Stromeinspeisung in das Hauptnetz
+    - to_network_total       -> Stromeinspeisung in das Verbundnetz
+    """
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_yearly_import(csv_path):
+        out = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "yearly_totals":
+                    continue
+                metric = row.get("metric")
+                if metric not in ("to_el_main_grid_total", "to_network_total"):
+                    continue
+                try:
+                    y = int(float(row.get("year")))
+                    v = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+                out.setdefault(y, {"to_el_main_grid_total": 0.0, "to_network_total": 0.0})
+                out[y][metric] = v
+        return out
+
+    if scenario_name is None:
+        scenario_names = []
+        for fn in os.listdir(base_dir):
+            if fn.endswith("_network_results.csv"):
+                sc = fn.replace("_network_results.csv", "")
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                    scenario_names.append(sc)
+        scenario_names = sorted(set(scenario_names))
+    else:
+        scenario_names = [scenario_name] if isinstance(scenario_name, str) else list(scenario_name)
+
+    if not scenario_names:
+        raise FileNotFoundError("No scenario pairs found (*_network_results.csv + *_results.csv).")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    out = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
+            print(f"Skip '{sc}': pair not complete.")
+            continue
+
+        vb = _read_yearly_import(network_path)
+        ez = _read_yearly_import(single_path)
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            print(f"Skip '{sc}': no yearly_totals import data found.")
+            continue
+
+        x = np.arange(len(years) * 2)
+        labels = []
+        vb_main, vb_net, ez_main, ez_net = [], [], [], []
+
+        for y in years:
+            cal_y = base_calendar_year + y
+            labels.extend([f"{cal_y}\nVB", f"{cal_y}\nEZ"])
+
+            vb_main.append(vb.get(y, {}).get("to_el_main_grid_total", 0.0))
+            vb_net.append(vb.get(y, {}).get("to_network_total", 0.0))
+
+            ez_main.append(ez.get(y, {}).get("to_el_main_grid_total", 0.0))
+            ez_net.append(ez.get(y, {}).get("to_network_total", 0.0))
+
+        vals_vb_main = np.array(vb_main, dtype=float)
+        vals_vb_net = np.array(vb_net, dtype=float)
+        vals_ez_main = np.array(ez_main, dtype=float)
+        vals_ez_net = np.array(ez_net, dtype=float)
+
+        # Interleave: [VB(y1), EZ(y1), VB(y2), EZ(y2), ...]
+        y_main = np.empty(len(x), dtype=float)
+        y_net = np.empty(len(x), dtype=float)
+        y_main[0::2] = vals_vb_main
+        y_main[1::2] = vals_ez_main
+        y_net[0::2] = vals_vb_net
+        y_net[1::2] = vals_ez_net
+
+        plt.figure(figsize=(8, 5))
+        width = 0.5
+
+        # Hauptnetz-Balken
+        colors_main = ["#E43D30" if i % 2 == 0 else "#B9BABC" for i in range(len(x))]
+        plt.bar(x, y_main, width=width, color=colors_main)
+
+        # Verbundnetz gestapelt
+        colors_net = ["#8C1D17" if i % 2 == 0 else "#8A8B8D" for i in range(len(x))]
+        plt.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
+
+
+        plt.xticks(x, labels)
+        plt.ylabel("Energie in MWh")
+        plt.title(titel or sc)
+        plt.grid(axis="y", alpha=0.4)
+        plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        handles, legend_labels = [], []
+        if np.any(vals_vb_main > 0):
+            handles.append(plt.Rectangle((0, 0), 1, 1, fc="#E43D30"))
+            legend_labels.append("Verbund Stromeinspeisung in das Hauptnetz")
+        if np.any(vals_ez_main > 0):
+            handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
+            legend_labels.append("Einzeln Stromeinspeisung in das Hauptnetz")
+        if np.any(vals_vb_net > 0):
+            handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
+            legend_labels.append("Verbund Stromeinspeisung in das Verbundnetz")
+        if np.any(vals_ez_net > 0):
+            handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
+            legend_labels.append("Einzeln Stromeinspeisung in das Verbundnetz")
+
+        if handles:
+            plt.legend(
+                handles,
+                legend_labels,
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.14),
+                ncol=2,
+                frameon=False,
+            )
+
+        plt.tight_layout(rect=[0, 0.08, 1, 1])
+
+        plot_path = os.path.join(plots_dir, titel + ".png")
+        plt.savefig(plot_path, dpi=150)
+        print(f"Plot saved: {plot_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if not out:
+        print("No plots created.")
+    return out
+
 
 def plot_lcoe_by_year_from_csv(
     scenario_name=None,
@@ -1071,23 +1233,31 @@ def plot_tac_sum_from_three_scenarios(
 
 
 if __name__ == "__main__":
-    plot_tac_sum_from_three_scenarios(scenario_names=["1rural", "6urban", "4zb"],show=True,show_percent_box=True,titel="TAC Summe 3 Quartiere",
-)
-    # plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im ländlichen Quartier")
-    # plot_device_capacities_from_csv(scenario_name="urban", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im städtischen Quartier")
+    plot_tac_sum_from_three_scenarios(scenario_names=["1rural", "6urban", "4zb"],show=True,show_percent_box=True,titel="TAC Summe 3 Quartiere")
+    plot_device_capacities_from_csv(scenario_name="1rural", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im ländlichen Quartier")
+    plot_device_capacities_from_csv(scenario_name="6urban", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im städtischen Quartier")
+    plot_device_capacities_from_csv(scenario_name="4zb", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im Quartier Zeilenbebauung")
 
-    # plot_device_capacities_from_csv(scenario_name="rural", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im ländlichen Quartier", plot_tes_only=True)
-    # plot_device_capacities_from_csv(scenario_name="urban", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im städtischen Quartier", plot_tes_only=True)
+    plot_device_capacities_from_csv(scenario_name="1rural", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im ländlichen Quartier", plot_tes_only=True)
+    plot_device_capacities_from_csv(scenario_name="6urban", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im städtischen Quartier", plot_tes_only=True)
+    plot_device_capacities_from_csv(scenario_name="4zb", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im städtischen Quartier", plot_tes_only=True)
     
-    # plot_heat_generation_by_year_from_csv("rural", titel="Wärmeproduktion im ländlichen Quartier", show=True)
-    # plot_heat_generation_by_year_from_csv("urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
+    plot_heat_generation_by_year_from_csv("1rural", titel="Wärmeproduktion im ländlichen Quartier", show=True)
+    plot_heat_generation_by_year_from_csv("6urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
+    plot_heat_generation_by_year_from_csv("4zb", titel="Wärmeproduktion im städtischen Quartier", show=True)
     
-    # plot_power_import_by_year_from_csv("1rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
-    # plot_power_import_by_year_from_csv("urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
-    # plot_power_import_by_year_from_csv("4zb", titel="Strombezug im Quartier Zeilenbebauung", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv("1rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv("6urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv("4zb", titel="Strombezug im Quartier Zeilenbebauung", show=True, show_percent_box=True)
+
+    plot_power_export_by_year_from_csv("1rural", titel="Stromeinspeisung im ländlichen Quartier", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv("6urban", titel="Stromeinspeisung im städtischen Quartier", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv("4zb", titel="Stromeinspeisung im Quartier Zeilenbebauung", show=True, show_percent_box=True)
+
+    plot_lcoe_by_year_from_csv("1rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
+    plot_lcoe_by_year_from_csv("6urban", titel="Energiegestehungskosten im städtischen Quartier", show=True, show_percent_box=True)
+    plot_lcoe_by_year_from_csv("4zb", titel="Energiegestehungskosten im Quartier Zeilenbebauung", show=True, show_percent_box=True)
     
-    # plot_lcoe_by_year_from_csv("rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
-    # plot_lcoe_by_year_from_csv("urban", titel="Energiegestehungskosten im städtischen Quartier", show=True, show_percent_box=True)
-    
-    # plot_co2_by_year_from_csv("rural",titel="CO₂-Emissionen im ländlichen Quartier",show=True,show_percent_box=True)
-    # plot_co2_by_year_from_csv("urban",titel="CO₂-Emissionen im städtischen Quartier",show=True,show_percent_box=True)
+    plot_co2_by_year_from_csv("1rural",titel="CO₂-Emissionen im ländlichen Quartier",show=True,show_percent_box=True)
+    plot_co2_by_year_from_csv("6urban",titel="CO₂-Emissionen im städtischen Quartier",show=True,show_percent_box=True)
+    plot_co2_by_year_from_csv("4zb",titel="CO₂-Emissionen im Quartier Zeilenbebauung",show=True,show_percent_box=True)
