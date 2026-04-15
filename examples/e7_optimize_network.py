@@ -56,7 +56,7 @@ def example7_optimize_heatingnetwork():
 
     data.generateNetwork(topology_option = topology_option)
 
-    data.optimization_heatingnetwork()
+    data.run_heatingnetwork()
 
     ### =====================================  Output  ===================================== ###
     # The solution of the Gurobi optimizer (diameters, pump capacity, heat loss and so on)

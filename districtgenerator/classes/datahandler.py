@@ -30,8 +30,8 @@ import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
-#from districtgenerator.functions.heating_network_opt import network_optimization
-from districtgenerator.functions.heating_network_opt_new import network_design
+from districtgenerator.functions.heating_network_design import network_design
+from districtgenerator.functions.heating_network_operation import network_operation
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
@@ -1230,7 +1230,7 @@ class Datahandler:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
-                self.optimization_heatingnetwork()
+                self.run_heatingnetwork()
                 self.designCentralDevices(saveGenerationProfiles=True)
                 self.finalizeClusterProfiles()
         else:
@@ -2294,23 +2294,16 @@ class Datahandler:
         self.pipeline_nodes = jsonData.get("nodes", {})
         self.pipeline_topology = jsonData.get("edges", {})
 
-    def optimization_heatingnetwork(self):
+    def run_heatingnetwork(self):
         """
-        Optimize the diameter of each pipeline segments.
-
-        The heating system generation and temperature mode is selected in heat_grid.json.
-        Heating system generation: "3rd", "4th" or "5th"
-            Each heating generation corresponds to different supply and return water temperatures.
-        Temperature mode: "Constant" or "Heating_curve"
-            Constant: The supply and return temperature is set as a constant value.
-            Heating_curve(Variable-constant operation mode): controlled within limits depending on the outdoor temperature
+        design and operate the heating network
 
         Returns
         -------
         None.
         """
-#        network_optimization(self)
-        network_design(self)
+        _, param = network_design(self)
+        network_operation(self, param)
 
 def generate_demands_worker_wrapper(args):
     """
