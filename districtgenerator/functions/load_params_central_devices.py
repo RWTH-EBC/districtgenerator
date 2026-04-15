@@ -62,10 +62,17 @@ def load_params(data):
     electricityEV = np.zeros(len(data.district[0]["user"].EV_carcharging_ondemand))
     generationPV = np.zeros(len(data.district[0]["generationPV"]))
     generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
+    net_heat_demand = np.zeros(len(data.district[0]["user"].heat))
 
     for b in range(len(data.district)):
         # Only relevant if buildings are connected to the heat grid
         if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
+            local_heat = data.district[b]["user"].heat / 1000
+            local_dhw = data.district[b]["user"].dhw / 1000
+            local_stc = data.district[b]["generationSTC"] / 1000
+            local_net_demand = np.maximum(0, local_heat + local_dhw - local_stc) # Unidirectional flow assumption: Local excess heat through STC cannot be fed into the heat grid
+            net_heat_demand += local_net_demand
+
             heating += data.district[b]["user"].heat / 1000 # kW
             cooling += data.district[b]["user"].cooling / 1000 # kW
             dhw += data.district[b]["user"].dhw / 1000 # kW
@@ -76,7 +83,10 @@ def load_params(data):
         electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
         generationPV += data.district[b]["generationPV"] / 1000 # kW
 
-    heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
+    heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"] - heat_grid_data["seasonal_storage"]
+
+    # Clip heating_total to a minimum of 0, since negative heating demand (excess heat) as local surplus by STC or through seasonal storage should not be able to be stored into storage systems in the Energy hub, assuming a unidirectional flow
+    heating_total = np.maximum(heating_total, 0)
 
     if "total_losses_cooling_network" not in heat_grid_data:
         data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)

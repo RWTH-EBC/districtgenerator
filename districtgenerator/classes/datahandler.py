@@ -804,7 +804,7 @@ class Datahandler:
 
             # Store features of the observed building
             building["buildingFeatures"] = row.copy()
-            building["buildingFeatures"]["original_bldg_id"] = bldg_id
+            building["buildingFeatures"]["original_bldg_id"] = bldg_id # Used for tracking the building throughout the mixed building splitting and combining process
 
             # Unique name = "<scenario>_<id>_<building type>"
             name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
@@ -1379,15 +1379,22 @@ class Datahandler:
             if missing_positions:
                 print("No district geometry found — running simple heating network design.")
                 heating_network_simple.heating_network(self)
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
             else:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork()
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
+
+            # initialize the seasonal storage for the heat grid
+            seasonal_storage_kWh_a = self.heat_grid_data["seasonal_storage_kWh_a"]
+            # Convert kWh/a to kW (assuming constant supply throughout the year)
+            seasonal_storage_kW_max = seasonal_storage_kWh_a / (365 * 24) # Currently assumes a constant supply throughout the year.
+            seasonal_storage_kW = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * seasonal_storage_kW_max
+            self.heat_grid_data["seasonal_storage"] = seasonal_storage_kW
+
+            self.designCentralDevices(saveGenerationProfiles=True)
+            self.finalizeClusterProfiles()
+            
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
@@ -1906,6 +1913,7 @@ class Datahandler:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
+            adjProfiles["seasonal_storage"] = self.heat_grid_data["seasonal_storage"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
@@ -2019,6 +2027,10 @@ class Datahandler:
             scalings.append(False)
 
             inputsClustering.append(adjProfiles["losses_cooling_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["seasonal_storage"])
             weights.append(0)
             scalings.append(False)
 
@@ -2141,10 +2153,11 @@ class Datahandler:
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
             self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 2]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
+            self.heat_grid_data["seasonal_storage_cluster"] = newProfiles[index_central + 2]
+            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 3]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 4]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 5]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 6]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]

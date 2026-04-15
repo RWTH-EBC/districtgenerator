@@ -436,6 +436,8 @@ class HeatGridConfig(BaseSettings):
     cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
+    seasonal_storage_kWh_a: float = 0 # Seasonal storage capacity at the location in kWh/a -> Which offers a constant supply of energy throughout the year without any associated cost or emissions.
+
 
     T_hot_heating_network__constant__3rd: float = 80.0  # Supply temperature of 3rd generation heat grid in degrees Celsius.
     T_hot_heating_network__constant__4th: float = 55.0  # Supply temperature of 4th generation heat grid in degrees Celsius.
@@ -520,6 +522,24 @@ class HeatGridConfig(BaseSettings):
                         if attr_name.startswith(prefix):
                             delattr(self, attr_name)
         
+        return self
+    
+    @model_validator(mode='after')
+    def validate_inputs(self) -> 'HeatGridConfig':
+        """Validate that the input parameters are consistent with the selected generation and temperature mode."""
+        valid_generations = ["3rd", "4th", "5th"]
+        valid_temperature_modes = ["constant", "heating_curve"]
+        valid_topology_options = ["node", "road"]
+
+        if self.generation not in valid_generations:
+            raise ValueError(f"Invalid generation: {self.generation}. Must be one of {valid_generations}.")
+
+        if self.temperature_mode not in valid_temperature_modes:
+            raise ValueError(f"Invalid temperature_mode: {self.temperature_mode}. Must be one of {valid_temperature_modes}.")
+        
+        if self.topology_option not in valid_topology_options:
+            raise ValueError(f"Invalid topology_option: {self.topology_option}. Must be one of {valid_topology_options}.")
+
         return self
     
 

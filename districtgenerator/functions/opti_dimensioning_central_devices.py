@@ -10,18 +10,22 @@ This script is a Pyomo-based translation of the original Gurobi model.
 import pyomo.environ as pyo
 import gurobipy as gp
 from pyomo.util.infeasible import log_infeasible_constraints
-import sys
-from io import StringIO
-import numpy as np
 import time
-from datetime import datetime
 import os
-import matplotlib.pyplot as plt
-import textwrap
-import json
 import districtgenerator.functions.solver_config as solver_config
-from contextlib import redirect_stdout
 
+ALL_DEVS = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
+            "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
+            "CTES", "BAT", "GS"] # "from_grid", "to_grid", "import", "export" are not included here as they are not actual devices but rather represent grid interactions or waste heat utilization and therefore typical investment and capacity constraints do not apply to them
+GAS_DEVS = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
+POWER_DEVS = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
+HEAT_DEVS = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+COOL_DEVS = ["CC", "AC"]
+HYDROGEN_DEVS = ["ELYZ", "FC", "SAB", "import"]
+BIOM_DEVS = ["BCHP", "BBOI", "import"]
+WASTE_DEVS = ["WCHP", "WBOI", "import"]
+STORAGE_DEVS = ["TES", "CTES", "BAT", "H2S", "GS"]
+AREA_DEVS = ["PV", "STC"]
 
 def run_optim(data, devs, param, dem, result_dict):
     """
@@ -93,30 +97,16 @@ def build_model(model, data, devs, param, dem):
     model.observation_time = pyo.Param(initialize=param["observation_time"])
 
     # Create sets for all device types
-    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
-                     "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
-                     "CTES", "BAT", "GS"]
-
-    gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
-    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
-    heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
-    cool_devs_list = ["CC", "AC"]
-    hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
-    biom_devs_list = ["BCHP", "BBOI", "import"]
-    waste_devs_list = ["WCHP", "WBOI", "import"]
-    storage_devs_list = ["TES", "CTES", "BAT", "H2S", "GS"]
-    area_devs_list = ["PV", "STC"]
-
-    model.all_devs = pyo.Set(initialize=all_devs_list)
-    model.gas_devs = pyo.Set(initialize=gas_devs_list)
-    model.power_devs = pyo.Set(initialize=power_devs_list)
-    model.heat_devs = pyo.Set(initialize=heat_devs_list)
-    model.cool_devs = pyo.Set(initialize=cool_devs_list)
-    model.hydrogen_devs = pyo.Set(initialize=hydrogen_devs_list)
-    model.biom_devs = pyo.Set(initialize=biom_devs_list)
-    model.waste_devs = pyo.Set(initialize=waste_devs_list)
-    model.storage_devs = pyo.Set(initialize=storage_devs_list)
-    model.area_devs = pyo.Set(initialize=area_devs_list)
+    model.all_devs = pyo.Set(initialize=ALL_DEVS)
+    model.gas_devs = pyo.Set(initialize=GAS_DEVS)
+    model.power_devs = pyo.Set(initialize=POWER_DEVS)
+    model.heat_devs = pyo.Set(initialize=HEAT_DEVS)
+    model.cool_devs = pyo.Set(initialize=COOL_DEVS)
+    model.hydrogen_devs = pyo.Set(initialize=HYDROGEN_DEVS)
+    model.biom_devs = pyo.Set(initialize=BIOM_DEVS)
+    model.waste_devs = pyo.Set(initialize=WASTE_DEVS)
+    model.storage_devs = pyo.Set(initialize=STORAGE_DEVS)
+    model.area_devs = pyo.Set(initialize=AREA_DEVS)
 
     # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     # 2. Create Pyomo Variables
@@ -905,48 +895,93 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for device in ["PV", "STC"]:
         result_dict["area"][device] = int(safe_value(model.area, device))
 
-    # Calculate annual generation for each device type
-    eps = 0.01
+    # Calculate annual generation for each device type structure result_dict[device]["gen_kWh"]["energy_type"] and result_dict[device]["gen"]["energy_type"]
 
     # Heat generation
-    for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+    for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI", "CHP", "BCHP", "WCHP", "FC"]:
         gen_kwh = dt * sum(safe_value(model.heat, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["heat"] = gen_kwh
+        result_dict[k]["gen"]["heat"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Cooling generation
     for k in ["CC", "AC"]:
         gen_kwh = dt * sum(safe_value(model.cool, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["cooling"] = gen_kwh
+        result_dict[k]["gen"]["cooling"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Power generation
     for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
         gen_kwh = dt * sum(safe_value(model.power, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["power"] = gen_kwh
+        result_dict[k]["gen"]["power"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Special: Hydrogen generation for ELYZ
     h2_gen = dt * sum(safe_value(model.power, ("ELYZ", y, d, t)) * devs["ELYZ"]["eta_el"] * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-    result_dict["ELYZ"]["gen_H2"] = int(h2_gen / 1000)  # MWh over full horizon
+    if "ELYZ" not in result_dict:
+        result_dict["ELYZ"] = {}
+    if "gen_kWh" not in result_dict["ELYZ"]:
+        result_dict["ELYZ"]["gen_kWh"] = {}
+    if "gen" not in result_dict["ELYZ"]:
+        result_dict["ELYZ"]["gen"] = {}
+    result_dict["ELYZ"]["gen_kWh"]["hydrogen"] = h2_gen
+    result_dict["ELYZ"]["gen"]["hydrogen"] = int(h2_gen / 1000)  # MWh over full horizon
 
     # Gas generation for SAB
     for k in ["SAB"]:
         gen_kwh = dt * sum(safe_value(model.gas, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["gas"] = gen_kwh
+        result_dict[k]["gen"]["gas"] = int(gen_kwh / 1000)  # MWh over full horizon
 
+    eps = 0.01
     # Calculate full load hours
     for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
               "ELYZ", "FC", "SAB"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:
-            result_dict[k]["hrs"] = int((result_dict[k]["gen_kWh"] / param["observation_time"]) / cap_k)
+            # Decide which energy to use as the base for full load hours
+            if k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]:
+                base_gen_kwh = result_dict[k]["gen_kWh"]["power"]
+            elif k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+                base_gen_kwh = result_dict[k]["gen_kWh"]["heat"]
+            elif k in ["CC", "AC"]:
+                base_gen_kwh = result_dict[k]["gen_kWh"]["cooling"]
+            elif k == "ELYZ":
+                base_gen_kwh = result_dict[k]["gen_kWh"]["hydrogen"]
+            elif k == "SAB":
+                base_gen_kwh = result_dict[k]["gen_kWh"]["gas"]
+            else:
+                base_gen_kwh = 0
+
+            result_dict[k]["hrs"] = int((base_gen_kwh / param["observation_time"]) / cap_k)
         else:
             result_dict[k]["hrs"] = 0
 
