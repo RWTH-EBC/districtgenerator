@@ -83,7 +83,7 @@ def load_params(data):
         electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
         generationPV += data.district[b]["generationPV"] / 1000 # kW
 
-    heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"] - heat_grid_data["seasonal_storage"]
+    heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"] - heat_grid_data["seasonal_storage_kW"]
 
     # Clip heating_total to a minimum of 0, since negative heating demand (excess heat) as local surplus by STC or through seasonal storage should not be able to be stored into storage systems in the Energy hub, assuming a unidirectional flow
     heating_total = np.maximum(heating_total, 0)

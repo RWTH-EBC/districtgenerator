@@ -161,7 +161,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     try:
         network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
         network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
-        seasonal_storage = heatingNetworkData["seasonal_storage_cluster"][cluster] * 1000  # W
+        seasonal_storage = heatingNetworkData["seasonal_storage_cluster_kW"][cluster] * 1000  # W
         network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
     except:
         network_losses_heating = [0] * T_e
@@ -304,8 +304,6 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.network_losses_cooling = pyo.Param(model.t, initialize=lambda m, t: network_losses_cooling[t])
     model.network_pump_power = pyo.Param(model.t, initialize=lambda m, t: network_pump_power[t])
     model.seasonal_storage_max_W = pyo.Param(model.t, initialize=lambda m, t: seasonal_storage[t], doc="Max available power from seasonal storage in W per timestep")
-    print(f"max seasonal storage: {max(seasonal_storage)}")
-    print(f"min seasonal storage: {min(seasonal_storage)}")
 
     ################################################################################
     # OPERATIONAL BUILDING VARIABLES
@@ -1231,14 +1229,14 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.trafo_binary1 = pyo.Constraint(model.t, rule=trafo_binary1_rule, doc="Power_limitation_from_grid")
     model.trafo_binary2 = pyo.Constraint(model.t, rule=trafo_binary2_rule, doc="Power_limitation_to_grid")
 
-    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network #! Maybe instead combined Heat balance for the neighborhood that includs network losses?
+    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
     def eh_heat_supply_rule(model, t):
-        return model.eh_heat_to_grid[t] >= sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
+        return model.eh_heat_to_grid[t] == sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
             model.network_losses_heating[t] - model.eh_seasonal_dch[t]
 
     # The EH must supply the cooling demand of the buildings connected to the grid
     def eh_cool_supply_rule(model, t):
-        return model.eh_cool_to_grid[t] >= sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
+        return model.eh_cool_to_grid[t] == sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
             model.network_losses_cooling[t]
     
     model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
@@ -1517,8 +1515,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
 
 
     # Seasonal storage utilization
-    total_potential_Wh = (data.heat_grid_data["seasonal_storage_kWh_a"] / (365 * 24)) * 1000 * len(time_steps)
-    total_used_Wh = sum(results_dict["P_seasonal_storage_used"])
+    total_potential_Wh = sum(pyo.value(model.seasonal_storage_max_W[t]) for t in time_steps) * dt
+    total_used_Wh = sum(results_dict["P_seasonal_storage_used"]) * dt
     
     if total_potential_Wh > 0:
         results_dict["seasonal_storage_utilization"] = total_used_Wh / total_potential_Wh

@@ -1390,7 +1390,7 @@ class Datahandler:
             # Convert kWh/a to kW (assuming constant supply throughout the year)
             seasonal_storage_kW_max = seasonal_storage_kWh_a / (365 * 24) # Currently assumes a constant supply throughout the year.
             seasonal_storage_kW = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * seasonal_storage_kW_max
-            self.heat_grid_data["seasonal_storage"] = seasonal_storage_kW
+            self.heat_grid_data["seasonal_storage_kW"] = seasonal_storage_kW
 
             self.designCentralDevices(saveGenerationProfiles=True)
             self.finalizeClusterProfiles()
@@ -1913,7 +1913,7 @@ class Datahandler:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
-            adjProfiles["seasonal_storage"] = self.heat_grid_data["seasonal_storage"][0:lengthArray]
+            adjProfiles["seasonal_storage_kW"] = self.heat_grid_data["seasonal_storage_kW"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
@@ -2030,7 +2030,7 @@ class Datahandler:
             weights.append(0)
             scalings.append(False)
 
-            inputsClustering.append(adjProfiles["seasonal_storage"])
+            inputsClustering.append(adjProfiles["seasonal_storage_kW"])
             weights.append(0)
             scalings.append(False)
 
