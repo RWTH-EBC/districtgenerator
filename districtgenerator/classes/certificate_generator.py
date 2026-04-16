@@ -2999,7 +2999,7 @@ class DataExtractor:
             aggregated_data = {}
 
             # 1. Iterate over all buildings and their decentral devices
-            for b_id, devices in self.kpis.decentral_individual_devices_annualized_cost.items():
+            for b_index, devices in self.kpis.decentral_individual_devices_annualized_cost.items():
                 for dev_name, info in devices.items():
                     # Skip Electric Vehicles and virtual measures
                     if dev_name in ["T_reduction_measures"]:
@@ -3021,7 +3021,7 @@ class DataExtractor:
                         
                     # Add to aggregate sum and increment the count
                     if dev_name == "EV":
-                        ev_caps = self.data.district[int(b_id)]["user"].ev_capacity
+                        ev_caps = self.data.district[int(b_index)]["user"].ev_capacity
                         if ev_caps is None:
                             ev_caps = []
                         elif isinstance(ev_caps, (int, float)):

@@ -163,8 +163,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
         network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
         seasonal_storage = heatingNetworkData["seasonal_storage_cluster_kW"][cluster] * 1000  # W
         network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
-    except Exception as e:
-        print(f"Error occurred while loading heating network data for cluster {cluster}: {e}")
+    except KeyError as e:
+        if energyHubData == {}:
+            pass
+        else: print(f"Error occurred while loading heating network data for cluster {cluster}: Could not access {e}")
+        
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
         seasonal_storage = [0] * T_e

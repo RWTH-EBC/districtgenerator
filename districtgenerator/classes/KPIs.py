@@ -1270,7 +1270,7 @@ class KPIs:
         kpi_data_yearly["District Heat Consumption (kWh/a)"] = {year: self.districtHeat_year.get(year, None) for year in years}
         kpi_data_yearly["Seasonal Storage Used (kWh/a)"] = {year: self.seasonal_storage_used_year.get(year, None) for year in years}
         kpi_data_yearly["Seasonal Storage Potential (kWh/a)"] = {year: self.seasonal_storage_potential_year.get(year, None) for year in years}
-        kpi_data_yearly["Seasonal Storage Utilization (%)"] = {year: self.seasonal_storage_utilization_year.get(year, None) * 100 for year in years}
+        kpi_data_yearly["Seasonal Storage Utilization (%)"] = {year: self.seasonal_storage_utilization_year[year] * 100 if self.seasonal_storage_utilization_year[year] is not None else None for year in years}
         kpi_data_yearly["Electricity Injection within District (kWh/a)"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
         kpi_data_yearly["Electricity Demand within District (kWh/a)"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
         kpi_data_yearly["Demand Cover Factor (-)"] = {year: self.dcf_year.get(year, None) for year in years}
