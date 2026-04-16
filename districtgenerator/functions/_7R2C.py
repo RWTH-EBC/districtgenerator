@@ -524,7 +524,7 @@ def _build_setpoints_arrays(envelope, n, dt_h, building_type, night_setback, hol
     T_heat = np.full(n, float(envelope.T_set_min), dtype=float)
     T_cool = np.full(n, float(envelope.T_set_max), dtype=float)
 
-    if building_type in {"SFH", "TH", "MFH", "AB"}:
+    if building_type in RES_BUILDING_TYPES:
         # Residential: night 22:00–05:59 only if night_setback requested
         if night_setback:
             for t in range(n):

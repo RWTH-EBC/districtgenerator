@@ -222,10 +222,9 @@ class Envelope:
         if self.is_residential:
             V_dot_area = self.ventilationRate * self.V  # m³/h
             V_dot_infiltration = 0
-            V_dot_persons = 0
             eta_temp_vent = 0  # Assumption: No heat recovery for residential buildings.
         else: # Non-residential buildings
-            # TODO: Check if logic is applicable, and if the standard deviation values are reasonable.
+            # Determine building standard (existing, standard, goal) based on construction year and retrofit level of the building. Based on the SIA2024 categorization.
             if self.construction_year < 1980 and self.retrofit == 0:
                 mode = 'existing' # existing
             elif self.retrofit == 2:
@@ -264,10 +263,8 @@ class Envelope:
                         q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
                         V_dot_infiltration += zone_area * q_v_infiltration
 
-            V_dot_persons = 0 # TODO: Add calculation of ventilation airflow based on number of persons in the building and airflow per person from SIA2024 data.
-
         self.eta_temp_vent = eta_temp_vent
-        self.V_dot = V_dot_area + V_dot_persons
+        self.V_dot = V_dot_area
         self.V_dot_infiltration = V_dot_infiltration
 
     def specificHeatCapacity(self, d, d_iso, density, cp):

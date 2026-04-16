@@ -400,19 +400,17 @@ class Users:
         # - Existing: Typical values for older, unrenovated buildings (older than 1980)
         # Decide mode based on the year of construction and retrofit status of the building
 
-        # TODO: Check if logic is applicable, and if the standard deviation values are reasonable.
+        # Determine building standard (existing, standard, goal) based on construction year and retrofit level of the building. Based on the SIA2024 categorization.
         if year_of_construction < 1980 and retrofit == 0:
             mode = 'existing'
-            std_dev = 0.15 # 15%
         elif retrofit == 2:
             mode = 'goal'
-            std_dev = 0.05 # 5%
         else:
             mode = 'standard'
-            std_dev = 0.1 # 10%
 
         # Generate a single random factor for the entire building.
         rng = np.random.default_rng()
+        std_dev = 0.10 # 10%
         random_factor = rng.normal(loc=1.0, scale=std_dev)
 
         for number, data in self.SIA2024.items():

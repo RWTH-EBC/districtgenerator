@@ -31,7 +31,7 @@ def example8_scenario_evaluation():
 
     topology_option = data.heat_grid_data["topology_option"]
 
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option, gen_cars=False)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
@@ -40,8 +40,7 @@ def example8_scenario_evaluation():
     data.calculateKPIs()
 
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
-    # data.KPIs.create_certificate(data=data, result_path=data.resultPath)
-
+    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
     return data
 

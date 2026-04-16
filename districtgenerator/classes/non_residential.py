@@ -5,8 +5,7 @@ import json
 from dataclasses import dataclass
 from typing import List
 
-# This Class is responsible for the envelope generation + behavior configuration for non-residential buildings
-
+# This Class is responsible for non-residential envelope generation
 class NonResidential(object):
     """Base class for each non-residential archetype.
 
@@ -38,11 +37,15 @@ class NonResidential(object):
             Total net leased area of building. This is area is NOT the footprint of a building
     usage: str 
         Type of the building, according to Data NWG. Options are: "oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"
+    construction_type : str
+        construction type of the building
+    retrofit_level : str
+        retrofit level of the building
+    number_of_floors : int
+        Number of floors of the building. If not specified, the estimation factor gf1 is used to calculate the ground floor area. Number of floors is not needed for Building simulation.
 
     Attributes
     ----------
-    height_of_floors : float [m]
-        Average height of the floors (default: None)
     outer_area : dict [degree: m2]
         Dictionary with orientation as key and sum of outer wall areas of
         that direction as value.
@@ -59,27 +62,32 @@ class NonResidential(object):
         year_of_construction,
         net_leased_area,
         total_building_area,
-        usage,  
-        height_of_floors,
+        usage,
         construction_type,
         retrofit_level,
+        number_of_floors = None,
+        is_mixed_part = False
     ):
         self.name = name 
         self.year_of_construction = year_of_construction
         self.net_leased_area = float(net_leased_area)
         self.total_building_area = float(total_building_area)
-        self.usage = usage 
-        self.height_of_floors=float(height_of_floors)
+        self.usage = usage
         self.construction_type = construction_type
         self.retrofit_level = retrofit_level
+        self.number_of_floors = number_of_floors
+        self.is_mixed_part = is_mixed_part
 
         # Validate construction_type
         valid_construction_types = ["Light", "Medium", "Heavy", "Tabula"]
         if construction_type and construction_type not in valid_construction_types:
             raise ValueError(f"Invalid construction_type '{construction_type}'. Must be one of {valid_construction_types}.")
         
+        # Validate number_of_floors
+        if number_of_floors is not None and (not isinstance(number_of_floors, int) or number_of_floors <= 0):
+            raise ValueError(f"number_of_floors must be a positive integer.")
+
         # check Orientation
-        self.volume = self.calculate_volume()
         self.parameters = self.load_building_data()
         self.facade_estimation_factors = self.load_surface_estimation_factors()
 
@@ -117,6 +125,11 @@ class NonResidential(object):
         Adaption of TEASER archetype generation for Non-Residential Building Typology.
         """
 
+        if self.number_of_floors is None:
+            one_floor_area = self.facade_estimation_factors["gf1"] * self.total_building_area # Use the ground floor estimation factor
+        else:
+            one_floor_area = self.total_building_area / self.number_of_floors # If the number of floors is given, calculate the area
+
         # Outer walls
         if self.facade_estimation_factors["ow1"] != 0:
             for key, value in self._outer_wall_names.items():
@@ -142,7 +155,7 @@ class NonResidential(object):
                 self.outer_area[key]["name"] = key
                 self.outer_area[key]["tilt"] = value[0]
                 self.outer_area[key]["orientation"] = value[1]
-                self.outer_area[key]["area"] = (self.facade_estimation_factors["gf1"] * self.total_building_area) / len(self._ground_floor_names)
+                self.outer_area[key]["area"] = (one_floor_area) / len(self._ground_floor_names)
 
         # Rooftop
         if self.facade_estimation_factors["rt1"] != 0:
@@ -151,10 +164,11 @@ class NonResidential(object):
                 self.outer_area[key]["name"] = key
                 self.outer_area[key]["tilt"] = value[0]
                 self.outer_area[key]["orientation"] = value[1]
-                self.outer_area[key]["area"] = (self.facade_estimation_factors["rt1"] * self.total_building_area) / len(self._roof_names)
-
-    def calculate_volume(self):
-        return self.net_leased_area * self.height_of_floors
+                if self.is_mixed_part:
+                    # If the building part is a mixed-use part, it is assumed that there is no roof area, as the residential part is located on top of the non-residential part.
+                    self.outer_area[key]["area"] = 0.0
+                else:
+                    self.outer_area[key]["area"] = (self.facade_estimation_factors["rt1"]/self.facade_estimation_factors["gf1"] * one_floor_area) / len(self._roof_names)
 
     def load_surface_estimation_factors(self):
         """
@@ -163,7 +177,9 @@ class NonResidential(object):
         # ow - outer wall 
         # gf - ground floor
         # win - window 
-       
+
+        Average number of floors (avg_nfloors)
+
         Returns
         -------
         dict
@@ -172,7 +188,8 @@ class NonResidential(object):
                 'rt1': 0.625,
                 'ow1': 0.77604,
                 'gf1': 0.625,
-                'win1': 0.18854
+                'win1': 0.18854,
+                'avg_nfloors': 1.31
                 }
         """
         DATA_DIR_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -231,6 +248,21 @@ class NonResidential(object):
           # If no matching age group is found
         raise ValueError(f"Year of construction '{self.year_of_construction}' not found in any age group for archetype '{self.usage}'.")
     
+    def get_number_of_floors(self):
+        """Get the number of floors for the non-residential building. Only relevant to determine the number of floors for mixed-use buildings."""
+        if self.number_of_floors is None:
+            # If number of floors is not provided the avg floor number is used which can be calculated utilizing gf1 which describes the ratio of the ground floor area to the total building area.
+            # As the ground floor area is measured as a gross floor area the factor 0.85 is applied to account for the difference between gross and net floor area.
+            # Factor sourced from the guideline "Bekanntmachung der Regeln für Energieverbrauchswerte und der Vergleichswerte im Nichtwohngebäudebestand" (15. April 2021) - Sec. 4 Ermittlung der Energiebezugsfläche
+            avg_nfloors = 1/(self.facade_estimation_factors["gf1"]*0.85)
+
+            number_of_floors = round(avg_nfloors) # TODO: Check if statistical distribution should be used instead of fixed value for each building archetype
+
+            return number_of_floors
+
+        return self.number_of_floors
+
+# This class is responsible for the behavior configuration for non-residential buildings
 @dataclass
 class NonResidentialConfig:
     # Basic configuration parameters to be provided for the generation of a non-residential building
