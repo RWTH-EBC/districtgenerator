@@ -1203,7 +1203,7 @@ def plot_tac_sum_from_three_scenarios(
         )
 
     plt.xticks(x, labels)
-    plt.ylabel("TAC-Summe [€]")
+    plt.ylabel("TAC-Summe in € pro Jahr")
     plt.title(titel or "TAC-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -1228,36 +1228,187 @@ def plot_tac_sum_from_three_scenarios(
     }
 
 
+def plot_tes_volume_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    show_percent_box=False,
+):
+    """
+    Plot TES-Volumen (device='TES', metric='vol_liter') als Balkenvergleich:
+    - Verbund  (<scenario>_network_results.csv)
+    - Einzeln  (<scenario>_results.csv)
+
+    CSV-Werte sind in Liter; geplottet wird in m³.
+    """
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_tes_volume_m3(csv_path):
+        liters_sum = 0.0
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if str(row.get("metric", "")).strip() != "vol_liter":
+                    continue
+                if str(row.get("device", "")).strip() != "TES":
+                    continue
+
+                v = _parse_value(row.get("value"))
+                try:
+                    liters_sum += float(v)
+                except Exception:
+                    continue
+        return liters_sum / 1000.0  # Liter -> m³
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    if scenario_name is None:
+        scenario_names = []
+        for fn in os.listdir(base_dir):
+            if fn.endswith("_network_results.csv"):
+                sc = fn[: -len("_network_results.csv")]
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                    scenario_names.append(sc)
+        scenario_names = sorted(set(scenario_names))
+    else:
+        scenario_names = [scenario_name] if isinstance(scenario_name, str) else list(scenario_name)
+
+    if not scenario_names:
+        raise FileNotFoundError("No scenario pairs found (*_network_results.csv + *_results.csv).")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    out = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+        if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
+            print(f"Skip '{sc}': pair not complete.")
+            continue
+
+        vb_m3 = _read_tes_volume_m3(network_path)
+        ez_m3 = _read_tes_volume_m3(single_path)
+
+        x = np.arange(2)
+        y = [vb_m3, ez_m3]
+        labels = ["Verbund", "Einzeln"]
+        colors = ["#D40000", "#55585C"]
+
+        plt.figure(figsize=(6.5, 4.2))
+        bars = plt.bar(x, y, color=colors, width=0.55)
+
+        if show_percent_box:
+            ymax = max(max(y), 1.0)
+            plt.ylim(0, ymax * 1.30)
+            y_offset = ymax * 0.06
+            if ez_m3 == 0:
+                txt = "n/a" if vb_m3 == 0 else "+∞"
+            else:
+                txt = _fmt_pct((vb_m3 - ez_m3) / ez_m3 * 100.0)
+
+            plt.text(
+                bars[0].get_x() + bars[0].get_width() / 2,
+                vb_m3 + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=11,
+                bbox=dict(
+                    boxstyle="square,pad=0.3",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.1,
+                ),
+                zorder=5,
+            )
+
+        plt.xticks(x, labels)
+        plt.ylabel("Volumen thermischer Speicher [m³]")
+        plt.title(titel or f"TES-Volumen im Szenario '{sc}'")
+        plt.grid(axis="y", alpha=0.35)
+        plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+        plt.tight_layout()
+
+        plot_name = f"tes_volume_{sc}.png" if not titel else f"{titel}.png"
+        plot_path = os.path.join(plots_dir, plot_name)
+        plt.savefig(plot_path, dpi=150)
+        print(f"Plot saved: {plot_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
+
+        out[sc] = {"network_m3": vb_m3, "single_m3": ez_m3, "plot_path": plot_path}
+
+    if not out:
+        print("No plots created.")
+    return out
+
+
+
 
 
 
 
 if __name__ == "__main__":
-    plot_tac_sum_from_three_scenarios(scenario_names=["1rural", "6urban", "4zb"],show=True,show_percent_box=True,titel="TAC Summe 3 Quartiere")
-    plot_device_capacities_from_csv(scenario_name="1rural", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im ländlichen Quartier")
-    plot_device_capacities_from_csv(scenario_name="6urban", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im städtischen Quartier")
-    plot_device_capacities_from_csv(scenario_name="4zb", show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im Quartier Zeilenbebauung")
+    # district1 = "residential2"
+    # district2 = "mixed1"
+    # district3 = "ghd6"
+    # name1 = "Wohnquartier"
+    # name2 = "gemischten Quartier"
+    # name3 = "gewerblichen Quartier"
 
-    plot_device_capacities_from_csv(scenario_name="1rural", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im ländlichen Quartier", plot_tes_only=True)
-    plot_device_capacities_from_csv(scenario_name="6urban", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im städtischen Quartier", plot_tes_only=True)
-    plot_device_capacities_from_csv(scenario_name="4zb", show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im städtischen Quartier", plot_tes_only=True)
+    district1 = "1rural"
+    district2 = "4zb"
+    district3 = "6urban"
+    name1 = "ländlichen Quartier"
+    name2 = "vorstädtischen Quartier"
+    name3 = "urbanen Quartier"
     
-    plot_heat_generation_by_year_from_csv("1rural", titel="Wärmeproduktion im ländlichen Quartier", show=True)
-    plot_heat_generation_by_year_from_csv("6urban", titel="Wärmeproduktion im städtischen Quartier", show=True)
-    plot_heat_generation_by_year_from_csv("4zb", titel="Wärmeproduktion im städtischen Quartier", show=True)
-    
-    plot_power_import_by_year_from_csv("1rural", titel="Strombezug im ländlichen Quartier", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv("6urban", titel="Strombezug im städtischen Quartier", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv("4zb", titel="Strombezug im Quartier Zeilenbebauung", show=True, show_percent_box=True)
+    plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="TAC Summe 3 Quartiere")
 
-    plot_power_export_by_year_from_csv("1rural", titel="Stromeinspeisung im ländlichen Quartier", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv("6urban", titel="Stromeinspeisung im städtischen Quartier", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv("4zb", titel="Stromeinspeisung im Quartier Zeilenbebauung", show=True, show_percent_box=True)
-
-    plot_lcoe_by_year_from_csv("1rural", titel="Energiegestehungskosten im ländlichen Quartier", show=True, show_percent_box=True)
-    plot_lcoe_by_year_from_csv("6urban", titel="Energiegestehungskosten im städtischen Quartier", show=True, show_percent_box=True)
-    plot_lcoe_by_year_from_csv("4zb", titel="Energiegestehungskosten im Quartier Zeilenbebauung", show=True, show_percent_box=True)
+    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
+    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
+    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
     
-    plot_co2_by_year_from_csv("1rural",titel="CO₂-Emissionen im ländlichen Quartier",show=True,show_percent_box=True)
-    plot_co2_by_year_from_csv("6urban",titel="CO₂-Emissionen im städtischen Quartier",show=True,show_percent_box=True)
-    plot_co2_by_year_from_csv("4zb",titel="CO₂-Emissionen im Quartier Zeilenbebauung",show=True,show_percent_box=True)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
+
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True)
+
+    # plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True)
+    # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
+    # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
+    
+    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
+
+    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+
+    # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True)
+
+    # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True)
