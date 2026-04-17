@@ -107,7 +107,7 @@ def compute_network_temperatures(data, param):
 
     return compute_network_temperatures_auto(data, param)
 
-def compute_network_temperatures_auto(data, param, max_iter=20, tol=0.5, relax=0.3):
+def compute_network_temperatures_auto(data, param, max_iter=50, tol=0.5, relax=0.3):
     """
     Solve the network with automatic adjustment of the energy-hub supply temperature.
 
@@ -304,7 +304,7 @@ def compute_network_temperatures_auto(data, param, max_iter=20, tol=0.5, relax=0
                         new_T = float(result["T_sup_node"][n])
                         max_temp_change = max(max_temp_change, abs(new_T - old_T))
 
-                if iter_idx > 0 and max_rel_flow_change < 5e-3 and max_temp_change < 1e-2:
+                if iter_idx > 0 and max_rel_flow_change < 5e-4 and max_temp_change < 1e-3:
                     inner_converged = True
                     break
 
@@ -393,7 +393,7 @@ def compute_network_temperatures_auto(data, param, max_iter=20, tol=0.5, relax=0
 
     return _finalize_network_temperature_solver(data, param, shared)
 
-def compute_network_temperatures_given(data, param, max_iter=20, relax=0.3):
+def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
     """
     Solve the network for a given supply temperature.
 
@@ -568,7 +568,7 @@ def compute_network_temperatures_given(data, param, max_iter=20, relax=0.3):
                     max_temp_change = max(max_temp_change, abs(new_T - old_T))
 
             # convergence condition
-            if iter_idx > 0 and max_rel_flow_change < 5e-3 and max_temp_change < 1e-2:
+            if iter_idx > 0 and max_rel_flow_change < 5e-4 and max_temp_change < 1e-3:
                 converged = True
                 break
 
@@ -1790,7 +1790,7 @@ def solve_network_temperatures(
         T_ret_node_loc[bn] = Tr_HX
 
         # unmet demand (if flow or Ts insufficient)
-        heat_deficit_by_node[bn] = max(Q_SH_W - Q_SH_del, Q_DHW_W - Q_DHW_del, 0.0)
+        heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
 
     # Return propagation
     for node in reversed(order):
