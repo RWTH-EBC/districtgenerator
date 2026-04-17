@@ -1039,7 +1039,7 @@ class EnergyHub(BaseReportFlowable):
 
         # Handle empty data
         if data_energyhub is None or data_energyhub.empty:
-            box = FrameBox(title="Energiesysteme des Energy Hubs")
+            box = FrameBox(title="Zentrale Energiesysteme")
             p = Paragraph("Es wurden keine zentralen Energiesysteme ausgelegt", style.get_paragraph_styles()['Normal'])
             box.set_content(cls(content_flowable=p))
             boxes.append(box)
@@ -1055,7 +1055,7 @@ class EnergyHub(BaseReportFlowable):
 
         # Check if it fits on exactly one page
         if len(eh_tables) == 1:
-            box = FrameBox(title="Energiesysteme des Energy Hubs")
+            box = FrameBox(title="Zentrale Energiesysteme")
             header = data_energyhub.columns.tolist()
             body = data_energyhub.values.tolist()
             standard_table = Table([header] + body)
@@ -1066,7 +1066,7 @@ class EnergyHub(BaseReportFlowable):
             
         else:
             for i, eh_table in enumerate(eh_tables, start=1):
-                title = f"Energiesysteme des Energy Hubs ({i}/{len(eh_tables)})"
+                title = f"Zentrale Energiesysteme ({i}/{len(eh_tables)})"
                 box = FrameBox(title=title)
                 box.set_content(cls(content_flowable=eh_table))
                 boxes.append(box)
@@ -1458,9 +1458,9 @@ class Hinweise(BaseReportFlowable):
                 {
                     "GHD-Gebäude": "Gewerbe-, Handels- und Dienstleistungsgebäude",
                     "Mischgebäude": "Gebäude mit einer gemischten Nutzung aus Wohnen und GHD",
-                    "Quartiersfläche": "Gesamte Fläche des Quartiers in Hektar (ha)",
+                    # "Quartiersfläche": "Gesamte Fläche des Quartiers in Hektar (ha)",
                     "Testreferenzjahr": "Verwendetes Referenzjahr für die Bedarfsermittlung sowie die Erzeugung von Erneuerbaren Energiequellen anhand von Wetterdaten",
-                    "Energy Hub": "Zentrale Energieerzeugungsanlage, die das Wärmenetz des Quartiers speist",
+                    "Energiezentrale": "Zentrale Energieerzeugungsanlage, die das Wärmenetz des Quartiers speist",
                     "DN (Nenndurchmesser)": "Innendurchmesser der verlegten Rohrleitungen des Wärmenetzes in Millimetern"
                 },
             "Bezeichnungen in der Liste der Gebäude": 
@@ -1735,8 +1735,8 @@ class DistrictLayout(BaseReportFlowable):
         network_group = Group()
 
         self._draw_pipes(network_group, pipeline_data, transform)
-        self._draw_energy_hub(network_group, nodes, transform)
         self._draw_buildings(network_group, buildings, transform)
+        self._draw_energy_hub(network_group, nodes, transform)
 
         d.add(network_group)
         return d
@@ -1778,15 +1778,14 @@ class DistrictLayout(BaseReportFlowable):
 
             if self.style.get_layout_options("show_pipe_labels"):
                 # Label for the pipe diameter
+                if x1 > x2 or (x1 == x2 and y1 > y2):
+                    x1, x2, y1, y2 = x2, x1, y2, y1
+
                 mid_x = (x1 + x2) / 2.0
                 mid_y = (y1 + y2) / 2.0
 
                 # Placement of the label based on the angle of the pipe
                 pipe_angle = math.atan2(y2 - y1, x2 - x1)
-                if pipe_angle > math.pi / 2.0:
-                    pipe_angle -= math.pi
-                elif pipe_angle < -math.pi / 2.0:
-                    pipe_angle += math.pi
 
                 nx = -math.sin(pipe_angle)
                 ny = math.cos(pipe_angle)
@@ -1973,7 +1972,7 @@ class DistrictLayout(BaseReportFlowable):
         d.add(eh_shape)
 
         
-        d.add(String(text_x, current_y- y_text_offset, "Energy Hub", 
+        d.add(String(text_x, current_y- y_text_offset, "Energiezentrale", 
                      fontName=self.style.get_font(bold=False), 
                      fontSize=legend_font_size, 
                      fillColor=text_color,
@@ -2698,7 +2697,7 @@ class DataExtractor:
         self.district_operation_kpis = [
             ["Ø CO2-Emissionen:", f"{round(self.kpis.avg_co2_emissions, 2)} t/a"],
             ["Ø Energiekosten:", f"{round(self.kpis.avg_operationCosts, 0)} €/a"],
-            ["Anlagenkosten Energy Hub:", f"{round(self.kpis.annual_fixed_costs_central, 0)} €/a"],
+            ["Anlagenkosten Zentral:", f"{round(self.kpis.annual_fixed_costs_central, 0)} €/a"],
             ["Anlagenkosten Dezentral:", f"{round(self.kpis.annual_fixed_costs_decentral, 0)} €/a"],
             ["Spitzenlast (el.):", f"{round(max(self.kpis.peakDemand.values()), 1)} kW"],
             ["Max. Einspeiseleistung:", f"{round(max(self.kpis.peakInjection.values()), 1)} kW"],
@@ -2851,7 +2850,7 @@ class DataExtractor:
             ["Wohneinheiten im Quartier", str(self.kpis.totalnumberflats)],
             ["Bewohner des Quartiers", str(self.kpis.totalnumberocc)],
             ["Standort (PLZ)", str(self.data.site["zip"])],
-            ["Quartiersfläche", f"{round(self.data.site['district_area'], 2)} ha"],
+            # ["Quartiersfläche", f"{round(self.data.site['district_area'], 2)} ha"],
             ["Testreferenzjahr", f"{str(self.data.site['TRYYear'])[3:]} / {self.data.site['TRYType']}"]
         ]
 
@@ -2896,8 +2895,33 @@ class DataExtractor:
         try:
             capacities = self.data.centralDevices["capacities"]
             central_configs = self.data.central_device_data
+            lang = self.get_language()
+
+            if lang == "en":
+                col_device = "Device"
+                col_capacity = "Capacity"
+                col_cost = "Ann. Cost (Sub.)"
+                not_selected_text = "not selected"
+                seasonal_name = "Seasonal Heat Storage"
+            elif lang == "de":
+                col_device = "Anlage"
+                col_capacity = "Kapazität"
+                col_cost = "Anlagenkosten (subv.)"
+                not_selected_text = "nicht ausgewählt"
+                seasonal_name = "Saisonaler Speicher"
+            else:
+                raise NotImplementedError(f"Language {lang} not supported for energy hub device table.")
             
             device_list = []
+
+            def append_energyhub_row(device_name, capacity, annual_cost):
+                device_list.append({
+                    col_device: device_name,
+                    col_capacity: capacity,
+                    col_cost: annual_cost
+                })
+
+            all_cost_devices = set(self.kpis.central_individual_devices_annualized_cost.keys())
 
             # Iterate through all feasible devices
             for dev, config in central_configs.items(): 
@@ -2924,9 +2948,10 @@ class DataExtractor:
                 
                     if opt_key in self.kpis.central_individual_devices_annualized_cost:
                         device_cost_info = self.kpis.central_individual_devices_annualized_cost[opt_key]
-                        # Direct access: crash if cost keys are missing
                         annual_cost_sub = round(device_cost_info["subsidized_annual_cost"], 2)
                         annual_cost_unsub = round(device_cost_info["unsubsidized_annual_cost"], 2)
+                        all_cost_devices.discard(opt_key) # Remove this device from the set of devices as it has been processed
+
 
                 # Get the device name and unit
                 name, base_unit = self.get_central_device_name(dev)
@@ -2934,29 +2959,36 @@ class DataExtractor:
                 display_cap, display_unit = self._determine_unit(cap=cap,base_unit= base_unit)
 
                 if cap <= 0:
-                    if self.get_language() == "en":
-                        display_cap = "not selected"
-                    elif self.get_language() == "de":
-                        display_cap = "nicht ausgewählt"
-                    else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
+                    display_cap = not_selected_text
 
                 # Append dict to the device list
-                if self.get_language() == "en":
-                    device_list.append({
-                        "Device": name, 
-                        "Capacity": f"{display_cap} {display_unit}".strip(),
-                        "Ann. Cost (Sub.)": f"{annual_cost_sub} €/a"#,
-                        # "Ann. Cost (Unsub.)": f"{annual_cost_unsub} €/a"
-                    })
-                elif self.get_language() == "de":
-                    device_list.append({
-                        "Anlage": name, 
-                        "Kapazität": f"{display_cap} {display_unit}".strip(),
-                        "Anlagenkosten (subv.)": f"{annual_cost_sub} €/a"#,
-                        # "Jährl. Kosten (unsubv.)": f"{annual_cost_unsub} €/a"
-                    })
-                else: raise NotImplementedError(f"Language {self.get_language()} not supported for energy hub device table.")
+                append_energyhub_row(
+                    device_name=name,
+                    capacity=f"{display_cap} {display_unit}".strip(),
+                    annual_cost=f"{annual_cost_sub} €/a"
+                )
 
+            # Add all devices that are in the cost breakdown but not in the feasible central device data
+            for dev in all_cost_devices:
+                cost = round(self.kpis.central_individual_devices_annualized_cost[dev]['subsidized_annual_cost'], 2)
+                if cost == 0:
+                    continue # Skip devices that have zero cost
+
+                name, base_unit = self.get_central_device_name(dev)
+                cap = 0
+                display_cap, display_unit = self._determine_unit(cap=cap, base_unit=base_unit)
+
+                if display_cap <= 0:
+                    display_cap = "-"
+
+                append_energyhub_row(
+                    device_name=name,
+                    capacity=f"{display_cap} {display_unit}".strip(),
+                    annual_cost=f"{cost} €/a"
+                )
+
+
+            # Add seasonal storage potential as a separate row at the end of the table
             seasonal_pot_kWh_a = self.data.heat_grid_data.get('seasonal_storage_kWh_a', 0)
 
             display_cap, display_unit = self._determine_unit(cap=seasonal_pot_kWh_a, base_unit="Wh")
@@ -2964,19 +2996,13 @@ class DataExtractor:
             if seasonal_pot_kWh_a > 0:
                 
                 annual_cost_sub_seasonal = "-" 
-                
-                if self.get_language() == "en":
-                    device_list.append({
-                        "Device": "Seasonal Heat Storage", 
-                        "Capacity": f"{display_cap} {display_unit}/a".strip(),
-                        "Ann. Cost (Sub.)": f"{annual_cost_sub_seasonal}"
-                    })
-                elif self.get_language() == "de":
-                    device_list.append({
-                        "Anlage": "Saisonaler Speicher", 
-                        "Kapazität": f"{display_cap} {display_unit}/a".strip(),
-                        "Anlagenkosten (subv.)": f"{annual_cost_sub_seasonal} €/a"
-                    })
+
+                seasonal_cost = annual_cost_sub_seasonal if lang == "en" else f"{annual_cost_sub_seasonal} €/a"
+                append_energyhub_row(
+                    device_name=seasonal_name,
+                    capacity=f"{display_cap} {display_unit}/a".strip(),
+                    annual_cost=seasonal_cost
+                )
 
 
             # Create the DataFrame only if devices are present
@@ -3175,7 +3201,8 @@ class DataExtractor:
                 "BAT": "Battery",
                 "GS": "Gas Storage",
                 "AirCC": "Air-cooled Chiller",
-                "CC": "Cooling Chiller"
+                "CC": "Cooling Chiller",
+                "Heat_Grid": "Local Heat Grid"
             }
         elif self.get_language() == "de":
             device_name_map = {
@@ -3204,7 +3231,8 @@ class DataExtractor:
                 "BAT": "Batteriespeicher",
                 "GS": "Gasspeicher",
                 "AirCC": "Luftgekühlte Kältemaschine",
-                "CC": "Kompr.-Kältemaschine"
+                "CC": "Kompr.-Kältemaschine",
+                "Heat_Grid": "Nahwärmenetz"
             }
         
         else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
@@ -3275,7 +3303,7 @@ class DataExtractor:
                 "FC": "Brennstoffzelle",
                 "heat_grid": "Nahwärmenetz",
                 "PV": "Photovoltaik",
-                "STC": "Solarthermie Kollektor",
+                "STC": "Solarthermie",
                 "EV": "Elektrofahrzeug",
 
                 # Cooling
@@ -3296,6 +3324,8 @@ class DataExtractor:
             "BAT": "Wh",
             "TES": "Wh",
             "EV": "Wh",
+            "STC": "m²",
+            "PV": "m²"
         }
 
         # All devices
@@ -3310,14 +3340,23 @@ class DataExtractor:
 
         Args:
             cap (float): The capacity value.
-            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh").
+            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh"). Can deal with "m²" as well for area devices
 
         Returns:
             tuple[float, str]: A tuple containing the adjusted capacity and the appropriate unit.
         """
 
-        
-        if cap <= 0:
+        if base_unit == "m²":
+            if cap <= 0:
+                adjusted_cap = cap
+                adjusted_unit = ""  # No prefix for zero or negative values
+            elif cap >= 10000:
+                adjusted_cap = round(cap / 10000, 2)
+                adjusted_unit = "ha"  # Hektar for large areas
+            else:
+                adjusted_cap = round(cap, 2)
+                adjusted_unit = base_unit
+        elif cap <= 0:
             adjusted_cap = cap
             adjusted_unit = ""  # No prefix for zero or negative values
         elif cap >= 1000000:
