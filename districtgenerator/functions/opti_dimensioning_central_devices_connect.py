@@ -2202,37 +2202,37 @@ def save_heat_devices_timeseries_csv(model, district, result_dir, tol=1e-6):
             return 0
     
     # Only devices which are part of the solution
-    active_heat_devs = []
-    for device in model.heat_devs:
-        total_heat = sum(
-            safe_value(model.heat, (device, district, y, d, t))
+    active_heat_devices = []
+    for dev in model.heat_devs:
+        is_active = any(
+            safe_value(model.heat, (dev, district, y, d, t)) > tol
             for y in model.support_years
             for d in model.clusters
             for t in model.time_steps
         )
-        if total_heat > tol:
-            active_heat_devs.append(str(device))
+        if is_active:
+            active_heat_devices.append(str(dev))
 
-    # Prepare the data
-    data_to_save = [
-        ["Support_Year", "Cluster", "Timestep", "Device", "Heat_kW"]  # Header row
-    ]
+    # Header: Support_Year, Cluster, Timestep, Device1, Device2, ...
+    data_to_save = [["Support_Year", "Cluster", "Timestep", *active_heat_devices]]
 
-    # Iterate over all support years, clusters, timesteps and active devices
+    # Daten im breiten Format
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
-                for device in active_heat_devs:
-                    heat_value = safe_value(model.heat, (device, district, y, d, t))
-                    data_to_save.append([y, d, t, device, round(heat_value, 3)])
+                row = [y, d, t]
+                for device in active_heat_devices:
+                    row.append(round(safe_value(model.heat, (device, district, y, d, t)), 3))
+                data_to_save.append(row)
 
-    # Write the data to the CSV file
+    # Write CSV
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file, delimiter=";")
         writer.writerows(data_to_save)
 
     print(
-        f"Heat timeseries for {len(active_heat_devs)} active heat devices in {district} saved to {csv_file_path}"
+        f"Heat timeseries (active devices only: {len(active_heat_devices)}) "
+        f"for {district} saved to {csv_file_path}"
     )
 
 def save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6):    
@@ -2251,37 +2251,37 @@ def save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6):
             return 0
     
     # Only devices which are part of the solution
-    active_power_devs = []
-    for device in model.power_devs:
-        total_power = sum(
-            safe_value(model.power, (device, district, y, d, t))
+    active_power_devices = []
+    for dev in model.power_devs:
+        is_active = any(
+            safe_value(model.power, (dev, district, y, d, t)) > tol
             for y in model.support_years
             for d in model.clusters
             for t in model.time_steps
         )
-        if total_power > tol:
-            active_power_devs.append(str(device))
+        if is_active:
+            active_power_devices.append(str(dev))
 
-    # Prepare the data
-    data_to_save = [
-        ["Support_Year", "Cluster", "Timestep", "Device", "Power_kW"]  # Header row
-    ]
+    # Header: Support_Year, Cluster, Timestep, Device1, Device2, ...
+    data_to_save = [["Support_Year", "Cluster", "Timestep", *active_power_devices]]
 
-    # Iterate over all support years, clusters, timesteps and active devices
+    # Daten im breiten Format
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
-                for device in active_power_devs:
-                    power_value = safe_value(model.power, (device, district, y, d, t))
-                    data_to_save.append([y, d, t, device, round(power_value, 3)])
+                row = [y, d, t]
+                for device in active_power_devices:
+                    row.append(round(safe_value(model.power, (device, district, y, d, t)), 3))
+                data_to_save.append(row)
 
-    # Write the data to the CSV file
+    # Write CSV
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file, delimiter=";")
         writer.writerows(data_to_save)
 
     print(
-        f"Power timeseries for {len(active_power_devs)} active power devices in {district} saved to {csv_file_path}"
+        f"Power timeseries (active devices only: {len(active_power_devices)}) "
+        f"for {district} saved to {csv_file_path}"
     )
 
 def save_demand_heat_timeseries_csv(dem, model, district, result_dir):
