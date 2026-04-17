@@ -150,8 +150,8 @@ def plot_device_capacities_from_csv(
         "STC": "Solarthermie",
         "WT": "Windkraft",
         "EB": "Elektrischer\nKessel",
-        "BOI": "Erdgaskessel",
-        "BBOI": "Biomassekessel",
+        "BOI": "Erdgas-\nkessel",
+        "BBOI": "Biomasse-\nkessel",
     }
 
     plots_dir = os.path.join(result_dir or ".", "plots")
@@ -1972,10 +1972,10 @@ def plot_co2_by_year_sum_from_three_scenarios(
 if __name__ == "__main__":
     district1 = "residential2"
     district2 = "mixed1"
-    district3 = "residential0"
-    name1 = "Wohnquartier 1"
+    district3 = "ghd6"
+    name1 = "Wohnquartier"
     name2 = "Mischquartier"
-    name3 = "Wohnquartier 2"
+    name3 = "Gewerbequartier"
 
     # district1 = "1rural"
     # district2 = "4zb"
@@ -1993,9 +1993,9 @@ if __name__ == "__main__":
     plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}")
     plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}")
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
+    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
+    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
+    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
 
     plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
     plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
