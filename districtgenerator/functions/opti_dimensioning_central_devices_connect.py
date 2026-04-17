@@ -78,11 +78,13 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         # Save results to csv
         save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
         save_results_csv_short(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
+        save_heat_devices_timeseries_csv(model, district, result_dir)
+        save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6)
         save_demand_heat_timeseries_csv(dem, model, district, result_dir)
         save_demand_power_timeseries_csv(dem, model, district, result_dir)
 
     # # Save network power timeseries for all districts
-    # save_network_power_timeseries_csv(model, result_dir)
+    #save_network_power_timeseries_csv(model, result_dir)
     
     model_solve_time = time.time() - start_time - model_building_time
 
@@ -2184,12 +2186,12 @@ def save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_lis
  
 
 
-def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):    
+def save_heat_devices_timeseries_csv(model, district, result_dir, tol=1e-6):    
     # Ensure the result directory exists
     os.makedirs(result_dir, exist_ok=True)
     
     # Define the output file path
-    csv_file_path = os.path.join(result_dir, f"{district}_{device}_heat_timeseries.csv")
+    csv_file_path = os.path.join(result_dir, f"{district}_devices_heat_timeseries.csv")
     
     # Helper function for safe value retrieval
     def safe_value(var_container, index):
@@ -2199,24 +2201,88 @@ def save_heat_timeseries_csv(model, result_dict, district, device, result_dir):
         except (KeyError, ValueError):
             return 0
     
+    # Only devices which are part of the solution
+    active_heat_devs = []
+    for device in model.heat_devs:
+        total_heat = sum(
+            safe_value(model.heat, (device, district, y, d, t))
+            for y in model.support_years
+            for d in model.clusters
+            for t in model.time_steps
+        )
+        if total_heat > tol:
+            active_heat_devs.append(str(device))
+
     # Prepare the data
     data_to_save = [
-        ["Support_Year", "Cluster", "Timestep", "Heat_kW"]  # Header row
+        ["Support_Year", "Cluster", "Timestep", "Device", "Heat_kW"]  # Header row
     ]
-    
-    # Iterate over all support years, clusters, and timesteps
+
+    # Iterate over all support years, clusters, timesteps and active devices
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
-                heat_value = safe_value(model.heat, (device, district, y, d, t))
-                data_to_save.append([y, d, t, round(heat_value, 3)])
-    
+                for device in active_heat_devs:
+                    heat_value = safe_value(model.heat, (device, district, y, d, t))
+                    data_to_save.append([y, d, t, device, round(heat_value, 3)])
+
     # Write the data to the CSV file
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file, delimiter=";")
         writer.writerows(data_to_save)
+
+    print(
+        f"Heat timeseries for {len(active_heat_devs)} active heat devices in {district} saved to {csv_file_path}"
+    )
+
+def save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6):    
+    # Ensure the result directory exists
+    os.makedirs(result_dir, exist_ok=True)
     
-    print(f"Heat timeseries for {device} in {district} saved to {csv_file_path}")
+    # Define the output file path
+    csv_file_path = os.path.join(result_dir, f"{district}_devices_power_timeseries.csv")
+    
+    # Helper function for safe value retrieval
+    def safe_value(var_container, index):
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
+    
+    # Only devices which are part of the solution
+    active_power_devs = []
+    for device in model.power_devs:
+        total_power = sum(
+            safe_value(model.power, (device, district, y, d, t))
+            for y in model.support_years
+            for d in model.clusters
+            for t in model.time_steps
+        )
+        if total_power > tol:
+            active_power_devs.append(str(device))
+
+    # Prepare the data
+    data_to_save = [
+        ["Support_Year", "Cluster", "Timestep", "Device", "Power_kW"]  # Header row
+    ]
+
+    # Iterate over all support years, clusters, timesteps and active devices
+    for y in model.support_years:
+        for d in model.clusters:
+            for t in model.time_steps:
+                for device in active_power_devs:
+                    power_value = safe_value(model.power, (device, district, y, d, t))
+                    data_to_save.append([y, d, t, device, round(power_value, 3)])
+
+    # Write the data to the CSV file
+    with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file, delimiter=";")
+        writer.writerows(data_to_save)
+
+    print(
+        f"Power timeseries for {len(active_power_devs)} active power devices in {district} saved to {csv_file_path}"
+    )
 
 def save_demand_heat_timeseries_csv(dem, model, district, result_dir):
         # Ensure the result directory exists
@@ -2228,15 +2294,23 @@ def save_demand_heat_timeseries_csv(dem, model, district, result_dir):
     
     # Prepare the data
     data_to_save = [
-        ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW"]  # Header row
+        ["Support_Year", "Cluster", "Timestep", "Heat_Demand_kW", "Heat_Demand_TES_kW"]  # Header row
     ]
+    # Helper function for safe value retrieval
+    def safe_value(var_container, index):
+        try:
+            val = pyo.value(var_container[index])
+            return val if val is not None else 0
+        except (KeyError, ValueError):
+            return 0
     
     # Iterate over all support years, clusters, and timesteps
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
                 heat_demand = dem["heat"][y][d][t]
-                data_to_save.append([y, d, t, round(heat_demand, 3)])
+                heat_demand_TES=safe_value(model.ch, ("TES", district, y, d, t))
+                data_to_save.append([y, d, t, round(heat_demand, 3), round(heat_demand_TES, 3)])
     
     # Write the data to the CSV file
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
@@ -2306,7 +2380,7 @@ def save_demand_power_timeseries_csv(dem, model, district, result_dir):
         
 #         # Prepare the data
 #         data_to_save = [
-#             ["Support_Year", "Cluster", "Timestep", "to_network_kW", "from_network_kW", "to_main_grid_kW", "from_main_grid_kW", "to_grid_kW", "from_grid_kW"]  # Header row
+#             ["Support_Year", "Cluster", "Timestep", "to_network_kW", "from_network_kW", "to_main_grid_kW", "from_main_grid_kW", "to_grid_kW", "from_grid_kW", "PV_kW"]  # Header row
 #         ]
         
 #         # Iterate over all support years, clusters, and timesteps
@@ -2319,7 +2393,8 @@ def save_demand_power_timeseries_csv(dem, model, district, result_dir):
 #                     from_main_grid_value = safe_value(model.power, ("from_main_grid", district, y, d, t))
 #                     to_grid_value = safe_value(model.power, ("to_grid", district, y, d, t))
 #                     from_grid_value = safe_value(model.power, ("from_grid", district, y, d, t))
-#                     data_to_save.append([y, d, t, round(to_network_value, 3), round(from_network_value, 3), round(to_main_grid_value, 3), round(from_main_grid_value, 3), round(to_grid_value, 3), round(from_grid_value, 3)])
+#                     pv_value = safe_value(model.power, ("PV", district, y, d, t))
+#                     data_to_save.append([y, d, t, round(to_network_value, 3), round(from_network_value, 3), round(to_main_grid_value, 3), round(from_main_grid_value, 3), round(to_grid_value, 3), round(from_grid_value, 3), round(pv_value, 3)])
         
 #         # Write the data to the CSV file
 #         with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:

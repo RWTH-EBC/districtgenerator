@@ -153,8 +153,9 @@ def plot_device_capacities_from_csv(
         "TES": "therm. Speicher",
         "STC": "Solarthermie",
         "WT": "Windkraft",
-        "EB": "Elektrischer\nBoiler",
+        "EB": "Elektrischer\nKessel",
         "BOI": "Erdgaskessel",
+        "BBOI": "Biomassekessel",
     }
 
     plots_dir = os.path.join(result_dir or ".", "plots")
@@ -546,7 +547,7 @@ def plot_power_import_by_year_from_csv(
         y_net[0::2] = vals_vb_net
         y_net[1::2] = vals_ez_net
 
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(8, 4))
         width = 0.5
 
         # Hauptnetz-Balken
@@ -583,12 +584,12 @@ def plot_power_import_by_year_from_csv(
                 handles,
                 legend_labels,
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.14),
+                bbox_to_anchor=(0.5, -0.16),
                 ncol=2,
                 frameon=False,
             )
 
-        plt.tight_layout(rect=[0, 0.08, 1, 1])
+        plt.tight_layout(rect=[0, 0.02, 1, 1])
 
         plot_path = os.path.join(plots_dir, titel + ".png")
         plt.savefig(plot_path, dpi=150)
@@ -708,7 +709,7 @@ def plot_power_export_by_year_from_csv(
         y_net[0::2] = vals_vb_net
         y_net[1::2] = vals_ez_net
 
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(8, 4))
         width = 0.5
 
         # Hauptnetz-Balken
@@ -745,12 +746,12 @@ def plot_power_export_by_year_from_csv(
                 handles,
                 legend_labels,
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.14),
+                bbox_to_anchor=(0.4, -0.15),
                 ncol=2,
                 frameon=False,
             )
 
-        plt.tight_layout(rect=[0, 0.08, 1, 1])
+        plt.tight_layout(rect=[0, 0, 1, 1])
 
         plot_path = os.path.join(plots_dir, titel + ".png")
         plt.savefig(plot_path, dpi=150)
@@ -1469,7 +1470,7 @@ def plot_co2_sum_from_three_scenarios(
         )
 
     plt.xticks(x, labels)
-    plt.ylabel("CO₂-Summe")
+    plt.ylabel("CO₂-Emissionen in t")
     plt.title(titel or "CO₂-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -1643,7 +1644,7 @@ def plot_lcoe_sum_from_three_scenarios(
             )
 
     plt.xticks(x, labels)
-    plt.ylabel("LCOE [EUR/MWh]")
+    plt.ylabel("Energiegestehungskosten in €/MWh")
     plt.title(titel or "LCOE (Summe aus 3 Quartieren): Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -1673,39 +1674,336 @@ def plot_lcoe_sum_from_three_scenarios(
 
 
 
+def plot_tac_by_year_sum_from_three_scenarios(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+):
+    """
+    Plot jährliche Gesamtkosten (TAC) je Jahr, summiert über 3 Quartiere:
+    Verbund vs. Einzeloptimierung.
+
+    CSV-Filter:
+    - category == "optimization"
+    - metric   == "tac_per_distr_year"
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_tac_by_year(csv_path):
+        out = {}  # {year: tac}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "tac_per_distr_year":
+                    continue
+
+                y_raw = row.get("year")
+                if y_raw in (None, ""):
+                    continue
+                try:
+                    y = int(float(y_raw))
+                except Exception:
+                    continue
+
+                v = _parse_value(row.get("value"))
+                try:
+                    out[y] = out.get(y, 0.0) + float(v)
+                except Exception:
+                    continue
+        return out
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    tac_vb_sum = {}  # year -> sum over 3 scenarios
+    tac_ez_sum = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+        if not os.path.isfile(network_path):
+            raise FileNotFoundError(f"Missing file: {network_path}")
+        if not os.path.isfile(single_path):
+            raise FileNotFoundError(f"Missing file: {single_path}")
+
+        vb = _read_tac_by_year(network_path)
+        ez = _read_tac_by_year(single_path)
+
+        for y, val in vb.items():
+            tac_vb_sum[y] = tac_vb_sum.get(y, 0.0) + val
+        for y, val in ez.items():
+            tac_ez_sum[y] = tac_ez_sum.get(y, 0.0) + val
+
+    years = sorted(set(tac_vb_sum.keys()) | set(tac_ez_sum.keys()))
+    if not years:
+        raise ValueError("Keine Daten für metric='tac_per_distr_year' gefunden.")
+
+    y_vb = [tac_vb_sum.get(y, 0.0) for y in years]
+    y_ez = [tac_ez_sum.get(y, 0.0) for y in years]
+
+    x = np.arange(len(years))
+    width = 0.35
+    labels = [str(base_calendar_year + y) for y in years]
+
+    plt.figure(figsize=(8, 4.8))
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+
+    if show_percent_box:
+        ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+        plt.ylim(0, ymax * 1.35)
+        y_offset = ymax * 0.07
+
+        for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+            if ez_val == 0:
+                txt = "n/a" if vb_val == 0 else "+∞"
+            else:
+                txt = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+            plt.text(
+                x[i] - width / 2,
+                vb_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=11,
+                bbox=dict(
+                    boxstyle="square,pad=0.3",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.1,
+                ),
+            )
+
+    plt.xticks(x, labels)
+    plt.ylabel("Jährliche Gesamtkosten in €/a")
+    plt.title(titel or "Jährliche Gesamtkosten (Summe aus 3 Quartieren)")
+    plt.grid(axis="y", alpha=0.4)
+    plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+    plt.legend()
+    plt.tight_layout()
+
+    plot_name = "tac_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return {
+        "scenario_names": list(scenario_names),
+        "network_tac_by_year": dict(zip(years, y_vb)),
+        "single_tac_by_year": dict(zip(years, y_ez)),
+        "plot_path": plot_path,
+    }
+
+
+
+def plot_co2_by_year_sum_from_three_scenarios(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+):
+    """
+    Plot jährliche CO2-Emissionen je Jahr, summiert über 3 Quartiere:
+    Verbund vs. Einzeloptimierung.
+
+    CSV-Filter:
+    - category == "optimization"
+    - metric   == "co2_sum_distr_year"
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_co2_by_year(csv_path):
+        out = {}  # {year: co2}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "co2_sum_distr_year":
+                    continue
+
+                y_raw = row.get("year")
+                if y_raw in (None, ""):
+                    continue
+                try:
+                    y = int(float(y_raw))
+                except Exception:
+                    continue
+
+                v = _parse_value(row.get("value"))
+                try:
+                    out[y] = out.get(y, 0.0) + float(v)
+                except Exception:
+                    continue
+        return out
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    co2_vb_sum = {}
+    co2_ez_sum = {}
+
+    for sc in scenario_names:
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+        if not os.path.isfile(network_path):
+            raise FileNotFoundError(f"Missing file: {network_path}")
+        if not os.path.isfile(single_path):
+            raise FileNotFoundError(f"Missing file: {single_path}")
+
+        vb = _read_co2_by_year(network_path)
+        ez = _read_co2_by_year(single_path)
+
+        for y, val in vb.items():
+            co2_vb_sum[y] = co2_vb_sum.get(y, 0.0) + val
+        for y, val in ez.items():
+            co2_ez_sum[y] = co2_ez_sum.get(y, 0.0) + val
+
+    years = sorted(set(co2_vb_sum.keys()) | set(co2_ez_sum.keys()))
+    if not years:
+        raise ValueError("Keine Daten für metric='co2_sum_distr_year' gefunden.")
+
+    y_vb = [co2_vb_sum.get(y, 0.0) for y in years]
+    y_ez = [co2_ez_sum.get(y, 0.0) for y in years]
+
+    x = np.arange(len(years))
+    width = 0.35
+    labels = [str(base_calendar_year + y) for y in years]
+
+    plt.figure(figsize=(8, 4.8))
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+
+    if show_percent_box:
+        ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+        plt.ylim(0, ymax * 1.35)
+        y_offset = ymax * 0.07
+
+        for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+            if ez_val == 0:
+                txt = "n/a" if vb_val == 0 else "+∞"
+            else:
+                txt = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+            plt.text(
+                x[i] - width / 2,
+                vb_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=11,
+                bbox=dict(
+                    boxstyle="square,pad=0.3",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.1,
+                ),
+            )
+
+    plt.xticks(x, labels)
+    plt.ylabel("Jährliche CO₂-Emissionen in t/a")
+    plt.title(titel or "Jährliche CO₂-Emissionen (Summe aus 3 Quartieren)")
+    plt.grid(axis="y", alpha=0.4)
+    plt.ticklabel_format(axis="y", style="plain", useOffset=False)
+    plt.legend()
+    plt.tight_layout()
+
+    plot_name = "co2_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return {
+        "scenario_names": list(scenario_names),
+        "network_co2_by_year": dict(zip(years, y_vb)),
+        "single_co2_by_year": dict(zip(years, y_ez)),
+        "plot_path": plot_path,
+    }
+
+
 
 
 
 
 if __name__ == "__main__":
-    # district1 = "residential2"
-    # district2 = "mixed1"
-    # district3 = "ghd6"
-    # name1 = "Wohnquartier"
-    # name2 = "gemischten Quartier"
-    # name3 = "gewerblichen Quartier"
+    district1 = "residential2"
+    district2 = "mixed1"
+    district3 = "ghd6"
+    name1 = "Wohnquartier"
+    name2 = "Mischquartier"
+    name3 = "Gewerbequartier"
 
-    district1 = "1rural"
-    district2 = "4zb"
-    district3 = "6urban"
-    name1 = "ländlichen Quartier"
-    name2 = "vorstädtischen Quartier"
-    name3 = "urbanen Quartier"
+    # district1 = "1rural"
+    # district2 = "4zb"
+    # district3 = "6urban"
+    # name1 = "ländlichen Quartier"
+    # name2 = "vorstädtischen Quartier"
+    # name3 = "urbanen Quartier"
     
-    plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="TAC Summe 3 Quartiere")
-    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO2 Summe 3 Quartiere")
-    plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="LCOE_Summe_3_Quartiere")
-    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
-    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
-    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
+    # plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre")
+    #plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der drei Quartiere")
+    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der Quartiere und der Jahre")
+    # plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der drei Quartiere")
+    # plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Energiegestehungskosten als Summe der drei Quartiere")
+    # plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
+    # plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}")
+    # plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}")
 
     # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
     # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
     # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
 
-    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
-    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
-    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True)
 
     # plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True)
     # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
@@ -1715,9 +2013,9 @@ if __name__ == "__main__":
     # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
     # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
 
-    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
-    # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
-    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
