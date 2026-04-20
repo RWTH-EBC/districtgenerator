@@ -74,8 +74,8 @@ def plot_device_capacities_from_csv(
 ):
     """
     Plot capacities side-by-side for:
-    - <scenario>_network_results.csv  -> "Verbund"
-    - <scenario>_results.csv          -> "Einzeln"
+    - <scenario>_network_results.csv  -> "Ohne Verbundpreis"
+    - <scenario>_results.csv          -> "Mit Verbundpreis"
 
     Returns
     -------
@@ -127,7 +127,7 @@ def plot_device_capacities_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn.replace("_network_results.csv", "")
-                single_candidate = os.path.join(base_dir, f"{sc}_results.csv")
+                single_candidate = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
                 if os.path.isfile(single_candidate):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
@@ -161,7 +161,7 @@ def plot_device_capacities_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not os.path.isfile(network_path) or not os.path.isfile(single_path):
             print(f"Skip '{sc}': pair not complete.")
@@ -192,8 +192,8 @@ def plot_device_capacities_from_csv(
         xtick_labels = [label_map.get(d, d) for d in devices]
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width/2, y_network, width=width, color="#D40000", label="Verbund")
-        plt.bar(x + width/2, y_single, width=width, color="#55585C", label="Einzeln")
+        plt.bar(x - width/2, y_network, width=width, color="#D40000", label="Ohne Verbundpreis")
+        plt.bar(x + width/2, y_single, width=width, color="#55585C", label="Mit Verbundpreis")
 
         ymax = max(max(y_network) if y_network else 0, max(y_single) if y_single else 0, 1.0)
         if show_percent_box:
@@ -260,9 +260,9 @@ def plot_heat_generation_by_year_from_csv(
     base_calendar_year=2025,
 ):
     """
-    Plot stacked heat generation by year (VB vs EZ) from:
-    - <scenario>_network_results.csv  -> VB
-    - <scenario>_results.csv          -> EZ
+    Plot stacked heat generation by year (oVP vs VP) from:
+    - <scenario>_network_results.csv  -> oVP
+    - <scenario>_results.csv          -> VP
 
     Uses:
     - category == 'heat_by_year'
@@ -299,7 +299,7 @@ def plot_heat_generation_by_year_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn.replace("_network_results.csv", "")
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -331,7 +331,7 @@ def plot_heat_generation_by_year_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
@@ -364,12 +364,12 @@ def plot_heat_generation_by_year_from_csv(
             print(f"Skip '{sc}': all heat_gen values are 0.")
             continue
 
-        # x-Achse: pro Jahr 2 Balken (VB, EZ)
+        # x-Achse: pro Jahr 2 Balken (oVP, VP)
         x = np.arange(len(years) * 2)
         xticklabels = []
         for y in years:
-            xticklabels.append(f"{base_calendar_year + y}\nVB")
-            xticklabels.append(f"{base_calendar_year + y}\nEZ")
+            xticklabels.append(f"{base_calendar_year + y}\noVP")
+            xticklabels.append(f"{base_calendar_year + y}\nVP")
 
         plt.figure(figsize=(8, 4))
         bottoms = np.zeros(len(x), dtype=float)
@@ -450,7 +450,7 @@ def plot_power_import_by_year_from_csv(
     show_percent_box=False,
 ):
     """
-    Plot yearly electricity import (MWh) as paired bars (Verbund vs Einzeln).
+    Plot yearly electricity import (MWh) as paired bars (Verbund vs Mit Verbundpreis).
 
     Metrics (category='yearly_totals'):
     - from_el_main_grid_total  -> Strombezug aus dem Hauptnetz
@@ -487,7 +487,7 @@ def plot_power_import_by_year_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn.replace("_network_results.csv", "")
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -503,7 +503,7 @@ def plot_power_import_by_year_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
@@ -522,7 +522,7 @@ def plot_power_import_by_year_from_csv(
 
         for y in years:
             cal_y = base_calendar_year + y
-            labels.extend([f"{cal_y}\nVB", f"{cal_y}\nEZ"])
+            labels.extend([f"{cal_y}\noVP", f"{cal_y}\nVP"])
 
             vb_main.append(vb.get(y, {}).get("from_el_main_grid_total", 0.0))
             vb_net.append(vb.get(y, {}).get("from_network_total", 0.0))
@@ -535,7 +535,7 @@ def plot_power_import_by_year_from_csv(
         vals_ez_main = np.array(ez_main, dtype=float)
         vals_ez_net = np.array(ez_net, dtype=float)
 
-        # Interleave: [VB(y1), EZ(y1), VB(y2), EZ(y2), ...]
+        # Interleave: [oVP(y1), VP(y1), oVP(y2), VP(y2), ...]
         y_main = np.empty(len(x), dtype=float)
         y_net = np.empty(len(x), dtype=float)
         y_main[0::2] = vals_vb_main
@@ -567,13 +567,13 @@ def plot_power_import_by_year_from_csv(
             legend_labels.append("Verbund Strombezug aus dem Hauptnetz")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
-            legend_labels.append("Einzeln Strombezug aus dem Hauptnetz")
+            legend_labels.append("Mit Verbundpreis Strombezug aus dem Hauptnetz")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
             legend_labels.append("Verbund Strombezug aus dem Verbundnetz")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
-            legend_labels.append("Einzeln Strombezug aus dem Verbundnetz")
+            legend_labels.append("Mit Verbundpreis Strombezug aus dem Verbundnetz")
 
         if handles:
             plt.legend(
@@ -612,7 +612,7 @@ def plot_power_export_by_year_from_csv(
     show_percent_box=False,
 ):
     """
-    Plot yearly electricity import (MWh) as paired bars (Verbund vs Einzeln).
+    Plot yearly electricity import (MWh) as paired bars (Verbund vs Mit Verbundpreis).
 
     Metrics (category='yearly_totals'):
     - to_el_main_grid_total  -> Stromeinspeisung in das Hauptnetz
@@ -649,7 +649,7 @@ def plot_power_export_by_year_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn.replace("_network_results.csv", "")
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -665,7 +665,7 @@ def plot_power_export_by_year_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
@@ -684,7 +684,7 @@ def plot_power_export_by_year_from_csv(
 
         for y in years:
             cal_y = base_calendar_year + y
-            labels.extend([f"{cal_y}\nVB", f"{cal_y}\nEZ"])
+            labels.extend([f"{cal_y}\noVP", f"{cal_y}\nVP"])
 
             vb_main.append(vb.get(y, {}).get("to_el_main_grid_total", 0.0))
             vb_net.append(vb.get(y, {}).get("to_network_total", 0.0))
@@ -697,7 +697,7 @@ def plot_power_export_by_year_from_csv(
         vals_ez_main = np.array(ez_main, dtype=float)
         vals_ez_net = np.array(ez_net, dtype=float)
 
-        # Interleave: [VB(y1), EZ(y1), VB(y2), EZ(y2), ...]
+        # Interleave: [oVP(y1), VP(y1), oVP(y2), VP(y2), ...]
         y_main = np.empty(len(x), dtype=float)
         y_net = np.empty(len(x), dtype=float)
         y_main[0::2] = vals_vb_main
@@ -729,13 +729,13 @@ def plot_power_export_by_year_from_csv(
             legend_labels.append("Verbund Stromeinspeisung in das Hauptnetz")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
-            legend_labels.append("Einzeln Stromeinspeisung in das Hauptnetz")
+            legend_labels.append("Mit Verbundpreis Stromeinspeisung in das Hauptnetz")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
             legend_labels.append("Verbund Stromeinspeisung in das Verbundnetz")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
-            legend_labels.append("Einzeln Stromeinspeisung in das Verbundnetz")
+            legend_labels.append("Mit Verbundpreis Stromeinspeisung in das Verbundnetz")
 
         if handles:
             plt.legend(
@@ -775,7 +775,7 @@ def plot_lcoe_by_year_from_csv(
     show_percent_box=False, 
 ):
     """
-    Plot yearly LCOE as paired bars (Verbund vs Einzeln).
+    Plot yearly LCOE as paired bars (Verbund vs Mit Verbundpreis).
 
     Uses rows with:
     - category == 'optimization'
@@ -827,7 +827,7 @@ def plot_lcoe_by_year_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn[: -len("_network_results.csv")]
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -843,13 +843,13 @@ def plot_lcoe_by_year_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
 
         vb = _read_lcoe_year(network_path)  # Verbund
-        ez = _read_lcoe_year(single_path)   # Einzeln
+        ez = _read_lcoe_year(single_path)   # Mit Verbundpreis
 
         years = sorted(set(vb.keys()) | set(ez.keys()))
         if not years:
@@ -872,8 +872,8 @@ def plot_lcoe_by_year_from_csv(
             return s.replace(".", ",")
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
 
         if show_percent_box:  # NEU
             ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -941,7 +941,7 @@ def plot_co2_by_year_from_csv(
     show_percent_box=False,
 ):
     """
-    Plot yearly CO2 emissions as paired bars (Verbund vs Einzeln).
+    Plot yearly CO2 emissions as paired bars (Verbund vs Mit Verbundpreis).
 
     Uses rows with:
     - category == 'optimization'
@@ -992,7 +992,7 @@ def plot_co2_by_year_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn[: -len("_network_results.csv")]
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -1008,13 +1008,13 @@ def plot_co2_by_year_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
 
         vb = _read_co2_year(network_path)  # Verbund
-        ez = _read_co2_year(single_path)   # Einzeln
+        ez = _read_co2_year(single_path)   # Mit Verbundpreis
 
         years = sorted(set(vb.keys()) | set(ez.keys()))
         if not years:
@@ -1029,8 +1029,8 @@ def plot_co2_by_year_from_csv(
         labels = [str(base_calendar_year + y) for y in years]
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
 
         if show_percent_box:
             ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1102,7 +1102,7 @@ def plot_tac_sum_from_three_scenarios(
     - scenario_names: Liste/Tuple mit genau 3 Szenario-Namen
     - Dateien je Szenario:
       - <scenario>_network_results.csv  (Verbund)
-      - <scenario>_results.csv          (Einzeln)
+      - <scenario>_results.csv          (Mit Verbundpreis)
 
     CSV-Filter:
     - category == "optimization"
@@ -1150,7 +1150,7 @@ def plot_tac_sum_from_three_scenarios(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1166,7 +1166,7 @@ def plot_tac_sum_from_three_scenarios(
 
     x = np.arange(2)
     y = [total_vb, total_ez]
-    labels = ["Verbund", "Einzeln"]
+    labels = ["Ohne Verbundpreis", "Mit Verbundpreis"]
     colors = ["#D40000", "#55585C"]
 
     plt.figure(figsize=(7, 4.5))
@@ -1236,7 +1236,7 @@ def plot_tes_volume_from_csv(
     """
     Plot TES-Volumen (device='TES', metric='vol_liter') als Balkenvergleich:
     - Verbund  (<scenario>_network_results.csv)
-    - Einzeln  (<scenario>_results.csv)
+    - Mit Verbundpreis  (<scenario>_results.csv)
 
     CSV-Werte sind in Liter; geplottet wird in m³.
     """
@@ -1273,7 +1273,7 @@ def plot_tes_volume_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn[: -len("_network_results.csv")]
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_results.csv")):
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -1289,7 +1289,7 @@ def plot_tes_volume_from_csv(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
@@ -1300,7 +1300,7 @@ def plot_tes_volume_from_csv(
 
         x = np.arange(2)
         y = [vb_m3, ez_m3]
-        labels = ["Verbund", "Einzeln"]
+        labels = ["Ohne Verbundpreis", "Mit Verbundpreis"]
         colors = ["#D40000", "#55585C"]
 
         plt.figure(figsize=(6.5, 4.2))
@@ -1371,7 +1371,7 @@ def plot_co2_sum_from_three_scenarios(
     - scenario_names: Liste/Tuple mit genau 3 Szenario-Namen
     - Dateien je Szenario:
       - <scenario>_network_results.csv  (Verbund)
-      - <scenario>_results.csv          (Einzeln)
+      - <scenario>_results.csv          (Mit Verbundpreis)
 
     CSV-Filter:
     - category == "optimization"
@@ -1416,7 +1416,7 @@ def plot_co2_sum_from_three_scenarios(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1432,7 +1432,7 @@ def plot_co2_sum_from_three_scenarios(
 
     x = np.arange(2)
     y = [total_vb, total_ez]
-    labels = ["Verbund", "Einzeln"]
+    labels = ["Ohne Verbundpreis", "Mit Verbundpreis"]
     colors = ["#D40000", "#55585C"]
 
     plt.figure(figsize=(7, 4.5))
@@ -1574,7 +1574,7 @@ def plot_lcoe_sum_from_three_scenarios(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1609,8 +1609,8 @@ def plot_lcoe_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, lcoe_vb, width=width, color="#D40000", label="Verbund")
-    plt.bar(x + width / 2, lcoe_ez, width=width, color="#55585C", label="Einzeln")
+    plt.bar(x - width / 2, lcoe_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
+    plt.bar(x + width / 2, lcoe_ez, width=width, color="#55585C", label="Mit Verbundpreis")
 
     if show_percent_box:
         ymax = max(max(lcoe_vb) if lcoe_vb else 0, max(lcoe_ez) if lcoe_ez else 0, 1.0)
@@ -1734,7 +1734,7 @@ def plot_tac_by_year_sum_from_three_scenarios(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1761,8 +1761,8 @@ def plot_tac_by_year_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
 
     if show_percent_box:
         ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1882,7 +1882,7 @@ def plot_co2_by_year_sum_from_three_scenarios(
 
     for sc in scenario_names:
         network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1909,8 +1909,8 @@ def plot_co2_by_year_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
 
     if show_percent_box:
         ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1970,19 +1970,12 @@ def plot_co2_by_year_sum_from_three_scenarios(
 
 
 if __name__ == "__main__":
-    # district1 = "residential2"
-    # district2 = "mixed1"
-    # district3 = "residential0"
-    # name1 = "Wohnquartier 2"
-    # name2 = "Mischquartier"
-    # name3 = "Wohnquartier 1"
-
     district1 = "residential2"
     district2 = "mixed1"
-    district3 = "ghd6"
+    district3 = "residential0"
     name1 = "Wohnquartier 2"
     name2 = "Mischquartier"
-    name3 = "Gewerbequartier"
+    name3 = "Wohnquartier 1"
 
     # district1 = "1rural"
     # district2 = "4zb"
