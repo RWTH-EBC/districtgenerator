@@ -2,63 +2,158 @@ from pathlib import Path
 import pandas as pd
 
 
-def load_timeseries_dict(
+def load_timeseries_dict_nested(
     district1: str,
     district2: str,
     district3: str,
-    base_path: str = r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results"
+    base_path: str = r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results",
 ) -> dict:
     """
-    Lädt drei CSV-Dateien (<district>_devices_power_timeseries.csv) und speichert sie
-    in einem 2-stufigen Dictionary:
-    
-    timeseries_dict[district][column_name] -> Liste der Werte in dieser Spalte
+    Ergebnisstruktur:
+    timeseries_dict[district][column][year][cluster][step] = value
+    plus:
+    timeseries_dict[district]["total_demand"][year][cluster][step] = value
     """
-    timeseries_dict = {}
     districts = [district1, district2, district3]
+    timeseries_dict = {}
+
+    dev = ["PV", "HP", "BAT", "EB", "BBOI", "BCHP", "Power_Demand_kW"]
 
     for district in districts:
         file_path = Path(base_path) / f"{district}_devices_power_timeseries.csv"
-
         if not file_path.exists():
             raise FileNotFoundError(f"Datei nicht gefunden: {file_path}")
 
-        # Deine CSVs sind mit Semikolon getrennt
         df = pd.read_csv(file_path, sep=";")
+        timeseries_dict[district] = {}
 
-        # 2. Ebene = Spaltennamen aus der CSV
-        timeseries_dict[district] = {
-            col: df[col].tolist() for col in df.columns
-        }
+        for _, row in df.iterrows():
+            year = int(row["Support_Year"])
+            cluster = int(row["Cluster"])
+            step = int(row["Timestep"])
+
+            # Alle CSV-Spalten in die neue Struktur schreiben
+            for col in df.columns:
+                value = float(row[col]) if pd.notna(row[col]) else 0.0
+                timeseries_dict[district].setdefault(col, {}) \
+                                       .setdefault(year, {}) \
+                                       .setdefault(cluster, {})[step] = round(value, 3)
+
+            # total_demand berechnen (PV wird abgezogen)
+            total = 0.0
+            for d in dev:
+                v = float(row[d]) if d in df.columns and pd.notna(row[d]) else 0.0
+                total += -v if d == "PV" else v
+
+            timeseries_dict[district].setdefault("total_demand", {}) \
+                                   .setdefault(year, {}) \
+                                   .setdefault(cluster, {})[step] = round(total, 3)
 
     return timeseries_dict
 
-def add_total_demand(timeseries_dict: dict) -> dict:
-    dev = ["PV", "HP", "BAT", "EB", "BBOI", "Power_Demand_kW"]
 
-    for district in timeseries_dict:
-        # Länge der Zeitreihe aus der ersten vorhandenen Spalte bestimmen
-        first_col = next(iter(timeseries_dict[district]))
-        n = len(timeseries_dict[district][first_col])
+def balance_total_demand(timeseries_dict: dict, district1: str, district2: str, district3: str) -> dict:
+    """
+    Bilanzierung pro (year, cluster, step):
+    - genau 1 abgebendes Quartier: total_demand < 0
+    - 1 aufnehmendes Quartier: bekommt den vollen negativen Wert
+    - 2 aufnehmende Quartiere: bekommen jeweils die Hälfte
+    - abgebendes Quartier wird danach auf 0 gesetzt
+    """
+    districts = [district1, district2, district3]
 
-        total = [0.0] * n
+    def get_val(d, key, y, c, s):
+        return float(
+            timeseries_dict.get(d, {})
+            .get(key, {})
+            .get(y, {})
+            .get(c, {})
+            .get(s, 0.0)
+        )
 
-        for d in dev:
-            # Falls Spalte im District fehlt -> mit 0 auffüllen
-            series = timeseries_dict[district].get(d, [0.0] * n)
-            sign = -1.0 if d == "PV" else 1.0
-            # elementweise addieren
-            total = [t + sign * float(s) for t, s in zip(total, series)]
+    def set_val(d, key, y, c, s, value):
+        timeseries_dict.setdefault(d, {}) \
+            .setdefault(key, {}) \
+            .setdefault(y, {}) \
+            .setdefault(c, {})[s] = round(float(value), 3)
 
-        timeseries_dict[district]["total_demand"] = total
+    # Alle vorhandenen Koordinaten sammeln
+    coords = set()
+    for d in districts:
+        td = timeseries_dict.get(d, {}).get("total_demand", {})
+        for y, clusters in td.items():
+            for c, steps in clusters.items():
+                for s in steps.keys():
+                    coords.add((y, c, s))
+
+    for y, c, s in coords:
+        # Netzwerkflüsse für diesen Zeitschritt initialisieren
+        for d in districts:
+            set_val(d, "to_network", y, c, s, 0.0)
+            set_val(d, "from_network", y, c, s, 0.0)
+
+        values = {d: get_val(d, "total_demand", y, c, s) for d in districts}
+        senders = [d for d, v in values.items() if v < 0]
+
+        # Nur Fall: genau ein Sender
+        if len(senders) != 1:
+            continue
+
+        sender = senders[0]
+        receivers = [d for d in districts if d != sender and values[d] > 0]
+
+        if not receivers:
+            continue
+
+        available = -values[sender]  # positive Menge
+        transferred_total = 0.0
+        recv_transfer = {d: 0.0 for d in receivers}
+
+        if len(receivers) == 1:
+            r = receivers[0]
+            need = max(0.0, values[r])
+            t = min(available, need)
+
+            recv_transfer[r] = t
+            transferred_total = t
+
+        elif len(receivers) == 2:
+            r1, r2 = receivers
+            need1 = max(0.0, values[r1])
+            need2 = max(0.0, values[r2])
+
+            # 50/50 Start
+            half = available / 2.0
+            t1 = min(half, need1)
+            t2 = min(half, need2)
+
+            rem = available - (t1 + t2)
+
+            # Rest verteilen
+            add1 = min(rem, need1 - t1)
+            t1 += add1
+            rem -= add1
+
+            add2 = min(rem, need2 - t2)
+            t2 += add2
+            rem -= add2
+
+            recv_transfer[r1] = t1
+            recv_transfer[r2] = t2
+            transferred_total = t1 + t2
+
+        # total_demand aktualisieren
+        for r, t in recv_transfer.items():
+            set_val(r, "total_demand", y, c, s, values[r] - t)
+            set_val(r, "from_network", y, c, s, t)
+
+        set_val(sender, "total_demand", y, c, s, values[sender] + transferred_total)
+        set_val(sender, "to_network", y, c, s, transferred_total)
 
     return timeseries_dict
 
 if __name__ == "__main__":
-    timeseries_dict = load_timeseries_dict(
-    district1="ghd6",
-    district2="residential2",
-    district3="mixed1")
-
-    timeseries_dict = add_total_demand(timeseries_dict)
-    print(timeseries_dict["mixed1"]["total_demand"][:5])
+    timeseries_dict = load_timeseries_dict_nested("ghd6", "residential2", "mixed1")
+    timeseries_dict = balance_total_demand(timeseries_dict, "ghd6", "residential2", "mixed1")
+    td = timeseries_dict["mixed1"]["to_network"][0][1][37]
+    print(td)
