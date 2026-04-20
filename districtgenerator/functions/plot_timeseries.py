@@ -674,8 +674,10 @@ if __name__ == "__main__":
     result_dir = r"D:\cwu-tja\districtgenerator\plots"
     # scenario_name = "mixed1"
     # scenario_titel_name = "Mischquartier"
-    scenario_name = "residential2"
-    scenario_titel_name = "Wohnquartier"
+    # scenario_name = "residential2"
+    # scenario_titel_name = "Wohnquartier"
+    scenario_name = "residential0"
+    scenario_titel_name = "Wohnquartier 1"
     # scenario_name = "ghd6"
     # scenario_titel_name = "Gewerbequartier"
     year=0

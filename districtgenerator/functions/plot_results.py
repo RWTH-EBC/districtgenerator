@@ -554,7 +554,46 @@ def plot_power_import_by_year_from_csv(
         colors_net = ["#8C1D17" if i % 2 == 0 else "#8A8B8D" for i in range(len(x))]
         plt.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
 
+                # Anteil aus Verbundnetz im dunkelroten Bereich (nur linker Balken = Verbund)
+        for i in range(len(years)):
+            main_vb = vals_vb_main[i]
+            net_vb = vals_vb_net[i]
+            total_vb = main_vb + net_vb
+            if total_vb <= 0:
+                continue
 
+            pct_net = (net_vb / total_vb) * 100.0
+            if pct_net <= 0:
+                continue
+
+            pct_txt = f"{pct_net:.0f}%".replace(".", ",")
+            x_pos = x[2 * i]                      # linker Balken (VB)
+            y_pos = main_vb + net_vb / 2.0        # Mitte des dunkelroten Segments
+            va = "center"
+
+            # Wenn Segment sehr klein ist -> Label oberhalb platzieren
+            if net_vb < 0.08 * max(total_vb, 1.0):
+                y_pos = main_vb + net_vb + 0.03 * max(total_vb, 1.0)
+                va = "bottom"
+
+            plt.text(
+                x_pos,
+                y_pos,
+                pct_txt,
+                ha="center",
+                va=va,
+                color="black",
+                fontsize=10,
+                fontweight="bold",
+                bbox=dict(
+                    boxstyle="round,pad=0.25",
+                    facecolor="#B9BABC",
+                    edgecolor="#B9BABC",
+                    linewidth=1.0,
+                ),
+                zorder=7,
+                clip_on=False,  # darf über den Balken / Achsenbereich hinausragen
+            )
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
         plt.title(titel or sc)
@@ -716,6 +755,47 @@ def plot_power_export_by_year_from_csv(
         colors_net = ["#8C1D17" if i % 2 == 0 else "#8A8B8D" for i in range(len(x))]
         plt.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
 
+                # Anteil to_network_total / (to_network_total + to_el_main_grid_total)
+        # nur linker Balken je Jahr (Verbund), nur wenn > 0 %
+        for i in range(len(years)):
+            main_vb = vals_vb_main[i]   # to_el_main_grid_total (Verbund)
+            net_vb = vals_vb_net[i]     # to_network_total (Verbund)
+            total_vb = main_vb + net_vb
+            if total_vb <= 0:
+                continue
+
+            pct_net = (net_vb / total_vb) * 100.0
+            if pct_net <= 0:
+                continue
+
+            pct_txt = f"{pct_net:.0f}%".replace(".", ",")
+            x_pos = x[2 * i]                 # linker Balken (VB)
+            y_pos = main_vb + net_vb / 2.0   # Mitte dunkelrotes Segment
+            va = "center"
+
+            # Bei kleinem Segment: Box oberhalb
+            if net_vb < 0.08 * max(total_vb, 1.0):
+                y_pos = main_vb + net_vb + 0.03 * max(total_vb, 1.0)
+                va = "bottom"
+
+            plt.text(
+                x_pos,
+                y_pos,
+                pct_txt,
+                ha="center",
+                va=va,
+                color="black",
+                fontsize=10,
+                fontweight="bold",
+                bbox=dict(
+                    boxstyle="round,pad=0.25",
+                    facecolor="#B9BABC",
+                    edgecolor="#B9BABC",
+                    linewidth=1.0,
+                ),
+                zorder=7,
+                clip_on=False,
+            )
 
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
@@ -1970,19 +2050,19 @@ def plot_co2_by_year_sum_from_three_scenarios(
 
 
 if __name__ == "__main__":
-    # district1 = "residential2"
-    # district2 = "mixed1"
-    # district3 = "residential0"
-    # name1 = "Wohnquartier 2"
-    # name2 = "Mischquartier"
-    # name3 = "Wohnquartier 1"
-
     district1 = "residential2"
     district2 = "mixed1"
-    district3 = "ghd6"
+    district3 = "residential0"
     name1 = "Wohnquartier 2"
     name2 = "Mischquartier"
-    name3 = "Gewerbequartier"
+    name3 = "Wohnquartier 1"
+
+    # district1 = "residential2"
+    # district2 = "mixed1"
+    # district3 = "ghd6"
+    # name1 = "Wohnquartier 2"
+    # name2 = "Mischquartier"
+    # name3 = "Gewerbequartier"
 
     # district1 = "1rural"
     # district2 = "4zb"
@@ -1991,26 +2071,26 @@ if __name__ == "__main__":
     # name2 = "vorstädtischen Quartier"
     # name3 = "urbanen Quartier"
     
-    plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre")
-    plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der drei Quartiere")
-    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der Quartiere und der Jahre")
-    plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der drei Quartiere")
-    plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Energiegestehungskosten als Summe der drei Quartiere")
-    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
-    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}")
-    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}")
+    # plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre")
+    # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der drei Quartiere")
+    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der Quartiere und der Jahre")
+    # plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der drei Quartiere")
+    # plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Energiegestehungskosten als Summe der drei Quartiere")
+    # plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
+    # plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}")
+    # plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}")
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True)
 
-    plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True)
-    plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
-    plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
+    # plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True)
+    # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
+    # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
     
     plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
     plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
@@ -2020,10 +2100,10 @@ if __name__ == "__main__":
     plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
     plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
 
-    plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
-    plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
-    plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True)
 
-    plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True)
-    plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True)
-    plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True)

@@ -563,6 +563,61 @@ def plot_power_import_by_year_from_csv(
         plt.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
 
 
+        if show_percent_box:
+            def _draw_pct_box(x_pos, main_val, net_val):
+                # Anteil aus Verbundnetz:
+                # from_network_total / (from_network_total + from_el_main_grid_total)
+                total = main_val + net_val
+                if total <= 0:
+                    return
+
+                pct_net = (net_val / total) * 100.0
+                if pct_net <= 0:
+                    return
+
+                pct_txt = f"{pct_net:.0f}%".replace(".", ",")
+                y_pos = main_val + net_val / 2.0
+                va = "center"
+
+                # Wenn Segment sehr klein ist -> Label oberhalb
+                if net_val < 0.08 * max(total, 1.0):
+                    y_pos = main_val + net_val + 0.03 * max(total, 1.0)
+                    va = "bottom"
+
+                plt.text(
+                    x_pos,
+                    y_pos,
+                    pct_txt,
+                    ha="center",
+                    va=va,
+                    color="black",
+                    fontsize=10,
+                    fontweight="bold",
+                    bbox=dict(
+                        boxstyle="round,pad=0.25",
+                        facecolor="#B9BABC",
+                        edgecolor="#B9BABC",
+                        linewidth=1.0,
+                    ),
+                    zorder=7,
+                    clip_on=False,
+                )
+
+            for i in range(len(years)):
+                # linker Balken: Verbund
+                _draw_pct_box(
+                    x[2 * i],
+                    vals_vb_main[i],   # from_el_main_grid_total
+                    vals_vb_net[i],    # from_network_total
+                )
+                # rechter Balken: Einzeln
+                _draw_pct_box(
+                    x[2 * i + 1],
+                    vals_ez_main[i],   # from_el_main_grid_total
+                    vals_ez_net[i],    # from_network_total
+                )
+
+
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
         plt.title(titel or sc)
@@ -578,7 +633,7 @@ def plot_power_import_by_year_from_csv(
             legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Strombezug aus dem Hauptnetz")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
-            legend_labels.append("Verbund Strombezug aus dem Verbundnetz")
+            legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Strombezug aus dem Verbundnetz")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
             legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Strombezug aus dem Verbundnetz")
@@ -727,6 +782,58 @@ def plot_power_export_by_year_from_csv(
         plt.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
 
 
+        if show_percent_box:
+            def _draw_pct_box(x_pos, main_val, net_val):
+                total = main_val + net_val
+                if total <= 0:
+                    return
+
+                pct_net = (net_val / total) * 100.0
+                if pct_net <= 0:
+                    return
+
+                pct_txt = f"{pct_net:.0f}%".replace(".", ",")
+                y_pos = main_val + net_val / 2.0
+                va = "center"
+
+                # Bei kleinem Segment: Box oberhalb platzieren
+                if net_val < 0.08 * max(total, 1.0):
+                    y_pos = main_val + net_val + 0.03 * max(total, 1.0)
+                    va = "bottom"
+
+                plt.text(
+                    x_pos,
+                    y_pos,
+                    pct_txt,
+                    ha="center",
+                    va=va,
+                    color="black",
+                    fontsize=10,
+                    fontweight="bold",
+                    bbox=dict(
+                        boxstyle="round,pad=0.25",
+                        facecolor="#B9BABC",
+                        edgecolor="#B9BABC",
+                        linewidth=1.0,
+                    ),
+                    zorder=7,
+                    clip_on=False,
+                )
+
+            for i in range(len(years)):
+                # links: Verbund
+                _draw_pct_box(
+                    x[2 * i],
+                    vals_vb_main[i],   # to_el_main_grid_total
+                    vals_vb_net[i],    # to_network_total
+                )
+                # rechts: Einzeln
+                _draw_pct_box(
+                    x[2 * i + 1],
+                    vals_ez_main[i],   # to_el_main_grid_total
+                    vals_ez_net[i],    # to_network_total
+                )
+
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
         plt.title(titel or sc)
@@ -736,7 +843,7 @@ def plot_power_export_by_year_from_csv(
         handles, legend_labels = [], []
         if np.any(vals_vb_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#E43D30"))
-            legend_labels.append("Verbund Stromeinspeisung in das Hauptnetz")
+            legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Stromeinspeisung in das Hauptnetz")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
             legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Stromeinspeisung in das Hauptnetz")
@@ -2007,14 +2114,10 @@ def plot_co2_by_year_sum_from_three_scenarios(
     }
 
 
-
-
-
-
 if __name__ == "__main__":
-    compare_item1="Szenario 55"
+    compare_item1="Szenario 61"
     compare_item2="Szenario 57"
-    compare_short1 = "55"
+    compare_short1 = "61"
     compare_short2 = "57"
     district1 = "residential2"
     district2 = "mixed1"
@@ -2037,51 +2140,51 @@ if __name__ == "__main__":
     # name2 = "vorstädtischen Quartier"
     # name3 = "urbanen Quartier"
     
-    plot_tac_sum_from_three_scenarios(
-        scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-        titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre", 
-        compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2
-    )
-    plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
-    titel="Volumen thermischer Speicher im  " + f"{name1}",
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tac_sum_from_three_scenarios(
+    #     scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    #     titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre", 
+    #     compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2
+    # )
+    # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
+    # titel="Volumen thermischer Speicher im  " + f"{name1}",
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
     plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
     plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
     plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
