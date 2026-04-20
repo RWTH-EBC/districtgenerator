@@ -70,12 +70,16 @@ def plot_device_capacities_from_csv(
     exclude_devices=None,
     titel=None,
     show_percent_box=False,
-    plot_tes_only=False,  
+    plot_tes_only=False,
+    compare_item1=None,  
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot capacities side-by-side for:
-    - <scenario>_network_results.csv  -> "Ohne Verbundpreis"
-    - <scenario>_results.csv          -> "Mit Verbundpreis"
+    - <scenario>_network_results.csv  -> "compare_item1"
+    - <scenario>_results.csv          -> "compare_item2"
 
     Returns
     -------
@@ -127,7 +131,7 @@ def plot_device_capacities_from_csv(
         for fn in os.listdir(base_dir):
             if fn.endswith("_network_results.csv"):
                 sc = fn.replace("_network_results.csv", "")
-                single_candidate = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+                single_candidate = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
                 if os.path.isfile(single_candidate):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
@@ -160,8 +164,8 @@ def plot_device_capacities_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not os.path.isfile(network_path) or not os.path.isfile(single_path):
             print(f"Skip '{sc}': pair not complete.")
@@ -192,8 +196,8 @@ def plot_device_capacities_from_csv(
         xtick_labels = [label_map.get(d, d) for d in devices]
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width/2, y_network, width=width, color="#D40000", label="Ohne Verbundpreis")
-        plt.bar(x + width/2, y_single, width=width, color="#55585C", label="Mit Verbundpreis")
+        plt.bar(x - width/2, y_network, width=width, color="#D40000", label=compare_item1 or "compare_item1")
+        plt.bar(x + width/2, y_single, width=width, color="#55585C", label=compare_item2 or "Mit Verbundpreis")
 
         ymax = max(max(y_network) if y_network else 0, max(y_single) if y_single else 0, 1.0)
         if show_percent_box:
@@ -258,11 +262,13 @@ def plot_heat_generation_by_year_from_csv(
     show=True,
     titel=None,
     base_calendar_year=2025,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot stacked heat generation by year (oVP vs VP) from:
-    - <scenario>_network_results.csv  -> oVP
-    - <scenario>_results.csv          -> VP
+    - <scenario>_network_results.csv  -> compare_short1
+    - <scenario>_results.csv          -> compare_short2
 
     Uses:
     - category == 'heat_by_year'
@@ -297,9 +303,9 @@ def plot_heat_generation_by_year_from_csv(
     if scenario_name is None:
         scenario_names = []
         for fn in os.listdir(base_dir):
-            if fn.endswith("_network_results.csv"):
-                sc = fn.replace("_network_results.csv", "")
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
+            if fn.endswith(f"_{compare_short1}_results.csv"):
+                sc = fn.replace(f"_{compare_short1}_results.csv", "")
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -330,8 +336,8 @@ def plot_heat_generation_by_year_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
@@ -364,12 +370,12 @@ def plot_heat_generation_by_year_from_csv(
             print(f"Skip '{sc}': all heat_gen values are 0.")
             continue
 
-        # x-Achse: pro Jahr 2 Balken (oVP, VP)
+        # x-Achse: pro Jahr 2 Balken (compare_short1, compare_short2)
         x = np.arange(len(years) * 2)
         xticklabels = []
         for y in years:
-            xticklabels.append(f"{base_calendar_year + y}\noVP")
-            xticklabels.append(f"{base_calendar_year + y}\nVP")
+            xticklabels.append(f"{base_calendar_year + y}\n{compare_short1 or 'oVP'}")
+            xticklabels.append(f"{base_calendar_year + y}\n{compare_short2 or 'VP'}")
 
         plt.figure(figsize=(8, 4))
         bottoms = np.zeros(len(x), dtype=float)
@@ -448,9 +454,11 @@ def plot_power_import_by_year_from_csv(
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
-    Plot yearly electricity import (MWh) as paired bars (Verbund vs Mit Verbundpreis).
+    Plot yearly electricity import (MWh) as paired bars (Verbund vs compare_item2).
 
     Metrics (category='yearly_totals'):
     - from_el_main_grid_total  -> Strombezug aus dem Hauptnetz
@@ -485,9 +493,9 @@ def plot_power_import_by_year_from_csv(
     if scenario_name is None:
         scenario_names = []
         for fn in os.listdir(base_dir):
-            if fn.endswith("_network_results.csv"):
-                sc = fn.replace("_network_results.csv", "")
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
+            if fn.endswith(f"_{compare_short1}_results.csv"):
+                sc = fn.replace(f"_{compare_short1}_results.csv", "")
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -502,8 +510,8 @@ def plot_power_import_by_year_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
@@ -522,7 +530,7 @@ def plot_power_import_by_year_from_csv(
 
         for y in years:
             cal_y = base_calendar_year + y
-            labels.extend([f"{cal_y}\noVP", f"{cal_y}\nVP"])
+            labels.extend([f"{cal_y}\n{compare_short1 or 'oVP'}", f"{cal_y}\n{compare_short2 or 'VP'}"])
 
             vb_main.append(vb.get(y, {}).get("from_el_main_grid_total", 0.0))
             vb_net.append(vb.get(y, {}).get("from_network_total", 0.0))
@@ -535,7 +543,7 @@ def plot_power_import_by_year_from_csv(
         vals_ez_main = np.array(ez_main, dtype=float)
         vals_ez_net = np.array(ez_net, dtype=float)
 
-        # Interleave: [oVP(y1), VP(y1), oVP(y2), VP(y2), ...]
+        # Interleave: [compare_short1(y1), compare_short2(y1), compare_short1(y2), compare_short2(y2), ...]
         y_main = np.empty(len(x), dtype=float)
         y_net = np.empty(len(x), dtype=float)
         y_main[0::2] = vals_vb_main
@@ -564,16 +572,16 @@ def plot_power_import_by_year_from_csv(
         handles, legend_labels = [], []
         if np.any(vals_vb_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#E43D30"))
-            legend_labels.append("Verbund Strombezug aus dem Hauptnetz")
+            legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Strombezug aus dem Hauptnetz")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
-            legend_labels.append("Mit Verbundpreis Strombezug aus dem Hauptnetz")
+            legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Strombezug aus dem Hauptnetz")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
             legend_labels.append("Verbund Strombezug aus dem Verbundnetz")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
-            legend_labels.append("Mit Verbundpreis Strombezug aus dem Verbundnetz")
+            legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Strombezug aus dem Verbundnetz")
 
         if handles:
             plt.legend(
@@ -610,6 +618,8 @@ def plot_power_export_by_year_from_csv(
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot yearly electricity import (MWh) as paired bars (Verbund vs Mit Verbundpreis).
@@ -647,9 +657,9 @@ def plot_power_export_by_year_from_csv(
     if scenario_name is None:
         scenario_names = []
         for fn in os.listdir(base_dir):
-            if fn.endswith("_network_results.csv"):
-                sc = fn.replace("_network_results.csv", "")
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
+            if fn.endswith(f"_{compare_short1}_results.csv"):
+                sc = fn.replace(f"_{compare_short1}_results.csv", "")
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -664,8 +674,8 @@ def plot_power_export_by_year_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
@@ -684,7 +694,7 @@ def plot_power_export_by_year_from_csv(
 
         for y in years:
             cal_y = base_calendar_year + y
-            labels.extend([f"{cal_y}\noVP", f"{cal_y}\nVP"])
+            labels.extend([f"{cal_y}\n{compare_short1 or 'oV'}", f"{cal_y}\n{compare_short2 or 'VP'}"])
 
             vb_main.append(vb.get(y, {}).get("to_el_main_grid_total", 0.0))
             vb_net.append(vb.get(y, {}).get("to_network_total", 0.0))
@@ -697,7 +707,7 @@ def plot_power_export_by_year_from_csv(
         vals_ez_main = np.array(ez_main, dtype=float)
         vals_ez_net = np.array(ez_net, dtype=float)
 
-        # Interleave: [oVP(y1), VP(y1), oVP(y2), VP(y2), ...]
+        # Interleave: [compare_short1(y1), compare_short2(y1), compare_short1(y2), compare_short2(y2), ...]
         y_main = np.empty(len(x), dtype=float)
         y_net = np.empty(len(x), dtype=float)
         y_main[0::2] = vals_vb_main
@@ -729,13 +739,13 @@ def plot_power_export_by_year_from_csv(
             legend_labels.append("Verbund Stromeinspeisung in das Hauptnetz")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
-            legend_labels.append("Mit Verbundpreis Stromeinspeisung in das Hauptnetz")
+            legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Stromeinspeisung in das Hauptnetz")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
-            legend_labels.append("Verbund Stromeinspeisung in das Verbundnetz")
+            legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Stromeinspeisung in das Verbundnetz")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
-            legend_labels.append("Mit Verbundpreis Stromeinspeisung in das Verbundnetz")
+            legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Stromeinspeisung in das Verbundnetz")
 
         if handles:
             plt.legend(
@@ -772,7 +782,11 @@ def plot_lcoe_by_year_from_csv(
     show=True,
     titel=None,
     base_calendar_year=2025,
-    show_percent_box=False, 
+    show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None, 
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot yearly LCOE as paired bars (Verbund vs Mit Verbundpreis).
@@ -825,9 +839,9 @@ def plot_lcoe_by_year_from_csv(
     if scenario_name is None:
         scenario_names = []
         for fn in os.listdir(base_dir):
-            if fn.endswith("_network_results.csv"):
-                sc = fn[: -len("_network_results.csv")]
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
+            if fn.endswith(f"_{compare_short1}_results.csv"):
+                sc = fn[: -len(f"_{compare_short1}_results.csv")]
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -842,8 +856,8 @@ def plot_lcoe_by_year_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
@@ -872,8 +886,8 @@ def plot_lcoe_by_year_from_csv(
             return s.replace(".", ",")
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
-        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label=f"{compare_item1 or 'Ohne Verbundpreis'}")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label=f"{compare_item2 or 'Mit Verbundpreis'}")
 
         if show_percent_box:  # NEU
             ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -939,6 +953,10 @@ def plot_co2_by_year_from_csv(
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot yearly CO2 emissions as paired bars (Verbund vs Mit Verbundpreis).
@@ -990,9 +1008,9 @@ def plot_co2_by_year_from_csv(
     if scenario_name is None:
         scenario_names = []
         for fn in os.listdir(base_dir):
-            if fn.endswith("_network_results.csv"):
-                sc = fn[: -len("_network_results.csv")]
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
+            if fn.endswith(f"_{compare_short1}_results.csv"):
+                sc = fn[: -len(f"_{compare_short1}_results.csv")]
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -1007,8 +1025,8 @@ def plot_co2_by_year_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
             continue
@@ -1029,8 +1047,8 @@ def plot_co2_by_year_from_csv(
         labels = [str(base_calendar_year + y) for y in years]
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
-        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label=f"{compare_item1 or 'Ohne Verbundpreis'}")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label=f"{compare_item2 or 'Mit Verbundpreis'}")
 
         if show_percent_box:
             ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1094,6 +1112,10 @@ def plot_tac_sum_from_three_scenarios(
     show=True,
     titel=None,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot TAC-Summe (3 Quartiere) für Verbund vs. Einzeloptimierung.
@@ -1149,8 +1171,8 @@ def plot_tac_sum_from_three_scenarios(
     details = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1166,7 +1188,7 @@ def plot_tac_sum_from_three_scenarios(
 
     x = np.arange(2)
     y = [total_vb, total_ez]
-    labels = ["Ohne Verbundpreis", "Mit Verbundpreis"]
+    labels = [f"{compare_item1 or 'Ohne Verbundpreis'}", f"{compare_item2 or 'Mit Verbundpreis'}"]
     colors = ["#D40000", "#55585C"]
 
     plt.figure(figsize=(7, 4.5))
@@ -1232,6 +1254,10 @@ def plot_tes_volume_from_csv(
     show=True,
     titel=None,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot TES-Volumen (device='TES', metric='vol_liter') als Balkenvergleich:
@@ -1271,9 +1297,9 @@ def plot_tes_volume_from_csv(
     if scenario_name is None:
         scenario_names = []
         for fn in os.listdir(base_dir):
-            if fn.endswith("_network_results.csv"):
-                sc = fn[: -len("_network_results.csv")]
-                if os.path.isfile(os.path.join(base_dir, f"{sc}_networkprice_results.csv")):
+            if fn.endswith(f"_{compare_short1}_results.csv"):
+                sc = fn[: -len(f"_{compare_short1}_results.csv")]
+                if os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")):
                     scenario_names.append(sc)
         scenario_names = sorted(set(scenario_names))
     else:
@@ -1288,8 +1314,8 @@ def plot_tes_volume_from_csv(
     out = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not (os.path.isfile(network_path) and os.path.isfile(single_path)):
             print(f"Skip '{sc}': pair not complete.")
@@ -1300,7 +1326,7 @@ def plot_tes_volume_from_csv(
 
         x = np.arange(2)
         y = [vb_m3, ez_m3]
-        labels = ["Ohne Verbundpreis", "Mit Verbundpreis"]
+        labels = [f"{compare_item1 or 'Ohne Verbundpreis'}", f"{compare_item2 or 'Mit Verbundpreis'}"]
         colors = ["#D40000", "#55585C"]
 
         plt.figure(figsize=(6.5, 4.2))
@@ -1363,6 +1389,10 @@ def plot_co2_sum_from_three_scenarios(
     show=True,
     titel=None,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot CO2-Summe (3 Quartiere) für Verbund vs. Einzeloptimierung.
@@ -1415,8 +1445,8 @@ def plot_co2_sum_from_three_scenarios(
     details = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1432,7 +1462,7 @@ def plot_co2_sum_from_three_scenarios(
 
     x = np.arange(2)
     y = [total_vb, total_ez]
-    labels = ["Ohne Verbundpreis", "Mit Verbundpreis"]
+    labels = [f"{compare_item1 or 'Ohne Verbundpreis'}", f"{compare_item2 or 'Mit Verbundpreis'}"]
     colors = ["#D40000", "#55585C"]
 
     plt.figure(figsize=(7, 4.5))
@@ -1500,6 +1530,10 @@ def plot_lcoe_sum_from_three_scenarios(
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot LCOE je Jahr für Verbund vs. Einzeloptimierung (Summen über 3 Quartiere).
@@ -1573,8 +1607,8 @@ def plot_lcoe_sum_from_three_scenarios(
     supply_ez = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1609,8 +1643,8 @@ def plot_lcoe_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, lcoe_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
-    plt.bar(x + width / 2, lcoe_ez, width=width, color="#55585C", label="Mit Verbundpreis")
+    plt.bar(x - width / 2, lcoe_vb, width=width, color="#D40000", label=f"{compare_item1 or 'Ohne Verbundpreis'}")
+    plt.bar(x + width / 2, lcoe_ez, width=width, color="#55585C", label=f"{compare_item2 or 'Mit Verbundpreis'}")
 
     if show_percent_box:
         ymax = max(max(lcoe_vb) if lcoe_vb else 0, max(lcoe_ez) if lcoe_ez else 0, 1.0)
@@ -1678,6 +1712,10 @@ def plot_tac_by_year_sum_from_three_scenarios(
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot jährliche Gesamtkosten (TAC) je Jahr, summiert über 3 Quartiere:
@@ -1733,8 +1771,8 @@ def plot_tac_by_year_sum_from_three_scenarios(
     tac_ez_sum = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1761,8 +1799,8 @@ def plot_tac_by_year_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
-    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label=compare_item1 or "Ohne Verbundpreis")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label=compare_item2 or "Mit Verbundpreis")
 
     if show_percent_box:
         ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1826,6 +1864,10 @@ def plot_co2_by_year_sum_from_three_scenarios(
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
 ):
     """
     Plot jährliche CO2-Emissionen je Jahr, summiert über 3 Quartiere:
@@ -1881,8 +1923,8 @@ def plot_co2_by_year_sum_from_three_scenarios(
     co2_ez_sum = {}
 
     for sc in scenario_names:
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_networkprice_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
         if not os.path.isfile(network_path):
             raise FileNotFoundError(f"Missing file: {network_path}")
@@ -1909,8 +1951,8 @@ def plot_co2_by_year_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Ohne Verbundpreis")
-    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Mit Verbundpreis")
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label=compare_item1 or "Ohne Verbundpreis")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label=compare_item2 or "Mit Verbundpreis")
 
     if show_percent_box:
         ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1970,12 +2012,23 @@ def plot_co2_by_year_sum_from_three_scenarios(
 
 
 if __name__ == "__main__":
+    compare_item1="Szenario 55"
+    compare_item2="Szenario 57"
+    compare_short1 = "55"
+    compare_short2 = "57"
     district1 = "residential2"
     district2 = "mixed1"
-    district3 = "residential0"
+    district3 = "ghd6"
     name1 = "Wohnquartier 2"
     name2 = "Mischquartier"
-    name3 = "Wohnquartier 1"
+    name3 = "Gewerbequartier"
+
+    # district1 = "residential2"
+    # district2 = "mixed1"
+    # district3 = "residential0"
+    # name1 = "Wohnquartier 2"
+    # name2 = "Mischquartier"
+    # name3 = "Wohnquartier 1"
 
     # district1 = "1rural"
     # district2 = "4zb"
@@ -1984,39 +2037,51 @@ if __name__ == "__main__":
     # name2 = "vorstädtischen Quartier"
     # name3 = "urbanen Quartier"
     
-    plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre")
-    plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der drei Quartiere")
-    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der Quartiere und der Jahre")
-    plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="CO₂-Emissionen als Summe der drei Quartiere")
-    plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Energiegestehungskosten als Summe der drei Quartiere")
-    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name1}")
-    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}")
-    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}")
+    plot_tac_sum_from_three_scenarios(
+        scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+        titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre", 
+        compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2
+    )
+    plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
+    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
+    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
+    titel="Volumen thermischer Speicher im  " + f"{name1}",
+    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
+    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
-    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
-    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True)
+    plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True)
-    plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
-    plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
-    
-    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
+    plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
-    plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
-    plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True)
-    plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True)
-    plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True)
+    plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+
+    plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
