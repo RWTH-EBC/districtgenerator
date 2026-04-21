@@ -69,7 +69,7 @@ def network_optimization(data):
     f_init = float(data.heat_grid_data["pipe"]["f_fric"])
 
     # Set maximum iteration count
-    max_iter = 30
+    max_iter = 4
     tol = 5e-4
     converged = False
 
@@ -253,7 +253,11 @@ def load_parameter(data):
     # 6 network topology
     # Extract all the branches from the topology (from root node to terminal node)
     network = data.pipeline_topology
-    path = extract_longest_branches(network)
+    network_wh = data.pipeline_topology_wh
+    if "waste_heat_profile" in data.waste_heat_data:
+        path = {"EH1": extract_longest_branches(network), "WH1": extract_longest_branches(network_wh, "WH1")}
+    else:
+        path = extract_longest_branches(network)
 
 
     # 7 calcaulate the ann_factor
@@ -314,6 +318,13 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
     c_f = data.heat_grid_data["fluid"]["c_f"]  # 4180J/(kg*K), fluid specific heat capacity
     rho_f = data.heat_grid_data["fluid"]["rho_f"]  # 1000kg/m^3,   fluid density
 
+    # 3 time setup
+    weeks = data.clusters     # list of clustered typical weeks
+    time_steps = int(data.time["clusterLength"] / data.time["timeResolution"])    # how many timesteps are there in a typical week
+    # Map week -> index i
+    # Assuming 'weeks' is an ordered iterable matching the cluster index order used to create flow_cluster
+    week_to_i = {w: i for i, w in enumerate(weeks)}
+
     # 3 load heat demand for each building node
     building_demand_cluster = {}
     building_demand = {}
@@ -338,8 +349,7 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
     pipe_loads_cluster = aggregate_heat_loads(network, building_demand_cluster, heat_loss_pipe_cluster, root="EH1")
     pipe_loads = aggregate_heat_loads(network, building_demand, heat_loss_pipe, root="EH1")
 
-
-
+    max_pipe_flow_eh1 = {}                  # create dict to store max_flow values (heat supply only from EH1)
 
     # Iterate through each pipe in pipe_loads_cluster
     for idx, ((parent, child), loads_cluster_array) in enumerate(pipe_loads_cluster.items(), 1):
@@ -369,13 +379,15 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
         flow_array = loads_array * 1000 / (c_f * deltaT * rho_f)  # m³/s
         abs_flow_array = np.abs(flow_array)
         # Retrieve the maximum and minimum flow rates, and convert the data type to float.
-        flow_max = float(np.max(abs_flow_array[abs_flow_array > 1e-6]))   # m³/s
-        flow_min = float(np.min(abs_flow_array[abs_flow_array > 1e-6]))   # m³/s
+        flow_max = float(np.max(abs_flow_array))   # m³/s
+        flow_min = float(np.min(abs_flow_array))   # m³/s
+
+        max_pipe_flow_eh1[pipe_id] = flow_max
 
 
         # store into data.pipeline
         if pipe_id not in data.pipeline:
-            # first time to create a new distionary
+            # first time to create a new dictionary
             data.pipeline[pipe_id] = {
                 "from": parent,  # string, name of start node
                 "to": child,  # string, name of end node
@@ -403,6 +415,362 @@ def calc_flow(data, param, heat_loss_pipe=None, heat_loss_pipe_cluster=None, sav
             json.dump(json_ready, f, indent=4)
 
 
+    ### if a waste heat source exists, the heat supply becomes multi-source. The maximum pipe loads are calculated via linear optimization ###
+    if "waste_heat_profile" in data.waste_heat_data:
+
+        # clustered waste heat profile
+        wh_capacity = data.waste_heat_data["clustered_profile"]
+
+        # %% HELPER FUNCTIONS FOR OPTIMIZATION
+        edges = []
+        for parent, children in network.items():
+            for child in children:
+                edges.append((parent, child))
+
+        # returns all edges that connect the start node to the end node, used to create path_edges dictionary
+        def get_path_edges(start_node, end_node):
+
+            # build undirected graph
+            G = nx.Graph()
+            G.add_edges_from(edges)
+
+            # find shortest path
+            try:
+                path = nx.shortest_path(G, source=start_node, target=end_node)
+            except nx.NetworkXNoPath:
+                return None  # No path found
+
+            # Convert node path to edge path
+            path_edges = [(path[i], path[i + 1]) for i in range(len(path) - 1)]
+
+            return path_edges
+
+        # returns the edge as a sorted tuple. This function is used to compare pipes without considering the flow direction
+        def normalized(edge):
+            return tuple(sorted(edge))
+
+        # converts the pipe key to a tuple
+        def key_to_tuple(pipe_key):
+            return tuple(pipe_key.split('->'))
+
+        # create building and sources arrays: used as sets for optimization
+        BUILDINGS = []
+        SOURCES = []
+
+        for key, value in data.pipeline_nodes.items():
+            if value["role"] == "bldg":
+                BUILDINGS.append(key)
+            elif value["role"] == "EH" or value["role"] == "WH":
+                SOURCES.append(key)
+
+        # create array with sorted edges between start and end node. used to allocate heat losses in optimization
+        path_edges = {}
+        sorted_edges = {}
+        for building in BUILDINGS:
+            for source in SOURCES:
+                path_edges[(source, building)] = get_path_edges(source, building)
+                sorted_edges[(source, building)] = []
+                for i in path_edges[(source, building)]:
+                    sorted_edges[(source, building)].append(normalized(i))
+
+        # get the heat loss for each pipe. in the first iteration, the heat loss is initialized with zero
+        loss = {}
+        for i in data.pipeline.keys():
+            loss[i] = {}
+            pipe_tuple = key_to_tuple(i)
+            for week in data.clusters:
+                w = week_to_i[week]
+                for t in range(time_steps):
+
+                    if heat_loss_pipe_cluster == None:
+                        loss[i][w, t] = 0
+                    else:
+                        loss[i][w, t] = heat_loss_pipe_cluster[pipe_tuple][w, t]
+
+        # Big-M variable for linearization of product of binary and continuous variable
+        M = 1e5
+
+        # %% INITIALIZE THE MODEL AND CREATE SETS
+        # Create a new model
+        model = pyo.ConcreteModel(name="grid_pipe_diameters")
+
+        # create intermediate sets
+        model.buildings = pyo.Set(initialize=BUILDINGS, doc="buildings in the district")
+        model.sources = pyo.Set(initialize=SOURCES, doc="sources in the district")
+
+        model.pipe = pyo.Set(initialize=data.pipeline.keys(), doc="Pipe segments in the network")
+        model.week = pyo.Set(initialize=weeks, doc="Typical weeks")
+        model.t = pyo.Set(initialize=range(time_steps), doc="Time steps within a typical week")
+
+        # %% CREATE DECISION VARIABLES TO OPTIMIZE HEAT SUPPLY STRATEGY
+        # heat load from source to sink for each timestep
+        model.load_source_sink = pyo.Var(model.buildings, model.sources, model.week, model.t,
+                                         within=pyo.NonNegativeReals,
+                                         doc="heat load in kW for each source-sink combination and for each timestep")
+
+        # load on a pipe segment from a given source s for each timestep t
+        model.pipe_load_source = pyo.Var(model.sources, model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                                         doc="load on each pipe for each timestep coming from a source s")
+
+        # load on each pipe for each timestep (sum of model.pipe_load_source over all sources)
+        model.pipe_load = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                                  doc="load on each pipe for each timestep")
+
+        # maximal flow on each pipe
+        #   model.max_pipe_load = pyo.Var(model.pipe, within=pyo.NonNegativeReals, doc="maximal load on each pipe")
+
+        # maximal load on each pipe with robust dimensioning
+        model.max_pipe_flow_robust = pyo.Var(model.pipe, within=pyo.NonNegativeReals,
+                                             doc="maximal load on each pipe with robust dimensioning")
+
+        # heat produced by each heat source
+        model.heat = pyo.Var(model.sources, model.week, model.t, within=pyo.Reals, doc="produced heat in kW")
+
+        # heat loss per pipe/t (kW)
+        model.heat_loss_pipe = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                                       doc="Heat loss per pipe, timestep (kW)")
+
+        # heat loss per pipe/t (kW) allocated to a source
+        model.heat_loss_pipe_source = pyo.Var(model.sources, model.pipe, model.week, model.t,
+                                              within=pyo.NonNegativeReals,
+                                              doc="Heat loss per pipe and source, timestep (kW)")
+
+        # assigns each load_source_sink which flows to the given pipe a value so that the sum of the values equals the heat loss
+        model.heat_loss_allocation = pyo.Var(model.buildings, model.sources, model.pipe, model.week, model.t,
+                                             within=pyo.NonNegativeReals, initialize=0,
+                                             doc="Heat loss per pipe, timestep (kW)")
+
+        # heat loss for each source-sink combination per timestep
+        model.heat_loss_source_sink = pyo.Var(model.buildings, model.sources, model.week, model.t,
+                                              within=pyo.NonNegativeReals,
+                                              doc="Heat loss from source to sink per timesep (kW)")
+
+        ## binary variables
+        # 0 if waste heat source meets the entire heat demand of the district, else 1
+        model.q = pyo.Var(model.week, model.t, within=pyo.Binary,
+                          doc="Indicates whether waste heat meets entire demand")
+
+        # binary variable to ensure that flow occurs only in one direction within a given pipe
+        model.y = pyo.Var(model.pipe, model.week, model.t, within=pyo.Binary, doc="flow occurs in one direction")
+
+        # %% DEFINE CONSTRAINTS FOR OPTIMAL HEAT SUPPLY STRATEGY
+        # 1) The demand rule ensures that the building demand is covered during all periods. The losses are taken into account.
+        def demand_rule(model, building, week, t):
+            i = week_to_i[week]
+            return building_demand_cluster[building][i, t] == sum(
+                (model.load_source_sink[building, source, week, t] - model.heat_loss_source_sink[
+                    building, source, week, t]) for source in model.sources)
+
+        model.demand_rule = pyo.Constraint(model.buildings, model.week, model.t, rule=demand_rule)
+
+        # 2) generated heat must be larger than supplied heat for each source
+        def capacity_rule(model, source, week, t):
+            return model.heat[source, week, t] >= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings)
+
+        model.capacity_rule = pyo.Constraint(model.sources, model.week, model.t, rule=capacity_rule)
+
+        # 3) The heat of the waste heat source is assigned to the generated waste heat profile.
+        def wh_cap_rule(model, week, t):
+            i = week_to_i[week]
+            return model.heat["WH1", week, t] == wh_capacity[i, t]
+
+        model.wh_cap_rule = pyo.Constraint(model.week, model.t, rule=wh_cap_rule)
+
+        # 4) Generated heat by the energy hub equals the difference between the heat demand and the generated heat by the waste heat source (ensures that waste heat source gets prioritized)
+        # rules 1 and 2 force q to either 1 or 0. the produced heat by the energy hub is set with rules 3 and 4
+        def eh_cap_rule1(model, week, t):
+            return model.heat["WH1", week, t] >= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings for source in
+                model.sources) - M * model.q[week, t]
+
+        def eh_cap_rule2(model, week, t):
+            return model.heat["WH1", week, t] <= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings for source in
+                model.sources) + M * (1 - model.q[week, t])
+
+        def eh_cap_rule3(model, week, t):
+            return model.heat["EH1", week, t] <= M * model.q[week, t]
+
+        def eh_cap_rule4(model, week, t):
+            return model.heat["EH1", week, t] <= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings for source in
+                model.sources) - model.heat["WH1", week, t] + M * (1 - model.q[week, t])
+
+        model.eh_cap_rule = pyo.Constraint(model.week, model.t, rule=eh_cap_rule1)
+        model.eh_cap_rule2 = pyo.Constraint(model.week, model.t, rule=eh_cap_rule2)
+        model.eh_cap_rule3 = pyo.Constraint(model.week, model.t, rule=eh_cap_rule3)
+        model.eh_cap_rule4 = pyo.Constraint(model.week, model.t, rule=eh_cap_rule4)
+
+        # 5) assigns the heat loss to each pipe (value from calc_heat_loss_pipe)
+        def heat_loss_pipe_rule(model, pipe, week, t):
+            i = week_to_i[week]
+            return model.heat_loss_pipe[pipe, week, t] == loss[pipe][i, t]
+
+        model.heat_loss_pipe_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=heat_loss_pipe_rule)
+
+        # 6) constraints to distribute heat_loss to each source sink combination
+        def heat_loss_allocation_rule(model, pipe, week,
+                                      t):  # constraint to distribute the heat loss to each load_source_sink which flows through the given pipe
+            return (sum(
+                model.heat_loss_allocation[building, source, pipe, week, t] for building in model.buildings for source
+                in
+                model.sources if normalized(key_to_tuple(pipe)) in sorted_edges[(source, building)])
+                    == model.heat_loss_pipe[pipe, week, t])
+
+        def heat_loss_source_sink_rule(model, building, source, week,
+                                       t):  # For each source–sink pair and timestep, the total heat loss is defined  as the sum of the allocated pipe-specific heat losses along the  corresponding network path between source and building.
+            return model.heat_loss_source_sink[building, source, week, t] == sum(
+                model.heat_loss_allocation[building, source, pipe, week, t] for pipe in model.pipe if
+                normalized(key_to_tuple(pipe)) in sorted_edges[(source, building)])
+
+        model.heat_loss_allocation_rule = pyo.Constraint(model.pipe, model.week, model.t,
+                                                         rule=heat_loss_allocation_rule)
+        model.heat_loss_source_sink_rule = pyo.Constraint(model.buildings, model.sources, model.week, model.t,
+                                                          rule=heat_loss_source_sink_rule)
+
+        # 7) assignment of flow for each source on each pipe
+        def pipe_load_spec_rule(model, source, pipe, week, t):
+            load_sum = 0
+            load_reduction = 0
+
+            for building in model.buildings:
+                path = path_edges[(source, building)]  # extract all edges from the source to the given building
+                pipe_tuple = key_to_tuple(pipe)
+
+                if normalized(pipe_tuple) in {normalized(e) for e in path}:  # checks if the pipe is traversed
+
+                    for edge in path:
+                        if normalized(edge) == normalized(
+                                pipe_tuple):  # once the given pipe is reached (the edges are counted from source to sink), the loop is exited
+                            break
+
+                        pipe_str1 = f"{edge[0]}->{edge[1]}"
+                        pipe_str2 = f"{edge[1]}->{edge[0]}"
+                        if pipe_str1 in model.pipe:
+                            load_reduction += model.heat_loss_allocation[building, source, pipe_str1, week, t]
+                        else:
+                            load_reduction += model.heat_loss_allocation[building, source, pipe_str2, week, t]
+
+                    load_sum += model.load_source_sink[
+                        building, source, week, t]  # after traversing an edge, the load gets reduced by the heat loss of the edge
+
+            return model.pipe_load_source[source, pipe, week, t] == (load_sum - load_reduction)
+
+        model.pipe_load_spec_rule = pyo.Constraint(model.sources, model.pipe, model.week, model.t,
+                                                   rule=pipe_load_spec_rule)
+
+        # 8) adds the pipe flows coming from each source
+        def pipe_load_rule(model, pipe, week, t):
+            return model.pipe_load[pipe, week, t] == sum(
+                model.pipe_load_source[source, pipe, week, t] for source in model.sources)
+
+        model.pipe_load_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=pipe_load_rule)
+
+        # 9) The heating network is designed so that the demand can be fully met by the energy hub (robust dimensioning)
+        #    The pipes must be sized accordingly
+        def robust_rule1(model, pipe, week, t):
+            i = week_to_i[week]
+            return model.max_pipe_flow_robust[pipe] >= model.pipe_load[pipe, week, t] * 1000 / (
+                        c_f * deltaT_cluster[i, t] * rho_f)
+
+        def robust_rule2(model, pipe):
+            return model.max_pipe_flow_robust[pipe] >= max_pipe_flow_eh1[pipe]
+
+        model.robust_rule1 = pyo.Constraint(model.pipe, model.week, model.t, rule=robust_rule1)
+        model.robust_rule2 = pyo.Constraint(model.pipe, rule=robust_rule2)
+
+        # 10) Constraints to ensure that during any given time step, the heat is only allowed to flow in one direction in a pipe
+        # if y is 0, the heat is flowing in reverse direction, if y is 1, the heat is flowing in forward direction. y is assigned to every pipe
+        def flow_forward_rule(model, pipe, week, t):
+            flow_reverse = 0
+
+            for source in model.sources:
+                for building in model.buildings:
+                    pipe_tuple = key_to_tuple(pipe)
+                    path = path_edges[(source, building)]
+
+                    for edge in path:
+                        if normalized(edge) == normalized(
+                                pipe_tuple) and edge != pipe_tuple:  # if the considered pipe is traversed on the way from the source to the sink but the
+                            flow_reverse += model.load_source_sink[
+                                building, source, week, t]  # heat flows in the opposed direction of the defined flow direction, model.flow is
+                            # added to the variable flow_reverse
+            return flow_reverse <= M * (
+                    1 - model.y[pipe, week, t])  # if y is 0, the flow is allowed in the reverse direction
+
+        def flow_reverse_rule(model, pipe, week, t):
+            flow_forward = 0
+
+            for source in model.sources:
+                for building in model.buildings:
+                    path = path_edges[(source, building)]
+                    pipe_tuple = key_to_tuple(pipe)
+
+                    for edge in path:
+                        if normalized(edge) == normalized(pipe_tuple) and edge == pipe_tuple:
+                            flow_forward += model.load_source_sink[building, source, week, t]
+
+            return flow_forward <= M * model.y[
+                pipe, week, t]  # if y is 1, the flow is allowed to flow in the forward direction
+
+        model.flow_forward_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=flow_forward_rule)
+        model.flow_reverse_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=flow_reverse_rule)
+
+        # Objective: minimize the sum of max_pipe_flow_robust
+        model.objective = pyo.Objective(expr=sum(model.max_pipe_flow_robust[pipe] for pipe in model.pipe),
+                                        sense=pyo.minimize,
+                                        doc="Minimize Pipe loads")
+
+        print("Pyomo model built successfully")
+
+        # SOLVE MODEL AND OUTPUT
+        # Folder to save model and results
+        dir_result = param["dir_result"]
+
+        lp_filename = os.path.join(dir_result, "opti_pipe_diameter_model.lp")
+        model.write(lp_filename, io_options={'symbolic_solver_labels': True})
+
+        # temporary log-file for the solver
+        solver_log_path = os.path.join(dir_result, "solver_output.log")
+
+        # Solve the model
+        solver, solver_options = solver_config.create_solver()
+
+        solver_options["FeasibilityTol"] = 1e-9
+        solver_options["IntFeasTol"] = 1e-9
+        solver_options["NumericFocus"] = 3
+
+        solver = pyo.SolverFactory('gurobi')
+        results = solver.solve(model, tee=True)
+
+        for pipe in data.pipeline.keys():
+            pipe_flow_robust = pyo.value(model.max_pipe_flow_robust[pipe])
+            pipe_load_cluster = np.zeros_like(wh_capacity)
+            for source in SOURCES:
+                pipe_load_cluster_source = np.zeros_like(wh_capacity)
+                for i, week in enumerate(data.clusters):
+                    for t in range(time_steps):
+                        pipe_load_cluster[i, t] = pyo.value(model.pipe_load[pipe, week, t])
+                        pipe_load_cluster_source[i, t] = pyo.value(model.pipe_load_source[source, pipe, week, t])
+
+                flow = np.array(pipe_load_cluster) * 1000 / (c_f * deltaT_cluster * rho_f)  # m³/s
+                flow_max = float(np.max(flow))  # m³/s
+                flow_source = np.array(pipe_load_cluster_source) * 1000 / (c_f * deltaT_cluster * rho_f)  # m³/s
+
+                # update the flow data
+                data.pipeline[pipe].update({
+                    "flow_cluster": flow,
+                    "flow_robust": pipe_flow_robust,
+                    f"flow_cluster_{source}": flow_source,
+                    "flow_max": flow_max
+                })
+
+        # save results for data validation
+        if save_path is not None:
+            json_ready = to_jsonable(data.pipeline)
+            with open(save_path, "w") as f:
+                json.dump(json_ready, f, indent=4)
 
     return data, param
 
@@ -573,10 +941,167 @@ def optimization_diameter(data, param):
     pair_to_pid = {}
     for pid, info in data.pipeline.items():
         pair_to_pid[(info["from"], info["to"])] = pid
+        pair_to_pid[(info["to"], info["from"])] = pid
+
+
+
+
+    # %% HILFSFUNKTIONEN FÜR OPTIMIERUNG
+
+    # returns all edges that connect the start node to the end node
+    def get_path_edges(start_node, end_node):
+        network = data.pipeline_topology
+
+        # extracts all edges of the network
+        edges = []
+        for parent, children in network.items():
+            for child in children:
+                edges.append((parent, child))
+
+        # build undirected graph
+        G = nx.Graph()
+        G.add_edges_from(edges)
+
+        # find shortest path
+        try:
+            path = nx.shortest_path(G, source=start_node, target=end_node)
+        except nx.NetworkXNoPath:
+            return None  # No path found
+
+        # Convert node path to edge path
+        path_edges = [(path[i], path[i+1]) for i in range(len(path) - 1)]
+
+        return path_edges
+
+
+    # returns the edge as a sorted tuple. This function is used to compare pipes without considering the flow direction
+    def normalized(edge):
+        return tuple(sorted(edge))
+
+    # converts the pipe key to a tuple
+    def key_to_tuple(pipe_key):
+        return tuple(pipe_key.split('->'))
+
+    # demand for every building
+    building_demand_cluster = {}
+    h_loss_subst = data.heat_grid_data["h_loss_subst"]  # 5%, Heat losses at the substation
+    # match the coordinate and add data to building_demand
+    for building in data.district:
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            pos_building = tuple(building["buildingFeatures"]["position"])
+            # The heat supplied to the building by the network should include heat losses from the substation.
+            demand_cluster = building["user"].heating_demand_cluster * (1 + h_loss_subst / 100)  # kW
+
+            # find corresponding pipeline node
+            for key, node_info in data.pipeline_nodes.items():
+                if tuple(node_info["pos"]) == pos_building:
+                    building_demand_cluster[key] = demand_cluster
+                    break  # break once found
+
+    # clustered waste heat profile
+    wh_capacity = data.waste_heat_data["clustered_profile"]
+
+    BUILDINGS = []
+    SOURCES = []
+
+    for key, value in data.pipeline_nodes.items():
+        if value["role"] == "bldg":
+            BUILDINGS.append(key)
+        else:
+            SOURCES.append(key)
+
+    path_edges = {}
+    for building in BUILDINGS:
+        for source in SOURCES:
+            path_edges[(source, building)] = get_path_edges(source, building)
+
+    diams = []
+    for p in data.pipeline.keys():
+        for d in pipe_candidates[p]:
+            diams.append(d)
+
+
+
+    M = 1000 # big M for linearization of product of binary and continuous variable
+    total_demand = np.sum(list(building_demand_cluster.values()), axis=0)
+    max_demand = np.max(total_demand)
+    min_delta = np.min(deltaT_cluster)
+    max_flow = max_demand * 1000 / (c_f * min_delta * rho_f)
+    print(f"Hier ist der max flow: {max_flow}")
+
+
+    h_loss = 0
+    deltaT = T_s_cluster - T_soil_cluster
+    max_deltaT = np.max(deltaT)
+    for pipe in data.pipeline.keys():
+        DN_max = np.max(list(pipe_dict.keys()))
+        ks = pipe_dict[DN_max]["symmetrical heat loss factor"]
+        length = data.pipeline[pipe]["length"]
+        h_loss += 2 * max_deltaT * 2 * np.pi * k_soil * ks * length / (c_f * min_delta * rho_f)  # L/s
+
+
+
+    # Data for linear approximation
+    x_min = 0
+    n_pts = 12
+
+
+    bp_list_diam = {}
+    bp_list_pump = {}
+    d_min_list = {}
+    d_max_list = {}
+    P_list = {}
+
+    C_min = (f_i * rho_f / (np.pi ** 2 * dp_pipe_max)) ** 0.2 * 1000
+    C_max = (f_i * rho_f / (np.pi ** 2 * dp_pipe_min)) ** 0.2 * 1000
+
+    for pipe in data.pipeline.keys():
+        bp_list_diam[pipe] = {}
+        d_min_list[pipe] = {}
+        d_max_list[pipe] = {}
+
+        x_max = data.pipeline[pipe].get("flow_max", max_flow) * 10
+
+
+        breakpoints = np.linspace(x_min, x_max, n_pts)
+
+        d_min = C_min * (breakpoints ** 0.4)
+        d_max = C_max * (breakpoints ** 0.4)
+
+
+        bp_list_diam[pipe] = breakpoints.tolist()
+        d_min_list[pipe] = d_min.tolist()
+        d_max_list[pipe] = d_max.tolist()
+
+
+
+    for source in SOURCES:
+        bp_list_pump[source] = {}
+        P_list[source] = {}
+        for pipe in data.pipeline.keys():
+            bp_list_pump[source][pipe] = {}
+            P_list[source][pipe] = {}
+            x_max = data.pipeline[pipe].get(f"flow_source_max_{source}", max_flow) * 10
+
+            breakpoints = np.linspace(x_min, x_max, n_pts)
+            bp_list_pump[source][pipe] = breakpoints.tolist()
+
+            length = data.pipeline[pipe]["length"]
+            for d in pipe_candidates[pipe]:
+                P_list[source][pipe][d] = {}
+                D_inner = pipe_dict[d]["Inner diameter (pipe) (mm)"] / 1000.0
+                K = prefac_pipe[pipe] * length * 2.0 * (1.0 + 0.2) * rho_f / (D_inner ** 5)
+                P = K * ((breakpoints * 1000)** 3)
+                P_list[source][pipe][d] = P.tolist()
+
 
     # %% STEP TWO: initialize the model and create sets
     # Create a new model
     model = pyo.ConcreteModel(name="grid_pipe_diameters")
+
+    # create intermediate sets
+    model.buildings = pyo.Set(initialize=BUILDINGS, doc="buildings in the district")
+    model.sources = pyo.Set(initialize=SOURCES, doc="sources in the district")
 
     model.pipe = pyo.Set(initialize=data.pipeline.keys(), doc="Pipe segments in the network")
     model.week = pyo.Set(initialize=weeks, doc="Typical weeks")
@@ -591,19 +1116,74 @@ def optimization_diameter(data, param):
     invest_devs = ["pipes", "pumps", "HP"]
     model.invest_devs = pyo.Set(initialize=invest_devs, doc="Device types for investment & cost tracking")
 
-    lines = list(path.keys())
-    model.lines = pyo.Set(initialize=lines, doc="List of path lines")
+    line_pairs = [(s, l) for s in path for l in path[s]]
+    model.lines = pyo.Set(dimen=2, initialize=line_pairs, doc="List of path lines")
+
+    # %% INTERMEDIATE STEP: CREATE VARIABLES TO OPTIMIZE HEAT SUPPLY STRATEGY
+    # heat load from source to sink for each timestep
+    model.load_source_sink = pyo.Var(model.buildings, model.sources, model.week, model.t, within=pyo.NonNegativeReals,
+                                     doc="heat load in kW for each source-sink combination and for each timestep")
+
+    # flow from source to sink for each timestep
+    model.flow_source_sink = pyo.Var(model.buildings, model.sources, model.week, model.t, within=pyo.NonNegativeReals,
+                                     doc="flow in m^3/s for each source-sink combination")
+
+    # flow on each pipe from each source for each timestep
+    model.pipe_flow_source = pyo.Var(model.sources, model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                                     doc="flow on each pipe for each timestep")
+
+    # flow on each pipe for each timestep
+    model.pipe_flow = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                              doc="flow on each pipe for each timestep")
+
+    # maximal flow on each pipe
+    model.max_pipe_flow = pyo.Var(model.pipe, within=pyo.NonNegativeReals, doc="maximal flow on each pipe")
+
+    # heat produced by each heat source
+    model.heat = pyo.Var(model.sources, model.week, model.t, within=pyo.Reals, doc="produced heat in kW")
+
+    # heat loss for each source-sink combination per week/t
+    model.heat_loss_source_sink = pyo.Var(model.buildings, model.sources, model.week, model.t,
+                                          within=pyo.NonNegativeReals,
+                                          doc="Heat loss from source to sink per week, timesep (kW)")
+
+    # binary variable: 0 if waste heat source meets the entire heat demand, else 1
+    model.q = pyo.Var(model.week, model.t, within=pyo.Binary)
+
+    # binary variable to ensure that flow occurs only in one direction within a given pipe
+    model.y = pyo.Var(model.pipe, model.week, model.t, within=pyo.Binary)
+
+    model.assignment = pyo.Var(model.buildings, model.sources, model.week, model.t, bounds=(0, 1), within=pyo.Reals)
+
+    # minimal allowed pipe diameter
+    model.d_min = pyo.Var(model.pipe, within=pyo.NonNegativeReals, doc="minimal allowed pipe diameter")
+    # maximal allowed pipe diameter
+    model.d_max_temp = pyo.Var(model.pipe, within=pyo.NonNegativeReals, doc="maximal allowed pipe diameter")
+    model.d_max = pyo.Var(model.pipe, within=pyo.NonNegativeReals, doc="maximal allowed pipe diameter")
+
+    # minimal allowed pipe diameter
+    model.d_min_t = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                            doc="minimal allowed pipe diameter")
+    # maximal allowed pipe diameter
+    model.d_max_t = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+                            doc="maximal allowed pipe diameter")
+
+    # extra pump power from station
+    model.p_station = pyo.Var(model.sources, model.week, model.t, within=pyo.NonNegativeReals)
 
     # %% STEP THREE: create variables
     # Binary choice: z[p,d] == 1 if pipe p uses diameter d
     model.z = pyo.Var(model.pipe_diam, within=pyo.Binary, doc="1 if pipe p uses diameter d")
 
     # Pump power for each pipe segment, week, timestep (unbounded real) -- corresponds to pump_pipe[pipe][week][t]
-    model.pump_pipe = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
+    model.pump_pipe = pyo.Var(model.sources, model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
                               doc="Pump power per pipe, week, and timestep (kW)")
+    model.pump_pipe_d = pyo.Var(model.sources, model.pipe_diam, model.week, model.t, within=pyo.NonNegativeReals)
+    model.pump_pipe_d_cand = pyo.Var(model.sources, model.pipe_diam, model.week, model.t, within=pyo.NonNegativeReals)
 
     # pump_el[week,t] -- pump power per path/time aggregated (kW)
-    model.pump_el = pyo.Var(model.week, model.t, within=pyo.NonNegativeReals, doc="Total pump power at each timestep (kW)")
+    model.pump_el = pyo.Var(model.sources, model.week, model.t, within=pyo.NonNegativeReals,
+                            doc="Total pump power at each timestep (kW)")
 
     # pump design capacity (max of pump power) (kW) - non-negative
     model.pump_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Pump design capacity (kW)")
@@ -615,12 +1195,16 @@ def optimization_diameter(data, param):
     model.heat_loss_pipe = pyo.Var(model.pipe, model.week, model.t, within=pyo.NonNegativeReals,
                                    doc="Heat loss per pipe, week, timestep (kW)")
 
+    # model.heat_loss_pipe_com = pyo.Var(model.buildings, model.sources, model.pipe, model.week, model.t, within=pyo.NonNegativeReals)
+
     # Additional heat pump capacity (kW) required to compensate network heat losses
-    model.HP_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Additional heat pump capacity (kW) to cover heat losses")
+    model.HP_cap = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0,
+                           doc="Additional heat pump capacity (kW) to cover heat losses")
 
     # total annual heat loss (kWh) and energy cost
     model.heat_loss_total = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual heat loss (kWh)")
-    model.heat_loss_energy_cost = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0, doc="Total annual heat loss energy cost (EUR)")
+    model.heat_loss_energy_cost = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0,
+                                          doc="Total annual heat loss energy cost (EUR)")
 
     # total annualized network cost (EUR)
     model.tac_network = pyo.Var(within=pyo.NonNegativeReals, initialize=0.0,
@@ -632,6 +1216,340 @@ def optimization_diameter(data, param):
     model.tac = pyo.Var(model.invest_devs, within=pyo.NonNegativeReals, initialize=0.0,
                         doc="Annualized costs by device (EUR)")
 
+    """---Draft--- 
+    The optimal heat supply strategy with a multi-source heat supply was implemented via the heuristic method"""
+
+    # IF A WASTE HEAT SOURCE EXISTS, CONSTRAINTS TO OBTAIN THE OPTIMAL SUPPLY STRATEGY ARE ADDED
+    if "waste_heat_profile" in data.waste_heat_data:
+        # DEFINE THE CONSTRAINTS
+        # 1) The demand rule ensures that the building demand is covered during all periods. The losses are taken into account.
+        def demand_rule(model, building, week, t):
+            i = week_to_i[week]
+            return building_demand_cluster[building][i, t] == sum(
+                model.load_source_sink[building, source, week, t] for source in model.sources)
+
+        model.demand_rule = pyo.Constraint(model.buildings, model.week, model.t, rule=demand_rule)
+
+        def assignment_rule(model, building, source, week, t):
+            i = week_to_i[week]
+            return building_demand_cluster[building][i, t] * model.assignment[building, source, week, t] == \
+                model.load_source_sink[building, source, week, t]
+
+        model.assignment_rule = pyo.Constraint(model.buildings, model.sources, model.week, model.t,
+                                               rule=assignment_rule)
+
+        # 2) The heat of the waste heat source is assigned to the generated waste heat profile.
+        def wh_cap_rule(model, week, t):
+            i = week_to_i[week]
+            return model.heat["EH2", week, t] == wh_capacity[i, t]  # TODO statt EH2 WH
+
+        model.wh_cap_rule = pyo.Constraint(model.week, model.t, rule=wh_cap_rule)
+
+        # 3) Generated heat by the energy hub equals the difference between the heat demand and the generated heat by the waste heat source (ensures that waste heat source gets prioritized)
+        def eh_cap_rule1(model, week, t):
+            return model.heat["EH2", week, t] >= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings for source in
+                model.sources) - M * model.q[week, t]
+
+        def eh_cap_rule2(model, week, t):
+            return model.heat["EH2", week, t] <= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings for source in
+                model.sources) + M * (1 - model.q[week, t])
+
+        def eh_cap_rule3(model, week, t):
+            return model.heat["EH1", week, t] <= M * model.q[week, t]
+
+        def eh_cap_rule4(model, week, t):
+            return model.heat["EH1", week, t] <= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings for source in
+                model.sources) - model.heat["EH2", week, t] + M * (1 - model.q[week, t])
+
+        model.eh_cap_rule = pyo.Constraint(model.week, model.t, rule=eh_cap_rule1)
+        model.eh_cap_rule2 = pyo.Constraint(model.week, model.t, rule=eh_cap_rule2)
+        model.eh_cap_rule3 = pyo.Constraint(model.week, model.t, rule=eh_cap_rule3)
+        model.eh_cap_rule4 = pyo.Constraint(model.week, model.t, rule=eh_cap_rule4)
+
+        # 4) generated heat must be larger than supplied heat
+        def capacity_rule(model, source, week, t):
+            return model.heat[source, week, t] >= sum(
+                model.load_source_sink[building, source, week, t] for building in model.buildings)
+
+        model.capacity_rule = pyo.Constraint(model.sources, model.week, model.t, rule=capacity_rule)
+
+        # 5) Calculation of the volumetric flow
+        def load_to_flow_rule(model, building, source, week, t):
+            i = week_to_i[week]
+            return model.flow_source_sink[building, source, week, t] == model.load_source_sink[
+                building, source, week, t] * 1000 / (c_f * deltaT_cluster[i, t] * rho_f)
+
+        model.load_to_flow = pyo.Constraint(model.buildings, model.sources, model.week, model.t, rule=load_to_flow_rule)
+
+        # 9) total heat loss on pipes from source to sink
+        #    def heat_loss_pipe_com_rule(model, pipe, week, t):
+        #        pipe_tuple = key_to_tuple(pipe)
+        #        return model.heat_loss_pipe[pipe, week, t] == sum(model.heat_loss_pipe_com[building, source, pipe, week, t] for building in model.buildings for source in model.sources if normalized(pipe_tuple) in path_edges[(source, building)])
+
+        #    model.heat_loss_pipe_com_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=heat_loss_pipe_com_rule)
+
+        #    def heat_loss_pipe_com_rule2(model, pipe, week, t):
+        #        pipe_tuple = key_to_tuple(pipe)
+        #        return 0 == sum(model.heat_loss_pipe_com[building, source, pipe, week, t] for building in model.buildings for source in model.sources if normalized(pipe_tuple) not in path_edges[(source, building)])
+
+        #    model.heat_loss_pipe_com2_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=heat_loss_pipe_com_rule2)
+
+        #    def heat_loss_pipe_com_rule3(model, building, source, week, t):
+        #        return sum(model.heat_loss_pipe_com[building, source, pipe, week, t] for pipe in model.pipe) <= M * model.load_source_sink[building, source, week, t]
+
+        #    model.heat_loss_pipe_com3_rule = pyo.Constraint(model.buildings, model.sources, model.week, model.t, rule=heat_loss_pipe_com_rule3)
+
+        # 10) assignment of flow for each pipe
+        def pipe_flow_spec_rule(model, source, pipe, week, t):
+
+            i = week_to_i[week]
+            load_sum = 0
+
+            for building in model.buildings:
+                path = path_edges[(source, building)]
+                load_reduction = 0
+                pipe_tuple = key_to_tuple(pipe)
+
+                if normalized(pipe_tuple) in {normalized(e) for e in path}:  # checks if the pipe is traversed
+                    load_sum += (model.load_source_sink[building, source, week, t] - load_reduction)
+
+                    # load_reduction = lost_load(pipe_tuple, source, building)  # load reduction is the fraction of the load which is already lost by the time it arrives at the given pipe
+                    for edge in path:
+                        edge_str1 = f"{edge[0]}->{edge[1]}"
+                        edge_str2 = f"{edge[1]}->{edge[0]}"
+                        if normalized(edge) == normalized(pipe_tuple):
+                            break
+                        else:
+                            if edge_str1 in model.pipe:
+                                if edge[1] in model.buildings:
+                                    load_reduction += (model.assignment[edge[1], source, week, t] *
+                                                       building_demand_cluster[edge[1]][i, t])
+                                else:
+                                    load_reduction += 0
+                            elif edge_str2 in model.pipe:
+                                if edge[1] in model.buildings:
+                                    load_reduction += (model.assignment[edge[1], source, week, t] *
+                                                       building_demand_cluster[edge[1]][i, t])
+                                else:
+                                    load_reduction += 0
+                            else:
+                                load_reduction += 0
+
+            return model.pipe_flow_source[source, pipe, week, t] == load_sum * 1000 / (
+                        c_f * deltaT_cluster[i, t] * rho_f)
+
+        model.pipe_flow_spec_rule = pyo.Constraint(model.sources, model.pipe, model.week, model.t,
+                                                   rule=pipe_flow_spec_rule)
+
+        def pipe_flow_rule(model, pipe, week, t):
+            return model.pipe_flow[pipe, week, t] == sum(
+                model.pipe_flow_source[source, pipe, week, t] for source in model.sources)
+
+        model.pipe_flow_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=pipe_flow_rule)
+
+        # 6) Calculation of the maximal flow on each pipe
+        def max_flow_rule(model, pipe, week, t):
+            return model.max_pipe_flow[pipe] >= model.pipe_flow[pipe, week, t]
+
+        model.max_flow = pyo.Constraint(model.pipe, model.week, model.t, rule=max_flow_rule)
+
+        # 11) Constraints to ensure that during any given time step, the heat is only allowed to flow in one direction in a pipe
+        # if y is 0, the heat is flowing in reverse direction, if y is 1, the heat is flowing in forward direction. y is assigned to every pipe
+        def flow_forward_rule(model, pipe, week, t):
+            flow_reverse = 0
+
+            for source in model.sources:
+                for building in model.buildings:
+                    pipe_tuple = key_to_tuple(pipe)
+                    path = path_edges[(source, building)]
+
+                    for edge in path:
+                        if normalized(edge) == normalized(
+                                pipe_tuple) and edge != pipe_tuple:  # if the considered pipe is traversed on the way from the source to the sink but the
+                            flow_reverse += model.flow_source_sink[
+                                building, source, week, t]  # heat flows in the opposed direction of the defined flow direction, model.flow is
+                            # added to the variable flow_reverse
+            return flow_reverse <= M * (
+                    1 - model.y[pipe, week, t])  # if y is 0, the flow is allowed in the reverse direction
+
+        def flow_reverse_rule(model, pipe, week, t):
+            flow_forward = 0
+
+            for source in model.sources:
+                for building in model.buildings:
+                    path = path_edges[(source, building)]
+                    pipe_tuple = key_to_tuple(pipe)
+
+                    for edge in path:
+                        if normalized(edge) == normalized(pipe_tuple) and edge == pipe_tuple:
+                            flow_forward += model.flow_source_sink[building, source, week, t]
+
+            return flow_forward <= M * model.y[
+                pipe, week, t]  # if y is 1, the flow is allowed to flow in the forward direction
+
+        model.flow_forward_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=flow_forward_rule)
+        model.flow_reverse_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=flow_reverse_rule)
+
+        # 7) Calculation of minimal and maximal pipe diameters
+
+        for pipe in model.pipe:
+            for week in model.week:
+                for t in model.t:
+                    name_dmin = f"dmin_pwl_{pipe}_{week}_{t}"
+                    name_dmax = f"dmax_pwl_{pipe}_{week}_{t}"
+
+                    model.add_component(name_dmin, pyo.Piecewise(
+                        model.d_min_t[pipe, week, t],
+                        model.pipe_flow[pipe, week, t],
+
+                        pw_pts=bp_list_diam[pipe],
+                        f_rule=d_min_list[pipe],
+                        pw_constr_type='EQ',
+                        pw_repn='SOS2',
+                        unbounded_domain_var=True
+
+                    ))
+
+                    model.add_component(name_dmax, pyo.Piecewise(
+                        model.d_max_t[pipe, week, t],
+                        model.pipe_flow[pipe, week, t],
+
+                        pw_pts=bp_list_diam[pipe],
+                        f_rule=d_max_list[pipe],
+                        pw_constr_type='EQ',
+                        pw_repn='SOS2',
+                        unbounded_domain_var=True
+
+                    ))
+
+        def d_max_temp_rule(model, pipe, week, t):
+            return model.d_max_temp[pipe] >= model.d_max_t[pipe, week, t]
+
+        model.d_max_temp_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=d_max_temp_rule)
+
+        def d_min_rule(model, pipe, week, t):
+            return model.d_min[pipe] >= model.d_min_t[pipe, week, t]
+
+        model.d_min_rule = pyo.Constraint(model.pipe, model.week, model.t, rule=d_min_rule)
+
+        def d_max_rule(model, pipe):
+            return model.d_max[pipe] >= model.d_max_temp[pipe]
+
+        model.d_max_rule = pyo.Constraint(model.pipe, rule=d_max_rule)
+
+        def d_max_safe_rule(model, pipe):
+            return model.d_max[pipe] >= model.d_min[pipe] + 20
+
+        model.d_max_rule2 = pyo.Constraint(model.pipe, rule=d_max_safe_rule)
+
+        # 8) limit the amount of pipe candidates
+        def d_norm_rule1(model, pipe):
+            return model.d_min[pipe] <= sum(
+                model.z[pipe, d] * pipe_dict[d]["Inner diameter (pipe) (mm)"] for d in pipe_candidates[pipe])
+
+        def d_norm_rule2(model, pipe):
+            return model.d_max[pipe] >= sum(
+                model.z[pipe, d] * pipe_dict[d]["Inner diameter (pipe) (mm)"] for d in pipe_candidates[pipe])
+
+        model.d_norm_rule1 = pyo.Constraint(model.pipe, rule=d_norm_rule1)
+        model.d_norm_rule2 = pyo.Constraint(model.pipe, rule=d_norm_rule2)
+
+        for source in model.sources:
+            for pipe, d in model.pipe_diam:
+                for week in model.week:
+                    for t in model.t:
+                        name_p_pw = f"dmin_pwl_{source}_{pipe}_{d}_{week}_{t}"
+                        model.add_component(name_p_pw, pyo.Piecewise(
+                            model.pump_pipe_d_cand[source, pipe, d, week, t],
+                            model.pipe_flow_source[source, pipe, week, t],
+                            pw_pts=bp_list_pump[source][pipe],
+                            f_rule=P_list[source][pipe][d],
+                            pw_constr_type='EQ',
+                            pw_repn='SOS2',
+                            unbounded_domain_var=True
+
+                        ))
+
+        def pump_pipe_d_rule(model, source, pipe, d, week, t):
+            return model.pump_pipe_d_cand[source, pipe, d, week, t] - model.pump_pipe_d[
+                source, pipe, d, week, t] <= M * (1 - model.z[pipe, d])
+
+        model.pump_pipe_d_rule = pyo.Constraint(model.sources, model.pipe_diam, model.week, model.t,
+                                                rule=pump_pipe_d_rule)
+
+        def pump_pipe_rule(model, source, pipe, week, t):
+            return model.pump_pipe[source, pipe, week, t] == sum(
+                model.pump_pipe_d[source, pipe, d, week, t] for d in pipe_candidates[pipe])
+
+        model.pump_pipe_rule = pyo.Constraint(model.sources, model.pipe, model.week, model.t, rule=pump_pipe_rule)
+
+        def p_station_rule(model, source, week, t):
+            return model.p_station[source, week, t] == sum(
+                model.flow_source_sink[building, source, week, t] for building in
+                model.buildings) * dp_station_total / (eta_pump * 1000)
+
+        model.p_station_rule = pyo.Constraint(model.sources, model.week, model.t, rule=p_station_rule)
+
+        # 3) For each path (line) and time, pump_el >= sum of pump_pipe along the path
+        def pump_el_ge_path_rule(model, source, line, week, t):
+            nodes = path[source][line]
+            # accumulate pump_pipe for each pipe along the path (orientation a->b)
+            expr = sum(
+                model.pump_pipe[source, pair_to_pid[(nodes[i], nodes[i + 1])], week, t] for i in range(len(nodes) - 1))
+
+            extraP = model.p_station[source, week, t]
+
+            return model.pump_el[source, week, t] >= expr / 1000000000 + extraP
+
+        model.pump_el_ge_path = pyo.Constraint(model.lines, model.week, model.t, rule=pump_el_ge_path_rule,
+                                               doc="pump_el >= sum of pump_pipe along path")
+
+    else:
+        # 2) Pump power relation per pipe/week/t
+        # P_p,w,t = Σ_d [ prefac * L_p * 2*(1+0.2) * (ρ_f * V̇_p,w,t)^3 / D_d^5 ] * z[p,d]
+        # prefac already contains 8*f_fric/(π²*η_pump*ρ_f²)/1000  → kW units
+
+        def pump_pipe_relation_rule(model, pipe, week, t):
+            i = week_to_i[week]
+            flow_value = data.pipeline[pipe]["flow_cluster"][i, t]  # m³/s
+
+            length = data.pipeline[pipe]["length"]  # m
+            m_dot = rho_f * flow_value  # kg/s
+
+            # If flow is exactly zero, RHS will be 0 and pump_pipe will be forced to 0 anyway
+            return model.pump_pipe[pipe, week, t] == sum(
+                prefac_pipe[pipe] * length * 2.0 * (1.0 + 0.2)
+                * (m_dot ** 3)
+                / ((pipe_dict[d]["Inner diameter (pipe) (mm)"] / 1000.0) ** 5)
+                * model.z[pipe, d]
+                for d in pipe_candidates[pipe]
+            )
+
+        model.pump_pipe_relation = pyo.Constraint(
+            model.pipe, model.week, model.t,
+            rule=pump_pipe_relation_rule,
+            doc="Pump power vs diameter-flow relation (kW)"
+        )
+
+        # 3) For each path (line) and time, pump_el >= sum of pump_pipe along the path
+        def pump_el_ge_path_rule(model, line, week, t):
+            nodes = path[line]
+            # accumulate pump_pipe for each pipe along the path (orientation a->b)
+            expr = sum(model.pump_pipe[pair_to_pid[(nodes[i], nodes[i + 1])], week, t] for i in range(len(nodes) - 1))
+
+            i = week_to_i[week]
+            extraP = P_station_cluster[i, t]  # kW
+
+            return model.pump_el[week, t] >= expr + extraP
+
+        model.pump_el_ge_path = pyo.Constraint(model.lines, model.week, model.t, rule=pump_el_ge_path_rule,
+                                               doc="pump_el >= sum of pump_pipe along path")
+
+
+
     # %% STEP FOUR: define the constraints
     # 1) Each pipe must choose exactly one diameter
     def choose_one_diameter_rule(model, pipe):
@@ -640,46 +1558,6 @@ def optimization_diameter(data, param):
     model.choose_one_diameter = pyo.Constraint(model.pipe, rule=choose_one_diameter_rule,
                                                doc="Each pipe picks exactly one diameter")
 
-    # 2) Pump power relation per pipe/week/t
-    # P_p,w,t = Σ_d [ prefac * L_p * 2*(1+0.2) * (ρ_f * V̇_p,w,t)^3 / D_d^5 ] * z[p,d]
-    # prefac already contains 8*f_fric/(π²*η_pump*ρ_f²)/1000  → kW units
-
-    def pump_pipe_relation_rule(model, pipe, week, t):
-        i = week_to_i[week]
-        flow_value = data.pipeline[pipe]["flow_cluster"][i, t]  # m³/s
-        print(f"Hier die shape: {flow_value.shape}")
-
-        length = data.pipeline[pipe]["length"]  # m
-        m_dot = rho_f * flow_value  # kg/s
-
-        # If flow is exactly zero, RHS will be 0 and pump_pipe will be forced to 0 anyway
-        return model.pump_pipe[pipe, week, t] == sum(
-            prefac_pipe[pipe] * length * 2.0 * (1.0 + 0.2)
-            * (m_dot ** 3)
-            / ((pipe_dict[d]["Inner diameter (pipe) (mm)"] / 1000.0) ** 5)
-            * model.z[pipe, d]
-            for d in pipe_candidates[pipe]
-        )
-
-    model.pump_pipe_relation = pyo.Constraint(
-        model.pipe, model.week, model.t,
-        rule=pump_pipe_relation_rule,
-        doc="Pump power vs diameter-flow relation (kW)"
-    )
-
-    # 3) For each path (line) and time, pump_el >= sum of pump_pipe along the path
-    def pump_el_ge_path_rule(model, line, week, t):
-        nodes = path[line]
-        # accumulate pump_pipe for each pipe along the path (orientation a->b)
-        expr = sum(model.pump_pipe[pair_to_pid[(nodes[i], nodes[i + 1])], week, t] for i in range(len(nodes) - 1))
-
-        i = week_to_i[week]
-        extraP = P_station_cluster[i, t]  # kW
-
-        return model.pump_el[week, t] >= expr + extraP
-
-    model.pump_el_ge_path = pyo.Constraint(model.lines, model.week, model.t, rule=pump_el_ge_path_rule,
-                                           doc="pump_el >= sum of pump_pipe along path")
 
     # 4) pump_el <= pump_cap for design capacity bounding at each time
     def pump_cap_rule(model, week, t):
@@ -866,11 +1744,18 @@ def calc_diameter(data, param):
     for pipe_id, pipe in data.pipeline.items():
         f_i = float(pipe.get("f_fric", f_default))
         # The allowable diameter range calculated based on the friction pressure loss formula(Darcy-Weisbach equation)
-        # The minimum pipe diameter is determined by the maximum specific friction of 300 Pa/m.
-        d_min_calc = ((8 * pipe["flow_max"]**2 * f_i * rho_f) / (np.pi**2 * dp_pipe_max))**0.2 * 1000
-        pipe["d_min"] = d_min_calc
-        # The maximum pipe diameter is determined by the minimum specific friction of 30 Pa/m.
-        d_max_calc = ((8 * pipe["flow_max"]**2 * f_i * rho_f) / (np.pi**2 * dp_pipe_min))**0.2 * 1000
+        if "waste_heat_profile" in data.waste_heat_data: # calculation with flow_robust instead of flow_max
+            # The minimum pipe diameter is determined by the maximum specific friction of 300 Pa/m.
+            d_min_calc = ((8 * pipe["flow_robust"] ** 2 * f_i * rho_f) / (np.pi ** 2 * dp_pipe_max)) ** 0.2 * 1000
+            pipe["d_min"] = d_min_calc
+            # The maximum pipe diameter is determined by the minimum specific friction of 30 Pa/m.
+            d_max_calc = ((8 * pipe["flow_robust"] ** 2 * f_i * rho_f) / (np.pi ** 2 * dp_pipe_min)) ** 0.2 * 1000
+        else:
+            # The minimum pipe diameter is determined by the maximum specific friction of 300 Pa/m.
+            d_min_calc = ((8 * pipe["flow_max"]**2 * f_i * rho_f) / (np.pi**2 * dp_pipe_max))**0.2 * 1000
+            pipe["d_min"] = d_min_calc
+            # The maximum pipe diameter is determined by the minimum specific friction of 30 Pa/m.
+            d_max_calc = ((8 * pipe["flow_max"]**2 * f_i * rho_f) / (np.pi**2 * dp_pipe_min))**0.2 * 1000
         # Ensure d_max is meaningfully larger than d_min:
         # For very low flow rates, d_max_calc can be almost equal to d_min_calc (numerically too close).
         # To avoid an unrealistically narrow or zero design range, enforce at least a 20 mm gap.
@@ -1047,7 +1932,7 @@ def output_diameter(data, param):
     #plt.show()
 
     # ---------- 2. plot Pipeline Map - Diameter ----------
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(6, 10))
 
     # Retrieve all selected pipe diameter sizes
     DN_values = [data.pipeline[pipe]["DN"] for pipe in data.pipeline.keys()]
@@ -1082,15 +1967,46 @@ def output_diameter(data, param):
                 ha = "left"
         ax.text(mid_x, mid_y + dy, f"DN{DN}", fontsize=8, ha=ha, color='black', fontweight='bold')
 
-    ax.set_title("Diameter")
+    # mark energy hub and waste heat position for better illustration
+    eh1_pos = tuple(data.pipeline_nodes["EH1"]["pos"])
+
+    ax.scatter(*eh1_pos, s=280, marker="o", color="#2b579a",
+               edgecolor="black", linewidth=1.2, zorder=10)
+
+    ax.annotate("Energiezentrale", eh1_pos, xytext=(0, -18),
+                textcoords="offset points", fontsize=15, fontweight="bold",
+                color="#2b579a", ha="center", va="top",
+                bbox=dict(boxstyle="round,pad=0.3", facecolor='white',
+                          alpha=0.9, edgecolor='none'))
+
+    # if waste heat source exists, mark its position
+    if "waste_heat_profile" in data.waste_heat_data:
+        wh_pos = tuple(data.pipeline_nodes["WH1"]["pos"])
+
+        ax.scatter(*wh_pos, s=280, marker="o", color="#d7191c",
+                   edgecolor="black", linewidth=1.2, zorder=10)
+
+        ax.annotate("Abwärme", wh_pos, xytext=(0, -12),
+                    textcoords="offset points", fontsize=15, fontweight="bold",
+                    color="#d7191c", ha="center", va="top",
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor='white',
+                              alpha=0.9, edgecolor='none'))
+
+    #ax.set_title("Diameter")
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', linewidth=0.3)
+
+    # remove ticks and labels
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel('')
+    ax.set_ylabel('')
 
     base = os.path.join(dir_result, f"pipeline_diameter_{data.scenario_name}")
     plt.savefig(base + ".png")  # PNG
     plt.savefig(base + ".svg")  # SVG
 
-    #plt.show()
+    plt.show()
 
     # ---------- 3. plot Pipeline Map - Maximum velocity (m/s) ----------
     # calculate the max. velocity and the max. pressure drop
@@ -1199,12 +2115,21 @@ def output_diameter(data, param):
     #plt.show()
 
     # ---------- 5. plot Pipeline Map - Energy_density (MWh/m) ----------
+    time_steps = int(data.time["clusterLength"] / data.time["timeResolution"])
     deltaT = param["deltaT"]
+    deltaT_cluster = param["deltaT_cluster"]
     for pipe_id, pipe in data.pipeline.items():
         # c_f in J/kg·K, rho_f in kg/m3
-        flow = pipe["flow"]  # m3/s
+        flow = pipe["flow_cluster"]  # m3/s
         length = pipe["length"]  # m
-        energy_total = np.sum(c_f * flow * rho_f * deltaT) / 1000000  # MWh
+
+
+        energy_total = 0
+        for i, week in enumerate(data.clusters):
+            energy_week = 0
+            for t in range(time_steps):
+                energy_week += (c_f * flow[i, t] * rho_f * deltaT_cluster[i, t])/1000000 # MWh
+            energy_total += energy_week * data.clusterWeights[week]
         pipe["energy_density"] = energy_total / length  # MWh/m
 
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -1320,66 +2245,137 @@ def output_diameter(data, param):
 
     pump_power_pipe = {}
     for pipe_id, pipe in data.pipeline.items():
+        pump_power_pipe[pipe_id] = {}
         f_i = pipe.get("f_fric", data.heat_grid_data["pipe"]["f_fric"])
         prefac_i = (8.0 * f_i) / (rho_f ** 2 * np.pi ** 2 * eta_pump) / 1000.0
         DN = pipe["DN"]  # mm
         d_i = pipe_dict[DN]["Inner diameter (pipe) (mm)"]  # mm
         length = pipe["length"]  # m
-        flow = pipe["flow"]  # m3/s
-        # pump power to cover friction loss
-        # *2: The first factor of two accounts for the pump power of both the supply and return pipes.
-        pump_power_friction = prefac_i * length * 2 * ((flow * rho_f) ** 3) / ((d_i / 1000) ** 5)  # kW
+        if "waste_heat_profile" not in data.waste_heat_data:
+            flow = pipe["flow"]  # m3/s
+            # pump power to cover friction loss
+            # *2: The first factor of two accounts for the pump power of both the supply and return pipes.
+            pump_power_friction = prefac_i * length * 2 * ((flow * rho_f) ** 3) / ((d_i / 1000) ** 5)  # kW
 
-        # pump power to cover local loss
-        velocity = flow / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
-        zeta = pipe["zeta"]
-        local_pressure_drop = rho_f * zeta * velocity**2 / 2  # Pa
-        pump_power_local = local_pressure_drop * flow / (eta_pump * 1000.0)  # kW
+            # pump power to cover local loss
+            velocity = flow / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
+            zeta = pipe["zeta"]
+            local_pressure_drop = rho_f * zeta * velocity**2 / 2  # Pa
+            pump_power_local = local_pressure_drop * flow / (eta_pump * 1000.0)  # kW
 
-        # total pump power for this pipe segment
-        pump_power_pipe[pipe_id] = pump_power_friction + pump_power_local  # kW
+            # total pump power for this pipe segment
+            pump_power_pipe[pipe_id] = pump_power_friction + pump_power_local  # kW
+        else:
+            flow = pipe["flow_cluster"]  # m3/s
+
+            for source in ["EH1", "WH1"]:
+                flow_source = pipe[f"flow_cluster_{source}"]
+                # pump power to cover friction loss
+                # *2: The first factor of two accounts for the pump power of both the supply and return pipes.
+                pump_power_friction = prefac_i * length * 2 * ((flow_source * rho_f) ** 3) / ((d_i / 1000) ** 5)  # kW
+
+                # pump power to cover local loss
+                velocity = flow / (np.pi * (d_i / 1000) ** 2 / 4)  # m/s
+                zeta = pipe["zeta"]
+                local_pressure_drop = rho_f * zeta * velocity ** 2 / 2  # Pa
+                pump_power_local = local_pressure_drop * flow_source / (eta_pump * 1000.0)  # kW
+
+                # total pump power for this pipe segment
+                pump_power_pipe[pipe_id][source] = pump_power_friction + pump_power_local  # kW
 
     # Build mapping from oriented node pair to pipe id (assume unique per pair)
     pair_to_pid = {}
     for pid, info in data.pipeline.items():
         pair_to_pid[(info["from"], info["to"])] = pid
+        pair_to_pid[(info["to"], info["from"])] = pid
 
     path = param["path"]
     pump_power_line = {}
-    for line, nodes in path.items():
-        # Initialize pump power array for this line
-        pump = np.zeros_like(heat_loss_substation)
-        # Sum up pump power along all pipeline segments in this line
-        for i in range(len(nodes) - 1):
-            a, b = nodes[i], nodes[i + 1]
-            pid = pair_to_pid[(a, b)]
-            pump += pump_power_pipe[pid]
-        # Store total pump power time series for this line
-        pump_power_line[line] = pump
+    if "waste_heat_profile" not in data.waste_heat_data:
+        for line, nodes in path.items():
+            # Initialize pump power array for this line
+            pump = np.zeros_like(heat_loss_substation)
+            # Sum up pump power along all pipeline segments in this line
+            for i in range(len(nodes) - 1):
+                a, b = nodes[i], nodes[i + 1]
+                pid = pair_to_pid[(a, b)]
+                pump += pump_power_pipe[pid]
+            # Store total pump power time series for this line
+            pump_power_line[line] = pump
 
-    # Stack all line pump power arrays into a 2D matrix: (n_lines, n_timesteps)
-    pump_matrix = np.array(list(pump_power_line.values()))
+        # Stack all line pump power arrays into a 2D matrix: (n_lines, n_timesteps)
+        pump_matrix = np.array(list(pump_power_line.values()))
 
-    # Add yearly station + hub pressure-drop component
-    dp_substation = data.heat_grid_data.get("dp_substation", 0.0)  # Pa
-    dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", 0.0)  # Pa
-    dp_station_total = dp_substation + dp_energy_hub                                # Pa
+        # Add yearly station + hub pressure-drop component
+        dp_substation = data.heat_grid_data.get("dp_substation", 0.0)  # Pa
+        dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", 0.0)  # Pa
+        dp_station_total = dp_substation + dp_energy_hub                                # Pa
 
-    # Approximate total volume flow at energy hub as sum of flows leaving EH1
-    T_s = param["T_s"]  # only used for shape
-    Vdot_total_profile = np.zeros_like(T_s, dtype=float)
-    for pipe_id, pipe in data.pipeline.items():
-        if pipe["from"] == "EH1":
-            Vdot_total_profile += pipe["flow"]  # m³/s
+        # Approximate total volume flow at energy hub as sum of flows leaving EH1
+        T_s = param["T_s"]  # only used for shape
+        Vdot_total_profile = np.zeros_like(T_s, dtype=float)
+        for pipe_id, pipe in data.pipeline.items():
+            if pipe["from"] == "EH1":
+                Vdot_total_profile += pipe["flow"]  # m³/s
 
-    # Extra pump power from substations + energy hub
-    # P = V̇ * Δp / (η * 1000)
-    P_station_profile = Vdot_total_profile * dp_station_total / (eta_pump * 1000.0)  # kW
+        # Extra pump power from substations + energy hub
+        # P = V̇ * Δp / (η * 1000)
+        P_station_profile = Vdot_total_profile * dp_station_total / (eta_pump * 1000.0)  # kW
 
-    # Final pump power: (pipe friction + local pressure loss) from worst line + station/hub component
-    pump_power = np.max(pump_matrix, axis=0) + P_station_profile
+        # Final pump power: (pipe friction + local pressure loss) from worst line + station/hub component
+        pump_power = np.max(pump_matrix, axis=0) + P_station_profile
 
-    data.heat_grid_data["pump_power"] = pump_power
+        data.heat_grid_data["pump_power"] = pump_power
+    else:
+        pump_power = 0
+        for source in ["EH1", "WH1"]:
+            for line, nodes in path[source].items():
+                # Initialize pump power array for this line
+                pump = np.zeros((len(data.clusters), int(data.time["clusterLength"] / data.time["timeResolution"])))
+                # Sum up pump power along all pipeline segments in this line
+                for i in range(len(nodes) - 1):
+                    a, b = nodes[i], nodes[i + 1]
+                    pid = pair_to_pid[(a, b)]
+                    pump += pump_power_pipe[pid][source]
+                # Store total pump power time series for this line
+                pump_power_line[line] = pump
+
+            # Stack all line pump power arrays into a 2D matrix: (n_lines, n_timesteps)
+            pump_matrix = np.array(list(pump_power_line.values()))
+
+            # Add yearly station + hub pressure-drop component
+            dp_substation = data.heat_grid_data.get("dp_substation", 0.0)  # Pa
+            dp_energy_hub = data.heat_grid_data.get("dp_energy_hub", 0.0)  # Pa
+            dp_station_total = dp_substation + dp_energy_hub  # Pa
+
+            # Approximate total volume flow at energy hub as sum of flows leaving EH1
+            T_s = param["T_s_cluster"]  # only used for shape
+            Vdot_total_profile = np.zeros_like(T_s, dtype=float)
+            for pipe_id, pipe in data.pipeline.items():
+                if pipe["from"] == source:
+                    Vdot_total_profile += pipe["flow_cluster"]  # m³/s
+
+            # Extra pump power from substations + energy hub
+            # P = V̇ * Δp / (η * 1000)
+            P_station_profile = Vdot_total_profile * dp_station_total / (eta_pump * 1000.0)  # kW
+
+            # Final pump power: (pipe friction + local pressure loss) from worst line + station/hub component
+            pump_power_source = np.max(pump_matrix, axis=0) + P_station_profile
+            pump_power += pump_power_source
+
+        pump_power_uncl = []
+        for j in range(52):
+            for i, week in enumerate(data.clusterAssignments):
+                for y in data.clusterAssignments[week]:
+                    if y == i:
+                        for t in range(time_steps):
+                            pump_power_uncl.append(pump_power[i, t])
+
+        pump_power_full = np.zeros(8760)
+        pump_power_full[:8736] = pump_power_uncl  # die ersten 52 Wochen
+        pump_power_full[8736:] = pump_power_uncl[-24:]  # letzten 24h auffüllen
+
+        data.heat_grid_data["pump_power"] = pump_power_full
     # print("Total pump power in network calculation finished successfully.")
 
     # ---------- 8. save cost ----------
@@ -1428,7 +2424,10 @@ def output_diameter(data, param):
     # print(f"Pump O&M cost per year: {pump_om_costs:.2f} €")
 
     # cost of electricity
-    pump_energy_total = np.sum(pump_power)  # kWh
+    if "waste_heat_profile" in data.waste_heat_data:
+        pump_energy_total = np.sum(pump_power_full)  # kWh
+    else:
+        pump_energy_total = np.sum(pump_power)  # kWh
     print(f"gesamte menge: {pump_energy_total}")
     # print(f"The total electricity consumption for the pump is {pump_energy_total:5f}kWh/a.")
     pump_electricity_costs = pump_energy_total * data.ecoData["price_supply_el_eh"][0]
@@ -1959,6 +2958,7 @@ def calc_f_fric_per_pipe(data, param):
     """
     pipe_dict = param["pipe_dict"]
     nu_f = data.heat_grid_data["fluid"]["nu_f"]  # m2/s
+    f_prev = float(data.heat_grid_data["pipe"]["f_fric"]) # friction factor of the prevoius iteration
 
     f_map = {}
 
@@ -1969,12 +2969,15 @@ def calc_f_fric_per_pipe(data, param):
         k_mm = pipe_dict[DN]["Roughness (mm)"]                # mm
 
         D = d_i_mm / 1000.0
-        A = np.pi * D**2 / 4.0
-        v_max = flow_max / A
-        Re = v_max * D / nu_f
+        A = np.pi * D ** 2 / 4.0
+        if flow_max > 0:
+            v_max = flow_max / A
+            Re = v_max * D / nu_f
 
-        # fluids friction_factor uses Darcy friction factor
-        f_i = fluids.friction.friction_factor(Re=Re, eD=k_mm / d_i_mm)
+            # fluids friction_factor uses Darcy friction factor
+            f_i = fluids.friction.friction_factor(Re=Re, eD=k_mm / d_i_mm)
+        else:
+            f_i = f_prev  # No flow: friction factor remains unchanged (boundary condition)
 
         pipe["f_fric"] = float(f_i)
         f_map[pid] = float(f_i)
@@ -2197,11 +3200,16 @@ def compute_zeta_values(data, param, hydraulic_features, angle_branch_threshold=
         elif ntype in ("tee", "cross"):
             # the supply zeta is for the splitting (Trennung), and the return zeta is for the merging (Vereinigung)
             # child angle at this node
+            time_steps = int(data.time["clusterLength"] / data.time["timeResolution"])
             ang = pipe_angle.get(pid, 0.0)
 
             pid_up = incoming_pipes[node][0]
-            flow_child = sum(pipe["flow"])
-            flow_up = sum(pipes[pid_up]["flow"])
+            if "waste_heat_profile" in data.waste_heat_data:
+                flow_child = sum(pipe["flow_cluster"][i, t] * data.clusterWeights[week] for i, week in enumerate(data.clusters) for t in range(time_steps))
+                flow_up = sum(pipes[pid_up]["flow_cluster"][i, t] * data.clusterWeights[week] for i, week in enumerate(data.clusters) for t in range(time_steps))
+            else:
+                flow_child = sum(pipe["flow"])
+                flow_up = sum(pipes[pid_up]["flow"])
             flow_ratio = np.clip(flow_child / flow_up, 0, 1)
 
             if ang is None:

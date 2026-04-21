@@ -220,103 +220,7 @@ def orient_network(G, plant):
     return directed_dict
 
 
-def add_waste_heat_to_network(mutable_network, heat_network_points, wasteheat_info, transformer_node):
-    """
-    Fügt Abwärmequelle am kürzesten Punkt (beliebiger Punkt!) aller Wärmeleitungen hinzu.
-
-    Parameters
-    ----------
-    mutable_network : nx.Graph
-        Bestehendes Netzwerk nach Steiner-Tree
-    heat_network_points : list
-        Alle Punkte im Netzwerk (inkl. Straßenknoten)
-    wasteheat_info : tuple
-        Position der Abwärmequelle (x,y)
-    transformer_node : int
-        Transformer-Node-ID
-
-    Returns
-    -------
-    None (modifiziert mutable_network in-place)
-    """
-    if wasteheat_info is None:
-        return
-
-    waste_pos = tuple(wasteheat_info)
-
-    # STEP 1: Finde kürzesten Punkt auf ALLEN Kanten des Netzwerks
-    min_dist = float('inf')
-    best_edge = None
-    best_point = None
-    best_t = 0
-
-    for u, v, data in mutable_network.edges(data=True):
-        if data.get('kind') == 'connection':  # Nur Hauptröhren, keine Hausanschlüsse
-            continue
-
-        A = heat_network_points[u]
-        B = heat_network_points[v]
-
-        # Projektion WasteHeat → Kante UV
-        proj_pt = closest_point_on_segment(waste_pos, A, B)
-        dist = euclidean(waste_pos, proj_pt)
-
-        if dist < min_dist:
-            min_dist = dist
-            best_edge = (u, v)
-            best_point = proj_pt
-            best_t = np.dot(np.array(waste_pos) - np.array(A), np.array(B) - np.array(A)) / np.dot(
-                np.array(B) - np.array(A), np.array(B) - np.array(A))
-
-    print(f"Optimaler Anschluss: Kante {best_edge}, Punkt {best_point}, Distanz {min_dist:.2f}m")
-
-    # STEP 2: Neuen Knoten für optimalen Punkt einfügen
-    new_node_id = len(heat_network_points)
-    heat_network_points.append(best_point)
-    mutable_network.add_node(new_node_id, pos=best_point)
-    mutable_network.nodes[new_node_id]["role"] = "node"
-
-    # Bestehende Kante aufteilen: u → new → v
-    u, v = best_edge
-    edge_weight = mutable_network[u][v]['weight']
-
-    # Entferne alte Kante
-    mutable_network.remove_edge(u, v)
-
-    # Füge zwei neue Kanten hinzu
-    w1 = euclidean(heat_network_points[u], best_point)
-    w2 = euclidean(best_point, heat_network_points[v])
-
-    mutable_network.add_edge(u, new_node_id, weight=w1)
-    mutable_network.add_edge(new_node_id, v, weight=w2)
-
-    # STEP 3: Abwärmequelle als neues Gebäude hinzufügen
-    waste_node_id = len(heat_network_points)
-    heat_network_points.append(waste_pos)
-    mutable_network.add_node(waste_node_id, pos=waste_pos)
-    mutable_network.nodes[waste_node_id]["role"] = "EH"  # Zweiter Energy Hub
-
-    # Verbindung Waste → optimaler Punkt
-    waste_dist = euclidean(waste_pos, best_point)
-    mutable_network.add_edge(waste_node_id, new_node_id, weight=waste_dist, kind="waste_heat")
-
-
-    # ID-Neuzuweisung (angepasst für neuen EH)
-    counters = {"bldg": 1, "node": 1, "EH": 2}  # Zweiter EH!
-    for n in mutable_network.nodes:
-        role = mutable_network.nodes[n].get("role", "node")
-        if role == "bldg":
-            mutable_network.nodes[n]["id"] = f"bldg{counters['bldg']}"
-            counters["bldg"] += 1
-        elif role == "EH":
-            mutable_network.nodes[n]["id"] = f"EH{counters['EH']}"
-            counters["EH"] += 1
-        else:
-            mutable_network.nodes[n]["id"] = f"node{counters['node']}"
-            counters["node"] += 1
-
-
-def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info):
+def run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info, wasteheat_info):
     """
     Consider road constraints, ensuring all main pipelines are laid beneath roads.
     using Steiner Tree algorithm
@@ -471,6 +375,11 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             mutable_network.add_node(i, pos=bld)
             i += 1
 
+        # if waste heat source exists, add it to the mutable-graph
+        if wasteheat_info is not None:
+            waste_heat = tuple(wasteheat_info)
+            mutable_network.add_node(i, pos=waste_heat)
+
         # Create a mapping from POS -> node_id
         pos_to_node = {}
         for node_id, data in mutable_network.nodes(data=True):
@@ -501,8 +410,25 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             if "role" not in mutable_network.nodes[n]:
                 mutable_network.nodes[n]["role"] = "node"
 
+        # find the connection point to the waste heat source with the shortest distance
+        if wasteheat_info is not None:
+            wasteheat_node = pos_to_node[waste_heat]
+            mutable_network.nodes[wasteheat_node]["role"] = "WH"  # assign role "Wh" (waste heat) to waste heat source
+
+            dist = 1e9
+
+            for node_id, data in mutable_network.nodes(data=True):
+                if data["role"] != "bldg" and data["pos"] != waste_heat:
+                    dist_new = euclidean(waste_heat, data["pos"])
+                    if dist_new < dist:
+                        dist = dist_new
+                        conn_node = pos_to_node[data["pos"]]
+
+            mutable_network.add_edge(wasteheat_node, conn_node, weight=dist, kind="connection")
+
+
         # Assign unique identifiers to all nodes and count the role attributes separately.
-        counters = {"bldg": 1, "node": 1, "EH": 1}
+        counters = {"bldg": 1, "node": 1, "EH": 1, "WH": 1}
 
         for n in mutable_network.nodes:
             role = mutable_network.nodes[n].get("role", "node")  # default value for unassigned role attribute: "node"
@@ -513,6 +439,9 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             elif role == "EH":
                 mutable_network.nodes[n]["id"] = f"EH{counters['EH']}"
                 counters["EH"] += 1
+            elif role == "WH":
+                mutable_network.nodes[n]["id"] = f"WH{counters['WH']}"
+                counters["WH"] += 1
             else:
                 mutable_network.nodes[n]["id"] = f"node{counters['node']}"
                 counters["node"] += 1
@@ -530,10 +459,6 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
         nx.draw_networkx_edges(mutable_network, pos=nx.get_node_attributes(mutable_network, "pos"),
                                edgelist=[(u, v) for u, v, d in mutable_network.edges(data=True) if d.get("kind") == "connection"],
                                alpha=0.5, edge_color='blue', width=2)
-        # Zusätzlich zu bestehenden Edges:
-        #waste_edges = [(u, v) for u, v, d in mutable_network.edges(data=True) if d.get('kind') == 'waste_heat']
-        #nx.draw_networkx_edges(mutable_network, pos=nx.get_node_attributes(mutable_network, "pos"),
-        #                       edgelist=waste_edges, edge_color='blue', width=2, alpha=0.5)
 
         # plot the buildings
         for building in buildings_info:
@@ -549,6 +474,26 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
                 alpha=0.7
             )
             plt.gca().add_patch(rect)
+
+        # plot the waste heat source
+        if wasteheat_info is not None:
+            wx, wy = wasteheat_info
+            circle = patches.Circle(
+                (wx, wy),
+                4,
+                linewidth=1,
+                facecolor='red',
+                alpha=1.0
+            )
+            plt.gca().add_patch(circle)
+
+            plt.text(
+                wx, wy, "WH",
+                fontsize=7,
+                ha='center',
+                va='center',
+                color='white'
+            )
 
         # plot the nodes(EH and all connection points)
         nx.draw_networkx_nodes(network, pos=pos, nodelist=pos.keys(), node_color="green", node_size=150)
@@ -579,13 +524,17 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Orient an undirected graph starting from a plant node
         directed_dict = orient_network(mutable_network, transformer_node)
-        print(f"Hier ist der directed dict: {directed_dict}")
+        if wasteheat_info is not None:
+            wh_dict = orient_network(mutable_network, wasteheat_node) # build directed graph starting from the waste heat source (used in heating_network)
+        else:
+            wh_dict = None
 
         # Write the identifiers of all nodes, their corresponding coordinates,
         # and the entire network's tree structure into a JSON file.
         json_data = {
             "nodes": {},
-            "edges": directed_dict
+            "edges": directed_dict,
+            "wh_edges": wh_dict
         }
 
         for n, attrs in mutable_network.nodes(data=True):
@@ -745,8 +694,43 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             dist = ((start[0] - end[0]) ** 2 + (start[1] - end[1]) ** 2) ** 0.5
             network.add_edge(start_node, end_node, weight=dist, kind="column")
 
-        # %% STEP THREE: Plot Network
+        # %% STEP THREE: Output
+        # Add role attribute
+        for building in buildings_info:
+            bld_pos = tuple(building["position"])
+            bld_node = pos_to_node[bld_pos]  # index of the building node
+            network.nodes[bld_node]["role"] = "bldg"  # Add attribute to facilitate diameter optimization
 
+        transformer_node = pos_to_node[transformer]  # index of the EH node
+        network.nodes[transformer_node]["role"] = "EH"  # Add attribute to facilitate diameter optimization
+
+        # Assign the role attribute to the remaining nodes that have not yet been assigned one, setting it to “node”.
+        for n in network.nodes:
+            if "role" not in network.nodes[n]:
+                network.nodes[n]["role"] = "node"
+
+
+        # get the coordinates of the waste heat source and add it to heat_network_points
+        if wasteheat_info is not None:
+            waste_heat = tuple(wasteheat_info)
+            network.add_node(i, pos=waste_heat)
+            pos_to_node[waste_heat] = i
+
+            wasteheat_node = pos_to_node[waste_heat]
+            network.nodes[wasteheat_node]["role"] = "WH"  # Add attribute "WH" (waste heat) to waste heat source
+
+            # find the connection point to the waste heat source with the shortest distance
+            dist = 1e9
+            for node_id, data in network.nodes(data=True):
+                if data["pos"] != waste_heat and data["role"] != "bldg":
+                    dist_new = euclidean(waste_heat, data["pos"])
+                    if dist_new < dist:
+                        dist = dist_new
+                        conn_node = pos_to_node[data["pos"]]
+
+            network.add_edge(wasteheat_node, conn_node, weight=dist, kind="connection") # add connection between waste heat source and node with shortest distance
+
+        # %% STEP FOUR: Plot Network
         # Set image size and resolution
         plt.figure(figsize=(12, 8), dpi=300)
 
@@ -768,6 +752,26 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
                 alpha=0.7
             )
             plt.gca().add_patch(rect)
+
+        # plot the waste heat source
+        if wasteheat_info is not None:
+            wx, wy = wasteheat_info
+            circle = patches.Circle(
+                (wx, wy),
+                12,
+                linewidth=1,
+                facecolor='red',
+                alpha=1.0
+            )
+            plt.gca().add_patch(circle)
+
+            plt.text(
+                wx, wy, "WH",
+                fontsize=8,
+                ha='center',
+                va='center',
+                color='white'
+            )
 
         # plot the nodes(EH and all connection points)
         pos = nx.get_node_attributes(network, "pos")
@@ -793,23 +797,8 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         plt.show()
 
-        # %% STEP FOUR: Output
-        # Add role attribute
-        for building in buildings_info:
-            bld_pos = tuple(building["position"])
-            bld_node = pos_to_node[bld_pos]  # index of the building node
-            network.nodes[bld_node]["role"] = "bldg"  # Add attribute to facilitate diameter optimization
-
-        transformer_node = pos_to_node[transformer]  # index of the EH node
-        network.nodes[transformer_node]["role"] = "EH"  # Add attribute to facilitate diameter optimization
-
-        # Assign the role attribute to the remaining nodes that have not yet been assigned one, setting it to “node”.
-        for n in network.nodes:
-            if "role" not in network.nodes[n]:
-                network.nodes[n]["role"] = "node"
-
         # Assign unique identifiers to all nodes and count the role attributes separately.
-        counters = {"bldg": 1, "node": 1, "EH": 1}
+        counters = {"bldg": 1, "node": 1, "EH": 1, "WH": 1}
 
         for n in network.nodes:
             role = network.nodes[n].get("role", "node")  # default value for unassigned role attribute: "node"
@@ -820,6 +809,9 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             elif role == "EH":
                 network.nodes[n]["id"] = f"EH{counters['EH']}"
                 counters["EH"] += 1
+            elif role == "WH":
+                network.nodes[n]["id"] = f"WH{counters['WH']}"
+                counters["WH"] += 1
             else:
                 network.nodes[n]["id"] = f"node{counters['node']}"
                 counters["node"] += 1
@@ -830,14 +822,17 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
 
         # Orient an undirected graph starting from a plant node
         directed_dict = orient_network(network, transformer_node)
-        print(f"Hier ist der idekrefef")
-        print(directed_dict)
+        if wasteheat_info is not None:
+            wh_dict = orient_network(network, wasteheat_node)        # build directed graph starting from the waste heat source (used in heating_network)
+        else:
+            wh_dict = None
 
         # Write the identifiers of all nodes, their corresponding coordinates,
         # and the entire network's tree structure into a JSON file.
         json_data = {
             "nodes": {},
-            "edges": directed_dict
+            "edges": directed_dict,
+            "wh_edges": wh_dict
         }
 
         for n, attrs in network.nodes(data=True):

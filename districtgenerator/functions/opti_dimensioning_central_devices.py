@@ -127,7 +127,7 @@ def build_model(model, data, devs, param, dem):
 
     # Capacity variables (same for all years - single investment decision)
     model.cap = pyo.Var(model.all_devs, within=pyo.NonNegativeReals, name="nominal_capacity")
-    model.cap_wh_hp = pyo.Var(model.clusters, model.time_steps, within=pyo.NonNegativeReals, name="nominal_capacity")         # nominal capacity of heat pump of the waste heat source
+    model.cap_wh_hp = pyo.Var(model.clusters, model.time_steps, within=pyo.NonNegativeReals, name="nominal_capacity")         # nominal capacity of heat pump of the waste heat source -> used to calculate the costs of the heat pump
     model.area = pyo.Var(model.area_devs, within=pyo.NonNegativeReals, name="roof_area")
 
     # Operational variables for EACH SUPPORT YEAR
@@ -260,17 +260,14 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.power["WAT", y, d, t] <= devs["WAT"]["potential"])
                 # Solar thermal collector heat limited by clustered norm power
                 model.constraints.add(model.heat["STC", y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
+
                 # Waste heat generation limit
                 if devs["WH"]["feasible"]:
-                    model.constraints.add(
-                        model.power["WH", y, d, t] * devs["WH"]["COP_clustered"][d][t] == model.cap_wh_hp[
-                            d, t])  # model.cap_wh_hp is the maximum thermal capacity when a heat pump is required
+                    model.constraints.add(model.power["WH", y, d, t] * devs["WH"]["COP_clustered"][d][t] == model.cap_wh_hp[d, t])  # model.cap_wh_hp is the maximum thermal capacity when a heat pump is required
                     model.constraints.add(model.heat["WH", y, d, t] <= model.cap["WH"])
-                    model.constraints.add(
-                        model.heat["WH", y, d, t] <= devs["WH"]["profile_clustered"][d][t])
+                    model.constraints.add(model.heat["WH", y, d, t] <= devs["WH"]["profile_clustered"][d][t])
                     if devs["WH"]["HP_clustered"][d, t] == True:
-                        model.constraints.add(
-                            model.power["WH", y, d, t] == model.heat["WH", y, d, t] / devs["WH"]["COP_clustered"][d][t])  # power used for heat pump operation if the temperature is lower than the supply temp
+                        model.constraints.add(model.power["WH", y, d, t] == model.heat["WH", y, d, t] / devs["WH"]["COP_clustered"][d][t])  # power used for heat pump operation if the temperature is lower than the supply temp
                     else:
                         model.constraints.add(model.power["WH", y, d, t] == 0)
                 else:
@@ -880,20 +877,21 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         return val
 
     # --- Complete and original filling of the result_dict ---
-    # cost of heat pump for waste heat temperature lift is calculated after the optimization model as the specific investment costs are approximated via nonlinear regression
-    # assumption: waste heat is always prioritized
+
+    # cost of heat pump for waste heat temperature lift and HEX are calculated after the optimization model as the specific investment costs of the HP are approximated via nonlinear regression
+    # assumption: waste heat is always prioritized (justifies cost calculation after optimization)
     Q_hp = []
     Q_cap = float(safe_value_single(model.cap["WH"]))
     for d in model.clusters:
         for t in model.time_steps:
             Q_hp.append(float(safe_value_single(model.cap_wh_hp[d, t])))
-    Q_hp_max = np.max(Q_hp)
-    print(f"Hier ist Q_cap_max: {Q_cap}")
+    Q_hp_max = np.max(Q_hp)                        # extract the maximum thermal power supplied via HP
+
     if Q_hp_max > 0:
-        costs_inv, ann_costs_inv, ann_costs_OM = calc_annual_heat_pump_costs(Q_hp_max, devs["WH"]["ann_factor"])
+        costs_inv, ann_costs_inv, ann_costs_OM = calc_annual_heat_pump_costs(Q_hp_max, devs["WH"]["ann_factor"], devs["WH"]["cost_om"])   # cost calculation when HP is used
         ann_costs_fixed = ann_costs_inv + ann_costs_OM
     else:
-        costs_inv, ann_costs_inv, ann_costs_OM = calc_annual_hex_costs(Q_cap, devs["WH"]["ann_factor"])
+        costs_inv, ann_costs_inv, ann_costs_OM = calc_annual_hex_costs(Q_cap, devs["WH"]["ann_factor"], devs["WH"]["cost_om"]) # cost calculation when HEX is used
         ann_costs_fixed = ann_costs_inv + ann_costs_OM
 
 
@@ -911,6 +909,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
             "ann_inv_cost_unsubsidized": round(safe_value(model.c_inv_base, k), 2),
             "om_cost": round(safe_value(model.c_om, k), 2)
         }
+        # safe waste heat values
         if k == "WH":
             result_dict[k] = {
                 "cap": round(safe_value(model.cap, k), 1),
@@ -918,7 +917,6 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
                 "ann_inv_cost_unsubsidized": round(safe_value(model.c_inv_base, k) + ann_costs_inv, 2),
                 "om_cost": round(safe_value(model.c_om, k) + ann_costs_OM, 2)
             }
-            print(f"Hier die Abwärmequelle: {result_dict[k]}")
 
     # Add 'from_grid' and 'to_grid' capacity information if the option is enabled
     if param.get("enable_cap_limit_el", True):
@@ -1208,19 +1206,22 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
 
 # Values from Technikkatalog (Langreder et al. 2024)
 # https://api.kww-halle.de/fileadmin/user_upload/Technikkatalog_W%C3%A4rmeplanung_Version_1.1_August24.xlsx
-def calc_annual_heat_pump_costs(Q, ann_factor):
+def calc_annual_heat_pump_costs(Q, ann_factor, om_factor):
     inv_var = 1274.4 * (Q/1000)**(-0.28)           # spezific investment costs for Industrial-scale compression heat pump in Euro/kW_th (waste heat driven), Q is given in MW
     inv_ges = inv_var * Q
-    om = inv_ges * 0.025                          # factor calculated from Technikkatalog
+
+    om = inv_ges * om_factor                       # factor calculated from Technikkatalog
     inv_ann = inv_ges * ann_factor
 
 
     return inv_ges, inv_ann, om
 
-def calc_annual_hex_costs(Q, ann_factor):
-    inv_var = 400
+# calculation of heat exchanger costs
+def calc_annual_hex_costs(Q, ann_factor, om_factor):
+    inv_var = 400              # investment costs for heat exchangers vary between 50 and 400 Euro/kW: https://elib.uni-stuttgart.de/server/api/core/bitstreams/d71fd9a6-10eb-4f1e-b1b7-c989e771a5a5/content
     inv_ges = inv_var * Q
-    om = inv_ges * 0.025
+
+    om = inv_ges * om_factor
     inv_ann = inv_ges * ann_factor
 
     return inv_ges, inv_ann, om

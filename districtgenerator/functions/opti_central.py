@@ -740,7 +740,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     def eh_wh_conversion_rule(model, t):
         if "waste_heat_profile" in wasteheatdata:
-            if wasteheatdata["HP_clustered"][cluster][t] == 1:
+            if wasteheatdata["HP_clustered"][cluster][t] == 1:          # wasteheatdata["HP_clustered"] indicated whether the heat pump is used during a given timestep
                 return model.eh_power_WH[t] == model.eh_heat_WH[t] / wasteheatdata["COP_clustered"][cluster][t]
             else:
                 return model.eh_power_WH[t] == 0
@@ -780,12 +780,14 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # heat generation of heat pump for each modus
     def hp_mode_constraint_new_rule(model, n, t):
-        if buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
+        #if buildingData[n]["envelope"].construction_year >= 1995 and buildingData[n]["capacities"]["HP"] > 0:
+        if buildingData[n]["envelope"].construction_year >= 1995 > 0:
             return model.power_mode["HP55", n, t] == 0
         else:
             return pyo.Constraint.Skip  # Maybe problems when both rules are skipped?
 
     def hp_mode_constraint_old_rule(model, n, t):
+        #if buildingData[n]["envelope"].construction_year < 1995 > 0:
         if buildingData[n]["envelope"].construction_year < 1995 and buildingData[n]["capacities"]["HP"] > 0:
             return model.power_mode["HP35", n, t] == 0
         else:
@@ -1443,7 +1445,7 @@ def solve_model_and_extract_results(model, data, year, cluster, sim_ecoData):
     errorfile_path = os.path.join(result_dir, f"errorfile_opti_central_year_{year}_cluster_{cluster}.txt")
 
     # Solve the model
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config, timelimit = None)
+    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config)
     results = solver.solve(model, tee=False, options=solver_options)
 
     # Check if solution is optimal, otherwise write an error file

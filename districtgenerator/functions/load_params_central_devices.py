@@ -511,18 +511,21 @@ def load_params(data):
         "max_cap": all_models["AC"]["max_cap"],
     }
 
-    # Waste Heat Source
+    ### Waste Heat Source ###
     devs["WH"] = {
-        "inv_var": 0,
-        "inv_base": 0,               # dummy: inv_var is calculated in opti_dimensioning_central_devices
-        "life_time": data.waste_heat_data.get("life_time", 20),
-        "cost_om": 0
+        "inv_var": 0,                # dummy variable: subsidies are not considered
+        "inv_base": 0,               # dummy variable: inv_var is calculated in opti_dimensioning_central_devices
+        "life_time": waste_heat_data["lifetime"],
+        "cost_om": waste_heat_data["cost_om"]
     }
     if "waste_heat_profile" in waste_heat_data:
         devs["WH"]["feasible"] = True
     else:
         devs["WH"]["feasible"] = False
+
+    # check if waste heat source exists
     if "waste_heat_profile" in data.waste_heat_data:
+        # cluster waste heat profile
         devs["WH"]["wh_profile"], devs["WH"]["profile_clustered"], devs["WH"]["HP_clustered"], devs["WH"]["COP_clustered"] = get_wh_profile(devs, param, data)
 
 

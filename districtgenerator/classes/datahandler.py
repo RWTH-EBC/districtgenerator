@@ -33,8 +33,7 @@ import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_opt import network_optimization
-from districtgenerator.functions.heating_network_new import network_optimization2
-from districtgenerator.functions.heating_network_new2 import network_optimization3
+#from districtgenerator.functions.heating_network_new2 import network_optimization3
 
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
@@ -42,6 +41,7 @@ from districtgenerator.functions.heating_network_simple import calculate_soil_te
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, WasteHeatConfig
 from .plots_balances import plot_all
 import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
 
 
 
@@ -76,7 +76,8 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None):
+                 env_path = None,
+                 wasteheat_env_path=None):
         """
         Constructor of Datahandler class.
 
@@ -100,7 +101,7 @@ class Datahandler:
         None.
         """
 
-        global_config: GlobalConfig = load_global_config(env_file=env_path)
+        global_config: GlobalConfig = load_global_config(env_file=env_path, wasteheat_env_file=wasteheat_env_path)
 
         if filePath is None:
             filePath = os.path.join(srcPath, 'data')
@@ -154,7 +155,8 @@ class Datahandler:
             central_config=global_config.central,
             calendar_config=global_config.calendar,
             heat_grid_config=global_config.heatgrid,
-            pyomo_config=global_config.pyomo
+            pyomo_config=global_config.pyomo,
+            wasteheat_config=global_config.waste_heat
         )
 
         self.buildings_completed = 0
@@ -190,7 +192,8 @@ class Datahandler:
                       central_config: CentralDeviceConfig,
                       calendar_config: CalendarConfig,
                       heat_grid_config: HeatGridConfig,
-                      pyomo_config: PyomoConfig):
+                      pyomo_config: PyomoConfig,
+                      wasteheat_config: WasteHeatConfig):
         """
         Load all data needed for district generation from configuration files.
 
@@ -231,9 +234,8 @@ class Datahandler:
             with open(json_path, encoding="utf-8") as json_file:
                 jsonData = json.load(json_file)
                 self.site["district_parameters"] = jsonData["parameters"]
-                #bounds = jsonData["parameters"]["district_bounds"]
-                #self.site["area"] = (bounds["xmax"] - bounds["xmin"]) * (bounds["ymax"] - bounds["ymin"])
-                #print(f"Hier ist die area: {self.site['area']} und hier sind xmax: {bounds['xmax']}, xmin:{bounds['xmin']}, ymax:{bounds['ymax']} und ymin:{bounds['ymin']}")
+                bounds = jsonData["parameters"]["district_bounds"]
+                self.site["area"] = (bounds["xmax"] - bounds["xmin"]) * (bounds["ymax"] - bounds["ymin"])
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -278,6 +280,9 @@ class Datahandler:
         # load pyomo solver data (used in optimization functions)
         for attr, value in pyomo_config.__dict__.items():
             self.pyomo_config[attr] = value
+
+        # load waste heat data (used in generate_waste_heat_source)
+        self.waste_heat_data = wasteheat_config.model_dump()
 
 
         #! Das hier überarbeiten, damit es in die neue Struktur passt?
@@ -843,18 +848,38 @@ class Datahandler:
             building["user"].cooling = cooling
 
 
-    def generate_waste_heat_source(self, waste_heat_source, distance):
+    def generate_waste_heat_source(self, waste_heat_source, distance=None):
+        """
+        Fill district with buildings from scenario file.
 
+        Parameters
+        ----------
+        waste_heat_source: string
+            Name of the waste heat source.
+
+        distance: float
+            Distance of the waste heat source to the district bounds.
+
+        Returns
+        -------
+        None.
+
+        Initially, helper functions are defined that are used throughout the subsequent code
+        """
         # Computes position relative to district boundaries (non-deterministic) while respecting minimum distance constraint
+        # Alternatively the position can be computed via scenario_generation() in typdistrict_postprocess
         def calc_position(distance):
+            if distance is None:
+                distance = self.waste_heat_data["distance"]
+
             json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
             if os.path.exists(json_path):
                 with open(json_path, encoding="utf-8") as json_file:
                     jsonData = json.load(json_file)
-                    bounds = jsonData["parameters"]["district_bounds"]
+                    bounds = jsonData["parameters"]["district_bounds"]  # load district bounds of the generated scenario
 
+            # waste heat source is placed randomly either left, right, bottom or top to the district while adhering to the specified distance
             side = random.choice(['left', 'right', 'bottom', 'top'])
-
             if side == 'left':
                 x = bounds['xmin'] - distance
                 y = random.uniform(bounds['ymin'], bounds['ymax'])
@@ -868,72 +893,77 @@ class Datahandler:
                 y = bounds['ymax'] + distance
                 x = random.uniform(bounds['xmin'], bounds['xmax'])
 
-            return [x, y]
+            return [x, y]     # return the coordinates of the waste heat source
 
+        # function to generate the yearly waste heat and temperature profiles with an hourly resolution
         def generate_waste_heat_profiles():
-            import numpy as np
 
-            timesteps = int(self.time["dataLength"] / self.time["timeResolution"])
+            timesteps = int(self.time["dataLength"] / self.time["timeResolution"]) # data length: 31536000 , time resolution: 3600
 
             # waste heat profile of a data center (DC)
             if waste_heat_source == "Rechenzentrum":
-                connected_load = 500                             # connected load of a DC in kW (Enterprise: 5000 kW, Colocation: 20000 kW, Hyperscale: 150000 kW)
-                self.waste_heat_data["size"] = connected_load     #https://www.powercontrol.co.uk/news-blog/blog/what-are-the-different-types-of-data-centre-power-design-and-the-future-of-infrastructure/#:~:text=Enterprise%20data%20centres%20are%20privately,link%20national%20and%20international%20networks
+                connected_load = self.waste_heat_data["connected_load"] # Connected load of a DC in kW. For typical values of different data center types see: https://www.powercontrol.co.uk/news-blog/blog/what-are-the-different-types-of-data-centre-power-design-and-the-future-of-infrastructure/#:~:text=Enterprise%20data%20centres%20are%20privately,link%20national%20and%20international%20networks
+                self.waste_heat_data["size"] = connected_load
 
-                laod_factor = 0.5                                 # ratio of the actual IT power usage to the maximum connected load
+                laod_factor = self.waste_heat_data["load_factor"] # ratio of the actual IT power usage to the connected load
                 it_load = connected_load * laod_factor
-                T_hot = 35                                       # exit temperature of the server room
-                T_cold = 20                                       # entry temperature of the server room
-                waste_heat_profile = np.full(timesteps, it_load)
+
+                T_hot = self.waste_heat_data["T_hot"] # Temperature at which waste heat is extracted from the data center. For different location of waste heat extraction and the corresponding temperatures see: https://www.sciencedirect.com/science/article/pii/S1364032113008216
+
+                waste_heat_profile = np.full(timesteps, it_load)  # IT-Load is dissipated into heat
                 temperature_profile = np.full(timesteps, T_hot)
 
             # waste heat profile of a wastewater treatment plant (WWTP)
             if waste_heat_source == "Kläranlage":
-                c_p_ww = 4.18  # in kJ/kgK
-                rho_ww = 1000  # in kg/m^3
-                PE = 10000  # Population equivalent (Einwohnerwert): indicates the average load of wastewater from one inhabitant with biodegradable substances
+                c_p_ww = self.heat_grid_data["fluid"]["c_f"]/1000
+                rho_ww = self.heat_grid_data["fluid"]["rho_f"]
+
+                PE = self.waste_heat_data["PE"]  # Population equivalent (Einwohnerwert): indicates the average load of wastewater from one inhabitant with biodegradable substances
                 self.waste_heat_data["size"] = PE
-                Vdot_person_daily = 126  # daily water consumption per person in L/d
+
+                Vdot_person_daily = self.waste_heat_data["Vdot_person_daily"]  # daily water consumption per person in L/d
                 Vdot_person_hourly = Vdot_person_daily / 24 * 0.001  # hourly water consumption per person in m^3/h
                 Vdot_ww = np.full(timesteps, PE * Vdot_person_hourly)
 
-                T_min = 10.0  # °C
-                T_max = 20.0  # °C
+                # minimum and maximum waste heat temperatures during the year
+                T_min = self.waste_heat_data["T_min"]
+                T_max = self.waste_heat_data["T_max"]
+
+                # used to calculate the temperature profile
                 mean_temp = (T_min + T_max) / 2
                 amplitude = (T_max - T_min) / 2
-                T_ref = 8  # °C
 
+                T_ref = self.waste_heat_data["T_ref"] # temperature to which the water may be cooled, specified by environmental regulations
+
+                # temperature profile is approximated by a sinusoidal curve
                 temperature_profile = []
                 for day in range(8760):
                     temperature_profile.append(mean_temp - (amplitude * np.cos(2 * math.pi * (day / 8760))))
 
                 delta_T = np.array(temperature_profile).flatten() - T_ref
 
-                waste_heat_profile = (Vdot_ww * c_p_ww * rho_ww * delta_T) / 3600
+                waste_heat_profile = (Vdot_ww * c_p_ww * rho_ww * delta_T) / 3600 # yearly wastewater profile with an hourly resolution
 
             # waste heat profile for industry
             if waste_heat_source in ["Papierindustrie", "Baustoff"]:
-                production_annual = 100000
-                schicht = 3
+                production_annual = self.waste_heat_data["production_annual"]
+                shift_type = self.waste_heat_data["shift_type"]
                 self.waste_heat_data["size"] = production_annual
 
-                waste_heat_profile, temperature_profile = generate_industrial_profile(self, waste_heat_source, production_annual, timesteps, schicht)
+                T_pinch = self.waste_heat_data["deltaT_pinch_collector_water"] # # Minimum temperature approach at heat exchanger pinch point of the collector water (in K)
+                waste_heat_profile, temperature_profile = generate_industrial_profile(self, waste_heat_source, production_annual, timesteps, shift_type, T_pinch)
 
-                print(f"Hier ist das Abwärmeprofil: {waste_heat_profile}")
+            return waste_heat_profile, temperature_profile  # return the hourly waste heat data (in kW) and the hourly temperature data (in ℃)
 
-
-
-            return waste_heat_profile, temperature_profile
-
-
-
+        # helper function to calculate the waste heat profile after the use of a heat pump
         def calc_temperature_lift(waste_heat_profile, temperature_profile, T_supply):
             waste_heat_profile_hp = []
             COP = []
             is_HP_used = []
-            deltaT_pinch = 5 # Minimum temperature approach at heat exchanger pinch point (in K)
-            eta = 0.5 #
+            deltaT_pinch = self.waste_heat_data["deltaT_pinch_HP"] # Minimum temperature approach at heat exchanger pinch point (in K)
+            eta = self.waste_heat_data["eta_HP"]
 
+            # Determines whether direct supply is possible or if a heat pump is required at each time step
             for i in range(8760):
                 if temperature_profile[i] < T_supply + deltaT_pinch:
                     COP_carnot = (T_supply + 273.15) / ((T_supply + 273.15) - (temperature_profile[i] + 273.15))
@@ -951,11 +981,7 @@ class Datahandler:
 
             return waste_heat_profile_hp, COP, is_HP_used
 
-        def calc_hex_costs():
-            return 1
-
-
-
+        """The code starts here"""
         # The waste heat source data can be generated automatically using typdistrict_postprocess
         # or entered manually (for testing purposes). When generated via typdistrict_postprocess,
         # a comprehensive JSON file containing all relevant data is produced.
@@ -976,55 +1002,6 @@ class Datahandler:
         # calculation of an hourly waste heat and temperature profile
         waste_heat_profile, temperature_profile = generate_waste_heat_profiles()
 
-        import matplotlib.pyplot as plt
-        import numpy as np
-
-        # Arrays sicherstellen
-        abwaerme_profil = np.array(waste_heat_profile).flatten()
-        temperatur_profil = np.array(temperature_profile).flatten()
-
-        stunden_pro_woche = 7 * 24  # 168
-        woche = 2  # zweite Woche
-
-        start = (woche - 1) * stunden_pro_woche +96
-        end = woche * stunden_pro_woche + 96
-
-        # Ausschnitt für Woche 2
-        abwaerme_week = abwaerme_profil[start:end]
-        temperatur_week = temperatur_profil[start:end]
-        stunden_week = np.arange(stunden_pro_woche)  # 0..167
-
-        fig, ax1 = plt.subplots(figsize=(12, 4))
-
-        # Linke Y-Achse: Abwärme
-        ax1.plot(stunden_week, abwaerme_week, linewidth=0.8, color='blue', label='Abwärmeleistung')
-        ax1.set_ylabel('Leistung (kW)')
-        ax1.tick_params(axis='y')
-        ax1.set_ylim(min(abwaerme_week) * 0.75, max(abwaerme_week) * 1.5)
-
-        # Rechte Y-Achse: Temperatur
-        ax2 = ax1.twinx()
-        ax2.plot(stunden_week, temperatur_week, linewidth=0.8, color='red', label='Temperatur')
-        ax2.set_ylabel('Temperatur (°C)')
-        ax2.tick_params(axis='y')
-        ax2.set_ylim(min(temperatur_week) * 0.95, max(temperatur_week) * 1.05)
-
-        # X‑Achse: Stunden im Wochenverlauf
-        stunden_ticks = np.arange(0, stunden_pro_woche, 24)
-        tage_labels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-        ax1.set_xticks(stunden_ticks)
-        ax1.set_xticklabels(tage_labels)
-
-        # Legende
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=10)
-
-        ax1.grid(True, alpha=0.3)
-        plt.tight_layout()
-        plt.savefig("abbildung.pdf", format='pdf', dpi=300, bbox_inches='tight')
-        plt.show()
-
         self.waste_heat_data["temperature_profile"] = temperature_profile
 
         # Waste heat temperature is evaluated for direct integration feasibility.
@@ -1037,359 +1014,54 @@ class Datahandler:
         self.waste_heat_data["COP"] = COP
         self.waste_heat_data["HP"] = is_HP_used
 
-        ##########################################
-        # WASTE HEAT ECO DATA
-        ##########################################
-        self.waste_heat_data["inv_var_hex"]= calc_hex_costs()     # Investment costs for heat exchanger, costs for heat pump are calculated in opti_dimensioning_central_devices
-        self.waste_heat_data["om_costs_hex"] = 0
-        self.waste_heat_data["life_time"] = 20
 
+        """Plot waste heat and temperature profile for a given week"""
+        # ensure a 1D array for consistent time series processing
+        wh_profile = np.array(waste_heat_profile).flatten()
+        t_profile = np.array(temperature_profile).flatten()
 
+        hours_per_week = 168
+        week = 2
 
+        start = (week - 1) * hours_per_week + 96
+        end = week * hours_per_week + 96
 
+        # create weekly profiles
+        weekly_wh_profile = wh_profile[start:end]
+        weekly_t_profile = t_profile[start:end]
+        hours_aranged = np.arange(hours_per_week)  # 0..167
 
+        fig, ax1 = plt.subplots(figsize=(12, 4))
 
+        # left side of y-axis: waste heat
+        ax1.plot(hours_aranged, weekly_wh_profile, linewidth=0.8, color='blue', label='Abwärmeleistung')
+        ax1.set_ylabel('Leistung (kW)')
+        ax1.tick_params(axis='y')
+        ax1.set_ylim(min(weekly_wh_profile) * 0.75, max(weekly_wh_profile) * 1.5)
 
-    def generateWHProfiles(self, waste_heat_source, distance):
-        self.waste_heat_data["type"] = waste_heat_source
-        self.waste_heat_data["distance"] = distance
-
-        def calc_position(distance):
-            json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-            if os.path.exists(json_path):
-                with open(json_path, encoding="utf-8") as json_file:
-                    jsonData = json.load(json_file)
-                    bounds = jsonData["parameters"]["district_bounds"]
-
-            side = random.choice(['left', 'right', 'bottom', 'top'])
-
-            if side == 'left':
-                x = bounds['xmin'] - distance
-                y = random.uniform(bounds['ymin'], bounds['ymax'])
-            elif side == 'right':
-                x = bounds['xmax'] + distance
-                y = random.uniform(bounds['ymin'], bounds['ymax'])
-            elif side == 'bottom':
-                y = bounds['ymin'] - distance
-                x = random.uniform(bounds['xmin'], bounds['xmax'])
-            else:
-                y = bounds['ymax'] + distance
-                x = random.uniform(bounds['xmin'], bounds['xmax'])
-
-            return [x, y]
-
-        json_path = os.path.join(self.scenario_file_path, "wh_source.json")
-
-        if os.path.exists(json_path):
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                position = jsonData[0]["position"]
-                wh_source = jsonData[0]["type"]
-        else:
-            position = calc_position(distance)
-        self.waste_heat_data["position"] = position
-
-
-        if waste_heat_source == "C":
-
-            connected_load = 5000                                             # connected load of a DC in kW
-            self.waste_heat_data["size"] = connected_load
-
-
-            laod_factor = 0.5                                                 # ratio of the actual IT power usage to the maximum connected load
-            it_load = connected_load * laod_factor
-            #T_hot = 60                                                        # exit temperature of the server room
-            T_cold = 20                                                       # entry temperature of the server room
-            timesteps = int(self.time["dataLength"]/self.time["timeResolution"])
-            waste_heat_profile = np.full(timesteps, it_load)
-            temperature_profile = np.full(timesteps, T_hot)
-
-        if waste_heat_source == "D":
-            c_p_ww = 4.18 # in kJ/kgK
-            rho_ww = 1000 # in kg/m^3
-            PE = 10000    # Population equivalent (Einwohnerwert): indicates the average load of wastewater from one inhabitant with biodegradable substances
-            Vdot_person_daily = 126 # daily water consumption per person in L/d
-            Vdot_person_hourly = Vdot_person_daily/24 * 0.001 # hourly water consumption per person in m^3/h
-            Vdot_ww = np.full(8760, PE * Vdot_person_hourly)
-
-            T_min = 10.0  # °C
-            T_max = 20.0  # °C
-            mean_temp = (T_min + T_max) / 2
-            amplitude = (T_max - T_min) / 2
-            T_ref = 8 # °C
-
-            temperature_profile = []
-            for day in range(8760):
-                temperature_profile.append(mean_temp - (amplitude * np.cos(2 * math.pi * (day / 8760))))
-
-            delta_T = np.array(temperature_profile).flatten() - T_ref
-
-            waste_heat_profile = (Vdot_ww * c_p_ww * rho_ww * delta_T)/3600
-
-            self.waste_heat_data["size"] = PE
-
-        self.waste_heat_data["waste_heat_profile"] = waste_heat_profile
-        self.waste_heat_data["temperature_profile"] = temperature_profile
-
-        print(waste_heat_profile)
-
-
-
-
-
-
-
-
-
-        def seasonalProfile(name, path):
-            xlsx_file = os.path.join(path, name + ".xlsx")
-            df = pd.read_excel(xlsx_file, sheet_name='Abwärmepotentiale')
-            df_months = df.iloc[:, 17:29].apply(pd.to_numeric, errors='coerce').dropna()
-            df_months.columns = range(12)
-            df_norm = df_months.div(df_months.sum(axis=1), axis=0)
-            df_norm_mean = df_norm.mean(axis=0)
-
-
-
-            monate = np.arange(12)
-            data_long = df_norm.stack().reset_index(name='Lastfaktor')
-            data_long.columns = ['Kuehler_ID', 'Monat', 'Lastfaktor']
-            y_all = data_long['Lastfaktor'].values
-            monate_long = data_long['Monat'].values
-            y_mean = df_norm.mean(axis=0).values
-            from scipy.optimize import curve_fit
-            from sklearn.linear_model import LinearRegression
-
-            t_aussen = np.array([2.5, 3.5, 7.0, 11.0, 15.5, 18.5, 20.5, 20.0, 16.5, 12.0, 7.0, 3.5])
-            t_aussen_long = np.tile(t_aussen, len(data_long) // 12)
-
-            model = LinearRegression()
-            model.fit(t_aussen_long.reshape(-1, 1), y_all)
-            y_pred_temp = model.predict(t_aussen_long.reshape(-1, 1))
-            r2_temp = model.score(t_aussen_long.reshape(-1, 1), y_all)
-
-            print(f"📊 LINEAR T_aussen (y_all, N={len(y_all)}):")
-            print(f"y = {model.coef_[0]:.4f} * T + {model.intercept_:.4f}")
-            print(f"R²(T) = {r2_temp:.4f}")
-
-            def sinus_halb(x, A, B, phi):  # A=Amplitude, B=Offset
-                return A * np.sin(np.pi * (x-phi) / 6) + B  # Halbperiode!
-
-            # Fit (non-linear least squares)
-            popt, pcov = curve_fit(sinus_halb, monate_long, y_all)
-            A_opt, B_opt, phi_opt = popt
-            perr = np.sqrt(np.diag(pcov))
-            print(f"✅ Optimal: y = {A_opt:.4f} * sin(π * t / 6) + {B_opt:.4f}")
-
-            import matplotlib.pyplot as plt
-            # R²
-            y_fit = sinus_halb(monate_long, *popt)
-            r2 = 1 - np.sum((y_all - y_fit) ** 2) / np.sum((y_all - np.mean(y_all)) ** 2)
-
-            print(f"Optimal: y = {A_opt:.4f}±{perr[0]:.4f} * sin(π*(t-{phi_opt:.2f}) / 6) + {B_opt:.4f}±{perr[1]:.4f}")
-            print(f"R² = {r2:.4f}")
-
-            # Plot
-            plt.figure(figsize=(10, 6))
-            plt.plot(monate, y_mean, 'ko-', linewidth=3, label='Real Mittel')
-            plt.plot(monate, y_fit, 'r--', linewidth=3, label=f'Fit R²={r2:.3f}')
-            plt.xlabel('Monat (0=Januar, 11=Dezember)');
-            plt.ylabel('Normierter Lastfaktor')
-            plt.title('Automatische Sinus-Regression mit Phase')
-            plt.legend();
-            plt.grid(alpha=0.3);
-            plt.show()
-
-            # Monatsnamen
-            monats_namen = ['Jan', 'Feb', 'Mrz', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-
-            # LONG-FORMAT erzeugen (DAS hat gefehlt)
-            data_long = df_norm.reset_index(drop=True).stack().reset_index(name='Lastfaktor')
-            data_long.columns = ['ID', 'Monat', 'y']
-            data_long['Monat'] = data_long['Monat'].astype(int)
-
-
-            plt.figure(figsize=(10, 5))
-
-         #   plt.scatter(
-         #       data_long["Monat"] + 1,  # 1–12 statt 0–11
-         #       data_long["Lastfaktor"],
-         #       alpha=0.25,
-         #       s=10
-         #   )
-
-            # Mittelwertprofil
-            plt.plot(
-                range(1, 13),
-                df_norm_mean.values,
-                linewidth=3,
-                label="Mittelwertprofil"
-            )
-
-            plt.xticks(range(1, 13), monats_namen)
-            plt.xlabel("Monat")
-            plt.ylabel("Normierter Lastfaktor")
-            plt.title("Saisonale Verteilung der Kühlhäuser")
-            plt.grid(alpha=0.2)
-
-            plt.tight_layout()
-            plt.savefig(os.path.join(path, 'kuehler_saison_scatter.png'), dpi=300)
-            plt.show()
-            plt.close()
-
-
-            return df_norm
-        #x = seasonalProfile("Kühlhäuser_preprocessed", path=os.path.join(self.resultPath, 'demands'))
-
-
-
-        def loadProfile(name, path, temp_profile):
-
-
-
-            # create array with value from the csv file
-            csv_file = os.path.join(path, name + '.csv')
-            df = pd.read_csv(csv_file, usecols=["Mean_Value"], sep=";", decimal=",")
-            profile = df["Mean_Value"].to_numpy()[1:]
-
-            # adjust array with profile data, in case it is missing entries or has to many of them
-            if len(profile) >= 35040:
-                profile = profile[:35040]
-            else:
-                missing = 35040 - len(profile)
-                profile = np.concatenate([profile, np.full(missing, profile[-1])])  #TODO add interpolation and adjust to match initial days and holidays
-
-            # convert the profile to an hourly profile (original data consists of 15 min steps)
-            hourly_profile = profile.reshape(-1, 4).mean(axis=1)
-            normed_profile = hourly_profile / hourly_profile.sum()
-
-            # create electricity and waste heat profile
-            if name == "WWTP":
-                delta_T = np.array(temp_profile).flatten() - 8
-                PE = self.waste_heat_data[wh_source]["PE"]
-                V_dot = 142/1000 * PE * 365
-                c_p = 4.2
-                rho = 1000
-                wh_profile = normed_profile * c_p * rho * V_dot * (1/3600) * delta_T
-            else:
-                # ratio between specific electricity and heat, and yearly energy consumption
-                spec_wh = self.waste_heat_data[wh_source]["spec_wh"]
-                prod_quantity = self.waste_heat_data[wh_source]["prod_quantity"]
-
-                wh_profile = normed_profile * spec_wh * prod_quantity
-
-            return wh_profile
-
-        def calcProfile(name, temperature, time_resolution, time_horizon):
-
-            timesteps = int(time_horizon / time_resolution)
-
-
-            if name == "DC":
-                it_load = self.waste_heat_data[wh_source]["IT_Load"]
-                profile = np.full(timesteps, it_load)
-
-                T_DCin = 15
-                for i in range(timesteps):
-                    COP = calcCOP(temperature[i])
-                    if temperature[i] >= T_DCin:
-                        profile[i] += it_load/COP
-
-
-                # Cooling Degree Day Methode
-                #CDD_ges = 0
-                #CDD = []
-                #for i in range(timesteps):
-                #    if temperature[i] > T_set:
-                #        CDD.append(temperature[i] - T_set)
-                #        CDD_ges += temperature[i] - T_set
-                #    else:
-                #        CDD.append(0)
-                #for i in range(timesteps):
-                #    profile[i] += it_load * (pue - 1) * (CDD[i] / CDD_ges) * timesteps
-
-            return profile
-
-        def tempProfile(name):
-            if name in ["paper", "DC"]:
-                temp = self.waste_heat_data[wh_source]["wh_temperature"]
-                temp_profile = np.full(8760, temp)
-            if name == "WWTP":
-                temp_profile = []
-                for day in range(8760):
-                    temp_profile.append(15 - (5 * np.cos(2 * math.pi * (day/8760))))
-
-
-            return temp_profile
-
-        def calcCOP(T_out):
-            from scipy.interpolate import interp1d
-            T_reference = np.array([0, 5, 10, 15, 20, 25, 30, 35, 40])
-            COP_reference = np.array([5.8, 5.5, 5.1, 4.7, 4.34, 3.9, 3.5, 3.1, 2.6])
-
-            cop_func = interp1d(T_reference, COP_reference, kind='linear',
-                                fill_value='extrapolate', bounds_error=False)
-
-            return cop_func(T_out)
-
-
-        #temp_profile = tempProfile(name=wh_source)
-
-
-#        if self.waste_heat_data[wh_source]["profile_type"] == "load":
-#            self.waste_heat_data["profile"] = loadProfile(name=wh_source, path=os.path.join(self.resultPath, 'demands'), temp_profile=temp_profile)
-#        else:
-#            self.waste_heat_data["profile"] = calcProfile(wh_source, self.site["T_e"], self.time["timeResolution"],
-#                                                          self.time["dataLength"])
-
-
-#        waste_heat_profile = self.waste_heat_data["profile"]
-
-
-        import matplotlib.pyplot as plt
-        abwaerme_profil = np.array(waste_heat_profile).flatten()  # Vollständiges Array
-        temperatur_profil = np.array(temperature_profile).flatten()
-
-        # Zeitachse: 8760 Stunden (1 Jahr)
-        stunden = np.arange(8760)
-
-        fig, ax1 = plt.subplots(figsize=(14, 6))
-
-        # Linke Y-Achse: Abwärme (blau)
-        ax1.plot(stunden, abwaerme_profil, linewidth=0.8, color='blue', label='Abwärmeleistung')
-        ax1.set_ylabel('Leistung (kW)', color='blue', fontsize=22)
-        ax1.tick_params(axis='y', labelcolor='blue')
-
-        # Rechte Y-Achse: Temperatur (rot)
+        # right side of y-axis: temperature
         ax2 = ax1.twinx()
-        ax2.plot(stunden, temperatur_profil, linewidth=0.8, color='red', label='Temperatur')
-        ax2.set_ylabel('Temperatur (°C)', color='red', fontsize=22)
-        ax2.tick_params(axis='y', labelcolor='red')
+        ax2.plot(hours_aranged, weekly_t_profile, linewidth=0.8, color='red', label='Temperatur')
+        ax2.set_ylabel('Temperatur (°C)')
+        ax2.tick_params(axis='y')
+        ax2.set_ylim(min(weekly_t_profile) * 0.95, max(weekly_t_profile) * 1.05)
 
-        # X-Achse (gemeinsam)
-        monats_ticks = np.arange(0, 8760, 8760 // 12)
-        monats_labels = ['Jan', 'Feb', 'Mrz', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-        ax1.set_xticks(monats_ticks)
-        ax1.set_xticklabels(monats_labels, rotation=45)
+        # x-axis: hours
+        stunden_ticks = np.arange(0, hours_per_week, 24)
+        tage_labels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+        ax1.set_xticks(stunden_ticks)
+        ax1.set_xticklabels(tage_labels)
 
-
-        # Titel
-        fig.suptitle('Abwärme- und Temperaturprofil', fontsize=14, y=1.00)
-
-        # Legenden kombinieren
+        # legend
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=18)
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=10)
 
-        # Grid
         ax1.grid(True, alpha=0.3)
-
         plt.tight_layout()
-        plt.savefig('abwaerme_temp_profil.png', dpi=300, bbox_inches='tight')
+        plt.savefig("Abwärmeprofil.pdf", format='pdf', dpi=300, bbox_inches='tight')
         plt.show()
 
-
-        return waste_heat_profile
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=True):
         """
@@ -2132,6 +1804,7 @@ class Datahandler:
                 self.waste_heat_data["COP_clustered"] = newProfiles[index_central + 6]
                 self.waste_heat_data["HP_clustered"] = newProfiles[index_central + 7]
                 self.waste_heat_data["clustered_profile"] = newProfiles[index_central + 8]
+
         elif "waste_heat_profile" in self.waste_heat_data:
             self.waste_heat_data["clustered_profile"] = newProfiles[index_central]
 
@@ -2352,7 +2025,7 @@ class Datahandler:
         self.KPIs = KPIs(self)
         # calculate KPIs
         self.KPIs.calculateAllKPIs(self)
-        #self.KPIs.dumpdata(self)
+        #self.KPIs.dump_wh_data(self)
 
         # Plot everything
         #plot_all(self)
@@ -2368,7 +2041,6 @@ class Datahandler:
         """
         # get the input data for the optimizer
         json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-        wasteheat_path = os.path.join(self.scenario_file_path, "wh_source.json")
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
@@ -2405,11 +2077,11 @@ class Datahandler:
                 "position": [base_pos[0] + offset_x, base_pos[1] + offset_y]
             }
 
+        # extract position info if waste heat source exists
         if "waste_heat_profile" in self.waste_heat_data:
             wasteheat_info = self.waste_heat_data["position"]
         else:
             wasteheat_info = None
-
 
 
         run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat_info)
@@ -2428,8 +2100,6 @@ class Datahandler:
         building_width = self.site["district_parameters"]["building_width"]
         house_connection = self.site["district_parameters"]["house_connection"]
 
-        wasteheat_path = os.path.join(self.scenario_file_path, "wh_source.json")
-
         # only get the position of buildings connected to the heat grid
         buildings_info = []
         i = 0
@@ -2447,11 +2117,14 @@ class Datahandler:
         # buildings_info = jsonData["values"]["buildings_info"]
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["transformer_station"]
-        if os.path.exists(wasteheat_path):
-            with open(wasteheat_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
 
-        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+        # extract position info if waste heat source exists
+        if "waste_heat_profile" in self.waste_heat_data:
+            wasteheat_info = self.waste_heat_data["position"]
+        else:
+            wasteheat_info = None
+
+        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info, wasteheat_info)
 
     def generateNetwork(self, topology_option):
         """
@@ -2477,7 +2150,7 @@ class Datahandler:
             topology_option = "node"
         else:
             topology_option = topology_option
-        topology_option = "node"
+
         # design the heating network
         if topology_option == "node":
             self.designNetworkwithNode()
@@ -2503,7 +2176,7 @@ class Datahandler:
 
         self.pipeline_nodes = jsonData.get("nodes", {})
         self.pipeline_topology = jsonData.get("edges", {})
-        self.pipeline_topology_wh = jsonData.get("edges_wh", {})
+        self.pipeline_topology_wh = jsonData.get("edges_wh", {})  # used in heating_network_opt
 
     def optimization_heatingnetwork(self):
         """
@@ -2520,7 +2193,7 @@ class Datahandler:
         -------
         None.
         """
-        network_optimization3(self)
+        network_optimization(self)
 
 
 def generate_demands_worker_wrapper(args):
@@ -2567,56 +2240,61 @@ def parse_position(val):
     # For other data types, return the value as is.
     return val
 
-def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schichttyp):
+def generate_industrial_profile(self, waste_heat_source, prod, timesteps, shift_type, T_pinch):
+
     T_ref = np.mean(self.site["T_e"])  # reference temperature is assumed to be the average outside temperature
-    print(f"Hier ist die durchschnittliche Außenlufttemp: {T_ref}")
-    deltaT_pinch = 5  # pinch point temperature in K
+
+    deltaT_pinch = T_pinch  # pinch point temperature in K
+
+    # heat grid generation and corresponding supply and return temperatures
     generation = self.heat_grid_data["generation"]
-    print(generation)
     T_supply = self.heat_grid_data["T_hot_heating_network"]["constant"][generation]
     T_return = self.heat_grid_data["T_cold_heating_network"]["constant"][generation]
+
+    # necessary collector water temperatures to overcome ΔT
     T_collector_water_supply = T_supply + deltaT_pinch
     T_collector_water_return = T_return + deltaT_pinch
 
+    # extract the values from the excel sheet
     json_path = os.path.join(self.scenario_file_path, "waste_heat", f"{waste_heat_source}.xlsx")
-
     df = pd.read_excel(json_path, sheet_name="Tabelle1")
-    #print(df.columns.tolist())
 
-
-    standort_col = 'Ort'
-    waerme_col = "Wärmemenge pro Jahr (in kWh/a)"
+    # define a variable for each column
+    location_col = 'Ort'
+    heat_col = 'Wärmemenge pro Jahr (in kWh/a)'
     production_col  = 'Produktionsmenge [Tonnen/a]'
-    #c_p_col = 'Cp [kJ/kg*K]'
     temperature_col = 'Durchschnittliches Temperaturniveau (in °C)'
     hours_col = 'Durchschnittliche tägl. Verfügbarkeit (in h)'
 
-    industry_data = {}
-    for idx, row in df.iterrows():
-        standort = row[standort_col]
+    industry_data = {}  # dictionary to store all data grouped by location
+    for idx, row in df.iterrows(): # iterate over each row in the DataFrame
+        standort = row[location_col]
 
         if pd.isna(standort):
             continue
 
+        # annual production is stored only once per location
         if standort not in industry_data:
             industry_data[standort] = {
                 "Jahresproduktionsmenge": row[production_col],
                 "Wärmemenge": [],
                 "Temperatur": [],
-                "Verfügbarkeit": [],
-                "c_p": []
+                "Verfügbarkeit": []
             }
 
-        industry_data[standort]["Wärmemenge"].append(row[waerme_col])
+        industry_data[standort]["Wärmemenge"].append(row[heat_col])
         industry_data[standort]["Temperatur"].append(row[temperature_col])
         industry_data[standort]["Verfügbarkeit"].append(row[hours_col])
-        #industry_data[standort]["c_p"].append(row[c_p_col])
 
+
+    # The model only considers direct waste heat integration.
+    # In the first step, it checks for each location whether direct utilization is possible.
+    # If none of the heat streams can be fed directly into the district heating network, the location is removed
     for loc in list(industry_data.keys()):
         direct = False
         for i, value in enumerate(industry_data[loc]["Temperatur"]):
-            if value >= T_collector_water_supply + deltaT_pinch:
-                direct = True
+            if value >= T_collector_water_supply + deltaT_pinch:     # the temperature must be higher than the collector water temperature
+                direct = True                                        # plus a temperature difference at the HEX
         if direct == False:
             del industry_data[loc]
 
@@ -2632,35 +2310,33 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
             sum_heat += value
             sum_heat_hours += industry_data[loc]["Verfügbarkeit"][i] * value
         weighted_hours = sum_heat_hours / sum_heat
-        print(weighted_hours)
 
 
         for i, value in enumerate(industry_data[loc]["Wärmemenge"]):
-            if 0 <= weighted_hours < 10:                      # 1-Schicht Modell
+            if 0 <= weighted_hours < 10:                      # 1-shift model
                 industry_data[loc]["Schichtmodell"] = 1
                 if industry_data[loc]["Verfügbarkeit"][i] > 8:
-                    industry_data[loc]["Wärmemenge"][i] = value * (8/industry_data[loc]["Verfügbarkeit"][i])
-            elif 10 <= weighted_hours < 18:                    # 2-Schicht Modell
+                    industry_data[loc]["Wärmemenge"][i] = value * (8/industry_data[loc]["Verfügbarkeit"][i])   # waste heat is only considered during the working hours of the shift type
+            elif 10 <= weighted_hours < 18:                   # 2-shift model
                 industry_data[loc]["Schichtmodell"] = 2
                 if industry_data[loc]["Verfügbarkeit"][i] > 16:
-                    industry_data[loc]["Wärmemenge"][i] = value * (16/industry_data[loc]["Verfügbarkeit"][i])
-            else:                                               # 3-Schicht Modell
+                    industry_data[loc]["Wärmemenge"][i] = value * (16/industry_data[loc]["Verfügbarkeit"][i])  # waste heat is only considered during the working hours of the shift type
+            else:                                             # 3-shift model
                 industry_data[loc]["Schichtmodell"] = 3
 
 
+    # locations that have a shift type different from the specified shift type, are deleted
     for loc in list(industry_data.keys()):
-        if industry_data[loc]["Schichtmodell"] is not schichttyp:
+        if industry_data[loc]["Schichtmodell"] is not shift_type:
             del industry_data[loc]
+
+
     for loc in industry_data:
-
-
-
         # Pinch analysis determines maximum integrable waste heat into heating network
         # No stream mixing assumed between waste heat sources
-        industry_data[loc]["CP"] = {}
+        industry_data[loc]["CP"] = {}  # create dict for slope of each hot stream in the T-H-diagram
 
-
-
+        # sort the arrays in descending order of temperature
         industry_data[loc]["Wärmemenge"] = np.array(industry_data[loc]["Wärmemenge"])
         industry_data[loc]["Temperatur"] = np.array(industry_data[loc]["Temperatur"])
         sort_idx = np.argsort(industry_data[loc]["Temperatur"])[::-1]
@@ -2671,6 +2347,7 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
             # CP is the slope of hot streams in T-H diagram: CP = 1/(m * c_p)
             industry_data[loc]["CP"][i] = (industry_data[loc]["Temperatur"][i] - T_ref)/industry_data[loc]["Wärmemenge"][i]
 
+        # create dicts for hot and cold composite curve
         hot_curve = {
             "T_hot": [],
             "T_cold": [],
@@ -2680,7 +2357,9 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
         cold_curve = {}
 
         def calculate_Q_max(i, j):
-            Q = 0
+            Q = 0       # initialize the waste heat Q with zero
+
+            # last iteration: the given stream is cooled down to T_collector_water_return + deltaT_pinch and Q is returned
             if i == len(industry_data[loc]["Temperatur"])-1:
                 Q_stream = (industry_data[loc]["Temperatur"][i] - (T_collector_water_return + deltaT_pinch))/industry_data[loc]["CP"][j]
                 Q += Q_stream
@@ -2691,6 +2370,8 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
                 hot_curve["Q"].append(Q_stream)
 
                 return Q
+
+            # if the temperature of the stream i+1 is lower than the minimum temperature for direct integration, the given stream is cooled down to T_collector_water_return + deltaT_pinch and Q is returned
             if (industry_data[loc]["Temperatur"][i+1] < T_collector_water_return + deltaT_pinch):
                 Q_stream = (industry_data[loc]["Temperatur"][i]- (T_collector_water_return + deltaT_pinch))/industry_data[loc]["CP"][j]
                 Q += Q_stream
@@ -2701,6 +2382,8 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
                 hot_curve["Q"].append(Q_stream)
 
                 return Q
+
+            # in every other case, the stream can be cooled to T[i+1] and calculate_Q_max is called recursively
             else:
                 Q_stream = (industry_data[loc]["Temperatur"][i]- industry_data[loc]["Temperatur"][i+1])/industry_data[loc]["CP"][j]
                 Q+= Q_stream
@@ -2717,35 +2400,79 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
 
             return Q
 
+        # corrected implementation of the composite curve calculation:
+        # in temperature intervals with multiple overlapping waste heat streams,
+        # the original function only considers the stream with the flatter slope (lower CP).
+        # in this implementation, the heat contributions of all relevant streams are summed,
+        # and the resulting heat capacity flow (CP) is calculated accordingly.
+        def calculate_Q_max_new():
+            Q = 0    # initialize the waste heat Q with zero
+
+            x = industry_data[loc]["Temperatur"]
+            print(x)
+            for i in range(len(x)):
+                if i < len(x)-1:
+                    if x[i+1] >= T_collector_water_return + deltaT_pinch:
+                        hot_curve["T_hot"].append(x[i])
+                        hot_curve["T_cold"].append(x[i+1])
+                    else:
+                        hot_curve["T_hot"].append(x[i])
+                        hot_curve["T_cold"].append(T_collector_water_return + deltaT_pinch)
+                        break
+                else:
+                    hot_curve["T_hot"].append(x[i])
+                    hot_curve["T_cold"].append(T_collector_water_return + deltaT_pinch)
+
+            hot_curve["Q"] = np.zeros_like(hot_curve["T_hot"])
+            hot_curve["CP"] = np.zeros_like(hot_curve["T_hot"])
+            print(hot_curve["T_hot"], hot_curve["T_cold"])
+
+            for i in range(len(hot_curve["Q"])):
+                for j in range(len(hot_curve["Q"])):
+                    if hot_curve["T_hot"][i] >= hot_curve["T_hot"][j]:
+                        Q_temp = industry_data[loc]["Wärmemenge"][i] * (hot_curve["T_hot"][j]-hot_curve["T_cold"][j])/(hot_curve["T_hot"][i]-T_ref)
+                        hot_curve["Q"][j] += Q_temp
+                        Q += Q_temp
+
+            # calculate CP:
+            for i in range(len(hot_curve["Q"])):
+                if hot_curve["T_hot"][i] == hot_curve["T_cold"][i]:
+                    hot_curve["CP"][i] = 0
+                else:
+                    hot_curve["CP"][i] = (hot_curve["T_hot"][i]-hot_curve["T_cold"][i])/hot_curve["Q"][i]
+            return Q
 
 
-        Q = calculate_Q_max(0, 0)
+        #Q = calculate_Q_max(0, 0)
+        Q = calculate_Q_max_new()
 
 
-
+        # add params to plot the cold composite curve
         cold_curve["T_hot"] = T_collector_water_supply
         cold_curve["T_cold"] = T_collector_water_return
         cold_curve["CP"] = (T_collector_water_supply - T_collector_water_return)/Q
 
 
-
+        # function to calculate the maximum integrateble waste heat amount without violating the constraint that the hot composite curve must be at higher temperature than the cold composite curve at all times
         def calculate_Q_real(hot_curve, cold_curve, CP_water, T_cold):
             T_hot = cold_curve["T_hot"]
-
             n = len(hot_curve["T_hot"])
             Q = 0
-            for i in range(n-1, -1, -1):
+
+            for i in range(n-1, -1, -1):   # loop counts backwards
                 Q += hot_curve["Q"][i]
-                while hot_curve["T_hot"][i] < T_cold + CP_water * Q + deltaT_pinch:
-                    hot_curve["Q"][i] = max(0, hot_curve["Q"][i] - 10)
+                while hot_curve["T_hot"][i] < T_cold + CP_water * Q + deltaT_pinch:    # if T_hot has a lower temperature than the collector water in the given segment,
+                    hot_curve["Q"][i] = max(0, hot_curve["Q"][i] - 10)                 # the integratable amount is decreased
                     Q -= 10
-                    hot_curve["CP"][i] = (hot_curve["T_hot"][i] - hot_curve["T_cold"][i])/hot_curve["Q"][i]
+                    hot_curve["CP"][i] = (hot_curve["T_hot"][i] - hot_curve["T_cold"][i])/hot_curve["Q"][i]   # the slope is recalculated based on the new Q
 
 
-            CP_water = (T_hot-T_cold)/np.sum(hot_curve["Q"])
+            CP_water = (T_hot-T_cold)/np.sum(hot_curve["Q"])  # because the total integratable waste heat amount might have changed, CP_water must be recalculated as well
 
             return CP_water
 
+
+        # reduction of Q is calculated iteratevily because with every reduction of Q, the slope of the cold curve (CP_collector_water) because increasingly steeper
         CP_water_old = cold_curve["CP"]
         converged = False
         while converged == False:
@@ -2757,60 +2484,53 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
 
             CP_water_old = CP_water_new
 
+
         industry_data[loc]["Q"] = np.sum(hot_curve["Q"])
-        print(f"Hier ist der Name: {loc}")
-        print(f"Hier ist die Abwärmemenge: {industry_data[loc]['Q']}")
 
 
 
-
+        # plot hot and cold composite curves
         def plot_composite_curves(hot_curve, cold_curve, steps_per_segment=100):
-            """
-            Plottet Hot- und Cold-Composite-Curves mit Steigung, basierend auf CP.
 
-            hot_curve : dict
-                {'T_hot': [...], 'T_cold': [...], 'CP': [...]}
-            cold_curve : dict
-                {'T_hot': float, 'T_cold': float, 'CP': float}
-            steps_per_segment : int
-                Anzahl der Unterteilungen pro Segment für glatte Linien
-            """
-
-            # --- Hot Curve ---
+            # calculate hot curve
             T_hot = hot_curve['T_hot']
             T_cold_hot = hot_curve['T_cold']
             CP_hot = hot_curve['CP']
 
-            Q_hot = [0]
-            T_hot_cont = [T_hot[0]]
+            Q_hot = [0]             # initiate with Q = 0
+            T_hot_plot = [T_hot[0]] # initiate with the highest temperature
 
             for th, tc, cp in zip(T_hot, T_cold_hot, CP_hot):
                 deltaT = th - tc
-                deltaQ = deltaT / cp  # Wärmemenge dieses Segments
+                if cp != 0:
+                    deltaQ = deltaT / cp  # heat amount of the given segment
+                else:
+                    deltaQ = 0
                 Q_segment = np.linspace(Q_hot[-1], Q_hot[-1] + deltaQ, steps_per_segment)
                 T_segment = th - cp * (Q_segment - Q_hot[-1])
                 Q_hot.extend(Q_segment[1:])
-                T_hot_cont.extend(T_segment[1:])
+                T_hot_plot.extend(T_segment[1:])
 
-            # --- Cold Curve ---
+
+            # calculate cold curve
             T_c_start = cold_curve['T_hot']
             T_c_end = cold_curve['T_cold']
             CP_c = cold_curve['CP']
 
             Q_cold = [0]
-            T_cold_cont = [T_c_start]
+            T_cold_plot = [T_c_start]
 
             for i in range(len(Q_hot) - 1):
                 deltaQ = Q_hot[i + 1] - Q_hot[i]
-                T_new = T_cold_cont[-1] - CP_c * deltaQ
-                T_cold_cont.append(T_new)
+                T_new = T_cold_plot[-1] - CP_c * deltaQ
+                T_cold_plot.append(T_new)
                 Q_cold.append(Q_hot[i + 1])
 
             # --- Plot ---
             plt.figure(figsize=(8, 6))
-            plt.plot(Q_hot, T_hot_cont, color='red', linewidth=2)
-            plt.plot(Q_hot, T_hot_cont, label='Composite Curve Abwärme', color='red', linewidth=2)
-            plt.plot(Q_cold, T_cold_cont, label='Sammelwasser', color='blue', linewidth=2)
+            plt.plot(Q_hot, T_hot_plot, color='red', linewidth=2)
+            plt.plot(Q_hot, T_hot_plot, label='Composite Curve Abwärme', color='red', linewidth=2)
+            plt.plot(Q_cold, T_cold_plot, label='Sammelwasser', color='blue', linewidth=2)
             plt.xlabel("ΔQ [kWh]")
             plt.ylabel("Temperatur [°C]")
             #plt.title("Hot and Cold Composite Curves")
@@ -2821,12 +2541,12 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
             plt.savefig("abbildung.pdf", format='pdf', dpi=300, bbox_inches='tight')
             plt.show()
 
+        # remove "#" to plot composite curve of each industrial plant
         #plot_composite_curves(hot_curve, cold_curve)
-        print(industry_data[loc]["Schichtmodell"])
 
 
-    from sklearn.metrics import r2_score
-
+    ### Regression Analysis ###
+    # Determine the linear relationship between the waste heat amount and the annual production volume
     waste_heat_amount = []
     production_annual = []
 
@@ -2834,58 +2554,46 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
         waste_heat_amount.append(industry_data[loc]["Q"])
         production_annual.append(industry_data[loc]["Jahresproduktionsmenge"])
 
-    # In NumPy-Arrays umwandeln
-    Q = np.array(waste_heat_amount)
-    P = np.array(production_annual)
-
-    # Sortierindizes (absteigend nach Q)
-    sort_idx = np.argsort(Q)[::-1]
-
-    Q_sorted = Q[sort_idx]
-    P_sorted = P[sort_idx]
-
-    print("Hier ist Q:", Q_sorted)
-    print("Hier ist P:", P_sorted)
 
     x = np.array(production_annual)
     y = np.array(waste_heat_amount)
 
-    # Lineare Regression durch den Ursprung: y = m * x
-    m = np.sum(x * y) / np.sum(x ** 2)  # OLS ohne Achsenabschnitt
+    # linear regression without intercept (waste heat amount must be zero if production volume is zero)
+    # slope estimation based on least squares minimization through the origin
+    m = np.sum(x * y) / np.sum(x ** 2)
 
-    # Vorhersage
+    # predicted values based on fitted linear model
     y_pred = m * x
 
-    # R² berechnen
+    # coefficient of determination (R²)
     r2 = r2_score(y, y_pred)
 
-    # Regressionslinie erzeugen
-    x_line = np.linspace(min(x), max(x), 100)
-    y_line = m * x_line  # kein + b
 
-    # Plot
+    x_line = np.linspace(min(x), max(x), 100)
+    y_line = m * x_line
+
+    #### Plot the linear regression ###
     plt.figure(figsize=(7, 5))
     plt.scatter(x, y, label="Datenpunkte")
     plt.plot(x_line, y_line, color="red", label="Regressionsgerade")
 
-    plt.xlabel("Jahresproduktionsmenge")
+    plt.xlabel("Jahresproduktionsmenge [t]")
     plt.ylabel("Abwärmemenge Q [kWh]")
 
-    plt.text(
-        0.05, 0.95,
-        f"$R^2$ = {r2:.3f}",
-        transform=plt.gca().transAxes,
-        verticalalignment='top'
-    )
+#    plt.text(
+#        0.05, 0.95,
+#        f"$R^2$ = {r2:.3f}",
+#        transform=plt.gca().transAxes,
+#        verticalalignment='top'
+#    )
 
     plt.grid(True, which="both")
     #plt.legend()
-    plt.savefig("abbildung.pdf", format='pdf', dpi=300, bbox_inches='tight')
+    plt.savefig("Regression.pdf", format='pdf', dpi=300, bbox_inches='tight')
     #plt.show()
 
     # Hochrechnung
     waste_heat_annual = m * prod
-    print(f"Hier ist m: {m} und hier ist prod: {prod}")
 
 #    from collections import Counter
 #    count = []
@@ -2894,13 +2602,12 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
 #    max_count = Counter(count).most_common(1)[0][0]
 #    print(max_count, count)
 
+    ### calculate waste heat profile based on early waste heat amount and shift type ###
+    waste_heat_profile = []
     holidays = self.calendar["holidays"]
     initial_day = self.initial_day
 
-    waste_heat_profile = []
-
     for i in range(timesteps):
-
         hour = i % 24
         day = (initial_day + i // 24) % 7
         day_index = i // 24 + 1
@@ -2910,25 +2617,25 @@ def generate_industrial_profile(self, waste_heat_source, prod, timesteps, schich
 
         value = 0
 
-        if schichttyp == 3:
+        if shift_type == 3:
             if not is_holiday:
-                value = 1
+                value = 1          # if the given day is a holiday, the value is 0, else it is 1
 
-        elif schichttyp == 2:
+        elif shift_type == 2:
             if not is_weekend and not is_holiday and 6 <= hour < 22:
-                value = 1
+                value = 1          # if the given day is a holiday and the hour is between 22 and 5, the value is 0, else it is 1
 
-        elif schichttyp == 1:
+        elif shift_type == 1:
             if not is_weekend and not is_holiday and 7 <= hour < 15:
-                value = 1
+                value = 1          # if the given day is a holiday or a weekend and the hour is between 16 and 6, the value is 0, else it is 1
 
         waste_heat_profile.append(value)
 
     operating_hours = sum(waste_heat_profile)
-    waste_heat_hour = waste_heat_annual/operating_hours
+    waste_heat_per_hour = waste_heat_annual/operating_hours     # calculate hourly waste heat: annual waste heat amount/operating hours
 
     waste_heat_profile = np.array(waste_heat_profile, dtype=float)
-    waste_heat_profile = np.where(waste_heat_profile == 1, waste_heat_hour, 0.0)
+    waste_heat_profile = np.where(waste_heat_profile == 1, waste_heat_per_hour, 0.0)  # the 1s are replaced with the hourly waste heat amount
 
     temperature_profile = np.full(timesteps, T_collector_water_supply)
 

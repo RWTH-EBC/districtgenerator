@@ -102,15 +102,14 @@ def run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat
     for i, point in enumerate(heat_network_points):
         weighted_graph.add_node(i+1, pos=point, role="bldg")
 
-    # add waste heat source
+    # add waste heat source and set the role attribute as "WH" (waste heat)
     if wasteheat_info != None:
         waste_heat = tuple(wasteheat_info)
         node_num = len(heat_network_points) + 1
-        weighted_graph.add_node(node_num, pos=waste_heat, role="EH")
+        weighted_graph.add_node(node_num, pos=waste_heat, role="WH")
         # get a list of all the nodes in the graph
         all_points = [transformer] + heat_network_points + [waste_heat]
     else:
-        print("Keine Abwärmequelle definiert.")
         all_points = [transformer] + heat_network_points
 
 
@@ -169,7 +168,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat
 
     # %% STEP FOUR: OUTPUT
     # Assign unique identifiers to all nodes and count the role attributes separately.
-    counters = {"bldg": 1, "node": 1, "EH": 1}
+    counters = {"bldg": 1, "node": 1, "EH": 1, "WH": 1}
     node_num = 0
 
     for n in network.nodes:
@@ -183,6 +182,9 @@ def run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat
             network.nodes[n]["id"] = f"EH{counters['EH']}"
             counters["EH"] += 1
             node_num += 1
+        elif role == "WH":
+            network.nodes[n]["id"] = f"WH{counters['WH']}"
+            node_num += 1
         else:
             network.nodes[n]["id"] = f"node{counters['node']}"
             counters["node"] += 1
@@ -195,8 +197,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info, wasteheat
 
     # Orient an undirected graph starting from a plant node
     directed_dict = orient_network(network, 0)
-    wh_dict = orient_network(network, node_num-1)
-
+    wh_dict = orient_network(network, node_num-1)          # build directed network starting from waste heat source (used in heating_network)
     # Write the identifiers of all nodes, their corresponding coordinates,
     # and the entire network's tree structure into a JSON file.
     json_data = {

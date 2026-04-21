@@ -15,6 +15,8 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 from itertools import zip_longest
 import pandas as pd
+import json
+import matplotlib.pyplot as plt
 
 class KPIs:
 
@@ -1194,137 +1196,62 @@ class KPIs:
         self.calc_total_consumption_and_emissions(data)
         self.calculateLCOH_buildings(data)
         self.calculateLCOH_EH(data)
-        input()
         self.saveKPIs(data.scenario_name, data.resultPath, data.district)
 
-    def dumpdata(self, data):
-        import json
+    def dump_wh_data(self, data):
+
         path = data.resultPath
         scenario_name = data.scenario_name
         json_path = os.path.join(path, "wasteheat", f"{scenario_name}.json")
-
-        A = data.site["area"]
-        total_demand = self.total_heating_demand/1000
-        heating_demand_density = total_demand/A
 
         TAC = self.operationCosts[0] + self.annual_fixed_costs_decentral_unsubsidized + self.annual_fixed_costs_central_unsubsidized
         ann_fixed = self.annual_fixed_costs_decentral_unsubsidized + self.annual_fixed_costs_central_unsubsidized
         ann_op = self.operationCosts[0]
 
-
-
         if os.path.exists(json_path):
-            print("Hallo")
             with open(json_path, "r") as f:
                 json_data = json.load(f)
         else:
             json_data = {}
 
-        json_data["heating_demand_density"] = heating_demand_density
-
-
+        # save KPIs for scenario with central heat supply with waste heat source
         if "waste_heat_profile" in data.waste_heat_data:
 
             key = f"{data.waste_heat_data['type']}_{data.waste_heat_data['size']}_{data.ecoData['price_wh'][0]}"
             distance = data.waste_heat_data["distance"]
 
-            # Quelle anlegen falls nicht vorhanden
+            # create new entry if waste heat source not in json
             if key not in json_data:
                 json_data[key] = {"Entfernung": {}}
 
-            # Entfernung speichern
+            # save distance to district
             json_data[key]["Entfernung"][distance] = {
                 "TAC": TAC,
                 "fixed": ann_fixed,
                 "op": ann_op
             }
 
+        # save KPIs for scenario with central heat supply without waste heat source
         elif "capacities" in data.centralDevices:
 
-            json_data["zentral_ohne_abwaerme"] = {
+           json_data["zentral_ohne_abwaerme"] = {
                 "TAC": TAC,
                 "fixed": ann_fixed,
                 "op": ann_op
             }
 
+        # save KPIs for scenario with decentral heat supply
         else:
-
             json_data["dezentral"] = {
                 "TAC": TAC,
                 "fixed": ann_fixed,
                 "op": ann_op
             }
 
-        # JSON speichern
+        # save json
         with open(json_path, "w") as f:
             json.dump(json_data, f, indent=4)
 
-
-        #self.plotdata(json_path, f"{data.waste_heat_data['type']}", f"{data.waste_heat_data['size']}")
-
-    def plotdata(self, json_path, wh_type, wh_size):
-        import json
-        import matplotlib.pyplot as plt
-
-        # JSON laden
-        with open(json_path, "r") as f:
-            json_data = json.load(f)
-
-        #heating_demand_density = json_data.get("heating_demand_density", None)
-        heating_demand_density = None  # Entfernen für Test!
-
-        # Figure EINMAL erstellen (OBEN!)
-        fig, ax = plt.subplots(figsize=(10, 6))  # ← Breit von Anfang an!
-
-        # zentral / dezentral (auf ax plotten)
-        TAC_central = json_data.get("zentral_ohne_abwaerme", {}).get("TAC", None)
-        TAC_decentral = json_data.get("dezentral", {}).get("TAC", None)
-
-        if TAC_decentral is not None:
-            ax.axhline(TAC_decentral, linestyle="-", color="green", label="dezentrale Versorgung")
-        if TAC_central is not None:
-            ax.axhline(TAC_central, linestyle="-", color="orange", label="zentrale Versorgung")
-
-        # Farben
-        price_colors = {"0": "red", "0.02": "blue"}
-
-        # Plots
-        for wh_price in ["0", "0.02"]:
-            key = f"{wh_type}_{wh_size}_{wh_price}"
-            if key in json_data:
-                distances = []
-                TAC_values = []
-                for d, values in json_data[key]["Entfernung"].items():
-                    distances.append(float(d))
-                    TAC_values.append(values["TAC"])
-                if distances:
-                    distances, TAC_values = zip(*sorted(zip(distances, TAC_values)))
-                    ax.scatter(distances, TAC_values, color=price_colors[wh_price],
-                               s=80, label=f"{wh_type} ({wh_size} kW) – {wh_price} €/kWh")
-
-        # Labels & Title AUF AX
-        ax.set_xlabel("Entfernung zum Quartier [m]", fontsize=11)
-        ax.set_ylabel("TAC [€/Jahr]", fontsize=11)
-        ax.set_title(f"TAC für {wh_type} in Abhängigkeit der Entfernung und Abwärmepreise",
-                     fontsize=12, pad=20)
-
-        ax.grid(True, alpha=0.3)
-
-        # LEGENDE KLEIN & außen
-        ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=9,
-                  frameon=True, framealpha=0.95, handlelength=1.5)
-
-        # Text-Box
-        if heating_demand_density is not None:
-            ax.text(0.02, 0.95, f"Wärmebedarfsdichte: {heating_demand_density:.2f} kWh/m²",
-                    transform=ax.transAxes, fontsize=10, verticalalignment='top',
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
-
-        # ← FIX: ALLES SICHTBAR
-        plt.tight_layout(pad=2.0)
-
-        plt.savefig("TAC_plot.pdf", bbox_inches='tight', dpi=300, facecolor='white')
-        plt.show()
 
     def saveKPIs(self, scenario_name, result_path, buildings):
         """

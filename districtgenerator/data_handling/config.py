@@ -189,7 +189,7 @@ class EcoConfig(BaseSettings):
     price_oil: str | list = [0.09, 0.094, 0.098, 0.102, 0.106, 0.11, 0.112, 0.114, 0.116, 0.118, 0.12, 0.122, 0.124, 0.126, 0.128, 0.13, 0.132, 0.134, 0.136, 0.138] # Oil price in €/kWh
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
 
-    # waste heat price
+    # waste heat price in Euro/kWh
     #price_wh: str | list = [0]
     price_wh: str | list = [0.02]
 
@@ -1126,23 +1126,6 @@ class CentralDeviceConfig(BaseSettings):
     GS__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     GS: dict = {}
 
-    ### Waste Heat Sources ###
-    # DC parameters (data center)
-    DC__feasible: bool = True  # Will be set to false if this waste heat source is not simulated
-    DC__IT_Load: float = 100  # IT-Load in kW: possible values: ......
-    DC__PUE: float = 1.4  # Power Usage Effectivness (total load/ IT load): values for air-cooled DCs: ..., values for water-cooled DCs: ...
-    DC__profile_type: str = "calc"  # will the load-profile be loaded or calculated?
-    DC__wh_temperature: int = 35  # in celsius, depends on the cooling mechanism and the location for capturing waste heat: values for air-cooled DCs: ..., values for water-cooled DCs: ...
-    DC: dict = {}
-
-    # paper_industry parameters
-    paper__feasible: bool = True  # Will be set to false if this waste heat source is not simulated
-    paper__prod_quantity: float = 100000  # yearly production volume in t
-    paper__spec_electricity: float = 5  # specific electricity consumption in kWh/t
-    paper__spec_wh: float = 2  # specific waste heat generation in kWh/t
-    paper__profile_type: str = "load"  # will the load-profile be loaded or calculated?
-    paper__wh_temperature: int = 25  # waste heat temperature in celsius
-    paper: dict = {}
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
@@ -1189,83 +1172,36 @@ class CentralDeviceConfig(BaseSettings):
 
 
 class WasteHeatConfig(BaseSettings):
-    """Configuration for waste heat sources in a district energy system.
-
-    This class defines the default parameters for various waste heat sources such as
-    data centers (DC), cold storages, wastewater treatment plants and various industry sources
-
-    Each device has parameters such as feasibility, efficiency, lifetime, investment costs,
-    and operational characteristics.
     """
-    # DC parameters (data center)
-    DC__feasible: bool = True             # Will be set to false if this waste heat source is not simulated
-    DC__IT_Load: float = 100              # IT-Load in kW: possible values: ......
-    DC__PUE: float = 1.4                  # Power Usage Effectivness (total load/ IT load): values for air-cooled DCs: ..., values for water-cooled DCs: ...
-    DC__profile_type: str = "calc"        # will the load-profile be loaded or calculated?
-    DC__wh_temperature: int = 30          # in celsius, depends on the cooling mechanism and the location for capturing waste heat: values for air-cooled DCs: ..., values for water-cooled DCs: ...
-    DC: dict = {}
+    WasteHeatConfig class to manage waste heat-related parameters for the district generator.
+    this class contains parameters for the three different waste heat source types (industry, data center
+    and wastewater treatment plant) and the corresponding economic data.
+    """
+    # miscellaneous params
+    distance: float = 500 # distance of the waste heat source to the district bounds
+    deltaT_pinch_HP: float = 5 # pinch point temperature in K
+    deltaT_pinch_collector_water: float = 5 # pinch point temperature in K
+    eta_HP: float = 0.5 # heat pump efficiency
 
-    # wastewater treatment plants parameter
-    WWTP__feasible : bool = True
-    WWTP__PE: int = 10000
-    WWTP__profile_type: str = "load"
-    WWTP__min_temp: float = 10
-    WWTP__max_temp: float = 20
-    WWTP: dict = {}
+    # economic params
+    lifetime: int = 20               # lifetime of heat pump and heat exchanger
+    cost_om: float = 0.025           # O&M share for heat pump and heat exchanger (fraction of investment cost per year), value calculated from Technikkatalog (Langreder et al. 2024)
 
-    # paper_industry parameters
-    paper__feasible: bool = True          # Will be set to false if this waste heat source is not simulated
-    paper__prod_quantity: float = 100000  # yearly production volume in t
-    paper__spec_wh: float = 28            # specific waste heat generation in kWh/t
-    paper__profile_type: str = "load"     # will the load-profile be loaded or calculated?
-    paper__wh_temperature: int = 55       # waste heat temperature in celsius
-    paper: dict = {}
+    # data center params
+    connected_load: float = 500      # Connected load of a DC in kW. For typical values of different data center types see: https://www.powercontrol.co.uk/news-blog/blog/what-are-the-different-types-of-data-centre-power-design-and-the-future-of-infrastructure/#:~:text=Enterprise%20data%20centres%20are%20privately,link%20national%20and%20international%20networks
+    load_factor: float = 0.5         # ratio of the actual IT power usage to the connected load
+    T_hot: float = 60                # Temperature at which waste heat is extracted from the data center. For different location of waste heat extraction and the corresponding temperatures see: https://www.sciencedirect.com/science/article/pii/S1364032113008216
 
+    # wastewater treatment plant params
+    PE: int = 10000                # Population equivalent (Einwohnerwert). For typical values see: https://www.umweltbundesamt.de/system/files/medien/publikation/long/3855.pdf
+    Vdot_person_daily: int = 126   # daily water consumption per person in L/d (source: https://www.umweltbundesamt.de/daten/private-haushalte-konsum/wohnen/wassernutzung-privater-haushalte)
+    T_max: float = 20                # in °C. maximum wastewater temperature during a year (it is assumed that the wastewater temperature can be approximated by a sinusoidal function)
+    T_min: float = 10                # in °C. minimum wastewater temperature during a year (it is assumed that the wastewater temperature can be approximated by a sinusoidal function)
+    T_ref: float = 8                 # in °C. temperature to which the water may be cooled, specified by environmental regulations (source: https://www.mdpi.com/2073-4441/13/9/1274)
 
-
-    @model_validator(mode='after')
-    def build_device_dicts(self) -> 'WasteHeatConfig':
-        """Build all device dictionaries from individual parameters."""
-
-        # Create a list of field names to avoid RuntimeError during iteration
-        field_names = list(self.__dict__.keys())
-
-        # Get all field names from the model
-        for field_name in field_names:
-            # Check if this is a dictionary field (uppercase device name)
-            if isinstance(getattr(self, field_name), dict):
-                # Only build if the dictionary is empty
-                if getattr(self, field_name) == {}:
-                    device_dict = {}
-                    prefix = f"{field_name}__"
-                    feasible_attr = f"{field_name}__feasible"
-
-                    if hasattr(self, feasible_attr) and not getattr(self, feasible_attr):
-                        delattr(self, field_name)
-                    else:
-                        # Find all attributes that start with this device prefix
-                        for attr_name in field_names:  # Use the snapshot here too
-                            if attr_name.startswith(prefix):
-                                # Remove the prefix to get the dictionary key
-                                dict_key = attr_name[len(prefix):]
-                                device_dict[dict_key] = getattr(self, attr_name)
-
-                        # Set the dictionary first
-                        setattr(self, field_name, device_dict)
-
-
-                    # Now delete the individual attributes
-                    for attr_name in field_names:
-                        if attr_name.startswith(prefix):
-                            delattr(self, attr_name)
-
-        return self
-
-    model_config = SettingsConfigDict(
-        env_prefix="WH_",
-        env_file=".wasteheatconfig",
-        extra="ignore"
-    )
+    # industry params
+    shift_type: int = 3            # industrial facilities operate on one-, two-, or three-shift schedules
+    production_annual: int = 100000 # annual production quantity
 
 
 ### Global Config Classes ###
@@ -1326,6 +1262,7 @@ class Settings(BaseSettings):
     This class is used to load configuration parameters from an environment file.
     """
     env_file: str = '.env.CONFIG.EXAMPLE'
+    wasteheat_env_file: str = '.env.WASTE_HEAT.EXAMPLE'
 
     class Config:
         env_file = '.env.CONFIG.EXAMPLE'  # Default .env file if no env_file is provided
@@ -1333,12 +1270,13 @@ class Settings(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
 
 
-def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
+def load_global_config(env_file: Optional[str] = None, wasteheat_env_file: Optional[str] = None) -> GlobalConfig:
     """
     Load the global configuration from the specified environment file.
     If no environment file is provided, it defaults to standard parameters defined in the config classes.
     For error handling, it prints the used environment file path.
     Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
+    Waste heat parameters are stored in a seperate file
 
     Parameters
     ----------
@@ -1347,20 +1285,30 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
         absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
 
+    wasteheat_env_file : Optional[str]
+        The path to the waste heat environment file. If None, it uses the default from Settings.
+        Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
+        absolute paths "c:/path/to/.env.WASTE_HEAT.EXAMPLE" or "/path/to/.env.WASTE_HEAT.EXAMPLE".
+
     Returns
     -------
     GlobalConfig
         An instance of GlobalConfig containing all configurations loaded from the environment file.
 
     """
+    settings = Settings()  # Load settings from the .env file
+
     if env_file is None:
-        settings = Settings()  # Load settings from the .env file
         env_file = settings.env_file
+
+    if wasteheat_env_file is None:
+        wasteheat_env_file = settings.wasteheat_env_file
 
     script_path = Path(__file__).resolve()
     project_root = script_path.parent.parent
 
     env_file_path = str(project_root / "data" / env_file)
+    wasteheat_env_path = str(project_root / "data" / wasteheat_env_file)
 
     if not os.path.exists(env_file_path):
         raise FileNotFoundError(
@@ -1369,8 +1317,18 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
             f"  - Based on script location: {script_path}"
         )
 
+    if not os.path.exists(wasteheat_env_path):
+        raise FileNotFoundError(
+            f"Configuration file not found. \n"
+            f"  - Looked for: {wasteheat_env_path}\n"
+            f"  - Based on script location: {script_path}"
+        )
+
     os.environ["ENV_FILE"] = env_file_path
     print(f'Using config: {os.environ["ENV_FILE"]}')
+
+    os.environ["WH_ENV_FILE"] = wasteheat_env_path
+    print(f'Using config: {os.environ["WH_ENV_FILE"]}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),
@@ -1385,5 +1343,5 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
         scenario_name = ScenarioName(_env_file=env_file_path),
-        waste_heat=WasteHeatConfig(_env_file=env_file_path)
+        waste_heat=WasteHeatConfig(_env_file=wasteheat_env_path)
     )

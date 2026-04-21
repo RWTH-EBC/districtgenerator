@@ -56,6 +56,7 @@ def scenario_generation():
     add_waste_heat = False
 #    add_waste_heat = input("\nDo you want to add a waste heat source? (y/n): ").lower() == "y"
 
+    # add waste heat source
     if add_waste_heat:
         print("Available waste heat sources:")
         for key, value in waste_heat_sources.items():
@@ -65,6 +66,7 @@ def scenario_generation():
             print(f"Invalid waste heat source '{waste_heat_type}'. Please choose a valid option (A-E).")
             exit(1)
         distance_to_district = float(input("Enter the distance to the district (in m): "))
+
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
     # building_density = 5
     building_density_min = params["gebaeude_pro_ha"]["min"]  # buildings per hectare
