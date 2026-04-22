@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import csv
+import matplotlib.gridspec as gridspec
 
 def _parse_value(v):
     if v is None or v == "":
@@ -70,7 +71,8 @@ def plot_device_capacities_from_csv(
     exclude_devices=None,
     titel=None,
     show_percent_box=False,
-    plot_tes_only=False,  
+    plot_tes_only=False,
+    fontsize=14,
 ):
     """
     Plot capacities side-by-side for:
@@ -192,8 +194,8 @@ def plot_device_capacities_from_csv(
         xtick_labels = [label_map.get(d, d) for d in devices]
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width/2, y_network, width=width, color="#D40000", label="Verbund")
-        plt.bar(x + width/2, y_single, width=width, color="#55585C", label="Einzeln")
+        plt.bar(x - width/2, y_network, width=width, color="#D40000", label="verbundweise")
+        plt.bar(x + width/2, y_single, width=width, color="#55585C", label="quartiersweise")
 
         ymax = max(max(y_network) if y_network else 0, max(y_single) if y_single else 0, 1.0)
         if show_percent_box:
@@ -214,7 +216,7 @@ def plot_device_capacities_from_csv(
                     ha="center",
                     va="bottom",
                     color="white",
-                    fontsize=16,
+                    fontsize=fontsize,
                     bbox=dict(
                         boxstyle="square,pad=0.45",
                         facecolor="#D40000",
@@ -224,19 +226,19 @@ def plot_device_capacities_from_csv(
                     zorder=5,
                 )
 
-        plt.xticks(x, xtick_labels, fontsize=14)
+        plt.xticks(x, xtick_labels, fontsize=fontsize)
         if plot_tes_only:
-            plt.ylabel("Speicherkapazität in kWh", fontsize=14)
-            plt.title(titel or f"Speicherauslegung im Szenario '{sc}'", fontsize=16)
+            plt.ylabel("Speicherkapazität in kWh", fontsize=fontsize)
+            # plt.title(titel or f"Speicherauslegung im Szenario '{sc}'", fontsize=fontsize)
         else:
-            plt.ylabel("Anlagenleistung in kW", fontsize=14)
+            plt.ylabel("Anlagenleistung in kW", fontsize=fontsize)
         plt.xlabel("")
-        plt.title(titel or f"Anlagenleistungen im Szenario '{sc}'", fontsize=16)
+        # plt.title(titel or f"Anlagenleistungen im Szenario '{sc}'", fontsize=fontsize)
         plt.grid(axis="y", alpha=0.4)
         plt.legend()
         plt.tight_layout()
 
-        plot_path = os.path.join(plots_dir, titel + ".png") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.png")
+        plot_path = os.path.join(plots_dir, titel + ".pdf") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -404,7 +406,7 @@ def plot_heat_generation_by_year_from_csv(
         plt.xticks(x, xticklabels)
         plt.ylabel("Wärmeerzeugung in MWh")
         plt.xlabel("")
-        plt.title(titel or sc, pad=12)
+        #plt.title(titel or sc, pad=12)
         plt.grid(axis="y", alpha=0.4)
 
         # Keine 10er-Potenz-Darstellung auf der y-Achse
@@ -424,7 +426,7 @@ def plot_heat_generation_by_year_from_csv(
         # Oben Platz für Legende + Titel lassen
         plt.tight_layout(rect=[0, 0.08, 1, 1])
 
-        plot_path = os.path.join(plots_dir, f"heat_generation_by_year_compare_{sc}.png")
+        plot_path = os.path.join(plots_dir, f"heat_generation_by_year_compare_{sc}.pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -596,7 +598,7 @@ def plot_power_import_by_year_from_csv(
             )
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
-        plt.title(titel or sc)
+        #plt.title(titel or sc)
         plt.grid(axis="y", alpha=0.4)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -626,7 +628,7 @@ def plot_power_import_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0.02, 1, 1])
 
-        plot_path = os.path.join(plots_dir, titel + ".png")
+        plot_path = os.path.join(plots_dir, titel + ".pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -799,7 +801,7 @@ def plot_power_export_by_year_from_csv(
 
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
-        plt.title(titel or sc)
+        # plt.title(titel or sc)
         plt.grid(axis="y", alpha=0.4)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -829,7 +831,7 @@ def plot_power_export_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0, 1, 1])
 
-        plot_path = os.path.join(plots_dir, titel + ".png")
+        plot_path = os.path.join(plots_dir, titel + ".pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -952,8 +954,8 @@ def plot_lcoe_by_year_from_csv(
             return s.replace(".", ",")
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="verbundweise")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="quartiersweise")
 
         if show_percent_box:  # NEU
             ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -986,7 +988,7 @@ def plot_lcoe_by_year_from_csv(
         plt.xticks(x, labels)
         plt.ylabel("Energiegestehungskosten in €/MWh")
         plt.xlabel("")
-        plt.title(titel or f"Energiegestehungskosten im Szenario '{sc}'")
+        # plt.title(titel or f"Energiegestehungskosten im Szenario '{sc}'")
         plt.grid(axis="y", alpha=0.4)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
         plt.legend()
@@ -994,7 +996,7 @@ def plot_lcoe_by_year_from_csv(
 
         plot_path = os.path.join(
             plots_dir,
-            f"lcoe_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
+            f"lcoe_by_year_compare_{sc}.pdf" if not titel else f"{titel}.pdf"
         )
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1109,8 +1111,8 @@ def plot_co2_by_year_from_csv(
         labels = [str(base_calendar_year + y) for y in years]
 
         plt.figure(figsize=(8, 4))
-        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+        plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="verbundweise")
+        plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="quartiersweise")
 
         if show_percent_box:
             ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1144,13 +1146,13 @@ def plot_co2_by_year_from_csv(
         plt.xticks(x, labels)
         plt.ylabel("CO₂-Emissionen in t/a")
         plt.xlabel("")
-        plt.title(titel or f"CO₂-Emissionen im Szenario '{sc}'")
+        # plt.title(titel or f"CO₂-Emissionen im Szenario '{sc}'")
         plt.grid(axis="y", alpha=0.4)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
         plt.legend()
         plt.tight_layout()
 
-        plot_name = f"co2_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
+        plot_name = f"co2_by_year_compare_{sc}.pdf" if not titel else f"{titel}.pdf"
         plot_path = os.path.join(plots_dir, plot_name)
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1246,7 +1248,7 @@ def plot_tac_sum_from_three_scenarios(
 
     x = np.arange(2)
     y = [total_vb, total_ez]
-    labels = ["Verbund", "Einzeln"]
+    labels = ["verbundweise", "quartiersweise"]
     colors = ["#D40000", "#55585C"]
 
     plt.figure(figsize=(7, 4.5))
@@ -1281,12 +1283,12 @@ def plot_tac_sum_from_three_scenarios(
 
     plt.xticks(x, labels)
     plt.ylabel("TAC-Summe in € pro Jahr")
-    plt.title(titel or "TAC-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
+    # plt.title(titel or "TAC-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.tight_layout()
 
-    plot_name = "tac_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "tac_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1380,7 +1382,7 @@ def plot_tes_volume_from_csv(
 
         x = np.arange(2)
         y = [vb_m3, ez_m3]
-        labels = ["Verbund", "Einzeln"]
+        labels = ["verbundweise", "quartiersweise"]
         colors = ["#D40000", "#55585C"]
 
         plt.figure(figsize=(6.5, 4.2))
@@ -1414,12 +1416,12 @@ def plot_tes_volume_from_csv(
 
         plt.xticks(x, labels)
         plt.ylabel("Volumen thermischer Speicher [m³]")
-        plt.title(titel or f"TES-Volumen im Szenario '{sc}'")
+        # plt.title(titel or f"TES-Volumen im Szenario '{sc}'")
         plt.grid(axis="y", alpha=0.35)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
         plt.tight_layout()
 
-        plot_name = f"tes_volume_{sc}.png" if not titel else f"{titel}.png"
+        plot_name = f"tes_volume_{sc}.pdf" if not titel else f"{titel}.pdf"
         plot_path = os.path.join(plots_dir, plot_name)
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1512,7 +1514,7 @@ def plot_co2_sum_from_three_scenarios(
 
     x = np.arange(2)
     y = [total_vb, total_ez]
-    labels = ["Verbund", "Einzeln"]
+    labels = ["verbundweise", "quartiersweise"]
     colors = ["#D40000", "#55585C"]
 
     plt.figure(figsize=(7, 4.5))
@@ -1547,12 +1549,12 @@ def plot_co2_sum_from_three_scenarios(
 
     plt.xticks(x, labels)
     plt.ylabel("CO₂-Emissionen in t")
-    plt.title(titel or "CO₂-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
+    # plt.title(titel or "CO₂-Summe der drei Quartiere: Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.tight_layout()
 
-    plot_name = "co2_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "co2_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1689,8 +1691,8 @@ def plot_lcoe_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, lcoe_vb, width=width, color="#D40000", label="Verbund")
-    plt.bar(x + width / 2, lcoe_ez, width=width, color="#55585C", label="Einzeln")
+    plt.bar(x - width / 2, lcoe_vb, width=width, color="#D40000", label="verbundweise")
+    plt.bar(x + width / 2, lcoe_ez, width=width, color="#55585C", label="quartiersweise")
 
     if show_percent_box:
         ymax = max(max(lcoe_vb) if lcoe_vb else 0, max(lcoe_ez) if lcoe_ez else 0, 1.0)
@@ -1721,13 +1723,13 @@ def plot_lcoe_sum_from_three_scenarios(
 
     plt.xticks(x, labels)
     plt.ylabel("Energiegestehungskosten in €/MWh")
-    plt.title(titel or "LCOE (Summe aus 3 Quartieren): Verbund vs. Einzeloptimierung")
+    # plt.title(titel or "LCOE (Summe aus 3 Quartieren): Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "lcoe_sum_three_quarters_by_year.png" if not titel else f"{titel}.png"
+    plot_name = "lcoe_sum_three_quarters_by_year.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1841,8 +1843,8 @@ def plot_tac_by_year_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="verbundweise")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="quartiersweise")
 
     if show_percent_box:
         ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -1873,13 +1875,13 @@ def plot_tac_by_year_sum_from_three_scenarios(
 
     plt.xticks(x, labels)
     plt.ylabel("Jährliche Gesamtkosten in €/a")
-    plt.title(titel or "Jährliche Gesamtkosten (Summe aus 3 Quartieren)")
+    # plt.title(titel or "Jährliche Gesamtkosten (Summe aus 3 Quartieren)")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "tac_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "tac_by_year_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1989,8 +1991,8 @@ def plot_co2_by_year_sum_from_three_scenarios(
     labels = [str(base_calendar_year + y) for y in years]
 
     plt.figure(figsize=(8, 4.8))
-    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="Verbund")
-    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="Einzeln")
+    plt.bar(x - width / 2, y_vb, width=width, color="#D40000", label="verbundweise")
+    plt.bar(x + width / 2, y_ez, width=width, color="#55585C", label="quartiersweise")
 
     if show_percent_box:
         ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
@@ -2021,13 +2023,13 @@ def plot_co2_by_year_sum_from_three_scenarios(
 
     plt.xticks(x, labels)
     plt.ylabel("Jährliche CO₂-Emissionen in t/a")
-    plt.title(titel or "Jährliche CO₂-Emissionen (Summe aus 3 Quartieren)")
+    #plt.title(titel or "Jährliche CO₂-Emissionen (Summe aus 3 Quartieren)")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "co2_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "co2_by_year_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2046,23 +2048,561 @@ def plot_co2_by_year_sum_from_three_scenarios(
 
 
 
+def plot_device_capacities_three_subplots_from_csv(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    include_devices=None,
+    exclude_devices=None,
+    titel=None,
+    subplot_titles=None,
+    show_percent_box=False,
+    plot_tes_only=False,
+    fontsize=12,
+):
+    """
+    Erstellt eine gemeinsame Abbildung mit 3 Subplots (1x3),
+    jeweils wie plot_device_capacities_from_csv für ein Szenario.
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
 
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _to_set(x):
+        if x is None:
+            return None
+        if isinstance(x, str):
+            return {x}
+        return set(x)
+
+    def _read_caps(csv_path):
+        caps = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") == "device" and row.get("metric") == "capacity":
+                    dev = (row.get("device") or "").strip()
+                    try:
+                        val = float(row.get("value"))
+                    except (TypeError, ValueError):
+                        continue
+                    if dev:
+                        caps[dev] = val
+        return caps
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    include_set = _to_set(include_devices)
+    exclude_set = _to_set(exclude_devices) or set()
+
+    preferred_order = [
+        "HP", "CHP", "TES", "PV", "STC", "WT", "EB", "BOI", "BBOI", "GHP", "CC", "AC",
+        "WAT", "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "CTES", "BAT", "GS"
+    ]
+
+    label_map = {
+        "HP": "Wärmepumpe",
+        "CHP": "BHKW",
+        "BCHP": "BBHKW",
+        "TES": "therm. Speicher",
+        "STC": "Solarthermie",
+        "WT": "Windkraft",
+        "EB": "Elektrischer\nKessel",
+        "BOI": "Erdgas-\nkessel",
+        "BBOI": "Biomasse-\nkessel",
+        "PV": "PV-Anlage",
+    }
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    if subplot_titles is None:
+        subplot_titles = list(scenario_names)
+    if len(subplot_titles) != 3:
+        raise ValueError("subplot_titles muss genau 3 Einträge enthalten.")
+
+    fig = plt.figure(figsize=(9, 8))
+    gs = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[1, 1.05], hspace=0.35, wspace=0.25)
+
+    ax1 = fig.add_subplot(gs[0, 0])   # oben links
+    ax2 = fig.add_subplot(gs[0, 1])   # oben rechts
+    ax3 = fig.add_subplot(gs[1, :])   # unten über beide Spalten
+    axes = [ax1, ax2, ax3]
+    out = {}
+
+    shared_handles = None
+    shared_labels = None
+
+    for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+
+        if not os.path.isfile(network_path) or not os.path.isfile(single_path):
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Fehlende Dateien\n{sc}", ha="center", va="center")
+            continue
+
+        caps_network = _read_caps(network_path)
+        caps_single = _read_caps(single_path)
+
+        all_devices = set(caps_network.keys()) | set(caps_single.keys())
+
+        if include_set is not None:
+            selected = [d for d in preferred_order if d in include_set and d in all_devices]
+            selected += sorted([d for d in include_set if d in all_devices and d not in preferred_order])
+        else:
+            selected = [d for d in preferred_order if d in all_devices]
+            selected += sorted([d for d in all_devices if d not in preferred_order])
+
+        devices = [d for d in selected if d not in exclude_set]
+        if not devices:
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Keine Geräte nach Filter\n{sc}", ha="center", va="center")
+            continue
+
+        x = np.arange(len(devices))
+        width = 0.32
+
+        y_network = [caps_network.get(d, 0.0) for d in devices]
+        y_single = [caps_single.get(d, 0.0) for d in devices]
+        xtick_labels = [label_map.get(d, d) for d in devices]
+
+        ax.bar(x - width / 2, y_network, width=width, color="#D40000", label="verbundweise")
+        ax.bar(x + width / 2, y_single, width=width, color="#55585C", label="quartiersweise")
+
+        ymax = max(max(y_network) if y_network else 0, max(y_single) if y_single else 0, 1.0)
+        if show_percent_box:
+            ax.set_ylim(0, ymax * 1.35)
+            y_offset = ymax * 0.08
+
+            for i, (yn, ys) in enumerate(zip(y_network, y_single)):
+                if ys == 0:
+                    text = "n/a" if yn == 0 else "+∞"
+                else:
+                    text = _fmt_pct((yn - ys) / ys * 100.0)
+
+                ax.text(
+                    x[i] - width / 2,
+                    yn + y_offset,
+                    text,
+                    ha="center",
+                    va="bottom",
+                    color="white",
+                    fontsize=fontsize,
+                    bbox=dict(
+                        boxstyle="square,pad=0.35",
+                        facecolor="#D40000",
+                        edgecolor="#D40000",
+                        linewidth=1.2,
+                    ),
+                    zorder=5,
+                )
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(xtick_labels, fontsize=fontsize)
+        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.grid(axis="y", alpha=0.4)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        # statt ax.legend(...) -> Handles nur einmal einsammeln
+        if shared_handles is None:
+            shared_handles, shared_labels = ax.get_legend_handles_labels()
+
+        if plot_tes_only:
+            ax.set_ylabel("Speicherkapazität in kWh", fontsize=fontsize)
+        else:
+            ax.set_ylabel("Anlagenleistung in kW", fontsize=fontsize)
+
+        out[sc] = {"network": caps_network, "single": caps_single}
+
+    # gemeinsame Legende für alle Subplots
+    if shared_handles and shared_labels:
+        fig.legend(
+            shared_handles,
+            shared_labels,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.01),
+        )
+
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+
+    plot_name = f"{titel}.pdf" if titel else "device_capacities_three_subplots.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return out
+
+
+
+def plot_lcoe_three_subplots_from_csv(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    subplot_titles=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    fontsize=12,
+):
+    """
+    Erstellt eine gemeinsame Abbildung mit 3 Subplots für LCOE (2 oben, 1 unten),
+    jeweils wie plot_lcoe_by_year_from_csv für ein Szenario.
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_lcoe_year(csv_path):
+        out = {}  # {year: lcoe}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "LCOE_year":
+                    continue
+                y_raw = row.get("year")
+                if y_raw in (None, ""):
+                    continue
+                try:
+                    y = int(float(y_raw))
+                    v = float(_parse_value(row.get("value")))
+                except Exception:
+                    continue
+                out[y] = v
+        return out
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    if subplot_titles is None:
+        subplot_titles = list(scenario_names)
+    if len(subplot_titles) != 3:
+        raise ValueError("subplot_titles muss genau 3 Einträge enthalten.")
+
+    fig = plt.figure(figsize=(11, 8))
+    gs = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[1, 1.05], hspace=0.35, wspace=0.25)
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[1, :])
+    axes = [ax1, ax2, ax3]
+
+    out = {}
+    shared_handles = None
+    shared_labels = None
+
+    for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+        if not os.path.isfile(network_path) or not os.path.isfile(single_path):
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Fehlende Dateien\n{sc}", ha="center", va="center")
+            continue
+
+        vb = _read_lcoe_year(network_path)
+        ez = _read_lcoe_year(single_path)
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Keine LCOE-Daten\n{sc}", ha="center", va="center")
+            continue
+
+        x = np.arange(len(years))
+        width = 0.35
+
+        y_vb = [vb.get(y, 0.0) for y in years]
+        y_ez = [ez.get(y, 0.0) for y in years]
+        labels = [str(base_calendar_year + y) for y in years]
+
+        ax.bar(x - width / 2, y_vb, width=width, color="#D40000", label="verbundweise")
+        ax.bar(x + width / 2, y_ez, width=width, color="#55585C", label="quartiersweise")
+
+        if show_percent_box:
+            ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+            ax.set_ylim(0, ymax * 1.35)
+            y_offset = ymax * 0.08
+
+            for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+                if ez_val == 0:
+                    text = "n/a" if vb_val == 0 else "+∞"
+                else:
+                    text = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+                ax.text(
+                    x[i] - width / 2,
+                    vb_val + y_offset,
+                    text,
+                    ha="center",
+                    va="bottom",
+                    color="white",
+                    fontsize=fontsize,
+                    bbox=dict(
+                        boxstyle="square,pad=0.35",
+                        facecolor="#D40000",
+                        edgecolor="#D40000",
+                        linewidth=1.2,
+                    ),
+                    zorder=5,
+                )
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=fontsize)
+        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_ylabel("Energiegestehungskosten in €/MWh", fontsize=fontsize)
+        ax.grid(axis="y", alpha=0.4)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        if shared_handles is None:
+            shared_handles, shared_labels = ax.get_legend_handles_labels()
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if shared_handles and shared_labels:
+        fig.legend(
+            shared_handles,
+            shared_labels,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.01),
+        )
+
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+
+    plot_name = f"{titel}.pdf" if titel else "lcoe_three_subplots.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return out
+
+
+def plot_co2_three_subplots_from_csv(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    subplot_titles=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    fontsize=12,
+):
+    """
+    Erstellt eine gemeinsame Abbildung mit 3 Subplots für CO2-Emissionen
+    (2 oben, 1 unten), jeweils wie plot_co2_by_year_from_csv für ein Szenario.
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_co2_year(csv_path):
+        out = {}  # {year: co2}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "co2_sum_distr_year":
+                    continue
+
+                y_raw = row.get("year")
+                if y_raw in (None, ""):
+                    continue
+
+                try:
+                    y = int(float(y_raw))
+                    v = float(_parse_value(row.get("value")))
+                except Exception:
+                    continue
+
+                out[y] = v
+        return out
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    if subplot_titles is None:
+        subplot_titles = list(scenario_names)
+    if len(subplot_titles) != 3:
+        raise ValueError("subplot_titles muss genau 3 Einträge enthalten.")
+
+    fig = plt.figure(figsize=(11, 8))
+    gs = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[1, 1.05], hspace=0.35, wspace=0.25)
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[1, :])
+    axes = [ax1, ax2, ax3]
+
+    out = {}
+    shared_handles = None
+    shared_labels = None
+
+    for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
+        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+
+        if not os.path.isfile(network_path) or not os.path.isfile(single_path):
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Fehlende Dateien\n{sc}", ha="center", va="center")
+            continue
+
+        vb = _read_co2_year(network_path)
+        ez = _read_co2_year(single_path)
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Keine CO2-Daten\n{sc}", ha="center", va="center")
+            continue
+
+        x = np.arange(len(years))
+        width = 0.35
+
+        y_vb = [vb.get(y, 0.0) for y in years]
+        y_ez = [ez.get(y, 0.0) for y in years]
+        labels = [str(base_calendar_year + y) for y in years]
+
+        ax.bar(x - width / 2, y_vb, width=width, color="#D40000", label="verbundweise")
+        ax.bar(x + width / 2, y_ez, width=width, color="#55585C", label="quartiersweise")
+
+        if show_percent_box:
+            ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+            ax.set_ylim(0, ymax * 1.35)
+            y_offset = ymax * 0.08
+
+            for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+                if ez_val == 0:
+                    text = "n/a" if vb_val == 0 else "+∞"
+                else:
+                    text = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+                ax.text(
+                    x[i] - width / 2,
+                    vb_val + y_offset,
+                    text,
+                    ha="center",
+                    va="bottom",
+                    color="white",
+                    fontsize=fontsize,
+                    bbox=dict(
+                        boxstyle="square,pad=0.35",
+                        facecolor="#D40000",
+                        edgecolor="#D40000",
+                        linewidth=1.2,
+                    ),
+                    zorder=5,
+                )
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=fontsize)
+        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_ylabel("Jährliche CO₂-Emissionen in t/a", fontsize=fontsize)
+        ax.grid(axis="y", alpha=0.4)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        if shared_handles is None:
+            shared_handles, shared_labels = ax.get_legend_handles_labels()
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if shared_handles and shared_labels:
+        fig.legend(
+            shared_handles,
+            shared_labels,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.01),
+        )
+
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+
+    plot_name = f"{titel}.pdf" if titel else "co2_three_subplots.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return out
 
 
 if __name__ == "__main__":
-    district1 = "residential2"
-    district2 = "mixed1"
-    district3 = "residential0"
-    name1 = "Wohnquartier 2"
-    name2 = "Mischquartier"
-    name3 = "Wohnquartier 1"
-
     # district1 = "residential2"
     # district2 = "mixed1"
-    # district3 = "ghd6"
+    # district3 = "residential0"
     # name1 = "Wohnquartier 2"
     # name2 = "Mischquartier"
-    # name3 = "Gewerbequartier"
+    # name3 = "Wohnquartier 1"
+    district1 = "ghd6"
+    district2 = "residential2"
+    district3 = "mixed1"
+
+    name1 = "Gewerbequartier"
+    name2 = "Wohnquartier 1"
+    name3 = "Mischquartier"
+    fontsize = 11
 
     # district1 = "1rural"
     # district2 = "4zb"
@@ -2070,6 +2610,36 @@ if __name__ == "__main__":
     # name1 = "ländlichen Quartier"
     # name2 = "vorstädtischen Quartier"
     # name3 = "urbanen Quartier"
+
+    plot_device_capacities_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        subplot_titles=[name1, name2, name3],
+        fontsize=fontsize,
+        show=True,
+        exclude_devices=["TES", "STC"],
+        show_percent_box=True,
+        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)"
+    )
+
+    plot_lcoe_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        subplot_titles=[name1, name2, name3],
+        fontsize=fontsize,
+        show=True,
+        show_percent_box=True,
+        titel="Energiegestehungskosten (3 Quartiere)"
+    )
+
+    plot_co2_three_subplots_from_csv(
+    scenario_names=[district1, district2, district3],
+    subplot_titles=[name1, name2, name3],
+    fontsize=fontsize,
+    show=True,
+    show_percent_box=True,
+    titel="CO₂-Emissionen (3 Quartiere)"
+    )
+
+    
     
     # plot_tac_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre")
     # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,titel="Jährliche Gesamtkosten als Summe der drei Quartiere")
@@ -2080,9 +2650,9 @@ if __name__ == "__main__":
     # plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}")
     # plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}")
 
-    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
-    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
-    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
+    # plot_device_capacities_from_csv(scenario_name=district1, fontsize=fontsize, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}")
+    # plot_device_capacities_from_csv(scenario_name=district2, fontsize=fontsize, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}")
+    # plot_device_capacities_from_csv(scenario_name=district3, fontsize=fontsize, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}")
 
     # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True)
     # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True)
@@ -2092,13 +2662,13 @@ if __name__ == "__main__":
     # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
     # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
     
-    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
 
-    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
