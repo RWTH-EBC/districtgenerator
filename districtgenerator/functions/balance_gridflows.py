@@ -291,9 +291,9 @@ def add_network_totals(timeseries_dict: dict, cluster_weights: dict) -> dict:
                         )
 
                     for _, value in steps.items():
-                        total += float(value) * float(weight)/1000.0  # kWh -> MWh
+                        total += float(value) * float(weight)
 
-                district_data[target_key][year] = total
+                district_data[target_key][year] = total/1000.0  # kWh -> MWh
 
     return timeseries_dict
 
@@ -314,10 +314,12 @@ def save_network_timeseries_per_district(
         fn = data.get("from_network", {})
         tmg = data.get("to_main_grid", {})
         fmg = data.get("from_main_grid", {})
+        fg= data.get("from_grid", {})
+        tg= data.get("to_grid", {})
         rows = []
         coords = set()
 
-        for src in (td, tn, fn, tmg, fmg):
+        for src in (td, tn, fn, tmg, fmg, fg, tg):
             for year, clusters in src.items():
                 for cluster, steps in clusters.items():
                     for step in steps.keys():
@@ -334,11 +336,79 @@ def save_network_timeseries_per_district(
                     "from_network": round(float(fn.get(year, {}).get(cluster, {}).get(step, 0.0)), 5),
                     "to_main_grid": round(float(tmg.get(year, {}).get(cluster, {}).get(step, 0.0)), 5),
                     "from_main_grid": round(float(fmg.get(year, {}).get(cluster, {}).get(step, 0.0)), 5),
+                    "from_grid": round(float(fg.get(year, {}).get(cluster, {}).get(step, 0.0)), 5),
+                    "to_grid": round(float(tg.get(year, {}).get(cluster, {}).get(step, 0.0)), 5),
                 }
             )
 
         df_out = pd.DataFrame(rows).sort_values(["Support_Year", "Cluster", "Timestep"])
 
+        file_path = output_dir / f"{district}_network_balance_timeseries.csv"
+        df_out.to_csv(file_path, sep=";", index=False)
+        saved_files.append(str(file_path))
+
+    return saved_files
+
+
+def save_network_timeseries_per_district_weights(
+    timeseries_dict: dict,
+    cluster_weights: dict,
+    output_dir: str = r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results\timeseries",
+) -> list[str]:
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_files = []
+
+    for district, data in timeseries_dict.items():
+        td = data.get("total_demand", {})
+        tn = data.get("to_network", {})
+        fn = data.get("from_network", {})
+        tmg = data.get("to_main_grid", {})
+        fmg = data.get("from_main_grid", {})
+        fg = data.get("from_grid", {})
+        tg = data.get("to_grid", {})
+
+        rows = []
+        coords = set()
+
+        for src in (td, tn, fn, tmg, fmg, fg, tg):
+            for year, clusters in src.items():
+                for cluster, steps in clusters.items():
+                    for step in steps.keys():
+                        coords.add((int(year), int(cluster), int(step)))
+
+        cw_d = cluster_weights.get(district, {})
+
+        for year, cluster, step in sorted(coords):
+            if cluster in cw_d:
+                weight = float(cw_d[cluster])
+            elif str(cluster) in cw_d:
+                weight = float(cw_d[str(cluster)])
+            else:
+                raise KeyError(f"Fehlendes cluster_weight für {district}, cluster {cluster}")
+
+            from_grid_val = float(fg.get(year, {}).get(cluster, {}).get(step, 0.0))
+            from_grid_weighted = from_grid_val * weight
+
+            rows.append(
+                {
+                    "Support_Year": year,
+                    "Cluster": cluster,
+                    "Timestep": step,
+                    "total_demand": float(td.get(year, {}).get(cluster, {}).get(step, 0.0)),
+                    "to_network": float(tn.get(year, {}).get(cluster, {}).get(step, 0.0)),
+                    "from_network": float(fn.get(year, {}).get(cluster, {}).get(step, 0.0)),
+                    "to_main_grid": float(tmg.get(year, {}).get(cluster, {}).get(step, 0.0)),
+                    "from_main_grid": float(fmg.get(year, {}).get(cluster, {}).get(step, 0.0)),
+                    "from_grid": from_grid_val,
+                    "to_grid": float(tg.get(year, {}).get(cluster, {}).get(step, 0.0)),
+                    "cluster_weight": weight,
+                    "from_grid_x_cluster_weight": from_grid_weighted,
+                }
+            )
+
+        df_out = pd.DataFrame(rows).sort_values(["Support_Year", "Cluster", "Timestep"])
         file_path = output_dir / f"{district}_network_balance_timeseries.csv"
         df_out.to_csv(file_path, sep=";", index=False)
         saved_files.append(str(file_path))
@@ -390,8 +460,8 @@ def save_totals_to_csv(
 if __name__ == "__main__":
     cluster_weights = {
     "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
-    "residential2": {0: 6, 1: 20, 2: 11, 3: 15},
-    "mixed1": {0: 5, 1: 22, 2: 10, 3: 15}
+    "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
+    "residential2": {0: 5, 1: 22, 2: 10, 3: 15}
     }
     timeseries_dict = load_timeseries_dict_nested("ghd6", "residential2", "mixed1")
     #timeseries_dict = balance_total_demand(timeseries_dict, "ghd6", "residential2", "mixed1")
@@ -399,6 +469,6 @@ if __name__ == "__main__":
     timeseries_dict = add_network_totals(timeseries_dict, cluster_weights)
     td = timeseries_dict["mixed1"]["to_main_grid"][0]
     #print(td)
-    csv_file = save_network_timeseries_per_district(timeseries_dict)
+    csv_file = save_network_timeseries_per_district_weights(timeseries_dict, cluster_weights)
     print(f"Gespeichert: {csv_file}")
     total_file = save_totals_to_csv(timeseries_dict)
