@@ -241,7 +241,7 @@ def plot_device_capacities_from_csv(
         plt.legend()
         plt.tight_layout()
 
-        plot_path = os.path.join(plots_dir, titel + ".png") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.png")
+        plot_path = os.path.join(plots_dir, titel + ".pdf") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -431,7 +431,7 @@ def plot_heat_generation_by_year_from_csv(
         # Oben Platz für Legende + Titel lassen
         plt.tight_layout(rect=[0, 0.08, 1, 1])
 
-        plot_path = os.path.join(plots_dir, f"heat_generation_by_year_compare_{sc}.png")
+        plot_path = os.path.join(plots_dir, f"heat_generation_by_year_compare_{sc}.pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -596,7 +596,7 @@ def plot_power_import_by_year_from_csv(
                     fontweight="bold",
                     bbox=dict(
                         boxstyle="round,pad=0.25",
-                        facecolor="#B9BABC",
+                        facecolor="#FFFFFF",
                         edgecolor="#B9BABC",
                         linewidth=1.0,
                     ),
@@ -651,7 +651,7 @@ def plot_power_import_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0.02, 1, 1])
 
-        plot_path = os.path.join(plots_dir, titel + ".png")
+        plot_path = os.path.join(plots_dir, titel + ".pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -813,7 +813,7 @@ def plot_power_export_by_year_from_csv(
                     fontweight="bold",
                     bbox=dict(
                         boxstyle="round,pad=0.25",
-                        facecolor="#B9BABC",
+                        facecolor="#FFFFFF",
                         edgecolor="#B9BABC",
                         linewidth=1.0,
                     ),
@@ -867,7 +867,7 @@ def plot_power_export_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0, 1, 1])
 
-        plot_path = os.path.join(plots_dir, titel + ".png")
+        plot_path = os.path.join(plots_dir, titel + ".pdf")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -1036,7 +1036,7 @@ def plot_lcoe_by_year_from_csv(
 
         plot_path = os.path.join(
             plots_dir,
-            f"lcoe_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
+            f"lcoe_by_year_compare_{sc}.pdf" if not titel else f"{titel}.pdf"
         )
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1196,7 +1196,7 @@ def plot_co2_by_year_from_csv(
         plt.legend()
         plt.tight_layout()
 
-        plot_name = f"co2_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
+        plot_name = f"co2_by_year_compare_{sc}.pdf" if not titel else f"{titel}.pdf"
         plot_path = os.path.join(plots_dir, plot_name)
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1336,7 +1336,7 @@ def plot_tac_sum_from_three_scenarios(
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.tight_layout()
 
-    plot_name = "tac_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "tac_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1473,7 +1473,7 @@ def plot_tes_volume_from_csv(
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
         plt.tight_layout()
 
-        plot_name = f"tes_volume_{sc}.png" if not titel else f"{titel}.png"
+        plot_name = f"tes_volume_{sc}.pdf" if not titel else f"{titel}.pdf"
         plot_path = os.path.join(plots_dir, plot_name)
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1610,7 +1610,7 @@ def plot_co2_sum_from_three_scenarios(
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.tight_layout()
 
-    plot_name = "co2_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "co2_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1789,7 +1789,7 @@ def plot_lcoe_sum_from_three_scenarios(
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "lcoe_sum_three_quarters_by_year.png" if not titel else f"{titel}.png"
+    plot_name = "lcoe_sum_three_quarters_by_year.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1945,7 +1945,7 @@ def plot_tac_by_year_sum_from_three_scenarios(
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "tac_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "tac_by_year_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2097,7 +2097,7 @@ def plot_co2_by_year_sum_from_three_scenarios(
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "co2_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
+    plot_name = "co2_by_year_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2660,14 +2660,14 @@ def plot_co2_three_subplots_from_csv(
 
 
 if __name__ == "__main__":
-    compare_item2="Mischverbund Basis-Szenario"
-    compare_item1="Mischverbund Batterie-Szenario"
-    compare_short2 = "55"
-    compare_short1 = "57"
+    compare_item1=" "
+    compare_item2=" "
+    compare_short1 = "VW"
+    compare_short2 = "QW"
     district1 = "residential2"
     district2 = "mixed1"
     district3 = "ghd6"
-    name1 = "Wohnquartier 2"
+    name1 = "Wohnquartier 1"
     name2 = "Mischquartier"
     name3 = "Gewerbequartier"
     fontsize = 12
@@ -2733,21 +2733,21 @@ if __name__ == "__main__":
     #     titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre", 
     #     compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2
     # )
-    plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
-    titel="Volumen thermischer Speicher im  " + f"{name1}",
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
+    # titel="Volumen thermischer Speicher im  " + f"{name1}",
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
     # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
@@ -2761,13 +2761,13 @@ if __name__ == "__main__":
     # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)

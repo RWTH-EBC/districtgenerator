@@ -2623,16 +2623,16 @@ if __name__ == "__main__":
     #     plot_tes_only=False
     # )
 
-    plot_device_capacities_three_subplots_from_csv(
-        scenario_names=[district1, district2, district3],
-        subplot_titles=[name1, name2, name3],
-        fontsize=fontsize,
-        show=True,
-        exclude_devices=["PV", "HP", "BCHP", "BBOI", "EB", "TES"],
-        show_percent_box=True,
-        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
-        plot_tes_only=True
-    )
+    # plot_device_capacities_three_subplots_from_csv(
+    #     scenario_names=[district1, district2, district3],
+    #     subplot_titles=[name1, name2, name3],
+    #     fontsize=fontsize,
+    #     show=True,
+    #     exclude_devices=["PV", "HP", "BCHP", "BBOI", "EB", "TES"],
+    #     show_percent_box=True,
+    #     titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
+    #     plot_tes_only=True
+    # )
 
     # plot_lcoe_three_subplots_from_csv(
     #     scenario_names=[district1, district2, district3],
@@ -2675,13 +2675,13 @@ if __name__ == "__main__":
     # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
     # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
     
-    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
-    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
-    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
+    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
 
-    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
-    # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
-    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
