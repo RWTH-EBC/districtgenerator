@@ -1364,16 +1364,20 @@ def plot_lcoe_sum_from_three_scenarios(
 def main():
     # Beispiel-Konfiguration
 
-    scenario_name3 = "mixed1"   # z. B. "residential2"
+    # scenario_name1 = "mixed1"   # z. B. "residential2"
+    # scenario_name3 = "residential2"   # z. B. "residential2"
+    # scenario_name2 = "ghd6"   # z. B. "residential2"
+    #scenario_name1 = "residential0"   # z. B. "residential2"
     scenario_name1 = "residential2"   # z. B. "residential2"
-    scenario_name2 = "ghd6"   # z. B. "residential2"
-    #compare_short1 = "Batterie"   # z. B. "without_vp"
-    compare_short1 = "PV"   # z. B. "without_vp"
+    # scenario_name2 = "residential3"   # z. B. "residential2"
+
+    compare_short1 = "Wohn1"   # z. B. "without_vp"
+    # compare_short1 = "PV"   # z. B. "without_vp"
     compare_short2 = "Basis"   # z. B. "with_vp"
 
     # Optional: lesbare Labels für die Legende
     #compare_item1 = "Batterie-Szenario"
-    compare_item1 = "Solarausbau-Szenario"
+    compare_item1 = "Wohn-Szenario"
     compare_item2 = "Basis-Szenario"
 
     # Optional: Ergebnis- und Plot-Verzeichnisse
@@ -1381,40 +1385,40 @@ def main():
     base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
     result_dir = os.path.join(project_root, "Main-tja", "optimization_results")
 
-    plot_lcoe_sum_from_three_scenarios(
-        scenario_names=[scenario_name1, scenario_name2, scenario_name3],
-        compare_short1=compare_short1,
-        compare_short2=compare_short2,
-        compare_item1=compare_item1,
-        compare_item2=compare_item2,
-        base_dir=base_dir,
-        result_dir=result_dir,
-        show=True,
-        show_percent_box=True,
-    )
+    # plot_lcoe_sum_from_three_scenarios(
+    #     scenario_names=[scenario_name1, scenario_name2, scenario_name3],
+    #     compare_short1=compare_short1,
+    #     compare_short2=compare_short2,
+    #     compare_item1=compare_item1,
+    #     compare_item2=compare_item2,
+    #     base_dir=base_dir,
+    #     result_dir=result_dir,
+    #     show=True,
+    #     show_percent_box=True,
+    # )
 
-    plot_co2_sum_from_three_scenarios_four_bars(
-        scenario_names=[scenario_name1, scenario_name2, scenario_name3],
-        compare_short1=compare_short1,
-        compare_short2=compare_short2,
-        compare_item1=compare_item1,
-        compare_item2=compare_item2,
-        base_dir=base_dir,
-        result_dir=result_dir,
-        show=True,
-        show_percent_box=True
-    )
+    # plot_co2_sum_from_three_scenarios_four_bars(
+    #     scenario_names=[scenario_name1, scenario_name2, scenario_name3],
+    #     compare_short1=compare_short1,
+    #     compare_short2=compare_short2,
+    #     compare_item1=compare_item1,
+    #     compare_item2=compare_item2,
+    #     base_dir=base_dir,
+    #     result_dir=result_dir,
+    #     show=True,
+    #     show_percent_box=True
+    # )
 
-    plot_tac_sum_from_three_scenarios_four_bars(
-        scenario_names=[scenario_name1, scenario_name2, scenario_name3],
-        compare_short1=compare_short1,
-        compare_short2=compare_short2,
-        compare_item1=compare_item1,
-        compare_item2=compare_item2,
-        base_dir=base_dir,
-        result_dir=result_dir,
-        show=True,
-        show_percent_box=True)
+    # plot_tac_sum_from_three_scenarios_four_bars(
+    #     scenario_names=[scenario_name1, scenario_name2, scenario_name3],
+    #     compare_short1=compare_short1,
+    #     compare_short2=compare_short2,
+    #     compare_item1=compare_item1,
+    #     compare_item2=compare_item2,
+    #     base_dir=base_dir,
+    #     result_dir=result_dir,
+    #     show=True,
+    #     show_percent_box=True)
 
 
     plot_device_capacities_four_bars_from_csv(
@@ -1440,7 +1444,7 @@ def main():
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
-        include_devices=["TES", "BAT"],
+        include_devices=["TES"],
         exclude_devices=None,
         show_percent_box=True,
     )

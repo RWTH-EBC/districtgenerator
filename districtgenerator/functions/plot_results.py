@@ -2060,6 +2060,7 @@ def plot_device_capacities_three_subplots_from_csv(
     show_percent_box=False,
     plot_tes_only=False,
     fontsize=12,
+
 ):
     """
     Erstellt eine gemeinsame Abbildung mit 3 Subplots (1x3),
@@ -2168,10 +2169,10 @@ def plot_device_capacities_three_subplots_from_csv(
             selected += sorted([d for d in all_devices if d not in preferred_order])
 
         devices = [d for d in selected if d not in exclude_set]
-        if not devices:
-            ax.axis("off")
-            ax.text(0.5, 0.5, f"Keine Geräte nach Filter\n{sc}", ha="center", va="center")
-            continue
+        # if not devices:
+        #     ax.axis("off")
+        #     ax.text(0.5, 0.5, f"Keine Geräte nach Filter\n{sc}", ha="center", va="center")
+        #     continue
 
         x = np.arange(len(devices))
         width = 0.32
@@ -2190,7 +2191,7 @@ def plot_device_capacities_three_subplots_from_csv(
 
             for i, (yn, ys) in enumerate(zip(y_network, y_single)):
                 if ys == 0:
-                    text = "n/a" if yn == 0 else "+∞"
+                    text = "n/a" if yn == 0 else f"+{yn:.0f} kWh"
                 else:
                     text = _fmt_pct((yn - ys) / ys * 100.0)
 
@@ -2611,33 +2612,45 @@ if __name__ == "__main__":
     # name2 = "vorstädtischen Quartier"
     # name3 = "urbanen Quartier"
 
+    # plot_device_capacities_three_subplots_from_csv(
+    #     scenario_names=[district1, district2, district3],
+    #     subplot_titles=[name1, name2, name3],
+    #     fontsize=fontsize,
+    #     show=True,
+    #     exclude_devices=["TES", "STC"],
+    #     show_percent_box=True,
+    #     titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
+    #     plot_tes_only=False
+    # )
+
     plot_device_capacities_three_subplots_from_csv(
         scenario_names=[district1, district2, district3],
         subplot_titles=[name1, name2, name3],
         fontsize=fontsize,
         show=True,
-        exclude_devices=["TES", "STC"],
+        exclude_devices=["PV", "HP", "BCHP", "BBOI", "EB", "TES"],
         show_percent_box=True,
-        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)"
+        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
+        plot_tes_only=True
     )
 
-    plot_lcoe_three_subplots_from_csv(
-        scenario_names=[district1, district2, district3],
-        subplot_titles=[name1, name2, name3],
-        fontsize=fontsize,
-        show=True,
-        show_percent_box=True,
-        titel="Energiegestehungskosten (3 Quartiere)"
-    )
+    # plot_lcoe_three_subplots_from_csv(
+    #     scenario_names=[district1, district2, district3],
+    #     subplot_titles=[name1, name2, name3],
+    #     fontsize=fontsize,
+    #     show=True,
+    #     show_percent_box=True,
+    #     titel="Energiegestehungskosten (3 Quartiere)"
+    # )
 
-    plot_co2_three_subplots_from_csv(
-    scenario_names=[district1, district2, district3],
-    subplot_titles=[name1, name2, name3],
-    fontsize=fontsize,
-    show=True,
-    show_percent_box=True,
-    titel="CO₂-Emissionen (3 Quartiere)"
-    )
+    # plot_co2_three_subplots_from_csv(
+    # scenario_names=[district1, district2, district3],
+    # subplot_titles=[name1, name2, name3],
+    # fontsize=fontsize,
+    # show=True,
+    # show_percent_box=True,
+    # titel="CO₂-Emissionen (3 Quartiere)"
+    # )
 
     
     

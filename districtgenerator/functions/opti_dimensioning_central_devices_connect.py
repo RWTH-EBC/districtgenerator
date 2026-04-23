@@ -1156,6 +1156,8 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
 
     model.objective = pyo.Objective(rule=objective_rule, sense=pyo.minimize)
 
+    save_cluster_weights_csv(paramCon, model)
+
     return model, all_devs_list
 
 
@@ -2345,6 +2347,33 @@ def save_demand_power_timeseries_csv(dem, model, district, result_dir):
         writer.writerows(data_to_save)
     
     print(f"Power demand timeseries for {district} saved to {csv_file_path}")
+
+def save_cluster_weights_csv(paramCon, model=None, result_dir="optimization_results", filename="cluster_weights.csv"):
+    """
+    Speichert param["cluster_weights"][d] für alle Quartiere und Cluster als CSV.
+    """
+    os.makedirs(result_dir, exist_ok=True)
+    csv_path = os.path.join(result_dir, filename)
+
+    districts = list(model.districts) if model is not None else list(paramCon.keys())
+    # Prepare the data
+    data_to_save = [
+        ["Quartier", "Cluster", "Gewicht"]  # Header row
+    ]
+
+    for district in districts:
+        param = paramCon[district]
+        for d in model.clusters:
+            weights = param["cluster_weights"][d]
+            data_to_save.append([district, d, round(weights, 3)])
+    
+
+    with open(csv_path, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerows(data_to_save)
+
+    print(f"Cluster-Gewichte gespeichert in: {csv_path}")
+    return csv_path
 
 
 # def save_network_power_timeseries_csv(model, result_dir):
