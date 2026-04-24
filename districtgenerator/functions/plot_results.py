@@ -556,7 +556,7 @@ def plot_power_import_by_year_from_csv(
         colors_net = ["#8C1D17" if i % 2 == 0 else "#8A8B8D" for i in range(len(x))]
         plt.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
 
-                # Anteil aus Verbundnetz im dunkelroten Bereich (nur linker Balken = Verbund)
+        # Anteil aus Verbundnetz im dunkelroten Bereich (nur linker Balken = Verbund)
         for i in range(len(years)):
             main_vb = vals_vb_main[i]
             net_vb = vals_vb_net[i]

@@ -565,9 +565,11 @@ def plot_power_import_by_year_from_csv(
 
 
         if show_percent_box:
+            # Genug Platz oberhalb der Balken für Linie + Box
+            y_total = y_main + y_net
+            ymax = max(float(np.max(y_total)) if len(y_total) else 0.0, 1.0)
+            plt.ylim(0, ymax * 1.30)
             def _draw_pct_box(x_pos, main_val, net_val):
-                # Anteil aus Verbundnetz:
-                # from_network_total / (from_network_total + from_el_main_grid_total)
                 total = main_val + net_val
                 if total <= 0:
                     return
@@ -577,20 +579,30 @@ def plot_power_import_by_year_from_csv(
                     return
 
                 pct_txt = f"{pct_net:.0f}%".replace(".", ",")
-                y_pos = main_val + net_val / 2.0
-                va = "center"
 
-                # Wenn Segment sehr klein ist -> Label oberhalb
-                if net_val < 0.08 * max(total, 1.0):
-                    y_pos = main_val + net_val + 0.03 * max(total, 1.0)
-                    va = "bottom"
+                # Linie vom Balkenende nach oben
+                line_y0 = total
+                line_y1 = total + 0.05 * ymax
+
+                # Box oberhalb der Linie
+                box_y = line_y1 + 0.015 * ymax
+
+                plt.plot(
+                    [x_pos, x_pos],
+                    [line_y0, line_y1],
+                    color="#7A7A7A",
+                    linewidth=1.0,
+                    zorder=6,
+                    clip_on=False,
+                )
+
 
                 plt.text(
                     x_pos,
-                    y_pos,
+                    box_y,
                     pct_txt,
                     ha="center",
-                    va=va,
+                    va="bottom",
                     color="black",
                     fontsize=10,
                     fontweight="bold",
@@ -605,18 +617,10 @@ def plot_power_import_by_year_from_csv(
                 )
 
             for i in range(len(years)):
-                # linker Balken: Verbund
-                _draw_pct_box(
-                    x[2 * i],
-                    vals_vb_main[i],   # from_el_main_grid_total
-                    vals_vb_net[i],    # from_network_total
-                )
-                # rechter Balken: Einzeln
-                _draw_pct_box(
-                    x[2 * i + 1],
-                    vals_ez_main[i],   # from_el_main_grid_total
-                    vals_ez_net[i],    # from_network_total
-                )
+                # linker Balken: compare_short1
+                _draw_pct_box(x[2 * i], vals_vb_main[i], vals_vb_net[i])
+                # rechter Balken: compare_short2
+                _draw_pct_box(x[2 * i + 1], vals_ez_main[i], vals_ez_net[i])
 
 
         plt.xticks(x, labels)
@@ -2659,6 +2663,241 @@ def plot_co2_three_subplots_from_csv(
     return out
 
 
+def plot_power_import_three_subplots_from_csv(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    subplot_titles=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    fontsize=12,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+):
+    """
+    Erstellt eine gemeinsame Abbildung mit 3 Subplots für Strombezug
+    (2 oben, 1 unten), jeweils wie plot_power_import_by_year_from_csv für ein Szenario.
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_yearly_import(csv_path):
+        out = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "yearly_totals":
+                    continue
+                metric = row.get("metric")
+                if metric not in ("from_el_main_grid_total", "from_network_total"):
+                    continue
+                try:
+                    y = int(float(row.get("year")))
+                    v = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+                out.setdefault(y, {"from_el_main_grid_total": 0.0, "from_network_total": 0.0})
+                out[y][metric] = v
+        return out
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    if subplot_titles is None:
+        subplot_titles = list(scenario_names)
+    if len(subplot_titles) != 3:
+        raise ValueError("subplot_titles muss genau 3 Einträge enthalten.")
+    
+    #     fig_w_mm = 155
+    # fig_h_mm = 120
+    # fig, ax1 = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+
+    fig = plt.figure(figsize=(12, 7.5))
+    gs = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[1, 1.05], hspace=0.35, wspace=0.25)
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[1, :])
+    axes = [ax1, ax2, ax3]
+
+    out = {}
+    shared_handles = None
+    shared_labels = None
+
+    for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
+
+        if not os.path.isfile(network_path) or not os.path.isfile(single_path):
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Fehlende Dateien\n{sc}", ha="center", va="center")
+            continue
+
+        vb = _read_yearly_import(network_path)
+        ez = _read_yearly_import(single_path)
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Keine Import-Daten\n{sc}", ha="center", va="center")
+            continue
+
+        x = np.arange(len(years) * 2)
+        labels = []
+        vb_main, vb_net, ez_main, ez_net = [], [], [], []
+
+        for y in years:
+            cal_y = base_calendar_year + y
+            labels.extend([f"{cal_y}\n{compare_short1 or 'oVP'}", f"{cal_y}\n{compare_short2 or 'VP'}"])
+
+            vb_main.append(vb.get(y, {}).get("from_el_main_grid_total", 0.0))
+            vb_net.append(vb.get(y, {}).get("from_network_total", 0.0))
+            ez_main.append(ez.get(y, {}).get("from_el_main_grid_total", 0.0))
+            ez_net.append(ez.get(y, {}).get("from_network_total", 0.0))
+
+        vals_vb_main = np.array(vb_main, dtype=float)
+        vals_vb_net = np.array(vb_net, dtype=float)
+        vals_ez_main = np.array(ez_main, dtype=float)
+        vals_ez_net = np.array(ez_net, dtype=float)
+
+        y_main = np.empty(len(x), dtype=float)
+        y_net = np.empty(len(x), dtype=float)
+        y_main[0::2] = vals_vb_main
+        y_main[1::2] = vals_ez_main
+        y_net[0::2] = vals_vb_net
+        y_net[1::2] = vals_ez_net
+
+        width = 0.5
+        colors_main = ["#E43D30" if i % 2 == 0 else "#B9BABC" for i in range(len(x))]
+        colors_net = ["#8C1D17" if i % 2 == 0 else "#8A8B8D" for i in range(len(x))]
+
+        ax.bar(x, y_main, width=width, color=colors_main)
+        ax.bar(x, y_net, width=width, bottom=y_main, color=colors_net)
+
+        if show_percent_box:
+            y_total = y_main + y_net
+            ymax = max(float(np.max(y_total)) if len(y_total) else 0.0, 1.0)
+            ax.set_ylim(0, ymax * 1.30)
+
+            def _draw_pct_box(x_pos, main_val, net_val):
+                total = main_val + net_val
+                if total <= 0:
+                    return
+                pct_net = (net_val / total) * 100.0
+                if pct_net <= 0:
+                    return
+
+                pct_txt = f"{pct_net:.0f}%".replace(".", ",")
+                line_y0 = total
+                line_y1 = total + 0.05 * ymax
+                box_y = line_y1 + 0.015 * ymax
+
+                ax.plot(
+                    [x_pos, x_pos],
+                    [line_y0, line_y1],
+                    color="#7A7A7A",
+                    linewidth=1.0,
+                    zorder=6,
+                    clip_on=False,
+                )
+
+                ax.text(
+                    x_pos,
+                    box_y,
+                    pct_txt,
+                    ha="center",
+                    va="bottom",
+                    color="black",
+                    fontsize=max(9, fontsize - 1),
+                    fontweight="bold",
+                    bbox=dict(
+                        boxstyle="round,pad=0.25",
+                        facecolor="#FFFFFF",
+                        edgecolor="#B9BABC",
+                        linewidth=1.0,
+                    ),
+                    zorder=7,
+                    clip_on=False,
+                )
+
+            for i in range(len(years)):
+                _draw_pct_box(x[2 * i], vals_vb_main[i], vals_vb_net[i])
+                _draw_pct_box(x[2 * i + 1], vals_ez_main[i], vals_ez_net[i])
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=max(9, fontsize - 1))
+        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_ylabel("Energie in MWh", fontsize=fontsize)
+        ax.grid(axis="y", alpha=0.4)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        if shared_handles is None:
+            handles, legend_labels = [], []
+            if np.any(vals_vb_main > 0):
+                handles.append(plt.Rectangle((0, 0), 1, 1, fc="#E43D30"))
+                legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Strombezug aus dem Hauptnetz")
+            if np.any(vals_ez_main > 0):
+                handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
+                legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Strombezug aus dem Hauptnetz")
+            if np.any(vals_vb_net > 0):
+                handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
+                legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Strombezug aus dem Verbundnetz")
+            if np.any(vals_ez_net > 0):
+                handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
+                legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Strombezug aus dem Verbundnetz")
+
+            if handles:
+                shared_handles, shared_labels = handles, legend_labels
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if shared_handles and shared_labels:
+        fig.legend(
+            shared_handles,
+            shared_labels,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.02),   # sicher innerhalb der Figure
+            fontsize=max(9, fontsize),
+        )
+
+    # Kein tight_layout hier, stattdessen fixer Rand unten für die Legende
+    fig.subplots_adjust(        
+        left=0.10,    # vorher größer
+        right=0.99,   # vorher kleiner
+        bottom=0.22,
+        top=0.92,
+        hspace=0.35,
+        wspace=0.18,  # etwas enger zwischen links/rechts oben
+        )
+
+    plot_name = f"{titel}.pdf" if titel else "power_import_three_subplots.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)  # <-- ohne bbox_inches="tight"
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return out
+
+
+
+
 if __name__ == "__main__":
     compare_item1=" "
     compare_item2=" "
@@ -2669,7 +2908,7 @@ if __name__ == "__main__":
     district3 = "ghd6"
     name1 = "Wohnquartier 1"
     name2 = "Mischquartier"
-    name3 = "Gewerbequartier"
+    name3 = "GHD-Quartier"
     fontsize = 12
 
     # district1 = "residential2"
@@ -2718,6 +2957,16 @@ if __name__ == "__main__":
     #     compare_item1=compare_item1, compare_item2=compare_item2
     # )
 
+    plot_power_import_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        show=True,
+        show_percent_box=True,
+        subplot_titles=[name1, name2, name3],
+        fontsize=14,
+        compare_item1=compare_item1, compare_item2=compare_item2,
+        compare_short1=compare_short1, compare_short2=compare_short2,
+    )
+
     # plot_co2_three_subplots_from_csv(
     # scenario_names=[district1, district2, district3],
     # subplot_titles=[name1, name2, name3],
@@ -2761,13 +3010,13 @@ if __name__ == "__main__":
     # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district2, titel=" ", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
