@@ -694,6 +694,21 @@ def plot_power_import_single_year_multi_bars_from_csv(
     fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
     width = 0.58
 
+    # 2er-Paare: innerhalb eines Paars enger, zwischen Paaren größere Lücke
+    pair_inner = width * 1.05   # Abstand innerhalb des Paars
+    pair_outer = width * 2.20   # Abstand zwischen zwei Paaren
+
+    x = []
+    for i in range(len(bars)):
+        pair_idx = i // 2
+        in_pair_idx = i % 2
+        xpos = pair_idx * (pair_inner + pair_outer) + in_pair_idx * pair_inner
+        x.append(xpos)
+    x = np.array(x, dtype=float)
+
+    y_main = np.array([b["main"] for b in bars], dtype=float)
+    y_net = np.array([b["net"] for b in bars], dtype=float)
+
     color_main = "#B9BABC"
     color_net = "#8A8B8D"
 
@@ -724,9 +739,45 @@ def plot_power_import_single_year_multi_bars_from_csv(
                 bbox=dict(boxstyle="round,pad=0.22", facecolor="white", edgecolor="#B9BABC", linewidth=0.9),
                 zorder=7, clip_on=False,
             )
+    # --- Zweistufige x-Achsenbeschriftung ---
+    # Obere Ebene (pro Balken): VW / QW
+    top_labels = []
+    for b in bars:
+        if b.get("variant") == "network":
+            top_labels.append("VW")
+        elif b.get("variant") == "single":
+            top_labels.append("QW")
+        else:
+            top_labels.append(str(b.get("variant", "")))
 
     ax.set_xticks(x)
-    ax.set_xticklabels([b["compare_short"] for b in bars], fontsize=8)
+    ax.set_xticklabels(top_labels, fontsize=8)
+
+    # Untere Ebene (pro Paar): Szenarioname zentriert
+    # Erwartung: bars sind paarweise [network, single] je Szenario
+    pair_centers = []
+    pair_labels = []
+    for i in range(0, len(bars), 2):
+        if i + 1 < len(bars):
+            center = 0.5 * (x[i] + x[i + 1])
+        else:
+            center = x[i]
+        pair_centers.append(center)
+
+        # Szenariolabel: aus compare_short des linken Balkens im Paar
+        pair_labels.append(str(bars[i].get("compare_short", "")))
+
+    # Zweite (untere) Zeile als Text platzieren
+    for xc, lbl in zip(pair_centers, pair_labels):
+        ax.text(
+            xc, -0.10, lbl,
+            transform=ax.get_xaxis_transform(),
+            ha="center", va="top",
+            fontsize=8
+        )
+
+    ax.set_xlim(x.min() - width, x.max() + width)
+
     ax.set_ylabel("Energie in MWh")
     #ax.set_title(titel or f"Strombezug im Jahr {target_year} ({scenario_name})")
     ax.grid(axis="y", alpha=0.35)
@@ -741,7 +792,7 @@ def plot_power_import_single_year_multi_bars_from_csv(
     )
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.30)
+    fig.subplots_adjust(bottom=0.2)
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)

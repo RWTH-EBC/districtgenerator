@@ -1,8 +1,8 @@
 from decimal import Decimal
 from pathlib import Path
 import pandas as pd
-
-
+import os
+import csv
 
 def load_timeseries_dict_nested(
     district1: str,
@@ -299,6 +299,8 @@ def add_network_totals(timeseries_dict: dict, cluster_weights: dict) -> dict:
 
 
 
+
+
 def save_network_timeseries_per_district(
     timeseries_dict: dict,
     output_dir: str = r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results\timeseries",
@@ -457,6 +459,78 @@ def save_totals_to_csv(
 
     return output_path
 
+def rebalance_ghg_emissions(
+    timeseries_dict: dict,
+    base_ghg_by_district: dict,
+    grid_ef_by_year: dict,
+    years: list,
+    result_dir: str = "optimization_results",
+    filename: str = "ghg_rebalanced.csv",
+):
+    """
+    Neue Bilanz:
+    ghg_new = ghg_base - (EF_strom * from_network_total)
+
+    Speichert Ergebnisse in timeseries_dict[district]["ghg_rebalanced"] und als CSV.
+    """
+
+    os.makedirs(result_dir, exist_ok=True)
+    csv_path = os.path.join(result_dir, filename)
+
+    rows = [["district", "year", "ghg_base", "grid_ef", "from_network_total", "deduction", "ghg_rebalanced"]]
+
+    for district, district_ts in timeseries_dict.items():
+        if district not in base_ghg_by_district:
+            continue
+
+        # Basis-THG für 5 Jahre (Liste oder dict)
+        base_vals = base_ghg_by_district[district]
+        if isinstance(base_vals, dict):
+            base_by_year = {y: float(base_vals[y]) for y in years}
+        else:
+            base_by_year = {y: float(base_vals[i]) for i, y in enumerate(years)}
+
+        # from_network_total: dict(year->val) ODER Liste/Array
+        fnt_raw = district_ts.get("from_network_total", 0.0)
+        if isinstance(fnt_raw, dict):
+            fnt_by_year = {y: float(fnt_raw.get(y, 0.0)) for y in years}
+        else:
+            # Liste/Array/Skalar
+            try:
+                fnt_list = list(fnt_raw)
+                fnt_by_year = {y: float(fnt_list[i]) if i < len(fnt_list) else 0.0 for i, y in enumerate(years)}
+            except TypeError:
+                fnt_by_year = {y: float(fnt_raw) for y in years}
+
+        # Ergebniscontainer im timeseries_dict
+        district_ts["ghg_rebalanced"] = {}
+
+        for y in years:
+            ef = float(grid_ef_by_year[y])
+            base = base_by_year[y]
+            fnt = fnt_by_year[y]
+            deduction = ef * fnt
+            ghg_new = base - deduction
+
+            district_ts["ghg_rebalanced"][y] = ghg_new
+
+            rows.append([
+                district,
+                y,
+                round(base, 6),
+                round(ef, 6),
+                round(fnt, 6),
+                round(deduction, 6),
+                round(ghg_new, 6),
+            ])
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerows(rows)
+
+    print(f"THG-Neubewertung gespeichert: {csv_path}")
+    return timeseries_dict, csv_path
+
 if __name__ == "__main__":
     cluster_weights = {
     "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
@@ -472,3 +546,32 @@ if __name__ == "__main__":
     csv_file = save_network_timeseries_per_district_weights(timeseries_dict, cluster_weights)
     print(f"Gespeichert: {csv_file}")
     total_file = save_totals_to_csv(timeseries_dict)
+
+    # 1) Fünf Jahre festlegen
+    years = [0, 5, 10, 15, 20]
+
+    # 2) Quartiersspezifische THG-Ausgangswerte (je 5 Werte)
+    base_ghg_by_district = {
+        "ghd6":        [6072, 1806, 825, 442, 0],
+        "residential2":[2584,  1755, 492, 220, 0],
+        "mixed1":      [1341, 372,  165, 85, 0],
+    }
+
+    # 3) Strom-Emissionsfaktoren (für alle Quartiere gleich)
+    grid_ef_by_year = {
+        0: 0.328,
+        5: 0.103,
+        10: 0.049,
+        15: 0.027,
+        20: 0.0,
+    }
+
+    # 4) Aufruf nach Berechnung von timeseries_dict
+    timeseries_dict, ghg_csv = rebalance_ghg_emissions(
+        timeseries_dict=timeseries_dict,
+        base_ghg_by_district=base_ghg_by_district,
+        grid_ef_by_year=grid_ef_by_year,
+        years=years,
+        result_dir="Main-tja/optimization_results/timeseries",
+        filename="ghg_rebalanced.csv",
+    )
