@@ -7,7 +7,7 @@ from districtgenerator.functions.plot_results_compare import _load_single_result
 
 def load_multi_compare_results_to_dict(
     scenario_name,
-    compare_shorts,
+    short_files=None,
     base_dir=None,
     variants=("network", "single"),
     bar_count=None,
@@ -25,14 +25,14 @@ def load_multi_compare_results_to_dict(
     if not os.path.isdir(base_dir):
         raise FileNotFoundError(f"Result directory not found: {base_dir}")
 
-    if isinstance(compare_shorts, str):
-        compare_shorts = [compare_shorts]
-    compare_shorts = list(compare_shorts or [])
-    if not compare_shorts:
-        raise ValueError("compare_shorts darf nicht leer sein.")
+    if isinstance(short_files, str):
+        short_files = [short_files]
+    short_files = list(short_files or [])
+    if not short_files:
+        raise ValueError("short_files darf nicht leer sein.")
 
     series = []
-    for short in compare_shorts:
+    for short in short_files:
         for v in variants:
             if v == "network":
                 p = os.path.join(base_dir, f"{scenario_name}_{short}_network_results.csv")
@@ -45,7 +45,7 @@ def load_multi_compare_results_to_dict(
                 raise FileNotFoundError(f"Missing result file: {p}")
 
             series.append({
-                "compare_short": short,
+                "short_file": short,
                 "variant": v,
                 "path": p,
                 "data": _load_single_results_file_to_dict(p),
@@ -71,6 +71,7 @@ def plot_device_capacities_multi_bars_from_csv(
     compare_short2=None,   # kompatibel
     compare_item1=None,    # kompatibel
     compare_item2=None,    # kompatibel
+    short_files=None,
     compare_shorts=None,   # neu: Liste beliebiger compare_shorts
     compare_items=None,    # neu: Liste Labels pro compare_short
     bar_count=None,        # neu: Anzahl Balken (gesamt)
@@ -96,24 +97,39 @@ def plot_device_capacities_multi_bars_from_csv(
     if not compare_shorts:
         raise ValueError("Bitte compare_shorts oder compare_short1/2 angeben.")
 
+
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/2 angeben.")
+
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(short_files) != len(compare_shorts):
+        raise ValueError("short_files und compare_shorts müssen gleich lang sein.")
+
     data = load_multi_compare_results_to_dict(
         scenario_name=scenario_name,
-        compare_shorts=compare_shorts,
+        short_files=short_files,
         base_dir=base_dir,
         variants=variants,
         bar_count=bar_count,
     )
     series = data["series"]
 
-    # Labels je compare_short
     label_by_short = {}
     if compare_items:
-        for s, lbl in zip(compare_shorts, compare_items):
+        for s, lbl in zip(short_files, compare_items):
             label_by_short[s] = lbl
     if compare_short1 and compare_item1:
         label_by_short[compare_short1] = compare_item1
     if compare_short2 and compare_item2:
         label_by_short[compare_short2] = compare_item2
+
 
     def _to_set(x):
         if x is None:
@@ -152,9 +168,10 @@ def plot_device_capacities_multi_bars_from_csv(
     for s in series:
         caps = _extract_caps(s["data"])
         cap_series.append({
-            "compare_short": s["compare_short"],
+            "short_file": s["short_file"],
+            "compare_short": compare_shorts[short_files.index(s["short_file"])],
             "variant": s["variant"],
-            "label": f"{label_by_short.get(s['compare_short'], s['compare_short'])} "
+            "label": f"{label_by_short.get(s['short_file'], s['short_file'])} "
                      f"({'verbundweise' if s['variant']=='network' else 'quartiersweise'})",
             "caps": caps,
         })
@@ -233,7 +250,7 @@ def plot_device_capacities_multi_bars_from_csv(
                     ha="center",
                     va="bottom",
                     color="white",
-                    fontsize2=fontsize2,
+                    fontsize=fontsize2,
                     bbox=dict(
                         boxstyle="square,pad=0.2",
                         facecolor=colors[i_net % len(colors)],
@@ -288,6 +305,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES(
     compare_item1=None,
     compare_item2=None,
     compare_shorts=None,
+    short_files=None,
     compare_items=None,
     bar_count=None,
     variants=("network", "single"),
@@ -310,9 +328,23 @@ def plot_device_capacities_multi_bars_from_csv_with_TES(
     if not compare_shorts:
         raise ValueError("Bitte compare_shorts oder compare_short1/2 angeben.")
 
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/2 angeben.")
+
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(short_files) != len(compare_shorts):
+        raise ValueError("short_files und compare_shorts müssen gleich lang sein.")
+
     data = load_multi_compare_results_to_dict(
         scenario_name=scenario_name,
-        compare_shorts=compare_shorts,
+        short_files=short_files,
         base_dir=base_dir,
         variants=variants,
         bar_count=bar_count,
@@ -321,7 +353,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES(
 
     label_by_short = {}
     if compare_items:
-        for s, lbl in zip(compare_shorts, compare_items):
+        for s, lbl in zip(short_files, compare_items):
             label_by_short[s] = lbl
     if compare_short1 and compare_item1:
         label_by_short[compare_short1] = compare_item1
@@ -366,14 +398,16 @@ def plot_device_capacities_multi_bars_from_csv_with_TES(
         "PV": "PV-Anlage",
     }
 
+    # Werte je Reihe extrahieren
     cap_series = []
     for s in series:
         caps = _extract_caps(s["data"])
         cap_series.append({
-            "compare_short": s["compare_short"],
+            "short_file": s["short_file"],
+            "compare_short": compare_shorts[short_files.index(s["short_file"])],
             "variant": s["variant"],
-            "label": f"{label_by_short.get(s['compare_short'], s['compare_short'])} "
-                     f"({'verbundweise' if s['variant'] == 'network' else 'quartiersweise'})",
+            "label": f"{label_by_short.get(s['short_file'], s['short_file'])} "
+                     f"({'verbundweise' if s['variant']=='network' else 'quartiersweise'})",
             "caps": caps,
         })
 
@@ -562,6 +596,8 @@ def plot_device_capacities_multi_bars_from_csv_with_TES(
 
 
 
+
+
 def plot_power_import_single_year_multi_bars_from_csv(
     scenario_name=None,
     base_dir=None,
@@ -574,22 +610,13 @@ def plot_power_import_single_year_multi_bars_from_csv(
     compare_item2=None,
     compare_short1=None,
     compare_short2=None,
-    compare_shorts=None,
+    short_files=None,          # <- Dateikürzel zum Laden
+    compare_shorts=None,       # <- Labels auf x-Achse (pro Szenario)
     compare_items=None,
     target_year=2030,
     bar_count=None,
     variants=("network", "single"),
 ):
-    """
-    Plot yearly electricity import (MWh) für genau ein Jahr mit beliebig vielen Balken.
-    Pro Balken wird gestapelt:
-      - from_el_main_grid_total (Hauptnetz)
-      - from_network_total      (Verbundnetz)
-
-    Dateimuster:
-      - network: <scenario>_<compare_short>_network_results.csv
-      - single:  <scenario>_<compare_short>_results.csv
-    """
     if scenario_name is None:
         raise ValueError("scenario_name muss gesetzt sein.")
 
@@ -600,25 +627,22 @@ def plot_power_import_single_year_multi_bars_from_csv(
     if not os.path.isdir(base_dir):
         raise FileNotFoundError(f"Result directory not found: {base_dir}")
 
-    # Fallback-Kompatibilität
-    if compare_shorts is None:
-        compare_shorts = [c for c in [compare_short1, compare_short2] if c]
-    if not compare_shorts:
-        raise ValueError("Bitte compare_shorts oder compare_short1/compare_short2 angeben.")
+    # Backward-Compatibility
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
 
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
     compare_shorts = list(compare_shorts)
 
-    label_by_short = {}
-    if compare_items:
-        for s, lbl in zip(compare_shorts, compare_items):
-            label_by_short[s] = lbl
-    if compare_short1 and compare_item1:
-        label_by_short[compare_short1] = compare_item1
-    if compare_short2 and compare_item2:
-        label_by_short[compare_short2] = compare_item2
+    if len(compare_shorts) != len(short_files):
+        raise ValueError("compare_shorts und short_files müssen gleich lang sein.")
 
     def _read_yearly_import(csv_path):
-        """Liest yearly_totals aus CSV und extrahiert Import-Werte nach Jahr."""
         out = {}
         with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
@@ -637,17 +661,16 @@ def plot_power_import_single_year_multi_bars_from_csv(
                 out[y][metric] = v
         return out
 
-    # Zieljahr -> Modelljahr
     rel_year = target_year - base_calendar_year
 
-    # Daten sammeln: pro compare_short × variant ein Balken
+    # Wichtig: Laden über short_files
     bars = []
-    for short in compare_shorts:
+    for short_file, scen_label in zip(short_files, compare_shorts):
         for variant in variants:
             if variant == "network":
-                p = os.path.join(base_dir, f"{scenario_name}_{short}_network_results.csv")
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_network_results.csv")
             elif variant == "single":
-                p = os.path.join(base_dir, f"{scenario_name}_{short}_results.csv")
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_results.csv")
             else:
                 raise ValueError(f"Unbekannte variant: {variant}")
 
@@ -655,8 +678,6 @@ def plot_power_import_single_year_multi_bars_from_csv(
                 raise FileNotFoundError(f"Missing result file: {p}")
 
             yearly = _read_yearly_import(p)
-
-            # Versuche rel_year oder target_year
             y_key = rel_year if rel_year in yearly else (target_year if target_year in yearly else None)
             if y_key is None:
                 raise ValueError(
@@ -667,18 +688,17 @@ def plot_power_import_single_year_multi_bars_from_csv(
             main_val = float(yearly[y_key].get("from_el_main_grid_total", 0.0))
             net_val = float(yearly[y_key].get("from_network_total", 0.0))
 
-            variant_label = "verbundweise" if variant == "network" else "quartiersweise"
             bars.append({
-                "compare_short": short,
+                "short_file": short_file,
+                "compare_short": scen_label,
                 "variant": variant,
-                "label": f"{label_by_short.get(short, short)} ({variant_label})",
+                "variant_label": "VW" if variant == "network" else "QW",
                 "main": main_val,
                 "net": net_val,
                 "total": main_val + net_val,
                 "path": p,
             })
 
-    # bar_count limitieren (falls gesetzt)
     if bar_count is not None:
         if bar_count <= 0:
             raise ValueError("bar_count muss > 0 sein.")
@@ -686,104 +706,501 @@ def plot_power_import_single_year_multi_bars_from_csv(
             raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
         bars = bars[:bar_count]
 
-    x = np.arange(len(bars))
+    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
     y_main = np.array([b["main"] for b in bars], dtype=float)
     y_net = np.array([b["net"] for b in bars], dtype=float)
 
     fig_w_mm, fig_h_mm = 155, 100
     fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
     width = 0.58
+    ax.bar(x, y_main, width=width, color="#B9BABC", label="Strombezug aus dem Hauptnetz")
+    ax.bar(x, y_net, width=width, bottom=y_main, color="#8A8B8D", label="Strombezug aus dem Verbundnetz")
 
-    # 2er-Paare: innerhalb eines Paars enger, zwischen Paaren größere Lücke
-    pair_inner = width * 1.05   # Abstand innerhalb des Paars
-    pair_outer = width * 2.20   # Abstand zwischen zwei Paaren
-
-    x = []
-    for i in range(len(bars)):
-        pair_idx = i // 2
-        in_pair_idx = i % 2
-        xpos = pair_idx * (pair_inner + pair_outer) + in_pair_idx * pair_inner
-        x.append(xpos)
-    x = np.array(x, dtype=float)
-
-    y_main = np.array([b["main"] for b in bars], dtype=float)
-    y_net = np.array([b["net"] for b in bars], dtype=float)
-
-    color_main = "#B9BABC"
-    color_net = "#8A8B8D"
-
-    ax.bar(x, y_main, width=width, color=color_main, label="Strombezug aus dem Hauptnetz")
-    ax.bar(x, y_net, width=width, bottom=y_main, color=color_net, label="Strombezug aus dem Verbundnetz")
-
+    # Prozentboxen wieder aktivieren
     if show_percent_box:
-        ymax = max(float(np.max(y_main + y_net)) if len(y_main) else 0.0, 1.0)
+        totals = y_main + y_net
+        ymax = max(float(np.max(totals)) if len(totals) else 0.0, 1.0)
         ax.set_ylim(0, ymax * 1.30)
 
-        for i, b in enumerate(bars):
-            total = b["total"]
+        for i in range(len(bars)):
+            total = float(totals[i])
             if total <= 0:
                 continue
-            pct_net = (b["net"] / total) * 100.0
-            if pct_net <= 0:
-                continue
 
+            pct_net = (float(y_net[i]) / total) * 100.0
             txt = f"{pct_net:.0f}%".replace(".", ",")
+
             line_y0 = total
             line_y1 = total + 0.05 * ymax
             box_y = line_y1 + 0.012 * ymax
 
-            ax.plot([x[i], x[i]], [line_y0, line_y1], color="#7A7A7A", linewidth=0.9, zorder=6, clip_on=False)
-            ax.text(
-                x[i], box_y, txt,
-                ha="center", va="bottom", fontsize=8, fontweight="bold", color="black",
-                bbox=dict(boxstyle="round,pad=0.22", facecolor="white", edgecolor="#B9BABC", linewidth=0.9),
-                zorder=7, clip_on=False,
+            ax.plot(
+                [x[i], x[i]],
+                [line_y0, line_y1],
+                color="#7A7A7A",
+                linewidth=0.9,
+                zorder=6,
+                clip_on=False,
             )
-    # --- Zweistufige x-Achsenbeschriftung ---
-    # Obere Ebene (pro Balken): VW / QW
-    top_labels = []
-    for b in bars:
-        if b.get("variant") == "network":
-            top_labels.append("VW")
-        elif b.get("variant") == "single":
-            top_labels.append("QW")
-        else:
-            top_labels.append(str(b.get("variant", "")))
-
+            ax.text(
+                x[i],
+                box_y,
+                txt,
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                fontweight="bold",
+                color="black",
+                bbox=dict(
+                    boxstyle="round,pad=0.22",
+                    facecolor="white",
+                    edgecolor="#B9BABC",
+                    linewidth=0.9,
+                ),
+                zorder=7,
+                clip_on=False,
+            )
     ax.set_xticks(x)
-    ax.set_xticklabels(top_labels, fontsize=8)
+    ax.set_xticklabels([b["variant_label"] for b in bars], fontsize=8)
 
-    # Untere Ebene (pro Paar): Szenarioname zentriert
-    # Erwartung: bars sind paarweise [network, single] je Szenario
-    pair_centers = []
-    pair_labels = []
+    pair_centers, pair_labels = [], []
     for i in range(0, len(bars), 2):
-        if i + 1 < len(bars):
-            center = 0.5 * (x[i] + x[i + 1])
-        else:
-            center = x[i]
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
         pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
 
-        # Szenariolabel: aus compare_short des linken Balkens im Paar
-        pair_labels.append(str(bars[i].get("compare_short", "")))
-
-    # Zweite (untere) Zeile als Text platzieren
     for xc, lbl in zip(pair_centers, pair_labels):
-        ax.text(
-            xc, -0.10, lbl,
-            transform=ax.get_xaxis_transform(),
-            ha="center", va="top",
-            fontsize=8
-        )
+        ax.text(xc, -0.10, lbl, transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=8)
 
     ax.set_xlim(x.min() - width, x.max() + width)
-
     ax.set_ylabel("Energie in MWh")
-    #ax.set_title(titel or f"Strombezug im Jahr {target_year} ({scenario_name})")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=2, frameon=False, fontsize=8)
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.20)
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_name = f"{titel}.pdf" if titel else f"power_import_single_year_multibars_{scenario_name}_{target_year}.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    fig.savefig(plot_path, dpi=300)
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {"scenario": scenario_name, "target_year": target_year, "bars": bars, "plot_path": plot_path}
+
+
+def plot_power_export_single_year_multi_bars_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+    short_files=None,          # <- Dateikürzel zum Laden
+    compare_shorts=None,       # <- Labels auf x-Achse (pro Szenario)
+    compare_items=None,
+    target_year=2030,
+    bar_count=None,
+    variants=("network", "single"),
+):
+    if scenario_name is None:
+        raise ValueError("scenario_name muss gesetzt sein.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    # Backward-Compatibility
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
+
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(compare_shorts) != len(short_files):
+        raise ValueError("compare_shorts und short_files müssen gleich lang sein.")
+
+    def _read_yearly_export(csv_path):
+        out = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "yearly_totals":
+                    continue
+                metric = row.get("metric")
+                if metric not in ("to_el_main_grid_total", "to_network_total"):
+                    continue
+                try:
+                    y = int(float(row.get("year")))
+                    v = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+                out.setdefault(y, {"to_el_main_grid_total": 0.0, "to_network_total": 0.0})
+                out[y][metric] = v
+        return out
+
+    rel_year = target_year - base_calendar_year
+
+    # Wichtig: Laden über short_files
+    bars = []
+    for short_file, scen_label in zip(short_files, compare_shorts):
+        for variant in variants:
+            if variant == "network":
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_network_results.csv")
+            elif variant == "single":
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_results.csv")
+            else:
+                raise ValueError(f"Unbekannte variant: {variant}")
+
+            if not os.path.isfile(p):
+                raise FileNotFoundError(f"Missing result file: {p}")
+
+            yearly = _read_yearly_export(p)
+            y_key = rel_year if rel_year in yearly else (target_year if target_year in yearly else None)
+            if y_key is None:
+                raise ValueError(
+                    f"Jahr {target_year} nicht in Datei gefunden: {p} "
+                    f"(gesucht als {rel_year} bzw. {target_year})."
+                )
+
+            main_val = float(yearly[y_key].get("to_el_main_grid_total", 0.0))
+            net_val = float(yearly[y_key].get("to_network_total", 0.0))
+
+            bars.append({
+                "short_file": short_file,
+                "compare_short": scen_label,
+                "variant": variant,
+                "variant_label": "VW" if variant == "network" else "QW",
+                "main": main_val,
+                "net": net_val,
+                "total": main_val + net_val,
+                "path": p,
+            })
+
+    if bar_count is not None:
+        if bar_count <= 0:
+            raise ValueError("bar_count muss > 0 sein.")
+        if bar_count > len(bars):
+            raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
+        bars = bars[:bar_count]
+
+    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+    y_main = np.array([b["main"] for b in bars], dtype=float)
+    y_net = np.array([b["net"] for b in bars], dtype=float)
+
+    fig_w_mm, fig_h_mm = 155, 100
+    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    width = 0.58
+    ax.bar(x, y_main, width=width, color="#B9BABC", label="Stromeinspeisung in das Hauptnetz")
+    ax.bar(x, y_net, width=width, bottom=y_main, color="#8A8B8D", label="Stromeinspeisung in das Verbundnetz")
+
+    # Prozentboxen wieder aktivieren
+    if show_percent_box:
+        totals = y_main + y_net
+        ymax = max(float(np.max(totals)) if len(totals) else 0.0, 1.0)
+        ax.set_ylim(0, ymax * 1.30)
+
+        for i in range(len(bars)):
+            total = float(totals[i])
+            if total <= 0:
+                continue
+
+            pct_net = (float(y_net[i]) / total) * 100.0
+            txt = f"{pct_net:.0f}%".replace(".", ",")
+
+            line_y0 = total
+            line_y1 = total + 0.05 * ymax
+            box_y = line_y1 + 0.012 * ymax
+
+            ax.plot(
+                [x[i], x[i]],
+                [line_y0, line_y1],
+                color="#7A7A7A",
+                linewidth=0.9,
+                zorder=6,
+                clip_on=False,
+            )
+            ax.text(
+                x[i],
+                box_y,
+                txt,
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                fontweight="bold",
+                color="black",
+                bbox=dict(
+                    boxstyle="round,pad=0.22",
+                    facecolor="white",
+                    edgecolor="#B9BABC",
+                    linewidth=0.9,
+                ),
+                zorder=7,
+                clip_on=False,
+            )
+    ax.set_xticks(x)
+    ax.set_xticklabels([b["variant_label"] for b in bars], fontsize=8)
+
+    pair_centers, pair_labels = [], []
+    for i in range(0, len(bars), 2):
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
+        pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
+
+    for xc, lbl in zip(pair_centers, pair_labels):
+        ax.text(xc, -0.10, lbl, transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=8)
+
+    ax.set_xlim(x.min() - width, x.max() + width)
+    ax.set_ylabel("Energie in MWh")
+    ax.grid(axis="y", alpha=0.35)
+    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=2, frameon=False, fontsize=8)
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.20)
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_name = f"{titel}.pdf" if titel else f"power_export_single_year_multibars_{scenario_name}_{target_year}.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    fig.savefig(plot_path, dpi=300)
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {"scenario": scenario_name, "target_year": target_year, "bars": bars, "plot_path": plot_path}
+
+
+
+def plot_co2_single_year_multi_bars_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+    short_files=None,          # zum Laden der Dateien
+    compare_shorts=None,       # Untere x-Achsen-Beschriftung je Szenario
+    target_year=2030,
+    bar_count=None,
+    variants=("network", "single"),
+):
+    """
+    Plot CO2-Emissionen für genau ein Jahr mit beliebig vielen Balken.
+    Pro Szenario werden zwei Balken dargestellt:
+      - network -> compare_short1 / "VW"
+      - single  -> compare_short2 / "QW"
+
+    CSV-Filter:
+    - category == "optimization"
+    - metric   == "co2_sum_distr_year"
+    """
+    if scenario_name is None:
+        raise ValueError("scenario_name muss gesetzt sein.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
+
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(compare_shorts) != len(short_files):
+        raise ValueError("compare_shorts und short_files müssen gleich lang sein.")
+
+    def _read_co2_year(csv_path):
+        out = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "co2_sum_distr_year":
+                    continue
+                try:
+                    y = int(float(row.get("year")))
+                    v = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+                out[y] = out.get(y, 0.0) + v
+        return out
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    rel_year = target_year - base_calendar_year
+
+    bars = []
+    for short_file, scen_label in zip(short_files, compare_shorts):
+        for variant in variants:
+            if variant == "network":
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_network_results.csv")
+            elif variant == "single":
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_results.csv")
+            else:
+                raise ValueError(f"Unbekannte variant: {variant}")
+
+            if not os.path.isfile(p):
+                raise FileNotFoundError(f"Missing result file: {p}")
+
+            yearly = _read_co2_year(p)
+            y_key = rel_year if rel_year in yearly else (target_year if target_year in yearly else None)
+            if y_key is None:
+                raise ValueError(
+                    f"Jahr {target_year} nicht in Datei gefunden: {p} "
+                    f"(gesucht als {rel_year} bzw. {target_year})."
+                )
+
+            variant_label = "VW" if variant == "network" else "QW"
+            bars.append({
+                "short_file": short_file,
+                "compare_short": scen_label,
+                "variant": variant,
+                "variant_label": variant_label,
+                "value": float(yearly[y_key]),
+                "path": p,
+            })
+
+    if bar_count is not None:
+        if bar_count <= 0:
+            raise ValueError("bar_count muss > 0 sein.")
+        if bar_count > len(bars):
+            raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
+        bars = bars[:bar_count]
+
+    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+    y = np.array([b["value"] for b in bars], dtype=float)
+
+    fig_w_mm, fig_h_mm = 155, 100
+    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    width = 0.58
+
+    colors = ["#D40000" if b["variant"] == "network" else "#55585C" for b in bars]
+    labels_for_legend = [
+        compare_item1 or "Ohne Verbundpreis",
+        compare_item2 or "Mit Verbundpreis",
+    ]
+
+    # Balken einzeln zeichnen, damit Farbe je Variante stabil bleibt
+    for i, b in enumerate(bars):
+        ax.bar(
+            x[i],
+            y[i],
+            width=width,
+            color=("#D40000" if b["variant"] == "network" else "#55585C"),
+            label="_nolegend_",
+        )
+
+    if show_percent_box:
+        ymax = max(float(np.max(y)) if len(y) else 0.0, 1.0)
+        ax.set_ylim(0, ymax * 1.30)
+        y_offset = ymax * 0.06
+
+        # Prozentbox nur über network-Balken, relativ zum jeweiligen QW-Balken
+        for i in range(0, len(bars), 2):
+            if i + 1 >= len(bars):
+                break
+            vb_val = bars[i]["value"]
+            ez_val = bars[i + 1]["value"]
+            if ez_val == 0:
+                txt = "n/a" if vb_val == 0 else "+∞"
+            else:
+                txt = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+            ax.text(
+                x[i],
+                vb_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=8,
+                bbox=dict(
+                    boxstyle="square,pad=0.25",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.0,
+                ),
+                zorder=5,
+            )
+
+    # obere Ebene: VW / QW
+    top_labels = [b["variant_label"] for b in bars]
+    ax.set_xticks(x)
+    ax.set_xticklabels(top_labels, fontsize=8)
+
+    # untere Ebene: Szenarioname zentriert pro Paar
+    pair_centers = []
+    pair_labels = []
+    for i in range(0, len(bars), 2):
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
+        pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
+
+    for xc, lbl in zip(pair_centers, pair_labels):
+        ax.text(
+            xc,
+            -0.10,
+            lbl,
+            transform=ax.get_xaxis_transform(),
+            ha="center",
+            va="top",
+            fontsize=8,
+        )
+
+    ax.set_xlim(x.min() - width, x.max() + width)
+    ax.set_ylabel("CO₂-Emissionen in t/a")
+    ax.grid(axis="y", alpha=0.35)
+    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+    # Legende nur 2 Einträge
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
+        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
+    ]
     ax.legend(
+        handles,
+        labels_for_legend,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.18),
         ncol=2,
@@ -792,11 +1209,257 @@ def plot_power_import_single_year_multi_bars_from_csv(
     )
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.2)
+    fig.subplots_adjust(bottom=0.20)
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
-    plot_name = f"{titel}.pdf" if titel else f"power_import_single_year_multibars_{scenario_name}_{target_year}.pdf"
+    plot_name = f"{titel}.pdf" if titel else f"co2_single_year_multibars_{scenario_name}_{target_year}.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    fig.savefig(plot_path, dpi=300)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {
+        "scenario": scenario_name,
+        "target_year": target_year,
+        "bars": bars,
+        "plot_path": plot_path,
+    }
+
+def plot_lcoe_single_year_multi_bars_from_csv(
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+    short_files=None,
+    compare_shorts=None,
+    compare_items=None,
+    target_year=2030,
+    bar_count=None,
+    variants=("network", "single"),
+):
+    if scenario_name is None:
+        raise ValueError("scenario_name muss gesetzt sein.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
+
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(short_files) != len(compare_shorts):
+        raise ValueError("short_files und compare_shorts müssen gleich lang sein.")
+
+    label_by_short = {}
+    if compare_items:
+        for s, lbl in zip(short_files, compare_items):
+            label_by_short[s] = lbl
+    if compare_short1 and compare_item1:
+        label_by_short[compare_short1] = compare_item1
+    if compare_short2 and compare_item2:
+        label_by_short[compare_short2] = compare_item2
+
+    def _safe_parse_value(v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).strip()
+        if not s:
+            return None
+        s = s.replace(" ", "").replace(",", ".")
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    def _read_lcoe_year(csv_path):
+        out = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "LCOE_year":
+                    continue
+
+                try:
+                    y = int(float(row.get("year")))
+                except (TypeError, ValueError):
+                    continue
+
+                v = _safe_parse_value(row.get("value"))
+                if v is None:
+                    continue
+
+                out[y] = v
+        return out
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    rel_year = target_year - base_calendar_year
+
+    bars = []
+    for short_file, scen_label in zip(short_files, compare_shorts):
+        for variant in variants:
+            if variant == "network":
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_network_results.csv")
+            elif variant == "single":
+                p = os.path.join(base_dir, f"{scenario_name}_{short_file}_results.csv")
+            else:
+                raise ValueError(f"Unbekannte variant: {variant}")
+
+            if not os.path.isfile(p):
+                raise FileNotFoundError(f"Missing result file: {p}")
+
+            yearly = _read_lcoe_year(p)
+            y_key = rel_year if rel_year in yearly else (target_year if target_year in yearly else None)
+            if y_key is None:
+                raise ValueError(
+                    f"Jahr {target_year} nicht in Datei gefunden: {p} "
+                    f"(gesucht als {rel_year} bzw. {target_year})."
+                )
+
+            bars.append({
+                "short_file": short_file,
+                "compare_short": scen_label,
+                "variant": variant,
+                "variant_label": "VW" if variant == "network" else "QW",
+                "value": float(yearly[y_key]),
+                "path": p,
+            })
+
+    if bar_count is not None:
+        if bar_count <= 0:
+            raise ValueError("bar_count muss > 0 sein.")
+        if bar_count > len(bars):
+            raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
+        bars = bars[:bar_count]
+
+    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+    y = np.array([b["value"] for b in bars], dtype=float)
+
+    fig_w_mm, fig_h_mm = 155, 100
+    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    width = 0.58
+
+    for i, b in enumerate(bars):
+        ax.bar(
+            x[i],
+            y[i],
+            width=width,
+            color=("#D40000" if b["variant"] == "network" else "#55585C"),
+            label="_nolegend_",
+        )
+
+    if show_percent_box:
+        ymax = max(float(np.max(y)) if len(y) else 0.0, 1.0)
+        ax.set_ylim(0, ymax * 1.30)
+        y_offset = ymax * 0.06
+
+        for i in range(0, len(bars), 2):
+            if i + 1 >= len(bars):
+                break
+            vb_val = bars[i]["value"]
+            ez_val = bars[i + 1]["value"]
+
+            if ez_val == 0:
+                txt = "n/a" if vb_val == 0 else "+∞"
+            else:
+                txt = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+            ax.text(
+                x[i],
+                vb_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=8,
+                bbox=dict(
+                    boxstyle="square,pad=0.25",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.0,
+                ),
+                zorder=5,
+            )
+
+    top_labels = [b["variant_label"] for b in bars]
+    ax.set_xticks(x)
+    ax.set_xticklabels(top_labels, fontsize=8)
+
+    pair_centers = []
+    pair_labels = []
+    for i in range(0, len(bars), 2):
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
+        pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
+
+    for xc, lbl in zip(pair_centers, pair_labels):
+        ax.text(
+            xc,
+            -0.10,
+            lbl,
+            transform=ax.get_xaxis_transform(),
+            ha="center",
+            va="top",
+            fontsize=8,
+        )
+
+    ax.set_xlim(x.min() - width, x.max() + width)
+    ax.set_ylabel("Energiegestehungskosten in €/MWh")
+    ax.grid(axis="y", alpha=0.35)
+    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
+        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
+    ]
+    ax.legend(
+        handles,
+        [compare_item1 or "VW", compare_item2 or "QW"],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.18),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+    )
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.20)
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_name = f"{titel}.pdf" if titel else f"lcoe_single_year_multibars_{scenario_name}_{target_year}.pdf"
     plot_path = os.path.join(plots_dir, plot_name)
     fig.savefig(plot_path, dpi=300)
     print(f"Plot saved: {plot_path}")
@@ -815,22 +1478,23 @@ def plot_power_import_single_year_multi_bars_from_csv(
 
 
 
-
-
 def main():
-    scenario_name = "residential2"
-
+    scenario_name = "mixed1"
+    short_files = ["Basis", "WM", "Bat", "PV"]  # 5 Dateien -> 10 Balken
     # 4 Compare-Shorts -> bei variants=("network","single") ergibt das 8 Balken
-    compare_shorts = ["Basis", "Wohnmisch", "Batterie", "PV", "Wohn"]
+    compare_shorts = ["Basis", "Wohnmisch", "Batterie", "PV"]
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
     compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Batterie-Szenario", "PV-Szenario", "Wohn-Szenario"]
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
+    target_year = 2040
 
-    # result = plot_device_capacities_multi_bars_from_csv(
+
+    # plot_device_capacities_multi_bars_from_csv(
     #     scenario_name=scenario_name,
     #     compare_shorts=compare_shorts,
     #     compare_items=compare_items,
+    #     short_files=short_files,
     #     bar_count=8,  # explizit 8 Balken
     #     variants=("network", "single"),
     #     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results",
@@ -842,39 +1506,91 @@ def main():
     #     show_percent_box=True,
     # )
 
-    # result = plot_device_capacities_multi_bars_from_csv_with_TES(
-    #     scenario_name=scenario_name,
-    #     compare_shorts=compare_shorts,
-    #     compare_items=compare_items,
-    #     bar_count=8,  # explizit 8 Balken
-    #     variants=("network", "single"),
-    #     base_dir=base_dir,
-    #     result_dir=result_dir,
-    #     show=True,
-    #     include_devices=None,
-    #     exclude_devices=["HP", "BBOI", "EB"],
-    #     titel=f"device_capacities_8bars_{scenario_name}",
-    #     show_percent_box=True,
-    #     fontsize1=9,
-    #     fontsize2=8,
-    # )
+    plot_device_capacities_multi_bars_from_csv_with_TES(
+        scenario_name=scenario_name,
+        compare_shorts=compare_shorts,
+        compare_items=compare_items,
+        short_files=short_files,
+        bar_count=8,  # explizit 8 Balken
+        variants=("network", "single"),
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        include_devices=None,
+        exclude_devices=["HP", "BBOI", "EB"],
+        titel=f"device_capacities_8bars_{scenario_name}",
+        show_percent_box=True,
+        fontsize1=9,
+        fontsize2=8,
+    )
 
-    result = plot_power_import_single_year_multi_bars_from_csv(
+    plot_power_import_single_year_multi_bars_from_csv(
         scenario_name=scenario_name,
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
-        titel="power_import_2030_10bars",
+        titel=f"power_import_2030_{scenario_name}",
         base_calendar_year=2025,
+        show_percent_box=True,
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        compare_items=compare_items,
+        target_year=2030,
+        bar_count=8,
+        variants=("network", "single"),
+    )
+
+
+    plot_power_export_single_year_multi_bars_from_csv(
+        scenario_name=scenario_name,
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        titel=f"power_export_2030_{scenario_name}",
+        base_calendar_year=2025,
+        short_files=short_files,
         show_percent_box=True,
         compare_shorts=compare_shorts,
         compare_items=compare_items,
         target_year=2030,
-        bar_count=10,
+        bar_count=8,
+        variants=("network", "single"),
     )
 
-    print("Fertig:", result["plot_path"])
 
+    plot_co2_single_year_multi_bars_from_csv(
+        scenario_name=scenario_name,
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        titel=f"co2_{target_year}_{scenario_name}",
+        base_calendar_year=2025,
+        show_percent_box=True,
+        compare_item1="VW",
+        compare_item2="QW",
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        target_year=target_year,
+        bar_count=8,
+        variants=("network", "single"),
+    )
+
+    plot_lcoe_single_year_multi_bars_from_csv(
+        scenario_name=scenario_name,
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        base_calendar_year=2025,
+        show_percent_box=True,
+        compare_item1="VW",
+        compare_item2="QW",
+        titel=f"lcoe_{target_year}_{scenario_name}",
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        target_year=target_year,
+        bar_count=8,
+        variants=("network", "single"),
+    )
 
 if __name__ == "__main__":
     main()
