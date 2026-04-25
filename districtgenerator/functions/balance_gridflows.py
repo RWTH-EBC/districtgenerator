@@ -502,70 +502,66 @@ def _read_metric_by_year_from_result_csv(csv_path, category, metric):
 
 
 
+
 def rebalance_ghg_emissions(
     timeseries_dict: dict,
-    base_ghg_by_district: dict,
-    grid_ef_by_year: dict,
+    district_csv_paths: dict,
     years: list,
+    grid_ef_by_year: dict,
     result_dir: str = "optimization_results",
     filename: str = "ghg_rebalanced.csv",
-):
+    ):
     """
-    Neue Bilanz:
-    ghg_new = ghg_base - (EF_strom * from_network_total)
+    Liest die Basis-CO2-Emissionen je Quartier/Jahr aus den CSV-Dateien:
+      category = "optimization"
+      metric   = "co2_sum_distr_year"
 
-    Speichert Ergebnisse in timeseries_dict[district]["ghg_rebalanced"] und als CSV.
+    Berechnet dann:
+      ghg_new = ghg_base - (grid_ef * from_network_total)
+
+    Speichert Ergebnisse in:
+      timeseries_dict[district]["ghg_rebalanced_by_year"][year]
+    und als CSV.
     """
-
     os.makedirs(result_dir, exist_ok=True)
     csv_path = os.path.join(result_dir, filename)
 
-    rows = [["district", "year", "ghg_base", "grid_ef", "from_network_total", "deduction", "ghg_rebalanced"]]
+    rows = [[
+        "district", "year", "co2_base", "grid_ef",
+        "from_network_total", "deduction", "co2_rebalanced"
+    ]]
 
-    for district, district_ts in timeseries_dict.items():
-        if district not in base_ghg_by_district:
-            continue
+    for district, csv_file in district_csv_paths.items():
+        base_co2_by_year = _read_metric_by_year_from_result_csv(
+            csv_file, category="optimization", metric="co2_sum_distr_year"
+        )
 
-        # Basis-THG für 5 Jahre (Liste oder dict)
-        base_vals = base_ghg_by_district[district]
-        if isinstance(base_vals, dict):
-            base_by_year = {y: float(base_vals[y]) for y in years}
-        else:
-            base_by_year = {y: float(base_vals[i]) for i, y in enumerate(years)}
+        ts_d = timeseries_dict.get(district, {})
+        fnt_raw = ts_d.get("from_network_total", {})
 
-        # from_network_total: dict(year->val) ODER Liste/Array
-        fnt_raw = district_ts.get("from_network_total", 0.0)
-        if isinstance(fnt_raw, dict):
-            fnt_by_year = {y: float(fnt_raw.get(y, 0.0)) for y in years}
-        else:
-            # Liste/Array/Skalar
-            try:
-                fnt_list = list(fnt_raw)
-                fnt_by_year = {y: float(fnt_list[i]) if i < len(fnt_list) else 0.0 for i, y in enumerate(years)}
-            except TypeError:
-                fnt_by_year = {y: float(fnt_raw) for y in years}
-
-        # Ergebniscontainer im timeseries_dict
-        district_ts["ghg_rebalanced"] = {}
+        from_network_by_year = _to_year_dict(fnt_raw, years)
+        ts_d.setdefault("ghg_rebalanced_by_year", {})
 
         for y in years:
-            ef = float(grid_ef_by_year[y])
-            base = base_by_year[y]
-            fnt = fnt_by_year[y]
-            deduction = ef * fnt
-            ghg_new = base - deduction
+            base_co2 = float(base_co2_by_year.get(y, 0.0))
+            fnt = float(from_network_by_year.get(y, 0.0))
+            ef = float(grid_ef_by_year.get(y, 0.0))
 
-            district_ts["ghg_rebalanced"][y] = ghg_new
+            deduction = ef * fnt
+            ghg_new = base_co2 - deduction
+
+            ts_d["ghg_rebalanced_by_year"][int(y)] = ghg_new
 
             rows.append([
-                district,
-                y,
-                round(base, 6),
+                district, y,
+                round(base_co2, 6),
                 round(ef, 6),
                 round(fnt, 6),
                 round(deduction, 6),
                 round(ghg_new, 6),
             ])
+
+        timeseries_dict[district] = ts_d
 
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, delimiter=";")
@@ -574,8 +570,6 @@ def rebalance_ghg_emissions(
     print(f"THG-Neubewertung gespeichert: {csv_path}")
     return timeseries_dict, csv_path
 
-
-
 def recalculate_lcoe_by_year(
     timeseries_dict,
     district_csv_paths,
@@ -583,7 +577,7 @@ def recalculate_lcoe_by_year(
     p_stromaustausch_verbundnetz,  # neu: Zeitreihe (dict/list), Skalar bleibt erlaubt
     p_einspeisung_hauptnetz,       # neu: Zeitreihe (dict/list), Skalar bleibt erlaubt
     p_strombezug_hauptnetz,        # neu: Zeitreihe (dict/list), Skalar bleibt erlaubt
-    network_LCOE,
+    is_network,
     result_dir="Main-tja/optimization_results/timeseries",
     filename="lcoe_adjusted_by_year.csv",
 ):
@@ -609,7 +603,7 @@ def recalculate_lcoe_by_year(
         "p_stromaustausch_verbundnetz_EUR_per_MWh",
         "p_einspeisung_hauptnetz_EUR_per_MWh",
         "p_strombezug_hauptnetz_EUR_per_MWh",
-        "network_LCOE", "LCOE_adjusted_EUR_per_MWh"
+        "is_network", "LCOE_adjusted_EUR_per_MWh"
     ]]
 
     for district, csv_path in district_csv_paths.items():
@@ -642,7 +636,7 @@ def recalculate_lcoe_by_year(
             if denom <= 0:
                 lcoe = 0.0
             else:
-                if network_LCOE:
+                if is_network:
                     numerator = tac
                 else:
                     numerator = (
@@ -659,7 +653,7 @@ def recalculate_lcoe_by_year(
                 round(tac, 6), round(heat, 6), round(power, 6),
                 round(from_net, 6), round(to_net, 6),
                 round(p_verbund, 6), round(p_feed_in, 6), round(p_main_grid, 6),
-                bool(network_LCOE), round(lcoe, 10)
+                bool(is_network), round(lcoe, 10)
             ])
 
         timeseries_dict[district] = ts_d
@@ -673,19 +667,106 @@ def recalculate_lcoe_by_year(
 
 
 
+
+def write_adjusted_metrics_to_district_csvs(
+    timeseries_dict: dict,
+    district_csv_paths: dict,
+    is_network: bool,
+    output_dir: str = r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results\updated",
+    rename_co2_metric_to_ghg_new: bool = True,
+    keep_metric_name_lcoe_year: bool = True,
+    suffix: str = "_adjusted",
+) -> list[str]:
+    """
+    Schreibt je Quartier eine neue CSV und ersetzt:
+    - Wenn is_network == True: nur optimization / LCOE_year
+    - Sonst: optimization / co2_sum_distr_year, optimization / LCOE_year
+            und yearly_totals / Stromfluss-Metriken
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    written_files: list[str] = []
+
+    yearly_totals_mapping = {
+        "from_el_grid_total": "from_grid_total",
+        "to_el_grid_total": "to_grid_total",
+        "from_el_main_grid_total": "from_main_grid_total",
+        "to_el_main_grid_total": "to_main_grid_total",
+        "from_network_total": "from_network_total",
+        "to_network_total": "to_network_total",
+    }
+
+    for district, in_path in district_csv_paths.items():
+        in_file = Path(in_path)
+        out_file = Path(output_dir) / f"{in_file.stem}{suffix}{in_file.suffix}"
+
+        district_ts = timeseries_dict.get(district, {})
+        ghg_by_year = district_ts.get("ghg_rebalanced_by_year", {})
+        lcoe_by_year = district_ts.get("LCOE_adjusted_by_year", {})
+
+        with open(in_file, "r", newline="", encoding="utf-8") as f_in:
+            reader = csv.DictReader(f_in, delimiter=";")
+            fieldnames = reader.fieldnames or ["scenario", "category", "metric", "device", "year", "value", "unit"]
+            rows = list(reader)
+
+        for row in rows:
+            category = row.get("category")
+            metric = row.get("metric")
+            y_raw = (row.get("year") or "").strip()
+
+            if y_raw == "":
+                continue
+
+            try:
+                y = int(float(y_raw))
+            except ValueError:
+                continue
+
+            if category == "optimization":
+                if metric == "LCOE_year" and y in lcoe_by_year:
+                    row["value"] = f"{float(lcoe_by_year[y]):.10f}"
+                    if not keep_metric_name_lcoe_year:
+                        row["metric"] = "LCOE_adjusted_year"
+
+                elif not is_network and metric == "co2_sum_distr_year" and y in ghg_by_year:
+                    row["value"] = f"{float(ghg_by_year[y]):.6f}"
+                    if rename_co2_metric_to_ghg_new:
+                        row["metric"] = "ghg_new"
+
+            elif not is_network and category == "yearly_totals" and metric in yearly_totals_mapping:
+                ts_key = yearly_totals_mapping[metric]
+                value_by_year = district_ts.get(ts_key, {})
+                if y in value_by_year:
+                    row["value"] = f"{float(value_by_year[y]):.6f}"
+
+        with open(out_file, "w", newline="", encoding="utf-8") as f_out:
+            writer = csv.DictWriter(f_out, fieldnames=fieldnames, delimiter=";")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        written_files.append(str(out_file))
+
+    return written_files
+
+
+
+
+
 if __name__ == "__main__":
+
     scenario_name1 = "residential0"
     scenario_name2 = "residential2"
     scenario_name3 = "residential3"
+    #scenario_name3 ="mixed1"
+    # scenario_name1 = "ghd6"
+    is_network = True
 
     cluster_weights = {
-    # "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
-    # "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
+    #"ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
+    #"mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
     "residential2": {0: 5, 1: 22, 2: 10, 3: 15},
     "residential0": {0: 10, 1: 22, 2: 11, 3: 9},
     "residential3": {0: 5, 1: 22, 2: 10, 3: 15},
     }
-
 
 
     timeseries_dict = load_timeseries_dict_nested(scenario_name1, scenario_name2, scenario_name3)
@@ -697,19 +778,17 @@ if __name__ == "__main__":
     print(f"Gespeichert: {csv_file}")
     total_file = save_totals_to_csv(timeseries_dict)
 
-    # 1) Fünf Jahre festlegen
+
     years = [0, 5, 10, 15, 20]
 
-    # 2) Quartiersspezifische THG-Ausgangswerte (je 5 Werte)
-    base_ghg_by_district = {
-        #"ghd6":        [6072, 1806, 825, 442, 0],
-        "residential2":[2584,  1755, 492, 220, 0],
-        # "mixed1":      [1341, 372,  165, 85, 0],
-        "residential0":[  122,  90,   50, 30, 0],
-        "residential3":[  122,  90,   50, 30, 0],
+    district_csv_paths = {
+        #"ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
+        "residential2": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential2_network_results.csv",
+        #"mixed1": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\mixed1_network_results.csv",
+        "residential0": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential0_network_results.csv",
+        "residential3": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential3_network_results.csv",
     }
 
-    # 3) Strom-Emissionsfaktoren (für alle Quartiere gleich)
     grid_ef_by_year = {
         0: 0.328,
         5: 0.103,
@@ -718,25 +797,15 @@ if __name__ == "__main__":
         20: 0.0,
     }
 
-    # 4) Aufruf nach Berechnung von timeseries_dict
     timeseries_dict, ghg_csv = rebalance_ghg_emissions(
         timeseries_dict=timeseries_dict,
-        base_ghg_by_district=base_ghg_by_district,
+        district_csv_paths=district_csv_paths,
+        years=[0, 5, 10, 15, 20],
         grid_ef_by_year=grid_ef_by_year,
-        years=years,
-        result_dir="Main-tja/optimization_results/timeseries",
+        result_dir=r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results\timeseries",
         filename="ghg_rebalanced.csv",
     )
 
-
-
-    district_csv_paths = {
-        # "ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
-        "residential2": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential2_network_results.csv",
-        # "mixed1": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\mixed1_network_results.csv",
-        "residential0": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential0_network_results.csv",
-        "residential3": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential3_network_results.csv",
-    }
     #Preise in €/kWh
 
     p_stromaustausch_verbundnetz = {0: 0.1069, 5: 0.0979, 10: 0.0939, 15: 0.0869, 20: 0.0869}
@@ -752,5 +821,16 @@ if __name__ == "__main__":
         p_stromaustausch_verbundnetz=p_stromaustausch_verbundnetz,
         p_einspeisung_hauptnetz=p_einspeisung_hauptnetz,
         p_strombezug_hauptnetz=p_strombezug_hauptnetz,
-        network_LCOE=False,
+        is_network=is_network,
     )
+
+    updated_files = write_adjusted_metrics_to_district_csvs(
+        timeseries_dict=timeseries_dict,
+        district_csv_paths=district_csv_paths,
+        is_network=is_network,
+        output_dir=r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results\updated",
+        rename_co2_metric_to_ghg_new=False,
+        keep_metric_name_lcoe_year=True,
+        suffix="",
+    )
+    print(updated_files)
