@@ -1487,7 +1487,7 @@ def main():
     compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Batterie-Szenario", "PV-Szenario", "Wohn-Szenario"]
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
-    target_year = 2040
+    target_year = 2030
 
 
     # plot_device_capacities_multi_bars_from_csv(
@@ -1518,7 +1518,7 @@ def main():
         show=True,
         include_devices=None,
         exclude_devices=["HP", "BBOI", "EB"],
-        titel=f"device_capacities_8bars_{scenario_name}",
+        titel=f"device_capacities_{scenario_name}",
         show_percent_box=True,
         fontsize1=9,
         fontsize2=8,
@@ -1529,13 +1529,13 @@ def main():
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
-        titel=f"power_import_2030_{scenario_name}",
+        titel=f"power_import_{target_year}_{scenario_name}",
         base_calendar_year=2025,
         show_percent_box=True,
         short_files=short_files,
         compare_shorts=compare_shorts,
         compare_items=compare_items,
-        target_year=2030,
+        target_year=target_year,
         bar_count=8,
         variants=("network", "single"),
     )
@@ -1546,13 +1546,13 @@ def main():
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
-        titel=f"power_export_2030_{scenario_name}",
+        titel=f"power_export_{target_year}_{scenario_name}",
         base_calendar_year=2025,
         short_files=short_files,
         show_percent_box=True,
         compare_shorts=compare_shorts,
         compare_items=compare_items,
-        target_year=2030,
+        target_year=target_year,
         bar_count=8,
         variants=("network", "single"),
     )
@@ -1566,8 +1566,8 @@ def main():
         titel=f"co2_{target_year}_{scenario_name}",
         base_calendar_year=2025,
         show_percent_box=True,
-        compare_item1="VW",
-        compare_item2="QW",
+        compare_item1="verbundweise",
+        compare_item2="quartiersweise",
         short_files=short_files,
         compare_shorts=compare_shorts,
         target_year=target_year,
@@ -1582,8 +1582,8 @@ def main():
         show=True,
         base_calendar_year=2025,
         show_percent_box=True,
-        compare_item1="VW",
-        compare_item2="QW",
+        compare_item1="verbundweise",
+        compare_item2="quartiersweise",
         titel=f"lcoe_{target_year}_{scenario_name}",
         short_files=short_files,
         compare_shorts=compare_shorts,

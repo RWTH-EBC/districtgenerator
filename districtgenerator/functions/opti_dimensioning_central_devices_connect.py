@@ -1811,7 +1811,7 @@ def solve_model_and_extract_results(dataCon, model, devsCon, paramCon, result_di
             power_demand_for_dem= float(sum(dem["power"][y][d][t]* param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
             power_demand_for_devs = float(sum(result_dict["power_profile_devs_kwh_by_year"][y][device]/1000 for device in ["HP", "EB", "CC", "ELYZ", "to_network", "to_main_grid"])) # in MWh, new TJA
             power_battery_charging = float(sum(safe_value(model.ch, ("BAT", district, y, d, t)) * param["cluster_weights"][d]/1000 for d in model.clusters for t in model.time_steps)) # in MWh, new TJA
-            result_dict["total_power_demand_by_year"][y] = power_demand_for_dem +power_demand_for_devs + power_battery_charging
+            result_dict["total_power_demand_by_year"][y] = power_demand_for_dem 
 
         # # Calculate LCOE - new TJA
         result_dict["LCOE_by_year"] = {}
