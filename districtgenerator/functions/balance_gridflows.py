@@ -264,7 +264,8 @@ def add_network_totals(timeseries_dict: dict, cluster_weights: dict) -> dict:
         ("from_main_grid", "from_main_grid_total"),
         ("to_main_grid", "to_main_grid_total"),
         ("from_grid", "from_grid_total"),
-        ("to_grid", "to_grid_total")
+        ("to_grid", "to_grid_total"),
+        ("Power_Demand_kW", "Power_Demand_kW_total")
     ]
 
     for district, district_data in timeseries_dict.items():
@@ -431,7 +432,8 @@ def save_totals_to_csv(
         "from_main_grid_total",
         "to_main_grid_total",
         "from_grid_total",
-        "to_grid_total"
+        "to_grid_total",
+        "Power_Demand_kW_total"
     ]
 
     for district, district_data in timeseries_dict.items():
@@ -450,6 +452,7 @@ def save_totals_to_csv(
                     "to_main_grid_total": round(float(district_data.get("to_main_grid_total", {}).get(year, 0.0)), 5),
                     "from_grid_total": round(float(district_data.get("from_grid_total", {}).get(year, 0.0)), 5),
                     "to_grid_total": round(float(district_data.get("to_grid_total", {}).get(year, 0.0)), 5),
+                    "Power_Demand_kW_total": round(float(district_data.get("Power_Demand_kW_total", {}).get(year, 0.0)), 5),
                 }
             )
 
@@ -458,6 +461,46 @@ def save_totals_to_csv(
     df.to_csv(output_path, sep=";", index=False)
 
     return output_path
+
+
+
+def _to_year_dict(value, years):
+    """
+    Normalisiert value auf dict[year] = float.
+    Unterstützt dict, list/tuple, numpy-array-ähnlich, Skalar.
+    """
+    if isinstance(value, dict):
+        return {int(y): float(value.get(y, 0.0)) for y in years}
+
+    try:
+        seq = list(value)
+        return {int(y): float(seq[i]) if i < len(seq) else 0.0 for i, y in enumerate(years)}
+    except TypeError:
+        return {int(y): float(value) for y in years}
+
+
+def _read_metric_by_year_from_result_csv(csv_path, category, metric):
+    """
+    Liest aus Ergebnis-CSV (Semikolon-getrennt) Werte nach Jahr:
+    scenario;category;metric;device;year;value;unit
+    """
+    out = {}
+    with open(csv_path, mode="r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f, delimiter=";")
+        for row in reader:
+            if row.get("category") == category and row.get("metric") == metric:
+                y_raw = row.get("year", "").strip()
+                v_raw = row.get("value", "").strip()
+                if y_raw == "" or v_raw == "":
+                    continue
+                try:
+                    out[int(float(y_raw))] = float(v_raw)
+                except ValueError:
+                    continue
+    return out
+
+
+
 
 def rebalance_ghg_emissions(
     timeseries_dict: dict,
@@ -531,18 +574,125 @@ def rebalance_ghg_emissions(
     print(f"THG-Neubewertung gespeichert: {csv_path}")
     return timeseries_dict, csv_path
 
+
+
+def recalculate_lcoe_by_year(
+    timeseries_dict,
+    district_csv_paths,
+    years,
+    p_stromaustausch_verbundnetz,  # neu: Zeitreihe (dict/list), Skalar bleibt erlaubt
+    p_einspeisung_hauptnetz,       # neu: Zeitreihe (dict/list), Skalar bleibt erlaubt
+    p_strombezug_hauptnetz,        # neu: Zeitreihe (dict/list), Skalar bleibt erlaubt
+    network_LCOE,
+    result_dir="Main-tja/optimization_results/timeseries",
+    filename="lcoe_adjusted_by_year.csv",
+):
+    """
+    Berechnet LCOE je Quartier/Jahr neu und speichert:
+      - timeseries_dict[district]["LCOE_adjusted_by_year"][year]
+      - CSV-Datei im result_dir
+
+    Preise können als dict/list (Zeitreihe) oder Skalar übergeben werden.
+    """
+    os.makedirs(result_dir, exist_ok=True)
+    out_path = os.path.join(result_dir, filename)
+
+    # Preise in €/kWh -> €/MWh
+    p_verbund_by_year = {y: 1000.0 * v for y, v in _to_year_dict(p_stromaustausch_verbundnetz, years).items()}
+    p_feed_in_by_year = {y: 1000.0 * v for y, v in _to_year_dict(p_einspeisung_hauptnetz, years).items()}
+    p_main_grid_by_year = {y: 1000.0 * v for y, v in _to_year_dict(p_strombezug_hauptnetz, years).items()}
+
+
+    rows = [[
+        "district", "year", "TAC", "heat_demand_MWh", "Power_Demand_MWh",
+        "from_network_total_MWh", "to_network_total_MWh",
+        "p_stromaustausch_verbundnetz_EUR_per_MWh",
+        "p_einspeisung_hauptnetz_EUR_per_MWh",
+        "p_strombezug_hauptnetz_EUR_per_MWh",
+        "network_LCOE", "LCOE_adjusted_EUR_per_MWh"
+    ]]
+
+    for district, csv_path in district_csv_paths.items():
+        tac_by_year = _read_metric_by_year_from_result_csv(
+            csv_path, category="optimization", metric="tac_per_distr_year"
+        )
+        heat_by_year = _read_metric_by_year_from_result_csv(
+            csv_path, category="yearly_totals", metric="total_heat_demand_by_year"
+        )
+
+        ts_d = timeseries_dict.get(district, {})
+        power_by_year = _to_year_dict(ts_d.get("Power_Demand_kW_total", {}), years)
+        from_net_by_year = _to_year_dict(ts_d.get("from_network_total", {}), years)
+        to_net_by_year = _to_year_dict(ts_d.get("to_network_total", {}), years)
+
+        ts_d.setdefault("LCOE_adjusted_by_year", {})
+
+        for y in years:
+            tac = float(tac_by_year.get(y, 0.0))
+            heat = float(heat_by_year.get(y, 0.0))
+            power = float(power_by_year.get(y, 0.0))
+            from_net = float(from_net_by_year.get(y, 0.0))
+            to_net = float(to_net_by_year.get(y, 0.0))
+
+            p_verbund = float(p_verbund_by_year.get(y, 0.0))
+            p_feed_in = float(p_feed_in_by_year.get(y, 0.0))
+            p_main_grid = float(p_main_grid_by_year.get(y, 0.0))
+
+            denom = heat + power
+            if denom <= 0:
+                lcoe = 0.0
+            else:
+                if network_LCOE:
+                    numerator = tac
+                else:
+                    numerator = (
+                        tac
+                        - from_net * (p_main_grid - p_verbund)
+                        - to_net * (p_verbund - p_feed_in)
+                    )
+                lcoe = numerator / denom
+
+            ts_d["LCOE_adjusted_by_year"][int(y)] = lcoe
+
+            rows.append([
+                district, y,
+                round(tac, 6), round(heat, 6), round(power, 6),
+                round(from_net, 6), round(to_net, 6),
+                round(p_verbund, 6), round(p_feed_in, 6), round(p_main_grid, 6),
+                bool(network_LCOE), round(lcoe, 10)
+            ])
+
+        timeseries_dict[district] = ts_d
+
+    with open(out_path, mode="w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerows(rows)
+
+    print(f"Angepasste LCOE gespeichert: {out_path}")
+    return timeseries_dict, out_path
+
+
+
 if __name__ == "__main__":
+    scenario_name1 = "residential0"
+    scenario_name2 = "residential2"
+    scenario_name3 = "residential3"
+
     cluster_weights = {
-    "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
-    "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
-    "residential2": {0: 5, 1: 22, 2: 10, 3: 15}
+    # "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
+    # "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
+    "residential2": {0: 5, 1: 22, 2: 10, 3: 15},
+    "residential0": {0: 10, 1: 22, 2: 11, 3: 9},
+    "residential3": {0: 5, 1: 22, 2: 10, 3: 15},
     }
-    timeseries_dict = load_timeseries_dict_nested("ghd6", "residential2", "mixed1")
+
+
+
+    timeseries_dict = load_timeseries_dict_nested(scenario_name1, scenario_name2, scenario_name3)
     #timeseries_dict = balance_total_demand(timeseries_dict, "ghd6", "residential2", "mixed1")
-    timeseries_dict=balance_total_demand_multi_sender(timeseries_dict, "ghd6", "residential2", "mixed1", round_decimals=7)
+    timeseries_dict=balance_total_demand_multi_sender(timeseries_dict, scenario_name1, scenario_name2, scenario_name3, round_decimals=7)
     timeseries_dict = add_network_totals(timeseries_dict, cluster_weights)
-    td = timeseries_dict["mixed1"]["to_main_grid"][0]
-    #print(td)
+
     csv_file = save_network_timeseries_per_district_weights(timeseries_dict, cluster_weights)
     print(f"Gespeichert: {csv_file}")
     total_file = save_totals_to_csv(timeseries_dict)
@@ -552,9 +702,11 @@ if __name__ == "__main__":
 
     # 2) Quartiersspezifische THG-Ausgangswerte (je 5 Werte)
     base_ghg_by_district = {
-        "ghd6":        [6072, 1806, 825, 442, 0],
+        #"ghd6":        [6072, 1806, 825, 442, 0],
         "residential2":[2584,  1755, 492, 220, 0],
-        "mixed1":      [1341, 372,  165, 85, 0],
+        # "mixed1":      [1341, 372,  165, 85, 0],
+        "residential0":[  122,  90,   50, 30, 0],
+        "residential3":[  122,  90,   50, 30, 0],
     }
 
     # 3) Strom-Emissionsfaktoren (für alle Quartiere gleich)
@@ -574,4 +726,31 @@ if __name__ == "__main__":
         years=years,
         result_dir="Main-tja/optimization_results/timeseries",
         filename="ghg_rebalanced.csv",
+    )
+
+
+
+    district_csv_paths = {
+        # "ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
+        "residential2": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential2_network_results.csv",
+        # "mixed1": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\mixed1_network_results.csv",
+        "residential0": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential0_network_results.csv",
+        "residential3": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential3_network_results.csv",
+    }
+    #Preise in €/kWh
+
+    p_stromaustausch_verbundnetz = {0: 0.1069, 5: 0.0979, 10: 0.0939, 15: 0.0869, 20: 0.0869}
+    p_einspeisung_hauptnetz      = {0: 0.0794, 5: 0.0794, 10: 0.0794, 15: 0.0794, 20: 0.0794}
+    p_strombezug_hauptnetz       = {0: 0.1590, 5: 0.1410, 10: 0.1330, 15: 0.1190, 20: 0.1190}
+
+
+
+    timeseries_dict, lcoe_csv = recalculate_lcoe_by_year(
+        timeseries_dict=timeseries_dict,
+        district_csv_paths=district_csv_paths,
+        years=years,
+        p_stromaustausch_verbundnetz=p_stromaustausch_verbundnetz,
+        p_einspeisung_hauptnetz=p_einspeisung_hauptnetz,
+        p_strombezug_hauptnetz=p_strombezug_hauptnetz,
+        network_LCOE=False,
     )

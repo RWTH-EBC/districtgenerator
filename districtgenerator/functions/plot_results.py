@@ -2258,6 +2258,7 @@ def plot_device_capacities_three_subplots_from_csv(
 
 def plot_lcoe_three_subplots_from_csv(
     scenario_names,
+    compare_short, 
     base_dir=None,
     result_dir=None,
     show=True,
@@ -2273,6 +2274,8 @@ def plot_lcoe_three_subplots_from_csv(
     """
     if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
         raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+    if not compare_short:
+        raise ValueError("compare_short darf nicht leer sein.")
 
     if base_dir is None:
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -2329,8 +2332,8 @@ def plot_lcoe_three_subplots_from_csv(
     shared_labels = None
 
     for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short}_results.csv")
 
         if not os.path.isfile(network_path) or not os.path.isfile(single_path):
             ax.axis("off")
@@ -2423,6 +2426,7 @@ def plot_lcoe_three_subplots_from_csv(
 
 def plot_co2_three_subplots_from_csv(
     scenario_names,
+    compare_short,
     base_dir=None,
     result_dir=None,
     show=True,
@@ -2435,9 +2439,11 @@ def plot_co2_three_subplots_from_csv(
     """
     Erstellt eine gemeinsame Abbildung mit 3 Subplots für CO2-Emissionen
     (2 oben, 1 unten), jeweils wie plot_co2_by_year_from_csv für ein Szenario.
-    """
+     """
     if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
         raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+    if not compare_short:
+        raise ValueError("compare_short darf nicht leer sein.")
 
     if base_dir is None:
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -2497,8 +2503,8 @@ def plot_co2_three_subplots_from_csv(
     shared_labels = None
 
     for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
-        network_path = os.path.join(base_dir, f"{sc}_network_results.csv")
-        single_path = os.path.join(base_dir, f"{sc}_results.csv")
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short}_network_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short}_results.csv")
 
         if not os.path.isfile(network_path) or not os.path.isfile(single_path):
             ax.axis("off")
@@ -2604,6 +2610,7 @@ if __name__ == "__main__":
     name2 = "Wohnquartier 1"
     name3 = "Mischquartier"
     fontsize = 11
+    compare_short = "Basis"
 
     # district1 = "1rural"
     # district2 = "4zb"
@@ -2634,23 +2641,25 @@ if __name__ == "__main__":
     #     plot_tes_only=True
     # )
 
-    # plot_lcoe_three_subplots_from_csv(
-    #     scenario_names=[district1, district2, district3],
-    #     subplot_titles=[name1, name2, name3],
-    #     fontsize=fontsize,
-    #     show=True,
-    #     show_percent_box=True,
-    #     titel="Energiegestehungskosten (3 Quartiere)"
-    # )
+    plot_lcoe_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        compare_short=compare_short, 
+        subplot_titles=[name1, name2, name3],
+        fontsize=fontsize,
+        show=True,
+        show_percent_box=True,
+        titel="Energiegestehungskosten (3 Quartiere)"
+    )
 
-    # plot_co2_three_subplots_from_csv(
-    # scenario_names=[district1, district2, district3],
-    # subplot_titles=[name1, name2, name3],
-    # fontsize=fontsize,
-    # show=True,
-    # show_percent_box=True,
-    # titel="CO₂-Emissionen (3 Quartiere)"
-    # )
+    plot_co2_three_subplots_from_csv(
+    scenario_names=[district1, district2, district3],
+    compare_short=compare_short, 
+    subplot_titles=[name1, name2, name3],
+    fontsize=fontsize,
+    show=True,
+    show_percent_box=True,
+    titel="CO₂-Emissionen (3 Quartiere)"
+    )
 
     
     
@@ -2675,13 +2684,13 @@ if __name__ == "__main__":
     # plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True)
     # plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True)
     
-    plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
-    plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
 
-    plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
-    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
+    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
