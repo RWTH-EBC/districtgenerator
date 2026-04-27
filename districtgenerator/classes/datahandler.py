@@ -1051,7 +1051,7 @@ class Datahandler:
         }
 
     def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
-                                 gen_cars=True, pv_standard=True):
+                                 gen_cars=True, pv_standard=True, max_threads=8):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -1088,8 +1088,8 @@ class Datahandler:
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
-        self.designDecentralDevices(saveGenerationProfiles=True)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads)
+        self.designDecentralDevices(saveGenerationProfiles=True, pv_standard=pv_standard)
 
         # Check if district uses central energy supply (heat grid)
         has_heat_grid = any(
