@@ -1358,8 +1358,7 @@ class YearlyStackedBarCharts(BaseReportFlowable):
 
             # For debug purposes: Draw bounding boxes around the charts
             if DEBUG:
-                d.add(Rect(bc.x, current_y, bc.width, total_chart_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
-            
+                d.add(Rect(bc.x, current_y, bc.width, total_chart_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))            
             
             current_y += total_chart_height + padding # Next chart starts after the chart height including the title and all text. 
 
@@ -1582,8 +1581,7 @@ class Hinweise(BaseReportFlowable):
             # Titel zeichnen
             y_current -= title_height  # Title height
             title_paragraph.drawOn(c, margin_left, y_current)
-            y_current -= self.layout['distance_after_title']
-            
+            y_current -= self.layout['distance_after_title']            
             
             # 2. Items zeichnen
             for item_name, item_description in section_data.items():
@@ -1876,9 +1874,6 @@ class DistrictLayout(BaseReportFlowable):
         start_x = padding
         sym_x = start_x + size_elements # Center of the symbols
         text_x = sym_x + size_elements + self.style.get_spacing('medium') # Start of the text, after symbol and some spacing
-        
-
-
 
         text_color = colors.Color(*self.style.get_color("text"))
         legend_font_size = self.style.get_layout_size("legend_text")
@@ -2083,8 +2078,6 @@ class DistrictLayout(BaseReportFlowable):
         d.add(legend_box)
 
         self.legend_height = self.height - current_y
-
-        # Reduce the drawing height to the actual used height for the legend
 
         return d
 

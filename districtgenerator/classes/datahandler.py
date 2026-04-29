@@ -1286,11 +1286,6 @@ class Datahandler:
                                         name=building["unique_name"],
                                         path=os.path.join(self.resultPath, 'demands'))
 
-                self.saveHeatingProfile(heat=building["user"].heat,
-                                        cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        path=os.path.join(self.resultPath, 'demands'))
-
         else:
             # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
             if "user" not in building:

@@ -986,8 +986,6 @@ class Envelope:
         # (DIN EN ISO 13790 2008-09, section 9.3.1, equation 21, page 49)
         self.H_ve = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # accounting for ventilation heat recovery for ventilation and not for infiltration
 
-        self.H_ve = self.rho_air * self.c_p_air/ 3600  * (self.V_dot * (1-self.eta_temp_vent) + self.V_dot_infiltration) # accounting for ventilation heat recovery for ventilation and not for infiltration
-
         # thermal transmittance coefficient H_tr_is [W/K]
         # (DIN EN ISO 13790 2008-09, section 7.2.2.2, equation 9, page 35)
         self.A_tot = self.lambda_at * self.A["f"]
