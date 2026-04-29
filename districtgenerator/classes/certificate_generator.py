@@ -447,29 +447,29 @@ class FrameBox(BaseReportFlowable):
         title_w = c.stringWidth(title_text, self.fontstyle, self.fontsize)
 
         y_title = int(y_topframe - self.line_width/2 - self.fontsize/3)
-        gap = 5             # kleiner Abstand zwischen Linie und Text
+        gap = 5             # small gap between line and text
 
-        # --- Titel mittig zwischen Linien ---
+        # --- Title centered between lines ---
         x_title = int(self.padding + gap)
-        # --- Linien ---
-        # Seitenrahmen
-        c.line(0, y_topframe, 0, y_bottomframe) # linke Linie
-        c.line(0, y_bottomframe, w, y_bottomframe) # untere Linie
-        c.line(w, y_bottomframe, w, y_topframe) # rechte Linie
+        # --- Lines ---
+        # Side frame
+        c.line(0, y_topframe, 0, y_bottomframe) # left line
+        c.line(0, y_bottomframe, w, y_bottomframe) # bottom line
+        c.line(w, y_bottomframe, w, y_topframe) # right line
         
-        # links
+        # left
         c.line(0, y_topframe, x_title - gap, y_topframe)
-        # rechts
+        # right
         c.line(x_title + title_w + gap, y_topframe, w, y_topframe)
 
-        # --- Titel ---
+        # --- Title ---
         c.setFont(self.fontstyle, self.fontsize)
         c.setFillColorRGB(*self.font_color)
         c.drawString(x_title, y_title, title_text)
         
         
 
-        # Platzierung des Inhalts
+        # Placement of content
         if self.content_flowable is not None:
             y = int(y_topframe - self.line_width/2 - self.fontsize/3 - self.padding) # Position of the top of the content area
             x = self.padding + self.line_width
@@ -1592,15 +1592,15 @@ class Hinweise(BaseReportFlowable):
                 item_paragraph.wrap(content_width, y_current)
                 item_height = item_paragraph.height
                 
-                # Position nach unten verschieben
+                # Move position downward
                 y_current -= item_height
                 
-                # Item zeichnen
+                # Draw item
                 item_paragraph.drawOn(c, margin_left, y_current)
                 y_current -= self.layout['distance_after_item']
 
             
-            # Abstand zwischen Sektionen
+            # Distance between sections
             y_current -= self.layout['distance_after_section']
 
         c.restoreState()
@@ -1620,27 +1620,27 @@ class Hinweise(BaseReportFlowable):
         hinweise = []
         
         while remaining_sections:
-            # Test-Instanz erstellen mit den verbleibenden Sektionen
+            # Create test instance with remaining sections
             test_hinweise = cls(sections_to_include=remaining_sections)
             test_hinweise.width = availWidth
             
-            # Ermitteln welche Sektionen in diese Box passen
+            # Determine which sections fit into this box
             sections_that_fit, sections_overflow = test_hinweise.get_sections_that_fit(availHeight)
             
-            # Sicherstellen, dass mindestens eine Sektion verarbeitet wird
+            # Ensure at least one section is processed
             if not sections_that_fit and remaining_sections:
                 raise Exception("At least one section of the Hinweise content is too large to fit on one page. Please review the content.")
             
-            # Hinweise-Flowable für die passenden Sektionen erstellen
+            # Create Hinweise-Flowable for matching sections
             if sections_that_fit:
                 hinweise_flowable = cls(sections_to_include=sections_that_fit)
                 hinweise.append(hinweise_flowable)
             
-                # Remaining sections für die nächste Iteration aktualisieren
+                # Update remaining sections for next iteration
                 remaining_sections = sections_overflow
 
             else:
-                # Sicherheitsabbruch falls keine Sektionen mehr vorhanden
+                # Safety break if no more sections available
                 break
         
         return hinweise
@@ -3133,13 +3133,13 @@ class DataExtractor:
                 installed_devices = []
                 if "capacities" in building:
                     for device_name, cap in building["capacities"].items():
-                        # Kapazitäten können als Dict {"cap": X} oder direkt als Zahl vorliegen
+                        # Capacities can be either a dict {"cap": X} or a direct number
                         if isinstance(cap, dict) and "cap" in cap and float(cap["cap"]) > 0:
                             installed_devices.append(device_name)
                         elif isinstance(cap, (int, float)) and float(cap) > 0:
                             installed_devices.append(device_name)
                 
-                # Wenn der heater fest in den Features definiert ist und nicht in capacities steht, fügen wir ihn hinzu
+                # If the heater is defined in features and not in capacities, add it
                 main_heater = features["heater"]
                 if main_heater not in installed_devices:
                     installed_devices.append(main_heater)

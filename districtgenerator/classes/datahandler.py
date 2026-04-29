@@ -223,33 +223,7 @@ class Datahandler:
         None.
         """
 
-        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
-                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
-                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
-
-        # %% load scenario file with building information
-        if self.heat_map_berlin:
-            # %% load heat map berlin formatted scenario file
-            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
-                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
-            self.pv_stc_potential = pd.read_csv(
-                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
-                delimiter=';',
-                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
-            )
-        else:
-            # %% load normal formatted scenario file
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
-
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-
-        if os.path.exists(json_path):
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                self.site["district_parameters"] = jsonData["parameters"]
+        # --- 1. Load all Configs ---
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -303,6 +277,38 @@ class Datahandler:
         for attr, value in heat_grid_config.__dict__.items():
             self.heat_grid_data[attr] = value
 
+        # --- 2. Load scenario data ---
+
+        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
+                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
+                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
+
+        # %% load scenario file with building information
+        if self.heat_map_berlin:
+            # %% load heat map berlin formatted scenario file
+            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
+            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+            self.pv_stc_potential = pd.read_csv(
+                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
+                delimiter=';',
+                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+            )
+        else:
+            # %% load normal formatted scenario file
+            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+
+        if os.path.exists(json_path):
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                self.site["district_parameters"] = jsonData["parameters"]
+
+        # --- 3. Load pipe data based on the selected heat grid generation ---
+
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
         # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
@@ -322,7 +328,6 @@ class Datahandler:
         elif self.heat_grid_data["generation"] == "5th":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
-            pass
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
 
@@ -2773,8 +2778,11 @@ class Datahandler:
 
         # Adjust the nominal_waste_heat_capacity_kW of the heat grid data based on the waste heat potential if it is not already set
         if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None:
-            self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(scenario_df["Pot_Abwasser_entzugsleistungsbereich_kw"])
-
+            key = "Pot_Abwasser_entzugsleistungsbereich_kw"
+            if key in scenario_df.columns:
+                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(scenario_df["Pot_Abwasser_entzugsleistungsbereich_kw"])
+            else:
+                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
         return scenario_df
 
     def designNetworkwithNode(self):
