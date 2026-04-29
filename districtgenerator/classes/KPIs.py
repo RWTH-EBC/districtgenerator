@@ -55,6 +55,9 @@ class KPIs:
         self.seasonal_storage_used_year = None
         self.seasonal_storage_potential_year = None 
         self.seasonal_storage_utilization_year = None
+        self.waste_heat_used_year = None
+        self.waste_heat_potential_year = None
+        self.waste_heat_utilization_year = None
         self.dcf_year = None
         self.scf_year = None
         self.annual_fixed_costs_decentral = None
@@ -240,6 +243,9 @@ class KPIs:
         self.seasonal_storage_used_year = {}
         self.seasonal_storage_potential_year = {}
         self.seasonal_storage_utilization_year = {}
+        self.waste_heat_used_year = {}
+        self.waste_heat_potential_year = {}
+        self.waste_heat_utilization_year = {}
 
         self.el_dem_buildings = {}
         self.el_inj_buildings = {}
@@ -258,6 +264,8 @@ class KPIs:
             self.districtHeat_year[year] = 0
             self.seasonal_storage_used_year[year] = 0
             self.seasonal_storage_potential_year[year] = 0
+            self.waste_heat_used_year[year] = 0
+            self.waste_heat_potential_year[year] = 0
 
             self.el_dem_buildings[year] = 0
             self.el_inj_buildings[year] = 0
@@ -279,6 +287,8 @@ class KPIs:
                 self.districtHeat_year[year] += opt_res["total_district_heat_used"] * weight
                 self.seasonal_storage_used_year[year] += opt_res["total_seasonal_dch"] * weight
                 self.seasonal_storage_potential_year[year] += opt_res["total_seasonal_dch_potential"] * weight
+                self.waste_heat_used_year[year] += opt_res["total_waste_heat_used"] * weight
+                self.waste_heat_potential_year[year] += opt_res["total_waste_heat_potential"] * weight
 
                 self.el_dem_buildings[year] += opt_res["from_grid_total_el_buildings"] * weight
                 self.el_inj_buildings[year] += opt_res["to_grid_total_el_buildings"] * weight
@@ -286,6 +296,7 @@ class KPIs:
                 self.el_inj_eh[year] += opt_res["to_grid_total_el_eh"] * weight
 
             self.seasonal_storage_utilization_year[year] = (self.seasonal_storage_used_year[year] / self.seasonal_storage_potential_year[year]) if self.seasonal_storage_potential_year[year] > 0 else None
+            self.waste_heat_utilization_year[year] = (self.waste_heat_used_year[year] / self.waste_heat_potential_year[year]) if self.waste_heat_potential_year[year] > 0 else None
 
     def calculateEnergyExchangeWithinDistrict(self, data):
 
@@ -529,6 +540,7 @@ class KPIs:
                 "biomass": self.biomass_year[year] * ecoData["price_biomass"],
                 "district_heat": self.districtHeat_year[year] * ecoData["price_district_heat"],
                 "hydrogen": self.hydrogen_year[year] * ecoData["price_hydrogen"],
+                "waste_heat": self.waste_heat_used_year[year] * ecoData["price_waste_heat"],
                 "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + self.el_inj_eh[year] * ecoData["revenue_feed_in_el_eh"])
             }
 
@@ -683,9 +695,10 @@ class KPIs:
             co2_hydrogen = self.hydrogen_year[year] * ecoData["co2_hydrogen"] / 1000       # in t/a
             co2_oil = self.oil_year[year] * ecoData["co2_oil"] / 1000                       # in t/a
             co2_district_heat = self.districtHeat_year[year] * ecoData["co2_district_heat"] / 1000   # in t/a
+            co2_waste_heat = self.waste_heat_used_year[year] * ecoData["co2_waste_heat"] / 1000   # in t/a
 
             # total CO2 emissions [kg/a]
-            total_co2 = co2_dem_grid + co2_gas + co2_biom + co2_waste + co2_hydrogen + co2_oil + co2_district_heat
+            total_co2 = co2_dem_grid + co2_gas + co2_biom + co2_waste + co2_hydrogen + co2_oil + co2_district_heat + co2_waste_heat
 
             # CO2 emissions for each simulated year
             self.co2emissions[year] = { #! Save individual contributions for possible later use. Important: Do not sum all values. Comined already included.
@@ -696,7 +709,8 @@ class KPIs:
                 "co2_waste": co2_waste,
                 "co2_hydrogen": co2_hydrogen,
                 "co2_oil": co2_oil,
-                "co2_district_heat": co2_district_heat
+                "co2_district_heat": co2_district_heat,
+                "co2_waste_heat": co2_waste_heat
             }
 
     def calculateLCOH_buildings(self, data):
@@ -885,7 +899,8 @@ class KPIs:
             price_biom = eco.get("price_biomass", 0.0)
             price_h2 = eco.get("price_hydrogen", 0.0)
             price_oil = eco.get("price_oil", 0.0)
-            price_waste = eco.get("price_waste", 0.0)
+            price_waste = eco["price_waste"]
+            price_waste_heat = eco["price_waste_heat"]
             price_dh = eco.get("price_district_heat", 0.0)
 
             self.lcoh_year_eh[year] = {}
@@ -914,6 +929,8 @@ class KPIs:
                 fixed_cost_heat += (
                         float(data.heat_grid_data.get("om_costs", 0.0)) +
                         float(data.heat_grid_data.get("ann_costs", 0.0)))
+
+            waste_heat_cost = self.waste_heat_used_year[year] * price_waste_heat
 
             # LOOP CLUSTERS
             for c in range(len(clusters)):
@@ -1011,7 +1028,7 @@ class KPIs:
                 el_cost_heat += cw * el_heat_from_grid_cluster * price_el
 
             # LCOH
-            total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat
+            total_cost = fixed_cost_heat + fuel_cost_heat + el_cost_heat + waste_heat_cost
 
             if Q_total_eh > 1e-9:
                 lcoh_eh = 100.0 * total_cost / Q_total_eh
@@ -1189,6 +1206,9 @@ class KPIs:
         self.total_seasonal_storage_used = sum(self.seasonal_storage_used_year[year] * year_weights[year] for year in sorted_years) # seasonal storage used
         self.total_seasonal_storage_potential = sum(self.seasonal_storage_potential_year[year] * year_weights[year] for year in sorted_years)
         self.total_seasonal_storage_utilization = self.total_seasonal_storage_used / self.total_seasonal_storage_potential if self.total_seasonal_storage_potential > 0 else None
+        self.total_waste_heat_used = sum(self.waste_heat_used_year[year] * year_weights[year] for year in sorted_years) # waste heat used
+        self.total_waste_heat_potential = sum(self.waste_heat_potential_year[year] * year_weights[year] for year in sorted_years)
+        self.total_waste_heat_utilization = self.total_waste_heat_used / self.total_waste_heat_potential if self.total_waste_heat_potential > 0 else None
 
         # Calculate total CO2 emissions over all years (weighted by interval length)
         self.total_co2_all = sum(self.co2emissions[year]["total_co2"] * year_weights[year] for year in sorted_years) # total CO2 emissions
@@ -1206,6 +1226,9 @@ class KPIs:
         self.avg_seasonal_storage_potential = self.total_seasonal_storage_potential / observation_time
         self.avg_seasonal_storage_used = self.total_seasonal_storage_used / observation_time
         self.avg_seasonal_storage_utilization = self.total_seasonal_storage_used / self.total_seasonal_storage_potential if self.total_seasonal_storage_potential > 0 else None
+        self.avg_waste_heat_potential = self.total_waste_heat_potential / observation_time
+        self.avg_waste_heat_used = self.total_waste_heat_used / observation_time
+        self.avg_waste_heat_utilization = self.total_waste_heat_used / self.total_waste_heat_potential if self.total_waste_heat_potential > 0 else None
 
     def calculateGasolineCosts(self, data):
         """Compute annual gasoline costs (€) for each simulated year."""
@@ -1271,6 +1294,10 @@ class KPIs:
         kpi_data_yearly["Seasonal Storage Used (kWh/a)"] = {year: self.seasonal_storage_used_year.get(year, None) for year in years}
         kpi_data_yearly["Seasonal Storage Potential (kWh/a)"] = {year: self.seasonal_storage_potential_year.get(year, None) for year in years}
         kpi_data_yearly["Seasonal Storage Utilization (%)"] = {year: self.seasonal_storage_utilization_year[year] * 100 if self.seasonal_storage_utilization_year[year] is not None else None for year in years}
+        kpi_data_yearly["Waste Heat Used (kWh/a)"] = {year: self.waste_heat_used_year.get(year, None) for year in years}
+        kpi_data_yearly["Waste Heat Potential (kWh/a)"] = {year: self.waste_heat_potential_year.get(year, None) for year in years}
+        kpi_data_yearly["Waste Heat Utilization (%)"] = {year: self.waste_heat_utilization_year[year] * 100 if self.waste_heat_utilization_year[year] is not None else None for year in years}
+        kpi_data_yearly["Waste Heat Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("waste_heat", None) for year in years}
         kpi_data_yearly["Electricity Injection within District (kWh/a)"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
         kpi_data_yearly["Electricity Demand within District (kWh/a)"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
         kpi_data_yearly["Demand Cover Factor (-)"] = {year: self.dcf_year.get(year, None) for year in years}
@@ -1284,6 +1311,7 @@ class KPIs:
         kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
         kpi_data_yearly["CO2 Emissions Oil (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
         kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Waste Heat (t/a)"] = {year: self.co2emissions[year]["co2_waste_heat"] for year in years}
         kpi_data_yearly["Electricity Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("electricity", None) for year in years}
         kpi_data_yearly["Gas Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("gas", None) for year in years}
         kpi_data_yearly["Oil Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("oil", None) for year in years}
@@ -1291,6 +1319,7 @@ class KPIs:
         kpi_data_yearly["Biomass Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("biomass", None) for year in years}
         kpi_data_yearly["District Heat Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("district_heat", None) for year in years}
         kpi_data_yearly["Hydrogen Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("hydrogen", None) for year in years}
+        kpi_data_yearly["Waste Heat Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("waste_heat", None) for year in years}
         kpi_data_yearly["Revenue from Electricity Feed-in (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("revenue_feed_in_el", None) for year in years}
 
 
@@ -1339,6 +1368,12 @@ class KPIs:
         kpi_data_static["Hydrogen Consumption (MWh)"] = self.total_hydrogen / 1000
         kpi_data_static["Oil Consumption (MWh)"] = self.total_oil / 1000
         kpi_data_static["District Heat Consumption (MWh)"] = self.total_districtHeat / 1000
+        kpi_data_static["Seasonal Storage Used (MWh)"] = self.total_seasonal_storage_used / 1000
+        kpi_data_static["Seasonal Storage Potential (MWh)"] = self.total_seasonal_storage_potential / 1000
+        kpi_data_static["Seasonal Storage Utilization (-)"] = self.total_seasonal_storage_utilization
+        kpi_data_static["Waste Heat Used (MWh)"] = self.total_waste_heat_used / 1000
+        kpi_data_static["Waste Heat Potential (MWh)"] = self.total_waste_heat_potential / 1000
+        kpi_data_static["Waste Heat Utilization (-)"] = self.total_waste_heat_utilization
         # kpi_data_static["ICE Fuel Consumption (liters)"] = ''
 
         kpi_data_static["Total CO2 Emissions (t)"] = self.total_co2_all

@@ -1252,6 +1252,7 @@ class YearlyStackedBarCharts(BaseReportFlowable):
                     "Biomasse": "biomass",
                     "Fernwärme": "district_heat",
                     "Wasserstoff": "hydrogen",
+                    "Abwärme": "waste_heat",
                     "Einspeiseerlöse (el.)": "revenue_feed_in_el"
                 }
                 
@@ -2745,6 +2746,7 @@ class DataExtractor:
                 "Biomasse": round(costs["biomass"], 0),
                 "Fernwärme": round(costs["district_heat"], 0),
                 "Wasserstoff": round(costs["hydrogen"], 0),
+                "Abwärme": round(costs["waste_heat"], 0),
                 "Einspeiseerlöse (el.)": round(costs["revenue_feed_in_el"], 0)
             })
 
@@ -2758,7 +2760,8 @@ class DataExtractor:
                 "Abfall": round(em["co2_waste"], 2),
                 "Biomasse": round(em["co2_biom"], 2),
                 "Fernwärme": round(em["co2_district_heat"], 2),
-                "Wasserstoff": round(em["co2_hydrogen"], 2)
+                "Wasserstoff": round(em["co2_hydrogen"], 2),
+                "Abwärme": round(em["co2_waste_heat"], 2)
             })
 
             # Maybe later add also the development of the energy demand over the years as a stacked bar if renovation measures or other changes are implemented in the multi-year simulation.
@@ -2903,12 +2906,14 @@ class DataExtractor:
                 col_cost = "Ann. Cost (Sub.)"
                 not_selected_text = "not selected"
                 seasonal_name = "Seasonal Heat Storage"
+                waste_heat_name = "Waste Heat"
             elif lang == "de":
                 col_device = "Anlage"
                 col_capacity = "Kapazität"
                 col_cost = "Anlagenkosten (subv.)"
                 not_selected_text = "nicht ausgewählt"
                 seasonal_name = "Saisonaler Speicher"
+                waste_heat_name = "Abwärmepotential"
             else:
                 raise NotImplementedError(f"Language {lang} not supported for energy hub device table.")
             
@@ -2987,6 +2992,22 @@ class DataExtractor:
                     annual_cost=f"{cost} €/a"
                 )
 
+
+            # Add waste heat potential as a separate row at the end of the table
+            waste_heat_pot_kW = self.data.heat_grid_data.get('nominal_waste_heat_capacity_kW', 0)
+
+            display_cap, display_unit = self._determine_unit(cap=waste_heat_pot_kW, base_unit="W")
+
+            if waste_heat_pot_kW > 0:
+                
+                annual_cost_sub_waste_heat = "-"
+
+                waste_heat_cost = annual_cost_sub_waste_heat if lang == "en" else f"{annual_cost_sub_waste_heat} €/a"
+                append_energyhub_row(
+                    device_name=waste_heat_name,
+                    capacity=f"{display_cap} {display_unit}".strip(),
+                    annual_cost=waste_heat_cost
+                )
 
             # Add seasonal storage potential as a separate row at the end of the table
             seasonal_pot_kWh_a = self.data.heat_grid_data.get('seasonal_storage_kWh_a', 0)

@@ -16,6 +16,7 @@ import openpyxl
 import pandas as pd
 import random as rd
 import holidays as hol
+import re
 from teaser.project import Project
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
@@ -1392,6 +1393,11 @@ class Datahandler:
             seasonal_storage_kW = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * seasonal_storage_kW_max
             self.heat_grid_data["seasonal_storage_kW"] = seasonal_storage_kW
 
+            # Initialize waste heat availability for the heat grid
+            if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None: self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
+            nominal_waste_heat_capacity_kW = self.heat_grid_data["nominal_waste_heat_capacity_kW"]
+            self.heat_grid_data["waste_heat_kW"] = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * nominal_waste_heat_capacity_kW
+
             self.designCentralDevices(saveGenerationProfiles=True)
             self.finalizeClusterProfiles()
             
@@ -1914,6 +1920,7 @@ class Datahandler:
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
             adjProfiles["seasonal_storage_kW"] = self.heat_grid_data["seasonal_storage_kW"][0:lengthArray]
+            adjProfiles["waste_heat_kW"] = self.heat_grid_data["waste_heat_kW"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
@@ -2031,6 +2038,10 @@ class Datahandler:
             scalings.append(False)
 
             inputsClustering.append(adjProfiles["seasonal_storage_kW"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["waste_heat_kW"])
             weights.append(0)
             scalings.append(False)
 
@@ -2154,10 +2165,11 @@ class Datahandler:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
             self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
             self.heat_grid_data["seasonal_storage_cluster_kW"] = newProfiles[index_central + 2]
-            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 3]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 4]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 5]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 6]
+            self.heat_grid_data["waste_heat_cluster_kW"] = newProfiles[index_central + 3]
+            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 4]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 5]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 6]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 7]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
@@ -2697,6 +2709,25 @@ class Datahandler:
                 "ev_charging": "on_demand",
             }
 
+        def determine_wastewater_heat_potential(column):
+            """Extract a numeric waste heat potential from strings of the form 'x bis y kW'."""
+
+            unique_values = set(column.dropna().unique())
+            potentials = []
+
+            for value in unique_values:
+                match = re.match(r"^\s*(\d+(?:[\.,]\d+)?)\s+bis\s+(\d+(?:[\.,]\d+)?)\s*kW\s*$", str(value), re.IGNORECASE)
+                if not match:
+                    continue
+
+                lower_bound = float(match.group(1).replace(",", "."))
+                upper_bound = float(match.group(2).replace(",", "."))
+
+                # Use the mean as the nominal capacity of the potential range.
+                potentials.append((lower_bound + upper_bound) / 2)
+
+            return max(potentials) if potentials else 0
+
         # Read WKB data
         wkb_data = pd.read_csv(
             wkb_file_path,
@@ -2744,6 +2775,10 @@ class Datahandler:
         # Save combined CSV files
         scenario_df.to_csv(output_file_path, sep=";", index=False)
         accepted_wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=";", index=False)
+
+        # Adjust the nominal_waste_heat_capacity_kW of the heat grid data based on the waste heat potential if it is not already set
+        if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None:
+            self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(scenario_df["Pot_Abwasser_entzugsleistungsbereich_kw"])
 
         return scenario_df
 

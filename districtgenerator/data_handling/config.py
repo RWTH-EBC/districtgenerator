@@ -215,6 +215,7 @@ class EcoConfig(BaseSettings):
     price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
     price_oil: str | list = [0.90, 0.94, 0.98, 1.02, 1.06, 1.10, 1.12, 1.14, 1.16, 1.18, 1.20, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34, 1.36, 1.38]           # Oil price in €/kWh
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
+    price_waste_heat: str | list = [0.0]          # Waste heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
     co2_el_grid: str | list = [0.328]          # CO2 emissions for electricity import (grid mix) in kg/kWh
@@ -224,6 +225,7 @@ class EcoConfig(BaseSettings):
     co2_oil: str | list = [0.310]              # CO2 emissions for burning oil in kg/kWh
     co2_waste: str | list = [0.020]              # CO2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # CO2 emissions for district heat in kg/kWh
+    co2_waste_heat: str | list = [0.0]         # CO2 emissions for waste heat in kg/kWh
 
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
@@ -231,9 +233,9 @@ class EcoConfig(BaseSettings):
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
-                     'price_biomass', 'price_oil', 'price_district_heat',
+                     'price_biomass', 'price_oil', 'price_district_heat', 'price_waste_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
-                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
+                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_waste_heat', 'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
         """Convert input to list of floats"""
@@ -259,8 +261,8 @@ class EcoConfig(BaseSettings):
         params_to_expand = [
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
-            'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'price_waste', 'price_biomass', 'price_oil', 'price_district_heat', 'price_waste_heat',
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_waste_heat', 'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -437,7 +439,7 @@ class HeatGridConfig(BaseSettings):
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
     seasonal_storage_kWh_a: float = 0 # Seasonal storage capacity at the location in kWh/a -> Which offers a constant supply of energy throughout the year without any associated cost or emissions.
-
+    nominal_waste_heat_capacity_kW: Optional[float] = None  # Nominal waste heat capacity in kW without any associated cost or emissions. None indicates it can later be determined by the input file. If it is not determined it will be set to 0.
 
     T_hot_heating_network__constant__3rd: float = 80.0  # Supply temperature of 3rd generation heat grid in degrees Celsius.
     T_hot_heating_network__constant__4th: float = 55.0  # Supply temperature of 4th generation heat grid in degrees Celsius.
@@ -480,6 +482,13 @@ class HeatGridConfig(BaseSettings):
     pipe__cost_om_pipe: float = 0.005    # Pipe O&M share (fraction of investment cost per year).
     pipe: dict = {}
 
+    @field_validator('nominal_waste_heat_capacity_kW', mode='before')
+    @classmethod
+    def parse_none_string(cls, v):
+        """Convert string 'None' to Python None"""
+        if v == "None" or v == "null" or v == "":
+            return None
+        return v
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'HeatGridConfig':
@@ -676,7 +685,8 @@ class ReportConfig(BaseSettings):
     colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
     colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B" # District heating
     colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9" # Hydrogen
-    
+    colors__source__waste_heat: str | Tuple[float, float, float] = "#E67E22" # Waste heat
+
     # Colors for fixed costs and revenues in financial charts
     colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
     colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs

@@ -158,20 +158,35 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
 
-    try:
-        network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
-        network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
-        seasonal_storage = heatingNetworkData["seasonal_storage_cluster_kW"][cluster] * 1000  # W
-        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
-    except KeyError as e:
-        if energyHubData == {}:
-            pass
-        else: print(f"Error occurred while loading heating network data for cluster {cluster}: Could not access {e}")
-        
+    if energyHubData == {}:
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
         seasonal_storage = [0] * T_e
         network_pump_power = [0] * T_e
+        waste_heat = [0] * T_e
+    else:
+        error_string = ""
+        
+        try:
+            network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000 # kW -> W
+            network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000 # kW -> W
+            network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000 # kW -> W
+        except Exception as e:
+            error_string += f"Error occurred while loading heating network data for cluster {cluster}: {e}\n"
+            
+        try:
+            seasonal_storage = heatingNetworkData["seasonal_storage_cluster_kW"][cluster] * 1000 # kW -> W
+        except Exception as e:
+            error_string += f"Error occurred while loading seasonal storage data for cluster {cluster}: {e}\n"
+            
+        try:
+            waste_heat = heatingNetworkData["waste_heat_cluster_kW"][cluster] * 1000 # kW -> W
+        except Exception as e:
+            error_string += f"Error occurred while loading waste heat potential data for cluster {cluster}: {e}\n"
+
+        if error_string:
+            raise ValueError(error_string)
+
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -308,6 +323,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.network_losses_cooling = pyo.Param(model.t, initialize=lambda m, t: network_losses_cooling[t])
     model.network_pump_power = pyo.Param(model.t, initialize=lambda m, t: network_pump_power[t])
     model.seasonal_storage_max_W = pyo.Param(model.t, initialize=lambda m, t: seasonal_storage[t], doc="Max available power from seasonal storage in W per timestep")
+    model.waste_heat_max_W = pyo.Param(model.t, initialize=lambda m, t: waste_heat[t], doc="Max available waste heat potential in W per timestep")
 
     ################################################################################
     # OPERATIONAL BUILDING VARIABLES
@@ -451,8 +467,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_binary_GS = pyo.Var(model.t, within=pyo.Binary)
     model.eh_soc_GS = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
-    # Seasonal storage: Currently only a constant decharge is possible, and can be defined through the config
+    # Seasonal storage: Currently only a constant decharge potential is possible, and can be defined through the config
     model.eh_seasonal_dch = pyo.Var(model.t, within=pyo.NonNegativeReals)
+
+    # Waste heat: Currently only a constant potential is possible, and can be defined through the config
+    model.eh_waste_heat = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
     ################################################################################
     # BALANCING UNIT VARIABLES
@@ -483,6 +502,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.total_district_heat_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_seasonal_dch = pyo.Var(within=pyo.NonNegativeReals)
     model.total_seasonal_dch_potential = pyo.Var(within=pyo.NonNegativeReals)
+    model.total_waste_heat_used = pyo.Var(within=pyo.NonNegativeReals)
+    model.total_waste_heat_potential = pyo.Var(within=pyo.NonNegativeReals)
 
     # daily peak
     model.daily_peak = pyo.Var(model.days, within=pyo.Reals)
@@ -603,6 +624,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
             return model.eh_seasonal_dch[t] == 0
         else:
             return model.eh_seasonal_dch[t] <= model.seasonal_storage_max_W[t]
+        
+    def waste_heat_constraint_rule(model, t):
+        if energyHubData == {}:
+            return model.eh_waste_heat[t] == 0
+        else:
+            return model.eh_waste_heat[t] <= model.waste_heat_max_W[t]
 
     for device in ["EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
         constraint_rule = create_eh_heat_capacity_constraint(device)
@@ -624,6 +651,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_pv_generation = pyo.Constraint(model.t, rule=eh_pv_generation_rule)
     model.eh_wt_generation = pyo.Constraint(model.t, rule=eh_wt_generation_rule)
     model.seasonal_storage_constraint = pyo.Constraint(model.t, rule=seasonal_storage_constraint_rule)
+    model.waste_heat_constraint = pyo.Constraint(model.t, rule=waste_heat_constraint_rule)
 
     ################################################################################
     # Define capacity of devices as parameters from input data (Buildings)
@@ -1238,7 +1266,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
     def eh_heat_supply_rule(model, t):
         return model.eh_heat_to_grid[t] == sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
-            model.network_losses_heating[t] - model.eh_seasonal_dch[t]
+            model.network_losses_heating[t] - model.eh_seasonal_dch[t] - model.eh_waste_heat[t]
 
     # The EH must supply the cooling demand of the buildings connected to the grid
     def eh_cool_supply_rule(model, t):
@@ -1318,6 +1346,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
     
     def total_seasonal_dch_potential_rule(model):
         return model.total_seasonal_dch_potential == dt * sum(model.seasonal_storage_max_W[t] for t in model.t) / 1000
+    
+    def total_waste_heat_used_rule(model):
+        return model.total_waste_heat_used == dt * sum(model.eh_waste_heat[t] for t in model.t) / 1000 #kWh
+    
+    def total_waste_heat_potential_rule(model):
+        return model.total_waste_heat_potential == dt * sum(model.waste_heat_max_W[t] for t in model.t) / 1000 #kWh
 
     def to_grid_total_el_buildings_rule(model):
         return model.to_grid_total_el_buildings == dt * sum(model.res_dom_feed[n, t] for n in model.n for t in model.t) / 1000
@@ -1345,6 +1379,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
     model.total_seasonal_dch_constraint = pyo.Constraint(rule=total_seasonal_dch_rule, doc="total_seasonal_dch")
     model.total_seasonal_dch_potential_constraint = pyo.Constraint(rule=total_seasonal_dch_potential_rule, doc="total_seasonal_dch_potential")
+    model.total_waste_heat_used_constraint = pyo.Constraint(rule=total_waste_heat_used_rule, doc="total_waste_heat_used")
+    model.total_waste_heat_potential_constraint = pyo.Constraint(rule=total_waste_heat_potential_rule, doc="total_waste_heat_potential")
 
     ################################################################################
     # Daily Peak Calculation
@@ -1420,6 +1456,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.total_waste_used * ecoData["price_waste"]
                 + model.total_oil_used * ecoData["price_oil"]
                 + model.total_district_heat_used * ecoData["price_district_heat"]
+                + model.total_waste_heat_used * ecoData["price_waste_heat"]
                 )
 
     # Emissions
@@ -1431,6 +1468,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.total_waste_used * ecoData["co2_waste"]
                 + model.total_oil_used * ecoData["co2_oil"]
                 + model.total_district_heat_used * ecoData["co2_district_heat"]
+                + model.total_waste_heat_used * ecoData["co2_waste_heat"]
                 )
 
     # Select objective
@@ -1490,6 +1528,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
     results_dict["total_seasonal_dch"] = pyo.value(model.total_seasonal_dch)
     results_dict["total_seasonal_dch_potential"] = pyo.value(model.total_seasonal_dch_potential)
+    results_dict["total_waste_heat_used"] = pyo.value(model.total_waste_heat_used)
+    results_dict["total_waste_heat_potential"] = pyo.value(model.total_waste_heat_potential)
     results_dict["from_grid_total_el_buildings"] = pyo.value(model.from_grid_total_el_buildings)
     results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
     results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
@@ -1509,6 +1549,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["P_network_losses_heating"] = []
     results_dict["P_network_losses_cooling"] = []
     results_dict["P_seasonal_storage_used"] = []
+    results_dict["P_waste_heat_used"] = []
 
     for t in time_steps:
         results_dict["P_dem_total"].append(round(pyo.value(model.residual_power[t]), 0))
@@ -1524,6 +1565,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
         results_dict["P_network_losses_heating"].append(round(pyo.value(model.network_losses_heating[t]), 0))
         results_dict["P_network_losses_cooling"].append(round(pyo.value(model.network_losses_cooling[t]), 0))
         results_dict["P_seasonal_storage_used"].append(round(pyo.value(model.eh_seasonal_dch[t]), 0))
+        results_dict["P_waste_heat_used"].append(round(pyo.value(model.eh_waste_heat[t]), 0))
 
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)

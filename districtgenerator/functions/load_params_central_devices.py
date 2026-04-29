@@ -19,7 +19,6 @@ import math
 import districtgenerator.functions.clustering_medoid as clustering
 import time
 import os
-import sys
 import copy
 from districtgenerator.classes.solar import Sun
 from districtgenerator.functions.heating_network_opt import heating_curve
@@ -48,6 +47,9 @@ def load_params(data):
     param_uncl["GHI"] = data.site["SunTotal"]
     param_uncl["DHI"] = data.site["SunDiffuse"]
     param_uncl["wind_speed"] = data.site["wind_speed"]
+
+    # Available waste heat potential in kW for the optimization model
+    param_uncl["waste_heat"] = data.heat_grid_data["waste_heat_kW"]
 
     ################################################################
     # LOAD DEMANDS
@@ -82,8 +84,8 @@ def load_params(data):
         electricityAppliances += data.district[b]["user"].elec / 1000 # kW
         electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
         generationPV += data.district[b]["generationPV"] / 1000 # kW
-
-    heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"] - heat_grid_data["seasonal_storage_kW"]
+    
+    heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"] - heat_grid_data["seasonal_storage_kW"] # kW; net heat demand from buildings + heat grid losses - seasonal storage supply;
 
     # Clip heating_total to a minimum of 0, since negative heating demand (excess heat) as local surplus by STC or through seasonal storage should not be able to be stored into storage systems in the Energy hub, assuming a unidirectional flow
     heating_total = np.maximum(heating_total, 0)
@@ -119,7 +121,7 @@ def load_params(data):
     # Collect the time series to be clustered
     time_series = [dem_uncl["heat"][0:adjustedHorizon], dem_uncl["cool"][0:adjustedHorizon], dem_uncl["power"][0:adjustedHorizon],
                    param_uncl["T_air"][0:adjustedHorizon], param_uncl["GHI"][0:adjustedHorizon], param_uncl["DHI"][0:adjustedHorizon],
-                   param_uncl["wind_speed"][0:adjustedHorizon]]
+                   param_uncl["wind_speed"][0:adjustedHorizon], param_uncl["waste_heat"][0:adjustedHorizon]]
 
     # Only building demands and weather data are clustered using k-medoids algorithm; secondary time series are clustered manually according to k-medoids result
     inputs = np.array(time_series)
@@ -154,6 +156,7 @@ def load_params(data):
     param["GHI"] = clustered_series[4]
     param["DHI"] = clustered_series[5]
     param["wind_speed"] = clustered_series[6]
+    param["waste_heat"] = clustered_series[7]
 
     # Save number of design days and design-day matrix
     # todo: Adjust this to allow for different clusters in each year?
@@ -724,6 +727,8 @@ def load_params(data):
                             for year in param["interpolation_points"]}
     param["price_hydrogen"] = {year: all_sim_ecoData[year]["price_hydrogen"]
                             for year in param["interpolation_points"]}
+    param["price_waste_heat"] = {year: all_sim_ecoData[year]["price_waste_heat"] 
+                            for year in param["interpolation_points"]} # €/kWh
 
     ### Ecological impact ###
     param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"]
@@ -735,6 +740,8 @@ def load_params(data):
     param["co2_waste"] = {year: all_sim_ecoData[year]["co2_waste"]
                         for year in param["interpolation_points"]}  # kg/kWh
     param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"]
+                            for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_waste_heat"] = {year: all_sim_ecoData[year]["co2_waste_heat"]
                             for year in param["interpolation_points"]}  # kg/kWh
 
     # Optional: CO2 credits for feed-in (if available in all_sim_ecoData)
