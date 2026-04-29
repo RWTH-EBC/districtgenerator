@@ -1885,61 +1885,65 @@ class DistrictLayout(BaseReportFlowable):
         current_y = self.height - padding
 
         # Scale:
-        max_scale_width = self.legend_width - 2 * padding
+        if self.scale is not None:
+            max_scale_width = self.legend_width - 2 * padding
 
-        allowed_real_meters = []
-        for power in range(0, 4): 
-            allowed_real_meters.extend([1 * 10**power, 2.5 * 10**power, 5 * 10**power])
-        
-        # Find the best fitting scale value that is the closest to but smaller than the maximum width
-        best_real_meters = 10 
-        for val in reversed(allowed_real_meters):
-            if val * self.scale <= max_scale_width:
-                best_real_meters = val
-                break
-                
-        drawn_length = best_real_meters * self.scale 
-
-        scale_y = current_y - size_elements
-        scale_start_x = start_x
-        
-        bar_height = 5            # Height of the scale bar
-        num_segments = 4          # Number of blocks in the scale (e.g., 4 blocks for 0, 25%, 50%, 75%, 100%)
-        seg_length = drawn_length / num_segments
-        
-        # Draw the scale segments
-        for i in range(num_segments):
-            seg_x = scale_start_x + i * seg_length
-            is_black = (i % 2 == 0)
+            allowed_real_meters = []
+            for power in range(0, 4): 
+                allowed_real_meters.extend([1 * 10**power, 2.5 * 10**power, 5 * 10**power])
             
-            seg_rect = Rect(seg_x, scale_y, seg_length, bar_height)
-            seg_rect.strokeColor = colors.black
-            seg_rect.strokeWidth = 0.5
-            seg_rect.fillColor = colors.black if is_black else colors.white
-            d.add(seg_rect)
+            # Find the best fitting scale value that is the closest to but smaller than the maximum width
+            best_real_meters = 10 
+            for val in reversed(allowed_real_meters):
+                if val * self.scale <= max_scale_width:
+                    best_real_meters = val
+                    break
+                    
+            drawn_length = best_real_meters * self.scale 
 
-        # Placement of the labels for the scale
-        label_y = scale_y + bar_height + 2
-        label_size = self.style.get_layout_size("label")
-        
-        # "0" at the beginning of the scale
-        d.add(String(scale_start_x, label_y, "0", 
-                     fontName=self.style.get_font(bold=False), fontSize=label_size, 
-                     fillColor=text_color, textAnchor='middle'))
-        
-        # Halfway value in the middle
-        half_meters = best_real_meters / 2.0
-        d.add(String(scale_start_x + drawn_length / 2.0, label_y, f"{half_meters:g}", 
-                     fontName=self.style.get_font(bold=False), fontSize=label_size, 
-                     fillColor=text_color, textAnchor='middle'))
-                     
-        # End value with unit ("m") at the end
-        d.add(String(scale_start_x + drawn_length, label_y, f"{best_real_meters:g} m", 
-                     fontName=self.style.get_font(bold=False), fontSize=label_size, 
-                     fillColor=text_color, textAnchor='middle'))
+            scale_y = current_y - size_elements
+            scale_start_x = start_x
+            
+            bar_height = 5            # Height of the scale bar
+            num_segments = 4          # Number of blocks in the scale (e.g., 4 blocks for 0, 25%, 50%, 75%, 100%)
+            seg_length = drawn_length / num_segments
+            
+            # Draw the scale segments
+            for i in range(num_segments):
+                seg_x = scale_start_x + i * seg_length
+                is_black = (i % 2 == 0)
+                
+                seg_rect = Rect(seg_x, scale_y, seg_length, bar_height)
+                seg_rect.strokeColor = colors.black
+                seg_rect.strokeWidth = 0.5
+                seg_rect.fillColor = colors.black if is_black else colors.white
+                d.add(seg_rect)
 
-        #Start of the legend, below the scale
-        box_start_y = scale_y - padding
+            # Placement of the labels for the scale
+            label_y = scale_y + bar_height + 2
+            label_size = self.style.get_layout_size("label")
+            
+            # "0" at the beginning of the scale
+            d.add(String(scale_start_x, label_y, "0", 
+                        fontName=self.style.get_font(bold=False), fontSize=label_size, 
+                        fillColor=text_color, textAnchor='middle'))
+            
+            # Halfway value in the middle
+            half_meters = best_real_meters / 2.0
+            d.add(String(scale_start_x + drawn_length / 2.0, label_y, f"{half_meters:g}", 
+                        fontName=self.style.get_font(bold=False), fontSize=label_size, 
+                        fillColor=text_color, textAnchor='middle'))
+                        
+            # End value with unit ("m") at the end
+            d.add(String(scale_start_x + drawn_length, label_y, f"{best_real_meters:g} m", 
+                        fontName=self.style.get_font(bold=False), fontSize=label_size, 
+                        fillColor=text_color, textAnchor='middle'))
+
+            #Start of the legend, below the scale
+            box_start_y = scale_y - padding
+
+        else:
+            box_start_y = current_y
 
         current_y = box_start_y - padding
 

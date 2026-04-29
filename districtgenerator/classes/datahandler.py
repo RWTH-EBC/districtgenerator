@@ -2723,8 +2723,12 @@ class Datahandler:
                 lower_bound = float(match.group(1).replace(",", "."))
                 upper_bound = float(match.group(2).replace(",", "."))
 
-                # Use the mean as the nominal capacity of the potential range.
-                potentials.append((lower_bound + upper_bound) / 2)
+                # Use the mean as the nominal capacity of the potential range.#
+                val = (lower_bound + upper_bound) / 2
+                if val > 5000:
+                    potentials.append(5000)  # Cap the potential at 5000 kW
+                else:
+                    potentials.append(val)
 
             return max(potentials) if potentials else 0
 
