@@ -37,8 +37,6 @@ class NonResidential(object):
             Total net leased area of building. This is area is NOT the footprint of a building
     usage: str 
         Type of the building, according to Data NWG. Options are: "oag", "rnt", "hlc", "sdc", "clt", "spf", "hbr", "pwo", "trd", "tud", "trs", "gs1", "gs2"
-    height_of_floors : float [m]
-        Average height of the floors - currently not utilized
     construction_type : str
         construction type of the building
     retrofit_level : str
@@ -48,8 +46,6 @@ class NonResidential(object):
 
     Attributes
     ----------
-    height_of_floors : float [m]
-        Average height of the floors (default: None)
     outer_area : dict [degree: m2]
         Dictionary with orientation as key and sum of outer wall areas of
         that direction as value.
@@ -67,7 +63,6 @@ class NonResidential(object):
         net_leased_area,
         total_building_area,
         usage,  
-        # height_of_floors,
         construction_type,
         retrofit_level,
         number_of_floors = None,
@@ -78,7 +73,6 @@ class NonResidential(object):
         self.net_leased_area = float(net_leased_area)
         self.total_building_area = float(total_building_area)
         self.usage = usage 
-        # self.height_of_floors=float(height_of_floors)
         self.construction_type = construction_type
         self.retrofit_level = retrofit_level
         self.number_of_floors = number_of_floors
@@ -92,9 +86,8 @@ class NonResidential(object):
         # Validate number_of_floors
         if number_of_floors is not None and (not isinstance(number_of_floors, int) or number_of_floors <= 0):
             raise ValueError(f"number_of_floors must be a positive integer.")
-        
+
         # check Orientation
-        # self.volume = self.calculate_volume()
         self.parameters = self.load_building_data()
         self.facade_estimation_factors = self.load_surface_estimation_factors()
 
@@ -136,7 +129,6 @@ class NonResidential(object):
             one_floor_area = self.facade_estimation_factors["gf1"] * self.total_building_area # Use the ground floor estimation factor
         else:
             one_floor_area = self.total_building_area / self.number_of_floors # If the number of floors is given, calculate the area
-            # print(f"Calculated one floor area based on total building area and number of floors: {one_floor_area} m2 (Total building area: {self.total_building_area} m2, Number of floors: {self.number_of_floors})")
 
         # Outer walls
         if self.facade_estimation_factors["ow1"] != 0:
@@ -178,9 +170,6 @@ class NonResidential(object):
                 else:
                     self.outer_area[key]["area"] = (self.facade_estimation_factors["rt1"]/self.facade_estimation_factors["gf1"] * one_floor_area) / len(self._roof_names)
 
-    # def calculate_volume(self):
-    #     return self.net_leased_area * self.height_of_floors
-
     def load_surface_estimation_factors(self):
         """
         Load surface estimation factors data from a JSON file
@@ -190,7 +179,7 @@ class NonResidential(object):
         # win - window 
 
         Average number of floors (avg_nfloors)
-       
+
         Returns
         -------
         dict
@@ -263,16 +252,16 @@ class NonResidential(object):
         """Get the number of floors for the non-residential building. Only relevant to determine the number of floors for mixed-use buildings."""
         if self.number_of_floors is None:
             # If number of floors is not provided the avg floor number is used which can be calculated utilizing gf1 which describes the ratio of the ground floor area to the total building area.
-            # As the ground floor area is measured as a gross floor area the factor 0.85 is applied to account for the difference between gross and net floor area. 
+            # As the ground floor area is measured as a gross floor area the factor 0.85 is applied to account for the difference between gross and net floor area.
             # Factor sourced from the guideline "Bekanntmachung der Regeln für Energieverbrauchswerte und der Vergleichswerte im Nichtwohngebäudebestand" (15. April 2021) - Sec. 4 Ermittlung der Energiebezugsfläche
             avg_nfloors = 1/(self.facade_estimation_factors["gf1"]*0.85)
 
             number_of_floors = round(avg_nfloors) # TODO: Check if statistical distribution should be used instead of fixed value for each building archetype
 
             return number_of_floors
-        
+
         return self.number_of_floors
-    
+
 # This class is responsible for the behavior configuration for non-residential buildings
 @dataclass
 class NonResidentialConfig:

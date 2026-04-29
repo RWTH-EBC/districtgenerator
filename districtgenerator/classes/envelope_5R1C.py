@@ -158,9 +158,6 @@ class Envelope:
                         q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
                         V_dot_infiltration += zone_area * q_v_infiltration
 
-
-
-
         self.eta_temp_vent = eta_temp_vent
         self.V_dot = V_dot_area
         self.V_dot_infiltration = V_dot_infiltration
@@ -582,8 +579,6 @@ class Envelope:
             self.A["window"]["sum"] = sum(self.A["window"][d] for d in drct)                  # all windows
 
         elif isinstance(prj, NonResidential):
-
-            # self.V = prj.volume # Volume of the building not needed for non-residential buildings with SIA2024 zone-based approach, as the ventilation is calculated based on the area of the zones instead of the volume of the building.
 
             self.A = {}  # in m2
 

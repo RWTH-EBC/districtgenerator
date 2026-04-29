@@ -223,26 +223,9 @@ class Datahandler:
         None.
         """
 
-        dtype_dict = {
-            'id': str,
-            'building': str,
-            'year': int,
-            'retrofit': int,
-            'construction_type': int,
-            'night_setback': int,
-            'area': float,
-            'heater': str,
-            'cooling': int,
-            'EV': float,
-            'f_TES': float,
-            'f_BAT': float,
-            'f_PV1': float,
-            'f_PV2': float,
-            'f_STC': float,
-            'gamma_PV': float,
-            'ev_charging': str,
-        }
-        
+        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
+                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
+                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
 
         # %% load scenario file with building information
         if self.heat_map_berlin:
@@ -1154,6 +1137,8 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+        use_multiprocessing = True #todo: False while debugging
+
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
         max_threads = min(max_threads, multiprocessing.cpu_count())
 
@@ -1166,9 +1151,20 @@ class Datahandler:
 
         self.save_progress()
 
-        with multiprocessing.Pool(processes=max_threads) as pool:
-            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
-
+        if use_multiprocessing:
+            with multiprocessing.Pool(processes=max_threads) as pool:
+                for result in pool.imap_unordered(generate_demands_worker_wrapper, args_list):
+                    self.buildings_completed += 1
+                    results.append(result)
+                    self.save_progress()
+                    print(
+                        f"building {self.buildings_completed}/{self.buildings_total} calculated "
+                        f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): "
+                        f"{result.get('unique_name', '')}"
+                    )
+        else:
+            for args in args_list:
+                result = generate_demands_worker_wrapper(args)
                 self.buildings_completed += 1
                 results.append(result)
 
@@ -1290,6 +1286,11 @@ class Datahandler:
                                         name=building["unique_name"],
                                         path=os.path.join(self.resultPath, 'demands'))
 
+                self.saveHeatingProfile(heat=building["user"].heat,
+                                        cooling=building["user"].cooling,
+                                        name=building["unique_name"],
+                                        path=os.path.join(self.resultPath, 'demands'))
+
         else:
             # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
             if "user" not in building:
@@ -1310,8 +1311,7 @@ class Datahandler:
              building["user"].nb_main_rooms,
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
-             building["envelope"].heatlimit, building["envelope"].coolingload, building["dhwpower"],
-             building["envelope"].A,
+             building["envelope"].heatlimit, building["envelope"].coolingload, building["dhwpower"], building["envelope"].A,
              building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
                                                                  os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
             print("Load demands of building " + building["unique_name"])

@@ -1397,6 +1397,49 @@ class CentralDeviceConfig(BaseSettings):
                             delattr(self, attr_name)
         
         return self
+
+    @model_validator(mode='after')
+    def validate_single_hp_and_cc_model(self) -> 'CentralDeviceConfig':
+        """Ensure only one central HP model and one CC model is enabled at most, and validate COP modes."""
+
+        hp_enabled_count = sum([
+            bool(self.GroundHP["feasible"]),
+            bool(self.AirHP["feasible"]),
+            bool(self.HP["feasible"])
+        ])
+
+        if hp_enabled_count > 1:
+            raise ValueError(
+                f"Configuration Error: Multiple central heat pump models are enabled ({hp_enabled_count} active). "
+                "You can only set 'feasible=True' for ONE of the following: 'GroundHP', 'AirHP', or the default 'HP'."
+            )
+
+        if self.HP["feasible"]:
+            hp_mode_count = sum([
+                bool(self.HP["CCOP_feasible"]),
+                bool(self.HP["ASHP_feasible"]),
+                bool(self.HP["CSV_feasible"])
+            ])
+
+            if hp_mode_count != 1:
+                raise ValueError(
+                    f"Configuration Error: When 'HP__feasible' is True, exactly ONE COP mode must be enabled. "
+                    f"Currently {hp_mode_count} are active. Please set 'True' for exactly one of: "
+                    "'HP__CCOP_feasible', 'HP__ASHP_feasible', or 'HP__CSV_feasible'."
+                )
+
+        cc_enabled_count = sum([
+            bool(self.AirCC["feasible"]),
+            bool(self.CC["feasible"])
+        ])
+
+        if cc_enabled_count > 1:
+            raise ValueError(
+                f"Configuration Error: Multiple central chiller models are enabled ({cc_enabled_count} active). "
+                "You can only set 'feasible=True' for ONE of the following: 'AirCC', or the default 'CC'."
+            )
+
+        return self
     
     @model_validator(mode='after')
     def validate_single_hp_and_cc_model(self) -> 'CentralDeviceConfig':

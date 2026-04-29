@@ -12,6 +12,7 @@ from pyomo.util.infeasible import log_infeasible_constraints
 import time
 import os
 import districtgenerator.functions.solver_config as solver_config
+from contextlib import redirect_stdout
 
 ALL_DEVS = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
             "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
