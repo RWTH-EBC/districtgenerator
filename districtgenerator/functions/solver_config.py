@@ -224,7 +224,7 @@ def _map_options(solver_name, solver_options):
 def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     """
     Solves the given Pyomo model and triggers diagnosis if not solved to optimality.
-    """
+    """    
     # Initialize solver
     solver, solver_options = create_solver(pyomo_config=pyomo_config)
 
@@ -233,7 +233,7 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
     model.write(lp_filename, io_options={"symbolic_solver_labels": True})
 
     # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, f"solver_output_{model_name}.log")
+    solver_log_path = os.path.join(result_dir, f"solver_output_{model_name}.log")    
 
     # Capture solver output in a log file by redirecting stdout:
     with open(solver_log_path, 'w', encoding='utf-8') as log_file:
@@ -261,7 +261,7 @@ def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
 
 def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, solver_log_path):
     """
-    Diagnose the optimization result when the solver does not terminate with an optimal solution.
+    Diagnose the optimization result when the solver does not terminate with an optimal solution. 
     Utilizes Gurobi (if available) to analyze infeasibility or unboundedness and saves an error log for further analysis.
     """
     errorfile_path = os.path.join(result_dir, f"errorfile_{model_name}.txt")
@@ -314,7 +314,7 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                 print("Running Gurobi optimization to determine source of termination...")
                 m.optimize()
 
-                if m.status == gp.GRB.OPTIMAL or m.status == 2:
+                if m.status == gp.GRB.OPTIMAL or m.status == 2: 
                     print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
@@ -359,11 +359,11 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
             print(f"Gurobi analysis failed. For further information, see {errorfile_path}")
             with open(errorfile_path, 'a') as f:
                 f.write(f"\nGurobi analysis failed: {e}\n")
-
+        
         if os.path.exists("debug_model.lp"):
             os.remove("debug_model.lp")
-
-    else:
+    
+    else: 
         # TODO: Add IIS analysis if Gurobi is not available. e.g. using an elastic programming approach might be utilized to identify violated constraints (as described by https://web.mit.edu/lpsolve/doc/Infeasible.htm)
         with open(errorfile_path, 'a') as f:
             f.write("\nCurrently no infeasibility analysis implemented if gurobi is not available.\n")

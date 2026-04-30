@@ -215,6 +215,7 @@ class EcoConfig(BaseSettings):
     price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
     price_oil: str | list = [0.90, 0.94, 0.98, 1.02, 1.06, 1.10, 1.12, 1.14, 1.16, 1.18, 1.20, 1.22, 1.24, 1.26, 1.28, 1.30, 1.32, 1.34, 1.36, 1.38]           # Oil price in €/kWh
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
+    price_waste_heat: str | list = [0.0]          # Waste heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
     co2_el_grid: str | list = [0.328]          # CO2 emissions for electricity import (grid mix) in kg/kWh
@@ -224,6 +225,7 @@ class EcoConfig(BaseSettings):
     co2_oil: str | list = [0.310]              # CO2 emissions for burning oil in kg/kWh
     co2_waste: str | list = [0.020]              # CO2 emissions for burning waste in kg/kWh
     co2_district_heat: str | list = [0.200]    # CO2 emissions for district heat in kg/kWh
+    co2_waste_heat: str | list = [0.0]         # CO2 emissions for waste heat in kg/kWh
 
     # Co2 tax in €/t_CO2
     co2_tax: str | list = [0]              # CO2 tax. Tax on CO2 emissions due to burning natural gas, biomass or waste in €/t_CO2 if relevant for consumer
@@ -231,9 +233,9 @@ class EcoConfig(BaseSettings):
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
-                     'price_biomass', 'price_oil', 'price_district_heat',
+                     'price_biomass', 'price_oil', 'price_district_heat', 'price_waste_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
-                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
+                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_waste_heat', 'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
         """Convert input to list of floats"""
@@ -259,8 +261,8 @@ class EcoConfig(BaseSettings):
         params_to_expand = [
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
-            'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'price_waste', 'price_biomass', 'price_oil', 'price_district_heat', 'price_waste_heat',
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_waste_heat', 'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -313,7 +315,7 @@ class EcoConfig(BaseSettings):
             # Override interpolation_points with selected points
             self.interpolation_points = selected_points
 
-        else: # Validate if the interpolation points are within the observation time and that 0 is included.
+        else: # Validate if the interpolation points are within the observation time and that  0 is included.
             invalid_points = []
             for point in self.interpolation_points:
                 if point < 0 or point >= self.observation_time:
@@ -324,7 +326,7 @@ class EcoConfig(BaseSettings):
 
             if 0 not in self.interpolation_points:
                 raise ValueError(f"Interpolation points must include 0 as the starting point of the first interval. Otherwise it would imply that the first interval starts at a later point in time, which is not intended. Current interpolation points: {self.interpolation_points}")
-
+        
         # Sort the list to ensure chronological order for later processing steps
         self.interpolation_points.sort()
         return self
@@ -436,6 +438,8 @@ class HeatGridConfig(BaseSettings):
     cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
+    seasonal_storage_kWh_a: float = 0 # Seasonal storage capacity at the location in kWh/a -> Which offers a constant supply of energy throughout the year without any associated cost or emissions.
+    nominal_waste_heat_capacity_kW: Optional[float] = None  # Nominal waste heat capacity in kW without any associated cost or emissions. None indicates it can later be determined by the input file. If it is not determined it will be set to 0.
 
     T_hot_heating_network__constant__3rd: float = 80.0  # Supply temperature of 3rd generation heat grid in degrees Celsius.
     T_hot_heating_network__constant__4th: float = 55.0  # Supply temperature of 4th generation heat grid in degrees Celsius.
@@ -478,6 +482,13 @@ class HeatGridConfig(BaseSettings):
     pipe__cost_om_pipe: float = 0.005    # Pipe O&M share (fraction of investment cost per year).
     pipe: dict = {}
 
+    @field_validator('nominal_waste_heat_capacity_kW', mode='before')
+    @classmethod
+    def parse_none_string(cls, v):
+        """Convert string 'None' to Python None"""
+        if v == "None" or v == "null" or v == "":
+            return None
+        return v
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'HeatGridConfig':
@@ -520,6 +531,24 @@ class HeatGridConfig(BaseSettings):
                         if attr_name.startswith(prefix):
                             delattr(self, attr_name)
         
+        return self
+    
+    @model_validator(mode='after')
+    def validate_inputs(self) -> 'HeatGridConfig':
+        """Validate that the input parameters are consistent with the selected generation and temperature mode."""
+        valid_generations = ["3rd", "4th", "5th"]
+        valid_temperature_modes = ["constant", "heating_curve"]
+        valid_topology_options = ["node", "road"]
+
+        if self.generation not in valid_generations:
+            raise ValueError(f"Invalid generation: {self.generation}. Must be one of {valid_generations}.")
+
+        if self.temperature_mode not in valid_temperature_modes:
+            raise ValueError(f"Invalid temperature_mode: {self.temperature_mode}. Must be one of {valid_temperature_modes}.")
+        
+        if self.topology_option not in valid_topology_options:
+            raise ValueError(f"Invalid topology_option: {self.topology_option}. Must be one of {valid_topology_options}.")
+
         return self
     
 
@@ -631,13 +660,14 @@ class ReportConfig(BaseSettings):
 
     # KPI Save options
     kpi_save_type: str = "xlsx" # Format for saving KPIs, selected between: "csv", "xlsx", and "None" to save the KPIs in a CSV file, Excel file, or not save them at all.
+    
 
     # --- Colors Dictionary ---
-    colors: dict = {}
+    colors: dict = {} 
     colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines
     colors__secondary_color: str | Tuple[float, float, float] = "#86A91A" # Secondary color of the report e.g. used for bars in graphs
     colors__background: str | Tuple[float, float, float] = "#FFFFFF" # Color for the background of the report and for background in tables
-    colors__text: str | Tuple[float, float, float] = "#000000" # Color of the text and titles in report
+    colors__text: str | Tuple[float, float, float] = "#000000" # Color of the text and titles in report 
     colors__text_light: str | Tuple[float, float, float] = "#3C3C3C" # Color of the text for additional information that is supposed to be less prominent
 
     # Colors for energy types in graphs
@@ -655,6 +685,7 @@ class ReportConfig(BaseSettings):
     colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
     colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B" # District heating
     colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9" # Hydrogen
+    colors__source__waste_heat: str | Tuple[float, float, float] = "#E67E22" # Waste heat
 
     # Colors for fixed costs and revenues in financial charts
     colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
@@ -706,19 +737,19 @@ class ReportConfig(BaseSettings):
     @model_validator(mode='after')
     def process_config(self) -> 'ReportConfig':
         """Translate HEX to RGB and build all nested dictionaries."""
-
+        
         field_names = list(self.__dict__.keys())
-
+        
         # 1. Translate Colors first
         for field_name in field_names:
             if field_name.startswith('colors__'):
                 val = getattr(self, field_name)
-
+                
                 # Translate color inputs to RGB tuples in the range 0-1
-                # Case A: It's a string
+                # Case A: It's a string 
                 if isinstance(val, str):
                     val = val.strip()
-
+                    
                     # HEX Code
                     if val.startswith('#'):
                         hex_code = val.lstrip('#')
@@ -727,7 +758,7 @@ class ReportConfig(BaseSettings):
                             setattr(self, field_name, rgb_tuple)
                         else:
                             raise ValueError(f"Invalid HEX code '{val}' for field {field_name}")
-
+                    
                     # stringified Tuple like "(54, 132, 39)" or "54, 132, 39"
                     else:
                         clean_val = val.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
@@ -742,7 +773,7 @@ class ReportConfig(BaseSettings):
                             setattr(self, field_name, rgb_tuple)
                         else:
                             raise ValueError(f"RGB input must have exactly 3 values. Got: {val}")
-
+                
                 # Case B: It's already a Tuple/List
                 elif isinstance(val, (tuple, list)):
                     if len(val) == 3:
@@ -766,12 +797,12 @@ class ReportConfig(BaseSettings):
                 if getattr(self, field_name) == {}:
                     target_dict = {}
                     prefix = f"{field_name}__"
-
+                    
                     for attr_name in field_names:
                         if attr_name.startswith(prefix) and hasattr(self, attr_name):
                             key_path = attr_name[len(prefix):]
                             keys = key_path.split('__')
-
+                            
                             current_dict = target_dict
                             for i, key in enumerate(keys):
                                 if i == len(keys) - 1:
@@ -780,13 +811,13 @@ class ReportConfig(BaseSettings):
                                     if key not in current_dict:
                                         current_dict[key] = {}
                                     current_dict = current_dict[key]
-
+                    
                     setattr(self, field_name, target_dict)
-
+                    
                     for attr_name in field_names:
                         if attr_name.startswith(prefix) and hasattr(self, attr_name):
                             delattr(self, attr_name)
-
+                            
         return self
 
     model_config = SettingsConfigDict(
@@ -1010,7 +1041,6 @@ class DecentralDeviceConfig(BaseSettings):
         env_file=".decentraldeviceconfig",
         extra="ignore"
     )
-
 class CentralDeviceConfig(BaseSettings):
     """Configuration for central devices in a district energy system.
 
@@ -1132,7 +1162,7 @@ class CentralDeviceConfig(BaseSettings):
     AirHP__life_time: int = 25  # Maximum life time in years.
     AirHP__inv_base: float = 1110  # Unsubsidized investment in €/kWth.
     AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
-    AirHP__min_cap: float = 0  # Minimum capacity in kWth.
+    AirHP__min_cap: float = 1  # Minimum capacity in kWth.
     AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
     AirHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     AirHP: dict = {}

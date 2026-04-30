@@ -95,12 +95,10 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
 
     # get the coordinates of all building nodes
     heat_network_points = []
-    for building in buildings_info:
+    for i, building in enumerate(buildings_info):
         pos = tuple(building["position"])
         heat_network_points.append(pos)
-    # add all building nodes to the graph, set the role attribute as "bldg" (short for building)
-    for i, point in enumerate(heat_network_points):
-        weighted_graph.add_node(i+1, pos=point, role="bldg")
+        weighted_graph.add_node(i+1, pos=pos, role="bldg", bldg_id=building["id"])
 
     # get a list of all the nodes in the graph
     all_points = [transformer] + heat_network_points
@@ -165,7 +163,7 @@ def run_pipeline_node(district_type, buildings_info, transformer_info):
         role = network.nodes[n].get("role", "node")  # default value for unassigned role attribute: "node"
         # Assign unique identifiers to all nodes
         if role == "bldg":
-            network.nodes[n]["id"] = f"bldg{counters['bldg']}"
+            network.nodes[n]["id"] = f"bldg{str(network.nodes[n]['bldg_id'])}"
             counters["bldg"] += 1
         elif role == "EH":
             network.nodes[n]["id"] = f"EH{counters['EH']}"

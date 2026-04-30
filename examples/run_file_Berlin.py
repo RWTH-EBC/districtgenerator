@@ -23,7 +23,7 @@ def run_opti(district_id, config_name):
     data.calculateKPIs()
 
     # Create a certificate (PDF) which summarizes the district parameters and calculated KPIs
-    # data.KPIs.create_certificate(data=data, result_path=data.resultPath)
+    data.KPIs.create_certificate(data=data, result_path=data.resultPath)
 
     print("Congratulations! You calculated an optimized device operation for the selected neighborhood!")
     return data

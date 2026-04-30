@@ -387,6 +387,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             bld_node = pos_to_node[bld_pos]  # index of the building node
             # Add attribute to facilitate diameter optimization(locate building nodes, add thermal load and flow rate)
             mutable_network.nodes[bld_node]["role"] = "bldg"
+            mutable_network.nodes[bld_node]["id"] = building["id"]
 
             conn_node = pos_to_node[conn_pos]  # index of the connection node
             # Add role attribute
@@ -404,15 +405,14 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             if "role" not in mutable_network.nodes[n]:
                 mutable_network.nodes[n]["role"] = "node"
 
-        # Assign unique identifiers to all nodes and count the role attributes separately.
+        # Assign unique identifiers to all nodes and count the role attributes separately. Buildings use their original IDs, EH nodes are named "EH1", "EH2", etc., and other nodes are named "node1", "node2", etc.
         counters = {"bldg": 1, "node": 1, "EH": 1}
 
         for n in mutable_network.nodes:
             role = mutable_network.nodes[n].get("role", "node")  # default value for unassigned role attribute: "node"
             # Assign unique identifiers to all nodes
             if role == "bldg":
-                mutable_network.nodes[n]["id"] = f"bldg{counters['bldg']}"
-                counters["bldg"] += 1
+                mutable_network.nodes[n]["id"] = f"bldg{str(mutable_network.nodes[n]['id'])}"
             elif role == "EH":
                 mutable_network.nodes[n]["id"] = f"EH{counters['EH']}"
                 counters["EH"] += 1
@@ -516,17 +516,17 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             y0 = road["start"][1]
             threshold = 50  # Maximum distance from the road for a building to be considered “near”
             # Find buildings located slightly below the road (within threshold)
-            buildings_id_left = [b["id"] for b in buildings_info if b["position"][1] < y0 and abs(b["position"][1] - y0) < threshold]
+            buildings_left = [b for b in buildings_info if b["position"][1] < y0 and abs(b["position"][1] - y0) < threshold]
             # Find buildings located slightly above the road (within threshold)
-            buildings_id_right = [b["id"] for b in buildings_info if b["position"][1] > y0 and abs(b["position"][1] - y0) < threshold]
-            if buildings_id_left or buildings_id_right:
+            buildings_right = [b for b in buildings_info if b["position"][1] > y0 and abs(b["position"][1] - y0) < threshold]
+            if buildings_left or buildings_right:
                 # All nearby buildings should be connected directly to this road
-                buildings_id = buildings_id_left + buildings_id_right
-                for id in buildings_id:
-                    raw_point = [buildings_info[id]["position"][0], y0]
+                buildings_nearby = buildings_left + buildings_right
+                for b in buildings_nearby:
+                    raw_point = [b["position"][0], y0]
                     # merge nearly identical connection points
                     merged_point = merge_close_point(raw_point, connection_points, tol=0.1)
-                    buildings_info[id]["connection_point"] = merged_point
+                    b["connection_point"] = merged_point 
                     connection_points.append(tuple(merged_point))
 
         # get the position of the transformer (energy hub)
@@ -694,6 +694,7 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             bld_pos = tuple(building["position"])
             bld_node = pos_to_node[bld_pos]  # index of the building node
             network.nodes[bld_node]["role"] = "bldg"  # Add attribute to facilitate diameter optimization
+            network.nodes[bld_node]["id"] = building["id"]
 
         transformer_node = pos_to_node[transformer]  # index of the EH node
         network.nodes[transformer_node]["role"] = "EH"  # Add attribute to facilitate diameter optimization
@@ -703,15 +704,14 @@ def run_pipeline_road(district_type, building_width, house_connection, buildings
             if "role" not in network.nodes[n]:
                 network.nodes[n]["role"] = "node"
 
-        # Assign unique identifiers to all nodes and count the role attributes separately.
+        # Assign unique identifiers to all nodes and count the role attributes separately. Buildings use their original IDs, EH nodes are named "EH1", "EH2", etc., and other nodes are named "node1", "node2", etc.
         counters = {"bldg": 1, "node": 1, "EH": 1}
 
         for n in network.nodes:
             role = network.nodes[n].get("role", "node")  # default value for unassigned role attribute: "node"
             # Assign unique identifiers to all nodes
             if role == "bldg":
-                network.nodes[n]["id"] = f"bldg{counters['bldg']}"
-                counters["bldg"] += 1
+                network.nodes[n]["id"] = f"bldg{str(network.nodes[n]['id'])}"
             elif role == "EH":
                 network.nodes[n]["id"] = f"EH{counters['EH']}"
                 counters["EH"] += 1

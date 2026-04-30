@@ -262,6 +262,7 @@ class Envelope:
                         q_v_infiltration = data['airFlow_infiltration_perA_perh'][mode]
                         V_dot_infiltration += zone_area * q_v_infiltration
 
+
         self.eta_temp_vent = eta_temp_vent
         self.V_dot = V_dot_area
         self.V_dot_infiltration = V_dot_infiltration

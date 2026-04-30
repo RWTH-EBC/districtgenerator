@@ -16,6 +16,7 @@ import openpyxl
 import pandas as pd
 import random as rd
 import holidays as hol
+import re
 from teaser.project import Project
 from .envelope_5R1C import Envelope as Envelope_5R1C
 from .envelope_7R2C import Envelope as Envelope_7R2C
@@ -222,33 +223,7 @@ class Datahandler:
         None.
         """
 
-        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
-                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
-                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
-
-        # %% load scenario file with building information
-        if self.heat_map_berlin:
-            # %% load heat map berlin formatted scenario file
-            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
-                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
-            self.pv_stc_potential = pd.read_csv(
-                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
-                delimiter=';',
-                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
-            )
-        else:
-            # %% load normal formatted scenario file
-            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
-
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-
-        if os.path.exists(json_path):
-            with open(json_path, encoding="utf-8") as json_file:
-                jsonData = json.load(json_file)
-                self.site["district_parameters"] = jsonData["parameters"]
+        # --- 1. Load all Configs ---
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -302,6 +277,38 @@ class Datahandler:
         for attr, value in heat_grid_config.__dict__.items():
             self.heat_grid_data[attr] = value
 
+        # --- 2. Load scenario data ---
+
+        dtype_dict = {'id': str, 'building': str, 'year': int, 'retrofit': int, 'construction_type': int, 'night_setback': int,
+                    'area': float, 'heater': str, 'cooling': int, 'EV': float, 'f_TES': float, 'f_BAT': float, 'f_PV1': float, 'f_PV2': float,
+                    'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
+
+        # %% load scenario file with building information
+        if self.heat_map_berlin:
+            # %% load heat map berlin formatted scenario file
+            self.map_wkb_to_scenario_format(self.scenario_file_path + "/" + self.scenario_name + ".csv",
+                                            self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
+            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+            self.pv_stc_potential = pd.read_csv(
+                self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
+                delimiter=';',
+                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+            )
+        else:
+            # %% load normal formatted scenario file
+            self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+                                         converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
+
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+
+        if os.path.exists(json_path):
+            with open(json_path, encoding="utf-8") as json_file:
+                jsonData = json.load(json_file)
+                self.site["district_parameters"] = jsonData["parameters"]
+
+        # --- 3. Load pipe data based on the selected heat grid generation ---
+
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
         # KMR for 3rd generation; PMR for 4th generation; PE for 5th generation
@@ -321,7 +328,6 @@ class Datahandler:
         elif self.heat_grid_data["generation"] == "5th":
             csv_path = os.path.join(self.pipe_file_path, 'pipe_specifications_PE.csv')
             self.pipe_data = pd.read_csv(csv_path, sep=";")
-            pass
         else:
             print("Please select from the 3rd, 4th, or 5th generation and enter it into the config file.")
 
@@ -787,7 +793,7 @@ class Datahandler:
 
             # Store features of the observed building
             building["buildingFeatures"] = row.copy()
-            building["buildingFeatures"]["original_bldg_id"] = bldg_id
+            building["buildingFeatures"]["original_bldg_id"] = bldg_id # Used for tracking the building throughout the mixed building splitting and combining process
 
             # Unique name = "<scenario>_<id>_<building type>"
             name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
@@ -996,7 +1002,7 @@ class Datahandler:
                 if "fixed_floors" in building["buildingFeatures"]:
                     number_of_floors = building["buildingFeatures"]["fixed_floors"]
                 elif building_type == "single_family_house":
-                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))
+                    one_floor_area = rd.randint(*self._get_one_floor_area_range_res(building_type))  
                     # Calculate the number of floors, rounding to the nearest integer and ensuring at least 1
                     number_of_floors = max(1, round(building["buildingFeatures"]["area"] / one_floor_area))
 
@@ -1037,13 +1043,15 @@ class Datahandler:
                                     number_of_floors=number_of_floors,
                                     height_of_floors=height_of_floors,
                                     net_leased_area=building["buildingFeatures"]["area"])
-
+                
                 if building["buildingFeatures"].get("is_mixed_part", False):
                     if isinstance(prj, Project):
                         mixed_res_part = prj.buildings[-1]
                         for r in mixed_res_part.thermal_zones[0].ground_floors:
                             # Ensure no ground area for the residential part.
                             r.area = 1e-9 # Set to a very small value to avoid division by zero errors in Envelope calculations
+
+
 
                 building["buildingFeatures"] = building["buildingFeatures"].copy()
                 building["buildingFeatures"]["id_teaser"] = len(prj.buildings) - 1
@@ -1172,7 +1180,7 @@ class Datahandler:
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
-
+            
             if not calcUserProfiles:
                 if "user" not in building:
                     building["user"] = DummyUser()
@@ -1233,7 +1241,7 @@ class Datahandler:
                                           path=os.path.join(self.resultPath, 'demands'),
                                           initial_day=self.initial_day,
                                           gen_cars=gen_cars)
-
+                
             if building.get("thermal_model") == "5R1C":
                 building["envelope"].calcNormativeProperties(self.site["SunRad"], building["user"].gains)
             elif building.get("thermal_model") == "7R2C":
@@ -1277,7 +1285,7 @@ class Datahandler:
                                   envelope_areas=building["envelope"].A,
                                   path=os.path.join(self.resultPath, 'demands'),
                                   individual_car_profiles=building["user"].individual_car_profiles)
-
+                
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
                                         name=building["unique_name"],
@@ -1287,12 +1295,12 @@ class Datahandler:
             # Generate dummy user and envelope objects instead of Teaser and User objects as demand calculation is skipped.
             if "user" not in building:
                 building["user"] = DummyUser()
-
+            
             if "envelope" not in building:
                 building["envelope"] = DummyEnvelope()
                 building["envelope"].construction_year = building["buildingFeatures"]["year"]
                 building["envelope"].retrofit = building["buildingFeatures"]["retrofit"]
-
+                    
 
             (building["user"].elec, building["user"].dhw,
              building["user"].occ, building["user"].gains,
@@ -1349,7 +1357,7 @@ class Datahandler:
         self.initializeBuildings()
 
         if calcUserProfiles: # Only generate the building envelopes and user objects if we need to calculate new profiles.
-            self.generateBuildings()
+            self.generateBuildings() 
 
         self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
         self.designDecentralDevices(saveGenerationProfiles=True)
@@ -1372,15 +1380,27 @@ class Datahandler:
             if missing_positions:
                 print("No district geometry found — running simple heating network design.")
                 heating_network_simple.heating_network(self)
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
             else:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option)
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork()
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
+
+            # initialize the seasonal storage for the heat grid
+            seasonal_storage_kWh_a = self.heat_grid_data["seasonal_storage_kWh_a"]
+            # Convert kWh/a to kW (assuming constant supply throughout the year)
+            seasonal_storage_kW_max = seasonal_storage_kWh_a / (365 * 24) # Currently assumes a constant supply throughout the year.
+            seasonal_storage_kW = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * seasonal_storage_kW_max
+            self.heat_grid_data["seasonal_storage_kW"] = seasonal_storage_kW
+
+            # Initialize waste heat availability for the heat grid
+            if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None: self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
+            nominal_waste_heat_capacity_kW = self.heat_grid_data["nominal_waste_heat_capacity_kW"]
+            self.heat_grid_data["waste_heat_kW"] = np.ones(len(self.heat_grid_data["total_losses_heating_network"])) * nominal_waste_heat_capacity_kW
+
+            self.designCentralDevices(saveGenerationProfiles=True)
+            self.finalizeClusterProfiles()
+            
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
@@ -1899,6 +1919,8 @@ class Datahandler:
 
             adjProfiles["losses_heating_network"] = self.heat_grid_data["total_losses_heating_network"][0:lengthArray]
             adjProfiles["losses_cooling_network"] = self.heat_grid_data["total_losses_cooling_network"][0:lengthArray]
+            adjProfiles["seasonal_storage_kW"] = self.heat_grid_data["seasonal_storage_kW"][0:lengthArray]
+            adjProfiles["waste_heat_kW"] = self.heat_grid_data["waste_heat_kW"][0:lengthArray]
             adjProfiles["pump_power"] = self.heat_grid_data["pump_power"][0:lengthArray]
 
             if self.centralDevices["capacities"]["WT"]["cap"] > 0:
@@ -2012,6 +2034,14 @@ class Datahandler:
             scalings.append(False)
 
             inputsClustering.append(adjProfiles["losses_cooling_network"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["seasonal_storage_kW"])
+            weights.append(0)
+            scalings.append(False)
+
+            inputsClustering.append(adjProfiles["waste_heat_kW"])
             weights.append(0)
             scalings.append(False)
 
@@ -2134,10 +2164,12 @@ class Datahandler:
         if centralEnergySupply == True:
             self.heat_grid_data["total_losses_heating_network_cluster"] = newProfiles[index_central]
             self.heat_grid_data["total_losses_cooling_network_cluster"] = newProfiles[index_central + 1]
-            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 2]
-            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 3]
-            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 4]
-            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 5]
+            self.heat_grid_data["seasonal_storage_cluster_kW"] = newProfiles[index_central + 2]
+            self.heat_grid_data["waste_heat_cluster_kW"] = newProfiles[index_central + 3]
+            self.heat_grid_data["pump_power_cluster"] = newProfiles[index_central + 4]
+            self.centralDevices["generation"]["Wind_cluster"] = newProfiles[index_central + 5]
+            self.centralDevices["generation"]["PV_cluster"] = newProfiles[index_central + 6]
+            self.centralDevices["generation"]["STC_cluster"] = newProfiles[index_central + 7]
 
         self.site["T_e_cluster"] = newProfiles[-2]
         self.heat_grid_data["T_soil_cluster"] = newProfiles[-1]
@@ -2292,7 +2324,7 @@ class Datahandler:
             error_message = "The following optimization runs failed:\n"
             for year, cluster in failed_optimizations:
                 error_message += f"  - Year: {year}, Cluster: {cluster}\n"
-
+            
             error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
             raise Exception(error_message)
 
@@ -2677,6 +2709,29 @@ class Datahandler:
                 "ev_charging": "on_demand",
             }
 
+        def determine_wastewater_heat_potential(column):
+            """Extract a numeric waste heat potential from strings of the form 'x bis y kW'."""
+
+            unique_values = set(column.dropna().unique())
+            potentials = []
+
+            for value in unique_values:
+                match = re.match(r"^\s*(\d+(?:[\.,]\d+)?)\s+bis\s+(\d+(?:[\.,]\d+)?)\s*kW\s*$", str(value), re.IGNORECASE)
+                if not match:
+                    continue
+
+                lower_bound = float(match.group(1).replace(",", "."))
+                upper_bound = float(match.group(2).replace(",", "."))
+
+                # Use the mean as the nominal capacity of the potential range.#
+                val = (lower_bound + upper_bound) / 2
+                if val > 5000:
+                    potentials.append(5000)  # Cap the potential at 5000 kW
+                else:
+                    potentials.append(val)
+
+            return max(potentials) if potentials else 0
+
         # Read WKB data
         wkb_data = pd.read_csv(
             wkb_file_path,
@@ -2696,22 +2751,18 @@ class Datahandler:
         scenario_rows = []
         accepted_wkb_rows = []
 
-        new_id = 0
-
         for row_index, row in wkb_data.iterrows():
             transformed_row = validate_and_transform_row(row, row_index)
             if transformed_row is None:
                 continue
 
-            transformed_row["id"] = new_id
+            transformed_row["id"] = transformed_row.get("alkis_id", f"building_row_{row_index}")
             scenario_rows.append(transformed_row)
 
             # Store the original WKB row for traceability
             wkb_row = row.to_dict()
-            wkb_row["id"] = new_id
+            wkb_row["id"] = transformed_row.get("alkis_id", f"building_row_{row_index}")
             accepted_wkb_rows.append(wkb_row)
-
-            new_id += 1
 
         scenario_df = pd.DataFrame(scenario_rows)
         accepted_wkb_df = pd.DataFrame(accepted_wkb_rows)
@@ -2729,6 +2780,13 @@ class Datahandler:
         scenario_df.to_csv(output_file_path, sep=";", index=False)
         accepted_wkb_df.to_csv(output_file_path.replace("dg", "wkb"), sep=";", index=False)
 
+        # Adjust the nominal_waste_heat_capacity_kW of the heat grid data based on the waste heat potential if it is not already set
+        if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None:
+            key = "Pot_Abwasser_entzugsleistungsbereich_kw"
+            if key in scenario_df.columns:
+                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(scenario_df["Pot_Abwasser_entzugsleistungsbereich_kw"])
+            else:
+                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
         return scenario_df
 
     def designNetworkwithNode(self):
@@ -2748,7 +2806,8 @@ class Datahandler:
         for building in self.district:
             if building["buildingFeatures"]["heater"] == "heat_grid":
                 pos = building["buildingFeatures"]["position"]
-                building_dict = {"building": building["unique_name"],
+                building_dict = {"id": building["buildingFeatures"]["id"],
+                                 "building": building["unique_name"],
                                  "position": pos}
                 buildings_info.append(building_dict)
 
@@ -2795,15 +2854,12 @@ class Datahandler:
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
-        i = 0
         for building in self.district:
             if building["buildingFeatures"]["heater"] == "heat_grid":
-                pos = building["buildingFeatures"]["position"]
-                building_dict = {"id": i,
+                building_dict = {"id": building["buildingFeatures"]["id"],
                                  "building": building["unique_name"],
-                                 "position": pos}
+                                 "position": building["buildingFeatures"]["position"]}
                 buildings_info.append(building_dict)
-                i += 1
 
         with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
