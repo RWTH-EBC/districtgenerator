@@ -780,10 +780,49 @@ def plot_power_import_single_year_multi_bars_from_csv(
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=2, frameon=False, fontsize=8)
+
+    # Farben nach Optimierungsart
+    color_main_vw = "#E43D30"  # hellrot (VW Hauptnetz)
+    color_net_vw = "#8C1D17"    # dunkelrot (VW Verbundnetz)
+    color_main_qw = "#B9BABC"   # QW Hauptnetz (wie vorher)
+    color_net_qw = "#8A8B8D"   # QW Verbundnetz (wie vorher)
+
+    # Zeichne Balken paarweise, mit unterschiedlicher Farbgebung für VW vs QW
+    for i, b in enumerate(bars):
+        if b["variant"] == "network":  # VW = linke Balken im Paar
+            ax.bar(x[i], y_main[i], width=width, color=color_main_vw, label="_nolegend_")
+            ax.bar(x[i], y_net[i], width=width, bottom=y_main[i], color=color_net_vw, label="_nolegend_")
+        else:  # QW = rechte Balken im Paar
+            ax.bar(x[i], y_main[i], width=width, color=color_main_qw, label="_nolegend_")
+            ax.bar(x[i], y_net[i], width=width, bottom=y_main[i], color=color_net_qw, label="_nolegend_")
+
+    # Legende mit vier Einträgen (VW links, QW rechts)
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc=color_main_vw),
+        plt.Rectangle((0, 0), 1, 1, fc=color_net_vw),
+        plt.Rectangle((0, 0), 1, 1, fc=color_main_qw),
+        plt.Rectangle((0, 0), 1, 1, fc=color_net_qw),
+    ]
+    labels = [
+        "Strombezug aus dem Hauptnetz VW",
+        "Strombezug aus dem Verbundnetz VW",
+        "Strombezug aus dem Hauptnetz QW",
+        "Strombezug aus dem Verbundnetz QW",
+    ]
+    ax.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+    )
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.20)
+    fig.subplots_adjust(bottom=0.24)
+
+
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
@@ -979,11 +1018,47 @@ def plot_power_export_single_year_multi_bars_from_csv(
     ax.set_ylabel("Energie in MWh")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+    # Farben nach Optimierungsart
+    color_main_vw = "#E43D30"  # hellrot (VW Hauptnetz)
+    color_net_vw = "#8C1D17"    # dunkelrot (VW Verbundnetz)
+    color_main_qw = "#B9BABC"   # QW Hauptnetz (wie vorher)
+    color_net_qw = "#8A8B8D"   # QW Verbundnetz (wie vorher)
 
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), ncol=2, frameon=False, fontsize=8)
+    # Zeichne Balken paarweise, mit unterschiedlicher Farbgebung für VW vs QW
+    for i, b in enumerate(bars):
+        if b["variant"] == "network":  # VW = linke Balken im Paar
+            ax.bar(x[i], y_main[i], width=width, color=color_main_vw, label="_nolegend_")
+            ax.bar(x[i], y_net[i], width=width, bottom=y_main[i], color=color_net_vw, label="_nolegend_")
+        else:  # QW = rechte Balken im Paar
+            ax.bar(x[i], y_main[i], width=width, color=color_main_qw, label="_nolegend_")
+            ax.bar(x[i], y_net[i], width=width, bottom=y_main[i], color=color_net_qw, label="_nolegend_")
+
+    # Legende mit vier Einträgen (VW links, QW rechts)
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc=color_main_vw),
+        plt.Rectangle((0, 0), 1, 1, fc=color_net_vw),
+        plt.Rectangle((0, 0), 1, 1, fc=color_main_qw),
+        plt.Rectangle((0, 0), 1, 1, fc=color_net_qw),
+    ]
+    labels = [
+        "Stromeinspeisung in das Hauptnetz VW",
+        "Stromeinspeisung in das Verbundnetz VW",
+        "Stromeinspeisung in das Hauptnetz QW",
+        "Stromeinspeisung in das Verbundnetz QW",
+    ]
+    
+    ax.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+    )
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.20)
+    fig.subplots_adjust(bottom=0.24)
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
@@ -1728,7 +1803,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
     }
 
 def main():
-    scenario_name = "residential2"
+    scenario_name = "ghd6"
     scenario_names = ["residential2", "mixed1", "ghd6"]
     short_files = ["Basis", "Bat", "PV"]  # 5 Dateien -> 10 Balken
     # 4 Compare-Shorts -> bei variants=("network","single") ergibt das 8 Balken
