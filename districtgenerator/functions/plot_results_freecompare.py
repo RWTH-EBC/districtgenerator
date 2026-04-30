@@ -756,7 +756,8 @@ def plot_power_export_by_year_from_csv(
 
         for y in years:
             cal_y = base_calendar_year + y
-            labels.extend([f"{cal_y}\n{compare_short1 or 'oV'}", f"{cal_y}\n{compare_short2 or 'VP'}"])
+            #labels.extend([f"{cal_y}\n{compare_short1 or 'oV'}", f"{cal_y}\n{compare_short2 or 'VP'}"])
+            labels.extend([f"{cal_y}", f"{cal_y}"])
 
             vb_main.append(vb.get(y, {}).get("to_el_main_grid_total", 0.0))
             vb_net.append(vb.get(y, {}).get("to_network_total", 0.0))
@@ -850,23 +851,23 @@ def plot_power_export_by_year_from_csv(
         handles, legend_labels = [], []
         if np.any(vals_vb_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#E43D30"))
-            legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Stromeinspeisung in das Hauptnetz")
+            legend_labels.append(f"Stromeinspeisung in das Hauptnetz {compare_item1 or 'Ohne Verbundpreis'}")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
-            legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Stromeinspeisung in das Hauptnetz")
+            legend_labels.append(f"Stromeinspeisung in das Hauptnetz {compare_item2 or 'Mit Verbundpreis'}")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
-            legend_labels.append(f"{compare_item1 or 'Ohne Verbundpreis'} Stromeinspeisung in das Verbundnetz")
+            legend_labels.append(f"Stromeinspeisung in das Verbundnetz {compare_item1 or 'Ohne Verbundpreis'}")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
-            legend_labels.append(f"{compare_item2 or 'Mit Verbundpreis'} Stromeinspeisung in das Verbundnetz")
+            legend_labels.append(f"Stromeinspeisung in das Verbundnetz {compare_item2 or 'Mit Verbundpreis'}")
 
         if handles:
             plt.legend(
                 handles,
                 legend_labels,
                 loc="upper center",
-                bbox_to_anchor=(0.4, -0.15),
+                bbox_to_anchor=(0.5, -0.1),
                 ncol=2,
                 frameon=False,
             )
@@ -3108,7 +3109,7 @@ def plot_power_import_two_subplots_from_csv(
             loc="lower center",
             ncol=2,
             frameon=False,
-            bbox_to_anchor=(0.4, 0.02),   # sicher innerhalb der Figure
+            bbox_to_anchor=(0.5, 0.02),   # sicher innerhalb der Figure
             fontsize=max(9, fontsize),
         )
 
@@ -3140,8 +3141,8 @@ def plot_power_import_two_subplots_from_csv(
 
 
 if __name__ == "__main__":
-    compare_item1="verbundweise"
-    compare_item2="quartiersweise"
+    compare_item1="VW"
+    compare_item2="QW"
     compare_short1 = "VW"
     compare_short2 = "QW"
 
@@ -3240,10 +3241,10 @@ if __name__ == "__main__":
     # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    # titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
-    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
+    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    #plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
@@ -3271,7 +3272,7 @@ if __name__ == "__main__":
 
     # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_power_export_by_year_from_csv(district2, titel=" ", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)

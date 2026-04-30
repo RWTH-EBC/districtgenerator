@@ -2602,12 +2602,12 @@ if __name__ == "__main__":
     # name1 = "Wohnquartier 2"
     # name2 = "Mischquartier"
     # name3 = "Wohnquartier 1"
-    district1 = "ghd6"
-    district2 = "residential2"
+    #district1 = "ghd6"
+    #district2 = "residential2"
     district3 = "mixed1"
 
-    name1 = "Gewerbequartier"
-    name2 = "Wohnquartier 1"
+    #name1 = "Gewerbequartier"
+    #name2 = "Wohnquartier 1"
     name3 = "Mischquartier"
     fontsize = 11
     compare_short = "Basis"
@@ -2688,13 +2688,13 @@ if __name__ == "__main__":
     # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True)
     # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True)
 
-    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
+    #plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True)
     # plot_power_export_by_year_from_csv(district2, titel="Stromeinspeisung im " + f"{name2}", show=True, show_percent_box=True)
-    # plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True)
-    # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
-    # plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True)
+    # plot_lcoe_by_year_froplot_lcoe_by_year_from_csvm_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True)
+    # (district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True)
 
     # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True)
     # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True)

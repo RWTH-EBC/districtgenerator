@@ -762,19 +762,20 @@ def plot_power_import_single_year_multi_bars_from_csv(
                 zorder=7,
                 clip_on=False,
             )
-    ax.set_xticks(x)
-    ax.set_xticklabels([b["variant_label"] for b in bars], fontsize=8)
 
-    pair_centers, pair_labels = [], []
+    # x-Ticks nur für Balkenpaare (Mittelpunkte)
+    pair_centers = []
+    pair_labels = []
     for i in range(0, len(bars), 2):
         center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
         pair_centers.append(center)
         pair_labels.append(str(bars[i]["compare_short"]))
 
-    for xc, lbl in zip(pair_centers, pair_labels):
-        ax.text(xc, -0.10, lbl, transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=8)
+    ax.set_xticks(pair_centers)
+    ax.set_xticklabels(pair_labels, fontsize=8)
 
     ax.set_xlim(x.min() - width, x.max() + width)
+
     ax.set_ylabel("Energie in MWh")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -960,19 +961,21 @@ def plot_power_export_single_year_multi_bars_from_csv(
                 zorder=7,
                 clip_on=False,
             )
-    ax.set_xticks(x)
-    ax.set_xticklabels([b["variant_label"] for b in bars], fontsize=8)
 
-    pair_centers, pair_labels = [], []
+
+    # x-Ticks nur für Balkenpaare (Mittelpunkte)
+    pair_centers = []
+    pair_labels = []
     for i in range(0, len(bars), 2):
         center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
         pair_centers.append(center)
         pair_labels.append(str(bars[i]["compare_short"]))
 
-    for xc, lbl in zip(pair_centers, pair_labels):
-        ax.text(xc, -0.10, lbl, transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=8)
+    ax.set_xticks(pair_centers)
+    ax.set_xticklabels(pair_labels, fontsize=8)
 
     ax.set_xlim(x.min() - width, x.max() + width)
+
     ax.set_ylabel("Energie in MWh")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -1168,10 +1171,9 @@ def plot_co2_single_year_multi_bars_from_csv(
 
     # obere Ebene: VW / QW
     top_labels = [b["variant_label"] for b in bars]
-    ax.set_xticks(x)
-    ax.set_xticklabels(top_labels, fontsize=8)
 
-    # untere Ebene: Szenarioname zentriert pro Paar
+
+    # x-Ticks nur für Balkenpaare (Mittelpunkte)
     pair_centers = []
     pair_labels = []
     for i in range(0, len(bars), 2):
@@ -1179,18 +1181,12 @@ def plot_co2_single_year_multi_bars_from_csv(
         pair_centers.append(center)
         pair_labels.append(str(bars[i]["compare_short"]))
 
-    for xc, lbl in zip(pair_centers, pair_labels):
-        ax.text(
-            xc,
-            -0.10,
-            lbl,
-            transform=ax.get_xaxis_transform(),
-            ha="center",
-            va="top",
-            fontsize=8,
-        )
+    ax.set_xticks(pair_centers)
+    ax.set_xticklabels(pair_labels, fontsize=8)
 
     ax.set_xlim(x.min() - width, x.max() + width)
+
+
     ax.set_ylabel("Treibhausgasemissionen in tCO₂e/a")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -1415,10 +1411,8 @@ def plot_lcoe_single_year_multi_bars_from_csv(
                 zorder=5,
             )
 
-    top_labels = [b["variant_label"] for b in bars]
-    ax.set_xticks(x)
-    ax.set_xticklabels(top_labels, fontsize=8)
 
+    # x-Ticks nur für Balkenpaare (Mittelpunkte)
     pair_centers = []
     pair_labels = []
     for i in range(0, len(bars), 2):
@@ -1426,18 +1420,12 @@ def plot_lcoe_single_year_multi_bars_from_csv(
         pair_centers.append(center)
         pair_labels.append(str(bars[i]["compare_short"]))
 
-    for xc, lbl in zip(pair_centers, pair_labels):
-        ax.text(
-            xc,
-            -0.10,
-            lbl,
-            transform=ax.get_xaxis_transform(),
-            ha="center",
-            va="top",
-            fontsize=8,
-        )
+    ax.set_xticks(pair_centers)
+    ax.set_xticklabels(pair_labels, fontsize=8)
 
     ax.set_xlim(x.min() - width, x.max() + width)
+
+
     ax.set_ylabel("Energiegestehungskosten in €/MWh")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -1478,19 +1466,299 @@ def plot_lcoe_single_year_multi_bars_from_csv(
         "plot_path": plot_path,
     }
 
+def plot_co2_sum_all_years_multi_bars_from_csv(
+    scenario_names=None,
+    scenario_names_by_item=None,   # neu: pro compare_item eigene 3er-Szenarien
+    scenario_name=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+    short_files=None,
+    compare_shorts=None,
+    compare_items=None,
+    bar_count=None,
+    variants=("network", "single"),
+):
+    """
+    Summiert CO2-Emissionen aus genau 3 Quartieren und plottet beliebig viele Balken.
 
+    scenario_names:
+      - entweder 3 Szenarien für alle compare_items
+      - oder None, wenn scenario_names_by_item genutzt wird
+
+    scenario_names_by_item:
+      - Liste von 3er-Listen, z.B.
+        [
+          ["S1_Q1", "S1_Q2", "S1_Q3"],
+          ["S2_Q1", "S2_Q2", "S2_Q3"],
+        ]
+      - ein Eintrag pro short_file / compare_item
+    """
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(short_files) != len(compare_shorts):
+        raise ValueError("short_files und compare_shorts müssen gleich lang sein.")
+
+    if compare_items is None:
+        compare_items = [compare_short1, compare_short2]
+    compare_items = [x for x in compare_items if x is not None]
+
+    label_by_short = {}
+    if compare_items:
+        for s, lbl in zip(short_files, compare_items):
+            label_by_short[s] = lbl
+    if compare_short1 and compare_item1:
+        label_by_short[compare_short1] = compare_item1
+    if compare_short2 and compare_item2:
+        label_by_short[compare_short2] = compare_item2
+
+    def _read_co2_sum(csv_path):
+        co2_by_year = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "co2_sum_distr_year":
+                    continue
+                try:
+                    y = int(float(row.get("year")))
+                    v = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+
+                co2_by_year[y] = co2_by_year.get(y, 0.0) + v
+        return co2_by_year
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    # scenario_names normalisieren:
+    # - flat 3er-Liste => für alle gleich
+    # - Liste von 3er-Listen => pro short_file einzeln
+    if scenario_names_by_item is None:
+        if scenario_names is None or len(scenario_names) != 3:
+            raise ValueError("scenario_names muss genau 3 Einträge haben oder scenario_names_by_item muss gesetzt sein.")
+        scenario_names_by_item = [list(scenario_names) for _ in short_files]
+    else:
+        if len(scenario_names_by_item) != len(short_files):
+            raise ValueError("scenario_names_by_item muss genauso lang sein wie short_files.")
+        for triplet in scenario_names_by_item:
+            if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
+                raise ValueError("Jeder Eintrag in scenario_names_by_item muss genau 3 Szenarien enthalten.")
+
+    bars = []
+    for short_file, scen_label, scen_triplet in zip(short_files, compare_shorts, scenario_names_by_item):
+        for variant in variants:
+            total = 0.0
+            paths = []
+            total_by_year = {}
+
+            for sc in scen_triplet:
+                if variant == "network":
+                    p = os.path.join(base_dir, f"{sc}_{short_file}_network_results.csv")
+                elif variant == "single":
+                    p = os.path.join(base_dir, f"{sc}_{short_file}_results.csv")
+                else:
+                    raise ValueError(f"Unbekannte variant: {variant}")
+
+                if not os.path.isfile(p):
+                    raise FileNotFoundError(f"Missing result file: {p}")
+
+                yearly = _read_co2_sum(p)
+                paths.append(p)
+
+                for year, value in yearly.items():
+                    total_by_year[year] = total_by_year.get(year, 0.0) + value
+
+            # falls weiterhin ein einzelner Wert pro Balken gebraucht wird:
+            total = sum(total_by_year.values())
+
+            bars.append({
+                "short_file": short_file,
+                "compare_short": scen_label,
+                "variant": variant,
+                "variant_label": "VW" if variant == "network" else "QW",
+                "value": total,
+                "paths": paths,
+            })
+
+    if bar_count is not None:
+        if bar_count <= 0:
+            raise ValueError("bar_count muss > 0 sein.")
+        if bar_count > len(bars):
+            raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
+        bars = bars[:bar_count]
+
+    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+    y = np.array([b["value"] for b in bars], dtype=float)
+
+    fig_w_mm, fig_h_mm = 155, 100
+    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    width = 0.58
+
+    for i, b in enumerate(bars):
+        ax.bar(
+            x[i],
+            y[i],
+            width=width,
+            color=("#D40000" if b["variant"] == "network" else "#55585C"),
+            label="_nolegend_",
+        )
+
+    if show_percent_box:
+        ymax = max(float(np.max(y)) if len(y) else 0.0, 1.0)
+        ax.set_ylim(0, ymax * 1.30)
+        y_offset = ymax * 0.06
+
+        for i in range(0, len(bars), 2):
+            if i + 1 >= len(bars):
+                break
+
+            vb_val = bars[i]["value"]
+            ez_val = bars[i + 1]["value"]
+            txt = "n/a" if ez_val == 0 and vb_val == 0 else "+∞" if ez_val == 0 else _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+            ax.text(
+                x[i],
+                vb_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=8,
+                bbox=dict(
+                    boxstyle="square,pad=0.25",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.0,
+                ),
+                zorder=5,
+            )
+
+    # x-Ticks nur für Balkenpaare (Mittelpunkte)
+    pair_centers = []
+    pair_labels = []
+    for i in range(0, len(bars), 2):
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
+        pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
+
+    ax.set_xticks(pair_centers)
+    ax.set_xticklabels(pair_labels, fontsize=8)
+
+    ax.set_xlim(x.min() - width, x.max() + width)
+
+    pair_centers = []
+    pair_labels = []
+    for i in range(0, len(bars), 2):
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
+        pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
+
+    # for xc, lbl in zip(pair_centers, pair_labels):
+    #     ax.text(
+    #         xc,
+    #         -0.10,
+    #         lbl,
+    #         transform=ax.get_xaxis_transform(),
+    #         ha="center",
+    #         va="top",
+    #         fontsize=8,
+    #     )
+
+    ax.set_ylabel("Treibhausgasemissionen in tCO₂e")
+    ax.grid(axis="y", alpha=0.35)
+    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
+        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
+    ]
+    ax.legend(
+        handles,
+        ["VW", "QW"],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+    )
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.20)
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_name = f"{titel}.pdf" if titel else "co2_sum_multi_bars.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    fig.savefig(plot_path, dpi=300)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {
+        "bars": bars,
+        "plot_path": plot_path,
+    }
 
 def main():
     scenario_name = "residential2"
+    scenario_names = ["residential2", "mixed1", "ghd6"]
     short_files = ["Basis", "Bat", "PV"]  # 5 Dateien -> 10 Balken
     # 4 Compare-Shorts -> bei variants=("network","single") ergibt das 8 Balken
     compare_shorts = ["Basis", "Batterie", "Solarausbau"]
+    #compare_shorts = ["Basis", "Wohnmisch", "Wohn"]
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
     #compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Batterie-Szenario", "PV-Szenario", "Wohn-Szenario"]
     compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
-    target_year = 2030
+    target_year = 2035
+
+    scenario_names_by_item = [
+        ["residential2", "mixed1", "ghd6"],
+        ["residential2", "mixed1", "residential0"],
+        ["residential2", "residential0", "residential3"],
+    ]
+
+    # plot_co2_sum_all_years_multi_bars_from_csv(
+    #     scenario_names_by_item=scenario_names_by_item,
+    #     base_dir=base_dir,
+    #     result_dir=result_dir,
+    #     show=True,
+    #     titel="co2_sum_10bars",
+    #     short_files=short_files,
+    #     compare_shorts=compare_shorts,
+    #     bar_count=6,
+    #     variants=("network", "single"),
+    #     show_percent_box=True,
+    # )
 
 
     # plot_device_capacities_multi_bars_from_csv(
@@ -1594,6 +1862,23 @@ def main():
         bar_count=6,
         variants=("network", "single"),
     )
+
+    # plot_co2_sum_single_year_multi_bars_from_csv(
+    #     scenario_names=scenario_names,
+    #     base_dir=base_dir,
+    #     result_dir=result_dir,
+    #     show=True,
+    #     show_percent_box=True,
+    #     compare_item1="verbundweise",
+    #     compare_item2="quartiersweise",
+    #     titel=f"co2_sum_{scenario_names}",
+    #     short_files=short_files,
+    #     compare_shorts=compare_shorts,
+    #     bar_count=6,
+    #     variants=("network", "single"),
+    # )
+
+
 
 if __name__ == "__main__":
     main()

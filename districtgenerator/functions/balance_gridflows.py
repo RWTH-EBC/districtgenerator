@@ -753,19 +753,19 @@ def write_adjusted_metrics_to_district_csvs(
 
 if __name__ == "__main__":
 
-    scenario_name1 = "residential0"
+    # scenario_name1 = "residential0"
     scenario_name2 = "residential2"
-    scenario_name3 = "residential3"
-    #scenario_name3 ="mixed1"
-    # scenario_name1 = "ghd6"
+    # scenario_name3 = "residential3"
+    scenario_name3 ="mixed1"
+    scenario_name1 = "ghd6"
     is_network = True
 
     cluster_weights = {
-    #"ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
-    #"mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
+    "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
+    "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
     "residential2": {0: 5, 1: 22, 2: 10, 3: 15},
-    "residential0": {0: 10, 1: 22, 2: 11, 3: 9},
-    "residential3": {0: 5, 1: 22, 2: 10, 3: 15},
+    # "residential0": {0: 10, 1: 22, 2: 11, 3: 9},
+    # "residential3": {0: 5, 1: 22, 2: 10, 3: 15},
     }
 
 
@@ -782,11 +782,11 @@ if __name__ == "__main__":
     years = [0, 5, 10, 15, 20]
 
     district_csv_paths = {
-        #"ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
+        "ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
         "residential2": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential2_network_results.csv",
-        #"mixed1": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\mixed1_network_results.csv",
-        "residential0": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential0_network_results.csv",
-        "residential3": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential3_network_results.csv",
+        "mixed1": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\mixed1_network_results.csv",
+        # "residential0": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential0_network_results.csv",
+        # "residential3": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential3_network_results.csv",
     }
 
     grid_ef_by_year = {
