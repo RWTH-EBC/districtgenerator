@@ -396,6 +396,8 @@ def plot_device_capacities_multi_bars_from_csv_with_TES(
         "BOI": "Erdgas-\nkessel",
         "BBOI": "Biomasse-\nkessel",
         "PV": "PV-Anlage",
+        "TES": "Thermischer Speicher",
+        "BAT": "Batterie",
     }
 
     # Werte je Reihe extrahieren
@@ -1189,7 +1191,7 @@ def plot_co2_single_year_multi_bars_from_csv(
         )
 
     ax.set_xlim(x.min() - width, x.max() + width)
-    ax.set_ylabel("CO₂-Emissionen in t/a")
+    ax.set_ylabel("Treibhausgasemissionen in tCO₂e/a")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -1479,12 +1481,13 @@ def plot_lcoe_single_year_multi_bars_from_csv(
 
 
 def main():
-    scenario_name = "mixed1"
-    short_files = ["Basis", "WM", "Bat", "PV"]  # 5 Dateien -> 10 Balken
+    scenario_name = "residential2"
+    short_files = ["Basis", "Bat", "PV"]  # 5 Dateien -> 10 Balken
     # 4 Compare-Shorts -> bei variants=("network","single") ergibt das 8 Balken
-    compare_shorts = ["Basis", "Wohnmisch", "Batterie", "PV"]
+    compare_shorts = ["Basis", "Batterie", "Solarausbau"]
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
-    compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Batterie-Szenario", "PV-Szenario", "Wohn-Szenario"]
+    #compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Batterie-Szenario", "PV-Szenario", "Wohn-Szenario"]
+    compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     target_year = 2030
@@ -1511,7 +1514,7 @@ def main():
         compare_shorts=compare_shorts,
         compare_items=compare_items,
         short_files=short_files,
-        bar_count=8,  # explizit 8 Balken
+        bar_count=6,  # explizit 6 Balken
         variants=("network", "single"),
         base_dir=base_dir,
         result_dir=result_dir,
@@ -1536,7 +1539,7 @@ def main():
         compare_shorts=compare_shorts,
         compare_items=compare_items,
         target_year=target_year,
-        bar_count=8,
+        bar_count=6,
         variants=("network", "single"),
     )
 
@@ -1553,7 +1556,7 @@ def main():
         compare_shorts=compare_shorts,
         compare_items=compare_items,
         target_year=target_year,
-        bar_count=8,
+        bar_count=6,
         variants=("network", "single"),
     )
 
@@ -1571,7 +1574,7 @@ def main():
         short_files=short_files,
         compare_shorts=compare_shorts,
         target_year=target_year,
-        bar_count=8,
+        bar_count=6,
         variants=("network", "single"),
     )
 
@@ -1588,7 +1591,7 @@ def main():
         short_files=short_files,
         compare_shorts=compare_shorts,
         target_year=target_year,
-        bar_count=8,
+        bar_count=6,
         variants=("network", "single"),
     )
 

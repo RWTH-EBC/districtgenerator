@@ -605,16 +605,16 @@ def plot_power_import_by_year_from_csv(
         handles, legend_labels = [], []
         if np.any(vals_vb_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#E43D30"))
-            legend_labels.append("Verbund Strombezug aus dem Hauptnetz")
+            legend_labels.append("Verbund Strombezug aus dem Hauptnetz VW")
         if np.any(vals_ez_main > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#B9BABC"))
-            legend_labels.append("Einzeln Strombezug aus dem Hauptnetz")
+            legend_labels.append("Einzeln Strombezug aus dem Hauptnetz QW")
         if np.any(vals_vb_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8C1D17"))
-            legend_labels.append("Verbund Strombezug aus dem Verbundnetz")
+            legend_labels.append("Verbund Strombezug aus dem Verbundnetz VW")
         if np.any(vals_ez_net > 0):
             handles.append(plt.Rectangle((0, 0), 1, 1, fc="#8A8B8D"))
-            legend_labels.append("Einzeln Strombezug aus dem Verbundnetz")
+            legend_labels.append("Einzeln Strombezug aus dem Verbundnetz QW")
 
         if handles:
             plt.legend(
@@ -2561,7 +2561,7 @@ def plot_co2_three_subplots_from_csv(
         ax.set_xticks(x)
         ax.set_xticklabels(labels, fontsize=fontsize)
         ax.set_title(sub_titel, fontsize=fontsize + 1)
-        ax.set_ylabel("Jährliche CO₂-Emissionen in t/a", fontsize=fontsize)
+        ax.set_ylabel("Treibhausgasemissionen in t CO₂e/a", fontsize=fontsize)
         ax.grid(axis="y", alpha=0.4)
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -2641,25 +2641,25 @@ if __name__ == "__main__":
     #     plot_tes_only=True
     # )
 
-    plot_lcoe_three_subplots_from_csv(
-        scenario_names=[district1, district2, district3],
-        compare_short=compare_short, 
-        subplot_titles=[name1, name2, name3],
-        fontsize=fontsize,
-        show=True,
-        show_percent_box=True,
-        titel="Energiegestehungskosten (3 Quartiere)"
-    )
+    # plot_lcoe_three_subplots_from_csv(
+    #     scenario_names=[district1, district2, district3],
+    #     compare_short=compare_short, 
+    #     subplot_titles=[name1, name2, name3],
+    #     fontsize=fontsize,
+    #     show=True,
+    #     show_percent_box=True,
+    #     titel="Energiegestehungskosten (3 Quartiere)"
+    # )
 
-    plot_co2_three_subplots_from_csv(
-    scenario_names=[district1, district2, district3],
-    compare_short=compare_short, 
-    subplot_titles=[name1, name2, name3],
-    fontsize=fontsize,
-    show=True,
-    show_percent_box=True,
-    titel="CO₂-Emissionen (3 Quartiere)"
-    )
+    # plot_co2_three_subplots_from_csv(
+    # scenario_names=[district1, district2, district3],
+    # compare_short=compare_short, 
+    # subplot_titles=[name1, name2, name3],
+    # fontsize=fontsize,
+    # show=True,
+    # show_percent_box=True,
+    # titel="CO₂-Emissionen (3 Quartiere)"
+    # )
 
     
     
