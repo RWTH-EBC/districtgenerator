@@ -1836,21 +1836,21 @@ def main():
     # )
 
 
-    # plot_device_capacities_multi_bars_from_csv(
-    #     scenario_name=scenario_name,
-    #     compare_shorts=compare_shorts,
-    #     compare_items=compare_items,
-    #     short_files=short_files,
-    #     bar_count=8,  # explizit 8 Balken
-    #     variants=("network", "single"),
-    #     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results",
-    #     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results",
-    #     show=True,
-    #     include_devices=None,
-    #     exclude_devices=["HP", "BBOI", "EB"],
-    #     titel=f"device_capacities_8bars_{scenario_name}",
-    #     show_percent_box=True,
-    # )
+    plot_device_capacities_multi_bars_from_csv(
+        scenario_name=scenario_name,
+        compare_shorts=compare_shorts,
+        compare_items=compare_items,
+        short_files=short_files,
+        bar_count=8,  # explizit 8 Balken
+        variants=("network", "single"),
+        base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results",
+        result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results",
+        show=True,
+        include_devices=None,
+        exclude_devices=["HP", "BBOI", "EB"],
+        titel=f"device_capacities_8bars_{scenario_name}",
+        show_percent_box=True,
+    )
 
     plot_device_capacities_multi_bars_from_csv_with_TES(
         scenario_name=scenario_name,
