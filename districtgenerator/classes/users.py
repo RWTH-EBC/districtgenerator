@@ -84,7 +84,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, calcOcc = True, calcOccProf = True, SIA2024=None):
+    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, calcOcc = True, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -116,7 +116,6 @@ class Users:
         self.EV_carprofile = None
         self.EV_carcharging_ondemand = None
         self.ev_capacity = None
-        self.calcOccProf = calcOccProf
         self.ice_carprofile = None
         self.individual_car_profiles = []
 
@@ -693,16 +692,9 @@ class Users:
                                     building=self.building)
                 self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
-                # Occupancy profile in a
-                if self.calcOccProf:
-                    prof = temp_obj.generate_occupancy_profiles_residential()
-                    prof_df = pd.DataFrame(prof, columns=['prof'])
-                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
-                    self.occ = self.occ + prof
-                else:
-                    prof = pd.read_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow')['prof'].to_numpy()
-                    temp_obj.load_occupancy_profiles_residential(prof)
-                    self.occ = self.occ + prof
+                # Occupancy profile in a flat
+                prof = temp_obj.generate_occupancy_profiles_residential()
+                self.occ = self.occ + prof
 
 
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,

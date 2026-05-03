@@ -118,7 +118,6 @@ class Datahandler:
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
         self.calcOcc = global_config.flags.calcOcc
-        self.calcOccProf = global_config.flags.calcOccProf
         self.building_dict = {} # Dictionary to store Residential Building IDs
         
         if scenario_file_path is not None:
@@ -645,14 +644,14 @@ class Datahandler:
                 raise ValueError(f"{val} is a necessary value.")
         for val in optional_values:
             if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                print(f"{buildingFeatures["gmlId"]}: --- {val} is not provided, districtgenerator will default to {default_values[val]}. ---")
+                print(f"{buildingFeatures['gmlId']}: --- {val} is not provided, districtgenerator will default to {default_values[val]}. ---")
                 try:
                     del buildingFeatures[val]
                 except KeyError:
                     pass
         for val in specific_values:
             if val not in buildingFeatures or pd.isna(buildingFeatures.get(val)):
-                print(f"{buildingFeatures["gmlId"]}: --- {val} set to {default_values[val]}. ---")
+                print(f"{buildingFeatures['gmlId']}: --- {val} set to {default_values[val]}. ---")
                 buildingFeatures[val] = default_values[val]
 
         return buildingFeatures
@@ -821,12 +820,11 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     SIA2024=self.SIA2024,
                                      nb_occ=building["buildingFeatures"]["nb_occ"] if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
                                      nb_flats=int(float(building["buildingFeatures"]["nb_flats"])) if "nb_flats" in building["buildingFeatures"] else None,
                                      scenario_name=self.scenario_name,
                                      calcOcc = self.calcOcc,
-                                     calcOccProf = self.calcOccProf)
+                                     SIA2024 = self.SIA2024)
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads in W
