@@ -1649,6 +1649,7 @@ def plot_lcoe_sum_from_three_scenarios(
     compare_item2=None,
     compare_short1=None,
     compare_short2=None,
+    power_demand=None,
 ):
     """
     Plot LCOE je Jahr für Verbund vs. Einzeloptimierung (Summen über 3 Quartiere).
@@ -1670,9 +1671,9 @@ def plot_lcoe_sum_from_three_scenarios(
     if not os.path.isdir(base_dir):
         raise FileNotFoundError(f"Result directory not found: {base_dir}")
 
-    def _read_tac_and_yearly_supply(csv_path):
-        tac = 0.0
-        yearly_supply = {}  # {year: heat+power}
+    def _read_tac_and_yearly_heat_supply(csv_path):
+        yearly_heat_supply = {}  # {year: heat}
+        yearly_tac = {}     # {year: tac}  
 
         with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f, delimiter=";")
@@ -1681,16 +1682,24 @@ def plot_lcoe_sum_from_three_scenarios(
                 metric = str(row.get("metric", "")).strip()
 
                 # TAC
-                if cat == "optimization" and metric == "tac_distr":
+                if cat == "optimization" and metric == "tac_per_distr_year":
+                    y_raw = row.get("year")
+                    if y_raw in (None, ""):
+                        continue
+                    try:
+                        y = int(float(y_raw))
+                    except Exception:
+                        continue
+
                     v = _parse_value(row.get("value"))
                     try:
-                        tac += float(v)
+                        val = float(v)
                     except Exception:
-                        pass
-                    continue
+                        continue
+                    yearly_tac[y] = yearly_tac.get(y, 0.0) + val
 
                 # Yearly heat/power production
-                if cat == "yearly_totals" and metric in ("total_heat_supply_by_year", "total_power_supply_by_year"):
+                if cat == "yearly_totals" and metric == "total_heat_supply_by_year":
                     y_raw = row.get("year")
                     if y_raw in (None, ""):
                         continue
@@ -1705,9 +1714,9 @@ def plot_lcoe_sum_from_three_scenarios(
                     except Exception:
                         continue
 
-                    yearly_supply[y] = yearly_supply.get(y, 0.0) + val
+                    yearly_heat_supply[y] = yearly_heat_supply.get(y, 0.0) + val
 
-        return tac, yearly_supply
+        return yearly_tac, yearly_heat_supply
 
     def _fmt_pct(p):
         s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
@@ -1716,12 +1725,13 @@ def plot_lcoe_sum_from_three_scenarios(
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
 
-    total_tac_vb = 0.0
-    total_tac_ez = 0.0
+    total_tac_vb = {}
+    total_tac_ez = {}
     supply_vb = {}
     supply_ez = {}
 
     for sc in scenario_names:
+        print(f"scenario: {sc}")
         network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
         single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
 
@@ -1730,16 +1740,26 @@ def plot_lcoe_sum_from_three_scenarios(
         if not os.path.isfile(single_path):
             raise FileNotFoundError(f"Missing file: {single_path}")
 
-        tac_vb, ys_vb = _read_tac_and_yearly_supply(network_path)
-        tac_ez, ys_ez = _read_tac_and_yearly_supply(single_path)
+        y_tac_vb, ys_vb = _read_tac_and_yearly_heat_supply(network_path)
+        y_tac_ez, ys_ez = _read_tac_and_yearly_heat_supply(single_path)
 
-        total_tac_vb += tac_vb
-        total_tac_ez += tac_ez
+        for y, v in y_tac_vb.items():
+
+            total_tac_vb[y] = total_tac_vb.get(y, 0.0) + v
+        for y, v in y_tac_ez.items():
+            total_tac_ez[y] = total_tac_ez.get(y, 0.0) + v
 
         for y, v in ys_vb.items():
-            supply_vb[y] = supply_vb.get(y, 0.0) + v
+            supply_vb[y] = supply_vb.get(y, 0.0) + v + power_demand[sc]
+            print(f"DEBUG: {sc} Year {y}: Heat supply = {v:.2f}, Power demand = {power_demand[sc]:.2f}, Total supply = {supply_vb[y]:.2f}")
         for y, v in ys_ez.items():
-            supply_ez[y] = supply_ez.get(y, 0.0) + v
+            supply_ez[y] = supply_ez.get(y, 0.0) + v + power_demand[sc]
+
+    # Print total_tac_vb[y] and supply_vb[y] for debugging
+    for y in sorted(total_tac_vb.keys()):
+        print(f"Year {y}: total_tac_vb = {total_tac_vb[y]:.2f}, supply_vb = {supply_vb.get(y, 0.0):.2f}")
+    for y in sorted(total_tac_ez.keys()):
+        print(f"Year {y}: total_tac_ez = {total_tac_ez[y]:.2f}, supply_ez = {supply_ez.get(y, 0.0):.2f}")
 
     years = sorted(set(supply_vb.keys()) | set(supply_ez.keys()))
     if not years:
@@ -1750,8 +1770,8 @@ def plot_lcoe_sum_from_three_scenarios(
     for y in years:
         den_vb = supply_vb.get(y, 0.0)
         den_ez = supply_ez.get(y, 0.0)
-        lcoe_vb.append((total_tac_vb / den_vb) if den_vb > 0 else 0.0)
-        lcoe_ez.append((total_tac_ez / den_ez) if den_ez > 0 else 0.0)
+        lcoe_vb.append((total_tac_vb.get(y, 0.0) / den_vb) if den_vb > 0 else 0.0)
+        lcoe_ez.append((total_tac_ez.get(y, 0.0) / den_ez) if den_ez > 0 else 0.0)
 
     x = np.arange(len(years))
     width = 0.35
@@ -1790,7 +1810,7 @@ def plot_lcoe_sum_from_three_scenarios(
 
     plt.xticks(x, labels)
     plt.ylabel("Energiegestehungskosten in €/MWh")
-    plt.title(titel or "LCOE (Summe aus 3 Quartieren): Verbund vs. Einzeloptimierung")
+    #plt.title(titel or "LCOE (Summe aus 3 Quartieren): Verbund vs. Einzeloptimierung")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.legend()
@@ -3141,19 +3161,27 @@ def plot_power_import_two_subplots_from_csv(
 
 
 if __name__ == "__main__":
-    compare_item1="VW"
-    compare_item2="QW"
+    compare_item1="verbundweise"
+    compare_item2="quartiersweise"
     compare_short1 = "VW"
     compare_short2 = "QW"
 
-    district1 = "ghd6"
-    district2 = "residential2"
+    district2 = "ghd6"
+    district1 = "residential2"
     district3 = "mixed1"
 
-    name1 = "Gewerbequartier"
-    name2 = "Wohnquartier 1"
+    name2 = "Gewerbequartier"
+    name1 = "Wohnquartier 1"
     name3 = "Mischquartier"
     fontsize = 12
+
+    power_demand={}
+    power_demand["ghd6"] = 2276.0
+    power_demand["residential2"] = 335.7
+    power_demand["mixed1"] = 405.6
+    power_demand["residential0"] = 269.4
+    power_demand["residential3"] = 634.2
+    
 
     # district1 = "residential2"
     # district2 = "mixed1"
@@ -3220,6 +3248,19 @@ if __name__ == "__main__":
         compare_item1=compare_item1, compare_item2=compare_item2,
         compare_short1=compare_short1, compare_short2=compare_short2,
     )
+    plot_lcoe_sum_from_three_scenarios(
+        scenario_names=[district1, district2, district3],
+        show=True,show_percent_box=True,
+        titel="LCOE als Summe der Quartiere je Jahr", 
+        compare_item1=compare_item1, compare_item2=compare_item2, 
+        compare_short1=compare_short1, compare_short2=compare_short2, power_demand=power_demand
+        )
+    
+    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_export_by_year_from_csv(district2, titel=" ", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+
+    
 
    
 
@@ -3241,13 +3282,12 @@ if __name__ == "__main__":
     # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
-    compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
+    # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     #plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_lcoe_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
-    # titel="Energiegestehungskosten als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+
     # plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
     # titel="Volumen thermischer Speicher im  " + f"{name1}",
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
@@ -3270,9 +3310,6 @@ if __name__ == "__main__":
     # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_export_by_year_from_csv(district2, titel=" ", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
     # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
@@ -3280,4 +3317,4 @@ if __name__ == "__main__":
 
     # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    #plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)

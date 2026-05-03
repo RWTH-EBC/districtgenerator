@@ -1801,6 +1801,248 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
         "bars": bars,
         "plot_path": plot_path,
     }
+def plot_lcoe_sum_from_three_scenarios_multi_compare(
+    scenario_names_by_item,
+    short_files=None,
+    compare_item1=None,
+    compare_item2=None,
+    compare_shorts=None,
+    compare_items=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    base_calendar_year=2025,
+    target_year=2030,
+    show_percent_box=False,
+    power_demand=None,
+    bar_count=None,
+
+):
+    """
+    Berechnet LCOE für mehrere Verbünde aus je 3 Quartieren.
+    
+    short_files: Dateikürzel zum Laden (z.B. ["ref", "gas", "elec"])
+    compare_shorts: Labels auf x-Achse (z.B. ["Basis", "Gas", "Strom"])
+    compare_items: Labels für Legende (z.B. ["Verbund", "Quartier"])
+    scenario_names_by_item: pro short_file eine Liste von 3 Quartier-Szenarien
+    """
+    if not isinstance(scenario_names_by_item, (list, tuple)) or not scenario_names_by_item:
+        raise ValueError("scenario_names_by_item muss eine nicht-leere Liste von 3er-Listen sein.")
+
+    if short_files is None:
+        raise ValueError("short_files muss gesetzt sein.")
+    short_files = list(short_files)
+
+    if len(scenario_names_by_item) != len(short_files):
+        raise ValueError("scenario_names_by_item muss genauso lang sein wie short_files.")
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(compare_shorts) != len(short_files):
+        raise ValueError("compare_shorts und short_files müssen gleich lang sein.")
+
+    if compare_items is None:
+        compare_items = ["Verbund", "Quartier"]
+    compare_items = list(compare_items)
+
+    for triplet in scenario_names_by_item:
+        if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
+            raise ValueError("Jeder Eintrag in scenario_names_by_item muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _safe_parse_value(v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).strip()
+        if not s:
+            return None
+        s = s.replace(" ", "").replace(",", ".")
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    def _read_tac_and_supply(csv_path):
+        tac_by_year = {}
+        supply_by_year = {}
+
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                cat = str(row.get("category", "")).strip()
+                metric = str(row.get("metric", "")).strip()
+
+                y_raw = row.get("year")
+                if y_raw in (None, ""):
+                    continue
+                try:
+                    y = int(float(y_raw))
+                except Exception:
+                    continue
+
+                v = _safe_parse_value(row.get("value"))
+                if v is None:
+                    continue
+
+                if cat == "optimization" and metric == "tac_per_distr_year":
+                    tac_by_year[y] = tac_by_year.get(y, 0.0) + float(v)
+
+                if cat == "yearly_totals" and metric == "total_heat_supply_by_year":
+                    supply_by_year[y] = supply_by_year.get(y, 0.0) + float(v)
+
+        return tac_by_year, supply_by_year
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    rel_year = target_year - base_calendar_year
+
+    lcoe_network = []
+    lcoe_single = []
+    details = {}
+
+
+    # Wichtig: Laden über short_files
+    for short_file, scen_label, triplet in zip(short_files, compare_shorts, scenario_names_by_item):
+        tac_network_sum = {}
+        tac_single_sum = {}
+        sup_network_sum = {}
+        sup_single_sum = {}
+
+        for sc in triplet:
+            network_path = os.path.join(base_dir, f"{sc}_{short_file}_network_results.csv")
+            single_path = os.path.join(base_dir, f"{sc}_{short_file}_results.csv")
+
+            if not os.path.isfile(network_path):
+                raise FileNotFoundError(f"Missing file: {network_path}")
+            if not os.path.isfile(single_path):
+                raise FileNotFoundError(f"Missing file: {single_path}")
+
+            tac_net, sup_net = _read_tac_and_supply(network_path)
+            tac_sin, sup_sin = _read_tac_and_supply(single_path)
+
+            for y, val in tac_net.items():
+                tac_network_sum[y] = tac_network_sum.get(y, 0.0) + val
+            for y, val in tac_sin.items():
+                tac_single_sum[y] = tac_single_sum.get(y, 0.0) + val
+
+            for y, val in sup_net.items():
+                sup_network_sum[y] = sup_network_sum.get(y, 0.0) + val + power_demand[sc]
+            for y, val in sup_sin.items():
+                sup_single_sum[y] = sup_single_sum.get(y, 0.0) + val + power_demand[sc]
+
+        y_key = rel_year if rel_year in sup_network_sum or rel_year in sup_single_sum else target_year
+        if y_key not in tac_network_sum and y_key not in tac_single_sum:
+            raise ValueError(f"Jahr {target_year} nicht in den Daten für '{scen_label}' gefunden.")
+
+        den_net = sup_network_sum.get(y_key, 0.0)
+        den_sin = sup_single_sum.get(y_key, 0.0)
+        num_net = tac_network_sum.get(y_key, 0.0)
+        num_sin = tac_single_sum.get(y_key, 0.0)
+
+        lcoe_net_val = num_net / den_net if den_net > 0 else 0.0
+        lcoe_sin_val = num_sin / den_sin if den_sin > 0 else 0.0
+
+        lcoe_network.append(lcoe_net_val)
+        lcoe_single.append(lcoe_sin_val)
+
+        details[scen_label] = {
+            "network": {"tac": num_net, "supply": den_net, "lcoe": lcoe_net_val},
+            "single": {"tac": num_sin, "supply": den_sin, "lcoe": lcoe_sin_val},
+        }
+
+    
+    x = np.arange(len(compare_shorts))
+
+    width = 0.35
+
+    fig_w_mm, fig_h_mm = 155, 100
+    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    width = 0.35
+    ax.bar(x - width / 2, lcoe_network, width=width, color="#D40000", label=compare_item1)
+    ax.bar(x + width / 2, lcoe_single, width=width, color="#55585C", label=compare_item2)
+
+    if show_percent_box:
+        ymax = max(max(lcoe_network) if lcoe_network else 0, max(lcoe_single) if lcoe_single else 0, 1.0)
+        ax.set_ylim(0, ymax * 1.35)
+        y_offset = ymax * 0.07
+
+        for i, (net_val, sin_val) in enumerate(zip(lcoe_network, lcoe_single)):
+            if sin_val == 0:
+                txt = "n/a" if net_val == 0 else "+∞"
+            else:
+                txt = _fmt_pct((net_val - sin_val) / sin_val * 100.0)
+
+            ax.text(
+                x[i] - width / 2,
+                net_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=10,
+                bbox=dict(
+                    boxstyle="square,pad=0.3",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.1,
+                ),
+                zorder=5,
+            )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(compare_shorts)
+    ax.set_ylabel("Energiegestehungskosten in €/MWh")
+    #ax.set_title(titel or f"LCOE im Jahr {target_year}")
+    ax.grid(axis="y", alpha=0.4)
+    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
+        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
+    ]
+
+    ax.legend(
+        handles,
+        [compare_item1 or "VW", compare_item2 or "QW"],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=2,
+        frameon=False,
+        fontsize=10,
+    )
+
+    fig.tight_layout()
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_path = os.path.join(plots_dir, f"{titel}.pdf" if titel else f"lcoe_sum_multi_compare_{target_year}.pdf")
+    fig.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {
+        "plot_path": plot_path,
+        "details": details,
+        "lcoe_network": dict(zip(compare_shorts, lcoe_network)),
+        "lcoe_single": dict(zip(compare_shorts, lcoe_single)),
+    }
 
 def main():
     scenario_name = "ghd6"
@@ -1812,28 +2054,57 @@ def main():
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
     #compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Batterie-Szenario", "PV-Szenario", "Wohn-Szenario"]
     compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
+    compare_item1 = "verbundweise"
+    compare_item2 = "quartiersweise"
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     target_year = 2035
 
     scenario_names_by_item = [
         ["residential2", "mixed1", "ghd6"],
-        ["residential2", "mixed1", "residential0"],
-        ["residential2", "residential0", "residential3"],
+        ["residential2", "mixed1", "ghd6"],
+        ["residential2", "mixed1", "ghd6"],
     ]
 
-    plot_co2_sum_all_years_multi_bars_from_csv(
+    power_demand={}
+    power_demand["ghd6"] = 2276.0
+    power_demand["residential2"] = 335.7
+    power_demand["mixed1"] = 405.6
+    power_demand["residential0"] = 269.4
+    power_demand["residential3"] = 634.2
+
+    # plot_co2_sum_all_years_multi_bars_from_csv(
+    #     scenario_names_by_item=scenario_names_by_item,
+    #     base_dir=base_dir,
+    #     result_dir=result_dir,
+    #     show=True,
+    #     titel="co2_sum_10bars",
+    #     short_files=short_files,
+    #     compare_shorts=compare_shorts,
+    #     bar_count=6,
+    #     variants=("network", "single"),
+    #     show_percent_box=True,
+    # )
+
+
+    plot_lcoe_sum_from_three_scenarios_multi_compare(
         scenario_names_by_item=scenario_names_by_item,
+        compare_item1=compare_item1,
+        compare_item2=compare_item2,
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        compare_items=compare_items,
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
-        titel="co2_sum_10bars",
-        short_files=short_files,
-        compare_shorts=compare_shorts,
-        bar_count=6,
-        variants=("network", "single"),
+        titel=None,
+        base_calendar_year=2025,
+        target_year=2035,
         show_percent_box=True,
+        power_demand=power_demand,
+        bar_count=6,
     )
+
 
 
     # plot_device_capacities_multi_bars_from_csv(
@@ -1912,8 +2183,8 @@ def main():
         titel=f"co2_{target_year}_{scenario_name}",
         base_calendar_year=2025,
         show_percent_box=True,
-        compare_item1="verbundweise",
-        compare_item2="quartiersweise",
+        compare_item1=compare_item1,
+        compare_item2=compare_item2,
         short_files=short_files,
         compare_shorts=compare_shorts,
         target_year=target_year,
