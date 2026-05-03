@@ -1822,18 +1822,18 @@ def main():
         ["residential2", "residential0", "residential3"],
     ]
 
-    # plot_co2_sum_all_years_multi_bars_from_csv(
-    #     scenario_names_by_item=scenario_names_by_item,
-    #     base_dir=base_dir,
-    #     result_dir=result_dir,
-    #     show=True,
-    #     titel="co2_sum_10bars",
-    #     short_files=short_files,
-    #     compare_shorts=compare_shorts,
-    #     bar_count=6,
-    #     variants=("network", "single"),
-    #     show_percent_box=True,
-    # )
+    plot_co2_sum_all_years_multi_bars_from_csv(
+        scenario_names_by_item=scenario_names_by_item,
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        titel="co2_sum_10bars",
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        bar_count=6,
+        variants=("network", "single"),
+        show_percent_box=True,
+    )
 
 
     # plot_device_capacities_multi_bars_from_csv(
