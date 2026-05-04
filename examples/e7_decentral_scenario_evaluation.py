@@ -34,7 +34,7 @@ def example7_decentral_scenario_evaluation():
     # the number of occupants in the building. The electric vehicle capacity is choosen based on the proportion
     # of electric vehicles in Germany (see data/car_segment.json).
     # In addition, you can choose between the following charging behaviors: on_demand, intelligent and bi_directional
-    data.generateDistrictComplete(calcUserProfiles=True, saveUserProfiles=False)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()
