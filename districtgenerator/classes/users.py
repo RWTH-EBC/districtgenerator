@@ -690,11 +690,11 @@ class Users:
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
-                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
-
                 # Occupancy profile in a flat
                 prof = temp_obj.generate_occupancy_profiles_residential()
                 self.occ = self.occ + prof
+
+                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
 
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,

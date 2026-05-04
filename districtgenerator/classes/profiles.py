@@ -346,15 +346,47 @@ class Profiles:
         temperature_difference = [T for T in temperature_difference_day for _ in range(24)]
         self.temperature_difference = chres.changeResolution(temperature_difference, 3600, self.time_resolution, "mean")
 
+        if self.building in {"SFH", "TH", "MFH", "AB"}:
+            base_occ_profile = self.occ_profile
+        else:
+            base_occ_profile = self.occ_profile_building
+            
+        # If the profile is empty (e.g. not generated for some reason), we default to None
+        if base_occ_profile is None or len(base_occ_profile) == 0:
+            occupancy_profile = None
+            average_occupants = self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building
+        else:
+            # Calculate average occupants to scale the total DHW volume dynamically!
+            average_occupants = np.mean(base_occ_profile)
+            
+            # If the building is completely empty all year, return zeros immediately
+            if average_occupants == 0:
+                target_len = int(self.nb_days * 24 * 3600 / self.time_resolution)
+                return np.zeros(target_len)
+
+            # Change resolution to 60 seconds (s_step used for OpenDHW)
+            occ_profile_60s = chres.changeResolution(base_occ_profile, self.time_resolution, 60, "mean")
+            
+            # OpenDHW expects exactly 365 days of data
+            expected_len = int(365 * 24 * 3600 / 60)
+            
+            if len(occ_profile_60s) < expected_len:
+                # Tile the profile to cover 365 days
+                repetitions = math.ceil(expected_len / len(occ_profile_60s))
+                occupancy_profile = np.tile(occ_profile_60s, repetitions)[:expected_len]
+            else:
+                occupancy_profile = occ_profile_60s[:expected_len]
+
         dhw_profile = OpenDHW.generate_dhw_profile(
             s_step=60,
             categories=1,
-            occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
+            occupancy=average_occupants,
             building_type=self.building,
             weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
             holidays = holidays,
             mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"],
-            initial_day = self.initial_day
+            initial_day = self.initial_day,
+            occupancy_profile=occupancy_profile
         )
 
         dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
