@@ -844,7 +844,7 @@ def plot_power_export_by_year_from_csv(
 
         plt.xticks(x, labels)
         plt.ylabel("Energie in MWh")
-        plt.title(titel or sc)
+        #plt.title(titel or sc)
         plt.grid(axis="y", alpha=0.4)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -3166,13 +3166,31 @@ if __name__ == "__main__":
     compare_short1 = "VW"
     compare_short2 = "QW"
 
-    district2 = "ghd6"
-    district1 = "residential2"
-    district3 = "mixed1"
+    # district2 = "ghd6"
+    # district1 = "residential2"
+    # district3 = "mixed1"
 
-    name2 = "Gewerbequartier"
-    name1 = "Wohnquartier 1"
-    name3 = "Mischquartier"
+    # district2 = "residential0"
+    # district1 = "residential2"
+    # district3 = "mixed1"
+
+    district3 = "residential0"
+    district2 = "residential2"
+    district1 = "residential3"
+
+    # name2 = "Gewerbequartier"
+    # name1 = "Wohnquartier 1"
+    # name3 = "Mischquartier"
+
+    # name2 = "Wohnquartier 2"
+    # name1 = "Wohnquartier 1"
+    # name3 = "Mischquartier"
+
+    name3 = "Wohnquartier 2"
+    name2 = "Wohnquartier 1"
+    name1 = "Wohnquartier 3"
+    
+    
     fontsize = 12
 
     power_demand={}
@@ -3183,51 +3201,39 @@ if __name__ == "__main__":
     power_demand["residential3"] = 634.2
     
 
-    # district1 = "residential2"
-    # district2 = "mixed1"
-    # district3 = "residential0"
-    # name1 = "Wohnquartier 2"
-    # name2 = "Mischquartier"
-    # name3 = "Wohnquartier 1"
 
-    # district1 = "1rural"
-    # district2 = "4zb"
-    # district3 = "6urban"
-    # name1 = "ländlichen Quartier"
-    # name2 = "vorstädtischen Quartier"
-    # name3 = "urbanen Quartier"
+    plot_device_capacities_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        subplot_titles=[name1, name2, name3],
+        fontsize=fontsize,
+        show=True,
+        exclude_devices=["TES", "STC"],
+        show_percent_box=True,
+        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
+        compare_item1=compare_item1, compare_item2=compare_item2
+    )
 
-    # plot_device_capacities_three_subplots_from_csv(
-    #     scenario_names=[district1, district2, district3],
-    #     subplot_titles=[name1, name2, name3],
-    #     fontsize=fontsize,
-    #     show=True,
-    #     exclude_devices=["TES", "STC", "HP", "BBOI"],
-    #     show_percent_box=True,
-    #     titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
-    #     compare_item1=compare_item1, compare_item2=compare_item2
-    # )
+    plot_device_capacities_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        subplot_titles=[name1, name2, name3],
+        plot_tes_only= True,
+        fontsize=fontsize,
+        show=True,
+        exclude_devices=["PV", "HP", "BCHP", "BBOI", "EB"],
+        show_percent_box=True,
+        titel="Vergleich der Speicherkapazitäten (3 Quartiere)",
+        compare_item1=compare_item1, compare_item2=compare_item2
+    )
 
-    # plot_device_capacities_three_subplots_from_csv(
-    #     scenario_names=[district1, district2, district3],
-    #     subplot_titles=[name1, name2, name3],
-    #     fontsize=fontsize,
-    #     show=True,
-    #     exclude_devices=["PV", "HP", "BCHP", "BBOI", "EB"],
-    #     show_percent_box=True,
-    #     titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
-    #     compare_item1=compare_item1, compare_item2=compare_item2
-    # )
-
-    # plot_lcoe_three_subplots_from_csv(
-    #     scenario_names=[district1, district2, district3],
-    #     subplot_titles=[name1, name2, name3],
-    #     fontsize=fontsize,
-    #     show=True,
-    #     show_percent_box=True,
-    #     titel="Energiegestehungskosten (3 Quartiere)",
-    #     compare_item1=compare_item1, compare_item2=compare_item2
-    # )
+    plot_lcoe_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        subplot_titles=[name1, name2, name3],
+        fontsize=fontsize,
+        show=True,
+        show_percent_box=True,
+        titel="Energiegestehungskosten (3 Quartiere)",
+        compare_item1=compare_item1, compare_item2=compare_item2
+    )
 
     # plot_power_import_three_subplots_from_csv(
     #     scenario_names=[district1, district2, district3],
@@ -3264,15 +3270,15 @@ if __name__ == "__main__":
 
    
 
-    # plot_co2_three_subplots_from_csv(
-    # scenario_names=[district1, district2, district3],
-    # subplot_titles=[name1, name2, name3],
-    # fontsize=fontsize,
-    # show=True,
-    # show_percent_box=True,
-    # titel="CO₂-Emissionen (3 Quartiere)",
-    # compare_item1=compare_item1, compare_item2=compare_item2
-    # )
+    plot_co2_three_subplots_from_csv(
+    scenario_names=[district1, district2, district3],
+    subplot_titles=[name1, name2, name3],
+    fontsize=fontsize,
+    show=True,
+    show_percent_box=True,
+    titel="CO₂-Emissionen (3 Quartiere)",
+    compare_item1=compare_item1, compare_item2=compare_item2
+    )
     
     # plot_tac_sum_from_three_scenarios(
     #     scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
