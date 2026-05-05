@@ -682,9 +682,13 @@ if __name__ == "__main__":
     # scenario_titel_name = "Gewerbequartier"
     year=0
     year_header= year+2025
-    #cluster=3
+    cluster=3
 
-    #out = plot_power_timeseries_by_year_and_clusters(scenario_name=scenario_name, support_year=year,num_clusters=cluster,base_dir=base_dir,result_dir=result_dir,show=True,)
+    # plot_power_timeseries_by_year_and_clusters(
+    #     scenario_name=scenario_name, support_year=year,
+    #     num_clusters=cluster,
+    #     base_dir=base_dir,result_dir=result_dir,show=True,)
+    
     for cluster in range(0,4):
         out3=plot_power_stacked_normalized_by_day_demand_breakdown(scenario_name=scenario_name,support_year=year,cluster=cluster,titel=f"Stromflüsse im {scenario_titel_name} im Jahr {year_header} mit dem Cluster {cluster}",
             base_dir=base_dir,result_dir=result_dir,show=True,)
