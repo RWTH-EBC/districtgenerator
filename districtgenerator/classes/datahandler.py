@@ -958,8 +958,9 @@ class Datahandler:
         time_horizon = self.time["dataLength"]
         num_timesteps = int(time_horizon / time_resolution)
 
+        # timeseries data points
         ts_dict = {
-            'timestep': np.arange(num_timesteps) * (time_resolution / 3600),  # Index-Column (hour)
+            'timestep': np.arange(num_timesteps) * (time_resolution / 3600),  # Index-Column (hour of the year)
             'elec': elec,
             'dhw': dhw,
             'occ': occ,
@@ -992,7 +993,7 @@ class Datahandler:
         df_ts = pd.DataFrame(ts_dict)
         df_ts.to_csv(os.path.join(path, f"{name}_timeseries.csv"), index=False)
 
-        # 2. Static Data (Eine Zeile, Listen/Dicts als JSON codiert)
+        # Singular Data points (static)
         static_dict = {
             'nb_units': [nb_units],
             'nb_occ': [json.dumps(list(nb_occ) if isinstance(nb_occ, (list, np.ndarray)) else [nb_occ])],
