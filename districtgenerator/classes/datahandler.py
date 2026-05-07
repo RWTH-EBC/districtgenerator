@@ -2783,8 +2783,8 @@ class Datahandler:
         # Adjust the nominal_waste_heat_capacity_kW of the heat grid data based on the waste heat potential if it is not already set
         if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None:
             key = "Pot_Abwasser_entzugsleistungsbereich_kw"
-            if key in scenario_df.columns:
-                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(scenario_df["Pot_Abwasser_entzugsleistungsbereich_kw"])
+            if key in wkb_data.columns:
+                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(wkb_data["Pot_Abwasser_entzugsleistungsbereich_kw"])
             else:
                 self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
         return scenario_df

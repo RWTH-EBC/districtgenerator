@@ -3040,6 +3040,8 @@ class DataExtractor(ReportComponent):
                 cost = round(self.kpis.central_individual_devices_annualized_cost[dev]['subsidized_annual_cost'], 2)
                 if cost == 0:
                     continue # Skip devices that have zero cost
+                elif cost > 0:
+                    cost_unit = " €/a"
 
                 name, base_unit = self.get_central_device_name(dev)
                 cap = 0
