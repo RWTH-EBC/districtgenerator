@@ -366,6 +366,22 @@ def scenario_generation():
     sum_age = sum(age_percents)
     age_percents = [p / sum_age for p in age_percents]
     counts = [int(round(n_total * p)) for p in age_percents]
+
+    # Bugfix for missing building construction years:
+    # 1) Calculates the difference between rounded odds and exact odds
+    # 2) Creates a new list filled with the sorted indexs according to the age_brackets which were rounded down the most (f.e. if the odds of age_bracket 5 were rounded down the most then 5 is the first entry of the created list)
+    # 3) Calculates the number of buildings not accommodated by oversimplefied rounding
+    # 4) Adds one building to the age_brackets who's odds were rounded down the most (by referencing of the created list)
+    counts_exact = [(n_total * p) for p in age_percents]
+    difference = [x - y for x, y in zip(counts_exact,counts)]
+    index_sorted = [i for i, _ in sorted(enumerate(difference), key=lambda x: x[1], reverse=True)]
+    num_missing = num_buildings - sum(counts)
+
+    for b in range(num_missing):
+        counts[index_sorted[b]]= counts[index_sorted[b]] + 1
+
+    # End of Bugfix
+
     age_list = []
     for cat, count in zip(age_categories, counts):
         age_list.extend([cat] * count)

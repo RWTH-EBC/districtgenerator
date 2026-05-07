@@ -359,6 +359,10 @@ def calc_flow(data, param, save_path=None):
 
     # Minimum flow fraction relative to the building's peak flow.
     # Ensures continuous circulation through the heat exchanger and avoids zero-flow conditions.
+    # Needed as valves and heat-exchangers need a minimum flow to operate:
+        # valves: „District heating house substations and selection of regulating valves”, 1999, Danfoss GmbH
+        # heat-exchangers: “A Review of Crystallization Fouling in Heat Exchangers”, 2021, Berce et al., doi: https://doi.org/10.3390/pr9081356
+
     alpha = data.heat_grid_data["min_flow_fraction"]  # minimum flow fraction
 
     # Building demand + building mass flow
@@ -536,9 +540,9 @@ def calc_diameter(data, param):
             # Typical district heating design limits are:
             #   ≤ 1.2 m/s for small pipes (DN ≤ 32)
             #   ≤ 2.0 m/s for larger pipes.
-            v_lim = 1.2 if DN <= 32 else 2.0  #todo: find source
-            if v > v_lim:
-                continue
+            v_lim = 1.2 if DN <= 32 else 2.0  #todo: find source # Quellen: keine direkte Quellen für 1,2 m/s aber grober Bereich:
+            if v > v_lim:                                        # Leitfaden Nahwärme, Frauenhofer Umsicht (1998), Seite A53: liefert 1,5 m/s
+                continue                                         # Planungshandbuch Fernwärme (2021), Verenum AG: Bild 1.4 auf S.13 liefert für angenommene 200 Pa/m und DN32 (ca. 34 bis 37 mm Innendurchmesser) ein v_max von ca. 1 m/s
 
             Re = v * d_i / nu_f
             f = fluids.friction.friction_factor(Re=Re, eD=rough / d_i)
@@ -736,6 +740,10 @@ def compute_pump_power(data, param):
 
     # Pump design head
     data.heat_grid_data["dp_pump_max"] = float(np.max(dp_total)) * 1.3  # Pa    #todo: Sicherheitsfaktoren benötigt?
+
+    # Quellen:
+    # für grundlegende Redundanz: Planungshandbuch Fernwärme (2021), Verenum AG (S.54)
+    # es wird sonst keine allgemeine Überdimensionierung empfohlen: Planungshandbuch Fernwärme (2021), Verenum AG (S.136)
 
     return data, param
 
