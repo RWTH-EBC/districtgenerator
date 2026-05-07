@@ -28,6 +28,8 @@ Individual flowables:
 Version Date: 31.03.2026
 """
 
+import json
+
 from districtgenerator.classes import *
 from reportlab.platypus  import SimpleDocTemplate, BaseDocTemplate, PageTemplate, Frame
 from reportlab.lib.pagesizes import A4, A3, landscape
@@ -301,14 +303,19 @@ class ReportComponent:
     """
     Base class to hold the shared theme state. Avoids passing the theme manager to every single component. The theme can be set once using the apply_style method and is then available to all components as a class variable.
     """
-    style = None # Shared static variable to hold the theme manager
+    # Shared static variable to hold the theme manager and the translations dictionary
+    style = None 
+    translations = {}
 
     @classmethod
-    def apply_style(cls, theme_manager: ThemeManager):
+    def apply_style(cls, theme_manager: ThemeManager, language: str):
         """
         Sets the theme once for all components.
         """
         cls.style = theme_manager
+        srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        translations_path = os.path.join(srcPath, "data", "report_translations.json")
+        cls.__load_translations(translations_path, language)
     
     @classmethod
     def get_style(cls):
@@ -319,6 +326,29 @@ class ReportComponent:
             raise Exception("Theme not set. Please call ReportComponent.apply_style(theme_manager) before creating any components.")
         return cls.style
     
+    @classmethod
+    def translate(cls, text_key: str) -> str|dict:
+        """
+        Translates a given key. Returns the key itself if not found.
+        """
+        return cls.translations.get(text_key, text_key)
+    
+    @classmethod
+    def __load_translations(cls, file_path, language):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                translation_json = json.load(f)
+
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Warning: Could not load translations from {file_path}. Error: {e}")
+            cls.translations = {}
+            return
+        
+        english_translations = translation_json["en"]    
+        specific_translations = translation_json.get(language, {})
+
+        # Merge the english translations with the specific language translations, where the specific language translations overwrite the english ones
+        cls.translations = english_translations | specific_translations    
 
 class BaseReportFlowable(Flowable, ReportComponent):
     """
@@ -504,7 +534,7 @@ class Header(BaseReportFlowable):
     """
     This class generates the header section of the certificate.
     """
-    def __init__(self, title="Quartiersenergieausweis") -> None:
+    def __init__(self, title) -> None:
         super().__init__()
         self.style = self.get_style()
         self.title = title
@@ -573,7 +603,7 @@ class Energiekennwerte(BaseReportFlowable):
         self.pie_chart_flowable = EnergyPieChart(pie_data=self.energy_pie_data, availWidth=col_w_right)
         self.max_loads_flowable = MaxLoadsBarChart(max_loads_data=self.max_loads_data, availWidth=col_w_right)
 
-        left_column_content = [Spacer(1, self.style.get_padding()),self.t_summary, Spacer(1, 3*self.style.get_padding()), Title("Optimierter Anlagenbetrieb"), Spacer(1, self.style.get_padding()), self.t_operation]
+        left_column_content = [Spacer(1, self.style.get_padding()),self.t_summary, Spacer(1, 3*self.style.get_padding()), Title(self.translate("title_optimized_operation_kpis")), Spacer(1, self.style.get_padding()), self.t_operation]
         right_column_content = [self.pie_chart_flowable, Spacer(1, self.style.get_padding()), self.max_loads_flowable]
 
         layout_data = [
@@ -640,11 +670,11 @@ class EnergyPieChart(BaseReportFlowable):
         
         # Map pie categories to the specific keys in the colors dictionary
         color_mapping = {
-            "Strom": self.style.get_energy_color("electricity"),
-            "Wärme": self.style.get_energy_color("heating"),
-            "TWW": self.style.get_energy_color("dhw"),
-            "Kälte": self.style.get_energy_color("cooling"),
-            "EV": self.style.get_energy_color("ev")
+            self.translate("name_el"): self.style.get_energy_color("electricity"),
+            self.translate("name_heat"): self.style.get_energy_color("heating"),
+            self.translate("name_dhw"): self.style.get_energy_color("dhw"),
+            self.translate("name_cool"): self.style.get_energy_color("cooling"),
+            self.translate("name_ev"): self.style.get_energy_color("ev")
         }
 
         # Enforce crash if key is missing by accessing the dictionary directly
@@ -711,7 +741,7 @@ class EnergyPieChart(BaseReportFlowable):
         d.add(legend)
 
         
-        d.add(String(width / 2.0, title_y, "Energiebedarfe in MWh/a", 
+        d.add(String(width / 2.0, title_y, self.translate("title_pie_chart_energy"), 
                      fontName=title_font, 
                      fontSize=title_size, 
                      textAnchor='middle',
@@ -792,7 +822,7 @@ class MaxLoadsBarChart(BaseReportFlowable):
         # Title
         c.setFont(*self.title_font)
         c.setFillColorRGB(*self.style.get_color('text'))
-        c.drawCentredString(self.width / 2.0, self.height - self.title_font[1], "Maximale Leistungen")
+        c.drawCentredString(self.width / 2.0, self.height - self.title_font[1], self.translate("title_max_loads"))
         
         # Font settings for body
         c.setFont(*self.text_font)
@@ -957,11 +987,11 @@ class Footer(BaseReportFlowable):
         y = self.padding + self.line_width + available_height / 2 - text_height/3
         
         x1 = self.padding + self.line_width
-        string1 = "Quartiersname:"
+        string1 = self.translate("ui_footer_name")
         length1 = c.stringWidth(string1, self.highlight_fontstyle, self.highlight_fontsize) 
         gap = 3
         string2 = str(self.scenario_name)
-        string3 = "Erstellt am: " + datetime.now().strftime('%d.%m.%Y %H:%M')
+        string3 = f"{self.translate('ui_footer_created')} {datetime.now().strftime('%d.%m.%Y %H:%M')}"
 
         c.setFont(self.highlight_fontstyle, self.highlight_fontsize)
         c.setFillColorRGB(*self.highlight_fontcolor)
@@ -1035,11 +1065,12 @@ class EnergyHub(BaseReportFlowable):
         """Creates a list of FrameBox objects for the Energy Hub data."""
         style = cls.get_style()
         boxes = []
+        title = cls.translate("title_central_devices")
 
         # Handle empty data
         if data_energyhub is None or data_energyhub.empty:
-            box = FrameBox(title="Zentrale Energiesysteme")
-            p = Paragraph("Es wurden keine zentralen Energiesysteme ausgelegt", style.get_paragraph_styles()['Normal'])
+            box = FrameBox(title=title)
+            p = Paragraph(cls.translate("msg_no_central_devices"), style.get_paragraph_styles()['Normal'])
             box.set_content(cls(content_flowable=p))
             boxes.append(box)
             return boxes
@@ -1054,14 +1085,13 @@ class EnergyHub(BaseReportFlowable):
 
         # Check if it fits on exactly one page
         if len(eh_tables) == 1:
-            box = FrameBox(title="Zentrale Energiesysteme")
+            box = FrameBox(title=title)
             box.set_content(cls(content_flowable=eh_tables[0].table)) 
             boxes.append(box)
             
         else:
             for i, eh_table in enumerate(eh_tables, start=1):
-                title = f"Zentrale Energiesysteme ({i}/{len(eh_tables)})"
-                box = FrameBox(title=title)
+                box = FrameBox(title=f"{title} ({i}/{len(eh_tables)})")
                 box.set_content(cls(content_flowable=eh_table))
                 boxes.append(box)
         
@@ -1105,11 +1135,11 @@ class DecentralSystems(BaseReportFlowable):
         """Creates a list of FrameBox objects for the Decentral Systems data."""
         style = cls.get_style()
         boxes = []
-
+        title = cls.translate("title_decentral_devices")
         # Handle empty data
         if data_decentral is None or data_decentral.empty:
-            box = FrameBox(title="Dezentrale Energiesysteme")
-            p = Paragraph("Es wurden keine dezentralen Energiesysteme ausgelegt", style.get_paragraph_styles()['Normal'])
+            box = FrameBox(title=title)
+            p = Paragraph(cls.translate("msg_no_decentral_devices"), style.get_paragraph_styles()['Normal'])
             box.set_content(cls(content_flowable=p))
             boxes.append(box)
             return boxes
@@ -1124,14 +1154,13 @@ class DecentralSystems(BaseReportFlowable):
 
         # Check if it fits on exactly one page
         if len(dec_tables) == 1:
-            box = FrameBox(title="Dezentrale Energiesysteme")
+            box = FrameBox(title=title)
             box.set_content(cls(content_flowable=dec_tables[0].table)) 
             boxes.append(box)
             
         else:
             for i, dec_table in enumerate(dec_tables, start=1):
-                title = f"Dezentrale Energiesysteme ({i}/{len(dec_tables)})"
-                box = FrameBox(title=title)
+                box = FrameBox(title=f"{title} ({i}/{len(dec_tables)})")
                 box.set_content(cls(content_flowable=dec_table))
                 boxes.append(box)
         
@@ -1141,14 +1170,15 @@ class YearlyStackedBarCharts(BaseReportFlowable):
     """
     Generates stacked bar charts for each simulated year, with a shared legend below.
     """
-    def __init__(self, costs_data: list, co2_data: list, availWidth: float, availHeight: float):
+    def __init__(self, costs_data: list, co2_data: list, availWidth: float, availHeight: float, observation_time: int = None):
         super().__init__()
         self.style = self.get_style()
         self.costs_data = costs_data
         self.co2_data = co2_data
         self.availWidth = availWidth
         self.availHeight = availHeight
-        
+        self.observation_time = observation_time
+
         self.drawing = self._create_drawing()
         self.width = self.drawing.width
         self.height = self.drawing.height
@@ -1159,7 +1189,19 @@ class YearlyStackedBarCharts(BaseReportFlowable):
         years_co2 = sorted([item["Year"] for item in self.co2_data])
         if years != years_co2:
             raise ValueError(f"Mismatch in years between costs_data and co2_data ({years} vs {years_co2}). Ensure both datasets cover the same years as Simulations are linked.")
-        year_labels = [str(y) for y in years]
+        
+        year_labels = []
+        for i in range(len(years)):
+            start_year = years[i]
+            
+            if i < len(years) - 1:
+                # Das Ende ist das Folgejahr minus 1
+                end_year = years[i+1] - 1
+            else:
+                # Der letzte Balken nutzt die observation_time als Obergrenze
+                end_year = self.observation_time - 1
+                
+            year_labels.append(f"{start_year} - {end_year}")
         
         # Define categories (excluding 'Year' values)
         cost_categories = [k for k in self.costs_data[0].keys() if k != "Year"]
@@ -1180,14 +1222,15 @@ class YearlyStackedBarCharts(BaseReportFlowable):
             co2_series.append(tuple(series))
 
         # Define order of charts and titles from Bottom to Top
+        
         charts_config = [
             {
-                "title": "CO2-Emissionen (t/a)",
+                "title": f"{self.translate('title_emissions_graph')} (t/a)",
                 "series": co2_series,
                 "categories": co2_categories
             },
             {
-                "title": "Kosten (€/a)",
+                "title": f"{self.translate('title_cost_graph')} (€/a)",
                 "series": cost_series,
                 "categories": cost_categories
             }
@@ -1197,14 +1240,14 @@ class YearlyStackedBarCharts(BaseReportFlowable):
         max_co2 = max([max(series) for series in co2_series]) if co2_series else 0 # Unit in t/a
         if max_co2 < 5:
             co2_series = [tuple(val * 1000 for val in series) for series in co2_series]
-            charts_config[0]["title"] = "CO2-Emissionen (kg/a)"
+            charts_config[0]["title"] = f"{self.translate('title_emissions_graph')} (kg/a)"
             charts_config[0]["series"] = co2_series
 
         # Costs in t€/a or €/a
         max_costs = max([max(series) for series in cost_series]) if cost_series else 0 # Unit in €/a
         if max_costs > 5000:
             cost_series = [tuple(val / 1000 for val in series) for series in cost_series]
-            charts_config[1]["title"] = "Kosten (Tsd. €/a)"
+            charts_config[1]["title"] = f"{self.translate('title_cost_graph')} ({self.translate('name_for_thousand')} €/a)"
             charts_config[1]["series"] = cost_series
         
 
@@ -1232,17 +1275,17 @@ class YearlyStackedBarCharts(BaseReportFlowable):
             try:
                 # Direct mapping of your exact keys to the theme color types
                 mapping = {
-                    "Anlagenkosten zentral": "eh_fixed",
-                    "Anlagenkosten dezentral": "decentral_fixed",
-                    "Strom": "electricity",
-                    "Gas": "gas",
-                    "Öl": "oil",
-                    "Abfall": "waste",
-                    "Biomasse": "biomass",
-                    "Fernwärme": "district_heat",
-                    "Wasserstoff": "hydrogen",
-                    "Abwärme": "waste_heat",
-                    "Einspeiseerlöse (el.)": "revenue_feed_in_el"
+                    self.translate("name_central_costs"): "eh_fixed",
+                    self.translate("name_decentral_costs"): "decentral_fixed",
+                    self.translate("name_el"): "electricity",
+                    self.translate("name_gas"): "gas",
+                    self.translate("name_oil"): "oil",
+                    self.translate("name_waste"): "waste",
+                    self.translate("name_biomass"): "biomass",
+                    self.translate("name_district_heat"): "district_heat",
+                    self.translate("name_hydrogen"): "hydrogen",
+                    self.translate("name_waste_heat"): "waste_heat",
+                    self.translate("name_feed_in_revenue"): "revenue_feed_in_el"
                 }
                 
                 # Check if the exact string exists in our mapping
@@ -1341,7 +1384,7 @@ class YearlyStackedBarCharts(BaseReportFlowable):
 
             title_y = current_y + chart_height + padding + setoff_chart_start
             d.add(String(bc.x + chart_width/2, title_y, chart["title"], fontName=title_font, fontSize=title_size, textAnchor='middle'))
-            d.add(String(bc.x + chart_width/2, current_y, "Stützjahr", fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
+            d.add(String(bc.x + chart_width/2, current_y, self.translate("axis_title_simulated_year"), fontName=axis_label_font, fontSize=axis_label_size, textAnchor='middle'))
 
             total_chart_height = title_y - current_y + title_size 
 
@@ -1424,55 +1467,7 @@ class Hinweise(BaseReportFlowable):
         self.sections_to_include = sections_to_include
 
         # This dict contains the text that is displayed in the Hinweise section
-        self.hinweise_content = {
-            "Energetische Kennwerte":{
-                    "Nutzenergiebedarf": "Über alle Gebäude aufsummierter Nutzenergiebedarf (Haushaltsstrom, Wärme, Trinkwarmwasser, Kälte und EV-Strom)",
-                    "Norm-Heizlast": "Über alle Gebäude aufsummierte Norm-Heizlast nach DIN EN ISO 13790",
-                    "Energiebedarfe (MWh)": "Über alle Gebäude aufsummierten Jahresenergiebedarfe auf Basis der generierten Bedarfsprofile (für Wärme, Kälte, Haushaltsstrom, Trinkwarmwasser (TWW) und Elektroautos (EV))",
-                    "Maximale Leistungen": "Maximale Leistungen in kW im Quartier auf Basis der aufsummierten Bedarfsprofile aller Gebäude (ohne Betriebsoptimierung)"
-                },
-            "Optimierter Anlagenbetrieb":{
-                    "Ø CO2-Emissionen": "Im Quartier emittierte CO2-Äquivalente in t/a durch den optimierten Betrieb (Gasbedarf und Strombedarf)",
-                    "Ø Energiekosten": "Spezifische Betriebskosten des gesamten Quartiers in €/kWh auf Basis der Betriebsoptimierung",
-                    "Anlagenkosten": "Annuitätische Fixkosten aller installierten Energieanlagen. Dies beinhaltet die umgelegten Investitionskosten (CAPEX) abzüglich Subventionen sowie feste Betriebs- und Wartungskosten (O&M).",
-                    "Spitzenlast (el.)": "Maximaler Strombezug des gesamten Quartiers aus übergeordnetem Stromnetz auf Basis der Betriebsoptimierung",
-                    "Max. Einspeiseleistung": "Maximale Stromeinspeisung des gesamten Quartiers in übergeordnetes Stromnetz auf Basis der Betriebsoptimierung",
-                    "Einspeiseerlöse (el.)": "Erlöse durch die Einspeisung von lokal erzeugtem Strom in das übergeordnete Stromnetz auf Basis der Betriebsoptimierung in €/a",
-                    "Autarkiegrad": "Anteil der Betriebszeit, in der der lokale Strombedarf vollständig durch die Stromerzeugung im Quartier gedeckt wird (Werte zwischen 0 % und 100 %)",
-                    "Supply-Cover-Faktor": "Anteil des aus den Gebäuden des Quartiers ins lokale Netz eingespeisten Stroms, der für den Eigenverbrauch innerhalb des Quartiers durch andere Gebäude genutzt wird (Werte zwischen 0 % und 100 %)",
-                    "Demand-Cover-Faktor": "Anteil des residualen Strombedarfs im Quartier, der durch den von den Gebäuden im Quartier erzeugten und ins lokale Netz eingespeisten Stroms gedeckt wird (Werte zwischen 0 % und 100 %)",
-                    "Saisonaler Speicher": "Zur verfügung stehende Jährliche Entnahmeleistung aus saisonalen Speichern in MWh/a. Es wird eine konstante Entnahmeleistung über das Jahr angenommen."
-                },
-            "Bezeichnungen für die Quartierstruktur und das Quartierslayout":
-                {
-                    "GHD-Gebäude": "Gewerbe-, Handels- und Dienstleistungsgebäude",
-                    "Mischgebäude": "Gebäude mit einer gemischten Nutzung aus Wohnen und GHD",
-                    # "Quartiersfläche": "Gesamte Fläche des Quartiers in Hektar (ha)",
-                    "Testreferenzjahr": "Verwendetes Referenzjahr für die Bedarfsermittlung sowie die Erzeugung von Erneuerbaren Energiequellen anhand von Wetterdaten",
-                    "Energiezentrale": "Zentrale Energieerzeugungsanlage, die das Wärmenetz des Quartiers speist",
-                    "DN (Nenndurchmesser)": "Innendurchmesser der verlegten Rohrleitungen des Wärmenetzes in Millimetern"
-                },
-            "Bezeichnungen in der Liste der Gebäude": 
-                {
-                    "Gebäude-ID": "ID des Gebäudes zur eindeutigen Identifizierung",
-                    "Gebäudetyp": "SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, TH = Reihenhaus, AB = Wohnblock, OB = Bürogebäude, SC = Schule, GS = Lebensmittelgeschäft, RE = Restaurant, UNI = Universitätsgebäude, HOSPITAL = Krankenhaus, CULTURE = Kulturgebäude, SPORT = Sportgebäude, RETAIL = Handelsgebäude, WORKSHOP = Werkstattgebäude. Ein '+' (z. B. MFH+RETAIL) kennzeichnet ein Mischgebäude",
-                    "Baujahr": "Baualtersklasse (vor 1969, 1968-1978, 1979-1983, 1984-1994, 1995-2001, 2002-2009, 2010-2015, ab 2016)",
-                    "Sanierung für Wohngebäude": "0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55",
-                    "Sanierung für Nichtwohngebäude": "0 = Nichtsaniert, 1 = Teilsaniert (nur Fenster und Wände), 2 = Vollsaniert (Decke, Fenster, Dach und Wände)",
-                    "Sp-Masse": "Gebäudespeichermasse: 0 = Leichtbau, 1 = Mittelbau, 2 = Massivbau",
-                    "N-Absenkung": "Nachtabsenkung: 0 = keine Nachtabsenkung, 1 = mit Nachtabsenkung",
-                    "NRF": "Nettoraumfläche in m²",
-                    "Heizung": "ausgewählter Wärmeerzeuger",
-                    "EV": "Zwischen 0 und 1; Anteil der Elektroautos am Gesamtfahrzeugbestand im Gebäude",
-                    "fTES": "Größe des Pufferspeichers in Liter pro kW Heizleistung der Wärmeerzeugungsanlage",
-                    "fBAT": "Größe des Batteriespeichers in Abhängigkeit der Leistung der PV-Anlage in Wh/W_PV",
-                    "fPV1": "Anteil der gesamten Dachfläche, der auf Dachseite 1 mit Photovoltaik belegt ist. Dachseite 1 ist dabei die Seite, für die der Azimutwinkel gammaPV vergeben wird (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)",
-                    "fPV2": 'Anteil der gesamten Dachfläche, der auf Dachseite 2 mit Photovoltaik belegt ist. Der Azimutwinkel von Dachseite 2 wird als 180° zu gammaPV gedreht ("gegenüberliegend") berechnet.',
-                    "fSTC": "Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)",
-                    "gammaPV": "Azimut = Himmelsausrichtung von Dachseite 1, Ausrichtung nach Süden entspricht 0°",
-                    "EV-Charging": "Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)"
-                }
-            }
+        self.hinweise_content = self.translate("content_information_page")
         
         # Styling configuration
         self.styles = {
@@ -1682,7 +1677,7 @@ class DistrictLayout(BaseReportFlowable):
             font_name = self.style.get_font(bold=False)
             font_size = self.style.get_font_size('subsection_title')
             text_color = colors.Color(*self.style.colors["text"])
-            d.add(String(self.map_width / 2.0, self.height / 2.0, "Kein Quartierslayout verfügbar", 
+            d.add(String(self.map_width / 2.0, self.height / 2.0, self.translate("msg_no_district_layout"), 
                          fontName=font_name, fontSize=font_size, fillColor=text_color, textAnchor='middle'))
             return d
         
@@ -1961,7 +1956,7 @@ class DistrictLayout(BaseReportFlowable):
         d.add(eh_shape)
 
         
-        d.add(String(text_x, current_y- y_text_offset, "Energiezentrale", 
+        d.add(String(text_x, current_y- y_text_offset, self.translate("legend_eh"), 
                      fontName=self.style.get_font(bold=False), 
                      fontSize=legend_font_size, 
                      fillColor=text_color,
@@ -1992,7 +1987,7 @@ class DistrictLayout(BaseReportFlowable):
                          fillColor=text_color, textAnchor='middle'))
 
             # Draw main text
-            d.add(String(text_x, y_text_line1, "Rohre des Wärmenetzes", 
+            d.add(String(text_x, y_text_line1, self.translate("legend_pipes"), 
                          fontName=self.style.get_font(bold=False), 
                          fontSize=legend_font_size, 
                          fillColor=text_color,
@@ -2000,7 +1995,7 @@ class DistrictLayout(BaseReportFlowable):
 
             # Draw explanation text
             explanation_color = colors.Color(*self.style.get_color("text_light"))
-            d.add(String(text_x, y_text_line2, "(DN-X = Nenndurchmesser in mm)", 
+            d.add(String(text_x, y_text_line2, self.translate("legend_pipe_dn"), 
                          fontName=self.style.get_font(bold=False), 
                          fontSize=legend_font_size * 0.85, 
                          fillColor=explanation_color,
@@ -2016,7 +2011,7 @@ class DistrictLayout(BaseReportFlowable):
             d.add(pipe_line)
 
             # Draw single main text
-            d.add(String(text_x, current_y - y_text_offset, "Rohre des Wärmenetzes", 
+            d.add(String(text_x, current_y - y_text_offset, self.translate("legend_pipes"), 
                          fontName=self.style.get_font(bold=False), 
                          fontSize=legend_font_size, 
                          fillColor=text_color,
@@ -2034,7 +2029,7 @@ class DistrictLayout(BaseReportFlowable):
         b_conn.strokeWidth = 0.5
         d.add(b_conn)
 
-        d.add(String(text_x, current_y - y_text_offset, "angeschlossene Gebäude", 
+        d.add(String(text_x, current_y - y_text_offset, self.translate("legend_bldg_conn"), 
                      fontName=self.style.get_font(bold=False), 
                      fontSize=legend_font_size, 
                      fillColor=text_color,
@@ -2052,7 +2047,7 @@ class DistrictLayout(BaseReportFlowable):
         b_not_conn.strokeWidth = 0.5
         d.add(b_not_conn)
 
-        d.add(String(text_x, current_y - y_text_offset, "nicht angeschlossene Gebäude", 
+        d.add(String(text_x, current_y - y_text_offset, self.translate("legend_bldg_not_conn"), 
                      fontName=self.style.get_font(bold=False), 
                      fontSize=legend_font_size, 
                      fillColor=text_color,
@@ -2097,15 +2092,17 @@ class CertificateLayout(ReportComponent):
         self.paragraph_styles = self.style.get_paragraph_styles()
 
     # Titlepage methods
-    def create_header(self, title="Quartiersenergieausweis"):
+    def create_header(self):
         """Creates Header and adds it to the story."""
+        title = self.translate("ui_certificate_title")
         header = Header(title=title)
         self.story.append(header)
         self.add_standard_spacer('large')
 
     def create_energiekennwerte(self, data_energiekennwerte):
         """Creates the Energiekennwerte section and adds it to the story."""
-        box = FrameBox(title="Energetische Kennwerte")
+        title = self.translate("title_kpis")
+        box = FrameBox(title=title)
         frame_width, frame_height = self.certificate_builder.get_Framesize(id='TitleContentFrame')
         avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
         
@@ -2116,7 +2113,8 @@ class CertificateLayout(ReportComponent):
 
     def create_quartiersstruktur(self, data_quartiersstruktur):
         """Creates the Quartiersstruktur section and adds it to the story."""
-        box = FrameBox(title="Quartiersstruktur")
+        title = self.translate("title_district_structure")
+        box = FrameBox(title=title)
         
         quartiersstruktur_flowable = Quartiersstruktur(
             summary_table_data=data_quartiersstruktur["summary_table"],
@@ -2203,8 +2201,9 @@ class CertificateLayout(ReportComponent):
             style_name='input_data'
         )
         
+        title = self.translate("title_district_structure_details")
         for i, tab in enumerate(tables, start=1):
-            title = "Netto Raumfläche nach Gebäudetyp und Altersklasse" if len(tables) == 1 else f"Netto Raumfläche nach Gebäudetyp und Altersklasse ({i}/{len(tables)})"
+            title = title if len(tables) == 1 else f"{title} ({i}/{len(tables)})"
             box = FrameBox(title=title)
             box.set_content(tab, full_width=True)
             self.story.append(box)
@@ -2221,7 +2220,7 @@ class CertificateLayout(ReportComponent):
             availHeight=map_height
         )
 
-        name= "Quartierslayout"
+        name= self.translate("title_district_layout")
         box = FrameBox(title=name)
         box.set_content(district_map)
         self.story.append(box)
@@ -2239,8 +2238,9 @@ class CertificateLayout(ReportComponent):
             style_name='input_data'
         )
         
+        title = self.translate("title_bldg_list")
         for i, input_data_table in enumerate(input_data_tables, start=1):
-            name = f"Liste der Gebäude ({i}/{len(input_data_tables)})" if len(input_data_tables) > 1 else "Liste der Gebäude"
+            name = f"{title} ({i}/{len(input_data_tables)})" if len(input_data_tables) > 1 else title
             box = FrameBox(title=name)
             box.set_content(input_data_table)
             self.story.append(box)
@@ -2258,9 +2258,10 @@ class CertificateLayout(ReportComponent):
         
         hinweise = Hinweise.create_all_hinweise(availWidth=hinweise_width, availHeight=hinweise_height)
         pages_hinweise = len(hinweise)
-        
+
+        title = self.translate("title_information")
         for i, hinweis in enumerate(hinweise, start=1):
-            name = f"Allgemeine Hinweise ({i}/{pages_hinweise})" if pages_hinweise > 1 else "Allgemeine Hinweise"
+            name = f"{title} ({i}/{pages_hinweise})" if pages_hinweise > 1 else title
             box = FrameBox(title=name)
             box.set_content(hinweis)
             self.story.append(box)
@@ -2269,15 +2270,17 @@ class CertificateLayout(ReportComponent):
         """Creates the yearly stacked bar charts and adds them to the story."""
         costs_data = kpi_data.get("bar_costs_data", [])
         co2_data = kpi_data.get("bar_co2_data", [])
+        obs_time = kpi_data.get("observation_time", None)
         
         if not costs_data or not co2_data:
             return
-
-        box = FrameBox(title="Jährliche Entwicklung (Kosten & Emissionen)")
+        
+        title = self.translate("title_cost_emissions")
+        box = FrameBox(title=title)
         frame_width, frame_height = self.certificate_builder.get_Framesize(id='EnergyhubDevicesFrame')
         avail_w, avail_h = FrameBox.get_available_space_content(frame_width, frame_height)
         
-        barcharts_flowable = YearlyStackedBarCharts(costs_data=costs_data, co2_data=co2_data, availWidth=avail_w, availHeight=avail_h)
+        barcharts_flowable = YearlyStackedBarCharts(costs_data=costs_data, co2_data=co2_data, availWidth=avail_w, availHeight=avail_h, observation_time=obs_time)
         box.set_content(barcharts_flowable)
         self.story.append(box)
 
@@ -2420,13 +2423,12 @@ class CertificateTemplate(BaseDocTemplate, ReportComponent):
         width, height = canvas._pagesize
         page_id = doc.pageTemplate.id
 
-        margins = self.style.get_page_margins()
         margin_x, margin_y = self.page_margins[page_id]
         
         canvas.setFont(self.style.get_font(bold=False), self.style.get_font_size('page_number'))
         canvas.setFillColorRGB(*self.style.get_color('text_light'))
         
-        canvas.drawRightString(width - margin_x, margin_y - 20, f"Seite {doc.page}")
+        canvas.drawRightString(width - margin_x, margin_y - 20, f"{self.translate('ui_page')} {doc.page}")
         canvas.restoreState()
 
     def get_Framesize(self, id:str):
@@ -2548,10 +2550,16 @@ class PaginatedDataFrameTable(BaseReportFlowable):
 
             sub_size = round(current_f_size * 0.70, 1)
             sub_rise = round(current_f_size * 0.20, 1)
+            super_rise = round(current_f_size * 0.40, 1)
 
             # Restore <sub> tags and specify size and rise for subscripts based on the current font size of the cell
             custom_sub = f'<sub size="{sub_size}" rise="{sub_rise}">'
             t = t.replace('&lt;sub&gt;', custom_sub).replace('&lt;/sub&gt;', '</sub>')
+
+            # Restore <super> tags and specify size and rise for superscripts based on the current font size of the cell use sub_size and sub_rise
+            custom_super = f'<super size="{sub_size}" rise="{super_rise}">'
+            t = t.replace('&lt;super&gt;', custom_super).replace('&lt;/super&gt;', '</super>')
+
             return f"<nobr>{t}</nobr>"
 
         # Build Header
@@ -2656,7 +2664,7 @@ class PaginatedDataFrameTable(BaseReportFlowable):
 # Data Infrastructure for the certificate as a class to extract  and prepare relevant data for the certificate
 ################################################################################
 
-class DataExtractor:
+class DataExtractor(ReportComponent):
     """
     This class extracts the data from the input data structure and prepares it for the certificate.
     """
@@ -2667,7 +2675,6 @@ class DataExtractor:
             kpis: Key performance indicators (KPI-Object from KPIs.py)
         """
         self.data = data
-        self.report_config = data.report_config
         self.kpis = kpis
         self.building_stats = {}
         self.gebaude_df = None # -> Replaced by a pd.DataFrame later
@@ -2682,21 +2689,21 @@ class DataExtractor:
 
         # Building features to be included in the gebaude_df and the keys to extract the data from buildingFeatures
         self.mapping_building_list = OrderedDict([ # key: display name value: data key to extract value from buildingFeatures
-            ("Gebäudetyp", "building"),
-            ("Baujahr", "year"),
-            ("Sanierung", "retrofit"),
-            ("Sp-Masse", "construction_type"),
-            ("N-Absenkung", "night_setback"),
-            ("NRF", "area"),
-            ("Heizung", "heater"),
-            ("EV", "EV"),
-            ("fTES", "f_TES"),
-            ("fBAT", "f_BAT"),
-            ("fPV1", "f_PV1"),
-            ("fPV2", "f_PV2"),
-            ("fSTC", "f_STC"),
-            ("gammaPV", "gamma_PV"),
-            ("EV-Charging", "ev_charging")
+            (self.translate("name_building_type"), "building"),
+            (self.translate("name_building_year"), "year"),
+            (self.translate("name_building_retrofit"), "retrofit"),
+            (self.translate("name_sp_mass"), "construction_type"),
+            (self.translate("name_night_setback"), "night_setback"),
+            (self.translate("name_building_area"), "area"),
+            (self.translate("name_heating_tech"), "heater"),
+            (self.translate("name_ev_share"), "EV"),
+            (self.translate("name_f_tes"), "f_TES"),
+            (self.translate("name_f_bat"), "f_BAT"),
+            (self.translate("name_f_pv1"), "f_PV1"),
+            (self.translate("name_f_pv2"), "f_PV2"),
+            (self.translate("name_f_stc"), "f_STC"),
+            (self.translate("name_gamma_pv"), "gamma_PV"),
+            (self.translate("name_ev_charging"), "ev_charging")
         ])
 
         self._extract_data()
@@ -2709,24 +2716,24 @@ class DataExtractor:
         Returns:
             Building year category as a string
         """
-        if year < 1968: return "vor 1968"
-        if 1968 <= year <= 1978: return "1968-1978"
-        if 1979 <= year <= 1983: return "1979-1983"
-        if 1984 <= year <= 1994: return "1984-1994"
-        if 1995 <= year <= 2001: return "1995-2001"
-        if 2002 <= year <= 2009: return "2002-2009"
-        if 2010 <= year <= 2015: return "2010-2015"
-        return "ab 2016"
-    
+        if year < 1968: return self.translate("name_age_cat_before_1968")
+        if 1968 <= year <= 1978: return self.translate("name_age_cat_1968_1978")
+        if 1979 <= year <= 1983: return self.translate("name_age_cat_1979_1983")
+        if 1984 <= year <= 1994: return self.translate("name_age_cat_1984_1994")
+        if 1995 <= year <= 2001: return self.translate("name_age_cat_1995_2001")
+        if 2002 <= year <= 2009: return self.translate("name_age_cat_2002_2009")
+        if 2010 <= year <= 2015: return self.translate("name_age_cat_2010_2015")
+        return self.translate("name_age_cat_after_2016")
+
     def _process_buildings(self):
         """
         Processes the building data and populates the building_stats and list_of_buildings attributes.
         """
         template_dict = OrderedDict([
-            ("Anzahl", 0), ("Gesamtfläche", 0), ("vor 1968", 0),
-            ("1968-1978", 0), ("1979-1983", 0), ("1984-1994", 0),
-            ("1995-2001", 0), ("2002-2009", 0), ("2010-2015", 0),
-            ("ab 2016", 0)
+            (self.translate("name_number_bldgs"), 0), (self.translate("name_total_area"), 0), (self.translate("name_age_cat_before_1968"), 0),
+            (self.translate("name_age_cat_1968_1978"), 0), (self.translate("name_age_cat_1979_1983"), 0), (self.translate("name_age_cat_1984_1994"), 0),
+            (self.translate("name_age_cat_1995_2001"), 0), (self.translate("name_age_cat_2002_2009"), 0), (self.translate("name_age_cat_2010_2015"), 0),
+            (self.translate("name_age_cat_after_2016"), 0)
         ])
 
         building_types = ['SFH', 'TH', 'MFH', 'AB', 'OB', 'SC', 'GS', 'RE', "UNI", "HOSPITAL", "CULTURE", "SPORT", "RETAIL", "WORKSHOP", "MIXED"]
@@ -2740,13 +2747,13 @@ class DataExtractor:
 
             if stat_type in self.building_stats:
                 # Update building statistics by this building
-                self.building_stats[stat_type]["Anzahl"] += 1
-                self.building_stats[stat_type]["Gesamtfläche"] += features["area"]
+                self.building_stats[stat_type][self.translate("name_number_bldgs")] += 1
+                self.building_stats[stat_type][self.translate("name_total_area")] += features["area"]
                 year_category = self._get_year_category(features["year"])
                 self.building_stats[stat_type][year_category] += features["area"]
 
             building_dict = {}
-            building_dict["Gebäude-ID"] = features["id"]
+            building_dict[self.translate("name_building_id")] = features["id"]
 
             # Add to the dictionary from the mapping
             building_dict.update({
@@ -2781,41 +2788,38 @@ class DataExtractor:
 
         # Overall_summary
         self.district_key_kpis = [
-            ["Nutzenergiebedarf:", f"{round((self.kpis.total_heating_demand + self.kpis.total_cooling_demand + self.kpis.total_electricity_demand + self.kpis.total_dhw_demand + self.kpis.total_EV_demand) / to_MWh, 1)} MWh/a"],
-            ["Norm-Heizlast", f"{round(self.kpis.totalheatload / to_kW, 1)} kW"],
+            [self.translate("kpi_net_energy_demand"), f"{round((self.kpis.total_heating_demand + self.kpis.total_cooling_demand + self.kpis.total_electricity_demand + self.kpis.total_dhw_demand + self.kpis.total_EV_demand) / to_MWh, 1)} MWh/a"],
+            [self.translate("kpi_standard_heat_load"), f"{round(self.kpis.totalheatload / to_kW, 1)} kW"],
+            [self.translate("kpi_project_time"), f"{obs_time} {self.translate('name_years')}"]
         ]
 
         self.district_operation_kpis = [
-            ["Ø CO2-Emissionen:", f"{round(self.kpis.avg_co2_emissions, 2)} t/a"],
-            ["Ø Energiekosten:", f"{round(self.kpis.avg_operationCosts, 0)} €/a"],
-            ["Anlagenkosten Zentral:", f"{round(self.kpis.annual_fixed_costs_central, 0)} €/a"],
-            ["Anlagenkosten Dezentral:", f"{round(self.kpis.annual_fixed_costs_decentral, 0)} €/a"],
-            ["Spitzenlast (el.):", f"{round(max(self.kpis.peakDemand.values()), 1)} kW"],
-            ["Max. Einspeiseleistung:", f"{round(max(self.kpis.peakInjection.values()), 1)} kW"],
-            ["Autarkiegrad:", f"{round(avg_autonomy * 100, 1)} %"],
-            ["Supply-Cover Ratio:", f"{round(avg_scf * 100, 1)} %"],
-            ["Demand-Cover Ratio:", f"{round(avg_dcf * 100, 1)} %"],
-            # ["Pot. saisonaler Speicher:", f"{round(self.kpis.avg_seasonal_storage_potential/1000, 1)} MWh/a"],
-            # ["Ausnutzungsgrad saisonaler Speicher:", f"{round(self.kpis.avg_seasonal_storage_utilization * 100, 1)} %"]
-            # ["Elektifizierungsquote Wärme", f"{round(self.kpis.elec_quote_heat * 100, 1)} %"], # Not currently implemented -> Maybe add later
-            # ["Elektrifizierungsquote Fahrzeuge:", f"{round(self.kpis.elec_quote_vehicles * 100, 1)} %"]  # Not currently implemented -> Maybe add later
+            [self.translate("kpi_avg_co2_emissions"), f"{round(self.kpis.avg_co2_emissions, 2)} t/a"],
+            [self.translate("kpi_avg_energy_costs"), f"{round(self.kpis.avg_operationCosts, 0)} €/a"],
+            [self.translate("kpi_sys_costs_central"), f"{round(self.kpis.annual_fixed_costs_central, 0)} €/a"],
+            [self.translate("kpi_sys_costs_decentral"), f"{round(self.kpis.annual_fixed_costs_decentral, 0)} €/a"],
+            [self.translate("kpi_peak_load_el"), f"{round(max(self.kpis.peakDemand.values()), 1)} kW"],
+            [self.translate("kpi_max_feed_in"), f"{round(max(self.kpis.peakInjection.values()), 1)} kW"],
+            [self.translate("kpi_autonomy_rate"), f"{round(avg_autonomy * 100, 1)} %"],
+            [self.translate("kpi_supply_cover_ratio"), f"{round(avg_scf * 100, 1)} %"],
+            [self.translate("kpi_demand_cover_ratio"), f"{round(avg_dcf * 100, 1)} %"],
         ]
 
         # max loads in kW
         self.max_loads_table = [
-            ["Wärme:", f"{int(round(self.kpis.total_heat_peak / to_kW))} kW"],
-            ["Strom:", f"{int(round(self.kpis.total_electricity_peak / to_kW))} kW"],
-            ["TWW:", f"{int(round(self.kpis.total_dhw_peak / to_kW))} kW"],
-            ["Kälte:", f"{int(round(self.kpis.total_cooling_peak / to_kW))} kW"]
+            [f"{self.translate('name_heat')}:", f"{int(round(self.kpis.total_heat_peak / to_kW))} kW"],
+            [f"{self.translate('name_el')}:", f"{int(round(self.kpis.total_electricity_peak / to_kW))} kW"],
+            [f"{self.translate('name_dhw')}:", f"{int(round(self.kpis.total_dhw_peak / to_kW))} kW"],
+            [f"{self.translate('name_cool')}:", f"{int(round(self.kpis.total_cooling_peak / to_kW))} kW"]
         ]
 
         # energy demand in MWh/a
         self.pie_chart_energy = {
-            "Strom": round(self.kpis.total_electricity_demand / to_MWh, 2),
-            "Wärme": round(self.kpis.total_heating_demand / to_MWh, 2),
-            "TWW": round(self.kpis.total_dhw_demand / to_MWh, 2),
-            "Kälte": round(self.kpis.total_cooling_demand / to_MWh, 2),
-            "EV": round(self.kpis.total_EV_demand / to_MWh, 2)
+            self.translate("name_el"): round(self.kpis.total_electricity_demand / to_MWh, 2),
+            self.translate("name_heat"): round(self.kpis.total_heating_demand / to_MWh, 2),
+            self.translate("name_dhw"): round(self.kpis.total_dhw_demand / to_MWh, 2),
+            self.translate("name_cool"): round(self.kpis.total_cooling_demand / to_MWh, 2),
+            self.translate("name_ev"): round(self.kpis.total_EV_demand / to_MWh, 2)
         }
         
         # Bar charts:
@@ -2827,31 +2831,31 @@ class DataExtractor:
             costs = self.kpis.detailed_costs_year[y]
             self.bar_costs_data.append({
                 "Year": y,
-                "Anlagenkosten zentral": round(costs["eh_fixed"], 0),
-                "Anlagenkosten dezentral": round(costs["decentral_fixed"], 0),
-                "Strom": round(costs["electricity"], 0),
-                "Gas": round(costs["gas"], 0),
-                "Öl": round(costs["oil"], 0),
-                "Abfall": round(costs["waste"], 0),
-                "Biomasse": round(costs["biomass"], 0),
-                "Fernwärme": round(costs["district_heat"], 0),
-                "Wasserstoff": round(costs["hydrogen"], 0),
-                "Abwärme": round(costs["waste_heat"], 0),
-                "Einspeiseerlöse (el.)": round(costs["revenue_feed_in_el"], 0)
+                self.translate("name_central_costs"): round(costs["eh_fixed"], 0),
+                self.translate("name_decentral_costs"): round(costs["decentral_fixed"], 0),
+                self.translate("name_el"): round(costs["electricity"], 0),
+                self.translate("name_gas"): round(costs["gas"], 0),
+                self.translate("name_oil"): round(costs["oil"], 0),
+                self.translate("name_waste"): round(costs["waste"], 0),
+                self.translate("name_biomass"): round(costs["biomass"], 0),
+                self.translate("name_district_heat"): round(costs["district_heat"], 0),
+                self.translate("name_hydrogen"): round(costs["hydrogen"], 0),
+                self.translate("name_waste_heat"): round(costs["waste_heat"], 0),
+                self.translate("name_feed_in_revenue"): round(costs["revenue_feed_in_el"], 0)
             })
 
             # Fetch CO2 breakdown
             em = self.kpis.co2emissions[y]
             self.bar_co2_data.append({
                 "Year": y,
-                "Strom": round(em["co2_dem_grid"], 2),
-                "Gas": round(em["co2_gas"], 2),
-                "Öl": round(em["co2_oil"], 2),
-                "Abfall": round(em["co2_waste"], 2),
-                "Biomasse": round(em["co2_biom"], 2),
-                "Fernwärme": round(em["co2_district_heat"], 2),
-                "Wasserstoff": round(em["co2_hydrogen"], 2),
-                "Abwärme": round(em["co2_waste_heat"], 2)
+                self.translate("name_el"): round(em["co2_dem_grid"], 2),
+                self.translate("name_gas"): round(em["co2_gas"], 2),
+                self.translate("name_oil"): round(em["co2_oil"], 2),
+                self.translate("name_waste"): round(em["co2_waste"], 2),
+                self.translate("name_biomass"): round(em["co2_biom"], 2),
+                self.translate("name_district_heat"): round(em["co2_district_heat"], 2),
+                self.translate("name_hydrogen"): round(em["co2_hydrogen"], 2),
+                self.translate("name_waste_heat"): round(em["co2_waste_heat"], 2)
             })
 
             # Maybe later add also the development of the energy demand over the years as a stacked bar if renovation measures or other changes are implemented in the multi-year simulation.
@@ -2862,7 +2866,8 @@ class DataExtractor:
             "max_loads_table": self.max_loads_table,
             "pie_chart_energy": self.pie_chart_energy,
             "bar_costs_data": self.bar_costs_data,
-            "bar_co2_data": self.bar_co2_data
+            "bar_co2_data": self.bar_co2_data,
+            "observation_time": obs_time
             }
 
     def _extract_district_structure(self):
@@ -2877,9 +2882,9 @@ class DataExtractor:
         age_classes = all_keys[2:] # Change to actively exclude Anzahl and Gesamtfläche instead of relying on the order
 
         agg_stats = {
-            "Wohngebäude": {"Anzahl": 0, "Gesamtfläche": 0},
-            "Mischgebäude": {"Anzahl": 0, "Gesamtfläche": 0},
-            "GHD-Gebäude": {"Anzahl": 0, "Gesamtfläche": 0}
+            self.translate("name_res_bldg"): {self.translate("name_number_bldgs"): 0, self.translate("name_total_area"): 0},
+            self.translate("name_mixed_bldg"): {self.translate("name_number_bldgs"): 0, self.translate("name_total_area"): 0},
+            self.translate("name_com_bldg"): {self.translate("name_number_bldgs"): 0, self.translate("name_total_area"): 0}
         }
         for cat in agg_stats:
             for age in age_classes:
@@ -2892,23 +2897,23 @@ class DataExtractor:
             
             # Map to main category
             if b_type in res_types:
-                cat = "Wohngebäude"
+                cat = self.translate("name_res_bldg")
             elif b_type in mixed_types:
-                cat = "Mischgebäude"
+                cat = self.translate("name_mixed_bldg")
             else:
-                cat = "GHD-Gebäude"
+                cat = self.translate("name_com_bldg")
 
             # Sum up for the compact table
-            agg_stats[cat]["Anzahl"] += stats["Anzahl"]
-            agg_stats[cat]["Gesamtfläche"] += stats["Gesamtfläche"]
+            agg_stats[cat][self.translate("name_number_bldgs")] += stats[self.translate("name_number_bldgs")]
+            agg_stats[cat][self.translate("name_total_area")] += stats[self.translate("name_total_area")]
             for age in age_classes:
                 agg_stats[cat][age] += stats[age]
 
             # Detailed row for the landscape page - ALWAYS appended
             translated_name = self._translate_building_type(b_type)
             detail_row = {
-                "Gebäudetyp": translated_name,
-                "Anzahl": stats["Anzahl"] if stats["Anzahl"] > 0 else "-"            
+                self.translate("name_building_type"): translated_name,
+                self.translate("name_number_bldgs"): stats[self.translate("name_number_bldgs")] if stats[self.translate("name_number_bldgs")] > 0 else "-"            
                 }
             for age in age_classes:
                 detail_row[age] = f"{round(stats[age])} m²" if stats[age] > 0 else "-"
@@ -2916,21 +2921,21 @@ class DataExtractor:
 
         # Summary Table displayed on the first page
         summary_table_data = [
-            ["", "Wohngebäude", "Mischgebäude", "GHD-Gebäude"],
-            ["Anzahl", 
-             str(agg_stats["Wohngebäude"]["Anzahl"]) if agg_stats["Wohngebäude"]["Anzahl"] > 0 else "-", 
-             str(agg_stats["Mischgebäude"]["Anzahl"]) if agg_stats["Mischgebäude"]["Anzahl"] > 0 else "-", 
-             str(agg_stats["GHD-Gebäude"]["Anzahl"]) if agg_stats["GHD-Gebäude"]["Anzahl"] > 0 else "-"],
-            ["Gesamtfläche", 
-             f"{round(agg_stats['Wohngebäude']['Gesamtfläche'])} m²" if agg_stats["Wohngebäude"]["Gesamtfläche"] > 0 else "-", 
-             f"{round(agg_stats['Mischgebäude']['Gesamtfläche'])} m²" if agg_stats["Mischgebäude"]["Gesamtfläche"] > 0 else "-", 
-             f"{round(agg_stats['GHD-Gebäude']['Gesamtfläche'])} m²" if agg_stats["GHD-Gebäude"]["Gesamtfläche"] > 0 else "-"]
+            ["", self.translate("name_res_bldg"), self.translate("name_mixed_bldg"), self.translate("name_com_bldg")],
+            [self.translate("name_number_bldgs"), 
+             str(agg_stats[self.translate("name_res_bldg")][self.translate("name_number_bldgs")]) if agg_stats[self.translate("name_res_bldg")][self.translate("name_number_bldgs")] > 0 else "-", 
+             str(agg_stats[self.translate("name_mixed_bldg")][self.translate("name_number_bldgs")]) if agg_stats[self.translate("name_mixed_bldg")][self.translate("name_number_bldgs")] > 0 else "-", 
+             str(agg_stats[self.translate("name_com_bldg")][self.translate("name_number_bldgs")]) if agg_stats[self.translate("name_com_bldg")][self.translate("name_number_bldgs")] > 0 else "-"],
+            [self.translate("name_total_area"), 
+             f"{round(agg_stats[self.translate("name_res_bldg")][self.translate("name_total_area")])} m²" if agg_stats[self.translate("name_res_bldg")][self.translate("name_total_area")] > 0 else "-", 
+             f"{round(agg_stats[self.translate("name_mixed_bldg")][self.translate("name_total_area")])} m²" if agg_stats[self.translate("name_mixed_bldg")][self.translate("name_total_area")] > 0 else "-", 
+             f"{round(agg_stats[self.translate("name_com_bldg")][self.translate("name_total_area")])} m²" if agg_stats[self.translate("name_com_bldg")][self.translate("name_total_area")] > 0 else "-"]
         ]
         for age in age_classes:
-            w_area = agg_stats["Wohngebäude"][age]
-            m_area = agg_stats["Mischgebäude"][age]
-            g_area = agg_stats["GHD-Gebäude"][age]
-            
+            w_area = agg_stats[self.translate("name_res_bldg")][age]
+            m_area = agg_stats[self.translate("name_mixed_bldg")][age]
+            g_area = agg_stats[self.translate("name_com_bldg")][age]
+
             summary_table_data.append([
                 age,
                 f"{round(w_area)} m²" if w_area > 0 else "-",
@@ -2940,11 +2945,11 @@ class DataExtractor:
 
         # General info to be displayed below the summary table on the first page
         general_info = [
-            ["Wohneinheiten im Quartier", str(self.kpis.totalnumberflats)],
-            ["Bewohner des Quartiers", str(self.kpis.totalnumberocc)],
-            ["Standort (PLZ)", str(self.data.site["zip"])],
+            [self.translate("gen_info_nb_dwellings"), str(self.kpis.totalnumberflats)],
+            [self.translate("gen_info_nb_residents"), str(self.kpis.totalnumberocc)],
+            [self.translate("gen_info_postal_code_loc"), f"{str(self.data.site['zip'])}"],
             # ["Quartiersfläche", f"{round(self.data.site['district_area'], 2)} ha"],
-            ["Testreferenzjahr", f"{str(self.data.site['TRYYear'])[3:]} / {self.data.site['TRYType']}"]
+            [self.translate("gen_info_ref_year"), f"{str(self.data.site['TRYYear'])[3:]} / {self.data.site['TRYType']}"]
         ]
 
         # 4. Pack everything into the final structure
@@ -2956,56 +2961,21 @@ class DataExtractor:
         
     def _translate_building_type(self, b_type:str) -> str:
         """Translates the building type from the data to the display name."""
-
-        if self.get_language() == "en":
-            raise NotImplementedError(f"Language {self.get_language()} not supported for building type translation.")
-
-        elif self.get_language() == "de":
-            translation_map = {
-                "SFH": "Einfamilienhaus",
-                "TH": "Reihenhaus",
-                "MFH": "Mehrfamilienhaus",
-                "AB": "Apartmentblock",
-                "OB": "Bürogebäude",
-                "SC": "Schulgebäude",
-                "GS": "Lebensmittelgeschäft",
-                "RE": "Restaurantgebäude",
-                "UNI": "Universitätsgebäude",
-                "HOSPITAL": "Krankenhausgebäude",
-                "CULTURE": "Kulturgebäude",
-                "SPORT": "Sportgebäude",
-                "RETAIL": "Handelsgebäude",
-                "WORKSHOP": "Werkstattgebäude",
-                "MIXED": "Mischgebäude"
-            }
-        
-        else: raise NotImplementedError(f"Language {self.get_language()} not supported for building type translation.")
-        
-        return translation_map.get(b_type, b_type) # if no translation is found, return the original type
+        return self.translate(f"bldg_{b_type}")
 
     def _extract_energyhub_data(self):
         """Extracts the energyhub data for central devices."""
         try:
             capacities = self.data.centralDevices["capacities"]
             central_configs = self.data.central_device_data
-            lang = self.get_language()
+            
+            col_device = self.translate("table_device_colname")
+            col_capacity = self.translate("table_capacity_colname")
+            col_cost = self.translate("table_cost_sub_colname")
+            not_selected_text = self.translate("msg_not_selected")
 
-            if lang == "en":
-                col_device = "Device"
-                col_capacity = "Capacity"
-                col_cost = "Ann. Cost (Sub.)"
-                not_selected_text = "not selected"
-                seasonal_name = "Seasonal Heat Storage"
-                waste_heat_name = "Waste Heat"
-            elif lang == "de":
-                col_device = "Anlage"
-                col_capacity = "Kapazität"
-                col_cost = "Anlagenkosten (subv.)"
-                not_selected_text = "nicht ausgewählt"
-                seasonal_name = "Saisonaler Speicher"
-                waste_heat_name = "Abwärmepotential"
-            else:
-                raise NotImplementedError(f"Language {lang} not supported for energy hub device table.")
+            seasonal_name = self.translate("name_seasonal_storage")
+            waste_heat_name = self.translate("name_waste_heat_potential")
             
             device_list = []
 
@@ -3198,23 +3168,14 @@ class DataExtractor:
                 else:
                     raise ValueError(f"Negative cost value encountered for device {dev_name}: {cost}. Please check the input data for inconsistencies.")
 
-                if self.get_language() == "en":
-                    device_list.append({
-                        "Device": name,
-                        "Count": data["count"],
-                        "Total Capacity": total_power,
-                        "Annual Costs": ann_cost
-                    })
-                elif self.get_language() == "de":
-                    device_list.append({
-                        "Anlage": name,
-                        "Anzahl": data["count"],
-                        "Gesamtkapazität": total_power,
-                        "Anlagenkosten": ann_cost
-                    })
-                else:
-                    raise NotImplementedError(f"Language {self.get_language()} not supported for decentral device table.")
-
+                
+                device_list.append({
+                    self.translate("table_device_colname"): name,
+                    self.translate("table_count_colname"): data["count"],
+                    self.translate("table_total_cap_colname"): total_power,
+                    self.translate("table_cost_colname"): ann_cost
+                })
+                
             # 3. Create the DataFrame
             if device_list:
                 self.decentral_df = pd.DataFrame(device_list)
@@ -3300,70 +3261,7 @@ class DataExtractor:
         Returns:
             tuple[str, str]: A tuple consisting of the full name and the unit.
         """
-        # TODO: Check translations and full names (en & de)
-        if self.get_language() == "en":
-            device_name_map = {
-                "PV": "Solar Panels",
-                "WT": "Wind Turbine",
-                "WAT": "Water Turbine",
-                "STC": "Solar Thermal Collector",
-                "CHP": "Combined Heat & Power",
-                "AirHP": "Air-source Heat Pump",
-                "GroundHP": "Ground-source Heat Pump",
-                "HP": "Heat Pump",
-                "BOI": "Boiler",
-                "GHP": "Gas Heat Pump",
-                "EB": "Electric Boiler",
-                "AC": "Absorption Chiller",
-                "BCHP": "Biogas CHP",
-                "BBOI": "Biogas Boiler",
-                "WCHP": "Waste Heat CHP",
-                "WBOI": "Waste Heat Boiler",
-                "ELYZ": "Electrolyzer",
-                "FC": "Fuel Cell",
-                "H2S": "Hydrogen Storage",
-                "SAB": "Sabatier Reactor",
-                "TES": "Heat Storage",
-                "CTES": "Cold Storage",
-                "BAT": "Battery",
-                "GS": "Gas Storage",
-                "AirCC": "Air-cooled Chiller",
-                "CC": "Cooling Chiller",
-                "Heat_Grid": "Local Heat Grid"
-            }
-        elif self.get_language() == "de":
-            device_name_map = {
-                "PV": "Photovoltaik",
-                "WT": "Windkraftanlage",
-                "WAT": "Wasserkraftanlage",
-                "STC": "Solarthermie",
-                "CHP": "Blockheizkraftwerk",
-                "AirHP": "Luftwärmepumpe",
-                "GroundHP": "Erdwärmepumpe",
-                "HP": "Wärmepumpe",
-                "BOI": "Heizkessel",
-                "GHP": "Gaswärmepumpe",
-                "EB": "Elektrokessel",
-                "AC": "Absorpt.-Kältemaschine",
-                "BCHP": "Biogas-BHKW",
-                "BBOI": "Biogaskessel",
-                "WCHP": "Abfall-BHKW",
-                "WBOI": "Abfall-Wärmekessel",
-                "ELYZ": "Elektrolyseur",
-                "FC": "Brennstoffzelle",
-                "H2S": "Wasserstoffspeicher",
-                "SAB": "Sabatier-Reaktor",
-                "TES": "Wärmespeicher",
-                "CTES": "Kältespeicher",
-                "BAT": "Batteriespeicher",
-                "GS": "Gasspeicher",
-                "AirCC": "Luftgekühlte Kältemaschine",
-                "CC": "Kompr.-Kältemaschine",
-                "Heat_Grid": "Nahwärmenetz"
-            }
         
-        else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
-
 
         device_unit_map = { # if not specified, default is "W"
             "H2S": "Wh",
@@ -3394,7 +3292,7 @@ class DataExtractor:
             "Heat_Grid": "W<sub>th</sub>"
         }
 
-        name = device_name_map[dev]
+        name = self.translate(f"device_{dev}")
         unit = device_unit_map.get(dev, "W")
 
         return name, unit
@@ -3407,69 +3305,6 @@ class DataExtractor:
         Returns:
             tuple[str, str]: A tuple consisting of the full name and the base unit (W or Wh) without any prefixes.
         """
-        # TODO: Check translations and full names (en & de)
-        if self.get_language() == "en":
-
-            device_name_map = {
-                # Heat & Power
-                "HP": "Heat Pump",
-                "EH": "Electric Heater",
-                "CHP": "Combined Heat & Power",
-                "BOI": "Boiler",
-                "BBOI": "Biogas Boiler",
-                "OBOI": "Oil Boiler",
-                "H2BOI": "Hydrogen Boiler",
-                "FC": "Fuel Cell",
-                "DH":"District Heating Connection",
-                "heat_grid": "Local Heat Grid",
-                "PV": "Photovoltaic",
-                "STC": "Solar Thermal Collector",
-                "EV": "Electric Vehicle",
-
-                # Cooling
-                "CC": "Compression Chiller",
-
-                # Storage
-                "BAT": "Battery Storage",
-                "TES": "Heat Storage",
-                "EV": "Electric Vehicle",
-
-                # Special Modes of the Heat Pump supply temperature
-                "HP35": "Heat Pump (35°C)",
-                "HP55": "Heat Pump (55°C)",
-            }
-        
-        elif self.get_language() == "de":
-            device_name_map = {
-                # Heat & Power
-                "HP": "Wärmepumpe",
-                "EH": "Heizstab",
-                "CHP": "Blockheizkraftwerk",
-                "BOI": "Heizkessel",
-                "BBOI": "Biogas-Heizkessel",
-                "OBOI": "Öl-Heizkessel",
-                "H2BOI": "Wasserstoff-Heizkessel",
-                "FC": "Brennstoffzelle",
-                "DH":"Fernwärmeanschluss",
-                "heat_grid": "Nahwärmenetz",
-                "PV": "Photovoltaik",
-                "STC": "Solarthermie",
-                "EV": "Elektrofahrzeug",
-
-                # Cooling
-                "CC": "Kompr.-Kältemaschine",
-
-                # Storage
-                 "BAT": "Batteriespeicher",
-                "TES": "Wärmespeicher",
-                "EV": "Elektrofahrzeug",
-
-                # Special Modes of the Heat Pump supply temperature
-                "HP35": "Wärmepumpe (35°C)",
-                "HP55": "Wärmepumpe (55°C)",
-            }
-
-        else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
 
         device_unit_map = { 
             "BAT": "Wh<sub>el</sub>",
@@ -3493,7 +3328,7 @@ class DataExtractor:
         }
 
         # All devices
-        name = device_name_map.get(dev, dev)
+        name = self.translate(f"device_{dev}")
         base_unit = device_unit_map.get(dev, "W")
         return name, base_unit
     
@@ -3562,9 +3397,6 @@ class DataExtractor:
 
     def get_scenario_name(self):
         return self.data.scenario_name
-    
-    def get_language(self):
-        return self.data.report_config["language"]
 
 ################################################################################
 # Certificate Builder
@@ -3576,14 +3408,15 @@ class CertificateBuilder(ReportComponent):
     """
 
     def __init__(self, data, kpis, result_path) -> None:
+        # Initialize and apply theme globally and load the translations dict
+        
+        self.report_config = data.report_config
+        self.language = data.report_config["language"]
+        report_theme = ThemeManager(self.report_config)
+        ReportComponent.apply_style(theme_manager=report_theme, language=self.language)
+
         self.data_object = DataExtractor(data=data, kpis=kpis)
         self.scenario_name = self.data_object.get_scenario_name()
-        self.report_config = self.data_object.report_config
-        self.language = self.data_object.get_language()
-
-        # Initialize and apply theme globally
-        report_theme = ThemeManager(self.report_config)
-        ReportComponent.apply_style(report_theme)
         
         self.style = self.get_style()
         self.result_path = result_path
