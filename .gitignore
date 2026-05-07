@@ -2,7 +2,7 @@ districtgenerator/results/*
 districtgenerator/data/scenarios/*
 districtgenerator/examples/*
 errorfile.txt
-build
+build/
 *.bk
 *.log
 *.lp
@@ -20,7 +20,5 @@ districtgenerator/data/weather/*
 *.egg/
 *.eggs
 joss/
-
-districtgenerator/
 
 .gitlab-ci.yml

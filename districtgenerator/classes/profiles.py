@@ -302,7 +302,7 @@ class Profiles:
 
         return self.occ_profile, self.occ_profile_building, self.building_profiles
 
-    def generate_dhw_profile(self, building, holidays):
+    def generate_dhw_profile(self, building, holidays, s_step: int = 60):
         """
         Generate a stochastic dhw profile
         (on base of DHWclac).
@@ -327,6 +327,7 @@ class Profiles:
         dhw_heat : array-like
             Numpy-array with heat demand of dhw consumption in W.
         """
+        import numpy as np
 
         temperatur_mixed_water = []
         temperatur_cold_water = []
@@ -365,7 +366,7 @@ class Profiles:
                 return np.zeros(target_len)
 
             # Change resolution to 60 seconds (s_step used for OpenDHW)
-            occ_profile_60s = chres.changeResolution(base_occ_profile, self.time_resolution, 60, "mean")
+            occ_profile_60s = chres.changeResolution(base_occ_profile, self.time_resolution, s_step, "mean")
             
             # OpenDHW expects exactly 365 days of data
             expected_len = int(365 * 24 * 3600 / 60)
@@ -378,7 +379,7 @@ class Profiles:
                 occupancy_profile = occ_profile_60s[:expected_len]
 
         dhw_profile = OpenDHW.generate_dhw_profile(
-            s_step=60,
+            s_step=s_step,
             categories=1,
             occupancy=average_occupants,
             building_type=self.building,

@@ -11,7 +11,7 @@ geopy~=2.4.1
 pyproj~=3.7.2
 openpyxl==3.1.5
 seaborn==0.13.2
-OpenDHW @ file:///home/ubuntu/Arbeit/OpenDHW #Boran
+OpenDHW @ file:///D:/Dokumente/Daten/Git/Programmieren/OpenDHW
 setuptools~=75.8.0
 reportlab~=3.6.13
 pydantic-settings >= 2.2.1
