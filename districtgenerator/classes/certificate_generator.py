@@ -28,7 +28,6 @@ Individual flowables:
 Version Date: 31.03.2026
 """
 
-import sys
 from districtgenerator.classes import *
 from reportlab.platypus  import SimpleDocTemplate, BaseDocTemplate, PageTemplate, Frame
 from reportlab.lib.pagesizes import A4, A3, landscape
@@ -271,8 +270,8 @@ class ThemeManager:
             ('FONTSIZE', (0, 1), (-1, -1), self.fonts["sizes"]["dense"]),
 
             # Padding
-            ('TOPPADDING', (0, 0), (-1, -1), 0),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), int(self.fonts["sizes"]["dense"] * 0.25)),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), int(self.fonts["sizes"]["dense"] * 0.25)),
         ])
 
         styles['listed'] = TableStyle([
@@ -1056,12 +1055,7 @@ class EnergyHub(BaseReportFlowable):
         # Check if it fits on exactly one page
         if len(eh_tables) == 1:
             box = FrameBox(title="Zentrale Energiesysteme")
-            header = data_energyhub.columns.tolist()
-            body = data_energyhub.values.tolist()
-            standard_table = Table([header] + body)
-            standard_table.setStyle(style.get_table_styles()['standard'])
-            
-            box.set_content(cls(content_flowable=standard_table))
+            box.set_content(cls(content_flowable=eh_tables[0].table)) 
             boxes.append(box)
             
         else:
@@ -1131,12 +1125,7 @@ class DecentralSystems(BaseReportFlowable):
         # Check if it fits on exactly one page
         if len(dec_tables) == 1:
             box = FrameBox(title="Dezentrale Energiesysteme")
-            header = data_decentral.columns.tolist()
-            body = data_decentral.values.tolist()
-            standard_table = Table([header] + body)
-            standard_table.setStyle(style.get_table_styles()['standard'])
-            
-            box.set_content(cls(content_flowable=standard_table))
+            box.set_content(cls(content_flowable=dec_tables[0].table)) 
             boxes.append(box)
             
         else:
@@ -1465,7 +1454,7 @@ class Hinweise(BaseReportFlowable):
                 },
             "Bezeichnungen in der Liste der Gebäude": 
                 {
-                    "Gebäude ID": "ID des Gebäudes zur eindeutigen Identifizierung",
+                    "Gebäude-ID": "ID des Gebäudes zur eindeutigen Identifizierung",
                     "Gebäudetyp": "SFH = Einfamilienhaus, MFH = Mehrfamilienhaus, TH = Reihenhaus, AB = Wohnblock, OB = Bürogebäude, SC = Schule, GS = Lebensmittelgeschäft, RE = Restaurant, UNI = Universitätsgebäude, HOSPITAL = Krankenhaus, CULTURE = Kulturgebäude, SPORT = Sportgebäude, RETAIL = Handelsgebäude, WORKSHOP = Werkstattgebäude. Ein '+' (z. B. MFH+RETAIL) kennzeichnet ein Mischgebäude",
                     "Baujahr": "Baualtersklasse (vor 1969, 1968-1978, 1979-1983, 1984-1994, 1995-2001, 2002-2009, 2010-2015, ab 2016)",
                     "Sanierung für Wohngebäude": "0 = Bestand, 1 = Sanierung nach EnEV 2016, 2 = Sanierung nach KfW 55",
@@ -1481,7 +1470,7 @@ class Hinweise(BaseReportFlowable):
                     "fPV2": 'Anteil der gesamten Dachfläche, der auf Dachseite 2 mit Photovoltaik belegt ist. Der Azimutwinkel von Dachseite 2 wird als 180° zu gammaPV gedreht ("gegenüberliegend") berechnet.',
                     "fSTC": "Anteil der Dachfläche, die mit Solarthermie ausgestattet ist (Informationen zu Dachflächen sind den Typgebäuden nach Tabula zu entnehmen)",
                     "gammaPV": "Azimut = Himmelsausrichtung von Dachseite 1, Ausrichtung nach Süden entspricht 0°",
-                    "EV Charging": "Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)"
+                    "EV-Charging": "Ladeverhalten des Elektroautos (bi-direktional: Be- und Entladung, Nutzung als Stromspeicher, on-demand: Beladung nach Bedarf, intelligent: optimierte Beladung)"
                 }
             }
         
@@ -2452,10 +2441,12 @@ class PaginatedDataFrameTable(BaseReportFlowable):
     """
     Generic class to generate and paginate tables from pandas DataFrames.
     """
+
     def __init__(self, input_data: pd.DataFrame, style_name: str) -> None:
         super().__init__()
         self.style = self.get_style()
         self.style_name = style_name
+        self.table_style = self.style.get_table_styles()[self.style_name]
 
         self.width = None
         self.height = None
@@ -2469,14 +2460,116 @@ class PaginatedDataFrameTable(BaseReportFlowable):
             self.input_data = self.input_data.fillna("-").astype(str)
 
             header = self.input_data.columns.tolist()
-            body = self.input_data.values.tolist()
-            table_data = [header] + body
+            table_data = self._format_table_data(self.input_data, header)
 
         self.table = Table(table_data)
 
-        # Apply the pre-configured TableStyle directly
-        self.table_style = self.style.get_table_styles()[self.style_name]
+        # Apply the pre-configured TableStyle
         self.table.setStyle(self.table_style)
+    
+    def _format_table_data(self, df, header):
+        """
+        Converts all cells to Paragraphs to ensure uniform vertical alignment and subscript rendering.
+        Dynamically extracts FONTNAME, FONTSIZE, ALIGN, and TEXTCOLOR directly from the TableStyle 
+        for each specific cell coordinate to make this class 100% style-agnostic.
+        """
+        num_cols = len(header)
+        num_rows = len(df) + 1  # 1 for header row
+
+        # Helper function to check if a cell (c, r) falls within a ReportLab TableStyle command coordinate range
+        def in_range(c, r, start_coord, end_coord):
+            sc, sr = start_coord
+            ec, er = end_coord
+            # Translate negative coordinates
+            if sc < 0: sc += num_cols
+            if ec < 0: ec += num_cols
+            if sr < 0: sr += num_rows
+            if er < 0: er += num_rows
+            
+            return (sc <= c <= ec) and (sr <= r <= er)
+
+        base_style = self.style.get_paragraph_styles()['Normal']
+        memoized_styles = {} # Cache to avoid creating thousands of duplicate ParagraphStyle objects
+
+        def get_cell_paragraph_style(c, r):
+            necessary_attrs = {'f_name': 'FONTNAME', 'f_size': 'FONTSIZE', 'align': 'ALIGN', 't_color': 'TEXTCOLOR'}
+            for var_name in necessary_attrs.keys():
+                if var_name in locals():
+                    del locals()[var_name] 
+
+            # Extract specific styles for this exact cell from the TableStyle commands
+            for cmd in self.table_style.getCommands():
+                op = cmd[0]
+                start_coord = cmd[1]
+                end_coord = cmd[2]
+
+                if in_range(c, r, start_coord, end_coord):
+                    if op == 'FONTNAME':
+                        f_name = cmd[3]
+                    elif op == 'FONTSIZE':
+                        f_size = cmd[3]
+                    elif op == 'ALIGN':
+                        val = cmd[3].upper()
+                        if val == 'LEFT': align = 0
+                        elif val == 'CENTER': align = 1
+                        elif val == 'RIGHT': align = 2
+                    elif op == 'TEXTCOLOR':
+                        t_color = cmd[3]
+
+            # Check if any of the style attributes were not set by the TableStyle commands and raise exceptions if so as Style is not fully defined:
+            for var_name, attr_name in necessary_attrs.items():
+                if var_name not in locals():
+                    raise ValueError(f"TableStyle is missing necessary '{attr_name}' command for cell ({c}, {r}). All of FONTNAME, FONTSIZE, ALIGN, and TEXTCOLOR must be defined for every cell to ensure consistent styling. Please check the TableStyle configuration.")
+
+
+            # Create or reuse a corrosponding ParagraphStyle for this unique combination
+            style_key = (f_name, f_size, align, t_color)
+            if style_key not in memoized_styles:
+                memoized_styles[style_key] = ParagraphStyle(
+                    f'DynamicStyle_{id(style_key)}',
+                    parent=base_style,
+                    fontName=f_name,
+                    fontSize=f_size,
+                    alignment=align,
+                    textColor=t_color,
+                    leading=f_size*1.2,
+                    leftIndent=0,
+                    rightIndent=0,
+                    spaceBefore=0,        # Padding defined by the TableStyle not here
+                    spaceAfter=0,
+                    splitLongWords=0      # prevent forced hyphenation
+                )
+            return memoized_styles[style_key]
+
+        def prep(text, current_f_size):
+            t = str(text)
+            # Replace XML special characters
+            t = t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+            sub_size = round(current_f_size * 0.70, 1)
+            sub_rise = round(current_f_size * 0.20, 1)
+
+            # Restore <sub> tags and specify size and rise for subscripts based on the current font size of the cell
+            custom_sub = f'<sub size="{sub_size}" rise="{sub_rise}">'
+            t = t.replace('&lt;sub&gt;', custom_sub).replace('&lt;/sub&gt;', '</sub>')
+            return f"<nobr>{t}</nobr>"
+
+        # Build Header
+        formatted_header = []
+        for c, col in enumerate(header):
+            style = get_cell_paragraph_style(c, 0)
+            formatted_header.append(Paragraph(prep(col, style.fontSize), style))
+
+        # Build Body
+        formatted_body = []
+        for r, row in enumerate(df.values.tolist(), start=1):
+            formatted_row = []
+            for c, cell in enumerate(row):
+                style = get_cell_paragraph_style(c, r)
+                formatted_row.append(Paragraph(prep(cell, style.fontSize), style))
+            formatted_body.append(formatted_row)
+
+        return [formatted_header] + formatted_body
 
     def get_rows_that_fit(self, availWidth, availHeight):
         """
@@ -2496,7 +2589,7 @@ class PaginatedDataFrameTable(BaseReportFlowable):
         while num_data_rows_fit > 0:
             fitting_rows_df = self.input_data.iloc[:num_data_rows_fit]
 
-            table_data = [header] + fitting_rows_df.values.tolist()
+            table_data = self._format_table_data(fitting_rows_df, header)
             tmp_table = Table(table_data, colWidths=colWidths)
             tmp_table.setStyle(self.table_style)
 
@@ -2603,7 +2696,7 @@ class DataExtractor:
             ("fPV2", "f_PV2"),
             ("fSTC", "f_STC"),
             ("gammaPV", "gamma_PV"),
-            ("EV Charging", "ev_charging")
+            ("EV-Charging", "ev_charging")
         ])
 
         self._extract_data()
@@ -2653,7 +2746,7 @@ class DataExtractor:
                 self.building_stats[stat_type][year_category] += features["area"]
 
             building_dict = {}
-            building_dict["Gebäude ID"] = features["id"]
+            building_dict["Gebäude-ID"] = features["id"]
 
             # Add to the dictionary from the mapping
             building_dict.update({
@@ -2942,6 +3035,7 @@ class DataExtractor:
                 cap = 0
                 annual_cost_sub = "-"
                 annual_cost_unsub = "-"
+                cost_unit = ""
 
                 if opt_key in capacities:
                     spec = capacities[opt_key]
@@ -2953,12 +3047,13 @@ class DataExtractor:
                         annual_cost_sub = round(device_cost_info["subsidized_annual_cost"], 2)
                         annual_cost_unsub = round(device_cost_info["unsubsidized_annual_cost"], 2)
                         all_cost_devices.discard(opt_key) # Remove this device from the set of devices as it has been processed
+                        cost_unit = " €/a"
 
 
                 # Get the device name and unit
                 name, base_unit = self.get_central_device_name(dev)
 
-                display_cap, display_unit = self._determine_unit(cap=cap,base_unit= base_unit)
+                display_cap, display_unit = self._determine_unit(cap=cap*1000, base_unit= base_unit)
 
                 if cap <= 0:
                     display_cap = not_selected_text
@@ -2967,7 +3062,7 @@ class DataExtractor:
                 append_energyhub_row(
                     device_name=name,
                     capacity=f"{display_cap} {display_unit}".strip(),
-                    annual_cost=f"{annual_cost_sub} €/a"
+                    annual_cost=f"{annual_cost_sub}{cost_unit}"
                 )
 
             # Add all devices that are in the cost breakdown but not in the feasible central device data
@@ -2978,7 +3073,7 @@ class DataExtractor:
 
                 name, base_unit = self.get_central_device_name(dev)
                 cap = 0
-                display_cap, display_unit = self._determine_unit(cap=cap, base_unit=base_unit)
+                display_cap, display_unit = self._determine_unit(cap=cap*1000, base_unit=base_unit) # Convert kW to W for unit determination
 
                 if display_cap <= 0:
                     display_cap = "-"
@@ -2986,40 +3081,47 @@ class DataExtractor:
                 append_energyhub_row(
                     device_name=name,
                     capacity=f"{display_cap} {display_unit}".strip(),
-                    annual_cost=f"{cost} €/a"
+                    annual_cost=f"{cost}{cost_unit}"
                 )
 
 
             # Add waste heat potential as a separate row at the end of the table
             waste_heat_pot_kW = self.data.heat_grid_data.get('nominal_waste_heat_capacity_kW', 0)
 
-            display_cap, display_unit = self._determine_unit(cap=waste_heat_pot_kW, base_unit="W")
+            display_cap, display_unit = self._determine_unit(cap=waste_heat_pot_kW*1000, base_unit="W<sub>th</sub>") # Convert kW to W for unit determination
 
             if waste_heat_pot_kW > 0:
+                # Get waste heat price per kWh from ecoData (can be a list/timeseries)
+                waste_heat_price = self.data.ecoData['price_waste_heat']
                 
-                annual_cost_sub_waste_heat = "-"
+                waste_heat_price_per_kwh = sum(waste_heat_price) / len(waste_heat_price) if waste_heat_price else 0
+                
+                if waste_heat_price_per_kwh > 0:
+                    annual_cost_sub_waste_heat = f"Ø {round(waste_heat_price_per_kwh*100, 1)}"  # ct/kWh
+                    waste_heat_cost_unit = " ct/kWh"
+                else:
+                    annual_cost_sub_waste_heat = "-"
+                    waste_heat_cost_unit = ""
 
-                waste_heat_cost = annual_cost_sub_waste_heat if lang == "en" else f"{annual_cost_sub_waste_heat} €/a"
                 append_energyhub_row(
                     device_name=waste_heat_name,
                     capacity=f"{display_cap} {display_unit}".strip(),
-                    annual_cost=waste_heat_cost
+                    annual_cost=f"{annual_cost_sub_waste_heat}{waste_heat_cost_unit}"
                 )
 
             # Add seasonal storage potential as a separate row at the end of the table
             seasonal_pot_kWh_a = self.data.heat_grid_data.get('seasonal_storage_kWh_a', 0)
 
-            display_cap, display_unit = self._determine_unit(cap=seasonal_pot_kWh_a, base_unit="Wh")
+            display_cap, display_unit = self._determine_unit(cap=seasonal_pot_kWh_a*1000, base_unit="Wh<sub>th</sub>/a") # Convert kWh/a to Wh/a for unit determination
 
             if seasonal_pot_kWh_a > 0:
-                
+                cost_unit = ""
                 annual_cost_sub_seasonal = "-" 
 
-                seasonal_cost = annual_cost_sub_seasonal if lang == "en" else f"{annual_cost_sub_seasonal} €/a"
                 append_energyhub_row(
                     device_name=seasonal_name,
-                    capacity=f"{display_cap} {display_unit}/a".strip(),
-                    annual_cost=seasonal_cost
+                    capacity=f"{display_cap} {display_unit}".strip(),
+                    annual_cost=f"{annual_cost_sub_seasonal}{cost_unit}"
                 )
 
 
@@ -3085,10 +3187,17 @@ class DataExtractor:
             for dev_name, data in aggregated_data.items():
                 name, base_unit = self.get_decentral_device_name(dev_name)
 
-                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=data['total_cap'], base_unit=base_unit)
+                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=data['total_cap']*1000, base_unit=base_unit) # Input cap is in kW, convert to W for unit determination
                 total_power = f"{total_cap_adjusted} {total_unit_adjusted}".strip()
-                ann_cost = f"{round(data['total_cost'], 2)} €/a"    
-                    
+
+                cost = round(data['total_cost'], 2)
+                if cost == 0:
+                    ann_cost = f"-"
+                elif cost >0:
+                    ann_cost = f"{cost} €/a"
+                else:
+                    raise ValueError(f"Negative cost value encountered for device {dev_name}: {cost}. Please check the input data for inconsistencies.")
+
                 if self.get_language() == "en":
                     device_list.append({
                         "Device": name,
@@ -3256,12 +3365,33 @@ class DataExtractor:
         else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
 
 
-        device_unit_map = { # If not specified, default is "W"
+        device_unit_map = { # if not specified, default is "W"
             "H2S": "Wh",
-            "TES": "Wh",
-            "CTES": "Wh",
-            "BAT": "Wh",
-            "GS": "Wh"
+            "TES": "Wh<sub>th</sub>",
+            "CTES": "Wh<sub>th</sub>",
+            "BAT": "Wh<sub>el</sub>",
+            "GS": "Wh",
+            "PV": "W<sub>el</sub>",
+            "WT": "W<sub>el</sub>",
+            "WAT": "W<sub>el</sub>",
+            "CHP": "W<sub>el</sub>",
+            "BCHP": "W<sub>el</sub>",
+            "WCHP": "W<sub>el</sub>",
+            "ELYZ": "W<sub>el</sub>",
+            "FC": "W<sub>el</sub>",
+            "STC": "W<sub>th</sub>",
+            "HP": "W<sub>th</sub>",
+            "AirHP": "W<sub>th</sub>",
+            "GroundHP": "W<sub>th</sub>",
+            "EB": "W<sub>th</sub>",
+            "BOI": "W<sub>th</sub>",
+            "GHP": "W<sub>th</sub>",
+            "BBOI": "W<sub>th</sub>",
+            "WBOI": "W<sub>th</sub>",
+            "CC": "W<sub>th</sub>",
+            "AirCC": "W<sub>th</sub>",
+            "AC": "W<sub>th</sub>",
+            "Heat_Grid": "W<sub>th</sub>"
         }
 
         name = device_name_map[dev]
@@ -3290,6 +3420,7 @@ class DataExtractor:
                 "OBOI": "Oil Boiler",
                 "H2BOI": "Hydrogen Boiler",
                 "FC": "Fuel Cell",
+                "DH":"District Heating Connection",
                 "heat_grid": "Local Heat Grid",
                 "PV": "Photovoltaic",
                 "STC": "Solar Thermal Collector",
@@ -3319,6 +3450,7 @@ class DataExtractor:
                 "OBOI": "Öl-Heizkessel",
                 "H2BOI": "Wasserstoff-Heizkessel",
                 "FC": "Brennstoffzelle",
+                "DH":"Fernwärmeanschluss",
                 "heat_grid": "Nahwärmenetz",
                 "PV": "Photovoltaik",
                 "STC": "Solarthermie",
@@ -3336,14 +3468,28 @@ class DataExtractor:
                 "HP35": "Wärmepumpe (35°C)",
                 "HP55": "Wärmepumpe (55°C)",
             }
+
         else: raise NotImplementedError(f"Language {self.get_language()} not supported for device name translation.")
 
-        device_unit_map = {  # If not specified, default is "W"
-            "BAT": "Wh",
-            "TES": "Wh",
-            "EV": "Wh",
+        device_unit_map = { 
+            "BAT": "Wh<sub>el</sub>",
+            "TES": "Wh<sub>th</sub>",
+            "EV": "Wh<sub>el</sub>",
             "STC": "m²",
-            "PV": "m²"
+            "PV": "m²",
+            "HP": "W<sub>th</sub>",
+            "HP35": "W<sub>th</sub>",
+            "HP55": "W<sub>th</sub>",
+            "EH": "W<sub>th</sub>",
+            "CHP": "W<sub>th</sub>",
+            "BOI": "W<sub>th</sub>",
+            "BBOI": "W<sub>th</sub>",
+            "OBOI": "W<sub>th</sub>",
+            "H2BOI": "W<sub>th</sub>",
+            "FC": "W<sub>th</sub>",
+            "DH": "W<sub>th</sub>",
+            "heat_grid": "W<sub>th</sub>",
+            "CC": "W<sub>th</sub>"
         }
 
         # All devices
@@ -3357,8 +3503,8 @@ class DataExtractor:
         Determines the appropriate unit (kW, MW, kWh, MWh) based on the capacity value and the base unit. Input cap is expected to be in kW or kWh.
 
         Args:
-            cap (float): The capacity value.
-            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh"). Can deal with "m²" as well for area devices
+            cap (float): The capacity value for capacity value in W/Wh/m².
+            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh"). Can deal with "m²" as well for area devices. Does allow suffixes like "W<sub>th</sub>".
 
         Returns:
             tuple[float, str]: A tuple containing the adjusted capacity and the appropriate unit.
@@ -3377,17 +3523,17 @@ class DataExtractor:
         elif cap <= 0:
             adjusted_cap = cap
             adjusted_unit = ""  # No prefix for zero or negative values
+        elif cap >= 1000000000:
+            adjusted_cap = round(cap / 1000000000, 2)
+            adjusted_unit = "G" + base_unit  # Giga
         elif cap >= 1000000:
             adjusted_cap = round(cap / 1000000, 2)
-            adjusted_unit = "G" + base_unit  # Giga
+            adjusted_unit = "M" + base_unit  # Mega
         elif cap >= 1000:
             adjusted_cap = round(cap / 1000, 2)
-            adjusted_unit = "M" + base_unit  # Mega
-        elif cap >= 1:
-            adjusted_cap = round(cap, 2)
             adjusted_unit = "k" + base_unit  # Kilo
         else:
-            adjusted_cap = round(cap * 1000, 2)
+            adjusted_cap = round(cap, 2)
             adjusted_unit = base_unit
 
         return adjusted_cap, adjusted_unit
