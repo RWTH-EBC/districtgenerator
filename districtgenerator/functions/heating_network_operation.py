@@ -1184,7 +1184,7 @@ def compute_and_save_network_costs(data, param):
     # output heat supply for validation of the percentage of pump electricity and heat loss
     net_heat_demand = param["net_heat_demand"]  # kW
     total_net_heat_demand = np.sum(net_heat_demand) # kWh
-
+    total_heat_produced_EH = np.sum(param["net_heat_demand"]) + param["annual_heat_loss_pos"]
     total_pipe_length = sum(pipe["length"] for pipe in data.pipeline.values())
 
     results = {
@@ -1213,10 +1213,15 @@ def compute_and_save_network_costs(data, param):
             "unit": "m",
             "description": "Sum of all pipe segments in the network"
         },
+        "total_heat_produced_EH": {
+            "value": float(total_heat_produced_EH),
+            "unit": "kWh",
+            "description": "Total annual heat produced by the energy hub, equal to network heat demand including substation losses plus pipe heat losses"
+        },
         "total_net_heat_demand": {
             "value": float(total_net_heat_demand),
             "unit": "kWh",
-            "description": "Total annual heat supplied by the heating network"
+            "description": "Total annual heat supplied by the heating network (including substation losses)"
         },
         "pump_capacity": {
             "value": float(pump_cap),
@@ -1229,24 +1234,34 @@ def compute_and_save_network_costs(data, param):
             "description": "Total annual electricity consumption for the pump"
         },
         "pump_electricity_consumption_percentage": {
-            "value": float(pump_energy_total / total_net_heat_demand * 100),
+            "value": float(pump_energy_total / total_heat_produced_EH * 100),
             "unit": "%",
-            "description": "Pump total annual electricity consumption as a percentage of network heat supply"
+            "description": "Pump total annual electricity consumption as a percentage of the heat produced by the energy hub"
         },
-        "annual_heat_loss": {
+        "annual_total_heat_loss": {
             "value": float(param["annual_heat_loss_pos_total"]),
             "unit": "kWh",
-            "description": "Annual heat loss (including pipelines and substations)"
+            "description": "Annual total heat loss (including pipelines and substations)"
         },
-        "heat_loss_density": {
+        "annual_pipe_heat_loss": {
+            "value": float(param["annual_heat_loss_pos"]),
+            "unit": "kWh",
+            "description": "Annual heat loss (only pipelines)"
+        },
+        "pipes_heat_loss_density": {
             "value": float(param["annual_heat_loss_pos"] * 1000 / 8760 / total_pipe_length),
             "unit": "W/m",
             "description": "Heat loss density (only including pipelines)"
         },
         "heat_loss_percentage": {
-            "value": float(param["annual_heat_loss_pos_total"] / total_net_heat_demand * 100),
+            "value": float(param["annual_heat_loss_pos_total"] / total_heat_produced_EH * 100),
             "unit": "%",
-            "description": "Annual heat loss (including pipelines and substations) as a percentage of network heat supply"
+            "description": "Annual heat loss (including pipelines and substations) as a percentage of the heat produced by the energy hub"
+        },
+        "pipes_heat_loss_percentage": {
+            "value": float(param["annual_heat_loss_pos"] / total_heat_produced_EH * 100),
+            "unit": "%",
+            "description": "Annual pipelines heat loss as a percentage of the heat produced by the energy hub"
         },
         "substation_ann_costs": {
             "value": float(substation_ann_costs),
