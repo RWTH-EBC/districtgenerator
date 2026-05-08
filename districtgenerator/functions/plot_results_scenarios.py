@@ -3258,289 +3258,6 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
     }
 
 
-def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
-    scenario_names=None,
-    scenario_names_by_item=None,
-    base_dir=None,
-    result_dir=None,
-    show=True,
-    titel=None,
-    show_percent_box=False,
-    compare_item1=None,
-    compare_item2=None,
-    compare_short1=None,
-    compare_short2=None,
-    short_files=None,
-    compare_shorts=None,
-    compare_items=None,
-    bar_count=None,
-    variants=("network", "single"),
-    power_demand=None,
-):
-    """
-    TAC / Bedarf über alle Jahre.
-
-    Bedarf je Jahr:
-      sum(total_heat_demand_by_year) + power_demand[scenario]
-
-    Numerator:
-      sum(tac_distr)
-
-    Ergebnis:
-      sum(TAC) / sum(Bedarf)
-    """
-    if power_demand is None:
-        raise ValueError("power_demand muss gesetzt sein.")
-
-    if base_dir is None:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
-
-    if not os.path.isdir(base_dir):
-        raise FileNotFoundError(f"Result directory not found: {base_dir}")
-
-    if short_files is None:
-        short_files = [c for c in [compare_short1, compare_short2] if c]
-    if not short_files:
-        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
-    short_files = list(short_files)
-
-    if compare_shorts is None:
-        compare_shorts = short_files.copy()
-    compare_shorts = list(compare_shorts)
-
-    if len(short_files) != len(compare_shorts):
-        raise ValueError("short_files und compare_shorts müssen gleich lang sein.")
-
-    if compare_items is None:
-        compare_items = [compare_short1, compare_short2]
-    compare_items = [x for x in compare_items if x is not None]
-
-    label_by_short = {}
-    if compare_items:
-        for s, lbl in zip(short_files, compare_items):
-            label_by_short[s] = lbl
-    if compare_short1 and compare_item1:
-        label_by_short[compare_short1] = compare_item1
-    if compare_short2 and compare_item2:
-        label_by_short[compare_short2] = compare_item2
-
-    def _safe_parse_value(v):
-        if v is None:
-            return None
-        if isinstance(v, (int, float)):
-            return float(v)
-        s = str(v).strip()
-        if not s:
-            return None
-        s = s.replace(" ", "").replace(",", ".")
-        try:
-            return float(s)
-        except ValueError:
-            return None
-
-    def _read_tac_and_demand(csv_path):
-        tac_by_year = {}
-        demand_by_year = {}
-        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            for row in reader:
-                cat = str(row.get("category", "")).strip()
-                metric = str(row.get("metric", "")).strip()
-
-                y_raw = row.get("year")
-                if y_raw in (None, ""):
-                    continue
-                try:
-                    y = int(float(y_raw))
-                except (TypeError, ValueError):
-                    continue
-
-                v = _safe_parse_value(row.get("value"))
-                if v is None:
-                    continue
-
-                if cat == "optimization" and metric == "tac_distr":
-                    tac_by_year[y] = tac_by_year.get(y, 0.0) + float(v)
-
-                if cat == "yearly_totals" and metric == "total_heat_demand_by_year":
-                    demand_by_year[y] = demand_by_year.get(y, 0.0) + float(v)
-
-        return tac_by_year, demand_by_year
-
-    def _fmt_pct(p):
-        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
-        return s.replace(".", ",")
-
-    if scenario_names_by_item is None:
-        if scenario_names is None or len(scenario_names) != 3:
-            raise ValueError(
-                "scenario_names muss genau 3 Einträge haben oder scenario_names_by_item muss gesetzt sein."
-            )
-        scenario_names_by_item = [list(scenario_names) for _ in short_files]
-    else:
-        if len(scenario_names_by_item) != len(short_files):
-            raise ValueError("scenario_names_by_item muss genauso lang sein wie short_files.")
-        for triplet in scenario_names_by_item:
-            if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
-                raise ValueError("Jeder Eintrag in scenario_names_by_item muss genau 3 Szenarien enthalten.")
-
-    bars = []
-    for short_file, scen_label, scen_triplet in zip(short_files, compare_shorts, scenario_names_by_item):
-        for variant in variants:
-            tac_total = 0.0
-            demand_total = 0.0
-            paths = []
-
-            yearly_tac_sum = {}
-            yearly_demand_sum = {}
-
-            for sc in scen_triplet:
-                if variant == "network":
-                    p = os.path.join(base_dir, f"{sc}_{short_file}_network_results.csv")
-                elif variant == "single":
-                    p = os.path.join(base_dir, f"{sc}_{short_file}_results.csv")
-                else:
-                    raise ValueError(f"Unbekannte variant: {variant}")
-
-                if not os.path.isfile(p):
-                    raise FileNotFoundError(f"Missing result file: {p}")
-
-                tac_by_year, demand_by_year = _read_tac_and_demand(p)
-                paths.append(p)
-
-                for y, v in tac_by_year.items():
-                    yearly_tac_sum[y] = yearly_tac_sum.get(y, 0.0) + v
-
-                for y, v in demand_by_year.items():
-                    yearly_demand_sum[y] = yearly_demand_sum.get(y, 0.0) + v
-
-                pd = float(power_demand.get(sc, 0.0) or 0.0)
-                for y in set(tac_by_year.keys()) | set(demand_by_year.keys()):
-                    yearly_demand_sum[y] = yearly_demand_sum.get(y, 0.0) + pd
-
-            tac_total = sum(yearly_tac_sum.values())
-            demand_total = sum(yearly_demand_sum.values())
-            value = tac_total / demand_total if demand_total > 0 else 0.0
-
-            bars.append({
-                "short_file": short_file,
-                "compare_short": scen_label,
-                "variant": variant,
-                "variant_label": "VW" if variant == "network" else "QW",
-                "value": value,
-                "tac_total": tac_total,
-                "demand_total": demand_total,
-                "paths": paths,
-            })
-
-            print(f"TAC/Demand for {scen_label} ({short_file}, {variant}): {value:.4f} €/MWh")
-
-    if bar_count is not None:
-        if bar_count <= 0:
-            raise ValueError("bar_count muss > 0 sein.")
-        if bar_count > len(bars):
-            raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
-        bars = bars[:bar_count]
-
-    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
-    y = np.array([b["value"] for b in bars], dtype=float)
-
-    fig_w_mm, fig_h_mm = 155, 100
-    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
-    width = 0.58
-
-    for i, b in enumerate(bars):
-        ax.bar(
-            x[i],
-            y[i],
-            width=width,
-            color=("#D40000" if b["variant"] == "network" else "#55585C"),
-            label="_nolegend_",
-        )
-
-    if show_percent_box:
-        ymax = max(float(np.max(y)) if len(y) else 0.0, 1.0)
-        ax.set_ylim(0, ymax * 1.30)
-        y_offset = ymax * 0.06
-
-        for i in range(0, len(bars), 2):
-            if i + 1 >= len(bars):
-                break
-
-            vb_val = bars[i]["value"]
-            ez_val = bars[i + 1]["value"]
-            txt = "n/a" if ez_val == 0 and vb_val == 0 else "+∞" if ez_val == 0 else _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
-
-            ax.text(
-                x[i],
-                vb_val + y_offset,
-                txt,
-                ha="center",
-                va="bottom",
-                color="white",
-                fontsize=8,
-                bbox=dict(
-                    boxstyle="square,pad=0.25",
-                    facecolor="#D40000",
-                    edgecolor="#D40000",
-                    linewidth=1.0,
-                ),
-                zorder=5,
-            )
-
-    pair_centers = []
-    pair_labels = []
-    for i in range(0, len(bars), 2):
-        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
-        pair_centers.append(center)
-        pair_labels.append(str(bars[i]["compare_short"]))
-
-    ax.set_xticks(pair_centers)
-    ax.set_xticklabels(pair_labels, fontsize=8)
-    ax.set_xlim(x.min() - width, x.max() + width)
-
-    ax.set_ylabel("TAC / Wärmebedarf in €/MWh")
-    ax.grid(axis="y", alpha=0.35)
-    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
-    ax.yaxis.set_major_formatter(
-        mticker.FuncFormatter(lambda x, pos: f"{int(round(x)):,}".replace(",", "."))
-    )
-
-    handles = [
-        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
-        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
-    ]
-    ax.legend(
-        handles,
-        [compare_item1, compare_item2],
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.10),
-        ncol=2,
-        frameon=False,
-        fontsize=8,
-    )
-
-    fig.tight_layout()
-    fig.subplots_adjust(bottom=0.20)
-
-    plots_dir = os.path.join(result_dir or ".", "plots")
-    os.makedirs(plots_dir, exist_ok=True)
-    plot_name = f"{titel}.pdf" if titel else "tac_per_demand_multi_bars.pdf"
-    plot_path = os.path.join(plots_dir, plot_name)
-    fig.savefig(plot_path, dpi=300)
-    print(f"Plot saved: {plot_path}")
-
-    if show:
-        plt.show()
-    else:
-        plt.close(fig)
-
-    return {
-        "bars": bars,
-        "plot_path": plot_path,
-    }
-
 
 def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
     scenario_name=None,
@@ -3939,14 +3656,295 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
 
 
 
+def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
+    scenario_names=None,
+    scenario_names_by_item=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    show_percent_box=False,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+    short_files=None,
+    compare_shorts=None,
+    compare_items=None,
+    bar_count=None,
+    variants=("network", "single"),
+    power_demand=None,
+):
+    """
+    Spezifische jährliche Gesamtkosten (€/MWh) über compare_items:
+      value = sum(mean(tac_district je scenario)) / sum(mean(total_heat_supply_by_year je scenario) + power_demand[scenario])
+
+    - Pro compare_item (Zeile in scenario_names_by_item) werden 3 scenario_names erwartet.
+    - Pro scenario wird aus network/single-Datei gelesen.
+    """
+    if power_demand is None or not isinstance(power_demand, dict):
+        raise ValueError("power_demand muss als Dictionary gesetzt sein.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(short_files) != len(compare_shorts):
+        raise ValueError("short_files und compare_shorts müssen gleich lang sein.")
+
+    if scenario_names_by_item is None:
+        if scenario_names is None or len(scenario_names) != 3:
+            raise ValueError(
+                "scenario_names muss genau 3 Einträge haben oder scenario_names_by_item muss gesetzt sein."
+            )
+        scenario_names_by_item = [list(scenario_names) for _ in short_files]
+    else:
+        if len(scenario_names_by_item) != len(short_files):
+            raise ValueError("scenario_names_by_item muss genauso lang sein wie short_files.")
+        for triplet in scenario_names_by_item:
+            if not isinstance(triplet, (list, tuple)) or len(triplet) != 3:
+                raise ValueError("Jeder Eintrag in scenario_names_by_item muss genau 3 Szenarien enthalten.")
+
+    def _safe_parse_value(v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).strip()
+        if not s:
+            return None
+        s = s.replace(" ", "").replace(",", ".")
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    def _read_tac_and_supply_means(csv_path):
+        tac_vals = []
+        supply_by_year = {}
+
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                cat = str(row.get("category", "")).strip()
+                metric = str(row.get("metric", "")).strip()
+                val = _safe_parse_value(row.get("value"))
+                if val is None:
+                    continue
+
+                if cat == "optimization" and metric == "tac_distr":
+                    tac_vals.append(float(val))
+
+                if cat == "yearly_totals" and metric == "total_heat_supply_by_year":
+                    try:
+                        year = int(float(row.get("year", 0)))
+                        supply_by_year[year] = float(val)
+                    except (TypeError, ValueError):
+                        continue
+
+        if not tac_vals:
+            raise ValueError(
+                f"Keine Werte gefunden für category='optimization' & metric='tac_distr' in Datei: {csv_path}"
+            )
+        if not supply_by_year:
+            raise ValueError(
+                f"Keine Werte gefunden für category='yearly_totals' & metric='total_heat_supply_by_year' in Datei: {csv_path}"
+            )
+
+        # TAC: SUMME
+        tac_sum = float(np.sum(tac_vals))
+
+        # Wärme: gewichteter Mittelwert
+        # Jahre 0, 5, 10, 15: Faktor 5
+        # Jahr 20: Faktor 1
+        weighted_sum = 0.0
+        for year in [0, 5, 10, 15]:
+            if year in supply_by_year:
+                weighted_sum += supply_by_year[year] * 5.0
+        if 20 in supply_by_year:
+            weighted_sum += supply_by_year[20] * 1.0
+
+        supply_mean = weighted_sum / 21.0
+
+        return tac_sum, supply_mean
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    bars = []
+    for short_file, scen_label, scen_triplet in zip(short_files, compare_shorts, scenario_names_by_item):
+        for variant in variants:
+            tac_total = 0.0
+            demand_total = 0.0
+            paths = []
+
+            for sc in scen_triplet:
+                if sc not in power_demand:
+                    raise KeyError(f"power_demand enthält keinen Eintrag für scenario_name='{sc}'.")
+
+                if variant == "network":
+                    p = os.path.join(base_dir, f"{sc}_{short_file}_network_results.csv")
+                elif variant == "single":
+                    p = os.path.join(base_dir, f"{sc}_{short_file}_results.csv")
+                else:
+                    raise ValueError(f"Unbekannte variant: {variant}")
+
+                if not os.path.isfile(p):
+                    raise FileNotFoundError(f"Missing result file: {p}")
+
+                tac_sum, supply_mean = _read_tac_and_supply_means(p)
+                tac_total += tac_sum
+                pd = float(power_demand[sc])
+
+                demand_total += (supply_mean + pd)
+                paths.append(p)
+
+            value = tac_total / demand_total if demand_total > 0 else 0.0
+
+            bars.append({
+                "short_file": short_file,
+                "compare_short": scen_label,
+                "variant": variant,
+                "variant_label": "VW" if variant == "network" else "QW",
+                "value": value,
+                "tac_total": tac_total,
+                "demand_total": demand_total,
+                "paths": paths,
+            })
+
+            print(
+                f"[DEBUG] {scen_label} | {variant}: "
+                f"sum(TAC)={tac_total:.3f}, sum(mean Supply+Power)={demand_total:.3f}, "
+                f"spezifisch={value:.6f} €/MWh"
+            )
+
+    if bar_count is not None:
+        if bar_count <= 0:
+            raise ValueError("bar_count muss > 0 sein.")
+        if bar_count > len(bars):
+            raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
+        bars = bars[:bar_count]
+
+    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+    y = np.array([b["value"] for b in bars], dtype=float)
+
+    fig_w_mm, fig_h_mm = 155, 100
+    fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    width = 0.58
+
+    for i, b in enumerate(bars):
+        ax.bar(
+            x[i],
+            y[i],
+            width=width,
+            color=("#D40000" if b["variant"] == "network" else "#55585C"),
+            label="_nolegend_",
+        )
+
+    if show_percent_box:
+        ymax = max(float(np.max(y)) if len(y) else 0.0, 1.0)
+        ax.set_ylim(0, ymax * 1.30)
+        y_offset = ymax * 0.06
+
+        for i in range(0, len(bars), 2):
+            if i + 1 >= len(bars):
+                break
+            vb_val = bars[i]["value"]
+            ez_val = bars[i + 1]["value"]
+            txt = "n/a" if ez_val == 0 and vb_val == 0 else "+∞" if ez_val == 0 else _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+            ax.text(
+                x[i],
+                vb_val + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=8,
+                bbox=dict(
+                    boxstyle="square,pad=0.25",
+                    facecolor="#D40000",
+                    edgecolor="#D40000",
+                    linewidth=1.0,
+                ),
+                zorder=5,
+            )
+
+    pair_centers = []
+    pair_labels = []
+    for i in range(0, len(bars), 2):
+        center = 0.5 * (x[i] + x[i + 1]) if i + 1 < len(bars) else x[i]
+        pair_centers.append(center)
+        pair_labels.append(str(bars[i]["compare_short"]))
+
+    ax.set_xticks(pair_centers)
+    ax.set_xticklabels(pair_labels, fontsize=8)
+    ax.set_xlim(x.min() - width, x.max() + width)
+
+    ax.set_ylabel("Spezifische jährliche Gesamtkosten in €/MWh")
+    ax.grid(axis="y", alpha=0.35)
+    ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+    ax.yaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda x, pos: f"{int(round(x)):,}".replace(",", "."))
+    )
+
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
+        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
+    ]
+    ax.legend(
+        handles,
+        [compare_item1, compare_item2],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.10),
+        ncol=2,
+        frameon=False,
+        fontsize=8,
+    )
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.20)
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_name = f"{titel}.pdf" if titel else "tac_per_demand_multi_bars.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    fig.savefig(plot_path, dpi=300)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {
+        "bars": bars,
+        "plot_path": plot_path,
+    }
+
+
 
 
 
 def main():
     scenario_name = "residential2"
     #scenario_names = ["residential2", "mixed1", "ghd6"]
-    #short_files = ["Basis", "Bat", "PV"] 
-    short_files = ["Basis","WM","Wohn"]
+    short_files = ["Basis", "Bat", "PV"] 
+    #short_files = ["Basis","WM","Wohn"]
 
     # pro Balkenpaar eigenes Szenario
     scenario_names_per_pair = ["mixed1", "mixed1", "residential0"]   
@@ -3957,11 +3955,11 @@ def main():
 ]
     
 
-    #compare_shorts = ["Basis", "Batterie", "Solarausbau"]
-    compare_shorts = ["Basis","Wohnmisch","Wohn"]
+    compare_shorts = ["Basis", "Batterie", "Solarausbau"]
+    #compare_shorts = ["Basis","Wohnmisch","Wohn"]
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
-    compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Wohn-Szenario"]
-    #compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
+    #compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Wohn-Szenario"]
+    compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
     compare_item1 = "verbundweise"
     compare_item2 = "quartiersweise"
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
@@ -3969,17 +3967,17 @@ def main():
     target_year = 2035
     bar_count = 6
 
-    scenario_names_by_item = [
-        ["residential2", "mixed1", "ghd6"],
-        ["residential2", "mixed1", "residential0"],
-        ["residential2", "residential0", "residential3"],
-    ]
-
     # scenario_names_by_item = [
     #     ["residential2", "mixed1", "ghd6"],
-    #     ["residential2", "mixed1", "ghd6"],
-    #     ["residential2", "mixed1", "ghd6"],
+    #     ["residential2", "mixed1", "residential0"],
+    #     ["residential2", "residential0", "residential3"],
     # ]
+
+    scenario_names_by_item = [
+        ["residential2", "mixed1", "ghd6"],
+        ["residential2", "mixed1", "ghd6"],
+        ["residential2", "mixed1", "ghd6"],
+    ]
 
     power_demand={}
     power_demand["ghd6"] = 2276.0
@@ -3988,25 +3986,12 @@ def main():
     power_demand["residential0"] = 269.4
     power_demand["residential3"] = 634.2
 
-    plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
-    short_files=short_files,
-    compare_shorts=compare_shorts,
-    scenario_names_per_pair=scenario_names_per_pair,
-    base_dir=base_dir,
-    result_dir=result_dir,
-    show=True,
-    show_percent_box=True,
-    label_left="Mischquartier",
-    label_right="Wohnquartier 2",
-    exclude_devices=["BBOI", "EB", "HP", "TES"],
-    )
-
     plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
         scenario_names_by_item=scenario_names_by_item,
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
-        titel="tac_sum_years_districts",
+        titel="specific_tac_sum_years_districts",
         short_files=short_files,
         compare_shorts=compare_shorts,
         bar_count=6,
@@ -4017,11 +4002,26 @@ def main():
         power_demand=power_demand,
     )
 
+    plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
+    short_files=short_files,
+    compare_shorts=compare_shorts,
+    scenario_names_per_pair=scenario_names_per_pair,
+    base_dir=base_dir,
+    result_dir=result_dir,
+    show=False,
+    show_percent_box=True,
+    label_left="Mischquartier",
+    label_right="Wohnquartier 2",
+    exclude_devices=["BBOI", "EB", "HP", "TES"],
+    )
+
+
+
     plot_tac_sum_all_years_multi_bars_from_csv(
         scenario_names_by_item=scenario_names_by_item,
         base_dir=base_dir,
         result_dir=result_dir,
-        show=True,
+        show=False,
         titel="tac_sum_years_districts",
         short_files=short_files,
         compare_shorts=compare_shorts,
@@ -4051,7 +4051,7 @@ def main():
         scenario_names_by_item=scenario_names_by_item,
         base_dir=base_dir,
         result_dir=result_dir,
-        show=True,
+        show=False,
         titel="co2_sum_years_districts",
         short_files=short_files,
         compare_shorts=compare_shorts,
@@ -4067,7 +4067,7 @@ def main():
     scenario_names_per_compare=scenario_names_per_compare,   # neu: je compare_short 1 oder 2 Szenarien
     base_dir=base_dir,
     result_dir=result_dir,
-    show=True,
+    show=False,
     show_percent_box=True,
     compare_item1=compare_item1,
     compare_item2=compare_item2,
@@ -4085,7 +4085,7 @@ def main():
     scenario_names_per_pair=scenario_names_per_pair,   # neu: Liste mit scenario_name für jedes Paar (len == len(short_files))
     base_dir=base_dir,
     result_dir=result_dir,
-    show=True,
+    show=False,
     show_percent_box=True,
     compare_item1=compare_item1,
     compare_item2=compare_item2,
@@ -4148,7 +4148,7 @@ def main():
         variants=("network", "single"),
         base_dir=base_dir,
         result_dir=result_dir,
-        show=True,
+        show=False,
         include_devices=None,
         exclude_devices=["BBOI"],
         titel=f"device_capacities_{scenario_name}",

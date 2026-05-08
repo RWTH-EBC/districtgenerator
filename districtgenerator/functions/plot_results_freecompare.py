@@ -3155,6 +3155,175 @@ def plot_power_import_two_subplots_from_csv(
 
     return out
 
+def plot_tac_three_subplots_from_csv(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    subplot_titles=None,
+    base_calendar_year=2025,
+    show_percent_box=False,
+    fontsize=12,
+    compare_item1=None,
+    compare_item2=None,
+):
+    """
+    Erstellt eine gemeinsame Abbildung mit 3 Subplots für tac-Emissionen
+    (2 oben, 1 unten), jeweils wie plot_tac_by_year_from_csv für ein Szenario.
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _read_tac_year(csv_path):
+        out = {}  # {year: tac}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") != "optimization":
+                    continue
+                if row.get("metric") != "tac_per_distr_year":
+                    continue
+
+                y_raw = row.get("year")
+                if y_raw in (None, ""):
+                    continue
+
+                try:
+                    y = int(float(y_raw))
+                    v = float(_parse_value(row.get("value")))
+                except Exception:
+                    continue
+
+                out[y] = v
+        return out
+
+    def _fmt_pct(p):
+        if abs(p - round(p)) < 0.05:
+            s = f"{p:+.0f}%"
+        else:
+            s = f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    if subplot_titles is None:
+        subplot_titles = list(scenario_names)
+    if len(subplot_titles) != 3:
+        raise ValueError("subplot_titles muss genau 3 Einträge enthalten.")
+
+    fig = plt.figure(figsize=(12, 7.5))
+    gs = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[1, 1.05], hspace=0.35, wspace=0.25)
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax3 = fig.add_subplot(gs[1, :])
+    axes = [ax1, ax2, ax3]
+
+    out = {}
+    shared_handles = None
+    shared_labels = None
+
+    for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_short2}_results.csv")
+
+        if not os.path.isfile(network_path) or not os.path.isfile(single_path):
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Fehlende Dateien\n{sc}", ha="center", va="center")
+            continue
+
+        vb = _read_tac_year(network_path)
+        ez = _read_tac_year(single_path)
+
+        years = sorted(set(vb.keys()) | set(ez.keys()))
+        if not years:
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Keine tac-Daten\n{sc}", ha="center", va="center")
+            continue
+
+        x = np.arange(len(years))
+        width = 0.35
+
+        y_vb = [vb.get(y, 0.0) for y in years]
+        y_ez = [ez.get(y, 0.0) for y in years]
+        labels = [str(base_calendar_year + y) for y in years]
+
+        ax.bar(x - width / 2, y_vb, width=width, color="#D40000", label=compare_item1 or "Ohne Verbundpreis")
+        ax.bar(x + width / 2, y_ez, width=width, color="#55585C", label=compare_item2 or "Mit Verbundpreis")
+
+        if show_percent_box:
+            ymax = max(max(y_vb) if y_vb else 0, max(y_ez) if y_ez else 0, 1.0)
+            ax.set_ylim(0, ymax * 1.35)
+            y_offset = ymax * 0.08
+
+            for i, (vb_val, ez_val) in enumerate(zip(y_vb, y_ez)):
+                if ez_val == 0:
+                    text = "n/a" if vb_val == 0 else "+∞"
+                else:
+                    text = _fmt_pct((vb_val - ez_val) / ez_val * 100.0)
+
+                ax.text(
+                    x[i] - width / 2,
+                    vb_val + y_offset,
+                    text,
+                    ha="center",
+                    va="bottom",
+                    color="white",
+                    fontsize=fontsize,
+                    bbox=dict(
+                        boxstyle="square,pad=0.35",
+                        facecolor="#D40000",
+                        edgecolor="#D40000",
+                        linewidth=1.2,
+                    ),
+                    zorder=5,
+                )
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, fontsize=fontsize)
+        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_ylabel("Jährliche Gesamtkosten in €/a", fontsize=fontsize)
+        ax.grid(axis="y", alpha=0.4)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        if shared_handles is None:
+            shared_handles, shared_labels = ax.get_legend_handles_labels()
+
+        out[sc] = {"network": vb, "single": ez}
+
+    if shared_handles and shared_labels:
+        fig.legend(
+            shared_handles,
+            shared_labels,
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            bbox_to_anchor=(0.5, 0.01),
+        )
+
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+
+    plot_name = f"{titel}.pdf" if titel else "tac_three_subplots.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return out
+
 
 
 
@@ -3166,29 +3335,29 @@ if __name__ == "__main__":
     compare_short1 = "VW"
     compare_short2 = "QW"
 
-    # district2 = "ghd6"
-    # district1 = "residential2"
-    # district3 = "mixed1"
+    district2 = "ghd6"
+    district1 = "residential2"
+    district3 = "mixed1"
 
     # district2 = "residential0"
     # district1 = "residential2"
     # district3 = "mixed1"
 
-    district3 = "residential0"
-    district2 = "residential2"
-    district1 = "residential3"
+    # district3 = "residential0"
+    # district2 = "residential2"
+    # district1 = "residential3"
 
-    # name2 = "Gewerbequartier"
-    # name1 = "Wohnquartier 1"
-    # name3 = "Mischquartier"
+    name2 = "Gewerbequartier"
+    name1 = "Wohnquartier 1"
+    name3 = "Mischquartier"
 
     # name2 = "Wohnquartier 2"
     # name1 = "Wohnquartier 1"
     # name3 = "Mischquartier"
 
-    name3 = "Wohnquartier 2"
-    name2 = "Wohnquartier 1"
-    name1 = "Wohnquartier 3"
+    # name3 = "Wohnquartier 2"
+    # name2 = "Wohnquartier 1"
+    # name1 = "Wohnquartier 3"
     
     
     fontsize = 12
@@ -3199,6 +3368,16 @@ if __name__ == "__main__":
     power_demand["mixed1"] = 405.6
     power_demand["residential0"] = 269.4
     power_demand["residential3"] = 634.2
+
+    plot_tac_three_subplots_from_csv(
+    scenario_names=[district1, district2, district3],
+    subplot_titles=[name1, name2, name3],
+    fontsize=fontsize,
+    show=True,
+    show_percent_box=True,
+    titel="TAC (3 Quartiere)",
+    compare_item1=compare_item1, compare_item2=compare_item2
+    )
     
 
 
@@ -3225,15 +3404,15 @@ if __name__ == "__main__":
         compare_item1=compare_item1, compare_item2=compare_item2
     )
 
-    plot_lcoe_three_subplots_from_csv(
-        scenario_names=[district1, district2, district3],
-        subplot_titles=[name1, name2, name3],
-        fontsize=fontsize,
-        show=True,
-        show_percent_box=True,
-        titel="Energiegestehungskosten (3 Quartiere)",
-        compare_item1=compare_item1, compare_item2=compare_item2
-    )
+    # plot_lcoe_three_subplots_from_csv(
+    #     scenario_names=[district1, district2, district3],
+    #     subplot_titles=[name1, name2, name3],
+    #     fontsize=fontsize,
+    #     show=True,
+    #     show_percent_box=True,
+    #     titel="Energiegestehungskosten (3 Quartiere)",
+    #     compare_item1=compare_item1, compare_item2=compare_item2
+    # )
 
     # plot_power_import_three_subplots_from_csv(
     #     scenario_names=[district1, district2, district3],
@@ -3254,13 +3433,13 @@ if __name__ == "__main__":
         compare_item1=compare_item1, compare_item2=compare_item2,
         compare_short1=compare_short1, compare_short2=compare_short2,
     )
-    plot_lcoe_sum_from_three_scenarios(
-        scenario_names=[district1, district2, district3],
-        show=True,show_percent_box=True,
-        titel="LCOE als Summe der Quartiere je Jahr", 
-        compare_item1=compare_item1, compare_item2=compare_item2, 
-        compare_short1=compare_short1, compare_short2=compare_short2, power_demand=power_demand
-        )
+    # plot_lcoe_sum_from_three_scenarios(
+    #     scenario_names=[district1, district2, district3],
+    #     show=True,show_percent_box=True,
+    #     titel="LCOE als Summe der Quartiere je Jahr", 
+    #     compare_item1=compare_item1, compare_item2=compare_item2, 
+    #     compare_short1=compare_short1, compare_short2=compare_short2, power_demand=power_demand
+    #     )
     
     # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
     # plot_power_export_by_year_from_csv(district2, titel=" ", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
@@ -3285,12 +3464,15 @@ if __name__ == "__main__":
     #     titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre", 
     #     compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2
     # )
+    
     # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    
     # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    
     #plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
     # titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
