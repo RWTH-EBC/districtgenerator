@@ -2692,10 +2692,10 @@ def plot_power_import_single_year_multi_bars_from_csv_per_pair(
         for entry in scenario_names_per_compare:
             if isinstance(entry, str):
                 scenarios_by_compare.append([entry])
-            elif isinstance(entry, (list, tuple)) and len(entry) in (1, 2):
+            elif isinstance(entry, (list, tuple)) and len(entry) in (1, 2, 3):
                 scenarios_by_compare.append(list(entry))
             else:
-                raise ValueError("Jeder Eintrag in scenario_names_per_compare muss str oder Liste/Tuple mit 1-2 Einträgen sein.")
+                raise ValueError("Jeder Eintrag in scenario_names_per_compare muss str oder Liste/Tuple mit 1-3 Einträgen sein.")
     else:
         # Fallback auf altes Verhalten
         if scenario_names_per_pair is not None:
@@ -3542,6 +3542,404 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
     }
 
 
+def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
+    scenario_name=None,
+    scenario_names_per_pair=None,
+    base_dir=None,
+    result_dir=None,
+    show=True,
+    titel=None,
+    compare_item1=None,
+    compare_item2=None,
+    compare_short1=None,
+    compare_short2=None,
+    short_files=None,
+    compare_shorts=None,
+    compare_items=None,
+    include_devices=None,
+    exclude_devices=None,
+    show_percent_box=False,
+    fontsize1=8,
+    fontsize2=8,
+    label_left=None,
+    label_right=None,
+    variants=("network", "single"),
+):
+    """
+    Per-pair Variante von plot_device_capacities_multi_bars_from_csv_with_TES,
+    nutzt die gleiche Farbpalette und das enge Balkenlayout wie die TES-Version,
+    lädt aber pro compare_short ein eigenes scenario_name aus scenario_names_per_pair.
+    compare_shorts erscheinen nur in der Legende (nicht unter den Balken).
+    """
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if short_files is None:
+        short_files = [c for c in [compare_short1, compare_short2] if c]
+    if not short_files:
+        raise ValueError("Bitte short_files oder compare_short1/compare_short2 angeben.")
+    short_files = list(short_files)
+
+    if compare_shorts is None:
+        compare_shorts = short_files.copy()
+    compare_shorts = list(compare_shorts)
+
+    if len(compare_shorts) != len(short_files):
+        raise ValueError("compare_shorts und short_files müssen gleich lang sein.")
+
+    if scenario_names_per_pair is None:
+        if scenario_name is None:
+            raise ValueError("Entweder scenario_name oder scenario_names_per_pair muss gesetzt sein.")
+        scenario_names_per_pair = [scenario_name for _ in short_files]
+    else:
+        if isinstance(scenario_names_per_pair, str):
+            scenario_names_per_pair = [scenario_names_per_pair]
+        scenario_names_per_pair = list(scenario_names_per_pair)
+        if len(scenario_names_per_pair) != len(short_files):
+            raise ValueError("scenario_names_per_pair muss dieselbe Länge wie short_files haben.")
+
+    label_by_short = {}
+    if compare_items:
+        for s, lbl in zip(short_files, compare_items):
+            label_by_short[s] = lbl
+    if compare_short1 and compare_item1:
+        label_by_short[compare_short1] = compare_item1
+    if compare_short2 and compare_item2:
+        label_by_short[compare_short2] = compare_item2
+
+    def _to_set(x):
+        if x is None:
+            return None
+        if isinstance(x, str):
+            return {x}
+        return set(x)
+
+    def _extract_caps(parsed_dict):
+        if not parsed_dict:
+            return {}
+        scen_key = next(iter(parsed_dict.keys()))
+        scen = parsed_dict.get(scen_key, {})
+        dev_cat = scen.get("device", {})
+        return dev_cat.get("by_device", {}).get("capacity", {}) or {}
+
+    def _fmt_pct(p):
+        s = f"{p:+.0f}%" if abs(p - round(p)) < 0.05 else f"{p:+.1f}%"
+        return s.replace(".", ",")
+
+    include_set = _to_set(include_devices)
+    exclude_set = _to_set(exclude_devices) or set()
+
+    preferred_order = [
+        "HP", "CHP", "PV", "STC", "WT", "EB", "BOI", "BBOI", "GHP", "CC", "AC",
+        "WAT", "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "CTES", "BAT", "TES", "GS"
+    ]
+    label_map = {
+        "HP": "Wärmepumpe",
+        "CHP": "BHKW",
+        "BCHP": "BBHKW",
+        "STC": "Solarthermie",
+        "WT": "Windkraft",
+        "EB": "Elektrischer\nKessel",
+        "BOI": "Erdgas-\nkessel",
+        "BBOI": "Biomasse-\nkessel",
+        "PV": "PV-Anlage",
+        "TES": "Thermischer Speicher",
+        "BAT": "Batterie",
+    }
+
+    # Daten laden: pro compare_short ein eigenes scenario_name
+    group_caps = []
+    all_devices = set()
+
+    for short_file, scen_label, scen_name in zip(short_files, compare_shorts, scenario_names_per_pair):
+        pair_caps = {}
+        for variant in variants:
+            if variant == "network":
+                p = os.path.join(base_dir, f"{scen_name}_{short_file}_network_results.csv")
+            elif variant == "single":
+                p = os.path.join(base_dir, f"{scen_name}_{short_file}_results.csv")
+            else:
+                raise ValueError(f"Unbekannte variant: {variant}")
+
+            if not os.path.isfile(p):
+                raise FileNotFoundError(f"Missing result file: {p}")
+
+            pair_caps[variant] = _extract_caps(_load_single_results_file_to_dict(p))
+            all_devices |= set(pair_caps[variant].keys())
+
+        group_caps.append({
+            "short_file": short_file,
+            "compare_short": scen_label,
+            "scenario_name": scen_name,
+            "caps": pair_caps,
+        })
+
+    # Geräteauswahl und Sortierung nach preferred_order (wie TES-Version)
+    if include_set is not None:
+        selected = [d for d in preferred_order if d in include_set and d in all_devices]
+        selected += sorted([d for d in include_set if d in all_devices and d not in preferred_order])
+    else:
+        selected = [d for d in preferred_order if d in all_devices]
+        selected += sorted([d for d in all_devices if d not in preferred_order])
+
+    devices = [d for d in selected if d not in exclude_set]
+    if not devices:
+        raise ValueError("No devices left after include/exclude filtering.")
+
+    storage_devices = {"TES", "BAT"}
+    has_storage = any(d in storage_devices for d in devices)
+
+    # Farbpalette wie in plot_device_capacities_multi_bars_from_csv_with_TES
+    colors = [
+        "#721D13", "#242525", "#AC2B1C", "#4E4F50",
+        "#DD402D" , "#757679", "#EB8C81", "#D8D8D9",
+        "#F1B3AB", "#C4C5C6", "#7f7f7f", "#bcbd22"
+    ]
+
+    # Layout: enge Balken wie TES-Version
+    width = 0.22
+    device_step = 0.78
+    group_gap = 0.6
+    group_step = len(devices) * device_step + group_gap
+
+    bars = []
+    for g_idx, g in enumerate(group_caps):
+        base_x = g_idx * group_step
+        for d_idx, dev in enumerate(devices):
+            center = base_x + d_idx * device_step
+            for v_idx, variant in enumerate(variants):
+                val = float(g["caps"].get(variant, {}).get(dev, 0.0) or 0.0)
+                x = center + (-width / 2 if variant == "network" else width / 2)
+                bars.append({
+                    "group_idx": g_idx,
+                    "device": dev,
+                    "variant": variant,
+                    "value": val,
+                    "x": x,
+                    "center": center,
+                    "compare_short": g["compare_short"],
+                    "scenario_name": g["scenario_name"],
+                })
+
+    # Y-Achsenlimits berechnen
+    values_left = [b["value"] for b in bars if b["device"] not in storage_devices]
+    values_right = [b["value"] for b in bars if b["device"] in storage_devices]
+    left_ymax = max(values_left) if values_left else 1.0
+    right_ymax = max(values_right) if values_right else 1.0
+
+    fig_w_mm = 155
+    fig_h_mm = 120
+    fig, ax1 = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
+    ax2 = ax1.twinx() if has_storage else None
+
+    # Balken zeichnen (Palette benutzen)
+    for b in bars:
+        # Farbe über Serienindex (gruppiert: pro Gruppe je Variante eine Serie)
+        series_idx = b["group_idx"] * len(variants) + (0 if b["variant"] == "network" else 1)
+        color = colors[series_idx % len(colors)]
+        target_ax = ax2 if (ax2 is not None and b["device"] in storage_devices) else ax1
+        target_ax.bar(
+            b["x"],
+            b["value"],
+            width=width,
+            color=color,
+            label="_nolegend_",
+            zorder=3,
+        )
+
+    # Prozentboxen wie gehabt (optional)
+    if show_percent_box:
+        ymax = max(left_ymax, right_ymax, 1.0)
+        ax1.set_ylim(0, left_ymax * 1.35 if left_ymax > 0 else 1.0)
+        if ax2 is not None:
+            ax2.set_ylim(0, right_ymax * 1.35 if right_ymax > 0 else 1.0)
+
+        y_offset = max(left_ymax, right_ymax) * 0.035
+        from collections import defaultdict
+        pair_map = defaultdict(dict)
+        for b in bars:
+            pair_map[(b["group_idx"], b["device"])][b["variant"]] = b
+
+        for (g_idx, dev), m in pair_map.items():
+            if "network" not in m or "single" not in m:
+                continue
+            b_net = m["network"]
+            b_sin = m["single"]
+            if b_sin["value"] == 0:
+                txt = "n/a" if b_net["value"] == 0 else f"+ {b_net['value']:.0f}"
+            else:
+                txt = _fmt_pct((b_net["value"] - b_sin["value"]) / b_sin["value"] * 100.0)
+            target_ax = ax2 if (ax2 is not None and dev in storage_devices) else ax1
+            target_ax.text(
+                b_net["x"],
+                b_net["value"] + y_offset,
+                txt,
+                ha="center",
+                va="bottom",
+                color="white",
+                fontsize=fontsize2,
+                bbox=dict(
+                    boxstyle="square,pad=0.2",
+                    facecolor=colors[(g_idx * len(variants)) % len(colors)],
+                    edgecolor=colors[(g_idx * len(variants)) % len(colors)],
+                    linewidth=1.0,
+                ),
+                zorder=5,
+            )
+
+    # X-Labels: Geräteliste pro Gruppe (ohne compare_shorts unter den Balken)
+    device_centers = []
+    device_labels = []
+    for g_idx in range(len(group_caps)):
+        base_x = g_idx * group_step
+        for d_idx, dev in enumerate(devices):
+            device_centers.append(base_x + d_idx * device_step)
+            device_labels.append(label_map.get(dev, dev))
+
+    # ax1.set_xticks(device_centers)
+    # ax1.set_xticklabels(device_labels, fontsize=fontsize1, rotation=90)
+
+    ax1.set_xticks(device_centers)
+    ax1.set_xticklabels([""] * len(device_centers))
+    ax1.tick_params(axis="x", which="both", labelbottom=False, length=0)
+
+    
+
+
+    # Trennklammern wie bei per_pair-Funktion, aber OHNE Text-Label unter den Klammern
+    brace_y_ax = -0.10
+    brace_h_ax = 0.035
+
+    for g_idx, g in enumerate(group_caps):
+        base_x = g_idx * group_step
+        x0 = base_x
+        x1 = base_x + (len(devices) - 1) * device_step
+
+        x0_disp, _ = ax1.transData.transform((x0, 0.0))
+        x1_disp, _ = ax1.transData.transform((x1, 0.0))
+        inv = ax1.transAxes.inverted()
+        x0_ax, _ = inv.transform((x0_disp, 0.0))
+        x1_ax, _ = inv.transform((x1_disp, 0.0))
+
+        mx = 0.5 * (x0_ax + x1_ax)
+        left = x0_ax
+        right = x1_ax
+        top = brace_y_ax
+        mid = top - brace_h_ax * 0.6
+        bot = top - brace_h_ax
+
+        verts = [
+            (left, top),
+            (left + (mx - left) * 0.25, mid),
+            (mx, bot),
+            (right - (right - mx) * 0.25, mid),
+            (right, top),
+        ]
+        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4, Path.LINETO]
+        patch = PathPatch(
+            Path(verts, codes),
+            transform=ax1.transAxes,
+            fc="none",
+            ec="#7A7A7A",
+            lw=0.9,
+            linestyle="--",
+            zorder=4,
+        )
+        ax1.add_patch(patch)
+
+        # Trennlinie zwischen verschiedenen Szenarien (falls nötig)
+        if g_idx < len(group_caps) - 1:
+            next_base = (g_idx + 1) * group_step
+            next_scn = group_caps[g_idx + 1]["scenario_name"]
+            if next_scn != g["scenario_name"]:
+                sep_x = 0.5 * (x1 + next_base)
+                ax1.axvline(sep_x, color="#7A7A7A", linestyle="--", linewidth=0.9, zorder=4, clip_on=False)
+                if label_left:
+                    ax1.text(
+                        sep_x - 0.05 * group_step,
+                        1.02,
+                        label_left,
+                        transform=ax1.get_xaxis_transform(),
+                        ha="right",
+                        va="bottom",
+                        fontsize=8,
+                        bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
+                    )
+                if label_right:
+                    ax1.text(
+                        sep_x + 0.05 * group_step,
+                        1.02,
+                        label_right,
+                        transform=ax1.get_xaxis_transform(),
+                        ha="left",
+                        va="bottom",
+                        fontsize=8,
+                        bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
+                    )
+
+    ax1.set_ylabel("PV-Anlagenleistung in kW")
+    ax1.grid(axis="y", alpha=0.35)
+
+    # Achsen-Formatierung wie TES-Version
+    ax1.yaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda x, pos: f"{int(round(x)):,}".replace(",", "."))
+    )
+    if ax2 is not None:
+        ax2.set_ylabel("Speicherkapazität in kWh")
+        ax2.yaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda x, pos: f"{int(round(x)):,}".replace(",", "."))
+        )
+
+    # Legende: compare_shorts erscheinen NUR in der Legende (pro Gruppe+Variante eine Farbe)
+    series_handles = []
+    series_labels = []
+    for g_idx, g in enumerate(group_caps):
+        for v_idx, variant in enumerate(variants):
+            series_idx = g_idx * len(variants) + v_idx
+            color = colors[series_idx % len(colors)]
+            lbl_variant = "verbundweise" if variant == "network" else "quartiersweise"
+            series_handles.append(plt.Rectangle((0, 0), 1, 1, fc=color))
+            series_labels.append(f"{g['compare_short']} ({lbl_variant})")
+
+    ax1.legend(
+        series_handles,
+        series_labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.1),
+        ncol=2,
+        frameon=False,
+        fontsize=fontsize1,
+        handlelength=1.4,
+        columnspacing=0.8,
+    )
+
+    fig.tight_layout()
+    fig.subplots_adjust(bottom=0.2)
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    plot_name = f"{titel}.pdf" if titel else "device_capacities_pv.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    fig.savefig(plot_path, dpi=300, bbox_inches="tight", pad_inches=0.08)
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return {
+        "devices": devices,
+        "bars": bars,
+        "plot_path": plot_path,
+        "scenario_names_per_pair": scenario_names_per_pair,
+    }
+
+
+
+
 
 
 def main():
@@ -3553,9 +3951,9 @@ def main():
     # pro Balkenpaar eigenes Szenario
     scenario_names_per_pair = ["mixed1", "mixed1", "residential0"]   
     scenario_names_per_compare = [
-    ("residential2", "ghd6"),
-    ("residential2", "residential0"),
-    ("residential2", "residential3"),
+    ("residential2", "ghd6", "mixed1"),
+    ("residential2", "residential0", "mixed1"),
+    ("residential2", "residential3", "residential0"),
 ]
     
 
@@ -3589,6 +3987,19 @@ def main():
     power_demand["mixed1"] = 405.6
     power_demand["residential0"] = 269.4
     power_demand["residential3"] = 634.2
+
+    plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
+    short_files=short_files,
+    compare_shorts=compare_shorts,
+    scenario_names_per_pair=scenario_names_per_pair,
+    base_dir=base_dir,
+    result_dir=result_dir,
+    show=True,
+    show_percent_box=True,
+    label_left="Mischquartier",
+    label_right="Wohnquartier 2",
+    exclude_devices=["BBOI", "EB", "HP", "TES"],
+    )
 
     plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
         scenario_names_by_item=scenario_names_by_item,
@@ -3664,7 +4075,7 @@ def main():
     compare_shorts=compare_shorts,       # <- Labels auf x-Achse (pro Szenario)
     compare_items=compare_items,
     target_year=target_year,
-    bar_count=bar_count*2,
+    bar_count=18,
     variants=("network", "single"),
     # label_left="Mischquartier",
     # label_right="Wohnquartier 2",
@@ -3687,6 +4098,8 @@ def main():
     label_left="Mischquartier",
     label_right="Wohnquartier 2",
     )
+
+
 
 
 
