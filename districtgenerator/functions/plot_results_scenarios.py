@@ -3515,12 +3515,14 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
             device_centers.append(base_x + d_idx * device_step)
             device_labels.append(label_map.get(dev, dev))
 
-    # ax1.set_xticks(device_centers)
-    # ax1.set_xticklabels(device_labels, fontsize=fontsize1, rotation=90)
-
+    # Mit x-Achsenbeschriftung
     ax1.set_xticks(device_centers)
-    ax1.set_xticklabels([""] * len(device_centers))
-    ax1.tick_params(axis="x", which="both", labelbottom=False, length=0)
+    ax1.set_xticklabels(device_labels, fontsize=fontsize1, rotation=90)
+    
+    # Ohne x-Achsenbeschriftung 
+    # ax1.set_xticks(device_centers)
+    # ax1.set_xticklabels([""] * len(device_centers))
+    # ax1.tick_params(axis="x", which="both", labelbottom=False, length=0)
 
     
 
@@ -3943,11 +3945,13 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
 def main():
     scenario_name = "residential2"
     #scenario_names = ["residential2", "mixed1", "ghd6"]
-    short_files = ["Basis", "Bat", "PV"] 
+    #short_files = ["Basis", "Bat", "PV"] 
     #short_files = ["Basis","WM","Wohn"]
-
+    short_files = ["Basis","WM"]
     # pro Balkenpaar eigenes Szenario
-    scenario_names_per_pair = ["mixed1", "mixed1", "residential0"]   
+    #scenario_names_per_pair = ["mixed1", "mixed1"]  
+    #scenario_names_per_pair = ["ghd6", "residential0"]
+    scenario_names_per_pair = ["residential2", "residential2"] 
     scenario_names_per_compare = [
     ("residential2", "ghd6", "mixed1"),
     ("residential2", "residential0", "mixed1"),
@@ -3955,17 +3959,19 @@ def main():
 ]
     
 
-    compare_shorts = ["Basis", "Batterie", "Solarausbau"]
+    #compare_shorts = ["Basis", "Batterie", "Solarausbau"]
     #compare_shorts = ["Basis","Wohnmisch","Wohn"]
+    compare_shorts = ["Basis","Wohnmisch"]
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
     #compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Wohn-Szenario"]
-    compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
+    compare_items = ["Basis-Szenario", "Wohnmisch-Szenario"]
+    #compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
     compare_item1 = "verbundweise"
     compare_item2 = "quartiersweise"
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     target_year = 2035
-    bar_count = 6
+    bar_count = 4
 
     # scenario_names_by_item = [
     #     ["residential2", "mixed1", "ghd6"],
@@ -3973,12 +3979,15 @@ def main():
     #     ["residential2", "residential0", "residential3"],
     # ]
 
+    # scenario_names_by_item = [
+    #     ["residential2", "mixed1", "ghd6"],
+    #     ["residential2", "mixed1", "ghd6"],
+    #     ["residential2", "mixed1", "ghd6"],
+    # ]
     scenario_names_by_item = [
         ["residential2", "mixed1", "ghd6"],
-        ["residential2", "mixed1", "ghd6"],
-        ["residential2", "mixed1", "ghd6"],
+        ["residential2", "mixed1", "residential0"],
     ]
-
     power_demand={}
     power_demand["ghd6"] = 2276.0
     power_demand["residential2"] = 335.7
@@ -3990,11 +3999,11 @@ def main():
         scenario_names_by_item=scenario_names_by_item,
         base_dir=base_dir,
         result_dir=result_dir,
-        show=True,
+        show=False,
         titel="specific_tac_sum_years_districts",
         short_files=short_files,
         compare_shorts=compare_shorts,
-        bar_count=6,
+        bar_count=bar_count,
         variants=("network", "single"),
         show_percent_box=True,
         compare_item1 = compare_item1,
@@ -4008,11 +4017,12 @@ def main():
     scenario_names_per_pair=scenario_names_per_pair,
     base_dir=base_dir,
     result_dir=result_dir,
-    show=False,
+    show=True,
+    titel="device_capacities_res2",
     show_percent_box=True,
     label_left="Mischquartier",
     label_right="Wohnquartier 2",
-    exclude_devices=["BBOI", "EB", "HP", "TES"],
+    exclude_devices=[],
     )
 
 

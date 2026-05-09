@@ -79,7 +79,7 @@ def run_optim_connect(dataCon, devsCon, paramCon, demCon, result_dictCon):
         save_results_csv(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
         save_results_csv_short(model, result_dict, scenario_name, result_dir, all_devs_list, param=param)
         save_heat_devices_timeseries_csv(model, district, result_dir)
-        save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6)
+        save_power_devices_timeseries_csv(model, district, result_dir, dem=dem, tol=1e-6)
         save_demand_heat_timeseries_csv(dem, model, district, result_dir)
         save_demand_power_timeseries_csv(dem, model, district, result_dir)
 
@@ -879,9 +879,9 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
                 # Define upper boundries of each segment
                 model.constraints.add(model.cap_seg["small",dev, district]<=model.cap_bin["small",dev, district] * devs[dev]["inv_size2"])
                 model.constraints.add(model.cap_seg["medium",dev, district]<=model.cap_bin["medium",dev, district] * devs[dev]["inv_size3"])
-                # model.constraints.add(model.cap_seg["large",dev, district]<=model.cap_bin["large",dev, district] * devs[dev]["inv_size4"]) # No upper limit
+                model.constraints.add(model.cap_seg["large",dev, district]<=model.cap_bin["large",dev, district] * devs[dev]["inv_size4"]) # No upper limit
                 # Define lower boundries of each segment
-                # model.constraints.add(model.cap_seg["small",dev, district]>=model.cap_bin["small",dev, district] * devs[dev]["inv_size1"]) # No lower limit for the first segment
+                #model.constraints.add(model.cap_seg["small",dev, district]>=model.cap_bin["small",dev, district] * devs[dev]["inv_size1"]) # No lower limit for the first segment
                 model.constraints.add(model.cap_seg["medium",dev, district]>=model.cap_bin["medium",dev, district] * devs[dev]["inv_size2"])
                 model.constraints.add(model.cap_seg["large",dev, district]>=model.cap_bin["large",dev, district] * devs[dev]["inv_size3"])
                 # Caluclate slope of cost function for each segment
@@ -2237,7 +2237,7 @@ def save_heat_devices_timeseries_csv(model, district, result_dir, tol=1e-6):
         f"for {district} saved to {csv_file_path}"
     )
 
-def save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6):    
+def save_power_devices_timeseries_csv(model, district, result_dir, dem, tol=1e-6):    
     # Ensure the result directory exists
     os.makedirs(result_dir, exist_ok=True)
     
@@ -2264,17 +2264,24 @@ def save_power_devices_timeseries_csv(model, district, result_dir, tol=1e-6):
         if is_active:
             active_power_devices.append(str(dev))
 
-    # Header: Support_Year, Cluster, Timestep, Device1, Device2, ...
-    data_to_save = [["Support_Year", "Cluster", "Timestep", *active_power_devices]]
+    # Header: Support_Year, Cluster, Timestep, Device1, Device2, ..., Power_Demand_kW
+    data_to_save = [["Support_Year", "Cluster", "Timestep", *active_power_devices, "Power_Demand_kW"]]
 
     # Daten im breiten Format
     for y in model.support_years:
         for d in model.clusters:
             for t in model.time_steps:
                 row = [y, d, t]
+                # Add dem to csv
+                power_demand = dem["power"][y][d][t]
+                row.append(round(power_demand, 3))
+                # Add device values to csv
                 for device in active_power_devices:
                     row.append(round(safe_value(model.power, (device, district, y, d, t)), 3))
                 data_to_save.append(row)
+
+
+    
 
     # Write CSV
     with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csv_file:
