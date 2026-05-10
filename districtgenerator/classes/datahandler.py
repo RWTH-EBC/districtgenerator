@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import csv
 import pickle
 import os
 import datetime
@@ -1161,102 +1162,75 @@ class Datahandler:
         -------
         None.
         """
-        directory_path = os.path.join(self.demands_path, name)
-        os.makedirs(directory_path, exist_ok=True)
+
+        os.makedirs(path, exist_ok=True)
+
+        time_resolution = self.time["timeResolution"]
+        time_horizon = self.time["dataLength"]
+        num_timesteps = int(time_horizon / time_resolution)
+
+        # timeseries data points
+        ts_dict = {
+            'timestep': np.arange(num_timesteps) * (time_resolution / 3600),  # Index-Column (hour of the year)
+            'elec': elec,
+            'dhw': dhw,
+            'occ': occ,
+            'gains': gains,
+            'EV_carprofile': EV_carprofile,
+            'EV_carcharging_ondemand': EV_carcharging_ondemand,
+            'ice_carprofile': ice_carprofile
+        }
 
         car_info_list = []
-        EV_demand_individual = {}
-        EV_charging_individual = {}
-        ICE_fuel_individual = {}
-        Car_availability_individual = {}
         # Prepare individual car profiles for saving
-        if individual_car_profiles is not None and len(individual_car_profiles) > 0:
+        if individual_car_profiles is not None:
             for i, car in enumerate(individual_car_profiles):
-                car_id = car.get('car_id')
-                car_info_list.append({"car_id": car_id,
-                                      "type": car.get("type"),
-                                      "location": car.get("location"),
-                                      "battery_capacity_wh": car.get("battery_capacity_wh")})
+                car_info_list.append({
+                    "car_id": car.get('car_id'),
+                    "type": car.get("type"),
+                    "location": car.get("location"),
+                    "battery_capacity_wh": car.get("battery_capacity_wh")
+                })
+                # Create Dataframes fot the individual car profiles
                 if car['consumption_profile_wh'] is not None:
-                    EV_demand_individual[f'EV_demand_car_{i}'] = car['consumption_profile_wh']
+                    ts_dict[f'EV_demand_car_{i}'] = car['consumption_profile_wh']
                 if car['on_demand_charging_profile_w'] is not None:
-                    EV_charging_individual[f'EV_charging_car_{i}'] = car['on_demand_charging_profile_w']
+                    ts_dict[f'EV_charging_car_{i}'] = car['on_demand_charging_profile_w']
                 if car['fuel_profile_l'] is not None:
-                    ICE_fuel_individual[f'ICE_fuel_car_{i}'] = car['fuel_profile_l']
+                    ts_dict[f'ICE_fuel_car_{i}'] = car['fuel_profile_l']
                 if car['availability_profile'] is not None:
-                    Car_availability_individual[f'Car_availability_car_{i}'] = car['availability_profile']
+                    ts_dict[f'Car_availability_car_{i}'] = car['availability_profile']
 
-        # Sum the values in nb_occ and create a DataFrame
-        if isinstance(nb_occ, list):
-            total_nb_occ = sum(int(num) for num in nb_occ)  # Calculate the sum
-        else:
-            total_nb_occ = nb_occ
-        #nb_occ_list_df = pd.DataFrame([[nb_occ]], columns=['occ list'])
-        # todo: idea to save the full list of occupants per building unit for further analysis, does not work properly yet
+        df_ts = pd.DataFrame(ts_dict)
+        df_ts.to_csv(os.path.join(path, f"{name}_timeseries.csv"), index=False)
 
-        # 2. Building Infos sammeln
-        building_info_dict = {
-            "Number of Flats or main Rooms": [nb_units],
-            "Total Number of Occupants": [total_nb_occ],
-            "Occupants List": [nb_occ],  # Löst dein TODO: Pyarrow speichert die Liste direkt!
-            "EV_capacities": [ev_capacity],
-            "Design Heat Load (W)": [heatload],
-            "Bivalent Heat Load (W)": [bivalent],
-            "Heat Limit Heat Load (W)": [heatlimit]
+        # Singular Data points (static)
+        static_dict = {
+            'nb_units': [nb_units],
+            'nb_occ': [json.dumps(list(nb_occ) if isinstance(nb_occ, (list, np.ndarray)) else [nb_occ])],
+            'ev_capacity': [
+                json.dumps(list(ev_capacity) if isinstance(ev_capacity, (list, np.ndarray)) else [ev_capacity])],
+            'heatload': [heatload],
+            'bivalent': [bivalent],
+            'heatlimit': [heatlimit],
+            'car_info': [json.dumps(car_info_list)]
         }
 
-        # 3. Das Dictionary mit allen DataFrames erstellen
-        # Spaltennamen geben wir direkt bei der Erstellung des DataFrames mit an.
-        parquet_data = {
-            'elec': pd.DataFrame(elec, columns=['elec']),
-            'dhw': pd.DataFrame(dhw, columns=['dhw']),
-            'occ': pd.DataFrame(occ, columns=['occ']),
-            'gains': pd.DataFrame(gains, columns=['gains']),
+        if thick_req is not None:
+            static_dict['thick_req'] = [json.dumps(list(thick_req) if isinstance(thick_req, (list, np.ndarray)) else [thick_req])]
 
-            # Gebäude-Infos (einzeln)
-            'nb_flats': pd.DataFrame([nb_units], columns=['Number of Flats or Main Rooms']),
-            'nb_occ': pd.DataFrame([total_nb_occ], columns=['occ']),
-            'heatload': pd.DataFrame([heatload], columns=['heatload']),
-            'bivalent': pd.DataFrame([bivalent], columns=['bivalent']),
-            'heatlimit': pd.DataFrame([heatlimit], columns=['Heat Limit Heat Load (W)']),
-            'ev_capacity': pd.DataFrame([ev_capacity], columns=['EV Capacity (Wh)']),
-
-            # Aggregierte Auto-Profile
-            'carcharging': pd.DataFrame(EV_carcharging_ondemand, columns=['car']),
-            'carprofile': pd.DataFrame(EV_carprofile, columns=['Electric Vehicle Energy Demand (Wh)']),
-            'EV_demand_agg': pd.DataFrame(EV_carprofile, columns=['Total Electric Vehicle Energy Demand (Wh)']),
-            'EV_charging_agg': pd.DataFrame(EV_carcharging_ondemand,
-                                            columns=['Total Electric Vehicle Charging Power on-Demand (W)']),
-            'ICE_fuel_agg': pd.DataFrame(ice_carprofile, columns=['Total ICE Fuel consumption per timestep (L)']),
-
-            # Individuelle Auto-Profile & Infos
-            'EV_demand_individual': pd.DataFrame(EV_demand_individual),
-            'EV_charging_individual': pd.DataFrame(EV_charging_individual),
-            'ICE_fuel_individual': pd.DataFrame(ICE_fuel_individual),
-            'Car_availability_individual': pd.DataFrame(Car_availability_individual),
-            'Car_Info': pd.DataFrame(car_info_list)
-        }
-        # Isolationswerte hinzufügen, falls vorhanden
-        if thick_req:
-            data = {
-                "wall_ins_df": pd.DataFrame([thick_req[0]], columns=['Wall Insulation Thickness']),
-                "roof_ins_df": pd.DataFrame([thick_req[1]], columns=['Roof Insulation Thickness']),
-                "floor_ins_df": pd.DataFrame([thick_req[2]], columns=['Floor Insulation Thickness'])
-            }
-            parquet_data.update(data)
-
-        # 4. In einer Schleife als Parquet speichern
-        # Stellt sicher, dass der Zielordner existiert
-        os.makedirs(directory_path, exist_ok=True)
-
-        for name, df in parquet_data.items():
-            file_path = os.path.join(directory_path, f"{name}.parquet")
-            df.to_parquet(file_path, engine='pyarrow', index=False)
+        df_static = pd.DataFrame(static_dict)
+        df_static.to_csv(
+            os.path.join(path, f"{name}_static.csv"),
+            sep=',',
+            index=False,
+            quoting=csv.QUOTE_NONNUMERIC
+        )
 
 
     def saveHeatingProfile(self, heat, cooling, name, gmlId, path):
         """
-        Save heating demand to parquet files in the specified directory.
+        Save heating demand to csv.
 
         Parameters
         ----------
@@ -1275,104 +1249,102 @@ class Datahandler:
         -------
         None.
         """
-        # Create the directory path
-        directory_path = os.path.join(self.demands_path, name)
-        os.makedirs(directory_path, exist_ok=True)
+        ts_path = os.path.join(path, f"{name}_timeseries.csv")
+        if os.path.exists(ts_path):
+            df_ts = pd.read_csv(ts_path)
+        else:
+            df_ts = pd.DataFrame()
 
-        # Dictionary mit den Dateinamen als Key und den DataFrames als Value
-        parquet_data = {
-            'cooling': pd.DataFrame(cooling, columns=['cooling']),
-            'heating': pd.DataFrame(heat, columns=['heating']),
-            'gmlId': pd.DataFrame(gmlId, columns=['gmlId'])
-        }
+        df_ts['heating'] = heat
+        df_ts['cooling'] = cooling
+        df_ts.to_csv(ts_path, index=False)
 
-        # In einer Schleife als Parquet speichern
-        for filename, df in parquet_data.items():
-            file_path = os.path.join(directory_path, f"{filename}.parquet")
-            df.to_parquet(file_path, engine='pyarrow', index=False)
+        static_path = os.path.join(path, f"{name}_static.csv")
+        if os.path.exists(static_path):
+            df_static = pd.read_csv(static_path)
+        else:
+            df_static = pd.DataFrame()
+
+        df_static['gmlId'] = [json.dumps(list(gmlId) if isinstance(gmlId, (list, np.ndarray)) else [gmlId])]
+        df_static.to_csv(static_path, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
     def loadProfiles(self, name, path, gen_cars=True):
-        directory_path = os.path.join(self.demands_path, name)
+        """
+        Load profiles from csv.
 
-        # Stundenprofile einzeln laden
-        elec = pd.read_parquet(os.path.join(directory_path, 'elec.parquet'))['elec'].to_numpy()
-        dhw = pd.read_parquet(os.path.join(directory_path, 'dhw.parquet'))['dhw'].to_numpy()
-        occ = pd.read_parquet(os.path.join(directory_path, 'occ.parquet'))['occ'].to_numpy()
-        gains = pd.read_parquet(os.path.join(directory_path, 'gains.parquet'))['gains'].to_numpy()
+        Parameters
+        ----------
+        name : string
+            Unique building name.
+        path : string
+            Results path.
 
-        # Gebäudeinformationen einzeln laden (iloc[0] holt den Wert aus der ersten Zeile)
-        nb_flats = int(
-            pd.read_parquet(os.path.join(directory_path, 'nb_flats.parquet'))['Number of Flats or Main Rooms'].iloc[0])
+        Returns
+        -------
+        None.
+        """
+        ts_path = os.path.join(path, f"{name}_timeseries.csv")
+        static_path = os.path.join(path, f"{name}_static.csv")
+
+        df_ts = pd.read_csv(ts_path)
+        df_static = pd.read_csv(static_path)
+
+        elec = df_ts['elec'].to_numpy()
+        dhw = df_ts['dhw'].to_numpy()
+        occ = df_ts['occ'].to_numpy()
+        gains = df_ts['gains'].to_numpy()
+
+        nb_flats = int(df_static['nb_units'].iloc[0])
         nb_main_rooms = nb_flats
-        nb_occ = pd.read_parquet(os.path.join(directory_path, 'nb_occ.parquet'))['occ'].iloc[0]
-        ev_capacity = pd.read_parquet(os.path.join(directory_path, 'ev_capacity.parquet'))['EV Capacity (Wh)'].iloc[0]
+        heatload = float(df_static['heatload'].iloc[0])
+        bivalent = float(df_static['bivalent'].iloc[0])
+        heatlimit = float(df_static['heatlimit'].iloc[0])
 
-        heatload = float(pd.read_parquet(os.path.join(directory_path, 'heatload.parquet'))['heatload'].iloc[0])
-        bivalent = float(pd.read_parquet(os.path.join(directory_path, 'bivalent.parquet'))['bivalent'].iloc[0])
-        heatlimit = float(
-            pd.read_parquet(os.path.join(directory_path, 'heatlimit.parquet'))['Heat Limit Heat Load (W)'].iloc[0])
+        nb_occ = np.array(json.loads(df_static['nb_occ'].iloc[0]))
+        ev_capacity = np.array(json.loads(df_static['ev_capacity'].iloc[0]))
+        car_info_list = json.loads(df_static['car_info'].iloc[0])
 
-        # Auto-Profile verarbeiten
+        # Load car profiles
         individual_car_profiles = []
+        if gen_cars: # Only load car profiles if cars are supposed to be generated
+            EV_carprofile = df_ts['EV_carprofile'].to_numpy()
+            EV_carcharging_ondemand = df_ts['EV_carcharging_ondemand'].to_numpy()
+            ice_carprofile = df_ts['ice_carprofile'].to_numpy()
 
-        if gen_cars:
-            # Aggregierte Arrays
-            EV_carprofile = pd.read_parquet(os.path.join(directory_path, 'EV_demand_agg.parquet'))[
-                'Total Electric Vehicle Energy Demand (Wh)'].to_numpy()
-            EV_carcharging_ondemand = pd.read_parquet(os.path.join(directory_path, 'EV_charging_agg.parquet'))[
-                'Total Electric Vehicle Charging Power on-Demand (W)'].to_numpy()
-            ice_carprofile = pd.read_parquet(os.path.join(directory_path, 'ICE_fuel_agg.parquet'))[
-                'Total ICE Fuel consumption per timestep (L)'].to_numpy()
-
-            # DataFrames
-            df_car_info = pd.read_parquet(os.path.join(directory_path, 'Car_Info.parquet'))
-            df_EV_demand = pd.read_parquet(os.path.join(directory_path, 'EV_demand_individual.parquet'))
-            df_EV_charging = pd.read_parquet(os.path.join(directory_path, 'EV_charging_individual.parquet'))
-            df_ICE_fuel = pd.read_parquet(os.path.join(directory_path, 'ICE_fuel_individual.parquet'))
-            df_Car_avail = pd.read_parquet(os.path.join(directory_path, 'Car_availability_individual.parquet'))
-
-            for i, row in df_car_info.iterrows():
-                car_id = row['car_id']
-                car_type = row['type']
-                location = row['location']
-                battery_capacity_wh = row['battery_capacity_wh']
-
-                ev_demand_col = f'EV_demand_car_{i}'
-                ev_charge_col = f'EV_charging_car_{i}'
-                ice_fuel_col = f'ICE_fuel_car_{i}'
-                avail_col = f'Car_availability_car_{i}'
-
-                consumption_profile_wh = df_EV_demand[
-                    ev_demand_col].to_numpy() if ev_demand_col in df_EV_demand.columns else None
-                on_demand_charging_profile_w = df_EV_charging[
-                    ev_charge_col].to_numpy() if ev_charge_col in df_EV_charging.columns else None
-                fuel_profile_l = df_ICE_fuel[ice_fuel_col].to_numpy() if ice_fuel_col in df_ICE_fuel.columns else None
-                availability_profile = df_Car_avail[avail_col].to_numpy() if avail_col in df_Car_avail.columns else None
-
-                individual_car_profiles.append({
-                    'car_id': car_id,
-                    'type': car_type,
-                    'location': location,
-                    'battery_capacity_wh': battery_capacity_wh,
-                    'consumption_profile_wh': consumption_profile_wh,
-                    'on_demand_charging_profile_w': on_demand_charging_profile_w,
-                    'fuel_profile_l': fuel_profile_l,
-                    'availability_profile': availability_profile
-                })
-
+            for i, info in enumerate(car_info_list):
+                car_profile = {
+                    'car_id': info['car_id'],
+                    'type': info['type'],
+                    'location': info['location'],
+                    'battery_capacity_wh': info['battery_capacity_wh'],
+                    'consumption_profile_wh': df_ts[
+                        f'EV_demand_car_{i}'].to_numpy() if f'EV_demand_car_{i}' in df_ts.columns and not df_ts[
+                        f'EV_demand_car_{i}'].isnull().all() else None,
+                    'on_demand_charging_profile_w': df_ts[
+                        f'EV_charging_car_{i}'].to_numpy() if f'EV_charging_car_{i}' in df_ts.columns and not df_ts[
+                        f'EV_charging_car_{i}'].isnull().all() else None,
+                    'fuel_profile_l': df_ts[
+                        f'ICE_fuel_car_{i}'].to_numpy() if f'ICE_fuel_car_{i}' in df_ts.columns and not df_ts[
+                        f'ICE_fuel_car_{i}'].isnull().all() else None,
+                    'availability_profile': df_ts[
+                        f'Car_availability_car_{i}'].to_numpy() if f'Car_availability_car_{i}' in df_ts.columns and not
+                    df_ts[f'Car_availability_car_{i}'].isnull().all() else None
+                }
+                individual_car_profiles.append(car_profile)
         else:
+            # if no cars are generated, return zero profiles
+
             length = int(self.time["dataLength"] / self.time["timeResolution"])
             EV_carprofile = np.zeros(length)
             EV_carcharging_ondemand = np.zeros(length)
             ice_carprofile = np.zeros(length)
 
-        # Return-Format exakt wie im develop-Branch
         return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, ev_capacity, heatload, bivalent, heatlimit, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
-        Load heating profiles from parquet files.
+        Load profiles from csv.
 
         Parameters
         ----------
@@ -1386,17 +1358,17 @@ class Datahandler:
         tuple
             Loaded heating and cooling data.
         """
+        ts_path = os.path.join(path, f"{name}_timeseries.csv")
+        static_path = os.path.join(path, f"{name}_static.csv")
 
-        # Create the directory path
-        directory_path = os.path.join(self.demands_path, name)
-        os.makedirs(directory_path, exist_ok=True)
+        df_ts = pd.read_csv(ts_path)
+        df_static = pd.read_csv(static_path)
 
-        # Load heating and cooling data from their respective Parquet files
-        heat = pd.read_parquet(os.path.join(directory_path, 'heating.parquet'), engine='pyarrow')['heating'].to_numpy()
-        cooling = pd.read_parquet(os.path.join(directory_path, 'cooling.parquet'), engine='pyarrow')['cooling'].to_numpy()
-        gmlId = pd.read_parquet(os.path.join(directory_path, 'gmlId.parquet'), engine='pyarrow')['gmlId'].to_numpy()
+        heating = df_ts['heating'].to_numpy()
+        cooling = df_ts['cooling'].to_numpy()
+        gmlId = np.array(json.loads(df_static['gmlId'].iloc[0]))
 
-        return heat, cooling, gmlId
+        return heating, cooling, gmlId
 
     def designDecentralDevices(self, saveGenerationProfiles=True, pv_standard=True):
         """
