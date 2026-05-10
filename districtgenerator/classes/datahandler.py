@@ -36,6 +36,7 @@ from districtgenerator.functions.design_network_with_road import run_pipeline_ro
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, ElGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig
 from .plots_balances import plot_all, plot_single_year
+from districtgenerator.business_models import BM_REGISTRY
 
 class Datahandler:
     """
@@ -68,7 +69,9 @@ class Datahandler:
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                  filePath = None,
-                 env_path = None):
+                 env_path = None,
+                 scenario_variant = None,
+                 scenario_dir = None):
         """
         Constructor of Datahandler class.
 
@@ -125,6 +128,8 @@ class Datahandler:
         self.srcPath = srcPath
         self.filePath = filePath
         self.cluster_meta = None
+        self.scenario_variant = scenario_variant
+        self.scenario_dir = scenario_dir
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -218,10 +223,15 @@ class Datahandler:
         """
 
         # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                     converters={"position": parse_position}).set_index("id", drop=False))
+        csv_path, json_path = self.get_scenario_files()
 
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        self.scenario = (
+            pd.read_csv(
+                csv_path,
+                delimiter=";",
+                converters={"position": parse_position}
+            ).set_index("id", drop=False)
+        )
 
         if os.path.exists(json_path):
             with open(json_path, encoding="utf-8") as json_file:
@@ -662,7 +672,7 @@ class Datahandler:
 
             # Save combined profiles to Excel file
             if saveUserProfiles:
-                self.saveProfiles(name=combined_building["unique_name"],
+                self.saveProfiles(name=self.get_base_demand_name(combined_building["unique_name"]),
                                   elec=combined_building["user"].elec,
                                   dhw=combined_building["user"].dhw,
                                   occ=combined_building["user"].occ,
@@ -677,7 +687,7 @@ class Datahandler:
                                   bivalent=combined_building["envelope"].bivalent,
                                   heatlimit=combined_building["envelope"].heatlimit,
                                   coolingload=combined_building["envelope"].coolingload,
-                                  path=os.path.join(self.resultPath, 'demands'),
+                                  path=self.get_demand_path(),
                                   individual_car_profiles=combined_building["user"].individual_car_profiles)
 
             # Mark both buildings for removal
@@ -716,6 +726,8 @@ class Datahandler:
         -------
         None.
         """
+        self.district = []
+        self.building_dict = {}
         duration = datetime.timedelta(minutes=1)
         num_sfh = 0
         num_mfh = 0
@@ -729,7 +741,8 @@ class Datahandler:
             building = {}
 
             # Store features of the observed building
-            building["buildingFeatures"] = row.copy()
+            building["buildingFeatures"] = row.to_dict()
+            building["buildingFeatures"]["building"] = str(building["buildingFeatures"]["building"]).strip().upper()
             building["buildingFeatures"]["original_bldg_id"] = bldg_id
 
             # Unique name = "<scenario>_<id>_<building type>"
@@ -1015,15 +1028,20 @@ class Datahandler:
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads
             # at norm outside temperature
-            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design", night_setback = night_setback)
+            building["envelope"].heatload = building["envelope"].calcHeatLoad(site=self.site, method="design",
+                                                                              night_setback=night_setback)
             # at bivalent temperature
-            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent", night_setback = night_setback)
+            building["envelope"].bivalent = building["envelope"].calcHeatLoad(site=self.site, method="bivalent",
+                                                                              night_setback=night_setback)
             # at heating limit temperature
-            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit", night_setback = night_setback)
+            building["envelope"].heatlimit = building["envelope"].calcHeatLoad(site=self.site, method="heatlimit",
+                                                                               night_setback=night_setback)
             # for drinking hot water
-            building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * building["buildingFeatures"]["area"]
+            building["dhwpower"] = bldgs["dhwpower"][bldgs["buildings_short"].index(building["user"].building)] * \
+                                   building["buildingFeatures"]["area"]
             # %% calculate design cooling load
-            building["envelope"].coolingload = building["envelope"].calcCoolingLoad(site=self.site, nb_occ=np.sum(building["user"].nb_occ))
+            building["envelope"].coolingload = building["envelope"].calcCoolingLoad(site=self.site, nb_occ=np.sum(
+                building["user"].nb_occ))
 
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
@@ -1102,12 +1120,12 @@ class Datahandler:
                                           time_horizon=self.time["dataLength"],
                                           building_devices_data=self.decentral_device_data,
                                           building=building,
-                                          path=os.path.join(self.resultPath, 'demands'),
+                                          path=self.get_demand_path(),
                                           initial_day=self.initial_day,
                                           gen_cars=gen_cars)
 
             if saveUserProfiles:
-                self.saveProfiles(name=building["unique_name"],
+                self.saveProfiles(name=self.get_base_demand_name(building["unique_name"]),
                                   elec=building["user"].elec,
                                   dhw=building["user"].dhw,
                                   occ=building["user"].occ,
@@ -1122,7 +1140,7 @@ class Datahandler:
                                   bivalent=building["envelope"].bivalent,
                                   heatlimit=building["envelope"].heatlimit,
                                   coolingload=building["envelope"].coolingload,
-                                  path=os.path.join(self.resultPath, 'demands'),
+                                  path=self.get_demand_path(),
                                   individual_car_profiles=building["user"].individual_car_profiles)
 
         else:
@@ -1136,8 +1154,8 @@ class Datahandler:
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
              building["envelope"].bivalent,
              building["envelope"].heatlimit, building["envelope"].coolingload,
-             building["user"].individual_car_profiles) = self.loadProfiles(building["unique_name"],
-                                                                 os.path.join(self.resultPath, 'demands'), gen_cars= gen_cars)
+             building["user"].individual_car_profiles) = self.loadProfiles(self.get_base_demand_name(building["unique_name"]),
+                                        self.get_demand_path(), gen_cars=gen_cars)
             print("Load demands of building " + building["unique_name"])
 
         if building.get("thermal_model") == "5R1C":
@@ -1168,13 +1186,81 @@ class Datahandler:
             if saveUserProfiles:
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
-                                        name=building["unique_name"],
-                                        path=os.path.join(self.resultPath, 'demands'))
+                                        name=self.get_base_demand_name(building["unique_name"]),
+                                        path=self.get_demand_path())
         else:
-            heat, cooling = self.loadHeatingProfiles(name=building["unique_name"],
-                                                     path=os.path.join(self.resultPath, 'demands'))
+            heat, cooling = self.loadHeatingProfiles(
+                name=self.get_base_demand_name(building["unique_name"]),
+                path=self.get_demand_path())
             building["user"].heat = heat
             building["user"].cooling = cooling
+
+    def get_demand_path(self):
+        if getattr(self, "scenario_variant", None):
+            path = os.path.join(self.resultPath, "demands", self.scenario_variant)
+        else:
+            path = os.path.join(self.resultPath, "demands")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    def get_base_demand_name(self, unique_name):
+        """
+        Extract base demand filename from unique_name.
+
+        """
+        # Laengere Patterns zuerst, damit _ref_boi_ vor _ref_ greift.
+        patterns = ("_ref_boi_", "_ref_wp_", "_ref_hp_pv_", "_ref_", "_bm_")
+        for p in patterns:
+            if p in unique_name:
+                return unique_name.replace(p, "_", 1)
+        return unique_name
+
+    def get_scenario_files(self):
+        if getattr(self, "scenario_dir", None) and getattr(self, "scenario_variant", None):
+            # scenario_name enthält bereits _ref oder _bm (z.B. "F01_ref" oder "F01_bm")
+            csv_path = os.path.join(self.scenario_dir, f"{self.scenario_name}.csv")
+            json_path = os.path.join(self.scenario_dir, f"{self.scenario_variant}.json")
+            return csv_path, json_path
+
+        csv_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv")
+        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        return csv_path, json_path
+
+    def get_scenario_dir(self):
+        """
+        Returns the concrete scenario directory if available,
+        otherwise falls back to the generic scenario file path.
+        """
+        if getattr(self, "scenario_dir", None):
+            return self.scenario_dir
+        return self.scenario_file_path
+
+    def get_scenario_json_path(self):
+        """
+        Returns the geometry JSON path for the current scenario.
+        With scenario_variant/scenario_dir set, this is typically <scenario_dir>/<scenario_variant>.json
+        """
+        _, json_path = self.get_scenario_files()
+        return json_path
+
+    def get_topology_file_path(self, topology_option):
+        """
+        Returns the path of the generated topology JSON inside the scenario directory.
+        """
+        json_path = self.get_scenario_json_path()
+
+        if os.path.exists(json_path) and "district_parameters" in self.site:
+            district_type = self.site["district_parameters"]["district_type"]
+        else:
+            district_type = "unknown"
+
+        connected_building_count = sum(
+            1 for building in self.district
+            if building["buildingFeatures"]["heater"] == "heat_grid"
+        )
+
+        topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
+        return os.path.join(self.get_scenario_dir(), topology_file)
 
     def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, topology_option="road", gen_cars=True):
         """
@@ -1594,10 +1680,11 @@ class Datahandler:
 
             # Optionally save PV/STC generation profiles
             if saveGenerationProfiles == True:
-                np.savetxt(os.path.join(self.resultPath, "generation", f"decentralPV_{building['unique_name']}.csv"),
+                base_name = self.get_base_demand_name(building['unique_name'])
+                np.savetxt(os.path.join(self.resultPath, "generation", f"decentralPV_{base_name}.csv"),
                     building["generationPV"],
                     delimiter=",")
-                np.savetxt(os.path.join(self.resultPath, "generation", f"decentralSTC_{building['unique_name']}.csv"),
+                np.savetxt(os.path.join(self.resultPath, "generation", f"decentralSTC_{base_name}.csv"),
                     building["generationSTC"],
                     delimiter=",")
 
@@ -1623,9 +1710,50 @@ class Datahandler:
         # initialize central energy system object
         self.centralDevices["ces_obj"] = CES()
 
+        bm_key = self.ecoData.get("business_model", "reference")
+        BmClass = BM_REGISTRY.get(bm_key)
+
+        if BmClass is not None:
+            bm = BmClass(
+                ecoData=self.ecoData,
+                all_sim_ecoData=self.all_sim_ecoData,
+                interpolation_points=self.ecoData["interpolation_points"],
+            )
+
+            din_csv = os.path.join(self.filePath, "din_18015_1_hausanschluss.csv")
+            amev_csv = os.path.join(self.filePath, "amev_nrb_anschlussleistung.csv")
+
+            bm.configure_grid_constraints(
+                data=self,
+                din_csv_path=din_csv,
+                amev_csv_path=amev_csv,
+            )
+
+            print("\n" + "=" * 80)
+            print("[TRAFO DEBUG VOR designCES]")
+            print("business_model:", self.ecoData.get("business_model"))
+            print("trafo_sizing_mode:", self.site.get("trafo_sizing_mode"))
+            print("trafo_invest_endogenous:", self.site.get("trafo_invest_endogenous"))
+            print("enable_trafoMax_W:", self.site.get("enable_trafoMax_W"))
+            print("trafoMax_W:", self.site.get("trafoMax_W"))
+            print("trafo_min_kVA:", self.site.get("trafo_min_kVA"))
+            print("trafo_chosen_kVA site:", self.site.get("trafo_chosen_kVA"))
+            print("trafo_sizing_summary:", self.site.get("trafo_sizing_summary"))
+            print("=" * 80 + "\n")
+
         # dimensioning of central devices
         self.centralDevices["capacities"] = self.centralDevices["ces_obj"].designCES(self)
+        cap = self.centralDevices.get("capacities", {}) or {}
 
+        print("\n" + "=" * 80)
+        print("[TRAFO DEBUG NACH designCES]")
+        print("business_model:", self.ecoData.get("business_model"))
+        print("trafo_chosen_kVA:", cap.get("trafo_chosen_kVA"))
+        print("trafo_inv_eur:", cap.get("trafo_inv_eur"))
+        print("trafo_ann_cost_eur_per_a:", cap.get("trafo_ann_cost_eur_per_a"))
+        print("grid_limit_el:", cap.get("grid_limit_el"))
+        print("tac:", cap.get("tac"))
+        print("=" * 80 + "\n")
         # calculate theoretical PV, STC and Wind generation
         self.centralDevices["generation"] = {}
         self.centralDevices["generation"]["PV"] = self.centralDevices["capacities"]["PV_generation_uncl"]
@@ -2162,7 +2290,10 @@ class Datahandler:
         single_value_keys = [
             'num_interpolation_points', 'interpolation_points', 'observation_time','interest_rate', 'optimization_focus',
             # BM / constant components
-            'business_model', 'alpha','share_el_energy', 'share_el_grid', 'share_el_levies', 'share_el_vat',
+            'business_model', 'alpha','share_el_energy', 'share_el_grid', 'share_el_levies','share_el_vat',
+            # zusätzliche nicht-zeitabhängige BM-/Auswertungs-Parameter
+            'reference_case', 'reference_key', 'scenario', 'npv_ref_by_building',
+            'p_max', 'npv_ref', 'cooperative_evaluation_method',
         ]
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
@@ -2200,13 +2331,32 @@ class Datahandler:
             elif q==1:
                 denom = n
 
-            for key in ecoData.keys():
-                if key in ("p_max", "npv_ref", "cooperative_evaluation_method"):
+            for key, values in ecoData.items():
+                # Only time-dependent numeric series are discounted here.
+                # Scalar/string/dict entries are copied unchanged to avoid treating
+                # metadata such as reference keys as annual time series.
+                if isinstance(values, (str, bytes, dict)) or not hasattr(values, "__len__"):
+                    all_sim_ecoData[year][key] = values
                     continue
-                subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 
-                # Calculate present value (PV) of the subset values
-                pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
+
+                subset_values = [
+                    values[i]
+                    for i in relevant_years
+                    if i < len(values)
+                ]
+
+                try:
+                    pv = sum(
+                        float(val) / (q ** idx)
+                        for idx, val in enumerate(subset_values)
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise TypeError(
+                        f"ecoData key '{key}' contains non-numeric time-series values "
+                        f"and cannot be discounted. Move this key to single_value_keys "
+                        f"or provide numeric annual values."
+                    ) from exc
 
                 # Calculate effective annualized price
                 effective_price = pv/denom
@@ -2215,7 +2365,7 @@ class Datahandler:
 
             # Add the values in single_value_keys to each year's ecoData
             for key in single_value_keys:
-                all_sim_ecoData[year][key] = self.ecoData[key]
+                all_sim_ecoData[year][key] = self.ecoData.get(key)
 
         return all_sim_ecoData
 
@@ -2246,7 +2396,7 @@ class Datahandler:
         None.
         """
         # get the input data for the optimizer
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        _, json_path = self.get_scenario_files()
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
@@ -2310,12 +2460,13 @@ class Datahandler:
                 buildings_info.append(building_dict)
                 i += 1
 
-        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
-            jsonData = json.load(json_file)
+        json_path = self.get_scenario_json_path()
+        with open(json_path, encoding="utf-8") as json_file: jsonData = json.load(json_file)
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["transformer_station"]
+        self.el_grid_data["length"] = sum(float(line["length"]) for line in lines_info)
 
-        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
+        run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info, output_path=self.get_scenario_dir())
 
     def generateNetwork(self, topology_option):
         """
@@ -2349,20 +2500,9 @@ class Datahandler:
             self.designNetworkwithRoad()
 
         # get topology filename
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
-        if os.path.exists(json_path):
-            district_type = self.site["district_parameters"]["district_type"]
-        else:
-            # if JSON file not found
-            district_type = "unknown"
-        connected_building_count = sum(
-            1 for building in self.district
-            if building["buildingFeatures"]["heater"] == "heat_grid"
-        )
-        topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
+        topology_path = self.get_topology_file_path(topology_option)
 
-        # load the file of the heating network topology
-        with open(os.path.join(self.scenario_file_path, topology_file)) as json_file:
+        with open(topology_path, encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
 
         self.pipeline_nodes = jsonData.get("nodes", {})

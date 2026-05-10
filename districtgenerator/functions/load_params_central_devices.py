@@ -55,29 +55,75 @@ def load_params(data):
 
     dem_uncl = {}
 
-    # Initialize demands time series
-    heating = np.zeros(len(data.district[0]["user"].heat))
-    cooling = np.zeros(len(data.district[0]["user"].cooling))
-    dhw = np.zeros(len(data.district[0]["user"].dhw))
-    electricityAppliances = np.zeros(len(data.district[0]["user"].elec))
-    electricityEV = np.zeros(len(data.district[0]["user"].EV_carcharging_ondemand))
-    generationPV = np.zeros(len(data.district[0]["generationPV"]))
-    generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
+    # --- Business model: determine PV sharing scope (set once, reused below) ---
+    bm_key = ecoData.get("business_model", "reference")
+    BmClass = BM_REGISTRY.get(bm_key)
+    allow_pv_sharing = bool(getattr(BmClass, "allow_pv_sharing", False)) if BmClass is not None else False
+    param["business_model"] = bm_key
+    param["pv_sharing_allowed"] = allow_pv_sharing
+
+    # Initialize demand time series
+    n_steps = len(data.district[0]["user"].heat)
+    heating_net_sum = np.zeros(n_steps)        # building-internal heat load after STC netting
+    cooling = np.zeros(n_steps)
+    electricity_net_sum = np.zeros(n_steps)    # only used when PV sharing is NOT allowed
+
+    # PV sharing case: aggregate first, net later
+    electricity_load_sum = np.zeros(n_steps)
+    pv_generation_sum = np.zeros(n_steps)
+
+    # Diagnostics (used by KPIs / Bewertungslogik)
+    heating_raw_sum = np.zeros(n_steps)
+    dhw_raw_sum = np.zeros(n_steps)
+    stc_used_sum = np.zeros(n_steps)
+    stc_surplus_sum = np.zeros(n_steps)
+    electricity_raw_sum = np.zeros(n_steps)
+    pv_used_sum = np.zeros(n_steps)
+    pv_surplus_sum = np.zeros(n_steps)
 
     for b in range(len(data.district)):
-        # Only relevant if buildings are connected to the heat grid
-        if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
-            heating += data.district[b]["user"].heat / 1000 # kW
-            cooling += data.district[b]["user"].cooling / 1000 # kW
-            dhw += data.district[b]["user"].dhw / 1000 # kW
-            generationSTC += data.district[b]["generationSTC"] / 1000 # kW
+        building = data.district[b]
+        heater = building["buildingFeatures"]["heater"]
 
-        # Electricity generated or used by the Energy Hub can be used or provided by all buildings
-        electricityAppliances += data.district[b]["user"].elec / 1000 # kW
-        electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
-        generationPV += data.district[b]["generationPV"] / 1000 # kW
+        heat_b = building["user"].heat / 1000          # kW
+        dhw_b = building["user"].dhw / 1000            # kW
+        cool_b = building["user"].cooling / 1000       # kW
+        elec_b = building["user"].elec / 1000          # kW
+        ev_b = building["user"].EV_carcharging_ondemand / 1000  # kW
+        pv_b = building["generationPV"] / 1000         # kW
+        stc_b = building["generationSTC"] / 1000       # kW
 
-    heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
+        # Heat demand only for heat_grid buildings; STC nets per-building only.
+        if heater == "heat_grid":
+            heat_load_b = heat_b + dhw_b
+            stc_used_b = np.minimum(heat_load_b, stc_b)
+            stc_surplus_b = np.maximum(stc_b - heat_load_b, 0.0)
+
+            heating_net_sum += np.maximum(heat_load_b - stc_b, 0.0)
+            cooling += cool_b
+
+            heating_raw_sum += heat_load_b
+            dhw_raw_sum += dhw_b
+            stc_used_sum += stc_used_b
+            stc_surplus_sum += stc_surplus_b
+
+        # Electricity: every building counts as consumer.
+        electricity_load_b = elec_b + ev_b
+        electricity_raw_sum += electricity_load_b
+
+        if allow_pv_sharing:
+            electricity_load_sum += electricity_load_b
+            pv_generation_sum += pv_b
+        else:
+            # PV nets per-building only (default).
+            pv_used_b = np.minimum(electricity_load_b, pv_b)
+            pv_surplus_b = np.maximum(pv_b - electricity_load_b, 0.0)
+            electricity_net_sum += np.maximum(electricity_load_b - pv_b, 0.0)
+            pv_used_sum += pv_used_b
+            pv_surplus_sum += pv_surplus_b
+
+    # Heating network losses are added on top of building-netted demand
+    heating_total = heating_net_sum + heat_grid_data["total_losses_heating_network"]
 
     if "total_losses_cooling_network" not in heat_grid_data:
         data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
@@ -87,7 +133,25 @@ def load_params(data):
     if "pump_power" not in heat_grid_data:
         data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
     pump_power = data.heat_grid_data["pump_power"]
-    electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
+
+    if allow_pv_sharing:
+        # Kundenanlage: PV may offset demand across buildings inside the metering point.
+        # Clip at 0 to avoid implicit feed-in via negative demand; explicit feed-in revenue
+        # is handled separately via pv_surplus_sum / BM revenue logic.
+        electricity_total = np.maximum(electricity_load_sum - pv_generation_sum, 0.0) + pump_power
+        pv_used_sum = np.minimum(electricity_load_sum, pv_generation_sum)
+        pv_surplus_sum = np.maximum(pv_generation_sum - electricity_load_sum, 0.0)
+    else:
+        electricity_total = electricity_net_sum + pump_power
+
+    # Store diagnostics for downstream KPI / Bewertungslogik
+    param_uncl["heating_raw_before_STC"] = heating_raw_sum
+    param_uncl["dhw_raw"] = dhw_raw_sum
+    param_uncl["stc_used_decentral"] = stc_used_sum
+    param_uncl["stc_surplus_decentral"] = stc_surplus_sum
+    param_uncl["electricity_raw_before_PV"] = electricity_raw_sum
+    param_uncl["pv_used_decentral"] = pv_used_sum
+    param_uncl["pv_surplus_decentral"] = pv_surplus_sum
 
     dem_uncl["heat"] = heating_total
     dem_uncl["cool"] = cooling_total
@@ -700,9 +764,7 @@ def load_params(data):
     param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
                                     for year in param["interpolation_points"]}
     # --- Business Model: price_el_revenue via BM_REGISTRY ---
-    bm_key = ecoData.get("business_model", "reference")
-    BmClass = BM_REGISTRY.get(bm_key)
-
+    # bm_key / BmClass already resolved in the demand section above.
     if BmClass is not None:
         bm = BmClass(
             ecoData=ecoData,

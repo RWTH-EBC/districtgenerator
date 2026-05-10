@@ -15,6 +15,20 @@ import textwrap
 from scipy.interpolate import interp1d
 # from districtgenerator.functions.load_params_central_devices import calc_COP
 
+def get_connected_building_ids(data):
+    """
+    Return sorted original building IDs of all buildings connected to the heat grid.
+    """
+    ids = []
+    for building in data.district:
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            original_id = building["buildingFeatures"].get("original_bldg_id")
+            if original_id is not None:
+                ids.append(str(original_id))
+            else:
+                ids.append(str(building.get("unique_name", "unknown")))
+    return sorted(ids)
+
 def network_optimization(data):
     """
     Optimize pipe diameter and iterate on friction factor
@@ -68,7 +82,7 @@ def network_optimization(data):
         f_init = float(data.heat_grid_data["pipe"]["f_fric"])
 
         # Set maximum iteration count
-        max_iter = 30
+        max_iter = 3
         tol = 5e-4
         converged = False
 
@@ -2398,6 +2412,32 @@ def output_diameter(data, param):
         json.dump(results, f, indent=4, ensure_ascii=False)
 
     print("Output JSON-file saved to:", json_path)
+
+    pipeline_export_path = os.path.join(dir_result, "pipeline_results.json")
+    with open(pipeline_export_path, "w", encoding="utf-8") as f:
+        json.dump(to_jsonable(data.pipeline), f, indent=4, ensure_ascii=False)
+
+    heat_grid_state = {
+        "total_losses_heating_network": to_jsonable(data.heat_grid_data.get("total_losses_heating_network")),
+        "total_losses_cooling_network": to_jsonable(data.heat_grid_data.get("total_losses_cooling_network", np.zeros_like(data.heat_grid_data["total_losses_heating_network"]))),
+        "pump_power": to_jsonable(data.heat_grid_data.get("pump_power")),
+        "om_costs": data.heat_grid_data.get("om_costs"),
+        "ann_costs": data.heat_grid_data.get("ann_costs"),
+        "resultPath": data.heat_grid_data.get("resultPath"),
+    }
+
+    heat_grid_state_path = os.path.join(dir_result, "heat_grid_state.json")
+    with open(heat_grid_state_path, "w", encoding="utf-8") as f:
+        json.dump(heat_grid_state, f, indent=4, ensure_ascii=False)
+
+    data.heat_grid_data["total_pipe_length"] = total_pipe_length
+    data.heat_grid_data["heat_loss_percentage"] = float(
+            annual_heat_loss_pos_total / total_net_heat_demand * 100) if total_net_heat_demand > 0 else 0.0
+    data.heat_grid_data["pump_capacity"] = float(pump_cap)
+    data.heat_grid_data["heat_loss_density"] = float(
+            annual_heat_loss_pos * 1000 / 8760 / total_pipe_length) if total_pipe_length > 0 else 0.0
+    data.heat_grid_data["annual_heat_loss"] = float(annual_heat_loss_pos_total)
+    data.heat_grid_data["total_net_heat_demand"] = float(total_net_heat_demand)
 
     return data
 

@@ -19,6 +19,10 @@ import matplotlib.pyplot as plt
 import textwrap
 import json
 import districtgenerator.functions.solver_config as solver_config
+from districtgenerator.functions.trafo_sizing import (
+    DIN_TRAFO_STEPS_KVA,
+    trafo_cost_eur,
+)
 
 
 def run_optim(data, devs, param, dem, result_dict):
@@ -170,6 +174,30 @@ def build_model(model, data, devs, param, dem):
     model.cap_costs_el = pyo.Var(within=pyo.NonNegativeReals)  # Same for all years
     model.supply_costs_gas = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.cap_costs_gas = pyo.Var(within=pyo.NonNegativeReals)  # Same for all years
+
+    # ------------------------------------------------------------------
+    # Variable transformer sizing (discrete DIN 42508 steps)
+    # ------------------------------------------------------------------
+    # Active only if siteData["trafo_sizing_mode"] == "variable" AND
+    # siteData["trafo_invest_endogenous"] is True (e.g. customer-installation BM).
+    # Otherwise we still create the variables (default-fixed) so that downstream
+    # expressions stay well-defined.
+    siteData_local = data.site
+    _trafo_mode = str(siteData_local.get("trafo_sizing_mode", "variable")).lower()
+    _trafo_endogenous = bool(siteData_local.get("trafo_invest_endogenous", False))
+    _trafo_active = (_trafo_mode == "variable") and _trafo_endogenous
+    _trafo_steps = list(siteData_local.get("trafo_steps_kVA", DIN_TRAFO_STEPS_KVA))
+    _trafo_min_kVA = float(siteData_local.get("trafo_min_kVA", 0.0))
+    _trafo_cosphi = float(siteData_local.get("trafo_cosphi", 0.95))
+
+    model.trafo_steps = pyo.Set(initialize=_trafo_steps)
+    model.b_trafo = pyo.Var(model.trafo_steps, within=pyo.Binary)
+    model.trafo_chosen_kVA = pyo.Var(within=pyo.NonNegativeReals)
+    model.trafo_inv = pyo.Var(within=pyo.NonNegativeReals)
+    model.trafo_c_inv = pyo.Var(within=pyo.NonNegativeReals)
+    model.trafo_c_om = pyo.Var(within=pyo.NonNegativeReals)
+    model.trafo_c_total = pyo.Var(within=pyo.NonNegativeReals)
+
     model.supply_costs_biom = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
     model.supply_costs_waste = pyo.Var(model.support_years, within=pyo.Reals)
     model.supply_costs_hydrogen = pyo.Var(model.support_years, within=pyo.NonNegativeReals)
@@ -341,21 +369,12 @@ def build_model(model, data, devs, param, dem):
     for y in model.support_years:  # Loop over modeled years
         for d in model.clusters:  # Loop over representative days / clusters
             for t in model.time_steps:  # Loop over time steps within each cluster
-                p_loc_gen = sum(
-                    model.power[dev, y, d, t]
-                    for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]
+                p_loc_gen = sum( model.power[dev, y, d, t]
+                    for dev in ["PV", "CHP", "BCHP", "WCHP", "FC"]
                 )  # Total locally generated electricity from all generation technologies
-                model.constraints.add(
-                    model.p_loc_to_cons[y, d, t] <= max(dem["power"][y][d][t], 0.0)
+                model.constraints.add( model.p_loc_to_cons[y, d, t] <= max(dem["power"][y][d][t], 0.0)
                 )  # Local electricity supply cannot exceed the electricity demand of consumers
-                model.constraints.add(
-                    model.p_loc_to_cons[y, d, t] <= p_loc_gen
-                )  # Local electricity supply cannot exceed locally generated electricity
-                # Consistency: locally generated electricity that is not exported
-                # must be booked as local delivery. This ensures rev_local_el
-                # correctly reflects the physical flow to consumers.
-                model.constraints.add(
-                    model.p_loc_to_cons[y, d, t] >= p_loc_gen - model.power["to_grid", y, d, t]
+                model.constraints.add(model.p_loc_to_cons[y, d, t] <= p_loc_gen
                 )
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
@@ -570,6 +589,79 @@ def build_model(model, data, devs, param, dem):
     else:
         model.constraints.add(model.cap_costs_el == 0)
 
+        # ------------------------------------------------------------------
+        # Discrete transformer sizing constraints (Stute & Klobasa 2024 cost)
+        # ------------------------------------------------------------------
+        if _trafo_active:
+            # Cost table per DIN 42508 step
+            _trafo_cost_per_step = {float(s): trafo_cost_eur(float(s)) for s in _trafo_steps}
+
+            # Exactly one step is selected
+            model.constraints.add(sum(model.b_trafo[s] for s in model.trafo_steps) == 1)
+
+            # Lower-bound enforcement: forbid all steps below the physical minimum
+            for s in _trafo_steps:
+                if float(s) < _trafo_min_kVA - 1e-9:
+                    model.constraints.add(model.b_trafo[s] == 0)
+
+            # Chosen rating, in kVA
+            model.constraints.add(
+                model.trafo_chosen_kVA == sum(float(s) * model.b_trafo[s] for s in model.trafo_steps)
+            )
+
+            # grid_limit_el [W] = chosen kVA * 1000 * cosphi
+            model.constraints.add(
+                model.grid_limit_el
+                == 1000.0 * _trafo_cosphi * model.trafo_chosen_kVA
+            )
+
+            # Investment cost [EUR]: linear combination over selected step
+            model.constraints.add(
+                model.trafo_inv == sum(
+                    _trafo_cost_per_step[float(s)] * model.b_trafo[s]
+                    for s in model.trafo_steps
+                )
+            )
+
+            # Annuity factor for the transformer (life from el_grid_data)
+            _life_trafo = float(data.el_grid_data.get("life_trafo", 30.0))
+            _i = float(param.get("interest_rate", data.ecoData.get("interest_rate", 0.04)))
+            _q = 1.0 + _i
+            if _q == 1.0:
+                _ann_factor_trafo = 1.0 / _life_trafo
+            else:
+                _ann_factor_trafo = (_q ** _life_trafo * (_q - 1.0)) / (_q ** _life_trafo - 1.0)
+
+            model.constraints.add(model.trafo_c_inv == model.trafo_inv * _ann_factor_trafo)
+
+            # O&M scaled linearly with the chosen rating, normalized to 630 kVA.
+            _om_trafo_base = float(data.el_grid_data.get("om_trafo", 0.0))
+            model.constraints.add(model.trafo_c_om == _om_trafo_base * (model.trafo_chosen_kVA / 630.0))
+
+            model.constraints.add(model.trafo_c_total == model.trafo_c_inv + model.trafo_c_om)
+        else:
+            # DSO-owned transformer (Reference / Wärmecontracting / GGV /
+            # Genossenschaft): the transformer rating is fixed externally
+            # (via Basis.configure_grid_constraints, mode "variable") to the
+            # smallest DIN step that satisfies the DIN/Kerber/AMEV lower
+            # bound. We enforce ``grid_limit_el`` equal to the resulting
+            # ``trafoMax_W`` so that ``power[from_grid|to_grid] <=
+            # grid_limit_el`` becomes a hard physical cap.
+            # Investment cost is NOT included in the objective: the DSO
+            # owns and pays for this transformer.
+            model.constraints.add(model.trafo_chosen_kVA == 0)
+            model.constraints.add(model.trafo_inv == 0)
+            model.constraints.add(model.trafo_c_inv == 0)
+            model.constraints.add(model.trafo_c_om == 0)
+            model.constraints.add(model.trafo_c_total == 0)
+            for s in _trafo_steps:
+                model.constraints.add(model.b_trafo[s] == 0)
+
+            if bool(siteData_local.get("enable_trafoMax_W", False)):
+                _trafoMax_W_fixed = float(siteData_local.get("trafoMax_W", 0.0))
+                if _trafoMax_W_fixed > 0.0:
+                    model.constraints.add(model.grid_limit_el == _trafoMax_W_fixed)
+
     # Gas capacity costs (same for all years)
     model.constraints.add(model.cap_costs_gas == model.grid_limit_gas * param["price_cap_gas"])
 
@@ -588,8 +680,13 @@ def build_model(model, data, devs, param, dem):
     # Heat grid costs
     model.constraints.add(model.heat_grid_costs == data.heat_grid_data["ann_costs"] + data.heat_grid_data["om_costs"])
 
-    # Connection costs to electricity and gas grid (currently assumed to be a constant annual cost)
-    model.constraints.add(model.total_connection_costs == model.cap_costs_el + model.cap_costs_gas)
+    # Connection costs to electricity and gas grid (currently assumed to be a constant annual cost).
+    # The transformer annuity (model.trafo_c_total) is added when the
+    # variable-sizing mode is active and the BM owns the transformer.
+    model.constraints.add(
+        model.total_connection_costs
+        == model.cap_costs_el + model.cap_costs_gas + model.trafo_c_total
+    )
 
     # Energy costs and revenues
     for y in model.support_years:
@@ -928,6 +1025,19 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict, dem):
     result_dict["total_ann_inv_cost_unsubsidized"] = int(
         sum(safe_value(model.c_inv_base, k) for k in model.all_devs) + heat_grid_ann_costs)
     result_dict["total_om_cost"] = int(sum(safe_value(model.c_om, k) for k in model.all_devs) + heat_grid_om_costs)
+
+    # Transformer sizing result (only meaningful if variable mode was active)
+    _trafo_kVA_solved = float(safe_value_single(model.trafo_chosen_kVA) or 0.0)
+    _trafo_inv_solved = float(safe_value_single(model.trafo_inv) or 0.0)
+    _trafo_ann_solved = float(safe_value_single(model.trafo_c_total) or 0.0)
+    if _trafo_kVA_solved > 0.0:
+        data.site["trafo_chosen_kVA"] = _trafo_kVA_solved
+        data.site["trafoMax_W"] = _trafo_kVA_solved * 1000.0 * float(
+            data.site.get("trafo_cosphi", 0.95)
+        )
+    result_dict["trafo_chosen_kVA"] = _trafo_kVA_solved
+    result_dict["trafo_inv_eur"] = _trafo_inv_solved
+    result_dict["trafo_ann_cost_eur_per_a"] = _trafo_ann_solved
 
     # Total energy imports and exports - per support year
     result_dict["from_el_grid_total_by_year"] = {y: int(safe_value(model.from_el_grid_total, y) / 1000) for y in model.support_years} #MWh

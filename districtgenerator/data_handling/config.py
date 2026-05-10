@@ -68,9 +68,26 @@ class LocationConfig(BaseSettings):
     auto_size_trafo: bool = True  # If True: auto-size trafoMax_W from DIN 18015-1 + Kerber. If False: use manual trafoMax_W and enable_trafoMax_W from config. Ignored by KundenanlageBM (always sizes the trafo).
     trafo_kVA_base: float = 630.0  # Reference kVA for inv_trafo cost. The Kundenanlage BM. Scales trafo investment linearly: inv = inv_trafo * (chosen_kVA / trafo_kVA_base).
 
+    # ------------------------------------------------------------------
+    # Transformer sizing mode (customer-installation business model)
+    # ------------------------------------------------------------------
+    # 'variable'   : transformer rating is a decision variable in the design MILP.
+    #                The MILP picks the cost-optimal DIN 42508 step that is still
+    #                large enough to cover the per-building house-connection
+    #                limits aggregated with the appropriate coincidence factor
+    #                (Kerber for pure-residential districts, AMEV two-stage for
+    #                mixed districts). Investment cost follows Stute & Klobasa
+    #                (2024) Tab. 6, piecewise linear in kVA. Recommended.
+    # 'din_kerber' : legacy pre-sizing. Picks the smallest DIN 42508 step that
+    #                satisfies the house-connection lower bound and uses it as a
+    #                fixed cap in the MILP. No endogenous optimisation.
+    # 'manual'     : use 'trafoMax_W' from this config; no auto-sizing.
+    trafo_sizing_mode: str = "variable"
+
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
     ALLOWED_TRY_TYPES: ClassVar[Set[str]] = {"Jahr", "Somm", "Wint"}
+    ALLOWED_TRAFO_SIZING_MODES: ClassVar[Set[str]] = {"variable", "din_kerber", "manual"}
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
@@ -81,6 +98,14 @@ class LocationConfig(BaseSettings):
         """Validate that albedo is between 0.0 and 1.0."""
         if not (0.0 <= v <= 1.0):
             raise ValueError("albedo must be between 0.0 and 1.0.")
+        return v
+
+    @field_validator('trafo_sizing_mode')
+    def validate_trafo_sizing_mode(cls, v: str) -> str:
+        if v not in cls.ALLOWED_TRAFO_SIZING_MODES:
+            raise ValueError(
+                f"trafo_sizing_mode must be one of {cls.ALLOWED_TRAFO_SIZING_MODES}, got {v!r}"
+            )
         return v
 
     @model_validator(mode='after')
@@ -213,6 +238,19 @@ class EcoConfig(BaseSettings):
     price_supply_el_eh: str | list = [0.1590, 0.1554, 0.1518, 0.1482, 0.1446, 0.1410, 0.1394, 0.1378, 0.1362, 0.1346, 0.1330, 0.1302, 0.1274, 0.1246, 0.1218, 0.1190, 0.1190, 0.1190, 0.1190, 0.1190]  # Electricity price for the energy hub in €/kWh
     revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
 
+    # --- Trafo & Hausanschluss-Auslegung ---
+    # Stute & Klobasa (2024) DIN 42508 Trafo-Investitionskosten [EUR]
+    trafo_inv_eur_by_kva: dict = {
+        250: 19_000.0,
+        400: 21_000.0,
+        630: 24_000.0,
+        800: 30_000.0,
+    }
+    trafo_cosphi: float = 0.95  # Auslegungs-cos(phi)
+    trafo_safety_factor: float = 1.10  # Sicherheitsmarge auf required_kVA
+    kerber_g_residential: float = 0.07  # Kerber-Asymptote (Wohngebäude)
+    amev_site_coincidence: float = 0.8  # AMEV "EltAnlagen" 2025 (0.7–0.9)
+
     # --- Electricity price split (shares of gross retail price) ---
     # Strompreiszusammensetzung (Quelle: STROM-REPORT, Stand 01|2026)
     share_el_energy: float = 0.413
@@ -220,7 +258,6 @@ class EcoConfig(BaseSettings):
     share_el_levies: float = 0.179
     share_el_vat: float = 0.160
     # Hinweis: share_energy = 1 - 0.248 - 0.179 - 0.160 = 0.413 (implizit)
-
 
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.1230, 0.1218, 0.1206, 0.1194, 0.1182, 0.1170, 0.1198, 0.1226, 0.1254, 0.1282, 0.1310, 0.1338, 0.1366, 0.1394, 0.1422, 0.1450, 0.1450, 0.1450, 0.1450, 0.1450]    # Gas price in €/kWh
@@ -321,8 +358,8 @@ class EcoConfig(BaseSettings):
         """Select interpolation points based on num_interpolation_points if specified."""
         if self.num_interpolation_points is not None:
             # Validate num_interpolation_points value
-#            print(self.num_interpolation_points)
-#            print(type(self.num_interpolation_points))
+            # print(self.num_interpolation_points)
+            # print(type(self.num_interpolation_points))
             if self.num_interpolation_points < 1:
                 raise ValueError("num_interpolation_points must be at least 1.")
             if self.num_interpolation_points > self.observation_time:
@@ -582,8 +619,8 @@ class ElGridConfig(BaseSettings):
     life_cable: int        = 50      # years, technical lifetime
 
     # --- Transformer substation ---
-    inv_trafo: float = 80_000.0      # EUR/piece, typical investment (<=1 kV / >1-30 kV)
-    om_trafo: float  = 1_600.0       # EUR/a, annual O&M fixed cost
+    inv_trafo: float = 80000.0      # EUR/piece, typical investment (<=1 kV / >1-30 kV)
+    om_trafo: float  = 1600.0       # EUR/a, annual O&M fixed cost
     life_trafo: int  = 45            # years, technical lifetime
 
     model_config = SettingsConfigDict(
@@ -868,7 +905,7 @@ class DecentralDeviceConfig(BaseSettings):
                 if getattr(self, field_name) == {}:
                     device_dict = {}
                     prefix = f"{field_name}__"
-                    
+
                     # Find all attributes that start with this device prefix
                     for attr_name in field_names:  # Use the snapshot here too
                         if attr_name.startswith(prefix):
