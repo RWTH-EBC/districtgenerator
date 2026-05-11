@@ -892,8 +892,8 @@ def get_PVandSTC_power(devs, param, data):
                                              site=site,
                                              devices=data.decentral_device_data,
                                              area_roof=1,
-                                             beta=[devs["PV"]["beta"]],
-                                             gamma=[devs["PV"]["gamma"]],
+                                             betas=[devs["PV"]["beta"]],
+                                             gammas=[devs["PV"]["gamma"]],
                                              usageFactorPV1=1,
                                              usageFactorPV2=0,
                                              usageFactorSTC=0)
@@ -903,8 +903,8 @@ def get_PVandSTC_power(devs, param, data):
                                               site=site,
                                               devices=data.decentral_device_data,
                                               area_roof=1,
-                                              beta=[devs["STC"]["beta"]],
-                                              gamma=[devs["STC"]["gamma"]],
+                                              betas=[devs["STC"]["beta"]],
+                                              gammas=[devs["STC"]["gamma"]],
                                               usageFactorPV1=0,
                                               usageFactorPV2=0,
                                               usageFactorSTC=1)
