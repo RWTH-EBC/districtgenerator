@@ -65,7 +65,7 @@ def load_params(data):
 
     for b in range(len(data.district)):
         # Only relevant if buildings are connected to the heat grid
-        if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
+        if data.district[b]["buildingFeatures"]["heater"] == "heat_grid" or data.district[b]["buildingFeatures"]["heater"] == "heat_grid_SH":
             heating += data.district[b]["user"].heat / 1000 # kW
             cooling += data.district[b]["user"].cooling / 1000 # kW
             dhw += data.district[b]["user"].dhw / 1000 # kW

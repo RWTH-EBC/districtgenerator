@@ -626,12 +626,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # heat from local heat grid
     def heat_grid_capacity_rule(model, n, t):
-        if buildingData[n]["capacities"]["heat_grid"] == 1: # no limit on the amount of heat taken from local heat grid
+        if buildingData[n]["capacities"]["heat_grid"] == 1 or buildingData[n]["capacities"]["heat_grid_SH"] == 1: # no limit on the amount of heat taken from local heat grid
             return pyo.Constraint.Skip
         else:
             return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
 
-    # Aplication of the constraints for each device
+    # Application of the constraints for each device
 
     # Heat generating devices
     for device in ["CHP", "BOI", "BBOI", "OBOI", "H2BOI", "FC", "EH", "DH"]: # Devices which capacity is defined by thermal capacity

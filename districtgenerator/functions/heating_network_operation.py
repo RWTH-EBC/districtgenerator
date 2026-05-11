@@ -219,7 +219,10 @@ def compute_network_temperatures_auto(data, param, max_iter=50, tol=0.5, relax=0
                     param["building_massflow_DHW"][n][t] = ((1.0 - relax) * param["building_massflow_DHW"][n][t] + relax * m_DHW_target)
                     param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t], m_SH_min)
                     param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
-                    param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
+                    if np.array_equal(Q_by_node[n], Q_SH_by_node[n]):    #serves effectively as  if n["buildingFeatures"]["heater"] == "heat_grid_SH":
+                        param["building_massflow_HX"][n][t] = param["building_massflow_SH"][n][t]
+                    else:
+                        param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
 
                 # Hydraulic feasibility loop
                 last_hydraulics = None
@@ -286,6 +289,7 @@ def compute_network_temperatures_auto(data, param, max_iter=50, tol=0.5, relax=0
                     T_ret_req_by_node_DHW=T_ret_req_by_node_DHW,
                     Q_SH_by_node=Q_SH_by_node,
                     Q_DHW_by_node=Q_DHW_by_node,
+                    Q_by_node=Q_by_node,
                     root=root
                 )
 
@@ -481,7 +485,10 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
                 param["building_massflow_DHW"][n][t] = ((1.0 - relax) * param["building_massflow_DHW"][n][t] + relax * m_DHW_target)
                 param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t], m_SH_min)
                 param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
-                param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
+                if n["buildingFeatures"]["heater"] == "heat_grid_SH":
+                    param["building_massflow_HX"][n][t] = param["building_massflow_SH"][n][t]
+                else:
+                    param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"])
 
             # Iterate hydraulics to enforce pump constraints (adjust flows until feasible)
             last_hydraulics = None
@@ -1072,10 +1079,13 @@ def compute_and_save_network_costs(data, param):
     """
 
     # cost of substation
-    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] == "heat_grid"]
+    buildings_connected = [b for b in data.district if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_SH"]]
     C_substations = 0
     for building in buildings_connected:
-        substation_capacity = building["bes_obj"].design_load_heating/1000 + building["bes_obj"].design_load_dhw/1000  #kW
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            substation_capacity = building["bes_obj"].design_load_heating/1000
+        else:
+            substation_capacity = building["bes_obj"].design_load_heating/1000 + building["bes_obj"].design_load_dhw/1000  #kW
         substation_costs = substation_capacity * data.heat_grid_data["C_subst"]
         C_substations += substation_costs
     substation_lifetime = data.heat_grid_data["lifetime_subst"]
@@ -1700,7 +1710,11 @@ def enforce_pump_constraint(
 
         param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t], m_SH_min)
         param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
-        param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
+        if n["buildingFeatures"]["heater"] == "heat_grid_SH":
+            print("d")
+            param["building_massflow_HX"][n][t] = param["building_massflow_SH"][n][t]
+        else:
+            param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
 
     return True
 
@@ -1715,6 +1729,7 @@ def solve_network_temperatures(
         T_ret_req_by_node_DHW,
         Q_SH_by_node,
         Q_DHW_by_node,
+        Q_by_node,
         root
 ):
     """
@@ -1786,7 +1801,10 @@ def solve_network_temperatures(
         T_ret_building_DHW_loc[bn] = Tr_DHW
 
         # mixed return at substation
-        Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+        if np.array_equal(Q_by_node[bn], Q_SH_by_node[bn]):    #serves effectively as  if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Tr_HX = Tr_SH
+        else:
+            Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
         T_ret_node_loc[bn] = Tr_HX
 
         # unmet demand (if flow or Ts insufficient)

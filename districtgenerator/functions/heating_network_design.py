@@ -103,14 +103,17 @@ def load_parameter(data):
 
     # Calculate building heat demand connected to the district heating grid
     for building in data.district:
-        if building["buildingFeatures"]["heater"] != "heat_grid":
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
             continue
 
         heating = building["user"].heat / 1000  # kW
         dhw = building["user"].dhw / 1000  # kW
         generationSTC = building["generationSTC"] / 1000  # kW
 
-        net_building_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":     #DHW Demand will not be included, as it is supplied by a decentral heat rod
+            net_building_demand = np.maximum(heating - generationSTC, 0)  # kW
+        else:
+            net_building_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
         building["user"].net_building_demand = net_building_demand  # kW
 
         # Additional heat required to cover substation heat losses
@@ -134,7 +137,7 @@ def load_parameter(data):
     T_dhw_required = float(data.decentral_device_data["TES_DHW"]["T_DHW_needed"])   # °C needed domestic hot water temperature
 
     for building in data.district:
-        if building["buildingFeatures"]["heater"] != "heat_grid":
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
             continue
 
         pos_building = tuple(building["buildingFeatures"]["position"])
@@ -165,13 +168,19 @@ def load_parameter(data):
         sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0  # kW
 
         # Supply temperature constraint
-        Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Ts_req = Ts_req_SH
+        else:
+            Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
 
         # Building heat load
         #todo: STC are still not considered here
         Q_SH = sh_load * (1.0 + h_loss_subst / 100.0)
         Q_DHW = dhw_load * (1.0 + h_loss_subst / 100.0)
-        Q_total = Q_SH + Q_DHW
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Q_total = Q_SH
+        else:
+            Q_total = Q_SH + Q_DHW
 
         T_sup_req_by_node[node_key] = Ts_req
         T_ret_req_by_node_SH[node_key] = Tr_req_SH
@@ -368,7 +377,7 @@ def calc_flow(data, param, save_path=None):
     # Building demand + building mass flow
     for building in data.district:
 
-        if building["buildingFeatures"]["heater"] != "heat_grid":
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
             continue
 
         pos_building = tuple(building["buildingFeatures"]["position"])
@@ -403,7 +412,11 @@ def calc_flow(data, param, save_path=None):
         m_SH = np.maximum(m_SH, alpha * m_SH_max)
         m_DHW = np.maximum(m_DHW, alpha * m_DHW_max)
 
-        m_dot = m_SH + m_DHW
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            m_dot = m_SH
+        else:
+            m_dot = m_SH + m_DHW
+
 
         # store everything
         param["building_massflow_max_SH"][node_key] = m_SH_max

@@ -443,7 +443,7 @@ class KPIs:
                 }
 
             # Low-temperature measures for heat-grid buildings
-            if (district[n]["buildingFeatures"]["heater"] == "heat_grid" and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
+            if ((district[n]["buildingFeatures"]["heater"] == "heat_grid" or district[n]["buildingFeatures"]["heater"] == "heat_grid_SH") and district[n]["envelope"].heating_curve["clustered"]["low_temp_measures_binding"] == True and bool(data.heat_grid_data.get("enable_low_temp_measures"))):
                 heatload_kw = district[n]["envelope"].heatload / 1000
                 inv_eur_per_kw = data.heat_grid_data["low_temp_measures_inv_fix"]
                 inv_total = inv_eur_per_kw * heatload_kw
@@ -918,7 +918,7 @@ class KPIs:
             Q_total_eh = 0.0
 
             for n in range(len(data.district)):
-                if data.district[n]["buildingFeatures"]["heater"] == "heat_grid":
+                if data.district[n]["buildingFeatures"]["heater"] == "heat_grid" or data.district[n]["buildingFeatures"]["heater"] == "heat_grid_SH":
                     Q_building = (np.sum(data.district[n]["user"].dhw) + np.sum(data.district[n]["user"].heat)) * dt / 3600 / 1000
                     Q_total_eh += Q_building
 
@@ -1384,7 +1384,7 @@ class KPIs:
         cent_device_data_list = []
         for device_name, device_info in self.central_individual_devices_annualized_cost.items():
             # Determine unit based on device type
-            if device_name == "Heat_Grid":
+            if device_name == "Heat_Grid" or device_name == "Heat_Grid_SH":
                 unit = "-"
             elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
                 unit = "kWh"
