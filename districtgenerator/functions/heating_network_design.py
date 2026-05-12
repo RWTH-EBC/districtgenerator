@@ -359,6 +359,10 @@ def calc_flow(data, param, save_path=None):
 
     # Minimum flow fraction relative to the building's peak flow.
     # Ensures continuous circulation through the heat exchanger and avoids zero-flow conditions.
+    # Needed as valves and heat-exchangers need a minimum flow to operate. Reasons:
+        # valves: „District heating house substations and selection of regulating valves”, 1999, Danfoss GmbH
+        # heat-exchangers: “A Review of Crystallization Fouling in Heat Exchangers”, 2021, Berce et al., doi: https://doi.org/10.3390/pr9081356
+
     alpha = data.heat_grid_data["min_flow_fraction"]  # minimum flow fraction
 
     # Building demand + building mass flow
@@ -536,7 +540,10 @@ def calc_diameter(data, param):
             # Typical district heating design limits are:
             #   ≤ 1.2 m/s for small pipes (DN ≤ 32)
             #   ≤ 2.0 m/s for larger pipes.
-            v_lim = 1.2 if DN <= 32 else 2.0  #todo: find source
+            # Sources:
+            # Leitfaden Nahwärme, Frauenhofer Umsicht (1998), Seite A53
+            # Planungshandbuch Fernwärme (2021), Verenum AG: Bild 1.4 auf S.13
+            v_lim = 1.2 if DN <= 32 else 2.0
             if v > v_lim:
                 continue
 
@@ -621,8 +628,8 @@ def compute_pump_power(data, param):
     pipe_dict = param["pipe_dict"]
     rho_f = data.heat_grid_data["fluid"]["rho_f"]
     eta_pump = data.heat_grid_data["pump"]["eta_pump"]   # electric pump efficiency
-    dp_substation = data.heat_grid_data.get("dp_substation")  #todo: Wert prüfen
-    dp_energy_hub = data.heat_grid_data.get("dp_energy_hub")  #todo: Wert prüfen
+    dp_substation = data.heat_grid_data.get("dp_substation")
+    dp_energy_hub = data.heat_grid_data.get("dp_energy_hub")
 
     # Compute local loss coefficients (zeta)
     hydraulic_features = identify_junction_and_bends(data)
@@ -731,11 +738,13 @@ def compute_pump_power(data, param):
     # Pump electrical power
     pump_power = Vdot_total_profile * dp_total / (eta_pump * 1000.0)  # kW
 
+    safety_factor = 1.3          # Source: für grundlegende Redundanz: Planungshandbuch Fernwärme (2021), Verenum AG (S.54)
+
     # Pump design electrical power
-    data.heat_grid_data["pump_power_design"] = float(np.max(pump_power)) * 1.3 # kW #todo: Sicherheitsfaktoren benötigt?
+    data.heat_grid_data["pump_power_design"] = float(np.max(pump_power)) * safety_factor   # kW
 
     # Pump design head
-    data.heat_grid_data["dp_pump_max"] = float(np.max(dp_total)) * 1.3  # Pa    #todo: Sicherheitsfaktoren benötigt?
+    data.heat_grid_data["dp_pump_max"] = float(np.max(dp_total)) * safety_factor    # Pa
 
     return data, param
 

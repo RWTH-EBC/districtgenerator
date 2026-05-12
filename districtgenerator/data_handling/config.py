@@ -437,7 +437,7 @@ class HeatGridConfig(BaseSettings):
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
     h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
     c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)
-    dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
+    dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Leitfaden zur Planung von Fernwärme-Übergabestationen (2020), Verenum AG, (S. 31)
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     C_subst: float = 510        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
     cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
