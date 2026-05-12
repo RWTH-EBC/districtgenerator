@@ -334,13 +334,13 @@ def save_network_timeseries_per_district(
                     "Support_Year": year,
                     "Cluster": cluster,
                     "Timestep": step,
-                    "total_demand": round(float(td.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
-                    "to_network": round(float(tn.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
-                    "from_network": round(float(fn.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
-                    "to_main_grid": round(float(tmg.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
-                    "from_main_grid": round(float(fmg.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
-                    "from_grid": round(float(fg.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
-                    "to_grid": round(float(tg.get(year, {}).get(cluster, {}).get(step, 0.0)), 1),
+                    "total_demand": round(float(td.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
+                    "to_network": round(float(tn.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
+                    "from_network": round(float(fn.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
+                    "to_main_grid": round(float(tmg.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
+                    "from_main_grid": round(float(fmg.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
+                    "from_grid": round(float(fg.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
+                    "to_grid": round(float(tg.get(year, {}).get(cluster, {}).get(step, 0.0)), 4),
                 }
             )
 
@@ -446,13 +446,13 @@ def save_totals_to_csv(
                 {
                     "district": district,
                     "Support_Year": int(year),
-                    "from_network_total": round(float(district_data.get("from_network_total", {}).get(year, 0.0)), 1),
-                    "to_network_total": round(float(district_data.get("to_network_total", {}).get(year, 0.0)), 1),
-                    "from_main_grid_total": round(float(district_data.get("from_main_grid_total", {}).get(year, 0.0)), 1),
-                    "to_main_grid_total": round(float(district_data.get("to_main_grid_total", {}).get(year, 0.0)), 1),
-                    "from_grid_total": round(float(district_data.get("from_grid_total", {}).get(year, 0.0)), 1),
-                    "to_grid_total": round(float(district_data.get("to_grid_total", {}).get(year, 0.0)), 1),
-                    "Power_Demand_kW_total": round(float(district_data.get("Power_Demand_kW_total", {}).get(year, 0.0)), 1),
+                    "from_network_total": round(float(district_data.get("from_network_total", {}).get(year, 0.0)), 4),
+                    "to_network_total": round(float(district_data.get("to_network_total", {}).get(year, 0.0)), 4),
+                    "from_main_grid_total": round(float(district_data.get("from_main_grid_total", {}).get(year, 0.0)), 4),
+                    "to_main_grid_total": round(float(district_data.get("to_main_grid_total", {}).get(year, 0.0)), 4),
+                    "from_grid_total": round(float(district_data.get("from_grid_total", {}).get(year, 0.0)), 4),
+                    "to_grid_total": round(float(district_data.get("to_grid_total", {}).get(year, 0.0)), 4),
+                    "Power_Demand_kW_total": round(float(district_data.get("Power_Demand_kW_total", {}).get(year, 0.0)), 4),
                 }
             )
 
@@ -554,11 +554,11 @@ def rebalance_ghg_emissions(
 
             rows.append([
                 district, y,
-                round(base_co2, 1),
-                round(ef, 1),
-                round(fnt, 1),
-                round(deduction, 1),
-                round(ghg_new, 1),
+                round(base_co2, 4),
+                round(ef, 4),
+                round(fnt, 4),
+                round(deduction, 4),
+                round(ghg_new, 4),
             ])
 
         timeseries_dict[district] = ts_d
@@ -651,10 +651,10 @@ def recalculate_lcoe_by_year(
 
             rows.append([
                 district, y,
-                round(tac, 1), round(tac_new, 1), round(heat, 1), round(power, 1),
-                round(from_net, 1), round(to_net, 1),
-                round(p_verbund, 1), round(p_feed_in, 1), round(p_main_grid, 1),
-                bool(is_network), round(lcoe, 1)
+                round(tac, 4), round(tac_new, 4), round(heat, 4), round(power, 4),
+                round(from_net, 4), round(to_net, 4),
+                round(p_verbund, 4), round(p_feed_in, 4), round(p_main_grid, 4),
+                bool(is_network), round(lcoe, 4)
             ])
 
         timeseries_dict[district] = ts_d
@@ -766,6 +766,7 @@ if __name__ == "__main__":
     # scenario_name1 = "ghd6"
     is_network = False
 
+    # Real
     cluster_weights = {
     # "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
     "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
@@ -774,10 +775,19 @@ if __name__ == "__main__":
     #"residential3": {0: 5, 1: 22, 2: 10, 3: 15},
     }
 
+    # Test
+    # cluster_weights = {
+    # "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
+    # "mixed1": {0: 5, 1: 20, 2: 12, 3: 15},
+    # "residential2": {0: 5, 1: 20, 2: 12, 3: 15},
+    #"residential0": {0: 5, 1: 20, 2: 12, 3: 15},
+    #"residential3": {0: 5, 1: 20, 2: 12, 3: 15},
+    # }
+
 
     timeseries_dict = load_timeseries_dict_nested(scenario_name1, scenario_name2, scenario_name3)
     #timeseries_dict = balance_total_demand(timeseries_dict, "ghd6", "residential2", "mixed1")
-    timeseries_dict=balance_total_demand_multi_sender(timeseries_dict, scenario_name1, scenario_name2, scenario_name3, round_decimals=1)
+    timeseries_dict=balance_total_demand_multi_sender(timeseries_dict, scenario_name1, scenario_name2, scenario_name3, round_decimals=5)
     timeseries_dict = add_network_totals(timeseries_dict, cluster_weights)
 
     csv_file = save_network_timeseries_per_district_weights(timeseries_dict, cluster_weights)
@@ -788,7 +798,7 @@ if __name__ == "__main__":
     years = [0, 5, 10, 15, 20]
 
     district_csv_paths = {
-        # "ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
+        #"ghd6": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\ghd6_network_results.csv",
         "residential2": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential2_network_results.csv",
         "mixed1": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\mixed1_network_results.csv",
         "residential0": r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results\residential0_network_results.csv",
