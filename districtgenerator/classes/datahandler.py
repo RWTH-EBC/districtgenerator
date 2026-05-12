@@ -56,12 +56,13 @@ class Datahandler:
     """
 
     def __init__(self,
-                 scenario_name = None,
-                 resultPath = None,
-                 scenario_file_path = None,
-                 srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 filePath = None,
-                 env_path = None
+                scenario_name = None,
+                resultPath = None,
+                scenario_file_path = None,
+                srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                filePath = None,
+                env_path = None,
+                overwrite_values = None
                  ):
         """
         Constructor of Datahandler class.
@@ -125,7 +126,7 @@ class Datahandler:
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
-        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
+        self.load_all_data(env_path=env_path, scenario_name=scenario_name, overwrite_values=overwrite_values)
 
         self.KPIs = None
         self.buildings_completed = 0
@@ -149,7 +150,7 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self, env_path, scenario_name):
+    def load_all_data(self, env_path, scenario_name, overwrite_values = None):
         """
         Load all data needed for district generation from configuration files.
 
@@ -173,6 +174,13 @@ class Datahandler:
         # %% load scenario file with building information
         self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                      converters={"position": parse_position}).set_index("id", drop=False))
+        
+        # Replace the columns entry with the specified values if provided
+        if overwrite_values is not None:
+            for col, value in overwrite_values.items():
+                self.scenario.loc[:, col] = value
+                print(f"Overwrote column '{col}' with value '{value}' in scenario '{self.scenario_name}'")
+            print(self.scenario.head())
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions

@@ -18,4 +18,5 @@ districtgenerator/data/weather/*
 *.egg-info/
 *.egg/
 *.eggs
+optimization_results/*
 districtgenerator.egg-info/*
