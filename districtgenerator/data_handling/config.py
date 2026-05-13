@@ -656,7 +656,7 @@ class ReportConfig(BaseSettings):
     pagesize: str = "A4" # Alternatives: A3, A4
 
     # Language
-    language: str = "de" # Language for the report, selected between: "de" (German) and "en" (English). Currently only german fully implemented. English will raise Errors due to some missing translations
+    language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).
 
     # KPI Save options
     kpi_save_type: str = "xlsx" # Format for saving KPIs, selected between: "csv", "xlsx", and "None" to save the KPIs in a CSV file, Excel file, or not save them at all.
