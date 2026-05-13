@@ -1011,12 +1011,12 @@ class Datahandler:
                                                 initial_day=self.initial_day)
 
             if saveUserProfiles:
-                idArray = []
-                idArray.append(building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"])
+                # idArray = []
+                build_id = building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"]
                 self.saveHeatingProfile(heat=building["user"].heat,
                                         cooling=building["user"].cooling,
                                         name=building["unique_name"],
-                                        gmlId=idArray,
+                                        gmlId=build_id,
                                         path=os.path.join(self.demands_path))
                 #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
@@ -1222,9 +1222,9 @@ class Datahandler:
         df_static = pd.DataFrame(static_dict)
         df_static.to_csv(
             os.path.join(path, f"{name}_static.csv"),
-            sep=',',
+            sep=';',
             index=False,
-            quoting=csv.QUOTE_NONNUMERIC
+            float_format="%.3f"
         )
 
 
@@ -1240,8 +1240,8 @@ class Datahandler:
             Hourly cooling demand in W.
         name : string
             Unique building name.
-        gmlId : list
-            List of gmlIds.
+        gmlId : str
+            str of gmlId.
         path : string
             Results path.
 
@@ -1257,16 +1257,17 @@ class Datahandler:
 
         df_ts['heating'] = heat
         df_ts['cooling'] = cooling
-        df_ts.to_csv(ts_path, index=False)
+        df_ts.to_csv(ts_path, index=False, float_format="%.3f", sep=";")
 
         static_path = os.path.join(path, f"{name}_static.csv")
         if os.path.exists(static_path):
-            df_static = pd.read_csv(static_path)
+            df_static = pd.read_csv(static_path, sep=";")
         else:
             df_static = pd.DataFrame()
 
-        df_static['gmlId'] = [json.dumps(list(gmlId) if isinstance(gmlId, (list, np.ndarray)) else [gmlId])]
-        df_static.to_csv(static_path, index=False, quoting=csv.QUOTE_NONNUMERIC)
+        # wieso ist die gmlId als Liste gespeichert?
+        df_static['gmlId'] = gmlId
+        df_static.to_csv(static_path, index=False, float_format="%.3f", sep=";")
 
 
     def loadProfiles(self, name, path, gen_cars=True):
@@ -1287,8 +1288,8 @@ class Datahandler:
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         static_path = os.path.join(path, f"{name}_static.csv")
 
-        df_ts = pd.read_csv(ts_path)
-        df_static = pd.read_csv(static_path)
+        df_ts = pd.read_csv(ts_path, sep=";")
+        df_static = pd.read_csv(static_path, sep=";")
 
         elec = df_ts['elec'].to_numpy()
         dhw = df_ts['dhw'].to_numpy()
@@ -1361,12 +1362,12 @@ class Datahandler:
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         static_path = os.path.join(path, f"{name}_static.csv")
 
-        df_ts = pd.read_csv(ts_path)
-        df_static = pd.read_csv(static_path)
+        df_ts = pd.read_csv(ts_path, sep=";")
+        df_static = pd.read_csv(static_path, sep=";")
 
         heating = df_ts['heating'].to_numpy()
         cooling = df_ts['cooling'].to_numpy()
-        gmlId = np.array(json.loads(df_static['gmlId'].iloc[0]))
+        gmlId = df_static['gmlId']
 
         return heating, cooling, gmlId
 
