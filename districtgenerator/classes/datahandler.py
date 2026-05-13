@@ -1177,6 +1177,8 @@ class Datahandler:
 
             # optionally save generation profiles
             if saveGenerationProfiles == True:
+                generation_path = os.path.join(self.resultPath, 'generation')
+                os.makedirs(generation_path, exist_ok=True)
                 np.savetxt(os.path.join(self.resultPath, 'generation')
                            + '/decentralPV_' + building["unique_name"] + '.csv',
                            building["user"].generationPV,
