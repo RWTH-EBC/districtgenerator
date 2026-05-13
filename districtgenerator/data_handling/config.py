@@ -433,7 +433,7 @@ class HeatGridConfig(BaseSettings):
     d_asph: float = 0.18             # Asphalt layer thickness in meters.
     grid_depth: float = 1.0             # Installation depth of the grid beneath the surface in meters.
     k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
-    k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
+    k_PUF: float = 0.026                 # Polyurethane rigid foam (for KMR pipes) or semi-flexible foam (for PMR pipes) heat conductivity. Source: VDI Wärmeatlas
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
     h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
     c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)

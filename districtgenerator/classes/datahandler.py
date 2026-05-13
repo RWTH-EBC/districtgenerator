@@ -2306,7 +2306,7 @@ class Datahandler:
             district_type = self.site["district_parameters"]["district_type"]
             with open(json_path, encoding="utf-8") as json_file:
                 jsonData = json.load(json_file)
-                transformer_info = jsonData["values"]["transformer_station"]
+                transformer_info = jsonData["values"]["energy_hub"]
         else:
             # if JSON file not found → Extract building coordinates from district data
             district_type = "unknown"
@@ -2358,7 +2358,7 @@ class Datahandler:
         with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
         lines_info = jsonData["values"]["lines_info"]
-        transformer_info = jsonData["values"]["transformer_station"]
+        transformer_info = jsonData["values"]["energy_hub"]
 
         run_pipeline_road(district_type, building_width, house_connection, buildings_info, lines_info, transformer_info)
 

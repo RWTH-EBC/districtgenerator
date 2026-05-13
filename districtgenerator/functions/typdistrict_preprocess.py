@@ -1,7 +1,11 @@
 import pandas as pd
 import numpy as np
-from random import uniform
+import random
 import os
+
+random_seed = int(input("\nEnter random seed: "))
+random.seed(random_seed)
+np.random.seed(random_seed)
 
 # Read the Excel File
 current_dir = os.path.dirname(__file__)
@@ -22,8 +26,8 @@ settlement_types = {
         "english": "Single and two-family house settlements of low density"
     },
     "D": {
-        "german": "Einfamilienhaussiedlung hoher Dichte und Dorfkern",
-        "english": "Single-family house settlements with high density and village core"
+        "german": "Bausiedlung hoher Dichte und Dorfkern",
+        "english": "Settlements with high density and village core"
     },
     "E": {
         "german": "Reihenhausbebauung",
@@ -87,7 +91,7 @@ row = filtered_df.iloc[0]
 
 def random_between(min_val, max_val):
     """Return a random value between min and max with formatting rules."""
-    value = uniform(min_val, max_val)
+    value = random.uniform(min_val, max_val)
     if max_val > 1:
         return int(round(value))  # Round and convert to integer if the value range is greater than 1
     return round(value, 2)       # Otherwise, round to two decimal places
@@ -176,12 +180,24 @@ params = {
     "stdev_lastangriffsfaktor_sigma": round(row["stdev Lastangriffsfaktor σ"], 2),
     "gebaeudegrundflaeche_je_wohneinheit": int(row["Gebäudegrundfläche je Wohneinheit (m²)"]),
     "netzaufbau": row["Netzaufbau"],
-    "haeufigkeit_schule": row["Häufigkeit Schule, Kindebetreuungsstätte"],
-    "haeufigkeit_buero": row["Häufigkeit Büro, Praxis, Kanzlei"],
-    "haeufigkeit_einzelhandel": row["Häufigkeit Einzelhandel und Dienstleistung"],
-    "haeufigkeit_gaststaette": row["Häufigkeit Gaststätte"],
-    "haeufigkeit_handwerk": row["Häufigkeit Handwerksbetrieb"],
-    "haeufigkeit_landwirtschaft": row["Häufigkeit Landwirtschaftlicher Betrieb"],
+    "share_non_residential": float(row["Nichtwohnnutzung (%)"]),
+    "share_mixed_use": float(row["Mischnutzung (%)"]),
+    "share_residential": float(row["Wohnnutzung (%)"]),
+    "frequency_education": row["Häufigkeit Schule, Kindebetreuungsstätte"],
+    "frequency_office_medical": row["Häufigkeit Büro, Praxis, Kanzlei"],
+    "frequency_retail_service": row["Häufigkeit Einzelhandel und Dienstleistung"],
+    "frequency_restaurant": row["Häufigkeit Gaststätte"],
+    "frequency_workshop": row["Häufigkeit Handwerksbetrieb"],
+    "frequency_agriculture": row["Häufigkeit Landwirtschaftlicher Betrieb"],
+
+    "building_type_mapping": {
+        "frequency_education": ["SC", "UNI"],
+        "frequency_office_medical": ["OB", "HOSPITAL"],
+        "frequency_retail_service": ["RETAIL", "GS"],
+        "frequency_restaurant": ["RE"],
+        "frequency_workshop": ["WORKSHOP"],
+        "frequency_agriculture": ["WORKSHOP"]
+    },
 
     "gebaeudealter": {
         "vor_1919": row["Gebäudealtersverteilung vor 1919 (%)"],
@@ -207,5 +223,7 @@ params = {
     "anzahl_vollgeschosse_50": row["Anzahl Vollgeschosse 50%"],
     "anzahl_vollgeschosse_75": row["Anzahl Vollgeschosse 75%"],
     "anzahl_vollgeschosse_100": row["Anzahl Vollgeschosse 100%"],
+
+    "random_seed": random_seed,
 
 }

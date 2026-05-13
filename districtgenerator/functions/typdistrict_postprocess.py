@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from random import uniform, random, shuffle, randint, sample
+import random as pyrandom
 import os
 import json
 import numpy as np
@@ -49,6 +49,9 @@ def scenario_generation():
     -------
     None
     """
+    seed = int(params["random_seed"])
+    pyrandom.seed(seed)
+    np.random.seed(seed)
     # %% STEP ONE: set parameters for the model
     num_buildings = int(input("\nEnter the number of buildings: "))
     building_density = params["gebaeude_pro_ha"]["value"]  # buildings per hectare
@@ -94,7 +97,7 @@ def scenario_generation():
     while get_bigger_density == True and len(placed_buildings) == num_buildings and attempts < max_attempts:
         if district_type not in ["E", "F", "H"]:
             delete_ratio += 0.02
-        rate = uniform(0, 1)
+        rate = pyrandom.uniform(0, 1)
         building_density += rate
         building_density = min(building_density, building_density_max * 2)
         attempts += 1
@@ -105,7 +108,7 @@ def scenario_generation():
     # adjust the road deletion_ratio and building_density, and rerun the model code.
     while len(placed_buildings) < num_buildings and attempts < max_attempts:
         delete_ratio = max(delete_ratio - 0.02, 0)
-        rate = uniform(0, 1)
+        rate = pyrandom.uniform(0, 1)
         building_density -= rate
         building_density = max(building_density_min, building_density)
         attempts += 1
@@ -152,7 +155,7 @@ def scenario_generation():
             # Get the coordinates of all the top road nodes that need to be extended
             max_y = max(pt[1] for pt in all_points)
             top_edge_points = [pt for pt in all_points if pt[1] == max_y]
-            shuffle(top_edge_points)
+            pyrandom.shuffle(top_edge_points)
 
             for pt in top_edge_points:
                 if len(placed_buildings) >= num_buildings:
@@ -186,7 +189,7 @@ def scenario_generation():
             # Get the coordinates of all rightmost road nodes that need to be extended
             max_x = max(pt[0] for pt in all_points)
             right_edge_points = [pt for pt in all_points if pt[0] == max_x]
-            shuffle(right_edge_points)
+            pyrandom.shuffle(right_edge_points)
 
             for pt in right_edge_points:
                 if len(placed_buildings) >= num_buildings:
@@ -222,7 +225,7 @@ def scenario_generation():
     else:
         # If the number of buildings generated exceeds the required number, some buildings are randomly deleted
         num_remove = len(placed_buildings) - num_buildings
-        remove_indices = set(sample(range(len(placed_buildings)), num_remove))
+        remove_indices = set(pyrandom.sample(range(len(placed_buildings)), num_remove))
         for i in range(len(placed_buildings)):
             if i not in remove_indices:
                 buildings.append(placed_buildings[i])
@@ -231,75 +234,276 @@ def scenario_generation():
 
     # 1 Assign building type
 
-    # The proportion of non-residential buildings is determined in accordance with the article
-    # <Siedlungsentwicklung und Infrastrukturfolgekosten - Bilanzierung und Strategieentwicklung>
-    # https://www.ireus.uni-stuttgart.de/forschung/publikationen/Siedentop_etal_2006.pdf
-    if district_type == "A":
-        non_residential_ratio = {"H": 0.0351, "V": 0.0175, "S": 0.0044}
-    elif district_type == "B":
-        non_residential_ratio = {"H": 0.0741, "V": 0.0357, "S": 0.0089}
-    elif district_type == "C":
-        non_residential_ratio = {"H": 0.0444, "V": 0.0222, "S": 0.0056}
-    elif district_type == "D":
-        non_residential_ratio = {"H": 0.0296, "V": 0.0148, "S": 0.0037}
-    elif district_type == "E":
-        non_residential_ratio = {"H": 0.0593, "V": 0.0296, "S": 0.0074}
-    elif district_type == "F":
-        non_residential_ratio = {"H": 0.0684, "V": 0.0342, "S": 0.0085}
-    elif district_type == "G":
-        non_residential_ratio = {"H": 0.0333, "V": 0.0167, "S": 0.0042}
-    elif district_type == "H":
-        non_residential_ratio = {"H": 0.0769, "V": 0.0385, "S": 0.0096}
-    elif district_type == "I":
-        non_residential_ratio = {"H": 0.0606, "V": 0.0303, "S": 0.0076}
-
-    # Create a list of length num_buildings, listing the corresponding number of building types.
-    building_type = []
-
-    num_school = round(non_residential_ratio[params["haeufigkeit_schule"]] * num_buildings)
-    building_type.extend(["School"] * num_school)
-
-    num_office = round(non_residential_ratio[params["haeufigkeit_buero"]] * num_buildings)
-    building_type.extend(["Office"] * num_office)
-
-    num_supermarket = round(non_residential_ratio[params["haeufigkeit_einzelhandel"]] * num_buildings)
-    building_type.extend(["Supermarket"] * num_supermarket)
-
-    num_restaurant = round(non_residential_ratio[params["haeufigkeit_gaststaette"]] * num_buildings)
-    building_type.extend(["Restaurant"] * num_restaurant)
-
-    num_craft_shop = round(non_residential_ratio[params["haeufigkeit_handwerk"]] * num_buildings)
-    building_type.extend(["Craft Shop"] * num_craft_shop)
-
-    num_agricultural_business = round(non_residential_ratio[params["haeufigkeit_landwirtschaft"]] * num_buildings)
-    building_type.extend(["Agricultural Business"] * num_agricultural_business)
-
-    num_residential = num_buildings - num_school - num_office - num_supermarket - num_restaurant - num_craft_shop - num_agricultural_business
-    building_type.extend(["Residential"] * num_residential)
-
-    shuffle(building_type)
-
-    type_color = {
-        "School": "orange",
-        "Office": "lightgreen",
-        "Supermarket": "gold",
-        "Restaurant": "tomato",
-        "Craft Shop": "plum",
-        "Agricultural Business": "yellowgreen",
-        "Residential": "lightblue"
+    # Create a list of length num_buildings with the main use category of each building:
+    # Residential       -> SFH or MFH
+    # Mixed             -> SFH/MFH + non-residential use, e.g. MFH+OB
+    # NonResidential    -> only non-residential use, e.g. OB
+    use_shares = {
+        "NonResidential": float(params["share_non_residential"]),
+        "Mixed": float(params["share_mixed_use"]),
+        "Residential": float(params["share_residential"])
     }
 
+    # Convert shares into exact building counts
+    raw_counts = {
+        use_category: share * num_buildings
+        for use_category, share in use_shares.items()
+    }
+
+    use_counts = {
+        use_category: int(np.floor(raw_count))
+        for use_category, raw_count in raw_counts.items()
+    }
+
+    remaining = num_buildings - sum(use_counts.values())
+
+    sorted_use_categories = sorted(
+        use_counts.keys(),
+        key=lambda use_category: raw_counts[use_category] - use_counts[use_category],
+        reverse=True
+    )
+
+    for i in range(remaining):
+        use_counts[sorted_use_categories[i % len(sorted_use_categories)]] += 1
+
+    building_use_categories = (
+            ["NonResidential"] * use_counts["NonResidential"] +
+            ["Mixed"] * use_counts["Mixed"] +
+            ["Residential"] * use_counts["Residential"]
+    )
+
+    pyrandom.shuffle(building_use_categories)
+
+    # Mapping from frequency categories to possible non-residential building types.
+    building_type_mapping = params["building_type_mapping"]
+
+    # H/V/S are used as weights for selecting the non-residential type.
+    # H = häufig, V = vereinzelt, S = sehr selten.
+    frequency_weights = {
+        "H": 5,
+        "V": 1,
+        "S": 0
+    }
+
+    # These building types should occur at most once in the whole district.
+    hospital_added = False
+    school_added = False
+    university_added = False
+
+    def get_available_non_residential_type_pool(allow_education=True):
+        """
+        Build a weighted pool of possible non-residential building types.
+
+        If allow_education=False, SC, UNI, and HOSPITAL are excluded.
+        This is used for mixed-use buildings, because mixed-use buildings should not contain
+        schools, universities, or hospitals.
+        """
+        available_type_pool = []
+
+        for frequency_key, possible_building_types in building_type_mapping.items():
+            frequency_level = str(params[frequency_key]).strip().upper()
+            weight = frequency_weights.get(frequency_level, 0)
+
+            for building_type_option in possible_building_types:
+
+                # Mixed-use buildings are not allowed to contain schools,
+                # universities, or hospitals.
+                if not allow_education and building_type_option in ["SC", "UNI", "HOSPITAL"]:
+                    continue
+
+                # Hospital should occur at most once in the whole district.
+                if building_type_option == "HOSPITAL" and hospital_added:
+                    continue
+
+                if building_type_option == "SC" and school_added:
+                    continue
+
+                if building_type_option == "UNI" and university_added:
+                    continue
+
+                available_type_pool.extend([building_type_option] * weight)
+
+        return available_type_pool
+
+    def get_distance_score_to_same_type(current_building, candidate_type, already_assigned_buildings):
+        """
+        Higher score is better.
+
+        If this type has not been used yet, it receives a high score.
+        Otherwise, the score is the distance to the nearest building with the same type.
+        """
+        current_center = current_building["polygon"].centroid
+
+        same_type_distances = []
+
+        for other_building in already_assigned_buildings:
+            if other_building.get("non_residential_type") != candidate_type:
+                continue
+
+            other_center = other_building["polygon"].centroid
+            same_type_distances.append(current_center.distance(other_center))
+
+        if not same_type_distances:
+            return 10_000
+
+        return min(same_type_distances)
+
+    def select_non_residential_type_spatially(
+            current_building,
+            already_assigned_buildings,
+            allow_education=True
+    ):
+        """
+        Select one non-residential building type.
+
+        The selection still respects the H/V/S weights, but it also prefers types
+        whose nearest already assigned same-type building is farther away.
+        """
+        nonlocal hospital_added, school_added, university_added
+
+        available_type_pool = get_available_non_residential_type_pool(
+            allow_education=allow_education
+        )
+
+        # Safety fallback.
+        if not available_type_pool:
+            return "OB"
+
+        unique_candidate_types = sorted(set(available_type_pool))
+
+        scored_candidates = []
+
+        for candidate_type in unique_candidate_types:
+            distance_score = get_distance_score_to_same_type(
+                current_building=current_building,
+                candidate_type=candidate_type,
+                already_assigned_buildings=already_assigned_buildings
+            )
+
+            frequency_score = available_type_pool.count(candidate_type)
+
+            scored_candidates.append({
+                "type": candidate_type,
+                "distance_score": distance_score,
+                "frequency_score": frequency_score
+            })
+
+        # Higher distance is better.
+        # If distance is equal, the type with the higher H/V/S frequency weight wins.
+        scored_candidates.sort(
+            key=lambda item: (
+                item["distance_score"],
+                item["frequency_score"]
+            ),
+            reverse=True
+        )
+
+        selected_type = scored_candidates[0]["type"]
+
+        if selected_type == "HOSPITAL":
+            hospital_added = True
+        elif selected_type == "SC":
+            school_added = True
+        elif selected_type == "UNI":
+            university_added = True
+
+        return selected_type
+
+    type_color = {
+        "SFH": "#A6CEE3",
+        "MFH": "#56B4E9",
+        "SC": "#1F78B4",
+        "UNI": "#6A3D9A",
+        "OB": "#33A02C",
+        "HOSPITAL": "#E31A1C",
+        "RETAIL": "#FF7F00",
+        "GS": "#B15928",
+        "RE": "#FB9A99",
+        "WORKSHOP": "#B2DF8A"
+    }
+
+    type_label = {
+        "SC": "School",
+        "UNI": "University",
+        "OB": "Office",
+        "HOSPITAL": "Hospital",
+        "RETAIL": "Retail Store",
+        "GS": "Grocery Store",
+        "RE": "Restaurant",
+        "WORKSHOP": "Workshop",
+        "SFH": "SFH",
+        "MFH": "MFH",
+        "Residential_SFH": "SFH",
+        "Residential_MFH": "MFH"
+    }
+
+    def get_legend_label(legend_type):
+        """
+        Convert internal legend_type into a readable legend label.
+        """
+        if legend_type.startswith("Mixed_"):
+            parts = legend_type.split("_")
+            residential_part = parts[1]
+            non_residential_part = parts[2]
+
+            return (
+                f"{residential_part} + "
+                f"{type_label.get(non_residential_part, non_residential_part)}"
+            )
+
+        return type_label.get(legend_type, legend_type)
+
     # For each main building position from optimization:
-    buildings_info = []
-    for i, bld in enumerate(buildings):
-        # Decide on the building type and drawing style.
-        b_type = building_type[i]
-        buildings_info.append({
+    # Use a shuffled assignment order so that the spatial distribution is not biased
+    # by the original geometry/list order.
+    assignment_order = list(range(len(buildings)))
+    pyrandom.shuffle(assignment_order)
+
+    buildings_info = [None] * len(buildings)
+
+    for i in assignment_order:
+        bld = buildings[i]
+        use_category = building_use_categories[i]
+
+        building_entry = {
             "id": i,
-            "type": b_type,
+            "use_category": use_category,
+            "non_residential_type": None,
+            "type": use_category,
             "polygon": bld,
-            "color": type_color[b_type]
-        })
+            "color": type_color["SFH"]
+        }
+
+        already_assigned_buildings = [
+            existing_building
+            for existing_building in buildings_info
+            if existing_building is not None
+        ]
+
+        if use_category == "Residential":
+            non_residential_type = None
+            plot_color_type = "SFH"
+
+        elif use_category == "Mixed":
+            non_residential_type = select_non_residential_type_spatially(
+                current_building=building_entry,
+                already_assigned_buildings=already_assigned_buildings,
+                allow_education=False
+            )
+            plot_color_type = non_residential_type
+
+        else:  # NonResidential
+            non_residential_type = select_non_residential_type_spatially(
+                current_building=building_entry,
+                already_assigned_buildings=already_assigned_buildings,
+                allow_education=True
+            )
+            plot_color_type = non_residential_type
+
+        building_entry["non_residential_type"] = non_residential_type
+        building_entry["color"] = type_color[plot_color_type]
+
+        buildings_info[i] = building_entry
 
     # 2 Assign Retrofitting Levels
     # In this step, we determine the retrofit level for each building based on statistacal datas.
@@ -316,7 +520,7 @@ def scenario_generation():
     retro_list = (["Unrenovated"] * n_uns +
                   ["Partially Renovated"] * n_teil +
                   ["Fully Renovated"] * n_voll)
-    shuffle(retro_list)
+    pyrandom.shuffle(retro_list)
     for i, bld in enumerate(buildings_info):
         bld["retrofit_level"] = retro_list[i]
 
@@ -365,21 +569,30 @@ def scenario_generation():
     sum_age = sum(age_percents)
     age_percents = [p / sum_age for p in age_percents]
     counts = [int(round(n_total * p)) for p in age_percents]
+
+    # Ensure that the total number of age entries matches the number of buildings.
+    difference = n_total - sum(counts)
+
+    if difference > 0:
+        # Add missing entries to the categories with the highest probabilities.
+        sorted_indices = np.argsort(age_percents)[::-1]
+        for i in range(difference):
+            counts[sorted_indices[i % len(counts)]] += 1
+
+    elif difference < 0:
+        # Remove extra entries from categories with the highest counts.
+        for _ in range(abs(difference)):
+            max_index = int(np.argmax(counts))
+            counts[max_index] -= 1
+
     age_list = []
     for cat, count in zip(age_categories, counts):
         age_list.extend([cat] * count)
-    shuffle(age_list)
+    pyrandom.shuffle(age_list)
     for i, bld in enumerate(buildings_info):
-        if i < len(age_list):
-            bld["age_bracket"] = age_list[i]
-        else:
-            bld["age_bracket"] = "Unknown"
-        # Now, inline pick a random construction year within the assigned bracket.
-        if bld["age_bracket"] in age_brackets:
-            start, end = age_brackets[bld["age_bracket"]]
-            bld["construction_year"] = randint(start, end)
-        else:
-            bld["construction_year"] = None
+        bld["age_bracket"] = age_list[i]
+        start, end = age_brackets[bld["age_bracket"]]
+        bld["construction_year"] = pyrandom.randint(start, end)
 
     # 4 Get the center position of the buildings
     for bld in buildings_info:
@@ -398,7 +611,7 @@ def scenario_generation():
 
     for bld in buildings_info:
         # Generate a random value in [0,1].
-        r = random()
+        r = pyrandom.random()
 
         # Interpolate 'nof' based on which quartile range 'r' falls into.
         if r < 0.25:
@@ -421,6 +634,28 @@ def scenario_generation():
         building_area = int(nof * run_results["building_ground_area"])
         bld["calculated_building_area"] = building_area
         bld["number_of_floors"] = nof
+
+        # Determine residential base type.
+        if building_area < 216:
+            residential_base_type = "SFH"
+        else:
+            residential_base_type = "MFH"
+
+        if bld["use_category"] == "Residential":
+            bld["color"] = type_color[residential_base_type]
+
+        # Create final building code for CSV/JSON and legend.
+        if bld["use_category"] == "Residential":
+            bld["building_code"] = residential_base_type
+            bld["legend_type"] = f"Residential_{residential_base_type}"
+
+        elif bld["use_category"] == "Mixed":
+            bld["building_code"] = f"{residential_base_type}+{bld['non_residential_type']}"
+            bld["legend_type"] = f"Mixed_{residential_base_type}_{bld['non_residential_type']}"
+
+        else:  # NonResidential
+            bld["building_code"] = bld["non_residential_type"]
+            bld["legend_type"] = bld["non_residential_type"]
 
     # define the road information
     lines_info = []
@@ -447,8 +682,16 @@ def scenario_generation():
         hatch = hatch_patterns[bld["retrofit_level"]]
 
         x, y = poly.exterior.xy
-        ax.fill(x, y, facecolor=color, edgecolor='gray', linewidth=0.5, hatch=hatch)
+        edge_color = "black" if bld["use_category"] == "Mixed" else "gray"
+        line_width = 2 if bld["use_category"] == "Mixed" else 0.5
 
+        ax.fill(
+            x, y,
+            facecolor=color,
+            edgecolor=edge_color,
+            linewidth=line_width,
+            hatch=hatch
+        )
         centroid = poly.centroid
         ax.text(
             centroid.x,
@@ -469,15 +712,29 @@ def scenario_generation():
     # 4 Create Custom Legend
     # 4.1 Infrastructure(Transformer) legend.
     transformer_handle = plt.Line2D([], [], marker='o', color='red', linestyle='None',
-                                    markersize=10, label='Transformer Station')
+                                    markersize=10, label='Energy Hub')
     infra_handles = [transformer_handle]
 
     # 4.2 Building type legend.
     building_types = {}
     for bld in buildings_info:
-        if bld["type"] not in building_types:
-            building_types[bld["type"]] = bld["color"]
-        type_handles = [patches.Patch(facecolor=color, edgecolor="black", label=typ) for typ, color in building_types.items()]
+        legend_type = bld["legend_type"]
+        if legend_type not in building_types:
+            building_types[legend_type] = bld["color"]
+
+    type_handles = []
+
+    for typ, color in building_types.items():
+        is_mixed = typ.startswith("Mixed_")
+
+        type_handles.append(
+            patches.Patch(
+                facecolor=color,
+                edgecolor="black" if is_mixed else "gray",
+                linewidth=2 if is_mixed else 0.5,
+                label=get_legend_label(typ)
+            )
+        )
 
     # 4.3 Retrofit level legend (using hatch patterns).
     retrofit_handles = [patches.Patch(facecolor="white", edgecolor="black", hatch=hatch_patterns[level], label=level) for level in hatch_patterns]
@@ -503,11 +760,11 @@ def scenario_generation():
 
     plot_filename_png = os.path.join(
         save_dir,
-        f"district_layout_{district_type}_buildings_{len(buildings)}.png"
+        f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}.png"
     )
     plot_filename_svg = os.path.join(
         save_dir,
-        f"district_layout_{district_type}_buildings_{len(buildings)}.svg"
+        f"district_layout_{district_type}_seed_{seed}_buildings_{len(buildings)}.svg"
     )
 
     plt.savefig(plot_filename_png, dpi=300)
@@ -523,26 +780,35 @@ def scenario_generation():
     for bld in buildings_info:
         buildings_info_json.append({
             "id": bld["id"],
-            "type": bld["type"],
+            "use_category": bld["use_category"],
+            "non_residential_type": bld["non_residential_type"],
+            "building_code": bld["building_code"],
             "position": bld["center"],
             "calculated_building_area": bld["calculated_building_area"],
             "number_of_floors": bld["number_of_floors"],
             "construction_year": bld["construction_year"],
-            "retrofit_level": bld["retrofit_level"]})
+            "retrofit_level": bld["retrofit_level"]
+        })
 
     # Save parameters
     params_filename = os.path.join(save_dir,
-                                   f"district_{district_type}_buildings_{len(buildings)}.json")
+                                   f"district_{district_type}_seed_{seed}_buildings_{len(buildings)}.json")
     # params_filename = get_unique_filename(params_filename)
 
     with open(params_filename, 'w') as f:
-        json.dump({"parameters": run_results,
-                   "values": {
-                       "numb_buildings": len(buildings),
-                       "buildings_info": buildings_info_json,
-                       "lines_info": lines_info,
-                       "transformer_station": {"position": transformer_pos}
-                   }}, f, indent=4, default=convert_to_serializable)
+        json.dump({
+            "metadata": {
+                "settlement_type": district_type,
+                "random_seed": seed,
+                "target_number_of_buildings": num_buildings
+            },
+            "parameters": run_results,
+            "values": {
+                "numb_buildings": len(buildings),
+                "buildings_info": buildings_info_json,
+                "lines_info": lines_info,
+                "energy_hub": {"position": transformer_pos}
+            }}, f, indent=4, default=convert_to_serializable)
 
     # Save Results as CSV
     import csv
@@ -565,27 +831,7 @@ def scenario_generation():
         for bld in buildings_info_json:
             id_val = bld.get("id", "")
             position_val = bld.get("position", (0, 0))
-            if bld.get("type", "").lower() == "residential":
-                # Check the building's area
-                area_val = bld.get("calculated_building_area", 0)
-                if area_val < 200:
-                    building_val = "SFH"
-                else:
-                    building_val = "MFH"
-            elif bld.get("type", "").lower() == "restaurant":
-                building_val = "RE"
-            elif bld.get("type", "").lower() == "office":
-                building_val = "OB"
-            elif bld.get("type", "").lower() == "school":
-                building_val = "SC"
-            elif bld.get("type", "").lower() == "supermarket":
-                building_val = "GS"
-            else: # Craft Shops and Agricultural Business are replaced with residential buildings, since it is hard to generate demand profiles for these buildings
-                area_val = bld.get("calculated_building_area", 0)
-                if area_val < 200:
-                    building_val = "SFH"
-                else:
-                    building_val = "MFH"
+            building_val = bld.get("building_code", "")
 
             year_val = bld.get("construction_year") if bld.get("construction_year") is not None else ""
             retrofit_val = retrofit_mapping.get(bld.get("retrofit_level", ""), "")

@@ -342,20 +342,44 @@ def run_typdistrict_layout(district_type, num_buildings, building_density, delet
                 edges = get_edges_in_quadrant(road_grid, quadrant, (n-1)//2, (m-1)//2)
                 delete_edges(road_grid, edges, delete_ratio)
 
-    # Select the node connected to the most edges as the location for the transformer.
-    # First get all candidate nodes
-    transformer_candidate = []
+    # Select the energy hub location.
+    # First, choose nodes with the maximum graph degree, i.e. the most connected intersections.
+    # If several nodes have the same maximum degree, choose the one closest to the district center.
     degrees = dict(road_grid.degree())
     max_degree = max(degrees.values())
-    for node in road_grid.nodes():
-        degree = road_grid.degree(node)
-        if degree == max_degree:
-            transformer_candidate.append(node)
-    # randomly pick one and record the position
-    shuffle(transformer_candidate)
-    x = transformer_candidate[0][1] * width / (n - 1)
-    y = transformer_candidate[0][0] * length / (m - 1)
-    transformer_pos = (x, y)
+
+    hub_candidates = [node for node, degree in degrees.items() if degree == max_degree]
+
+    district_center_x = width / 2
+    district_center_y = length / 2
+
+    def node_to_position(node):
+        """
+        Convert a graph node index to the corresponding physical district coordinates.
+        NetworkX grid nodes are stored as (row, column).
+        """
+        row, column = node
+        x = column * width / (n - 1)
+        y = row * length / (m - 1)
+        return x, y
+
+    def hub_selection_key(node):
+        """
+        Deterministic tie-break:
+        1. shortest distance to district center
+        2. row index
+        3. column index
+        """
+        x, y = node_to_position(node)
+        distance_to_center_squared = (
+                (x - district_center_x) ** 2 +
+                (y - district_center_y) ** 2
+        )
+        row, column = node
+        return distance_to_center_squared, row, column
+
+    hub_node = min(hub_candidates, key=hub_selection_key)
+    transformer_pos = node_to_position(hub_node)
 
     # %% STEP THREE: Scale the roads to meet the required width-to-length ratio and area
     # Convert edges in Networkx to LineStrings, which can be used in shapely
