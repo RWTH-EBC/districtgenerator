@@ -1008,9 +1008,9 @@ class Datahandler:
         df_static = pd.DataFrame(static_dict)
         df_static.to_csv(
             os.path.join(path, f"{name}_static.csv"),
-            sep=',',
+            sep=';',
             index=False,
-            quoting=csv.QUOTE_NONNUMERIC
+            float_format='%.3f'
         )
 
     def saveHeatingProfile(self, heat, cooling, name, path):
@@ -1040,7 +1040,10 @@ class Datahandler:
 
         df_ts['heating'] = heat
         df_ts['cooling'] = cooling
-        df_ts.to_csv(ts_path, index=False)
+        df_ts.to_csv(ts_path,
+                     index=False,
+                     sep=';',
+                     float_format='%.3f')
 
     def loadProfiles(self, name, path, gen_cars=True):
         """
