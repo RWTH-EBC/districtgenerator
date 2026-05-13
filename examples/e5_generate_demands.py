@@ -44,10 +44,6 @@ def example5_generate_demands():
     # and the time series for the presents of occupants (occ) are now calculated
     # We can access them under data.district.id.user or in the results folder.
 
-    # We can now use the profiles for exemplary analyses like monthly demands or peak loads.
-    # We plot the district space heat demand in kWh
-    exemplary_plot(data)
-
     return data
 
 def exemplary_plot(data):
