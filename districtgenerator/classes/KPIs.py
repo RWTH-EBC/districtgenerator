@@ -188,9 +188,11 @@ class KPIs:
         self.peakInjection = {}
         for year in self.inputData["simulated_years"]:
             # maximal load [kW]
-            self.peakDemand[year] = round(np.max(self.residualLoad[year]), 3) #! Previously there was [:-4]? Why exclude last 4 time steps?
+            clipped_demand = np.clip(self.residualLoad[year], a_min=0, a_max=None) # clip to positive values, since demand is positive
+            self.peakDemand[year] = round(np.max(clipped_demand), 3)
             # maximal injection [kW]
-            self.peakInjection[year] = round(abs(np.min(self.residualLoad[year])), 3)
+            clipped_injection = np.clip(self.residualLoad[year], a_min=None, a_max=0) # clip to negative values, since injection is negative
+            self.peakInjection[year] = round(abs(np.min(clipped_injection)), 3)
 
     def calculatePeakToValley(self):
         """
