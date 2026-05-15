@@ -592,8 +592,8 @@ def build_model(model, data, devs, param, dem):
     for idx, year in enumerate(sorted_years):
         interval_length = weights[year]
         # Calculate discount factor for this interval using geometric series formula
-        if i != 0:  # If interest rate is not zero
-            base_discount = 1 / (q ** year)
+        if i != 0:
+            base_discount = 1 / (q ** (year+1)) # Use year+1 as norm refers to the first year with index 1, but here the index starts with 0. This means that the year i refers to the year i+1 in the norm and an index shift of 1 is needed
             interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
             discount_factor = base_discount * interval_factor
         else:  # If interest rate is zero, discount factor is simply the interval length
