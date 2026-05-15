@@ -613,7 +613,7 @@ class ScenarioName(BaseSettings):
 
 class flags(BaseSettings):
     calcThick: bool = False
-    calcOcc: bool = True
+    save_occ_prof: bool = False
     model_config = SettingsConfigDict(
         extra="ignore"
     )
@@ -1317,5 +1317,5 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
         scenario_name = ScenarioName(_env_file=env_file_path),
-        flags=flags(_env_file=env_file)
+        flags=flags(_env_file=env_file_path)
     )

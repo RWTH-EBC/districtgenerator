@@ -10,6 +10,7 @@ import time
 import warnings
 import numpy as np
 import openpyxl
+import threading
 import pandas as pd
 import random as rd
 import holidays as hol
@@ -118,9 +119,9 @@ class Datahandler:
         # Additional attributes
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
-        self.calcOcc = global_config.flags.calcOcc
+        self.saveOccProf = global_config.flags.save_occ_prof
         self.building_dict = {} # Dictionary to store Residential Building IDs
-        
+
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
         elif project_data_path is not None:
@@ -336,7 +337,7 @@ class Datahandler:
 
         except Exception as e:
             # If postal code cannot be found: Message and select weathter data file from Aachen
-            print("Postal code cannot be found, location changed to Aachen")
+            print(f"Postal {self.site["zip"]}code cannot be found, location changed to Aachen")
             self.site["zip"] = "52064"
             self.site["Location"] = 507755060854
 
@@ -821,11 +822,11 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
+                                     SIA2024=self.SIA2024,
                                      nb_occ=building["buildingFeatures"]["nb_occ"] if ("nb_occ" in building["buildingFeatures"] and not pd.isna(building["buildingFeatures"]["nb_occ"])) else None,
                                      nb_flats=int(float(building["buildingFeatures"]["nb_flats"])) if "nb_flats" in building["buildingFeatures"] else None,
                                      scenario_name=self.scenario_name,
-                                     calcOcc = self.calcOcc,
-                                     SIA2024 = self.SIA2024)
+                                     saveOccProf = self.saveOccProf)
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads in W
@@ -867,13 +868,15 @@ class Datahandler:
         self.buildings_total = len(self.district)
         self.buildings_completed = 0
         self.save_progress()
+        self.global_occ_lock = threading.Lock()  # 1x vor dem ThreadPool erstellen
 
         results = []
 
         # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
         with ThreadPoolExecutor(max_workers=max_threads) as ex:
             future_map = {
-                ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars): building[
+                ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars,
+                  self.global_occ_lock): building[
                     "unique_name"]
                 for building in self.district
             }
@@ -927,7 +930,7 @@ class Datahandler:
 
         print("Finished generating demands with threading!")
 
-    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True):
+    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True, gen_lock_occ=None):
         """
         :param building:
         :param calcUserProfiles: bool
@@ -951,7 +954,8 @@ class Datahandler:
                                           building=building,
                                           path=self.demands_path,
                                           initial_day=self.initial_day,
-                                          gen_cars=gen_cars)
+                                          gen_cars=gen_cars,
+                                          gen_lock_occ=gen_lock_occ)
 
             if saveUserProfiles:
                 self.saveProfiles(name=building["unique_name"],
