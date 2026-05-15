@@ -4,6 +4,7 @@ import ast
 import statistics
 import os
 import random as rd
+import threading
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -84,7 +85,7 @@ class Users:
         else:
             self.nb_main_rooms = int(value)
 
-    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, calcOcc = True, calcOccProf = True, SIA2024=None):
+    def __init__(self, building, area, year_of_construction, retrofit, scenario_name, nb_occ = None, nb_flats = None, saveOccProf = True, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -116,7 +117,8 @@ class Users:
         self.EV_carprofile = None
         self.EV_carcharging_ondemand = None
         self.ev_capacity = None
-        self.calcOccProf = calcOccProf
+        self.saveOccProf = saveOccProf
+        self.occ_lock = threading.Lock()
         self.ice_carprofile = None
         self.individual_car_profiles = []
 
@@ -125,7 +127,7 @@ class Users:
         if self.building in {"OB", "SC", "GS", "RE"}:
             self.building_zones = self.SIA2024[self.building]
 
-        if not calcOcc and nb_occ and nb_flats:
+        if nb_occ and nb_flats:
             nb_occ_string = nb_occ
             nb_occ_list = ast.literal_eval(nb_occ_string)
 
@@ -641,7 +643,7 @@ class Users:
             #  Create wrapper object only for lighting
             self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True, gen_lock_occ=None):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -683,27 +685,58 @@ class Users:
         self.ice_carprofile = np.zeros(int(time_horizon / time_resolution))
         self.individual_car_profiles = []
 
-        # Residential buildings
         if self.building in {"SFH", "TH", "MFH", "AB"}:
 
-            current_index = 0  # To keep track of the starting index for car profiles Id in each flat
+            if self.saveOccProf:
+                occ_filepath = os.path.join(path, 'occ_prof.csv')
+                with gen_lock_occ:
+                    load_profile = os.path.isfile(occ_filepath)
+
+                    if load_profile:
+                        # Fall 2: Datei existiert bereits (Wartende Threads landen hier)
+                        df_loaded = pd.read_csv(occ_filepath)
+
+                    else:
+                        # Fall 1: Erster Thread generiert die Belegungsprofile einmalig
+                        temp_dict = {}
+                        for j in range(self.nb_flats):
+                            # Minimal-Initialisierung nur für Occupancy
+                            temp_obj = Profiles(number_occupants=self.nb_occ[j],
+                                                number_occupants_building=sum(self.nb_occ),
+                                                initial_day=initial_day, nb_days=nb_days,
+                                                time_resolution=time_resolution,
+                                                building=self.building)
+                            temp_dict[f'flat_{j}'] = temp_obj.generate_occupancy_profiles_residential()
+
+                        df_loaded = pd.DataFrame(temp_dict)
+                        df_loaded.to_csv(occ_filepath, index=False)
+
+
+            # Ab hier laufen alle Threads wieder parallel für die rechenintensiven Aufgaben (DHW, Gains, etc.)
             for j in range(self.nb_flats):
+                current_index = 0
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
-                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
-                # Occupancy profile in a
-                if self.calcOccProf:
-                    prof = temp_obj.generate_occupancy_profiles_residential()
-                    prof_df = pd.DataFrame(prof, columns=['prof'])
-                    prof_df.to_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow', index=False)
-                    self.occ = self.occ + prof
+                # Profil laden und zuweisen
+                if self.saveOccProf:
+                    try:
+                        prof = df_loaded[f'flat_{j}'].to_numpy()
+                        temp_obj.load_occupancy_profiles_residential(prof)
+                        self.occ = self.occ + prof
+                    except KeyError:
+                        print(f"Error: Column 'flat_{j}' not found in the loaded occupancy profile CSV. Generating profile instead.")
+                        print(f"Only set saveOccProf to True if you calculate the same building multiple times.")
+                        print(f"The number of occupants might not fit to the profile now.")
+                        prof = temp_obj.generate_occupancy_profiles_residential()
+                        self.occ = self.occ + prof
                 else:
-                    prof = pd.read_parquet(os.path.join(path, 'occ_prof.parquet'), engine='pyarrow')['prof'].to_numpy()
-                    temp_obj.load_occupancy_profiles_residential(prof)
+                    prof = temp_obj.generate_occupancy_profiles_residential()
                     self.occ = self.occ + prof
 
+                # Thermische Lasten auf Basis des (nun identischen) Belegungsprofils berechnen
+                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
                 self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
                                                                                  irradiance=irradiation,
