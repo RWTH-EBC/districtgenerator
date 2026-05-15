@@ -302,7 +302,7 @@ class Profiles:
 
         return self.occ_profile, self.occ_profile_building, self.building_profiles
 
-    def generate_dhw_profile(self, building, holidays):
+    def generate_dhw_profile(self, building, holidays, s_step: int = 60):
         """
         Generate a stochastic dhw profile
         (on base of DHWclac).
@@ -347,7 +347,7 @@ class Profiles:
         self.temperature_difference = chres.changeResolution(temperature_difference, 3600, self.time_resolution, "mean")
 
         dhw_profile = OpenDHW.generate_dhw_profile(
-            s_step=60,
+            s_step=s_step,
             categories=1,
             occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
             building_type=self.building,

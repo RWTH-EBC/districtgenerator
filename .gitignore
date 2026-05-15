@@ -2,7 +2,7 @@ districtgenerator/results/*
 districtgenerator/data/scenarios/*
 districtgenerator/examples/*
 errorfile.txt
-build
+build/
 *.bk
 *.log
 *.lp
