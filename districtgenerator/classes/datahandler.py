@@ -845,7 +845,7 @@ class Datahandler:
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self,name = None,  calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
+    def generateDemands(self,name = None,  calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True):
         """
                 Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -1424,32 +1424,6 @@ class Datahandler:
                         usageFactorSTC=1,
                         devices=self.decentral_device_data,
                     )
-
-                    # ---- LOGGING ----
-                    # pv_rows = []
-                    # for i in range(len(roof_areas)):
-                    #     pv_row = {
-                    #         "ID": f"{building['buildingFeatures']['gmlId']}_roof_{i + 1}",
-                    #         "calculated_area_roof": building["envelope"].A["opaque"]["roof"]/building["buildingFeatures"]["number_of_floors"]*building["buildingFeatures"]["f_PV"],
-                    #         "actual_area_roof": roof_areas[i],
-                    #         "calculated_beta": 35,
-                    #         "actual_beta": roof_inclinations[i],
-                    #         "calculated_gamma": building["buildingFeatures"]["gamma_PV"],
-                    #         "actual_gamma": cardinal_directions[i],
-                    #         "roofShape": roof_shapes[i]
-                    #     }
-                    #     pv_rows.append(pv_row)
-
-                    # # Save logs to CSV
-                    # pv_log_path = os.path.join(self.filePath, "logs", "pv_values_log.csv")
-                    # try:
-                    #     df_existing_pv = pd.read_csv(pv_log_path)
-                    #     df_new_pv = pd.concat([df_existing_pv, pd.DataFrame(pv_rows)], ignore_index=True)
-                    # except FileNotFoundError:
-                    #     df_new_pv = pd.DataFrame(pv_rows)
-
-                    # do not save log to reduce write operations
-                    #df_new_pv.to_csv(pv_log_path, index=False, float_format='%.10f')
 
                     # ---- SAVE GENERATION PROFILES (Optional) ----
                     if saveGenerationProfiles:
