@@ -219,10 +219,25 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
             raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
         bars = bars[:bar_count]
 
-    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+    # Positionen so berechnen, dass "single" immer links und "network" immer rechts steht
+    x = np.zeros(len(bars), dtype=float)
+    for i in range(0, len(bars), 2):
+        pair_idx = i // 2
+        left = pair_idx * 3.0
+        right = left + 0.95
+        # zwei Balken pro Paar: ordne links/rechts abhängig von variant
+        if bars[i]["variant"] == "single":
+            x[i] = left
+            if i + 1 < len(bars):
+                x[i + 1] = right
+        else:
+            x[i] = right
+            if i + 1 < len(bars):
+                x[i + 1] = left
     y = np.array([b["value"] for b in bars], dtype=float)
 
-    fig_w_mm, fig_h_mm = 155, 100
+    fig_w_mm = 280
+    fig_h_mm = 140
     fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
     width = 0.58
 
@@ -296,7 +311,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
     #         fontsize=8,
     #     )
 
-    ax.set_ylabel("Treibhausgasemissionen in t CO₂-eq")
+    ax.set_ylabel("Treibhausgasemissionen in t CO₂-eq", fontsize=fontsize)
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
     # Tausenderpunkt (z.B. 1.234 statt 1,234)
@@ -358,6 +373,7 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
     compare_items=None,
     bar_count=None,
     variants=("network", "single"),
+    fontsize=None,
 ):
     """
     Summiert TAC (metric "tac_distr") aus genau 3 Quartieren und plottet beliebig viele Balken.
@@ -483,7 +499,8 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
     x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
     y = np.array([b["value"] for b in bars], dtype=float)
 
-    fig_w_mm, fig_h_mm = 155, 100
+    fig_w_mm = 280
+    fig_h_mm = 140
     fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
     width = 0.58
 
@@ -516,7 +533,7 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
                 ha="center",
                 va="bottom",
                 color="white",
-                fontsize=8,
+                fontsize=fontsize,
                 bbox=dict(
                     boxstyle="square,pad=0.25",
                     facecolor="#D40000",
@@ -535,7 +552,7 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
         pair_labels.append(str(bars[i]["compare_short"]))
 
     ax.set_xticks(pair_centers)
-    ax.set_xticklabels(pair_labels, fontsize=8)
+    ax.set_xticklabels(pair_labels, fontsize=fontsize)
 
     ax.set_xlim(x.min() - width, x.max() + width)
 
@@ -559,7 +576,7 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
         bbox_to_anchor=(0.5, -0.10),
         ncol=2,
         frameon=False,
-        fontsize=8,
+        fontsize=fontsize,
     )
 
     fig.tight_layout()
@@ -581,7 +598,6 @@ def plot_tac_sum_all_years_multi_bars_from_csv(
         "bars": bars,
         "plot_path": plot_path,
     }
-
 
 
 def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
@@ -699,10 +715,10 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
     for short_file, scen_label, scen_name in zip(short_files, compare_shorts, scenario_names_per_pair):
         pair_caps = {}
         for variant in variants:
-            if variant == "network":
-                p = os.path.join(base_dir, f"{scen_name}_{short_file}_network_results.csv")
-            elif variant == "single":
+            if variant == "single":
                 p = os.path.join(base_dir, f"{scen_name}_{short_file}_results.csv")
+            elif variant == "network":
+                p = os.path.join(base_dir, f"{scen_name}_{short_file}_network_results.csv")
             else:
                 raise ValueError(f"Unbekannte variant: {variant}")
 
@@ -754,7 +770,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
             center = base_x + d_idx * device_step
             for v_idx, variant in enumerate(variants):
                 val = float(g["caps"].get(variant, {}).get(dev, 0.0) or 0.0)
-                x = center + (-width / 2 if variant == "network" else width / 2)
+                x = center + (-width / 2 if variant == "single" else width / 2)
                 bars.append({
                     "group_idx": g_idx,
                     "device": dev,
@@ -779,9 +795,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
 
     # Balken zeichnen (Palette benutzen)
     for b in bars:
-        # Farbe über Serienindex (gruppiert: pro Gruppe je Variante eine Serie)
-        series_idx = b["group_idx"] * len(variants) + (0 if b["variant"] == "network" else 1)
-        color = colors[series_idx % len(colors)]
+        color = "#D40000" if b["variant"] == "network" else "#55585C"
         target_ax = ax2 if (ax2 is not None and b["device"] in storage_devices) else ax1
         target_ax.bar(
             b["x"],
@@ -791,6 +805,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
             label="_nolegend_",
             zorder=3,
         )
+
 
     # Prozentboxen wie gehabt (optional)
     if show_percent_box:
@@ -825,30 +840,59 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
                 fontsize=fontsize2,
                 bbox=dict(
                     boxstyle="square,pad=0.2",
-                    facecolor=colors[(g_idx * len(variants)) % len(colors)],
-                    edgecolor=colors[(g_idx * len(variants)) % len(colors)],
+                    facecolor="#D40000",   # alle Prozentboxen jetzt einheitlich rot
+                    edgecolor="#D40000",
                     linewidth=1.0,
                 ),
                 zorder=5,
             )
 
-    # X-Labels: Geräteliste pro Gruppe (ohne compare_shorts unter den Balken)
-    device_centers = []
-    device_labels = []
-    for g_idx in range(len(group_caps)):
+    # X-Achse: compare_shorts anzeigen (identische, aufeinanderfolgende Labels zusammenfassen)
+    centers = []
+    labels = []
+    for g_idx, g in enumerate(group_caps):
         base_x = g_idx * group_step
-        for d_idx, dev in enumerate(devices):
-            device_centers.append(base_x + d_idx * device_step)
-            device_labels.append(label_map.get(dev, dev))
+        center = base_x + 0.5 * (len(devices) - 1) * device_step
+        centers.append(center)
+        labels.append(str(g["compare_short"]))
+
+    # Zusammenfassen gleicher, aufeinanderfolgender Labels (z.B. "Solarausbau-Szenario" -> nur ein Label)
+    merged_centers = []
+    merged_labels = []
+    i = 0
+    n = len(labels)
+    while i < n:
+        lbl = labels[i]
+        j = i + 1
+        sum_center = centers[i]
+        count = 1
+        while j < n and labels[j] == lbl:
+            sum_center += centers[j]
+            count += 1
+            j += 1
+        merged_centers.append(sum_center / count)
+        merged_labels.append(lbl)
+        i = j
+
+    ax1.set_xticks(merged_centers)
+    ax1.set_xticklabels(merged_labels, fontsize=fontsize1)
+    ax1.tick_params(axis="x", which="both", labelbottom=True, length=0)
+
+    #ax1.set_xlabel("Szenarien", fontsize=fontsize1)
+
+
+    #ax1.set_xlabel("Szenarien", fontsize=fontsize1)  # x-Achsenbeschriftung hinzugefügt
+#
+
 
     # Mit x-Achsenbeschriftung
     # ax1.set_xticks(device_centers)
     # ax1.set_xticklabels(device_labels, fontsize=fontsize1, rotation=90)
     
     # Ohne x-Achsenbeschriftung 
-    ax1.set_xticks(device_centers)
-    ax1.set_xticklabels([""] * len(device_centers))
-    ax1.tick_params(axis="x", which="both", labelbottom=False, length=0)
+    # ax1.set_xticks(device_centers)
+    # ax1.set_xticklabels([""] * len(device_centers))
+    # ax1.tick_params(axis="x", which="both", labelbottom=False, length=0)
 
     
 
@@ -954,28 +998,21 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
             mticker.FuncFormatter(lambda x, pos: f"{int(round(x)):,}".replace(",", "."))
         )
 
-    # Legende: compare_shorts erscheinen NUR in der Legende (pro Gruppe+Variante eine Farbe)
-    series_handles = []
-    series_labels = []
-    for g_idx, g in enumerate(group_caps):
-        for v_idx, variant in enumerate(variants):
-            series_idx = g_idx * len(variants) + v_idx
-            color = colors[series_idx % len(colors)]
-            lbl_variant = compare_item1 if variant == "network" else compare_item2
-            series_handles.append(plt.Rectangle((0, 0), 1, 1, fc=color))
-            series_labels.append(f"{g['compare_short']} ({lbl_variant})")
-
+    # Legende: Farbe -> compare_item1 / compare_item2
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, fc="#D40000"),
+        plt.Rectangle((0, 0), 1, 1, fc="#55585C"),
+    ]
     ax1.legend(
-        series_handles,
-        series_labels,
+        handles,
+        [compare_item1, compare_item2],
         loc="upper center",
         bbox_to_anchor=(0.5, -0.1),
-        ncol=5,
+        ncol=2,
         frameon=False,
         fontsize=fontsize1,
-        handlelength=1.4,
-        columnspacing=0.8,
     )
+
 
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.25)
@@ -1019,6 +1056,7 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
     bar_count=None,
     variants=("network", "single"),
     power_demand=None,
+    fontsize=None,
 ):
     """
     Spezifische jährliche Gesamtkosten (€/MWh) über compare_items:
@@ -1164,7 +1202,7 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
                 "short_file": short_file,
                 "compare_short": scen_label,
                 "variant": variant,
-                "variant_label": "VW" if variant == "network" else "QW",
+                "variant_label": "QW" if variant == "single" else "VW",
                 "value": value,
                 "tac_total": tac_total,
                 "demand_total": demand_total,
@@ -1184,10 +1222,28 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
             raise ValueError(f"bar_count={bar_count} > verfügbare Balken={len(bars)}")
         bars = bars[:bar_count]
 
-    x = np.array([(i // 2) * 3.0 + (i % 2) * 0.95 for i in range(len(bars))], dtype=float)
+
+
+    # Positionen so berechnen, dass "single" immer links und "network" immer rechts steht
+    x = np.zeros(len(bars), dtype=float)
+    for i in range(0, len(bars), 2):
+        pair_idx = i // 2
+        left = pair_idx * 3.0
+        right = left + 0.95
+        # zwei Balken pro Paar: ordne links/rechts abhängig von variant
+        if bars[i]["variant"] == "single":
+            x[i] = left
+            if i + 1 < len(bars):
+                x[i + 1] = right
+        else:
+            x[i] = right
+            if i + 1 < len(bars):
+                x[i + 1] = left
     y = np.array([b["value"] for b in bars], dtype=float)
 
-    fig_w_mm, fig_h_mm = 155, 100
+
+    fig_w_mm = 280
+    fig_h_mm = 140
     fig, ax = plt.subplots(figsize=(fig_w_mm / 25.4, fig_h_mm / 25.4))
     width = 0.58
 
@@ -1196,7 +1252,8 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
             x[i],
             y[i],
             width=width,
-            color=("#D40000" if b["variant"] == "network" else "#55585C"),
+            #color=("#D40000" if b["variant"] == "network" else "#55585C"),
+            color=("#55585C" if b["variant"] == "single" else "#D40000"),
             label="_nolegend_",
         )
 
@@ -1219,7 +1276,7 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
                 ha="center",
                 va="bottom",
                 color="white",
-                fontsize=8,
+                fontsize=fontsize,
                 bbox=dict(
                     boxstyle="square,pad=0.25",
                     facecolor="#D40000",
@@ -1237,10 +1294,10 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
         pair_labels.append(str(bars[i]["compare_short"]))
 
     ax.set_xticks(pair_centers)
-    ax.set_xticklabels(pair_labels, fontsize=8)
+    ax.set_xticklabels(pair_labels, fontsize=fontsize)
     ax.set_xlim(x.min() - width, x.max() + width)
 
-    ax.set_ylabel("Spezifische jährliche Gesamtkosten in €/MWh")
+    ax.set_ylabel("Spez. jährliche Gesamtkosten in €/MWh", fontsize=fontsize)
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
     ax.yaxis.set_major_formatter(
@@ -1258,7 +1315,7 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
         bbox_to_anchor=(0.5, -0.10),
         ncol=2,
         frameon=False,
-        fontsize=8,
+        fontsize=fontsize,
     )
 
     fig.tight_layout()
@@ -1303,6 +1360,7 @@ def plot_power_import_all_years_multi_bars_from_csv_per_pair(
     variants=("network", "single"),
     label_left=None,
     label_right=None,
+    fontsize=None,
 ):
     """
     Wie plot_power_import_single_year_multi_bars_from_csv_per_pair aber summiert
@@ -1513,7 +1571,7 @@ def plot_power_import_all_years_multi_bars_from_csv_per_pair(
                 txt,
                 ha="center",
                 va="bottom",
-                fontsize=7,
+                fontsize=fontsize,
                 fontweight="bold",
                 color="black",
                 bbox=dict(boxstyle="round,pad=0.22", facecolor="white", edgecolor=(color_main_vw if bars[i]["variant"] == "network" else color_main_qw), linewidth=0.9),
@@ -1558,7 +1616,7 @@ def plot_power_import_all_years_multi_bars_from_csv_per_pair(
             transform=ax.get_xaxis_transform(),
             ha="center",
             va="top",
-            fontsize=8,
+            fontsize=fontsize,
         )
 
     # 2) Zeichne Klammer und compare_short-Label pro Gruppe (axes coords)
@@ -1601,7 +1659,7 @@ def plot_power_import_all_years_multi_bars_from_csv_per_pair(
             transform=ax.transAxes,
             ha="center",
             va="top",
-            fontsize=9,
+            fontsize=fontsize,
         )
 
     fig.subplots_adjust(bottom=0.30)
@@ -1627,7 +1685,7 @@ def plot_power_import_all_years_multi_bars_from_csv_per_pair(
         "Strombezug aus dem Hauptnetz QW",
         "Strombezug aus dem Verbundnetz QW",
     ]
-    ax.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=2, frameon=False, fontsize=8)
+    ax.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=2, frameon=False, fontsize=fontsize)
 
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.24)
@@ -1665,6 +1723,7 @@ def plot_power_export_all_years_multi_bars_from_csv_per_pair(
     variants=("network", "single"),
     label_left=None,
     label_right=None,
+    fontsize=None,
 ):
     """
     Wie plot_power_export_single_year_multi_bars_from_csv_per_pair, aber summiert
@@ -1842,7 +1901,7 @@ def plot_power_export_all_years_multi_bars_from_csv_per_pair(
                 txt,
                 ha="center",
                 va="bottom",
-                fontsize=8,
+                fontsize=fontsize,
                 fontweight="bold",
                 color="black",
                 bbox=dict(
@@ -1864,7 +1923,7 @@ def plot_power_export_all_years_multi_bars_from_csv_per_pair(
         pair_labels.append(str(bars[i]["compare_short"]))
 
     ax.set_xticks(pair_centers)
-    ax.set_xticklabels(pair_labels, fontsize=8)
+    ax.set_xticklabels(pair_labels, fontsize=fontsize)
 
     # Trennlinien zwischen verschiedenen Szenarien
     if label_left or label_right:
@@ -1892,7 +1951,7 @@ def plot_power_export_all_years_multi_bars_from_csv_per_pair(
                         label_left,
                         ha="right",
                         va="top",
-                        fontsize=8,
+                        fontsize=fontsize,
                         bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
                         zorder=6,
                     )
@@ -1903,7 +1962,7 @@ def plot_power_export_all_years_multi_bars_from_csv_per_pair(
                         label_right,
                         ha="left",
                         va="top",
-                        fontsize=8,
+                        fontsize=fontsize,
                         bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
                         zorder=6,
                     )
@@ -1938,7 +1997,7 @@ def plot_power_export_all_years_multi_bars_from_csv_per_pair(
         bbox_to_anchor=(0.5, -0.15),
         ncol=2,
         frameon=False,
-        fontsize=8,
+        fontsize=fontsize,
     )
 
     fig.tight_layout()
@@ -2190,7 +2249,7 @@ def main():
 
     ###############################################################################
     # For plot_co2 and plot_tac_per_demand_sum
-    show = False
+    show = True
     short_files = ["Basis", "Bat", "PV","Wohn"]
     scenario_names_by_item = [
         ["residential2", "mixed1", "ghd6"],
@@ -2200,7 +2259,7 @@ def main():
     ]
     compare_shorts = ["Basis", "Batterie", "Solarausbau", "Wohn"]
     bar_count = 8
-    fontsize = 9
+    fontsize = 15
 
     power_demand={}
     power_demand["ghd6"] = 2276.0
@@ -2217,6 +2276,7 @@ def main():
         short_files=short_files, compare_shorts=compare_shorts, bar_count=bar_count,
         variants=("network", "single"), show_percent_box=True,
         compare_item1 = compare_item1, compare_item2 = compare_item2, power_demand=power_demand,
+        fontsize=fontsize,
     )
 
     plot_co2_sum_all_years_multi_bars_from_csv(
@@ -2259,17 +2319,18 @@ def main():
     #################################################################################
     # Für plot_device_capacities_all_scenarios
     # !! Szenariowechsel
-    show = True
+    show = False
     short_files = ["Basis", "Bat", "PV", "PV", "Wohn"]
-    compare_shorts = ["Basis", "Batterie", "Solarausbau","Solarausbau", "Wohn"]
+    #compare_shorts = ["Basis", "Batterie", "Solarausbau","Solarausbau", "Wohn"]
+    compare_shorts = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario","Solarausbau-Szenario", "Wohn-Szenario"]
     scenario_names_per_pair = ["mixed1", "mixed1", "mixed1","ghd6","residential0"]
     label_left="Mischquartier"
     label_middle="Gewerbequartier"
     label_right="Wohnquartier 2"
-    fontsize1 = 13
-    fontsize2 = 13
-    compare_item1 = "VW"
-    compare_item2 = "QW"
+    fontsize1 = 15
+    fontsize2 = 15
+    compare_item1 = "verbundweise"
+    compare_item2 = "quartiersweise"
 
 
     plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
