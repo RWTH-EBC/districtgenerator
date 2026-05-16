@@ -68,7 +68,7 @@ def plot_device_capacities_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     include_devices=None,
     exclude_devices=None,
     titel=None,
@@ -262,7 +262,7 @@ def plot_heat_generation_by_year_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     compare_short1=None,
@@ -453,7 +453,7 @@ def plot_power_import_by_year_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
@@ -676,12 +676,13 @@ def plot_power_export_by_year_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
     compare_short1=None,
     compare_short2=None,
+    fontsize=None,
 ):
     """
     Plot yearly electricity import (MWh) as paired bars (Verbund vs Mit Verbundpreis).
@@ -816,7 +817,7 @@ def plot_power_export_by_year_from_csv(
                     ha="center",
                     va=va,
                     color="black",
-                    fontsize=10,
+                    fontsize=fontsize-1,
                     fontweight="bold",
                     bbox=dict(
                         boxstyle="round,pad=0.25",
@@ -842,8 +843,8 @@ def plot_power_export_by_year_from_csv(
                     vals_ez_net[i],    # to_network_total
                 )
 
-        plt.xticks(x, labels)
-        plt.ylabel("Energie in MWh")
+        plt.xticks(x, labels, fontsize=fontsize+1)
+        plt.ylabel("Energie in MWh", fontsize=fontsize+1)
         #plt.title(titel or sc)
         plt.grid(axis="y", alpha=0.4)
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -870,6 +871,7 @@ def plot_power_export_by_year_from_csv(
                 bbox_to_anchor=(0.5, -0.1),
                 ncol=2,
                 frameon=False,
+                fontsize=fontsize
             )
 
         plt.tight_layout(rect=[0, 0, 1, 1])
@@ -894,7 +896,7 @@ def plot_lcoe_by_year_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
@@ -1022,7 +1024,7 @@ def plot_lcoe_by_year_from_csv(
                     ha="center",
                     va="bottom",
                     color="white",
-                    fontsize=12,
+                    fontsize=fontsize,
                     bbox=dict(
                         boxstyle="square,pad=0.35",
                         facecolor="#D40000",
@@ -1064,7 +1066,7 @@ def plot_co2_by_year_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
@@ -1184,7 +1186,7 @@ def plot_co2_by_year_from_csv(
                     ha="center",
                     va="bottom",
                     color="white",
-                    fontsize=12,
+                    fontsize=fontsize,
                     bbox=dict(
                         boxstyle="square,pad=0.35",
                         facecolor="#D40000",
@@ -1224,7 +1226,7 @@ def plot_tac_sum_from_three_scenarios(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     show_percent_box=False,
     compare_item1=None,
@@ -1326,7 +1328,7 @@ def plot_tac_sum_from_three_scenarios(
             ha="center",
             va="bottom",
             color="white",
-            fontsize=12,
+            fontsize=fontsize,
             bbox=dict(
                 boxstyle="square,pad=0.35",
                 facecolor="#D40000",
@@ -1366,7 +1368,7 @@ def plot_tes_volume_from_csv(
     scenario_name=None,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     show_percent_box=False,
     compare_item1=None,
@@ -1501,7 +1503,7 @@ def plot_co2_sum_from_three_scenarios(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     show_percent_box=False,
     compare_item1=None,
@@ -1600,7 +1602,7 @@ def plot_co2_sum_from_three_scenarios(
             ha="center",
             va="bottom",
             color="white",
-            fontsize=12,
+            fontsize=fontsize,
             bbox=dict(
                 boxstyle="square,pad=0.35",
                 facecolor="#D40000",
@@ -1641,7 +1643,7 @@ def plot_lcoe_sum_from_three_scenarios(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
@@ -1799,7 +1801,7 @@ def plot_lcoe_sum_from_three_scenarios(
                 ha="center",
                 va="bottom",
                 color="white",
-                fontsize=11,
+                fontsize=fontsize,
                 bbox=dict(
                     boxstyle="square,pad=0.3",
                     facecolor="#D40000",
@@ -1843,7 +1845,7 @@ def plot_tac_by_year_sum_from_three_scenarios(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
@@ -1995,7 +1997,7 @@ def plot_co2_by_year_sum_from_three_scenarios(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     base_calendar_year=2025,
     show_percent_box=False,
@@ -2107,7 +2109,7 @@ def plot_co2_by_year_sum_from_three_scenarios(
                 ha="center",
                 va="bottom",
                 color="white",
-                fontsize=11,
+                fontsize=fontsize,
                 bbox=dict(
                     boxstyle="square,pad=0.3",
                     facecolor="#D40000",
@@ -2144,14 +2146,14 @@ def plot_device_capacities_three_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     include_devices=None,
     exclude_devices=None,
     titel=None,
     subplot_titles=None,
     show_percent_box=False,
     plot_tes_only=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
 ):
@@ -2210,7 +2212,7 @@ def plot_device_capacities_three_subplots_from_csv(
         "HP": "Wärmepumpe",
         "CHP": "BHKW",
         "BCHP": "BBHKW",
-        "TES": "therm. Speicher",
+        "TES": "thermischer Speicher",
         "STC": "Solarthermie",
         "WT": "Windkraft",
         "EB": "Elektrischer\nKessel",
@@ -2307,7 +2309,7 @@ def plot_device_capacities_three_subplots_from_csv(
 
         ax.set_xticks(x)
         ax.set_xticklabels(xtick_labels, fontsize=fontsize)
-        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_title(sub_titel, fontsize=fontsize)
         ax.grid(axis="y", alpha=0.4)
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -2331,6 +2333,7 @@ def plot_device_capacities_three_subplots_from_csv(
             ncol=2,
             frameon=False,
             bbox_to_anchor=(0.5, 0.01),
+            fontsize=fontsize,
         )
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
@@ -2353,12 +2356,12 @@ def plot_lcoe_three_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     subplot_titles=None,
     base_calendar_year=2025,
     show_percent_box=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
 ):
@@ -2520,12 +2523,12 @@ def plot_co2_three_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     subplot_titles=None,
     base_calendar_year=2025,
     show_percent_box=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
 ):
@@ -2639,7 +2642,7 @@ def plot_co2_three_subplots_from_csv(
                     ha="center",
                     va="bottom",
                     color="white",
-                    fontsize=fontsize,
+                    fontsize=fontsize-1,
                     bbox=dict(
                         boxstyle="square,pad=0.35",
                         facecolor="#D40000",
@@ -2652,7 +2655,7 @@ def plot_co2_three_subplots_from_csv(
         ax.set_xticks(x)
         ax.set_xticklabels(labels, fontsize=fontsize)
         ax.set_title(sub_titel, fontsize=fontsize + 1)
-        ax.set_ylabel("Jährliche CO₂-Emissionen in t/a", fontsize=fontsize)
+        ax.set_ylabel("THG-Emissionen in t CO₂-eq/a", fontsize=fontsize)
         ax.grid(axis="y", alpha=0.4)
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -2669,6 +2672,7 @@ def plot_co2_three_subplots_from_csv(
             ncol=2,
             frameon=False,
             bbox_to_anchor=(0.5, 0.01),
+            fontsize=fontsize+1,
         )
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
@@ -2690,12 +2694,12 @@ def plot_power_import_three_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     subplot_titles=None,
     base_calendar_year=2025,
     show_percent_box=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
     compare_short1=None,
@@ -2925,12 +2929,12 @@ def plot_power_import_two_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     subplot_titles=None,
     base_calendar_year=2025,
     show_percent_box=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
     compare_short1=None,
@@ -3004,6 +3008,7 @@ def plot_power_import_two_subplots_from_csv(
 
         vb = _read_yearly_import(network_path)
         ez = _read_yearly_import(single_path)
+        print(f"Debug power import: {sc} - VB from_el_main_grid_total: {vb[15]['from_el_main_grid_total']}, EZ from_el_main_grid_total: {ez[15]['from_el_main_grid_total']}")
 
         years = sorted(set(vb.keys()) | set(ez.keys()))
         if not years:
@@ -3159,12 +3164,12 @@ def plot_tac_three_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     subplot_titles=None,
     base_calendar_year=2025,
     show_percent_box=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
 ):
@@ -3290,7 +3295,7 @@ def plot_tac_three_subplots_from_csv(
 
         ax.set_xticks(x)
         ax.set_xticklabels(labels, fontsize=fontsize)
-        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_title(sub_titel, fontsize=fontsize)
         ax.set_ylabel("Jährliche Gesamtkosten in €/a", fontsize=fontsize)
         ax.grid(axis="y", alpha=0.4)
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -3308,6 +3313,7 @@ def plot_tac_three_subplots_from_csv(
             ncol=2,
             frameon=False,
             bbox_to_anchor=(0.5, 0.01),
+            fontsize=fontsize+1,
         )
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
@@ -3328,11 +3334,11 @@ def plot_power_import_sum_two_subplots_from_csv(
     scenario_names,
     base_dir=None,
     result_dir=None,
-    show=True,
+    show=False,
     titel=None,
     subplot_titles=None,
     show_percent_box=False,
-    fontsize=12,
+    fontsize=None,
     compare_item1=None,
     compare_item2=None,
     compare_short1=None,
@@ -3424,6 +3430,7 @@ def plot_power_import_sum_two_subplots_from_csv(
         vb = _read_import_sums(network_path)
         ez = _read_import_sums(single_path)
 
+
         x = np.arange(2)
         width = 0.5
 
@@ -3500,7 +3507,7 @@ def plot_power_import_sum_two_subplots_from_csv(
             [compare_short1 or "oVP", compare_short2 or "VP"],
             fontsize=fontsize,
         )
-        ax.set_title(sub_titel, fontsize=fontsize + 1)
+        ax.set_title(sub_titel, fontsize=fontsize)
         ax.set_ylabel("Energie in MWh", fontsize=fontsize)
         ax.grid(axis="y", alpha=0.4)
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
@@ -3547,10 +3554,390 @@ def plot_power_import_sum_two_subplots_from_csv(
 
 
 
+def plot_device_capacities_three_subplots_stacked_from_csv(
+    scenario_names,
+    base_dir=None,
+    result_dir=None,
+    show=False,
+    include_devices=None,
+    exclude_devices=None,
+    titel=None,
+    subplot_titles=None,
+    show_percent_box=False,
+    plot_tes_only=False,
+    fontsize=None,
+    compare_item1=None,
+    compare_item2=None,
+):
+    """
+    Like plot_device_capacities_three_subplots_from_csv but heat generation devices
+    ("HP","BCHP","EB","BBOI") are shown as a single grouped xtick whose bars are
+    stacked segments (one segment per device) for network vs single.
+
+    Colors: each device gets a dedicated color for the verbundweise (network)
+    and a dedicated color for the quartiersweise (single) plot.
+    Legend: entries for each device are shown for both compare_item1 and compare_item2.
+    """
+    if not isinstance(scenario_names, (list, tuple)) or len(scenario_names) != 3:
+        raise ValueError("scenario_names muss genau 3 Szenario-Namen enthalten.")
+
+    if base_dir is None:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        base_dir = os.path.join(project_root, "Main-tja", "optimization_results")
+
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"Result directory not found: {base_dir}")
+
+    def _to_set(x):
+        if x is None:
+            return None
+        if isinstance(x, str):
+            return {x}
+        return set(x)
+
+    def _read_caps(csv_path):
+        caps = {}
+        with open(csv_path, mode="r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f, delimiter=";")
+            for row in reader:
+                if row.get("category") == "device" and row.get("metric") == "capacity":
+                    dev = (row.get("device") or "").strip()
+                    try:
+                        val = float(row.get("value"))
+                    except (TypeError, ValueError):
+                        continue
+                    if dev:
+                        caps[dev] = val
+        return caps
+
+    include_set = _to_set(include_devices)
+    exclude_set = _to_set(exclude_devices) or set()
+
+    preferred_order = [
+        "HP", "CHP", "TES", "PV", "STC", "WT", "EB", "BOI", "BBOI", "GHP", "CC", "AC",
+        "WAT", "BCHP", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "CTES", "BAT", "GS"
+    ]
+
+    label_map = {
+        "HP": "Wärmepumpe",
+        "CHP": "BHKW",
+        "BCHP": "BBHKW",
+        "TES": "therm. Speicher",
+        "STC": "Solarthermie",
+        "WT": "Windkraft",
+        "EB": "Elektrischer\nKessel",
+        "BOI": "Erdgas-\nkessel",
+        "BBOI": "Biomasse-\nkessel",
+        "PV": "PV-Anlage",
+    }
+
+    # device-specific color pairs: (network_color, single_color)
+    # device_color_pairs = {
+    #     # heat generators
+    #     "HP":  ('#F47328', '#F49961'),
+    #     "EB":  ('#1058B0', '#4B81C4'),
+    #     "BBOI":('#5F379B', '#8768B4'),
+    #     # other typical devices
+    #     "BCHP":("#2F3133", "#7F7F7F"),
+    #     "CHP": ("#B23A48", "#E89AA2"),
+    #     "TES": ("#C93A3A", "#FFB3B3"),
+    #     "PV":  ('#008746', '#6EBB96'),
+    #     "STC": ("#E07A5F", "#F7C6B0"),
+    #     "WT":  ("#2E8B57", "#7FC08A"),
+    #     "BOI": ("#6B5B95", "#A793C9"),
+    #     "GHP": ("#3A6EA5", "#8FB7E0"),
+    #     "CC":  ("#4B4E6D", "#9AA0B8"),
+    #     "AC":  ("#6E6F71", "#BDBFC1"),
+    #     "BAT": ("#5F4B8B", "#A88FE1"),
+    #     "GS":  ("#2F6F69", "#78BFB7"),
+    # }
+
+    device_color_pairs = {
+        # heat generators
+        "HP":  ("#721D13", "#242525"),
+        "EB":  ("#DD402D" , "#757679"),
+        "BBOI":('#5F379B', '#8768B4'),
+        # other typical devices
+        "BCHP":("#2F3133", "#7F7F7F"),
+        "CHP": ("#B23A48", "#E89AA2"),
+        "TES": ("#C93A3A", "#FFB3B3"),
+        "PV":  ("#ED7E72", "#A8A8A8"),
+        "STC": ("#E07A5F", "#F7C6B0"),
+        "WT":  ("#2E8B57", "#7FC08A"),
+        "BOI": ("#6B5B95", "#A793C9"),
+        "GHP": ("#3A6EA5", "#8FB7E0"),
+        "CC":  ("#4B4E6D", "#9AA0B8"),
+        "AC":  ("#6E6F71", "#BDBFC1"),
+        "BAT": ("#5F4B8B", "#A88FE1"),
+        "GS":  ("#2F6F69", "#78BFB7"),
+    }
+
+    '#E53027', '#1058B0', '#F47328', '#5F379B','#9B231E','#BE4198','#008746'
+    '#EC635C', '#4B81C4', '#F49961', '#8768B4','#B45955','#CB74F4','#6EBB96'
+
+    # fallback colormap for devices not specified above
+    cmap = plt.get_cmap("tab20")
+
+    plots_dir = os.path.join(result_dir or ".", "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    if subplot_titles is None:
+        subplot_titles = list(scenario_names)
+    if len(subplot_titles) != 3:
+        raise ValueError("subplot_titles muss genau 3 Einträge enthalten.")
+
+    fig = plt.figure(figsize=(12, 7.5))
+    gs = gridspec.GridSpec(2, 2, figure=fig, height_ratios=[1, 1.05], hspace=0.35, wspace=0.25)
+
+    ax1 = fig.add_subplot(gs[0, 0])   # oben links
+    ax2 = fig.add_subplot(gs[0, 1])   # oben rechts
+    ax3 = fig.add_subplot(gs[1, :])   # unten über beide Spalten
+    axes = [ax1, ax2, ax3]
+    out = {}
+
+    # global legend containers (ensure unique entries)
+    shared_handles = []
+    shared_labels = []
+    shared_added = set()
+
+    heat_group = ["HP", "BCHP", "EB", "BBOI"]
+
+    # prepare compare labels fallback
+    cmp1_label = compare_item1 or "Ohne Verbundpreis"
+    cmp2_label = compare_item2 or "Mit Verbundpreis"
+
+    for ax, sc, sub_titel in zip(axes, scenario_names, subplot_titles):
+        network_path = os.path.join(base_dir, f"{sc}_{compare_short1}_results.csv") if False else None
+        # find files similar to other functions: try compare_short names first, then VW/QW fallback
+        # use the same detection as other functions by constructing from provided compare_short1/2 if available
+        # but here we assume standard file naming like other functions use:
+        network_path = os.path.join(base_dir, f"{sc}_{compare_item1}_results.csv") if compare_item1 and os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_item1}_results.csv")) else os.path.join(base_dir, f"{sc}_VW_results.csv")
+        single_path = os.path.join(base_dir, f"{sc}_{compare_item2}_results.csv") if compare_item2 and os.path.isfile(os.path.join(base_dir, f"{sc}_{compare_item2}_results.csv")) else os.path.join(base_dir, f"{sc}_QW_results.csv")
+
+        if not os.path.isfile(network_path):
+            network_path = os.path.join(base_dir, f"{sc}_VW_results.csv")
+        if not os.path.isfile(single_path):
+            single_path = os.path.join(base_dir, f"{sc}_QW_results.csv")
+
+        if not os.path.isfile(network_path) or not os.path.isfile(single_path):
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Fehlende Dateien\n{sc}", ha="center", va="center")
+            continue
+
+        caps_network = _read_caps(network_path)
+        caps_single = _read_caps(single_path)
+
+        all_devices = set(caps_network.keys()) | set(caps_single.keys())
+
+        if include_set is not None:
+            selected = [d for d in preferred_order if d in include_set and d in all_devices]
+            selected += sorted([d for d in include_set if d in all_devices and d not in preferred_order])
+        else:
+            selected = [d for d in preferred_order if d in all_devices]
+            selected += sorted([d for d in all_devices if d not in preferred_order])
+
+        devices = [d for d in selected if d not in exclude_set]
+        if not devices:
+            ax.axis("off")
+            ax.text(0.5, 0.5, f"Keine Geräte nach Filter\n{sc}", ha="center", va="center")
+            continue
+
+        # Build plotting groups: one group for the heat generators (if any present), plus single-device groups for others
+        heat_present = [d for d in heat_group if d in devices]
+        other_devices = [d for d in devices if d not in heat_group]
+
+        groups = []
+        if heat_present:
+            groups.append(("HEAT_GROUP", heat_present))
+        for d in other_devices:
+            groups.append((d, [d]))
+
+        x = np.arange(len(groups))
+        width = 0.32
+
+        fallback_i = 0
+
+        for i, (grp_name, grp_devs) in enumerate(groups):
+            bottom_net = 0.0
+            bottom_single = 0.0
+
+            if grp_name == "HEAT_GROUP":
+                for dev in grp_devs:
+                    val_net = caps_network.get(dev, 0.0)
+                    val_single = caps_single.get(dev, 0.0)
+
+                    if dev in device_color_pairs:
+                        col_net, col_single = device_color_pairs[dev]
+                    else:
+                        # fallback: pick two distinct colors from cmap
+                        col_net = cmap((fallback_i * 2) % 20)
+                        col_single = cmap((fallback_i * 2 + 1) % 20)
+                        fallback_i += 1
+
+                    ax.bar(
+                        x[i] - width / 2,
+                        val_net,
+                        bottom=bottom_net,
+                        width=width,
+                        color=col_net,
+                    )
+                    ax.bar(
+                        x[i] + width / 2,
+                        val_single,
+                        bottom=bottom_single,
+                        width=width,
+                        color=col_single,
+                    )
+
+                    # add legend entries for both compare types, unique across figure
+                    lbl = label_map.get(dev, dev)
+                    lbl_net = f"{lbl} ({cmp1_label})"
+                    lbl_single = f"{lbl} ({cmp2_label})"
+                    if lbl_net not in shared_added:
+                        shared_handles.append(plt.Rectangle((0, 0), 1, 1, fc=col_net))
+                        shared_labels.append(lbl_net)
+                        shared_added.add(lbl_net)
+                    if lbl_single not in shared_added:
+                        shared_handles.append(plt.Rectangle((0, 0), 1, 1, fc=col_single))
+                        shared_labels.append(lbl_single)
+                        shared_added.add(lbl_single)
+
+                    bottom_net += val_net
+                    bottom_single += val_single
+
+                if show_percent_box:
+                    ymax = max(bottom_net, bottom_single, 1.0)
+                    ax.set_ylim(0, ymax * 1.35)
+                    y_offset = ymax * 0.08
+                    if bottom_single == 0:
+                        text = "n/a" if bottom_net == 0 else "+∞"
+                    else:
+                        pct = (bottom_net - bottom_single) / bottom_single * 100.0
+                        if abs(pct - round(pct)) < 0.05:
+                            text = f"{pct:+.0f}%".replace(".", ",")
+                        else:
+                            text = f"{pct:+.1f}%".replace(".", ",")
+                    ax.text(
+                        x[i] - width/2,
+                        bottom_net + y_offset,
+                        text,
+                        ha="center",
+                        va="bottom",
+                        color="black",
+                        fontsize=fontsize,
+                        bbox=dict(boxstyle="square,pad=0.35", facecolor="white", edgecolor="white", linewidth=1.2),
+                        zorder=5,
+                    )
+                    #"#7A7A7A"
+
+            else:
+                dev = grp_devs[0]
+                val_net = caps_network.get(dev, 0.0)
+                val_single = caps_single.get(dev, 0.0)
+
+                if dev in device_color_pairs:
+                    col_net, col_single = device_color_pairs[dev]
+                else:
+                    col_net = cmap((fallback_i * 2) % 20)
+                    col_single = cmap((fallback_i * 2 + 1) % 20)
+                    fallback_i += 1
+
+                ax.bar(x[i] - width / 2, val_net, width=width, color=col_net)
+                ax.bar(x[i] + width / 2, val_single, width=width, color=col_single)
+
+                if show_percent_box:
+                    ymax = max(val_net, val_single, 1.0)
+                    ax.set_ylim(0, ymax * 1.35)
+                    y_offset = ymax * 0.08
+                    if val_single == 0:
+                        text = "n/a" if val_net == 0 else "+∞"
+                    else:
+                        pct = (val_net - val_single) / val_single * 100.0
+                        if abs(pct - round(pct)) < 0.05:
+                            text = f"{pct:+.0f}%".replace(".", ",")
+                        else:
+                            text = f"{pct:+.1f}%".replace(".", ",")
+                    ax.text(
+                        x[i] - width / 2,
+                        val_net + y_offset,
+                        text,
+                        ha="center",
+                        va="bottom",
+                        color="black",
+                        fontsize=fontsize,
+                        bbox=dict(boxstyle="square,pad=0.35", facecolor="white", edgecolor="white", linewidth=1.2),
+                        zorder=5,
+                    )
+
+                # collect legend entries for this device for both comparisons
+                lbl = label_map.get(dev, dev)
+                lbl_net = f"{lbl} ({cmp1_label})"
+                lbl_single = f"{lbl} ({cmp2_label})"
+                if lbl_net not in shared_added:
+                    shared_handles.append(plt.Rectangle((0, 0), 1, 1, fc=col_net))
+                    shared_labels.append(lbl_net)
+                    shared_added.add(lbl_net)
+                if lbl_single not in shared_added:
+                    shared_handles.append(plt.Rectangle((0, 0), 1, 1, fc=col_single))
+                    shared_labels.append(lbl_single)
+                    shared_added.add(lbl_single)
+
+        # xticks: group labels (use "Wärmeerzeuger" for heat group)
+        xtick_labels = []
+        for grp_name, grp_devs in groups:
+            if grp_name == "HEAT_GROUP":
+                xtick_labels.append("Wärmeerzeuger")
+            else:
+                xtick_labels.append(label_map.get(grp_name, grp_name))
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(xtick_labels, fontsize=fontsize)
+        ax.set_title(sub_titel, fontsize=fontsize )
+        if plot_tes_only:
+            ax.set_ylabel("Speicherkapazität in kWh", fontsize=fontsize)
+        else:
+            ax.set_ylabel("Anlagenleistung in kW", fontsize=fontsize)
+        ax.grid(axis="y", alpha=0.4)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+
+        out[sc] = {"network": caps_network, "single": caps_single}
+
+    # draw global legend (device x compare entries)
+    if shared_handles and shared_labels:
+        ncol = min(6, max(2, len(shared_labels) // 2))
+        fig.legend(
+            shared_handles,
+            shared_labels,
+            loc="lower center",
+            ncol=ncol,
+            frameon=False,
+            bbox_to_anchor=(0.5, -0.02),
+            fontsize=max(9, fontsize - 1),
+        )
+
+    # ensure space for legend and save without clipping
+    fig.subplots_adjust(bottom=0.20)
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    plot_name = f"{titel}.pdf" if titel else "device_capacities_three_subplots_stacked.pdf"
+    plot_path = os.path.join(plots_dir, plot_name)
+    plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+    print(f"Plot saved: {plot_path}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    return out
+
+
+
+
+
 
 if __name__ == "__main__":
-    compare_item1="VW"
-    compare_item2="QW"
+    compare_item1="verbundweise"
+    compare_item2="quartiersweise"
     compare_short1 = "VW"
     compare_short2 = "QW"
 
@@ -3579,7 +3966,7 @@ if __name__ == "__main__":
     # name1 = "Wohnquartier 3"
     
     
-    fontsize = 12
+    fontsize = 14
 
     power_demand={}
     power_demand["ghd6"] = 2276.0
@@ -3588,39 +3975,53 @@ if __name__ == "__main__":
     power_demand["residential0"] = 269.4
     power_demand["residential3"] = 634.2
 
-    plot_power_import_sum_two_subplots_from_csv(
-        scenario_names=[district1, district2],
-        show=True,
-        show_percent_box=True,
-        subplot_titles=[name1, name2],
-        fontsize=14,
-        compare_item1=compare_item1, compare_item2=compare_item2,
-        compare_short1=compare_short1, compare_short2=compare_short2,
-    )
-    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-
-
-    plot_tac_three_subplots_from_csv(
-    scenario_names=[district1, district2, district3],
-    subplot_titles=[name1, name2, name3],
-    fontsize=fontsize,
-    show=True,
-    show_percent_box=True,
-    titel="TAC (3 Quartiere)",
-    compare_item1=compare_item1, compare_item2=compare_item2
-    )
-    
-
-
-    plot_device_capacities_three_subplots_from_csv(
+    plot_device_capacities_three_subplots_stacked_from_csv(
         scenario_names=[district1, district2, district3],
         subplot_titles=[name1, name2, name3],
         fontsize=fontsize,
         show=True,
         exclude_devices=["TES", "STC"],
         show_percent_box=True,
-        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
+        titel="Vergleich der Anlagen-Leistungen (3 Quartiere) gestapelt",
         compare_item1=compare_item1, compare_item2=compare_item2
+    )
+
+    plot_co2_three_subplots_from_csv(
+    scenario_names=[district1, district2, district3],
+    subplot_titles=[name1, name2, name3],
+    fontsize=fontsize,
+    show=False,
+    show_percent_box=True,
+    titel="CO₂-Emissionen (3 Quartiere)",
+    compare_item1=compare_item1, compare_item2=compare_item2
+    )
+
+    plot_tac_three_subplots_from_csv(
+    scenario_names=[district1, district2, district3],
+    subplot_titles=[name1, name2, name3],
+    fontsize=fontsize,
+    show=False,
+    show_percent_box=True,
+    titel="TAC (3 Quartiere)",
+    compare_item1=compare_item1, compare_item2=compare_item2
+    )
+
+    plot_power_export_by_year_from_csv(district3, titel="Stromeinspeisung im " + f"{name3}", show=False, 
+                                       show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2,
+                                       fontsize=fontsize)
+
+
+
+
+
+    plot_power_import_two_subplots_from_csv(
+        scenario_names=[district1, district2],
+        show=False,
+        show_percent_box=True,
+        subplot_titles=[name1, name2],
+        fontsize=fontsize,
+        compare_item1=compare_item1, compare_item2=compare_item2,
+        compare_short1=compare_short1, compare_short2=compare_short2,
     )
 
     plot_device_capacities_three_subplots_from_csv(
@@ -3628,18 +4029,53 @@ if __name__ == "__main__":
         subplot_titles=[name1, name2, name3],
         plot_tes_only= True,
         fontsize=fontsize,
-        show=True,
+        show=False,
         exclude_devices=["HP","EB", "BBOI","PV"],
-        show_percent_box=True,
+        show_percent_box=False,
         titel="Vergleich der Speicherkapazitäten (3 Quartiere)",
         compare_item1=compare_item1, compare_item2=compare_item2
     )
+
+
+
+    plot_power_import_sum_two_subplots_from_csv(
+        scenario_names=[district1, district3],
+        show=False,
+        show_percent_box=True,
+        subplot_titles=[name1, name3],
+        fontsize=14,
+        compare_item1=compare_item1, compare_item2=compare_item2,
+        compare_short1=compare_short1, compare_short2=compare_short2,
+    )
+
+
+
+    plot_device_capacities_three_subplots_from_csv(
+        scenario_names=[district1, district2, district3],
+        subplot_titles=[name1, name2, name3],
+        fontsize=fontsize,
+        show=False,
+        exclude_devices=["TES", "STC"],
+        show_percent_box=True,
+        titel="Vergleich der Anlagen-Leistungen (3 Quartiere)",
+        compare_item1=compare_item1, compare_item2=compare_item2
+    )
+
+
+ 
+
+    
+
+
+
+
+ 
 
     # plot_lcoe_three_subplots_from_csv(
     #     scenario_names=[district1, district2, district3],
     #     subplot_titles=[name1, name2, name3],
     #     fontsize=fontsize,
-    #     show=True,
+    #     show=False,
     #     show_percent_box=True,
     #     titel="Energiegestehungskosten (3 Quartiere)",
     #     compare_item1=compare_item1, compare_item2=compare_item2
@@ -3647,7 +4083,7 @@ if __name__ == "__main__":
 
     # plot_power_import_three_subplots_from_csv(
     #     scenario_names=[district1, district2, district3],
-    #     show=True,
+    #     show=False,
     #     show_percent_box=True,
     #     subplot_titles=[name1, name2, name3],
     #     fontsize=14,
@@ -3655,84 +4091,68 @@ if __name__ == "__main__":
     #     compare_short1=compare_short1, compare_short2=compare_short2,
     # )
 
-    plot_power_import_two_subplots_from_csv(
-        scenario_names=[district1, district2],
-        show=True,
-        show_percent_box=True,
-        subplot_titles=[name1, name2],
-        fontsize=14,
-        compare_item1=compare_item1, compare_item2=compare_item2,
-        compare_short1=compare_short1, compare_short2=compare_short2,
-    )
+
     # plot_lcoe_sum_from_three_scenarios(
     #     scenario_names=[district1, district2, district3],
-    #     show=True,show_percent_box=True,
+    #     show=False,show_percent_box=True,
     #     titel="LCOE als Summe der Quartiere je Jahr", 
     #     compare_item1=compare_item1, compare_item2=compare_item2, 
     #     compare_short1=compare_short1, compare_short2=compare_short2, power_demand=power_demand
     #     )
     
-    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_export_by_year_from_csv(district2, titel=" ", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_export_by_year_from_csv(district1, titel="Stromeinspeisung im " + f"{name1}", show=False, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_export_by_year_from_csv(district2, titel=" ", show=False, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
     
 
    
 
-    plot_co2_three_subplots_from_csv(
-    scenario_names=[district1, district2, district3],
-    subplot_titles=[name1, name2, name3],
-    fontsize=fontsize,
-    show=True,
-    show_percent_box=True,
-    titel="CO₂-Emissionen (3 Quartiere)",
-    compare_item1=compare_item1, compare_item2=compare_item2
-    )
+
     
     # plot_tac_sum_from_three_scenarios(
-    #     scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    #     scenario_names=[district1, district2, district3],show=False,show_percent_box=True,
     #     titel="Jährliche Gesamtkosten als Summe der Quartiere und der Jahre", 
     #     compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2
     # )
     
-    # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # plot_tac_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=False,show_percent_box=True,
     # titel="Jährliche Gesamtkosten als Summe der drei Quartiere", 
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     
-    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    # plot_co2_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=False,show_percent_box=True,
     # titel="CO₂-Emissionen als Summe der Quartiere und der Jahre", 
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
     
-    #plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=True,show_percent_box=True,
+    #plot_co2_by_year_sum_from_three_scenarios(scenario_names=[district1, district2, district3],show=False,show_percent_box=True,
     # titel="CO₂-Emissionen als Summe der drei Quartiere", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_tes_volume_from_csv( scenario_name=district1, show=True, show_percent_box=True,
+    # plot_tes_volume_from_csv( scenario_name=district1, show=False, show_percent_box=True,
     # titel="Volumen thermischer Speicher im  " + f"{name1}",
     # compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_tes_volume_from_csv( scenario_name=district2, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_tes_volume_from_csv( scenario_name=district3, show=True, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district2, show=False, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_tes_volume_from_csv( scenario_name=district3, show=False, show_percent_box=True,titel="Volumen thermischer Speicher im  " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=False, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name1}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=False, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name2}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=False, exclude_devices = ["TES", "STC", "EB"], show_percent_box=True, titel="Vergleich der Anlagen-Leistungen im " + f"{name3}", compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_device_capacities_from_csv(scenario_name=district1, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_device_capacities_from_csv(scenario_name=district2, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_device_capacities_from_csv(scenario_name=district3, show=True, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district1, show=False, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name1}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district2, show=False, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name2}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_device_capacities_from_csv(scenario_name=district3, show=False, exclude_devices = ["PV", "HP", "BCHP", "BBOI", "EB"], show_percent_box=True, titel="Vergleich der Speicherauslegung im " + f"{name3}", plot_tes_only=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_heat_generation_by_year_from_csv(district1, titel="Wärmeproduktion im " + f"{name1}", show=False, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_heat_generation_by_year_from_csv(district2, titel="Wärmeproduktion im " + f"{name2}", show=False, compare_short1=compare_short1, compare_short2=compare_short2)
+    plot_heat_generation_by_year_from_csv(district3, titel="Wärmeproduktion im " + f"{name3}", show=False, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=True, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district1, titel="Strombezug im " + f"{name1}", show=False, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district2, titel="Strombezug im " + f"{name2}", show=False, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_power_import_by_year_from_csv(district3, titel="Strombezug im " + f"{name3}", show=False, show_percent_box=True, compare_short1=compare_short1, compare_short2=compare_short2)
 
 
-    # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_by_year_from_csv(district1, titel="Energiegestehungskosten im " + f"{name1}", show=False, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_by_year_from_csv(district2, titel="Energiegestehungskosten im " + f"{name2}", show=False, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_lcoe_by_year_from_csv(district3, titel="Energiegestehungskosten im " + f"{name3}", show=False, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
 
-    # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
-    # plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=True, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district1, titel="CO₂-Emissionen im " + f"{name1}", show=False, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district2, titel="CO₂-Emissionen im " + f"{name2}", show=False, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)
+    # plot_co2_by_year_from_csv(district3, titel="CO₂-Emissionen im " + f"{name3}", show=False, show_percent_box=True, compare_item1=compare_item1, compare_item2=compare_item2, compare_short1=compare_short1, compare_short2=compare_short2)

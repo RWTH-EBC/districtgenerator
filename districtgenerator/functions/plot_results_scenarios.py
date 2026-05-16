@@ -1597,6 +1597,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
     compare_items=None,
     bar_count=None,
     variants=("network", "single"),
+    fontsize=None,
 ):
     """
     Summiert CO2-Emissionen aus genau 3 Quartieren und plottet beliebig viele Balken.
@@ -1762,7 +1763,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
                 ha="center",
                 va="bottom",
                 color="white",
-                fontsize=8,
+                fontsize=fontsize,
                 bbox=dict(
                     boxstyle="square,pad=0.25",
                     facecolor="#D40000",
@@ -1781,7 +1782,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
         pair_labels.append(str(bars[i]["compare_short"]))
 
     ax.set_xticks(pair_centers)
-    ax.set_xticklabels(pair_labels, fontsize=8)
+    ax.set_xticklabels(pair_labels, fontsize=fontsize)
 
     ax.set_xlim(x.min() - width, x.max() + width)
 
@@ -1803,7 +1804,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
     #         fontsize=8,
     #     )
 
-    ax.set_ylabel("Treibhausgasemissionen in tCO₂e")
+    ax.set_ylabel("Treibhausgasemissionen in t CO₂-eq")
     ax.grid(axis="y", alpha=0.35)
     ax.ticklabel_format(axis="y", style="plain", useOffset=False)
     # Tausenderpunkt (z.B. 1.234 statt 1,234)
@@ -1822,7 +1823,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
         bbox_to_anchor=(0.5, -0.10),
         ncol=2,
         frameon=False,
-        fontsize=8,
+        fontsize=fontsize,
     )
 
     fig.tight_layout()
@@ -1830,7 +1831,7 @@ def plot_co2_sum_all_years_multi_bars_from_csv(
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
-    plot_name = f"{titel}.pdf" if titel else "co2_sum_multi_bars.pdf"
+    plot_name = f"{titel}.png" if titel else "co2_sum_multi_bars.png"
     plot_path = os.path.join(plots_dir, plot_name)
     fig.savefig(plot_path, dpi=300)
     print(f"Plot saved: {plot_path}")
@@ -3033,6 +3034,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
     fontsize1=8,
     fontsize2=8,
     label_left=None,
+    label_middle=None,
     label_right=None,
     variants=("network", "single"),
 ):
@@ -3165,7 +3167,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
     # Farbpalette wie in plot_device_capacities_multi_bars_from_csv_with_TES
     colors = [
         "#721D13", "#242525", "#AC2B1C", "#4E4F50",
-        "#DD402D" , "#757679", "#ED7E72", "#A8A8A8",
+        "#DD402D" , "#757679", "#EC7568", "#9B9B9B",
         "#F1B3AB", "#C4C5C6", "#7f7f7f", "#bcbd22"
     ]
 
@@ -3280,11 +3282,11 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
 
     
 
-
     # Trennklammern wie bei per_pair-Funktion, aber OHNE Text-Label unter den Klammern
     brace_y_ax = -0.10
     brace_h_ax = 0.035
 
+    change_count = 0
     for g_idx, g in enumerate(group_caps):
         base_x = g_idx * group_step
         x0 = base_x
@@ -3327,30 +3329,47 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
             next_base = (g_idx + 1) * group_step
             next_scn = group_caps[g_idx + 1]["scenario_name"]
             if next_scn != g["scenario_name"]:
+                change_count += 1
                 sep_x = 0.5 * (x1 + next_base)
                 ax1.axvline(sep_x, color="#7A7A7A", linestyle="--", linewidth=0.9, zorder=4, clip_on=False)
-                if label_left:
-                    ax1.text(
-                        sep_x - 0.05 * group_step,
-                        1.02,
-                        label_left,
-                        transform=ax1.get_xaxis_transform(),
-                        ha="right",
-                        va="bottom",
-                        fontsize=8,
-                        bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
-                    )
-                if label_right:
-                    ax1.text(
-                        sep_x + 0.05 * group_step,
-                        1.02,
-                        label_right,
-                        transform=ax1.get_xaxis_transform(),
-                        ha="left",
-                        va="bottom",
-                        fontsize=8,
-                        bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
-                    )
+                
+                if change_count == 1:
+                    # Erster Wechsel: label_left und label_middle
+                    if label_left:
+                        ax1.text(
+                            sep_x - 0.05 * group_step,
+                            1.02,
+                            label_left,
+                            transform=ax1.get_xaxis_transform(),
+                            ha="right",
+                            va="bottom",
+                            fontsize=8,
+                            bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
+                        )
+                    if label_middle:
+                        ax1.text(
+                            sep_x + 0.05 * group_step,
+                            1.02,
+                            label_middle,
+                            transform=ax1.get_xaxis_transform(),
+                            ha="left",
+                            va="bottom",
+                            fontsize=8,
+                            bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
+                        )
+                else:
+                    # Weitere Wechsel: nur label_right
+                    if label_right:
+                        ax1.text(
+                            sep_x + 0.05 * group_step,
+                            1.02,
+                            label_right,
+                            transform=ax1.get_xaxis_transform(),
+                            ha="left",
+                            va="bottom",
+                            fontsize=8,
+                            bbox=dict(facecolor="white", edgecolor="none", pad=0.2),
+                        )
 
     ax1.set_ylabel("PV-Anlagenleistung in kW")
     ax1.grid(axis="y", alpha=0.35)
@@ -3393,7 +3412,7 @@ def plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
-    plot_name = f"{titel}.pdf" if titel else "device_capacities_pv.pdf"
+    plot_name = f"{titel}.png" if titel else "device_capacities_pv.png"
     plot_path = os.path.join(plots_dir, plot_name)
     fig.savefig(plot_path, dpi=300, bbox_inches="tight", pad_inches=0.08)
     print(f"Plot saved: {plot_path}")
@@ -3677,7 +3696,7 @@ def plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
-    plot_name = f"{titel}.pdf" if titel else "tac_per_demand_multi_bars.pdf"
+    plot_name = f"{titel}.png" if titel else "tac_per_demand_multi_bars.png"
     plot_path = os.path.join(plots_dir, plot_name)
     fig.savefig(plot_path, dpi=300)
     print(f"Plot saved: {plot_path}")
@@ -4045,7 +4064,7 @@ def plot_power_import_all_years_multi_bars_from_csv_per_pair(
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
-    plot_name = f"{titel}.pdf" if titel else f"power_import_all_years_multibars_percompare.pdf"
+    plot_name = f"{titel}.png" if titel else f"power_import_all_years_multibars_percompare.png"
     plot_path = os.path.join(plots_dir, plot_name)
     fig.savefig(plot_path, dpi=300)
 
@@ -4464,6 +4483,7 @@ def plot_tes_capacity_sum_from_three_scenarios_multi_compare(
                 parsed = _load_single_results_file_to_dict(p)
                 total_tes += _extract_tes_capacity(parsed, sc)
                 paths.append(p)
+            print(f"[DEBUG] {scen_label} - {variant}: total TES={total_tes:.2f} kWh from scenarios {triplet}")
 
             bars.append({
                 "short_file": short_file,
@@ -4595,14 +4615,14 @@ def main():
     #scenario_name = "residential2"
     #scenario_names = ["residential2", "mixed1", "ghd6"]
 
-    short_files = ["Basis", "Bat", "PV"] 
+    short_files = ["Basis", "Bat", "PV","Wohn"] 
     #short_files = ["Bat", "Bat", "Bat"] 
     #short_files = ["Basis","WM","Wohn"]
     #short_files = ["Basis"]
 
     # pro Balkenpaar eigenes Szenario
     #scenario_names_per_pair = ["mixed1", "mixed1", "mixed1","ghd6"]  
-    #scenario_names_per_pair = ["mixed1", "residential2", "ghd6"]
+    scenario_names_per_pair = ["mixed1", "mixed1", "mixed1","ghd6","residential0"]
     #scenario_names_per_pair = ["ghd6", "mixed1", "residential0"]
     #scenario_names_per_pair = ["ghd6", "residential0"]
     #scenario_names_per_pair = ["residential2", "residential2"] 
@@ -4617,33 +4637,36 @@ def main():
     ("residential2", "ghd6"),
     ("residential2", "ghd6"),
     ("residential2", "ghd6"),
+    ("residential2", "residential3"),
     ]
 
     # scenario_names_per_compare = [
     # ("residential2", "ghd6", "mixed1"),
     # ]
     # scenario_names_per_compare = [
-    # ("residential2", "ghd6"),
-    # ("residential2", "residential0"),
-    # ("residential2", "residential3"),
+    # ("residential2", "ghd6", "mixed1"),
+    # ("residential2", "residential0", "mixed1"),
+    # ("residential2", "residential3", "residential0"),
     # ]
     
 
-    compare_shorts = ["Basis", "Batterie", "Solarausbau"]
+    compare_shorts = ["Basis", "Batterie", "Solarausbau", "Wohn"]
     #compare_shorts = ["Batterie", "Batterie", "Batterie"]
     #compare_shorts = ["Basis","Wohnmisch","Wohn"]
     #compare_shorts = ["Basis"]
     #compare_shorts = ["B-VW", "B-QW","W-VW","W-QW", "B-VW","B-QW", "P-VW","P-QW", "WN-VW","WN-QW"]
+
     #compare_items = ["Basis-Szenario", "Wohnmisch-Szenario", "Wohn-Szenario"]
-    #compare_items = ["Basis-Szenario"]
-    compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario"]
+    compare_items = ["Basis-Szenario"]
+    #compare_items = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario", "Solarausbau-Szenario"]
     #compare_items = ["Batterie-Szenario", "Batterie-Szenario", "Batterie-Szenario"]
     compare_item1 = "verbundweise"
     compare_item2 = "quartiersweise"
     base_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir=r"d:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     #target_year = 2035
-    bar_count = 12
+    bar_count = 8
+    fontsize = 9
 
     # scenario_names_by_item = [
     #     ["residential2", "mixed1", "ghd6"],
@@ -4655,6 +4678,7 @@ def main():
         ["residential2", "mixed1", "ghd6"],
         ["residential2", "mixed1", "ghd6"],
         ["residential2", "mixed1", "ghd6"],
+        ["residential2", "residential0", "residential3"]
     ]
     # scenario_names_by_item = [
     #     ["residential2", "mixed1", "ghd6"],
@@ -4665,39 +4689,6 @@ def main():
     power_demand["mixed1"] = 405.6
     power_demand["residential0"] = 269.4
     power_demand["residential3"] = 634.2
-
-    plot_power_import_all_years_multi_bars_from_csv_per_pair(
-    scenario_names_per_compare=scenario_names_per_compare,   # neu: je compare_short 1 oder 2 Szenarien
-    base_dir=base_dir,
-    result_dir=result_dir,
-    show=True,
-    show_percent_box=True,
-    compare_item1=compare_item1,
-    compare_item2=compare_item2,
-    short_files=short_files,          # <- Dateikürzel zum Laden
-    compare_shorts=compare_shorts,       # <- Labels auf x-Achse (pro Szenario)
-    compare_items=compare_items,
-    bar_count=bar_count,
-    variants=("network", "single"),
-    # label_left="Mischquartier",
-    # label_right="Wohnquartier 2",
-    )
-
-
-    plot_tac_sum_all_years_multi_bars_from_csv(
-        scenario_names_by_item=scenario_names_by_item,
-        base_dir=base_dir,
-        result_dir=result_dir,
-        show=True,
-        titel="tac_sum_years_districts",
-        short_files=short_files,
-        compare_shorts=compare_shorts,
-        bar_count=bar_count,
-        variants=("network", "single"),
-        show_percent_box=True,
-        compare_item1 = compare_item1,
-        compare_item2 = compare_item2,
-    )
 
     plot_co2_sum_all_years_multi_bars_from_csv(
         scenario_names_by_item=scenario_names_by_item,
@@ -4712,30 +4703,9 @@ def main():
         show_percent_box=True,
         compare_item1 = compare_item1,
         compare_item2 = compare_item2,
+        fontsize=fontsize
     )
-
-    plot_power_export_all_years_multi_bars_from_csv_per_pair(
-    scenario_names_per_pair=scenario_names_per_pair,   # neu: Liste mit scenario_name für jedes Paar (len == len(short_files))
-    base_dir=base_dir,
-    result_dir=result_dir,
-    show=True,
-    show_percent_box=True,
-    compare_item1=compare_item1,
-    compare_item2=compare_item2,
-    short_files=short_files,          # <- Dateikürzel zum Laden
-    compare_shorts=compare_shorts,       # <- Labels auf x-Achse (pro Szenario)
-    compare_items=compare_items,
-    bar_count=bar_count,
-    variants=("network", "single"),
-    label_left="Mischquartier",
-    label_right="Wohnquartier 2",
-    )
-
-
-
-
-
-
+    
     plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
         scenario_names_by_item=scenario_names_by_item,
         base_dir=base_dir,
@@ -4754,7 +4724,22 @@ def main():
 
 
 
-
+    plot_power_import_all_years_multi_bars_from_csv_per_pair(
+    scenario_names_per_compare=scenario_names_per_compare,   # neu: je compare_short 1 oder 2 Szenarien
+    base_dir=base_dir,
+    result_dir=result_dir,
+    show=True,
+    show_percent_box=True,
+    compare_item1=compare_item1,
+    compare_item2=compare_item2,
+    short_files=short_files,          # <- Dateikürzel zum Laden
+    compare_shorts=compare_shorts,       # <- Labels auf x-Achse (pro Szenario)
+    compare_items=compare_items,
+    bar_count=bar_count,
+    variants=("network", "single"),
+    # label_left="Mischquartier",
+    # label_right="Wohnquartier 2",
+    )
 
     plot_device_capacities_multi_bars_from_csv_with_TES_per_pair(
     short_files=short_files,
@@ -4763,30 +4748,37 @@ def main():
     base_dir=base_dir,
     result_dir=result_dir,
     show=True,
-    titel="device_capacities",
+    titel="device_capacities_all_scenarios",
     show_percent_box=True,
     label_left="Mischquartier",
-    label_right="Gewerbequartier",
+    label_middle="Gewerbequartier",
+    label_right="Wohnquartier 2",
     exclude_devices=["EB", "BBOI", "HP", "TES","BAT"],
     )
 
-    plot_device_capacities_multi_bars_from_csv_with_TES(
-        scenario_name=scenario_name,
-        compare_shorts=compare_shorts,
-        compare_items=compare_items,
-        short_files=short_files,
-        bar_count=bar_count,  
-        variants=("network", "single"),
-        base_dir=base_dir,
-        result_dir=result_dir,
-        show=True,
-        include_devices=None,
-        exclude_devices=[],
-        titel=f"device_capacities_{scenario_name}",
-        show_percent_box=True,
-        fontsize1=9,
-        fontsize2=6,
+
+
+
+    plot_power_export_all_years_multi_bars_from_csv_per_pair(
+    scenario_names_per_pair=scenario_names_per_pair,   # neu: Liste mit scenario_name für jedes Paar (len == len(short_files))
+    base_dir=base_dir,
+    result_dir=result_dir,
+    show=True,
+    show_percent_box=True,
+    compare_item1=compare_item1,
+    compare_item2=compare_item2,
+    short_files=short_files,          # <- Dateikürzel zum Laden
+    compare_shorts=compare_shorts,       # <- Labels auf x-Achse (pro Szenario)
+    compare_items=compare_items,
+    bar_count=bar_count,
+    variants=("network", "single"),
+    label_left="Mischquartier",
+    label_middle="Gewerbequartier",
+    label_right="Wohnquartier 2",
     )
+
+
+
 
 
 
@@ -4810,6 +4802,83 @@ def main():
     fontsize1=8,
     fontsize2=8,
     )
+
+    plot_tac_per_demand_sum_all_years_multi_bars_from_csv(
+        scenario_names_by_item=scenario_names_by_item,
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        titel="specific_tac_sum_years_districts",
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        bar_count=bar_count,
+        variants=("network", "single"),
+        show_percent_box=True,
+        compare_item1 = compare_item1,
+        compare_item2 = compare_item2,
+        power_demand=power_demand,
+    )
+
+
+
+
+
+
+    plot_tac_sum_all_years_multi_bars_from_csv(
+        scenario_names_by_item=scenario_names_by_item,
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        titel="tac_sum_years_districts",
+        short_files=short_files,
+        compare_shorts=compare_shorts,
+        bar_count=bar_count,
+        variants=("network", "single"),
+        show_percent_box=True,
+        compare_item1 = compare_item1,
+        compare_item2 = compare_item2,
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    plot_device_capacities_multi_bars_from_csv_with_TES(
+        scenario_name=scenario_name,
+        compare_shorts=compare_shorts,
+        compare_items=compare_items,
+        short_files=short_files,
+        bar_count=bar_count,  
+        variants=("network", "single"),
+        base_dir=base_dir,
+        result_dir=result_dir,
+        show=True,
+        include_devices=None,
+        exclude_devices=[],
+        titel=f"device_capacities_{scenario_name}",
+        show_percent_box=True,
+        fontsize1=9,
+        fontsize2=6,
+    )
+
+
+
+
+
+
 
 
 

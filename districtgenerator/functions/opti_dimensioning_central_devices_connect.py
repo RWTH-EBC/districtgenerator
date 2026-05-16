@@ -825,14 +825,16 @@ def build_model(model, dataCon, devsCon, paramCon, demCon):
             devs = devsCon[district]
             for y in model.support_years:
                 model.constraints.add(
-                    model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district] * param["renewable_el_grid_share"][y]
+                    model.cap["STC", district] + model.cap["HP", district] + model.cap["EB", district]
                     + model.cap["BCHP", district]/ devs["BCHP"]["eta_el"]*devs["BCHP"]["eta_th"]
                     + model.cap["BBOI", district] 
                     + model.cap["WCHP", district]/ devs["WCHP"]["eta_el"]*devs["WCHP"]["eta_th"] 
                     + model.cap["WBOI", district] >= param["peak_heat"][y])
+                
+                # model.constraints.add(
+                #     model.cap["EB", district]<= param["peak_heat"][y]* param["renewable_el_grid_share"][y]
+                # )
 
-
-                    
                 # Make sure that biomass share is below the maximum allowed share
                 # Define which devices are considered biomass-based for heat generation
                 biomass_heat_technologies = ["BCHP", "BBOI"]  
