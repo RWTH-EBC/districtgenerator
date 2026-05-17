@@ -1063,8 +1063,8 @@ class Datahandler:
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         static_path = os.path.join(path, f"{name}_static.csv")
 
-        df_ts = pd.read_csv(ts_path)
-        df_static = pd.read_csv(static_path)
+        df_ts = pd.read_csv(ts_path, sep=";")
+        df_static = pd.read_csv(static_path, sep=";")
 
         elec = df_ts['elec'].to_numpy()
         dhw = df_ts['dhw'].to_numpy()
@@ -1134,7 +1134,7 @@ class Datahandler:
         None.
         """
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
-        df_ts = pd.read_csv(ts_path)
+        df_ts = pd.read_csv(ts_path, sep=";")
         return df_ts['heating'].to_numpy(), df_ts['cooling'].to_numpy()
 
     def designDecentralDevices(self, saveGenerationProfiles=True):
