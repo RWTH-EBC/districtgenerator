@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import pandas as pd
 from teaser.project import Project
 from .non_residential import NonResidential
 import logging
@@ -139,7 +140,7 @@ class Envelope:
         SFH: single family house; TH: terraced house; MFH: multifamily house; AP: apartment block.
     """
 
-    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path):
+    def __init__(self, prj, building_params, construction_data, physics, design_building_data, file_path, u_values=None, calcThick=False, extra=None):
         """
         Constructor of Envelope class.
 
@@ -161,6 +162,8 @@ class Envelope:
         self.epsilon = {}
         self.alpha_Sc = {}
 
+        self.thick_req = None
+
         self.prj = prj
         self.id = building_params["id"]
         self.construction_year = building_params["year"]
@@ -172,7 +175,7 @@ class Envelope:
         self.file_path = file_path
         self.id = int(building_params.get("id_teaser", building_params["id"]))
         self.loadParams()
-        self.loadComponentProperties(prj)
+        self.loadComponentProperties(prj, u_values, calcThick, extra)
         self.loadAreas(prj)
         self.build_surface_list()
 
@@ -279,7 +282,7 @@ class Envelope:
 
         return (name, density, thermal_conduc, heat_capac, solar_absorp)
 
-    def loadComponentProperties(self, prj):
+    def loadComponentProperties(self, prj, u_values=None, calcThick=False, extra=None):
         """
         Load component-specific material parameters.
 
@@ -492,6 +495,21 @@ class Envelope:
                                                 + sum(self.d["window"]
                                                       / self.Lambda["window"])
                                                 + self.R_se["window"])))
+
+            if u_values is not None:
+                # if given u-values (e.g. from platform in example.csv) are provided, update U-values accordingly
+                mapping = [
+                    (0, self.U["opaque"], 'wall'),
+                    (1, self.U["opaque"], 'roof'),
+                    (2, self.U["opaque"], 'groundfloor'),
+                    (3, self.U, 'window')
+                ]
+
+                for idx, target_dict, key in mapping:
+                    if idx < len(u_values):
+                        val = u_values[idx]
+                        if val != 0 and not pd.isna(val):
+                            target_dict[key] = val
 
             # Adjust the heating set temperature to account for the occupant behavior
             # This is done to account for:
