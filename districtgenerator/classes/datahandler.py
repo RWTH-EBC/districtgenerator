@@ -32,6 +32,7 @@ from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
 from districtgenerator.functions.heating_network_design import network_design
 from districtgenerator.functions.heating_network_operation import network_operation
+from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
@@ -2421,8 +2422,9 @@ class Datahandler:
         -------
         None.
         """
-        _, param = network_design(self)
-        network_operation(self, param)
+#        _, param = network_design(self)
+#        network_operation(self, param)
+        _, param = network_2leiter_simple(self)
 
 def generate_demands_worker_wrapper(args):
     """
