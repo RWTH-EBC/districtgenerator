@@ -212,6 +212,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ice_data = {ice['id']: ice for ice in all_individual_ices}
 
     ################################################################################
+    # HELPER FUNCTIONS
+    ################################################################################
+
+    def heater_type(n):
+        return str(buildingData[n]["buildingFeatures"].get("heater", "")).strip()
+
+    ################################################################################
     # CREATE SETS
     ################################################################################
 
@@ -625,11 +632,23 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.power_dom["PV", n, t] <= PV_gen[n][t]
 
     # heat from local heat grid
+    #def heat_grid_capacity_rule(model, n, t):
+    #    if buildingData[n]["capacities"]["heat_grid"] == 1 or buildingData[n]["capacities"]["heat_grid_SH"] == 1: # no limit on the amount of heat taken from local heat grid
+    #        return pyo.Constraint.Skip
+    #    else:
+    #        return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
+
     def heat_grid_capacity_rule(model, n, t):
-        if buildingData[n]["capacities"]["heat_grid"] == 1 or buildingData[n]["capacities"]["heat_grid_SH"] == 1: # no limit on the amount of heat taken from local heat grid
+        heater = heater_type(n)
+
+        if heater == "heat_grid":
             return pyo.Constraint.Skip
+        elif heater == "heat_grid_SH":
+            return model.heat_dom_DHW["heat_grid", n, t] == 0
         else:
-            return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
+            return model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0
+
+
 
     # Application of the constraints for each device
 

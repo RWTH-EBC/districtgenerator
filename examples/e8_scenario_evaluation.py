@@ -14,7 +14,7 @@ def example8_scenario_evaluation():
     warnings.filterwarnings("ignore", category=FutureWarning)
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_A_buildings_30", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "district_E_buildings_30", env_path=".env.CONFIG.EXAMPLE")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.

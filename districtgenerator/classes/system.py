@@ -151,7 +151,7 @@ class BES:
                     BES["HP"] = 0
 
             # Capacity of heating systems other than heat pumps
-            if k in ("BOI", "BBOI", "OBOI", "H2BOI", "EH", "DH"):
+            if k in ("BOI", "BBOI", "OBOI", "H2BOI", "DH"):  #"EH" entfernt
                 # As the primary heating system
                 if buildingFeatures["heater"] == k:
                     BES[k] = self.design_load_heating + self.design_load_dhw
@@ -160,6 +160,17 @@ class BES:
                     BES[k] = (self.design_load_heating - self.bivalent_load_heating) + self.design_load_dhw
                 else:
                     BES[k] = 0
+
+            if k == "EH":
+                if buildingFeatures["heater"] == "EH":
+                    BES["EH"] = self.design_load_heating + self.design_load_dhw
+                elif buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == "EH":
+                    BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) + self.design_load_dhw
+                elif buildingFeatures["heater"] == "heat_grid_SH":
+                    BES["EH"] = self.design_load_dhw
+                else:
+                    BES["EH"] = 0
+
 
             # handle CHP/FC separately (co-generation)
             if k == "CHP":
@@ -193,7 +204,7 @@ class BES:
             # DHW storage (separate from SH TES)
             if k == "TES_DHW":
                 # No TES_DHW if the system is centralized
-                if buildingFeatures["heater"] in ("heat_grid", "heat_grid_SH", "DH"):
+                if buildingFeatures["heater"] in ("heat_grid", "DH"):   #, "heat_grid_SH" hinzufügen falls lokaler DHW Speicher nicht verbaut werden soll
                     BES["TES_DHW"] = 0
                 # 1-hour storage of design DHW load
                 else:
@@ -267,9 +278,13 @@ class BES:
         design_dhw  = float(self.design_load_dhw)
 
         fixed_common = {}
-        if bf["heater"] in ("heat_grid", "heat_grid_SH", "DH"):
+        if bf["heater"] in ("heat_grid", "DH"):
             fixed_common["TES"] = 0.0
             fixed_common["TES_DHW"] = 0.0
+        elif bf["heater"] == "heat_grid_SH":
+            fixed_common["TES"] = 0.0
+            tau_DHW = 1
+            fixed_common["TES_DHW"] = tau_DHW * design_dhw
         else:
             # TES
             fixed_common["TES"] = (bf["f_TES"] * design / 1000 * self.physics["rho_water"] * self.physics["c_p_water"]
