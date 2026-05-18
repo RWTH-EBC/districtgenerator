@@ -87,7 +87,7 @@ class KPIs:
         self.calculateEnergyExchangeWithinDistrict(data)
         self.calculateAutonomy()
         self.calculateCoverFactors(data)
-        self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
+        self.calc_annual_cost_total(data.scenario_path, data.decentral_device_data, data.district, data.physics)
 
     def prepareData(self, data):
         """
@@ -132,7 +132,7 @@ class KPIs:
         # loop over cluster
         for c in range(len(self.inputData["clusters"])):
             # loop over buildings
-            for id in data.scenario["id"]:
+            for id in data.scenario_path["id"]:
                 self.sum_res_load[c, :] += np.array(self.inputData["resultsOptimization"][c][id]["res_load"])
                 self.sum_res_inj[c, :]  += np.array(self.inputData["resultsOptimization"][c][id]["res_inj"])
 
@@ -252,7 +252,7 @@ class KPIs:
                 a = 0
                 b = 0
                 # sum of all buildings for each timestep
-                for id in data.scenario["id"]:
+                for id in data.scenario_path["id"]:
                     a += self.inputData["resultsOptimization"][c][id]["res_load"][t]
                     b += self.inputData["resultsOptimization"][c][id]["res_inj"][t]
                 # sum of all timesteps
@@ -564,7 +564,7 @@ class KPIs:
         self.calculateOperationCosts(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
-        self.calc_annual_cost_total(data.scenario, data.decentral_device_data, data.district, data.physics)
+        self.calc_annual_cost_total(data.scenario_path, data.decentral_device_data, data.district, data.physics)
         self.calc_total_areas_and_demands(data)
 
     def create_certificate(self, data, result_path):
