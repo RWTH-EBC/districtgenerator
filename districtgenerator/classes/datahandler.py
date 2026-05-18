@@ -1228,7 +1228,7 @@ class Datahandler:
             os.path.join(path, f"{name}_static.csv"),
             sep=';',
             index=False,
-            float_format="%.3f"
+            float_format='%.3f'
         )
 
 
@@ -1261,17 +1261,17 @@ class Datahandler:
 
         df_ts['heating'] = heat
         df_ts['cooling'] = cooling
-        df_ts.to_csv(ts_path, index=False, float_format="%.3f", sep=";")
+        df_ts.to_csv(ts_path, index=False, float_format='%.3f', sep=';')
 
         static_path = os.path.join(path, f"{name}_static.csv")
         if os.path.exists(static_path):
-            df_static = pd.read_csv(static_path, sep=";")
+            df_static = pd.read_csv(static_path, sep=';')
         else:
             df_static = pd.DataFrame()
 
         # wieso ist die gmlId als Liste gespeichert?
         df_static['gmlId'] = gmlId
-        df_static.to_csv(static_path, index=False, float_format="%.3f", sep=";")
+        df_static.to_csv(static_path, index=False, float_format='%.3f', sep=';')
 
 
     def loadProfiles(self, name, path, gen_cars=True):

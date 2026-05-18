@@ -17,8 +17,6 @@ def example5_generate_demands():
 
     # Initialize District
     data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.EXAMPLE")
-    # To use specific parameters, you can provide your own .env.CONFIG file in the data/env folder (see e6)
-    # Refer to it like this: Datahandler(env_path=".env.CONFIG.EXAMPLE") and put the file in ./data
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -45,10 +43,6 @@ def example5_generate_demands():
     # for heat demand of space heating (heat),domestic hot water (dhw), internal heat gains (gains)
     # and the time series for the presents of occupants (occ) are now calculated
     # We can access them under data.district.id.user or in the results folder.
-
-    # We can now use the profiles for exemplary analyses like monthly demands or peak loads.
-    # We plot the district space heat demand in kWh
-    exemplary_plot(data)
 
     return data
 

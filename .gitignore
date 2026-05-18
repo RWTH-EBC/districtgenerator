@@ -19,6 +19,4 @@ districtgenerator/data/weather/*
 *.egg-info/
 *.egg/
 *.eggs
-joss/
-
-.gitlab-ci.yml
+districtgenerator.egg-info/*

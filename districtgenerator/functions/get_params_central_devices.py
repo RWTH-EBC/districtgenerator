@@ -888,6 +888,7 @@ def get_PVandSTC_power(devs, param, data):
     global sun
     sun = Sun(filePath=filePath)
 
+    # betas und gammas änderung für AIX HEat (sonst beta / gamma)
     potentialPV, _ = sun.calcPVAndSTCProfile(time=time,
                                              site=site,
                                              devices=data.decentral_device_data,

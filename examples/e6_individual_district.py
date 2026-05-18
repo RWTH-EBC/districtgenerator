@@ -22,6 +22,7 @@ def example6_config_file_loading():
     # '.env.CONFIG.EXAMPLE'. Use this only as a reference for the parameters you can change, always create a new file
     # to store your custom configuration, such as '.env.CONFIG.FREIBURG'. You can store this file in a different
     # location, but you will need to provide the absolute path to it when initializing the Datahandler.
+    # Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
 
     # Changes are to be made in the '.env.CONFIG.FREIBURG' file. You can delete all other parameters that
     # are not relevant. Try searching the parameters in the file to find the ones you need to change.

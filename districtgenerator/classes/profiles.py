@@ -704,7 +704,7 @@ class Profiles:
 
         return gains_persons, gains_others
 
-    def generate_car_profile(self, building, building_devices_data, holidays, srcPath, start_index_car=0):
+    def generate_car_profile(self, building, building_devices_data, holidays, start_index_car=0):
         """
             Generate daily EV charging demand and ICE fuel consumption profiles (distinguishing between workdays and non-workdays).
 
