@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 import json
 import statistics
-import os, math
+import os
 import random as rd
 import numpy as np
-import pandas as pd
-import openpyxl
-from .profils import Profiles
+from .profiles import Profiles
+from . import power_simulation_non_residential as wrap_light
 import richardsonpy
 import richardsonpy.classes.stochastic_el_load_wrapper as wrap
 import richardsonpy.classes.appliance as app_model
 import richardsonpy.classes.lighting as light_model
-import districtgenerator.functions.heating_profile_5R1C as heating
-import pickle
+import districtgenerator.functions._5R1C as heating_5R1C
+import districtgenerator.functions._7R2C as heating_7R2C
+
+RES_BUILDINGS = {"SFH", "TH", "MFH", "AB"}
 
 class Users:
     """
@@ -31,10 +32,20 @@ class Users:
         Building type according to TABULA database.
     nb_flats : integer
         Number of flats in building.
+    nb_rooms : integer
+        Number of rooms in the building
+    nb_main_rooms : integer
+        Number of main rooms (= working rooms) in the Building. For example the office rooms in an office building
+    total_main_area : float
+        The Area of the main rooms
+    annual_el_demand_zones : dict
+        The annual electricity demand of each zone of the building, without considering the electricity needed for lighting
     annual_el_demand_per_flat : array-like
         Annual electricity consumption in dependency of the building type and the number of occupants.
     lighting_index : integer
         This index defines the lighting configuration of the household.
+    bulbs_power : list
+        List of the rated electrical power of the light bulbs required for the building
     el_wrapper : object
         This objects holds information about the lighting and appliance configuration.
     nc_occ : list
@@ -51,7 +62,25 @@ class Users:
         Heat demand for each building.
     """
 
-    def __init__(self, building, area):
+    @property
+    def nb_units(self) -> int:
+        """
+        Unified number of 'units' in the building:
+        - residential: number of flats
+        - non-residential: number of main rooms
+        """
+        if self.building in RES_BUILDINGS:
+            return int(self.nb_flats or 0)
+        return int(self.nb_main_rooms or 0)
+
+    @nb_units.setter
+    def nb_units(self, value: int) -> None:
+        if self.building in RES_BUILDINGS:
+            self.nb_flats = int(value)
+        else:
+            self.nb_main_rooms = int(value)
+
+    def __init__(self, building, area, year_of_construction, retrofit, SIA2024=None):
         """
         Constructor of Users class.
 
@@ -63,11 +92,15 @@ class Users:
         self.building = building
         self.nb_flats = None
         self.annual_el_demand_per_flat = None
+        self.nb_rooms = None
+        self.nb_main_rooms = None
+        self.total_main_area = None
         self.annual_el_demand = None
+        self.annual_el_demand_zones = {}
         self.annual_heat_demand = None
-        self.annual_dhw_demand = None
         self.annual_cooling_demand = None
         self.lighting_index = []
+        self.bulbs_power = []
         self.el_wrapper = []
         self.nb_occ = []
         self.occ = None
@@ -76,21 +109,38 @@ class Users:
         self.gains = None
         self.heat = None
         self.cooling = None
+        self.EV_carprofile = None
+        self.EV_carcharging_ondemand = None
+        self.ev_capacity = None
+        self.ice_carprofile = None
+        self.individual_car_profiles = []
 
-        self.generate_number_flats(area)
+        # Initialize SIA class and read data
+        self.SIA2024 = SIA2024
+        if self.building in {"OB", "SC", "GS", "RE"}:
+            self.building_zones = self.SIA2024[self.building]
+
+        self.generate_number_flats_and_rooms(area)
         self.generate_number_occupants(area)
-        self.generate_annual_el_consumption()
-        self.generate_lighting_index(area)
+        self.generate_annual_el_consumption_residential()
+        self.generate_annual_app_el_consumption_non_residential(
+            area)  # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
+
+        self.generate_lighting_index(area, year_of_construction, retrofit)
         self.create_el_wrapper()
 
-    def generate_number_flats(self, area):
+    def generate_number_flats_and_rooms(self, area):
         """
-        Generate number of flats for different of building types.
+        Generate number of flats and main rooms for different building types.
         Possible building types are:
             - single family house (SFH)
             - terraced house (TH)
             - multifamily house (MFH)
             - apartment block (AP)
+            - office building (OB)
+            - school (SC)
+            - grocery store (GS)
+            - restaurant (RE)
 
         Parameters
         ----------
@@ -99,21 +149,116 @@ class Users:
 
         Returns
         -------
-        None.
+        nb_flats : int
+            The estimated number of flats.
+        total_main_area : float
+            The main area consists only of the main zones in the building
         """
 
-        if self.building == "SFH":
+        # Residential buildings
+        # If the building is a SFH or TH,
+        # it has only one flat.
+        if self.building in ["SFH", "TH"]:
             self.nb_flats = 1
-        elif self.building == "TH":
-            self.nb_flats = 1
-        elif self.building == "MFH":
-            if area <= 4 * 100:
-                self.nb_flats = 4
-            elif area > 4 * 100:
-                self.nb_flats = rd.randint((area // 100) - 1, (area // 100) + 1)
-        elif self.building == "AB":
-            self.nb_flats = 8
 
+        # If the building is a MFH or AB,
+        # we estimate the number of flats probabilistically.
+        elif self.building in ["MFH", "AB"]:
+            # Data source: Federal Statistical Office of Germany (Destatis), Zensus 2022
+            # URL: https://www.zensus2022.de/
+            # This method estimates the number of flats for multi-family houses (MFH) and apartment buildings (AB)
+            # based on statistical data from Zensus 2022. The approach follows these steps:
+            # 1. A predefined set of apartment size categories (in square meters) is used, each with an associated
+            #   probability based on real-world statistics.
+            # 2. A random apartment size category is selected using a weighted probability distribution.
+            # 3. The mean value of the selected size range is used as the approximate flat size.
+            # 4. The total number of flats is calculated by dividing the building’s total floor area by the selected flat size.
+            # 5. The method ensures that the estimated number of flats is at least 2, as MFH and AB buildings should have
+            #   multiple flats.
+
+            area_categories = [(20, 39), (40, 59), (60, 79), (80, 99), (100, 119), (120, 139), (140, 159), (160, 179), (180, 199)]
+            probabilities = [0.05896, 0.181403, 0.23811, 0.17094, 0.118865, 0.107155, 0.067465, 0.0350566, 0.02204]
+            while True:
+                # Choose one consistent flat size for the entire building
+                chosen_area_range = rd.choices(area_categories, weights=probabilities, k=1)[0]
+                chosen_area = (chosen_area_range[0] + chosen_area_range[1]) // 2  # Use the mean area of the selected range
+
+                # Calculate the number of flats using rounding to the nearest integer
+                self.nb_flats = round(area / chosen_area)
+
+                # Ensure at least 2 flats
+                if self.nb_flats > 1:
+                    break
+
+        # Non-residential buildings
+
+        else:
+            if self.building == "OB":
+                proportion_office = 0
+                nb_rooms = 0
+                mean_area_per_main_room = 36                                    # According to SIA, the net area is 36 m² per office.
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        nb_rooms += area * proportion / data['area_room']
+                self.nb_rooms = round(nb_rooms)
+
+                for zone_name in {"Einzel-, Gruppenbüro", "Grossraumbüro"}:
+                        proportion_office += self.building_zones[zone_name]
+                self.total_main_area = area * proportion_office
+                self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room, mean_area_per_main_room * 0.1))   # A random number of offices following a Gaussian distribution with a mean of mean_area_per_main_room (36 m²) and a standard deviation of 10%. The number of offices is calculated in order to later determine the number of occupants of the building depending on it
+
+            if self.building == "SC":
+                proportion_classrooms = 0
+                nb_rooms = 0
+                mean_area_per_main_room = 70  # According to SIA, the net area is 70 m² per classroom.
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        nb_rooms += area * proportion / data['area_room']
+                self.nb_rooms = round(nb_rooms)
+
+                for zone_name in {"Schulzimmer", "Lehrerzimmer", "Bibliothek", "Hörsaal"}:
+                    proportion_classrooms += self.building_zones[zone_name]
+                self.total_main_area = area * proportion_classrooms
+                self.nb_main_rooms = round(self.total_main_area / rd.gauss(mean_area_per_main_room,
+                                                                           mean_area_per_main_room * 0.1))  # A random number of classrooms following a Gaussian distribution with a mean of mean_area_per_main_room (70 m²) and a standard deviation of 10%. The number of offices is calculated in order to later determine the number of occupants of the building depending on it
+
+            if self.building == "GS":
+                proportion_selling_space = 0
+                nb_rooms = 0
+                mean_area_per_main_room = 400         # According to SIA
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        nb_rooms += area * proportion / data['area_room']
+                self.nb_rooms = round(nb_rooms)
+
+                for zone_name in {"Lebensmittelverkauf"}:
+                    proportion_selling_space += self.building_zones[zone_name]
+                self.total_main_area = area * proportion_selling_space
+                self.nb_main_rooms = max(round(self.total_main_area / rd.gauss(mean_area_per_main_room,
+                                                                           mean_area_per_main_room * 0.1)),1)
+
+            if self.building == "RE":
+                proportion_restaurant = 0
+                nb_rooms = 0
+                mean_area_per_main_room = 144   # According to SIA
+                for number, data in self.SIA2024.items():
+                    zone_name = data.get('Zone_name_GER')
+                    if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        nb_rooms += area * proportion / data['area_room']
+                self.nb_rooms = round(nb_rooms)
+
+                for zone_name in {"Restaurant", "Küche zu Restaurant"}:
+                    proportion_restaurant += self.building_zones[zone_name]
+                self.total_main_area = area * proportion_restaurant
+                self.nb_main_rooms = max(round(self.total_main_area / rd.gauss(mean_area_per_main_room,
+                                                                           mean_area_per_main_room * 0.1)),1)
 
     def generate_number_occupants(self,area):
         """
@@ -208,8 +353,29 @@ class Users:
                     # Fallback in case no condition matched (due to floating-point issues)
                     self.nb_occ.append(5)
 
+        elif self.building == "OB":
+                # loop over all office rooms of current office building
+                for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/12,area/self.nb_main_rooms/12 * 0.15)))  # 12 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
 
-    def generate_annual_el_consumption(self):
+        elif self.building == "SC":
+                # loop over all School main rooms of current School building
+                for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/3,area/self.nb_main_rooms/3 * 0.15)))  # 3 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
+
+        elif self.building == "GS":
+                for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/8,area/self.nb_main_rooms/8 * 0.15)))  # 8 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
+
+        elif self.building == "RE":
+                for k in range(self.nb_main_rooms):
+                    # self.nb_occ is the number of occupants in every main room
+                    self.nb_occ.append(round(rd.gauss(self.total_main_area/self.nb_main_rooms/2,area/self.nb_main_rooms/2 * 0.15)))  # 2 m² area per occupant (source: SIA); assumption: random number based on a Gaussian distribution with a standard deviation of 15%
+
+    def generate_annual_el_consumption_residential(self):
         """
         Generate annual electricity consumption
         in dependency of the building type and the number of occupants.
@@ -280,7 +446,46 @@ class Users:
                         i += 1
                 self.annual_el_demand += self.annual_el_demand_per_flat[j]
 
-    def generate_lighting_index(self, area):
+    def generate_annual_app_el_consumption_non_residential(self, area, ventilation=0):             # Annual electricity consumption of all devices including the electricity required for ventilation and excluding the electricity required for lighting
+
+        if self.building not in {"SFH","TH","MFH","AB"}:
+            if self.building == "SC":
+                ventilation = 1
+            for number, data in self.SIA2024.items():
+                zone_name = data.get('Zone_name_GER')
+                if zone_name:
+                        proportion = self.building_zones[zone_name]
+                        yearly_electricity_standard = (  # no consideration of electricity for lighting
+                                data['E_devices_year_kwh']['standard'] +
+                                data['E_vent_year_kwh']['standard'] * ventilation)
+                        yearly_electricity_goal = (  # no consideration of electricity for lighting
+                                data['E_devices_year_kwh']['goal'] +
+                                data['E_vent_year_kwh']['goal'] * ventilation)
+                        yearly_electricity_existing = (  # no consideration of electricity for lighting
+                                data['E_devices_year_kwh']['existing'] +
+                                data['E_vent_year_kwh']['existing'] * ventilation)
+                        consumptions = [yearly_electricity_standard, yearly_electricity_goal, yearly_electricity_existing]
+                        consumption_range = [min(consumptions), statistics.median(consumptions),
+                                                    max(consumptions)]  # composing a range for the consumption using data from SIA
+                        probabilities = [0.5, 0.5]
+
+                        annual_el_demand_zone = 0
+                        for j in range(self.nb_main_rooms):
+                            random_nb = rd.random()  # picking random number in [0,1) to decide between which 2 values of consumption_range the annual electricity consumption lies
+                            i = 1
+                            while i <= 2:
+                                if random_nb < sum(probabilities[:i]):
+                                    annual_el_demand_zone_room = rd.randint(
+                                        round(area * consumption_range[i - 1] * proportion / self.nb_main_rooms),
+                                        round(area * consumption_range[i] * proportion / self.nb_main_rooms))
+                                    annual_el_demand_zone += annual_el_demand_zone_room
+
+                                    # A random integer is selected as the current demand, which must lie between the two values determined by the first random number
+                                    break
+                                i += 1
+                        self.annual_el_demand_zones[zone_name] = annual_el_demand_zone
+
+    def generate_lighting_index(self, area, year_of_construction, retrofit):
         """
         Choose a random lighting index between 0 and 99 for the residential buildings.
         This index defines the lighting configuration of the household.
@@ -289,8 +494,25 @@ class Users:
         Assumptions: - All lighting configurations have the same probability.
                      - No differences between SFH, TH, MFH and AB.
 
+        Select a list of bulbs for the non-residential buildings, depending on the needed
+        room illuminance
+
         Parameters
         ----------
+        area : float
+            The area of the building in square meters.
+        year_of_construction : int
+            The year the building was constructed.
+        retrofit : str
+            Indicates whether the building is retrofitted or not
+        room_illuminance : int
+            The needed illuminance for the rooms in lux (Source: DIN EN 12464-1)
+        lm_needed : float
+            The luminous flux needed for a room in lumen
+        total_lm : float
+            The total luminous flux of all installed bulbs
+        selected_lamps : list
+            The list of the choosen lamps
         random_nb : random number in [0,1).
 
         Returns
@@ -298,9 +520,53 @@ class Users:
         None.
         """
 
-        for j in range(self.nb_flats):
-            random_nb = rd.random()
-            self.lighting_index.append(int(random_nb * 100))
+        if self.building in {"SFH","TH","MFH","AB"}:
+            for j in range(self.nb_flats):
+                random_nb = rd.random()
+                self.lighting_index.append(int(random_nb * 100))
+
+        else:
+            file_name = "LightBulbs_nonresidential.json"
+            # If the building was constructed before the year 2000 and has not been retrofitted
+            # (indicated by `retrofit == 0`), select "combi_1" as the bulb configuration.
+            if year_of_construction < 2000 and retrofit == 0:
+                bulbs_combination =  "combi_1"
+            # For buildings constructed in or after the year 2000, or for buildings that have been retrofitted
+            # (indicated by any value other than 0 for `retrofit`), select "combi_2" as the bulb configuration.
+            else:
+                bulbs_combination = "combi_2"
+
+            try:
+                with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data',
+                                   file_name)) as json_file:
+                    jsonData = json.load(json_file)
+            except FileNotFoundError:
+                print(f"Error: File '{file_name}' not found.")
+                return
+
+            # Process data for different building types
+            selected_combination = jsonData.get(bulbs_combination, [])
+            # Source: DIN EN 12464-1
+            illuminance_range = {
+                "OB": (300, 650),
+                "SC": (300, 400),
+                "GS": (500, 750),
+                "RE": (300, 500)
+            }
+
+            for _ in range(self.nb_rooms):
+                room_illuminance = rd.randint(*illuminance_range[self.building])
+                room_area = area / self.nb_rooms
+                lm_needed = room_illuminance * room_area
+                total_lm = 0
+                selected_lamps = []
+
+                # Install random bulbs as long as the required luminous flux has not yet been reached.
+                while total_lm < lm_needed:
+                    lamp = rd.choice(selected_combination)
+                    selected_lamps.append(lamp)
+                    total_lm += lamp["luminous_flux"]
+                    self.bulbs_power.append(lamp["power"])
 
     def create_el_wrapper(self):
         """
@@ -346,7 +612,15 @@ class Users:
                 #  Create wrapper object
                 self.el_wrapper.append(wrap.ElectricityProfile(appliances, lights))
 
-    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, path, initial_day=1):
+        else:
+
+            # Save light configuration object
+            lights = self.bulbs_power
+
+            #  Create wrapper object only for lighting
+            self.el_wrapper.append(wrap_light.ElectricityProfile(lights, self.building))
+
+    def calcProfiles(self, site, holidays, time_resolution, time_horizon, building, building_devices_data, path, initial_day, gen_cars=True):
         """
         Calculate profiles for every flat and summarize them for the whole building
 
@@ -361,77 +635,37 @@ class Users:
         initial_day : integer, optional
             Day of the week with which the generation starts.
             1-7 for monday-sunday. The default is 1.
+        gen_cars : bool, optional if turned to false no car profiles are generated to improve perfomance if cars are not needed. The default is True.
+            Be aware that setting it to false causes the simulation to not possess cars even if the scenario says so.
 
         Returns
         -------
         None.
         """
 
+        if hasattr(self, 'create_el_wrapper'):
+            self.create_el_wrapper()
+
         irradiation = site["SunTotal"]
         T_e = site["T_e"]
 
         time_day = 24 * 60 * 60
         nb_days = int(time_horizon/time_day)
+
+        self.occ = np.zeros(int(time_horizon / time_resolution))
+        self.dhw = np.zeros(int(time_horizon / time_resolution))
+        self.elec = np.zeros(int(time_horizon / time_resolution))
+        self.gains = np.zeros(int(time_horizon / time_resolution))
+        self.EV_carprofile = np.zeros(int(time_horizon / time_resolution))
+        self.EV_carcharging_ondemand = np.zeros(int(time_horizon / time_resolution))
+        self.ev_capacity = [0.0]
+        self.ice_carprofile = np.zeros(int(time_horizon / time_resolution))
+        self.individual_car_profiles = []
+
+        # Residential buildings
         if self.building in {"SFH", "TH", "MFH", "AB"}:
 
-            self.occ = np.zeros(int(time_horizon / time_resolution))
-            self.dhw = np.zeros(int(time_horizon / time_resolution))
-            self.elec = np.zeros(int(time_horizon / time_resolution))
-            self.gains = np.zeros(int(time_horizon / time_resolution))
-            self.car = np.zeros(int(time_horizon / time_resolution))
-            self.annual_dhw_demand = 0
-
-            building_id = str(building['buildingFeatures']['id'])
-
-            # n_flats ############################################################
-            profile_path = os.path.join(path, f"n_flats_{building_id}.pkl")
-
-            if "retrofit_0" in str(profile_path):
-
-                with open(profile_path, "wb") as f:
-                    pickle.dump(self.nb_flats, f)
-                print(f"n_flat gespeichert unter: {profile_path}")
-
-            else:
-
-                if "retrofit_1" in str(profile_path):
-                    new_path = profile_path.replace("retrofit_1", "retrofit_0")
-                elif "retrofit_2" in str(profile_path):
-                    new_path = profile_path.replace("retrofit_2", "retrofit_0")
-
-                # → Laden aktivitätsprofil
-                with open(new_path, "rb") as f:
-                    self.nb_flats = pickle.load(f)
-                print(f"DHW geladen von: {new_path}")
-
-            if building['buildingFeatures']['building'] == "AB":
-                unique_name = "MFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-            elif building['buildingFeatures']['building'] == "TH":
-                unique_name = "SFH_" + str(building["user"].nb_flats) + "_" + str(building['buildingFeatures']['id'])
-            else:
-                unique_name = building['unique_name']
-
-            # n_occ ############################################################
-            profile_path = os.path.join(path, f"nb_occ_{building_id}.pkl")
-
-            if "retrofit_0" in str(profile_path):
-
-                with open(profile_path, "wb") as f:
-                    pickle.dump(self.nb_occ, f)
-                print(f"n_occ gespeichert unter: {profile_path}")
-
-            else:
-
-                if "retrofit_1" in str(profile_path):
-                    new_path = profile_path.replace("retrofit_1", "retrofit_0")
-                elif "retrofit_2" in str(profile_path):
-                    new_path = profile_path.replace("retrofit_2", "retrofit_0")
-
-                # → Laden aktivitätsprofil
-                with open(new_path, "rb") as f:
-                    self.nb_occ = pickle.load(f)
-                print(f"n_occ geladen von: {new_path}")
-
+            current_index = 0  # To keep track of the starting index for car profiles Id in each flat
             for j in range(self.nb_flats):
 
                 flat_id = f"{building_id}" + f"_{j}"
@@ -439,36 +673,9 @@ class Users:
                 # Hier wird die activity überschrieben bei retrofit > 0
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
-                                    building=self.building,data_path=path,building_id = flat_id)
+                                    building=self.building)
+                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
-                # dhw ############################################################
-                profile_path = os.path.join(path, f"dhw_{flat_id}.pkl")
-
-                if "retrofit_0" in str(profile_path):
-
-                    dhw_flat = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
-
-                    with open(profile_path, "wb") as f:
-                        pickle.dump(dhw_flat, f)
-                    print(f"DHW-Profil gespeichert unter: {profile_path}")
-
-                else:
-
-                    if "retrofit_1" in str(profile_path):
-                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
-                    elif "retrofit_2" in str(profile_path):
-                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
-
-                    # → Laden aktivitätsprofil
-                    with open(new_path, "rb") as f:
-                        dhw_flat = pickle.load(f)
-                    print(f"DHW geladen von: {new_path}")
-
-                self.dhw = self.dhw + dhw_flat
-
-                self.annual_dhw_demand += self.dhw
-
-                # occ ############################################################
                 # Occupancy profile in a flat
                 profile_path = os.path.join(path, f"occ_{flat_id}.pkl")
 
@@ -504,59 +711,68 @@ class Users:
                                                                                  el_wrapper=self.el_wrapper[j],
                                                                                  annual_demand=self.annual_el_demand_per_flat[j])
 
-                    with open(profile_path, "wb") as f:
-                        pickle.dump(elec_flat, f)
-                    print(f"Elec-Profil gespeichert unter: {profile_path}")
+                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
+                if gen_cars:
+                    (EV_carprofile, EV_on_demand_charging, ev_capacity,
+                     ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                         building=building,
+                         building_devices_data=building_devices_data,
+                         holidays=holidays,
+                         start_index_car=current_index)
 
-                else:
+                    self.EV_carprofile = self.EV_carprofile + EV_carprofile  # Sum car profiles over all flats in the building
+                    self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + EV_on_demand_charging
+                    self.ev_capacity += ev_capacity
+                    self.ice_carprofile = self.ice_carprofile + ice_carprofile
+                    self.individual_car_profiles.extend(individual_car_profiles)
+                    current_index += len(individual_car_profiles)  # Update the starting index for the next flat of the building
 
-                    if "retrofit_1" in str(profile_path):
-                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
-                    elif "retrofit_2" in str(profile_path):
-                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
+        else:
+            # Non-residential buildings
+            # Define average school holiday day ranges (Julian days)
+            SCHOOL_HOLIDAYS = [
+                range(94, 107),  # Osterferien
+                range(189, 233),  # Sommerferien
+                range(285, 298),  # Herbstferien
+                list(range(357, 366)) + list(range(1, 7)),  # Weihnachtsferien
+            ]
 
-                    # → Laden aktivitätsprofil
-                    with open(new_path, "rb") as f:
-                        elec_flat = pickle.load(f)
-                    print(f"Elec geladen von: {new_path}")
+            # Flatten all holiday days into one set for fast lookup
+            school_holiday_days = set()
+            for r in SCHOOL_HOLIDAYS:
+                school_holiday_days.update(r)
 
-                self.elec = self.elec + elec_flat
-                # gains ############################################################
-                profile_path = os.path.join(path, f"gains_{flat_id}.pkl")
+            # If the current building is a school ("SC"), extend the holiday list
+            if self.building == "SC":
+                holidays = set(holidays or [])
+                holidays.update(school_holiday_days)
+                holidays = sorted(list(holidays))  # keep format consistent
 
-                if "retrofit_0" in str(path):
+            temp_obj = Profiles(number_occupants=round(statistics.mean(self.nb_occ)), number_occupants_building=sum(self.nb_occ),initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,building=self.building,SIA2024=self.SIA2024)
+            # Occupancy profile in the building
+            _,self.occ,_ = temp_obj.generate_profiles_non_residential(holidays = holidays)
+            self.elec = temp_obj.generate_el_profile_non_residential(irradiance=irradiation,el_wrapper=self.el_wrapper[0],annual_demand_app=self.annual_el_demand_zones)
 
-                    gains_flat = temp_obj.generate_gain_profile_residential()
+            gains_persons, gains_others = temp_obj.generate_gain_profile_non_residential()
+            self.gains = gains_persons + gains_others
 
-                    with open(profile_path, "wb") as f:
-                        pickle.dump(gains_flat, f)
-                    print(f"Gains-Profil gespeichert unter: {profile_path}")
+            self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
-                else:
+            # In the case of non-residential buildings, EVs are only for office buildings
+            if self.building in {"OB"} and gen_cars:
+                (EV_carprofile, EV_on_demand_charging, ev_capacity,
+                ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
+                    building=building,
+                    building_devices_data=building_devices_data,
+                    holidays=holidays
+                )
+                self.EV_carprofile += EV_carprofile
+                self.EV_carcharging_ondemand += EV_on_demand_charging
+                self.ev_capacity += ev_capacity
+                self.ice_carprofile += ice_carprofile
+                self.individual_car_profiles.extend(individual_car_profiles)
 
-                    if "retrofit_1" in str(profile_path):
-                        new_path = profile_path.replace("retrofit_1", "retrofit_0")
-                    elif "retrofit_2" in str(profile_path):
-                        new_path = profile_path.replace("retrofit_2", "retrofit_0")
-
-                    # → Laden aktivitätsprofil
-                    with open(new_path, "rb") as f:
-                        gains_flat = pickle.load(f)
-                    print(f"gains geladen von: {new_path}")
-
-                self.gains = self.gains + gains_flat  # Gains muss nicht für 0 gespeichert werden, weil abhänging von OCC (s. oben)und licht durch Hülle
-
-            ###########################################
-            # currently only one car per building possible
-            self.car = self.car + temp_obj.generate_EV_profile(self.occ, building['buildingFeatures']['f_EV'])
-
-        # ------ Webtool: import of existing time series to save computing time ------ #
-        # self.occ = np.loadtxt(path + '/occ_' + unique_name + '.csv', delimiter=',')
-        # self.car = np.loadtxt(path + '/car_' + unique_name + '.csv', delimiter=',')
-        # self.elec = np.loadtxt(path + '/elec_' + unique_name + '.csv', delimiter=',')
-        # self.gains = np.loadtxt(path + '/gains_' + unique_name + '.csv', delimiter=',')
-
-    def calcHeatingProfile(self, site, envelope, night_setback, holidays, time_resolution):
+    def calcHeatingProfile(self, site, envelope, thermal_model, night_setback, is_cooled, calendar, time_resolution, initial_day):
         """
         Calculate heat demand for each building.
 
@@ -566,11 +782,21 @@ class Users:
             Site data, e.g. weather.
         envelope: object
             Containing all physical data of the envelope.
+        night_setback : integer
+            1 if night setback is activated, 0 if not.
+        is_cooled : integer
+            1 if the building is actively cooled, 0 if not.
+        calendar : dict
+            Information about TRY (holidays, heating period, etc.).
         time_resolution : integer
             Resolution of time steps of output array in seconds.
-        Q_HC : float
-            Heating (positive) or cooling (negative) load for the current time
-            step in Watt.
+
+        Outputs
+        -------
+        Q_H : float
+            Heating load for the current time step in Watt.
+        Q_C : float
+            Cooling load for the current time step in Watt.
 
         Returns
         -------
@@ -578,12 +804,44 @@ class Users:
         """
 
         dt = time_resolution / (60 * 60)
+
+        # Extend holidays for schools
+        if self.building == "SC":
+            # Define average NRW school holiday day ranges (Julian days)
+            SCHOOL_HOLIDAYS = [
+                range(94, 107),  # Osterferien
+                range(189, 233),  # Sommerferien
+                range(285, 298),  # Herbstferien
+                list(range(357, 366)) + list(range(1, 7)),  # Weihnachtsferien
+            ]
+
+            # Flatten and merge with existing holidays
+            school_holiday_days = set()
+            for r in SCHOOL_HOLIDAYS:
+                school_holiday_days.update(r)
+
+            calendar["holidays"] = set(calendar["holidays"] or [])
+            calendar["holidays"].update(school_holiday_days)
+            calendar["holidays"] = sorted(list(calendar["holidays"]))  # consistent type for downstream use
+
+        if thermal_model == "5R1C":
+            heating = heating_5R1C
+        elif thermal_model == "7R2C":
+            heating = heating_7R2C
+        else:
+            raise ValueError(f"Unknown thermal_model_type: {thermal_model}")
+
         # calculate the temperatures (Q_HC, T_op, T_m, T_air, T_s)
         if night_setback == 1:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], holidays, dt,
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc_night_setback(envelope, site["T_e"], calendar, dt, initial_day,
                                                                          self.building)
         elif night_setback == 0:
-            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], holidays, dt, self.building)
+            (Q_H, Q_C, T_op, T_m, T_i, T_s) = heating.calc(envelope, site["T_e"], calendar, dt, initial_day, self.building)
+
+        # Force cooling to zero if building is not actively cooled
+        if is_cooled == 0:
+            Q_C = np.zeros_like(Q_C)
+
         # heating and cooling loads for the current time step in Watt
         self.heat = Q_H
         self.cooling = Q_C

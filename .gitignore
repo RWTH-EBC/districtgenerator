@@ -1,7 +1,7 @@
 districtgenerator/results/*
 districtgenerator/data/scenarios/*
-districtgenerator/examples/*
 errorfile.txt
+build
 *.bk
 *.log
 *.lp
@@ -18,8 +18,4 @@ districtgenerator/data/weather/*
 *.egg-info/
 *.egg/
 *.eggs
-joss/
-
-districtgenerator/
-
-.gitlab-ci.yml
+districtgenerator.egg-info/*

@@ -1,0 +1,74 @@
+{
+  "MINIS": {
+    "proportion": 0.069,
+    "energy_mean_Wh_per_km": 161.0,
+    "energy_std_Wh_per_km": 14.7,
+    "battery_mean_kWh": 18.0,
+    "battery_std_kWh": 5.6,
+    "consumption_gasoline_l_per_100km": 5.0,
+    "consumption_diesel_l_per_100km": 4.2
+  },
+  "KLEINWAGEN": {
+    "proportion": 0.177,
+    "energy_mean_Wh_per_km": 174.3,
+    "energy_std_Wh_per_km": 4.6,
+    "battery_mean_kWh": 39.5,
+    "battery_std_kWh": 10.8,
+    "consumption_gasoline_l_per_100km": 5.4,
+    "consumption_diesel_l_per_100km": 4.8
+  },
+  "KOMPAKTKLASSE": {
+    "proportion": 0.232,
+    "energy_mean_Wh_per_km": 173.0,
+    "energy_std_Wh_per_km": 3.6,
+    "battery_mean_kWh": 58.3,
+    "battery_std_kWh": 0.5,
+    "consumption_gasoline_l_per_100km": 6.2,
+    "consumption_diesel_l_per_100km": 4.8
+  },
+  "MITTELKLASSE": {
+    "proportion": 0.117,
+    "energy_mean_Wh_per_km": 163.3,
+    "energy_std_Wh_per_km": 19.4,
+    "battery_mean_kWh": 56.7,
+    "battery_std_kWh": 9.1,
+    "consumption_gasoline_l_per_100km": 7.5,
+    "consumption_diesel_l_per_100km": 5.2
+  },
+  "OBERE MITTELKLASSE": {
+    "proportion": 0.036,
+    "energy_mean_Wh_per_km": 153.0,
+    "energy_std_Wh_per_km": 0.0,
+    "battery_mean_kWh": 77.0,
+    "battery_std_kWh": 0.0,
+    "consumption_gasoline_l_per_100km": 8.5,
+    "consumption_diesel_l_per_100km": 5.7
+  },
+  "OBERKLASSE": {
+    "proportion": 0.006,
+    "energy_mean_Wh_per_km": 195.7,
+    "energy_std_Wh_per_km": 14.2,
+    "battery_mean_kWh": 87.5,
+    "battery_std_kWh": 5.8,
+    "consumption_gasoline_l_per_100km": 11.2,
+    "consumption_diesel_l_per_100km": 7.0
+  },
+  "SUVs": {
+    "proportion": 0.122,
+    "energy_mean_Wh_per_km": 189.8,
+    "energy_std_Wh_per_km": 21.1,
+    "battery_mean_kWh": 76.2,
+    "battery_std_kWh": 13.3,
+    "consumption_gasoline_l_per_100km": 6.2,
+    "consumption_diesel_l_per_100km": 5.5
+  },
+  "UTILITIES": {
+    "proportion": 0.043,
+    "energy_mean_Wh_per_km": 205.0,
+    "energy_std_Wh_per_km": 7.1,
+    "battery_mean_kWh": 56.5,
+    "battery_std_kWh": 28.6,
+    "consumption_gasoline_l_per_100km": 6.8,
+    "consumption_diesel_l_per_100km": 6.8
+  }
+}

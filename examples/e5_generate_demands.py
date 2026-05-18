@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 def example5_generate_demands():
 
     # Initialize District
-    data = Datahandler(scenario_name = "example")
+    data = Datahandler(scenario_name = "example_decentral", env_path=".env.CONFIG.EXAMPLE")
 
     # Generate Environment for the District
     data.generateEnvironment()
@@ -28,13 +28,14 @@ def example5_generate_demands():
     data.generateBuildings()
 
     # Now we generate building specific demand profiles. The computation can take a few minutes,
-    # because energy profiles for a hole year are computed. As input we tell the program,
+    # because energy profiles for a whole year are computed in multiprocessing. As input we tell the program,
     # if we want to calculate and save the demand profiles: If "calcUserProfiles=True", the datahandler
     # generates the profiles and saves them in the directory "results/demands/".
     # Alternatively we can load existing profiles. To do so, we put "calcUserProfiles=False".
     # The Richardson tool is used to generate stochastic occupancy, internal heat gain and electric load profiles.
     # With an 5R1C thermal building model the space heat profiles and a stochastic model the drinking hot water
     # profiles are calculated.
+    # If you also want to calculate cooling demand profiles, you can set "cooling" within the .csv file to 1
     data.generateDemands(calcUserProfiles=True, saveUserProfiles=True)
 
     ### ===========================================  Output  =========================================== ###
@@ -43,21 +44,21 @@ def example5_generate_demands():
     # and the time series for the presents of occupants (occ) are now calculated
     # We can access them under data.district.id.user or in the results folder.
 
-    # We can now use the profiles for exemplary analyses like monthly demands or peak loads.
-    # We plot the district space heat demand in kWh
-    exemplary_plot(data)
-
     return data
 
 def exemplary_plot(data):
 
     # Sum heat demand of buildings
-    heat = data.district[0]["user"].heat + data.district[1]["user"].heat
+    heat = data.district[0]["user"].heat
     # Unit conversion [kWh]
     heat = heat / (data.time["dataResolution"] / data.time["timeResolution"]) / 1000
 
+    # Calculate frequency in hours
+    freq_hours = data.time["timeResolution"] / 3600
+    freq_str = f'{freq_hours}H'
+
     # Create a dataframe that contains the timestamps
-    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq='15min')
+    date_range = pd.date_range(start='2023-01-01', periods=data.time["timeSteps"], freq=freq_str)
     df = pd.DataFrame(heat, index=date_range, columns=['Value'])
 
     # Aggregate the data on a monthly basis (totalled value per month)
@@ -73,5 +74,3 @@ def exemplary_plot(data):
 
 if __name__ == '__main__':
     data = example5_generate_demands()
-
-
