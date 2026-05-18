@@ -748,7 +748,6 @@ class Users:
                          building=building,
                          building_devices_data=building_devices_data,
                          holidays=holidays,
-                         srcPath = Path,
                          start_index_car=current_index)
 
                     self.EV_carprofile = self.EV_carprofile + EV_carprofile  # Sum car profiles over all flats in the building
