@@ -749,7 +749,7 @@ class DecentralDeviceConfig(BaseSettings):
     # TES parameters (Thermal Energy Storage)
     TES__soc_min: float = 0.0  # Minimum state of charge.
     TES__soc_max: float = 1.0  # Maximum state of charge.
-    TES__eta_standby: float = 0.97  # Standby hourly efficiency (accounts for self-discharge).
+    TES__eta_standby: float = 0.998  # Standby hourly efficiency (accounts for self-discharge).
     TES__eta_ch: float = 1.0  # Charging and discharging efficiency.
     TES__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
     TES__init: float = 0.5  # Initial state of charge.
@@ -761,9 +761,9 @@ class DecentralDeviceConfig(BaseSettings):
     TES: dict = {}
 
     # BAT parameters (Battery Storage)
-    BAT__soc_min: float = 0.0  # Minimum state of charge.
+    BAT__soc_min: float = 0.1  # Minimum state of charge.
     BAT__soc_max: float = 0.95  # Maximum state of charge.
-    BAT__eta_standby: float = 0.97  # Standby hourly efficiency (accounts for self-discharge).
+    BAT__eta_standby: float = 0.99999  # Standby hourly efficiency (accounts for self-discharge).
     BAT__eta_ch: float = 0.97  # Charging and discharging efficiency.
     BAT__coeff_ch: float = 0.8  # Charging and discharging coefficient in Watt per Watthour.
     BAT__init: float = 0.5  # Initial state of charge.
