@@ -117,7 +117,6 @@ class Users:
         self.EV_carcharging_ondemand = None
         self.ev_capacity = None
         self.saveOccProf = saveOccProf
-        self.occ_lock = threading.Lock()
         self.ice_carprofile = None
         self.individual_car_profiles = []
 
