@@ -629,7 +629,7 @@ class Envelope:
         Compute space-heating supply and return temperature curves for a single building.
         using a physics-based heating curve (radiator model).
 
-        Source: Lammle et al. (2022) https://doi.org/10.1016/j.energy.2021.122952
+        Source: Lämmle et al. (2022) https://doi.org/10.1016/j.energy.2021.122952
 
         Optional low-temperature measures ("geringinvestive Maßnahmen"):
         If enabled, the DESIGN temperatures (Ts_design, Tr_design) at T_ne
