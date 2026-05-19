@@ -532,7 +532,7 @@ class Profiles:
 
         return loadcurve
 
-    def generate_gain_profile_residential(self):
+    def generate_gain_profile_residential(self, occ_profile=None):
         """
         Generate profile of internal gains
 
@@ -577,7 +577,12 @@ class Profiles:
         lightGain = 0.80
         appGain = 0.66
 
-        gains = self.occ_profile * personGain + self.light_load * lightGain + self.app_load * appGain
+        if occ_profile is not None:
+
+            gains = occ_profile * personGain + self.light_load * lightGain + self.app_load * appGain
+
+        else:
+            gains = self.occ_profile * personGain + self.light_load * lightGain + self.app_load * appGain
 
         return gains
 
@@ -626,7 +631,7 @@ class Profiles:
 
         return gains_persons, gains_others
 
-    def generate_car_profile(self, building, building_devices_data, holidays, start_index_car=0):
+    def generate_car_profile(self, building, building_devices_data, holidays, start_index_car=0, occ_profile=None):
         """
             Generate daily EV charging demand and ICE fuel consumption profiles (distinguishing between workdays and non-workdays).
 
@@ -642,10 +647,12 @@ class Profiles:
                 Fuel consumption of gasoline cars (in liters per timestep).
         """
 
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
-            occ_profile = self.occ_profile
-        elif self.building in {"OB"}:
-            occ_profile = self.occ_profile_building
+        if occ_profile is None:
+
+            if self.building in {"SFH", "TH", "MFH", "AB"}:
+                occ_profile = self.occ_profile
+            elif self.building in {"OB"}:
+                occ_profile = self.occ_profile_building
 
         steps_per_day = int(len(occ_profile) / self.nb_days)
         total_steps = int(len(occ_profile))
