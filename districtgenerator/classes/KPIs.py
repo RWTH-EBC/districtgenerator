@@ -313,6 +313,13 @@ class KPIs:
         self.supplyCoverFactor = {}
         self.demandCoverFactor = {}
 
+        self.dcf_year = {}
+        self.scf_year = {}
+
+        sum_ClusterWeights = sum(self.inputData["clusterWeights"][self.inputData["clusters"][c]]
+                        for c in range(len(self.inputData["clusters"])))
+
+
         for year in self.inputData["simulated_years"]:
             self.supplyCoverFactor[year] = np.zeros(len(self.inputData["clusters"]))
             self.demandCoverFactor[year] = np.zeros(len(self.inputData["clusters"]))
@@ -322,7 +329,12 @@ class KPIs:
             nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
             nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
 
+            total_weighted_shared = 0.0
+            total_weighted_demand = 0.0
+            total_weighted_supply = 0.0
+
             for c in range(len(self.inputData["clusters"])):
+                cluster_weight = self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                 for t in range(len(data.district[0]["user"].elec_cluster[0])):
                     a = 0
                     b = 0
@@ -331,13 +343,18 @@ class KPIs:
                         idx = data.building_dict[int(bldg_id)]
                         a += self.inputData["resultsOptimization"][year][c][idx]["res_load"][t]
                         b += self.inputData["resultsOptimization"][year][c][idx]["res_inj"][t]
+
+                    # Energy Hub
+                    a += self.inputData["resultsOptimization"][year][c]["eh_res_load"][t]
+                    b += self.inputData["resultsOptimization"][year][c]["eh_res_inj"][t]
+
                     # At the same time step t, either res_load or res_inj should be 0.
                     # However, a and b could both be greater than 0 at the same time step t,
                     # since they represent the sums of all the buildings.
                     # If both a and b are greater than 0, it means electricity is being transported from one building to another.
                     # sum of all timesteps
-                    nenner_dem[c, t] += a
-                    nenner_sup[c, t] += b
+                    nenner_dem[c, t] = a
+                    nenner_sup[c, t] = b
                     min[c, t] = np.min([a, b])
 
                 sum_min = np.sum(min[c, :])
@@ -354,21 +371,25 @@ class KPIs:
                 out=np.zeros_like(sum_min), where=(sum_sup != 0)
                 )
 
-        # Calculate weighted average over all years
+                # Weighted Energy Exchange within the neighborhood accumulated across all clusters for each year
+                weight_norm = cluster_weight / sum_ClusterWeights
+                total_weighted_shared += sum_min * weight_norm
+                total_weighted_demand += sum_dem * weight_norm
+                total_weighted_supply += sum_sup * weight_norm
 
-        self.dcf_year = {}
-        self.scf_year = {}
+            
+            # Calculate the weighted average of the cover factors across clusters for each year
+            self.dcf_year[year] = (
+                total_weighted_shared / total_weighted_demand 
+                if total_weighted_demand != 0 else 1.0
+            )
+            
+            self.scf_year[year] = (
+                total_weighted_shared / total_weighted_supply 
+                if total_weighted_supply != 0 else 0.0
+            )
 
-        sum_ClusterWeights = sum(self.inputData["clusterWeights"][self.inputData["clusters"][c]]
-                             for c in range(len(self.inputData["clusters"])))
-
-        for year in self.inputData["simulated_years"]:
-            self.dcf_year[year] = 0
-            self.scf_year[year] = 0
-            for c in range(len(self.inputData["clusters"])):
-                weight = self.inputData["clusterWeights"][self.inputData["clusters"][c]] / sum_ClusterWeights
-                self.dcf_year[year] += self.demandCoverFactor[year][c] * weight
-                self.scf_year[year] += self.supplyCoverFactor[year][c] * weight
+        return None
 
     def calc_annual_cost_total(self, data):
 
