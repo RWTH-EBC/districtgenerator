@@ -200,7 +200,7 @@ def plot_power_timeseries_by_year_and_clusters(
 
         _set_week_hour_axis(ax, x)
 
-        ax.set_title(f"Jahr {support_year+2025} - Cluster {cluster}")
+        ax.set_title(f"Jahr {support_year+2025} - Cluster {cluster} -{opti_dim}")
         ax.set_ylabel("Leistung in kW")
         ax.grid(True, alpha=0.3)
         ax.legend(loc="upper right")
@@ -285,6 +285,7 @@ def plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
     scenario: Optional[str] = None,
     opti_dim: Optional[str] = None,
     y_max: Optional[float] = None,
+    cluster_ids: Optional[List[int]] = None,
 ):
     if len(scenario_names) != 3:
         raise ValueError("Es müssen genau 3 scenario_names übergeben werden.")
@@ -309,7 +310,7 @@ def plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
         for scenario in scenario_names
     ]
 
-    clusters = sorted(
+    available_clusters = sorted(
         {
             cluster
             for data in loaded
@@ -318,10 +319,17 @@ def plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
         }
     )
 
-    if not clusters:
+    if not available_clusters:
         raise ValueError(f"Kein Datensatz für Support_Year={support_year} gefunden.")
 
-    clusters = clusters[:num_clusters]
+    if cluster_ids is not None:
+        clusters = [c for c in cluster_ids if c in available_clusters]
+        if not clusters:
+            raise ValueError(
+                f"Keine der gewünschten Cluster {cluster_ids} für Support_Year={support_year} gefunden."
+            )
+    else:
+        clusters = available_clusters[:num_clusters]
 
     fig, axes = plt.subplots(
         len(clusters),
@@ -353,13 +361,12 @@ def plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
             if x_ref is None:
                 x_ref = x
 
-            # Label aus Mapping holen
-            scenario_label = scenario_labels.get(data['scenario_name'], data['scenario_name'])
+            scenario_label = scenario_labels.get(data["scenario_name"], data["scenario_name"])
 
             ax.plot(
                 x,
                 y_dem,
-                label=f"{scenario_label} - Strombedarf",
+                label=f"{scenario_label} - Stromverbrauch",
                 linewidth=1.8,
                 color=colors[i % len(colors)],
             )
@@ -379,27 +386,26 @@ def plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
                 color="black",
             )
 
-
         if x_ref is not None:
             _set_week_hour_axis(ax, x_ref)
 
-        ax.set_title(f"Jahr {support_year + 2025} - Cluster {cluster}")
+        ax.set_title(f"Jahr {support_year + 2025} - Cluster {cluster}-{opti_dim}")
         ax.set_ylabel("Leistung in kW")
         ax.grid(True, alpha=0.3)
-        
+
         if y_max is not None:
             ax.set_ylim(bottom=0, top=y_max)
-        
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=2, frameon=True)
 
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=2, frameon=True)
 
     axes[-1][0].set_xlabel("Timestep")
 
     fig.tight_layout()
 
+    cluster_suffix = "_".join(map(str, clusters))
     out_path = os.path.join(
         result_dir,
-        f"{opti_dim}_Plus_PV_{scenario}_demand_timeseries_year_{support_year + 2025}.pdf",
+        f"{opti_dim}_Plus_PV_{scenario}_demand_timeseries_year_{support_year + 2025}_clusters_{cluster_suffix}.png",
     )
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
 
@@ -416,20 +422,20 @@ def plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
 
 if __name__ == "__main__":
     #scenario_name = "residential0"
-    #scenario_names = ["mixed1", "residential2", "ghd6"]
+    scenario_names = ["mixed1", "residential2", "ghd6"]
     #scenario_names = ["residential3", "residential2", "residential0"]
-    scenario_names = ["mixed1", "residential2", "residential0"]
+    #scenario_names = ["mixed1", "residential2", "residential0"]
     
     #scenario = "Basis"
     #scenario = "Wohn"
     scenario = "Wohnmisch"
-    opti_dim= "VW"
+    opti_dim= "verbundweise"
     base_dir = r"D:\cwu-tja\districtgenerator\Main-tja\optimization_results"
     result_dir = r"D:\cwu-tja\districtgenerator\plots"
-    cluster=1
+    cluster_ids=[2]
     year=10
     year_header= year+2025
-    y_max=720
+    y_max=1500
 
     # out = plot_power_timeseries_by_year_and_clusters(
     #     scenario_name=scenario_name,
@@ -443,7 +449,7 @@ if __name__ == "__main__":
     out = plot_demand_timeseries_for_three_scenarios_by_year_and_clusters(
         scenario_names=scenario_names,
         support_year=10,
-        num_clusters=1,
+        cluster_ids=cluster_ids,
         base_dir=base_dir,
         result_dir=result_dir,
         show=True,
