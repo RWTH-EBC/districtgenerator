@@ -340,8 +340,19 @@ class KPIs:
                     nenner_sup[c, t] += b
                     min[c, t] = np.min([a, b])
 
-                self.demandCoverFactor[year][c] = np.sum(min[c, :]) / np.sum(nenner_dem[c, :])
-                self.supplyCoverFactor[year][c] = np.sum(min[c, :]) / np.sum(nenner_sup[c, :])
+                sum_min = np.sum(min[c, :])
+                sum_dem = np.sum(nenner_dem[c, :])
+                sum_sup = np.sum(nenner_sup[c, :])
+
+
+                self.demandCoverFactor[year][c] = np.divide(
+                sum_min, sum_dem,
+                out=np.ones_like(sum_min), where=(sum_dem != 0)
+                )
+                self.supplyCoverFactor[year][c] = np.divide(
+                sum_min, sum_sup,
+                out=np.zeros_like(sum_min), where=(sum_sup != 0)
+                )
 
         # Calculate weighted average over all years
 
