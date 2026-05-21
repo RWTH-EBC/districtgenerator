@@ -2418,10 +2418,11 @@ def plot_power_import_sum_from_rows_multi_bars_from_csv_per_compare(
     width = 0.58
 
 
-    color_main_vw = "#D40000"
-    color_net_vw = "#DD847D"
-    color_main_qw = "#55585C" 
-    color_net_qw = "#B9BABC"
+
+    color_main_vw = "#E43D30"
+    color_net_vw = "#8C1D17"
+    color_main_qw = "#B9BABC"
+    color_net_qw = "#8A8B8D"
 
     for i, b in enumerate(bars):
         if b["variant"] == "network":
@@ -2492,7 +2493,7 @@ def plot_power_import_sum_from_rows_multi_bars_from_csv_per_compare(
     ax.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=2, frameon=False, fontsize=fontsize)
 
     fig.tight_layout()
-    fig.subplots_adjust(bottom=0.2)
+    fig.subplots_adjust(bottom=0.24)
 
     plots_dir = os.path.join(result_dir or ".", "plots")
     os.makedirs(plots_dir, exist_ok=True)
@@ -3461,7 +3462,7 @@ def main():
     #################################################################################
     # For plot_power_import from_main_grid_total and from_network_total
     # !! Szenariowechsel
-    show = False
+    show = True
 
     bar_count = 6
 
@@ -3480,7 +3481,7 @@ def main():
     compare_shorts = ["Batterie"]
     compare_items = ["Batterie-Szenario"]
     bar_count = 6
-    fontsize = 13
+    fontsize = 15
 
     plot_power_import_all_years_multi_bars_from_csv_per_pair(
     scenario_names_per_compare=scenario_names_per_compare,   # neu: je compare_short 1 oder 2 Szenarien
@@ -3537,7 +3538,7 @@ def main():
     #################################################################################
     # Für plot_device_capacities_all_scenarios
     # !! Szenariowechsel
-    show = True
+    show = False
     short_files = ["Basis", "Bat", "PV", "PV"]
     compare_shorts = ["Basis", "Batterie", "Solarausbau","Solarausbau"]
     #compare_shorts = ["Basis-Szenario", "Batterie-Szenario", "Solarausbau-Szenario","Solarausbau-Szenario", "Wohn-Szenario"]
@@ -3545,8 +3546,8 @@ def main():
     label_left="Mischquartier"
     label_middle="Gewerbequartier"
     label_right="Wohnquartier 2"
-    fontsize1 = 14
-    fontsize2 = 14
+    fontsize1 = 15
+    fontsize2 = 15
     compare_item1 = "verbundweise"
     compare_item2 = "quartiersweise"
 

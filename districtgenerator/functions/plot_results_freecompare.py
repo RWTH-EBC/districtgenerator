@@ -243,7 +243,7 @@ def plot_device_capacities_from_csv(
         plt.legend()
         plt.tight_layout()
 
-        plot_path = os.path.join(plots_dir, titel + ".pdf") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.pdf")
+        plot_path = os.path.join(plots_dir, titel + ".png") if titel else os.path.join(plots_dir, f"device_capacities_compare_{sc}.png")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -433,7 +433,7 @@ def plot_heat_generation_by_year_from_csv(
         # Oben Platz für Legende + Titel lassen
         plt.tight_layout(rect=[0, 0.08, 1, 1])
 
-        plot_path = os.path.join(plots_dir, f"heat_generation_by_year_compare_{sc}.pdf")
+        plot_path = os.path.join(plots_dir, f"heat_generation_by_year_compare_{sc}.png")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -657,7 +657,7 @@ def plot_power_import_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0.02, 1, 1])
 
-        plot_path = os.path.join(plots_dir, titel + ".pdf")
+        plot_path = os.path.join(plots_dir, titel + ".png")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -876,7 +876,7 @@ def plot_power_export_by_year_from_csv(
 
         plt.tight_layout(rect=[0, 0, 1, 1])
 
-        plot_path = os.path.join(plots_dir, titel + ".pdf")
+        plot_path = os.path.join(plots_dir, titel + ".png")
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
 
@@ -1045,7 +1045,7 @@ def plot_lcoe_by_year_from_csv(
 
         plot_path = os.path.join(
             plots_dir,
-            f"lcoe_by_year_compare_{sc}.pdf" if not titel else f"{titel}.pdf"
+            f"lcoe_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
         )
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1205,7 +1205,7 @@ def plot_co2_by_year_from_csv(
         plt.legend()
         plt.tight_layout()
 
-        plot_name = f"co2_by_year_compare_{sc}.pdf" if not titel else f"{titel}.pdf"
+        plot_name = f"co2_by_year_compare_{sc}.png" if not titel else f"{titel}.png"
         plot_path = os.path.join(plots_dir, plot_name)
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1345,7 +1345,7 @@ def plot_tac_sum_from_three_scenarios(
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.tight_layout()
 
-    plot_name = "tac_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
+    plot_name = "tac_sum_three_quarters.png" if not titel else f"{titel}.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1482,7 +1482,7 @@ def plot_tes_volume_from_csv(
         plt.ticklabel_format(axis="y", style="plain", useOffset=False)
         plt.tight_layout()
 
-        plot_name = f"tes_volume_{sc}.pdf" if not titel else f"{titel}.pdf"
+        plot_name = f"tes_volume_{sc}.png" if not titel else f"{titel}.png"
         plot_path = os.path.join(plots_dir, plot_name)
         plt.savefig(plot_path, dpi=150)
         print(f"Plot saved: {plot_path}")
@@ -1619,7 +1619,7 @@ def plot_co2_sum_from_three_scenarios(
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.tight_layout()
 
-    plot_name = "co2_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
+    plot_name = "co2_sum_three_quarters.png" if not titel else f"{titel}.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1818,7 +1818,7 @@ def plot_lcoe_sum_from_three_scenarios(
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "lcoe_sum_three_quarters_by_year.pdf" if not titel else f"{titel}.pdf"
+    plot_name = "lcoe_sum_three_quarters_by_year.png" if not titel else f"{titel}.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -1967,14 +1967,14 @@ def plot_tac_by_year_sum_from_three_scenarios(
             )
 
     plt.xticks(x, labels)
-    plt.ylabel("Jährliche Gesamtkosten in €/a")
-    plt.title(titel or "Jährliche Gesamtkosten (Summe aus 3 Quartieren)")
+    plt.ylabel("Annuitäten in €/a")
+    plt.title(titel or "Annuitäten (Summe aus 3 Quartieren)")
     plt.grid(axis="y", alpha=0.4)
     plt.ticklabel_format(axis="y", style="plain", useOffset=False)
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "tac_by_year_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
+    plot_name = "tac_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2126,7 +2126,7 @@ def plot_co2_by_year_sum_from_three_scenarios(
     plt.legend()
     plt.tight_layout()
 
-    plot_name = "co2_by_year_sum_three_quarters.pdf" if not titel else f"{titel}.pdf"
+    plot_name = "co2_by_year_sum_three_quarters.png" if not titel else f"{titel}.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2338,7 +2338,7 @@ def plot_device_capacities_three_subplots_from_csv(
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
 
-    plot_name = f"{titel}.pdf" if titel else "device_capacities_three_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "device_capacities_three_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2506,7 +2506,7 @@ def plot_lcoe_three_subplots_from_csv(
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
 
-    plot_name = f"{titel}.pdf" if titel else "lcoe_three_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "lcoe_three_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2677,7 +2677,7 @@ def plot_co2_three_subplots_from_csv(
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
 
-    plot_name = f"{titel}.pdf" if titel else "co2_three_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "co2_three_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -2910,7 +2910,7 @@ def plot_power_import_three_subplots_from_csv(
         wspace=0.18,  # etwas enger zwischen links/rechts oben
         )
 
-    plot_name = f"{titel}.pdf" if titel else "power_import_three_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "power_import_three_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)  # <-- ohne bbox_inches="tight"
     print(f"Plot saved: {plot_path}")
@@ -3148,7 +3148,7 @@ def plot_power_import_two_subplots_from_csv(
         wspace=0.18,  # etwas enger zwischen links/rechts oben
         )
 
-    plot_name = f"{titel}.pdf" if titel else "power_import_two_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "power_import_two_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)  # <-- ohne bbox_inches="tight"
     print(f"Plot saved: {plot_path}")
@@ -3296,7 +3296,7 @@ def plot_tac_three_subplots_from_csv(
         ax.set_xticks(x)
         ax.set_xticklabels(labels, fontsize=fontsize)
         ax.set_title(sub_titel, fontsize=fontsize)
-        ax.set_ylabel("Jährliche Gesamtkosten in €/a", fontsize=fontsize)
+        ax.set_ylabel("Annuitäten in €/a", fontsize=fontsize)
         ax.grid(axis="y", alpha=0.4)
         ax.ticklabel_format(axis="y", style="plain", useOffset=False)
 
@@ -3318,7 +3318,7 @@ def plot_tac_three_subplots_from_csv(
 
     fig.tight_layout(rect=[0, 0.06, 1, 1])
 
-    plot_name = f"{titel}.pdf" if titel else "tac_three_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "tac_three_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -3538,7 +3538,7 @@ def plot_power_import_sum_two_subplots_from_csv(
 
     fig.subplots_adjust(left=0.10, right=0.99, bottom=0.18, top=0.92, hspace=0.35)
 
-    plot_name = f"{titel}.pdf" if titel else "power_import_sum_two_subplots.pdf"
+    plot_name = f"{titel}.png" if titel else "power_import_sum_two_subplots.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150)
     print(f"Plot saved: {plot_path}")
@@ -3918,7 +3918,7 @@ def plot_device_capacities_three_subplots_stacked_from_csv(
     # ensure space for legend and save without clipping
     fig.subplots_adjust(bottom=0.20)
     fig.tight_layout(rect=[0, 0.06, 1, 1])
-    plot_name = f"{titel}.pdf" if titel else "device_capacities_three_subplots_stacked.pdf"
+    plot_name = f"{titel}.png" if titel else "device_capacities_three_subplots_stacked.png"
     plot_path = os.path.join(plots_dir, plot_name)
     plt.savefig(plot_path, dpi=150, bbox_inches="tight")
     print(f"Plot saved: {plot_path}")
@@ -3936,8 +3936,8 @@ def plot_device_capacities_three_subplots_stacked_from_csv(
 
 
 if __name__ == "__main__":
-    compare_item1="verbundweise"
-    compare_item2="quartiersweise"
+    compare_item1="VW"
+    compare_item2="QW"
     compare_short1 = "VW"
     compare_short2 = "QW"
 
