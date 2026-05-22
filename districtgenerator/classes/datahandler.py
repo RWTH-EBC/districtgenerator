@@ -109,6 +109,7 @@ class Datahandler:
         self.heat_grid_data = {}
         self.pipe_data = {}
         self.pyomo_config = {}
+        self.report_config = {}
         # Additional attributes
         self.counter = {}
         self.building_dict = {} # Dictionary to store Residential Building IDs
@@ -164,15 +165,9 @@ class Datahandler:
         -------
         None.
         """
+        # --- 1. Load all Configs ---
 
         global_config: GlobalConfig = load_global_config(env_file=env_path)
-
-        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
-
-
-        # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
-                                     converters={"position": parse_position}).set_index("id", drop=False))
 
         # %% load information about of the site under consideration (used in generateEnvironment)
         # important for weather conditions
@@ -218,9 +213,23 @@ class Datahandler:
         for attr, value in global_config.pyomo.__dict__.items():
             self.pyomo_config[attr] = value
 
+        # load report configuration data
+        for attr, value in global_config.report.__dict__.items():
+            self.report_config[attr] = value
+
         # load heat grid data (used in heating network design and optimization)
         for attr, value in global_config.heatgrid.__dict__.items():
             self.heat_grid_data[attr] = value
+
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
+
+        # --- 2. Load scenario data ---
+
+        # %% load scenario file with building information
+        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+                                     converters={"position": parse_position}).set_index("id", drop=False))
+
+        # --- 3. Load pipe data based on the selected heat grid generation ---
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
@@ -896,18 +905,18 @@ class Datahandler:
                     or any(
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
+            
             if missing_positions:
                 print("No district geometry found — running simple heating network design.")
                 heating_network_simple.heating_network(self)
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
             else:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option="node")
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork()
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
+
+            self.designCentralDevices(saveGenerationProfiles=True)
+            self.finalizeClusterProfiles()
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
@@ -1385,13 +1394,25 @@ class Datahandler:
                 # save results as attribute
                 self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
 
+        # Check which clusters were unsolvable
+        failed_optimizations = []
+        for year, clusters in self.resultsOptimization.items():
+            for cluster, result in clusters.items():
+                if result is None:
+                    failed_optimizations.append((year, cluster))
+
+        if failed_optimizations:
+            error_message = "The following optimization runs failed:\n"
+            for year, cluster in failed_optimizations:
+                error_message += f"  - Year: {year}, Cluster: {cluster}\n"
+            
+            raise Exception(error_message)
+
         end_time = time.time()
         print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData
-        # Change this to take the interpolation points from ecoData instead of hardcoding them
-        self.ecoData["interpolation_points"] = [0]
         simulated_years = self.ecoData["interpolation_points"]
         observation_time = self.ecoData["observation_time"]
 
