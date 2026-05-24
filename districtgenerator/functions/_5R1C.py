@@ -499,7 +499,7 @@ def calc(zoneParameters, T_e, calendar, dt, initial_day, building_type):
     Q_C = np.zeros(numberTimesteps)
     T_op = np.zeros(numberTimesteps)
 
-    timesteps_per_day = numberTimesteps / 365  # Calculate timesteps per day
+    timesteps_per_day = int(round(24 / dt))  # true steps per day (multi-year safe)
 
     for t in range(numberTimesteps):
 
