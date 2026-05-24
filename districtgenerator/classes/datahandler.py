@@ -321,117 +321,114 @@ class Datahandler:
         """
         Load physical district environment - site and weather.
 
-        Returns
-        -------
-        None.
+        Supports the single test reference year (TRY) workflow and multi-year runs.
+        For multi-year: set weatherFileName (LocationConfig) plus startYear and
+        simulationYears (TimeConfig). Simulation length is derived from the weather file.
         """
-        # %% load first day of the year
-        # todo: maybe put in config if more TRY years are added?
-        if self.site["TRYYear"] == "TRY2015":
-            first_row = 35
-            self.initial_day = 3 # Thursday
-        elif self.site["TRYYear"] == "TRY2045":
-            first_row = 37
-            self.initial_day = 6 # Sunday
 
+        header_rows_to_skip = self.time.get("weatherFileHeaderRows", 34)
+        custom_weather_file = self.site.get("weatherFileName")
 
-        self.select_plz_data()
-        # load weather data
-        # select the correct file depending on the TRY weather station location
-        weatherData = np.loadtxt(os.path.join(self.filePath, "weather", "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
-            + "/"
-            + self.site["TRYYear"] + "_"
-            + str(self.site["Location"]) + "_" + str(self.site["TRYType"])
-            + ".dat",
-            skiprows=first_row - 1)
+        if custom_weather_file:
+            # --- Multi-year / custom weather file: read directly from data/weather/, PLZ skipped ---
+            print(f"Custom weather file specified: '{custom_weather_file}'")
+            weather_file_path = os.path.join(self.filePath, "weather", custom_weather_file)
+            if not os.path.exists(weather_file_path):
+                raise FileNotFoundError(
+                    f"Custom weather file not found at: {weather_file_path}\n"
+                    f"Place it in data/weather/ and set WEATHER_FILE_NAME accordingly."
+                )
+            # startYear and simulationYears are taken from the config as-is.
+        else:
+            # --- Single TRY: header rows AND calendar year derived from TRYYear (back-compatible) ---
+            if self.site["TRYYear"] == "TRY2015":
+                header_rows_to_skip = 34
+            elif self.site["TRYYear"] == "TRY2045":
+                header_rows_to_skip = 36
 
-        """
-        # Use this function to load old TRY-weather data
-        weatherData = np.loadtxt(os.path.join(self.filePath, 'weather')
-                                 + "/"
-                                 + self.site["TRYYear"] + "_Zone"
-                                 + str(self.site["climateZone"]) + "_"
-                                 + self.site["TRYType"] + ".txt",
-                                 skiprows=first_row - 1)"""
+            # A TRY file always covers exactly one calendar year. Pin the calendar to that
+            # year so holidays and the first weekday stay correct regardless of the configured
+            # startYear. This reproduces the previous TRYYear-driven behaviour for TRY2045 too.
+            if self.time.get("simulationYears", 1) > 1:
+                print("Note: single TRY weather selected; simulationYears forced to 1. "
+                      "Set WEATHER_FILE_NAME to a multi-year file for multi-year runs.")
+            self.time["startYear"] = int(self.site["TRYYear"][-4:])
+            self.time["simulationYears"] = 1
 
-        # weather data starts with 1st january at 1:00 am.
-        # Add data point for 0:00 am to be able to perform interpolation.
+            self.select_plz_data()
+            weather_file_path = (
+                os.path.join(self.filePath, "weather",
+                             "TRY_" + self.site["TRYYear"][-4:] + "_" + self.site["TRYType"])
+                + "/" + self.site["TRYYear"] + "_"
+                + str(self.site["Location"]) + "_" + str(self.site["TRYType"]) + ".dat"
+            )
+
+        # First weekday (Mon=0 .. Sun=6) of the resolved start year — replaces the old
+        # hardcoded initial_day values; date(2015,1,1)=Thu=3 and date(2045,1,1)=Sun=6.
+        self.initial_day = datetime.date(self.time["startYear"], 1, 1).weekday()
+
+        print(f"Loading weather data from: {weather_file_path}")
+        weatherData = np.loadtxt(weather_file_path, skiprows=header_rows_to_skip)
+
+        # weather data starts at 01:00; prepend last row as the 00:00 point for interpolation
         weatherData_temp = weatherData[-1:, :]
         weatherData = np.append(weatherData_temp, weatherData, axis=0)
 
-        # get weather data of interest
-        [temp_sunDirect, temp_sunDiff, temp_tempe, temp_wind, temp_rhum, temp_pre, temp_ssw] = \
-            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8], weatherData[:, 11], weatherData[:, 6], weatherData[:, 9]]
-
+        # Derive simulation length from the file. A standard 8760-row TRY reproduces
+        # dataLength = 31536000 s, so single-year behaviour is unchanged.
+        num_timesteps_from_file = len(weatherData) - 1  # -1 for the prepended interpolation row
+        self.time["dataLength"] = num_timesteps_from_file * self.time["dataResolution"]
         self.time["timeSteps"] = int(self.time["dataLength"] / self.time["timeResolution"])
+        print(f"Detected {num_timesteps_from_file} data points -> "
+              f"{self.time['simulationYears']} year(s).")
 
-        # load the holidays
-        if self.site["TRYYear"] == "TRY2015":
-            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2015)
-        elif self.site["TRYYear"] == "TRY2045":
-            self.calendar["holidays"] = self.get_holidays(country_code="DE", year=2045)
+        # get weather data of interest (DWD TRY column layout)
+        [temp_sunDirect, temp_sunDiff, temp_tempe, temp_wind, temp_rhum, temp_pre, temp_ssw] = \
+            [weatherData[:, 12], weatherData[:, 13], weatherData[:, 5], weatherData[:, 8],
+             weatherData[:, 11], weatherData[:, 6], weatherData[:, 9]]
 
-        # interpolate input data to achieve required data resolution
-        # transformation from values for points in time to values for time intervals
-        self.site["SunDirect"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),      # Direct horizontal radiation
-                                           np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                           temp_sunDirect)[0:-1]
-        self.site["SunDiffuse"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),     # Diffuse horizontal radiation
-                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                            temp_sunDiff)[0:-1]
-        self.site["T_e"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
-                                     np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                     temp_tempe)[0:-1]
-        self.site["wind_speed"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
-                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                            temp_wind)[0:-1]
-        self.site["r_humidity"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
-                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                            temp_rhum)[0:-1]
-        self.site["pressure"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
-                                            np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                            temp_pre)[0:-1]
-        self.site["ssw"] = np.interp(np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"]),
-                                        np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"]),
-                                        1 - np.clip(temp_ssw, 0, 8) / 8.0)[0:-1]
+        # Holidays across all simulated years (Julian day with a running offset per year)
+        self.calendar["holidays"] = []
+        days_offset = 0
+        holiday_state = self.calendar.get("holiday_state", "NW")
+        for year in range(self.time["startYear"], self.time["startYear"] + self.time["simulationYears"]):
+            is_leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+            days_in_year = 366 if is_leap else 365
+            year_holidays = self.get_holidays(country_code="DE", year=year, state=holiday_state)
+            if isinstance(year_holidays, list):
+                self.calendar["holidays"].extend(d + days_offset for d in year_holidays)
+            days_offset += days_in_year
+        print(f"Calculated {len(self.calendar['holidays'])} holidays for "
+              f"{self.time['startYear']}-{self.time['startYear'] + self.time['simulationYears'] - 1} "
+              f"(state: {holiday_state}).")
 
-        self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"] # This is the GHI (Global Horizontal Irradiance)
+        # interpolate to the required time resolution (same as dev, shared axes)
+        fine = np.arange(0, self.time["dataLength"] + 1, self.time["timeResolution"])
+        coarse = np.arange(0, self.time["dataLength"] + 1, self.time["dataResolution"])
+        self.site["SunDirect"] = np.interp(fine, coarse, temp_sunDirect)[0:-1]
+        self.site["SunDiffuse"] = np.interp(fine, coarse, temp_sunDiff)[0:-1]
+        self.site["T_e"] = np.interp(fine, coarse, temp_tempe)[0:-1]
+        self.site["wind_speed"] = np.interp(fine, coarse, temp_wind)[0:-1]
+        self.site["r_humidity"] = np.interp(fine, coarse, temp_rhum)[0:-1]
+        self.site["pressure"] = np.interp(fine, coarse, temp_pre)[0:-1]
+        self.site["ssw"] = np.interp(fine, coarse, 1 - np.clip(temp_ssw, 0, 8) / 8.0)[0:-1]
 
-        # Load other site-dependent values based on DIN/TS 12831-1:2020-04 and VDI 2078-2015 (KLZ)
+        self.site["SunTotal"] = self.site["SunDirect"] + self.site["SunDiffuse"]  # GHI
+
+        # ---- below here is unchanged dev code (KLZ site data, solar gains, soil temperature) ----
         filePath = os.path.join(self.filePath, 'site_data_with_KLZ.txt')
         site_data = pd.read_csv(filePath, delimiter='\t', dtype={'Zip': str})
-
-        # Filter data for the specific zip code
         filtered_data = site_data[site_data['Zip'] == self.site["zip"]]
-
-        # extract the needed values
         self.site["altitude"] = filtered_data.iloc[0]['Altitude']
-        self.site["location"] = [filtered_data.iloc[0]['Latitude'],filtered_data.iloc[0]['Longitude']]
-        self.site["T_ne"] = filtered_data.iloc[0]['T_ne'] # norm outside temperature for calculating the design heat load
-        self.site["T_me"] = filtered_data.iloc[0]['T_me'] # mean annual temperature for calculating the design heat load
+        self.site["location"] = [filtered_data.iloc[0]['Latitude'], filtered_data.iloc[0]['Longitude']]
+        self.site["T_ne"] = filtered_data.iloc[0]['T_ne']
+        self.site["T_me"] = filtered_data.iloc[0]['T_me']
 
-        # KLZ added to site_data based on nearest VDI station (generate_klz_site_data.py)
         klz = filtered_data.iloc[0]['KLZ']
-        # Cooling limit temperatures based on Cooling Laod Zones (Kühllastzonen)
-        # Calculated based on estimated amplitude based on VDI 2078 p. 117
-        # To account for thermal mass and avoid outliers, T_me is used as average plus amplitude
-        vdi_climate_data = {
-            1: (23.3, 6.7),  # Zone 1 (Cool)
-            2: (24.1, 7.4),  # Zone 2 (Moderate)
-            3: (25, 8.0),  # Zone 3 (Warm)
-            4: (26.1, 8.4),  # Zone 4 (Hot)
-        }
+        vdi_climate_data = {1: (23.3, 6.7), 2: (24.1, 7.4), 3: (25, 8.0), 4: (26.1, 8.4)}
+        t_mean, amplitude = vdi_climate_data.get(klz, vdi_climate_data[3])
+        self.site["T_design_cooling"] = t_mean + amplitude
 
-        # Calculation: T_max = T_me + Amplitude
-        if klz in vdi_climate_data:
-            t_mean, amplitude = vdi_climate_data[klz]
-            self.site["T_design_cooling"] = t_mean + amplitude
-        else:
-            # Fallback (Standard Zone 3)
-            t_mean, amplitude = vdi_climate_data[3]
-            self.site["T_design_cooling"] = t_mean + amplitude
-
-        # Calculate solar irradiance per surface direction - S, W, N, E, Roof represented by angles gamma and beta
         global sun
         sun = Sun(filePath=self.filePath)
         self.site["SunRad"] = sun.getSolarGains(initialTime=0,
@@ -446,7 +443,6 @@ class Datahandler:
                                                 diffuseRadiation=self.site["SunDiffuse"],
                                                 albedo=self.site["albedo"])
 
-        # calculate the soil temperature profile
         dt = self.time["timeResolution"] / self.time["dataResolution"]
         calculate_soil_temperature(self, dt)
 
