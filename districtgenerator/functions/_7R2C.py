@@ -436,7 +436,7 @@ dict[str, np.ndarray]
 
     # Cooling season mask
     steps_per_day = int(round(86400.0 / dt_s))
-    day_of_year = np.arange(n) // steps_per_day + 1
+    day_of_year = (np.arange(n) // steps_per_day) % 365 + 1
     cool_on = (day_of_year >= cooling_season_days[0]) & (day_of_year <= cooling_season_days[1])
 
     # Calendar-based seasons
