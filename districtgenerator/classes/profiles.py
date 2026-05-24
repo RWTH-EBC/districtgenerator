@@ -318,13 +318,7 @@ class Profiles:
         dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
         dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=self.temperature_difference)
 
-        # OpenDHW generates a single year.
-        # Tile that year to the full horizon so dhw matches the natively multi-year occ/elec/gains profiles.
-        one_year_dhw = dhw_heat["Heat_W"].values
-        num_years = max(1, math.ceil(self.nb_days / 365))
-        target_len = int(self.nb_days * 86400 / self.time_resolution)
-        
-        return np.tile(one_year_dhw, num_years)[:target_len]
+        return dhw_heat["Heat_W"].values
 
     def generate_el_profile_residential(self, holidays, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """

@@ -665,35 +665,54 @@ class Users:
         # Residential buildings
         if self.building in {"SFH", "TH", "MFH", "AB"}:
 
-            current_index = 0  # To keep track of the starting index for car profiles Id in each flat
+            # richardsonpy and OpenDHW only generate a single year. For multi-year horizons
+            # we generate one representative year per flat and tile it. For a single-year run
+            # (nb_days == 365) num_years == 1, so behaviour is unchanged.
+            nb_days_year = 365
+            num_years = max(1, int(np.ceil(nb_days / nb_days_year)))
+            target_len = int(time_horizon / time_resolution)
+            one_year_len = int(nb_days_year * 24 * 60 * 60 / time_resolution)
+            one_year_irr = irradiation[:one_year_len]
+
+            def _tile(one_year):
+                return np.tile(one_year, num_years)[:target_len]
+
+            current_index = 0  # starting index for car profile IDs in each flat
             for j in range(self.nb_flats):
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
-                                    initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
+                                    initial_day=initial_day, nb_days=nb_days_year, time_resolution=time_resolution,
                                     building=self.building)
-                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
 
-                # Occupancy profile in a flat
-                self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
-                self.elec = self.elec + temp_obj.generate_el_profile_residential(holidays=holidays,
-                                                                                 irradiance=irradiation,
-                                                                                 el_wrapper=self.el_wrapper[j],
-                                                                                 annual_demand=self.annual_el_demand_per_flat[j])
+                self.dhw = self.dhw + _tile(temp_obj.generate_dhw_profile(building=building, holidays=holidays))
+                self.occ = self.occ + _tile(temp_obj.generate_occupancy_profiles_residential())
+                self.elec = self.elec + _tile(temp_obj.generate_el_profile_residential(
+                    holidays=holidays,
+                    irradiance=one_year_irr,
+                    el_wrapper=self.el_wrapper[j],
+                    annual_demand=self.annual_el_demand_per_flat[j]))
+                self.gains = self.gains + _tile(temp_obj.generate_gain_profile_residential())
 
-                self.gains = self.gains + temp_obj.generate_gain_profile_residential()
                 if gen_cars:
                     (EV_carprofile, EV_on_demand_charging, ev_capacity,
                      ice_carprofile, individual_car_profiles) = temp_obj.generate_car_profile(
-                         building=building,
-                         building_devices_data=building_devices_data,
-                         holidays=holidays,
-                         start_index_car=current_index)
+                        building=building,
+                        building_devices_data=building_devices_data,
+                        holidays=holidays,
+                        start_index_car=current_index)
 
-                    self.EV_carprofile = self.EV_carprofile + EV_carprofile  # Sum car profiles over all flats in the building
-                    self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + EV_on_demand_charging
+                    self.EV_carprofile = self.EV_carprofile + _tile(EV_carprofile)
+                    self.EV_carcharging_ondemand = self.EV_carcharging_ondemand + _tile(EV_on_demand_charging)
                     self.ev_capacity += ev_capacity
-                    self.ice_carprofile = self.ice_carprofile + ice_carprofile
+                    self.ice_carprofile = self.ice_carprofile + _tile(ice_carprofile)
+
+                    for car in individual_car_profiles:
+                        for key in ("consumption_profile_wh", "on_demand_charging_profile_w",
+                                    "fuel_profile_l", "availability_profile"):
+                            if car.get(key) is not None:
+                                car[key] = _tile(np.asarray(car[key]))
+
                     self.individual_car_profiles.extend(individual_car_profiles)
-                    current_index += len(individual_car_profiles)  # Update the starting index for the next flat of the building
+                    current_index += len(individual_car_profiles)
 
         else:
             # Non-residential buildings
