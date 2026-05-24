@@ -65,6 +65,7 @@ class LocationConfig(BaseSettings):
     trafoMax_W: float = 500000.0 # Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP. (Watt)
     enable_buildingMax_W: bool = False # Consider per-building maximum import/export at the building PCC.
     buildingMax_W: float = 50000.0  # Per-building maximum import/export at the building PCC. (Watt)
+    weatherFileName: Optional[str] = None  # Optional explicit weather .dat file in data/weather/. If set, bypasses PLZ selection (custom/multi-year files).
 
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
@@ -103,8 +104,12 @@ class TimeConfig(BaseSettings):
     clusterNumber: int = 4      # Number of clusters
     dataResolution: int = 3600  # Time resolution of input data in seconds. (If you don't change weather data, here is no need to change).
     dataLength: int = 31536000  # Length of input data in seconds. (If you don't change weather data, here is no need to change).
-    #TODO: Move Project Time here
-    #TODO: Add index of interpolation years for multiyear simulations
+
+    # --- Multi-year simulation inputs ---
+    # Defaults reproduce the previous single-year behaviour; existing configs are unaffected.
+    startYear: int = Field(default=2015, ge=1900, le=2100)  # First calendar year (used for weekday/holiday alignment).
+    simulationYears: int = Field(default=1, ge=1)           # Number of consecutive years to simulate. 1 = single TRY (default).
+    weatherFileHeaderRows: int = Field(default=34, ge=0)    # Header rows to skip when reading the weather .dat file.
 
 
     model_config = SettingsConfigDict(
@@ -595,6 +600,7 @@ class CalendarConfig(BaseSettings):
     # If cooling period considered:
     cooling_period_start: int = 105  # Julian day number of the start of the cooling period (default: 15th April)
     cooling_period_end: int = 273    # Julian day number of the end of the cooling period (default: 1st October)
+    holiday_state: str = "NW"  # German federal-state code (ISO 3166-2 subdiv) for public-holiday calculation. Default: North Rhine-Westphalia.
 
 
     model_config = SettingsConfigDict(
