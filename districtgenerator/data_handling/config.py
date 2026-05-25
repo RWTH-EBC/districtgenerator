@@ -111,6 +111,8 @@ class TimeConfig(BaseSettings):
     simulationYears: int = Field(default=1, ge=1)           # Number of consecutive years to simulate. 1 = single TRY (default).
     weatherFileHeaderRows: int = Field(default=34, ge=0)    # Header rows to skip when reading the weather .dat file.
 
+    randomSeed: Optional[int] = None  # Seed for reproducible stochastic profiles. None = different each run.
+
 
     model_config = SettingsConfigDict(
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file

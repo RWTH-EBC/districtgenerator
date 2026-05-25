@@ -127,10 +127,24 @@ class Datahandler:
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
+        # Seed RNGs for reproducible stochastic profiles, if configured.
+        self._set_random_seed()
+
         self.KPIs = None
         self.buildings_completed = 0
         self.buildings_total = 0
         self.progress_file = os.path.join(self.resultPath, 'progress.json')
+
+    def _set_random_seed(self):
+        """Seed Python's random and NumPy RNGs for reproducible stochastic profiles.
+        Only has an effect if randomSeed is set in the config; otherwise profiles differ each run."""
+        seed = self.time.get("randomSeed")
+        if seed is None:
+            print("No random seed set; stochastic results will vary between runs.")
+            return
+        rd.seed(seed)
+        np.random.seed(seed)
+        print(f"Random seed set to {seed} for reproducible results.")
 
     def get_progress(self):
         return {
@@ -672,6 +686,12 @@ class Datahandler:
         self.save_progress()
 
         results = []
+
+        # Force a single worker when random seed is set.
+        if self.time.get("randomSeed") is not None:
+            if max_threads != 1:
+                print("Random seed set -> running demand generation single-threaded for reproducibility.")
+            max_threads = 1
 
         # Threads avoid pickling issues on Windows (no spawn, no handle duplication).
         with ThreadPoolExecutor(max_workers=max_threads) as ex:
