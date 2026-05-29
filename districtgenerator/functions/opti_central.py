@@ -458,7 +458,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.power_waste_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
-    # total energy amounts taken from grid
+    # total energy amounts used
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
@@ -1616,6 +1616,10 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
     results_dict["total_waste_used"] = pyo.value(model.total_waste_used)
     results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
+    results_dict["from_grid_total_el_buildings"] = pyo.value(model.from_grid_total_el_buildings)
+    results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
+    results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
+    results_dict["to_grid_total_el_eh"] = pyo.value(model.to_grid_total_el_eh)
 
 
     # energy imports and exports per time step in W
