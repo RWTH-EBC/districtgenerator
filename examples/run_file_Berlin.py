@@ -31,7 +31,7 @@ def run_opti(district_id, config_name):
 
 if __name__ == '__main__':
     # Name the district ID here --> should apply to the name of the csv-Input file
-    district_id = "example_wkb"
+    district_id = "waermschoen_1"
     # Name the config_name here --> should apply to the name of the .env file in the folder: data/envs
     config_name = "BERLIN"
     data = run_opti(district_id=district_id, config_name=config_name)

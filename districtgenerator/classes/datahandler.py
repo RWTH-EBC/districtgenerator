@@ -2476,6 +2476,10 @@ class Datahandler:
                 "MN_TYP_B": "MFH",
                 "MN_TYP_C": "MFH+RETAIL",
                 "MN_TYP_D": "MFH+WORKSHOP",
+                "MN_A": "RETAIL+MFH",
+                "MN_B": "MFH",
+                "MN_C": "MFH+RETAIL",
+                "MN_D": "MFH+WORKSHOP",
             }
 
             return exact_mapping.get(value_upper)
@@ -2736,7 +2740,7 @@ class Datahandler:
         wkb_data = pd.read_csv(
             wkb_file_path,
             encoding="utf-8",
-            delimiter=";",
+            delimiter=",",
             decimal=".",
             na_values=["NULL", "null", "", "nan"]
         )

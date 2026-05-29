@@ -4,7 +4,7 @@ results/*
 districtgenerator.egg-info/*
 optimization_results/*
 
-districtgenerator/data/scenarios/*
+districtgenerator/data/scenarios/_alt/*
 !districtgenerator/data/scenarios/example.csv
 
 .env.CONFIG.*
