@@ -1696,6 +1696,13 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_soc",
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
+    
+    # Residual Load of the Energyhub calculated through model.eh_power_to_grid and model.eh_power_from_grid
+    results_dict["eh_res_load"] = []
+    results_dict["eh_res_inj"] = []
+    for t in time_steps:
+        results_dict["eh_res_load"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
+        results_dict["eh_res_inj"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
 
     ################################################################################
     # Building results
