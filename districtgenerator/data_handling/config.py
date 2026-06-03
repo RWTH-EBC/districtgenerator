@@ -609,12 +609,14 @@ class ScenarioName(BaseSettings):
         extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
+
 class flags(BaseSettings):
     calcThick: bool = False
     save_occ_prof: bool = False
     model_config = SettingsConfigDict(
         extra="ignore"
     )
+
 
 class ReportConfig(BaseSettings):
     """
@@ -625,18 +627,22 @@ class ReportConfig(BaseSettings):
     """
 
     # Layout
-    pagesize: str = "A4" # Alternatives: A3, A4; Layout optimized for A4 Format
+    pagesize: str = "A4"  # Alternatives: A3, A4; Layout optimized for A4 Format
 
     # Language
-    language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).
+    language: str = "en"  # Language for the report, selected between: "de" (German) and "en" (English).
 
     # --- Colors Dictionary ---
     colors: dict = {}
-    colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines
-    colors__secondary_color: str | Tuple[float, float, float] = "#86A91A" # Secondary color of the report e.g. used for bars in graphs
-    colors__background: str | Tuple[float, float, float] = "#FFFFFF" # Color for the background of the report and for background in tables
-    colors__text: str | Tuple[float, float, float] = "#000000" # Color of the text and titles in report
-    colors__text_light: str | Tuple[float, float, float] = "#3C3C3C" # Color of the text for additional information that is supposed to be less prominent
+    colors__primary_color: str | Tuple[
+        float, float, float] = "#368427"  # Main color of the Report, Used for Frames and Lines
+    colors__secondary_color: str | Tuple[
+        float, float, float] = "#86A91A"  # Secondary color of the report e.g. used for bars in graphs
+    colors__background: str | Tuple[
+        float, float, float] = "#FFFFFF"  # Color for the background of the report and for background in tables
+    colors__text: str | Tuple[float, float, float] = "#000000"  # Color of the text and titles in report
+    colors__text_light: str | Tuple[
+        float, float, float] = "#3C3C3C"  # Color of the text for additional information that is supposed to be less prominent
 
     # Colors for energy types in graphs
     colors__energy__electricity: str | Tuple[float, float, float] = "#00551F"
@@ -646,45 +652,48 @@ class ReportConfig(BaseSettings):
     colors__energy__ev: str | Tuple[float, float, float] = "#663399"
 
     # Colors for energy sources and cost categories in graphs
-    colors__source__electricity: str | Tuple[float, float, float] = "#00551F" # Grid electricity
-    colors__source__gas: str | Tuple[float, float, float] = "#F39C12" # Natural gas
-    colors__source__oil: str | Tuple[float, float, float] = "#344EFB" # Heating oil
-    colors__source__waste: str | Tuple[float, float, float] = "#8B5A2B" # Waste
-    colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
-    colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B" # District heating
-    colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9" # Hydrogen
-    colors__source__waste_heat: str | Tuple[float, float, float] = "#E67E22" # Waste heat
+    colors__source__electricity: str | Tuple[float, float, float] = "#00551F"  # Grid electricity
+    colors__source__gas: str | Tuple[float, float, float] = "#F39C12"  # Natural gas
+    colors__source__oil: str | Tuple[float, float, float] = "#344EFB"  # Heating oil
+    colors__source__waste: str | Tuple[float, float, float] = "#8B5A2B"  # Waste
+    colors__source__biomass: str | Tuple[float, float, float] = "#27AE60"  # Biomass
+    colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B"  # District heating
+    colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9"  # Hydrogen
+    colors__source__waste_heat: str | Tuple[float, float, float] = "#E67E22"  # Waste heat
 
     # Colors for fixed costs and revenues in financial charts
-    colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
-    colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs
-    colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84" # Revenue from electricity feed-in
+    colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50"  # Central energy hub fixed costs
+    colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D"  # Decentralized fixed costs
+    colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84"  # Revenue from electricity feed-in
 
     # Colors for district layout:
-    colors__layout__building_connected: str | Tuple[float, float, float] = "#2ECC71" # Color for buildings connected to the heatgrid
-    colors__layout__building_not_connected: str | Tuple[float, float, float] = "#95A5A6" # Color for buildings that are not connected to the heatgrid
-    colors__layout__eh: str | Tuple[float, float, float] = "#E74C3C" # Color for the energy hub
-    colors__layout__pipe: str | Tuple[float, float, float] = "#3498DB" # Color for the pipes in the district layout graph
+    colors__layout__building_connected: str | Tuple[
+        float, float, float] = "#2ECC71"  # Color for buildings connected to the heatgrid
+    colors__layout__building_not_connected: str | Tuple[
+        float, float, float] = "#95A5A6"  # Color for buildings that are not connected to the heatgrid
+    colors__layout__eh: str | Tuple[float, float, float] = "#E74C3C"  # Color for the energy hub
+    colors__layout__pipe: str | Tuple[
+        float, float, float] = "#3498DB"  # Color for the pipes in the district layout graph
 
     # Sizes of the elements in the district layout visualization
     sizes: dict = {}
-    sizes__building: float = 7 # Radius of the circles representing buildings
-    sizes__eh: float = 10 # Radius of the circle representing the energy hub
-    sizes__pipe: float = 5 # Thickness of the lines representing the pipes in the district layout graph
-    sizes__label: int = 8 # Font size for labels in the district layout graph
-    sizes__legend_text: int = 9 # Font size for text in legends in the district layout graph
+    sizes__building: float = 7  # Radius of the circles representing buildings
+    sizes__eh: float = 10  # Radius of the circle representing the energy hub
+    sizes__pipe: float = 5  # Thickness of the lines representing the pipes in the district layout graph
+    sizes__label: int = 8  # Font size for labels in the district layout graph
+    sizes__legend_text: int = 9  # Font size for text in legends in the district layout graph
 
     # Options to show or hide elements in the district layout visualization
     layout_options: dict = {}
-    layout_options__show_building_labels: bool = True # Whether to show the labels for the buildings and the Energy Hub in the district layout graph, bool
-    layout_options__show_pipe_labels: bool = True # Whether to show labels for the pipes in the district layout graph, bool
+    layout_options__show_building_labels: bool = True  # Whether to show the labels for the buildings and the Energy Hub in the district layout graph, bool
+    layout_options__show_pipe_labels: bool = True  # Whether to show labels for the pipes in the district layout graph, bool
 
     # --- Fonts Dictionary ---
     fonts: dict = {}
     fonts__regular: str = 'Helvetica'
     fonts__bold: str = 'Helvetica-Bold'
 
-    #Sizes
+    # Sizes
     fonts__sizes__title: int = 20
     fonts__sizes__section_title: int = 16
     fonts__sizes__subsection_title: int = 14
@@ -722,7 +731,7 @@ class ReportConfig(BaseSettings):
                     if val.startswith('#'):
                         hex_code = val.lstrip('#')
                         if len(hex_code) == 6:
-                            rgb_tuple = tuple(int(hex_code[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+                            rgb_tuple = tuple(int(hex_code[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
                             setattr(self, field_name, rgb_tuple)
                         else:
                             raise ValueError(f"Invalid HEX code '{val}' for field {field_name}")
@@ -733,7 +742,8 @@ class ReportConfig(BaseSettings):
                         parts = [float(p.strip()) for p in clean_val.split(',')]
                         if len(parts) == 3:
                             if any(p < 0 or p > 255 for p in parts):
-                                raise ValueError(f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
+                                raise ValueError(
+                                    f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
                             if any(p > 1.0 for p in parts):
                                 rgb_tuple = tuple(p / 255.0 for p in parts)
                             else:
@@ -747,7 +757,8 @@ class ReportConfig(BaseSettings):
                     if len(val) == 3:
                         if any(p > 1.0 for p in val):
                             if any(p < 0 or p > 255 for p in val):
-                                raise ValueError(f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
+                                raise ValueError(
+                                    f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
                             rgb_tuple = tuple(float(p) / 255.0 for p in val)
                             setattr(self, field_name, rgb_tuple)
                         else:
@@ -1494,7 +1505,6 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
         scenario_name = ScenarioName(_env_file=env_file_path),
-        report=ReportConfig(_env_file=env_file_path)
-        scenario_name = ScenarioName(_env_file=env_file_path),
+        report=ReportConfig(_env_file=env_file_path),
         flags=flags(_env_file=env_file_path)
     )

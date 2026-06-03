@@ -302,11 +302,9 @@ class KPIs:
             self.demandCoverFactor[year] = np.zeros(len(self.inputData["clusters"]))
 
 
-        min = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
-        nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])],
-                              dtype=float)
-        nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])],
-                              dtype=float)
+            min = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
+            nenner_sup = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
+            nenner_dem = np.zeros([len(self.inputData["clusters"]), len(data.district[0]["user"].elec_cluster[0])], dtype=float)
 
             total_weighted_shared = 0.0
             total_weighted_demand = 0.0
@@ -853,7 +851,6 @@ class KPIs:
                     tech_details = {}
                     has_positive_value = False
                     for key, value in tech_value.items():
-                        # P_ref in W
                         if value > 0:
                             has_positive_value = True
                             tech_details[key] = value
@@ -870,12 +867,14 @@ class KPIs:
                 b_kpis['area_m2'] = building["buildingFeatures"]["area"]
                 b_kpis['building_type'] = "residential"
             #Berücksichtigen? todo
-            #    elif "+" in building["buildingFeatures"]["building"]: #TODO: This requires a working mixed building implementation
-            #                 total_area_mixed += building["buildingFeatures"]["area"]
-            #                 total_number_flats += building["user"].nb_res_flats
-            #                 for flat in building["user"].nb_res_occ:
-            #                     total_number_occ += flat
-            #
+            elif "+" in building["buildingFeatures"]["building"]: #TODO: This requires a working mixed building implementation
+                total_area_mixed += building["buildingFeatures"]["area"]
+                total_number_flats += building["user"].nb_res_flats
+                for flat in building["user"].nb_occ:
+                    total_number_occ += flat
+                b_kpis['area_m2'] = building["buildingFeatures"]["area"]
+                b_kpis['building_type'] = "mixed"
+
             else:
                 total_area_non_residential += building["buildingFeatures"]["area"]
                 total_ICE_fuel_liters += np.sum(building["user"].ice_carprofile)  # liters per timestep summed over year

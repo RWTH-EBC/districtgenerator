@@ -87,8 +87,6 @@ class Datahandler:
         """
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
-        self.conf_scenario_name = global_config.scenario_name.scenario_name
-
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filePath = os.path.join(srcPath, 'data')
 
@@ -137,9 +135,12 @@ class Datahandler:
         else:
             self.resultPath = os.path.join(self.srcPath, 'results')
 
+        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
+
         if run_name is not None:
             # Create the path to demands and generation
-            self.demands_path = os.path.join(self.resultPath, 'demands', self.scenario_name) # test if always necessary, run_name)
+            self.demands_path = os.path.join(self.resultPath, 'demands',
+                                             self.scenario_name)  # test if always necessary, run_name)
             self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name, run_name)
             self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name, run_name)
 
@@ -148,13 +149,9 @@ class Datahandler:
             self.generation_path = os.path.join(self.resultPath, 'generation', self.scenario_name)
             self.optimization_path = os.path.join(self.resultPath, 'optimization', self.scenario_name)
 
-
         os.makedirs(self.demands_path, exist_ok=True)
         os.makedirs(self.generation_path, exist_ok=True)
         os.makedirs(self.optimization_path, exist_ok=True)
-
-
-        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
         self.KPIs = None
         self.buildings_completed = 0
