@@ -8,8 +8,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 from pydantic_settings.sources import PydanticBaseSettingsSource
 
-from dotenv import dotenv_values
-
 
 ### Helper functions ###
 def parse_float_list(value: any) -> list[float]:
@@ -569,7 +567,7 @@ class EHDOConfig(BaseSettings):
     enable_supply_limit_gas: bool = False   # Enable limit annual gas import, bool.
 
     # Other options
-    peak_dem_met_conv: bool = True  # Meet peak demands of unclustered demands, bool.
+    peak_dem_met_conv: bool = True  # Meet peak demands without utilizing fluctuating sources (STC, PV, WT), bool.
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
     n_clusters: int = 12            # Number of design days.
@@ -584,7 +582,7 @@ class EHDOConfig(BaseSettings):
 
 class CalendarConfig(BaseSettings):
     """
-    CalenderConfig class to manage calendar-related parameters for the district generator.
+    CalendarConfig class to manage calendar-related parameters for the district generator.
     This class contains parameters related to holidays and initial days for different years.
     """
     consider_heating_period: bool = True    # Consider heating period in the clustering (True) or calculate whole year (False)
@@ -616,6 +614,182 @@ class flags(BaseSettings):
     save_occ_prof: bool = False
     model_config = SettingsConfigDict(
         extra="ignore"
+    )
+
+class ReportConfig(BaseSettings):
+    """
+    ReportConfig class to manage the configuration for report generation in the districtgenerator.
+    Configuration parameters for the generation of the Quartiersenergieausweis (PDF certificate).
+    Change Layout, as well as colors and fonts to match corporate design.
+    Colors can be defined as HEX codes or RGB tuples. HEX codes will be automatically converted to RGB tupels. RGB tuples should be in the range 0-255 for each value.
+    """
+
+    # Layout
+    pagesize: str = "A4" # Alternatives: A3, A4; Layout optimized for A4 Format
+
+    # Language
+    language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).
+
+    # --- Colors Dictionary ---
+    colors: dict = {}
+    colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines
+    colors__secondary_color: str | Tuple[float, float, float] = "#86A91A" # Secondary color of the report e.g. used for bars in graphs
+    colors__background: str | Tuple[float, float, float] = "#FFFFFF" # Color for the background of the report and for background in tables
+    colors__text: str | Tuple[float, float, float] = "#000000" # Color of the text and titles in report
+    colors__text_light: str | Tuple[float, float, float] = "#3C3C3C" # Color of the text for additional information that is supposed to be less prominent
+
+    # Colors for energy types in graphs
+    colors__energy__electricity: str | Tuple[float, float, float] = "#00551F"
+    colors__energy__heating: str | Tuple[float, float, float] = "#86A91A"
+    colors__energy__dhw: str | Tuple[float, float, float] = "#368427"
+    colors__energy__cooling: str | Tuple[float, float, float] = "#7ABAD6"
+    colors__energy__ev: str | Tuple[float, float, float] = "#663399"
+
+    # Colors for energy sources and cost categories in graphs
+    colors__source__electricity: str | Tuple[float, float, float] = "#00551F" # Grid electricity
+    colors__source__gas: str | Tuple[float, float, float] = "#F39C12" # Natural gas
+    colors__source__oil: str | Tuple[float, float, float] = "#344EFB" # Heating oil
+    colors__source__waste: str | Tuple[float, float, float] = "#8B5A2B" # Waste
+    colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
+    colors__source__district_heat: str | Tuple[float, float, float] = "#C0392B" # District heating
+    colors__source__hydrogen: str | Tuple[float, float, float] = "#2980B9" # Hydrogen
+    colors__source__waste_heat: str | Tuple[float, float, float] = "#E67E22" # Waste heat
+
+    # Colors for fixed costs and revenues in financial charts
+    colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
+    colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs
+    colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84" # Revenue from electricity feed-in
+
+    # Colors for district layout:
+    colors__layout__building_connected: str | Tuple[float, float, float] = "#2ECC71" # Color for buildings connected to the heatgrid
+    colors__layout__building_not_connected: str | Tuple[float, float, float] = "#95A5A6" # Color for buildings that are not connected to the heatgrid
+    colors__layout__eh: str | Tuple[float, float, float] = "#E74C3C" # Color for the energy hub
+    colors__layout__pipe: str | Tuple[float, float, float] = "#3498DB" # Color for the pipes in the district layout graph
+
+    # Sizes of the elements in the district layout visualization
+    sizes: dict = {}
+    sizes__building: float = 7 # Radius of the circles representing buildings
+    sizes__eh: float = 10 # Radius of the circle representing the energy hub
+    sizes__pipe: float = 5 # Thickness of the lines representing the pipes in the district layout graph
+    sizes__label: int = 8 # Font size for labels in the district layout graph
+    sizes__legend_text: int = 9 # Font size for text in legends in the district layout graph
+
+    # Options to show or hide elements in the district layout visualization
+    layout_options: dict = {}
+    layout_options__show_building_labels: bool = True # Whether to show the labels for the buildings and the Energy Hub in the district layout graph, bool
+    layout_options__show_pipe_labels: bool = True # Whether to show labels for the pipes in the district layout graph, bool
+
+    # --- Fonts Dictionary ---
+    fonts: dict = {}
+    fonts__regular: str = 'Helvetica'
+    fonts__bold: str = 'Helvetica-Bold'
+
+    #Sizes
+    fonts__sizes__title: int = 20
+    fonts__sizes__section_title: int = 16
+    fonts__sizes__subsection_title: int = 14
+    fonts__sizes__highlighted: int = 12
+    fonts__sizes__body: int = 12
+    fonts__sizes__small: int = 10
+    fonts__sizes__table: float = 11.5
+    fonts__sizes__axis_values: int = 8
+    fonts__sizes__dense: int = 7
+    fonts__sizes__page_number: int = 9
+
+    def parse_none_string(cls, v):
+        """Convert string 'None' to Python None"""
+        if v == "None" or v == "null" or v == "":
+            return None
+        return v
+
+    @model_validator(mode='after')
+    def process_config(self) -> 'ReportConfig':
+        """Translate HEX to RGB and build all nested dictionaries."""
+
+        field_names = list(self.__dict__.keys())
+
+        # 1. Translate Colors first
+        for field_name in field_names:
+            if field_name.startswith('colors__'):
+                val = getattr(self, field_name)
+
+                # Translate color inputs to RGB tuples in the range 0-1
+                # Case A: It's a string
+                if isinstance(val, str):
+                    val = val.strip()
+
+                    # HEX Code
+                    if val.startswith('#'):
+                        hex_code = val.lstrip('#')
+                        if len(hex_code) == 6:
+                            rgb_tuple = tuple(int(hex_code[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+                            setattr(self, field_name, rgb_tuple)
+                        else:
+                            raise ValueError(f"Invalid HEX code '{val}' for field {field_name}")
+
+                    # stringified Tuple like "(54, 132, 39)" or "54, 132, 39"
+                    else:
+                        clean_val = val.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+                        parts = [float(p.strip()) for p in clean_val.split(',')]
+                        if len(parts) == 3:
+                            if any(p < 0 or p > 255 for p in parts):
+                                raise ValueError(f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
+                            if any(p > 1.0 for p in parts):
+                                rgb_tuple = tuple(p / 255.0 for p in parts)
+                            else:
+                                rgb_tuple = tuple(parts)
+                            setattr(self, field_name, rgb_tuple)
+                        else:
+                            raise ValueError(f"RGB input must have exactly 3 values. Got: {val}")
+
+                # Case B: It's already a Tuple/List
+                elif isinstance(val, (tuple, list)):
+                    if len(val) == 3:
+                        if any(p > 1.0 for p in val):
+                            if any(p < 0 or p > 255 for p in val):
+                                raise ValueError(f"RGB values must be between 0 and 255 for field {field_name}. Got: {val}")
+                            rgb_tuple = tuple(float(p) / 255.0 for p in val)
+                            setattr(self, field_name, rgb_tuple)
+                        else:
+                            setattr(self, field_name, tuple(float(p) for p in val))
+                    else:
+                        raise ValueError(f"RGB tuple must have exactly 3 values. Got: {val}")
+
+        # 2. Build nested dictionaries (Supports both colors and fonts)
+        for field_name in field_names:
+            # Skip if we already deleted this attribute in a previous iteration
+            if not hasattr(self, field_name):
+                continue
+
+            if isinstance(getattr(self, field_name), dict):
+                if getattr(self, field_name) == {}:
+                    target_dict = {}
+                    prefix = f"{field_name}__"
+
+                    for attr_name in field_names:
+                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
+                            key_path = attr_name[len(prefix):]
+                            keys = key_path.split('__')
+
+                            current_dict = target_dict
+                            for i, key in enumerate(keys):
+                                if i == len(keys) - 1:
+                                    current_dict[key] = getattr(self, attr_name)
+                                else:
+                                    if key not in current_dict:
+                                        current_dict[key] = {}
+                                    current_dict = current_dict[key]
+
+                    setattr(self, field_name, target_dict)
+
+                    for attr_name in field_names:
+                        if attr_name.startswith(prefix) and hasattr(self, attr_name):
+                            delattr(self, attr_name)
+
+        return self
+
+    model_config = SettingsConfigDict(
+        extra='ignore' # Ignores all other variables in the .env.CONFIG file
     )
 
 class DecentralDeviceConfig(BaseSettings):
@@ -1236,6 +1410,8 @@ class GlobalConfig(BaseModel):
         Configuration parameters for calendar settings, such as holidays and initial days.
     scenario_name : ScenarioName
         The name of the scenario being configured, used for identification and output purposes.
+    report : ReportConfig
+        Configuration parameters for reporting and output generation, including formats and paths.
 
     """
     location: 'LocationConfig'
@@ -1250,6 +1426,7 @@ class GlobalConfig(BaseModel):
     central: 'CentralDeviceConfig'
     calendar: 'CalendarConfig'
     scenario_name: ScenarioName
+    report: 'ReportConfig'
     flags: flags
 
 class Settings(BaseSettings):
@@ -1316,6 +1493,8 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
         decentral=DecentralDeviceConfig(_env_file=env_file_path),
         central=CentralDeviceConfig(_env_file=env_file_path),
         calendar=CalendarConfig(_env_file=env_file_path),
+        scenario_name = ScenarioName(_env_file=env_file_path),
+        report=ReportConfig(_env_file=env_file_path)
         scenario_name = ScenarioName(_env_file=env_file_path),
         flags=flags(_env_file=env_file_path)
     )

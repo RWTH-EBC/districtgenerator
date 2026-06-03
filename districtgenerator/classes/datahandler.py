@@ -88,7 +88,7 @@ class Datahandler:
         global_config: GlobalConfig = load_global_config(env_file=env_path)
 
         self.conf_scenario_name = global_config.scenario_name.scenario_name
-        
+
         srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filePath = os.path.join(srcPath, 'data')
 
@@ -98,7 +98,7 @@ class Datahandler:
         self.initial_day = None
         self.district = []
         self.u_values = ()
-        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example"
+        self.scenario_name = None
         self.scenario = None
         self.total_building_area = None
         # Config data
@@ -116,6 +116,7 @@ class Datahandler:
         self.heat_grid_data = {}
         self.pipe_data = {}
         self.pyomo_config = {}
+        self.report_config = {}
         # Additional attributes
         self.counter = {}
         self.calcThick = global_config.flags.calcThick
@@ -153,22 +154,9 @@ class Datahandler:
         os.makedirs(self.optimization_path, exist_ok=True)
 
 
+        self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
         self.KPIs = None
-        self.load_all_data(
-            site_config=global_config.location,
-            time_config=global_config.time,
-            design_building_config=global_config.design_building,
-            physics_config=global_config.physics,
-            decentral_config=global_config.decentral,
-            ehdo_config=global_config.ehdo,
-            eco_config=global_config.eco,
-            central_config=global_config.central,
-            calendar_config=global_config.calendar,
-            heat_grid_config=global_config.heatgrid,
-            pyomo_config=global_config.pyomo
-        )
-
         self.buildings_completed = 0
         self.buildings_total = 0
         self.progress_file = os.path.join(self.resultPath, 'progress.json')
@@ -190,98 +178,86 @@ class Datahandler:
             except Exception as e:
                 print(f"Couldn't save calculation progress: {e}")
 
-    def load_all_data(self, site_config: LocationConfig,
-                      time_config: TimeConfig,
-                      design_building_config: DesignBuildingConfig,
-                      physics_config: PhysicsConfig,
-                      decentral_config: DecentralDeviceConfig,
-                      ehdo_config: EHDOConfig,
-                      eco_config: EcoConfig,
-                      central_config: CentralDeviceConfig,
-                      calendar_config: CalendarConfig,
-                      heat_grid_config: HeatGridConfig,
-                      pyomo_config: PyomoConfig):
+    def load_all_data(self, env_path, scenario_name):
         """
         Load all data needed for district generation from configuration files.
 
         Parameters
         ----------
-        site_config : LocationConfig
-            Location configuration data.
-        time_config : TimeConfig
-            Time configuration data.
-        design_building_config : DesignBuildingConfig
-            Design building configuration data.
-        physics_config : PhysicsConfig
-            Physics configuration data.
-        decentral_config : DecentralDeviceConfig
-            Decentral device configuration data.
-        ehdo_config : EHDOConfig
-            EHDO model configuration data.
-        eco_config : EcoConfig
-            Economic configuration data.
-        central_config : CentralDeviceConfig
-            Central device configuration data.
-        calendar_config : CalendarConfig
-            Calendar configuration data.
-        heat_grid_config : HeatGridConfig
-            Heat grid configuration data.
+        env_path : str, optional
+            Path to the environment configuration file. If None, it defaults to the global configuration file.
+        scenario_name : str, optional
+            Name of the scenario file
+
         Returns
         -------
         None.
         """
+        # --- 1. Load all Configs ---
+
+        global_config: GlobalConfig = load_global_config(env_file=env_path)
+
+        # %% load information about of the site under consideration (used in generateEnvironment)
+        # important for weather conditions
+        for attr, value in global_config.location.__dict__.items():
+            self.site[attr] = value
+
+        # %% load time information and requirements (used in generateEnvironment)
+        # needed for data conversion into the right time format
+        for attr, value in global_config.time.__dict__.items():
+            self.time[attr] = value
+
+        # %% load general building information
+        # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
+        for attr, value in global_config.design_building.__dict__.items():
+            self.design_building_data[attr] = value
+
+        # load building physics data (used in envelope and system BES/CES)
+        for attr, value in global_config.physics.__dict__.items():
+            self.physics[attr] = value
+
+        # Load list of possible devices (used in system BES)
+        # Iterate over all attributes of the config instance
+        for attr, value in global_config.decentral.__dict__.items():
+            self.decentral_device_data[attr] = value
+
+        for attr, value in global_config.ehdo.__dict__.items():
+            self.params_ehdo_model[attr] = value
+
+        # load economic and ecologic data (of the district generator) (used in system CES)
+        for attr, value in global_config.eco.__dict__.items():
+            self.ecoData[attr] = value
+
+        # Load list of possible devices (used in system BES)
+        # Iterate over all attributes of the config instance
+        for attr, value in global_config.central.__dict__.items():
+            self.central_device_data[attr] = value
+
+        # load calendar data (used in generateDemands and generateEnvironment)
+        for attr, value in global_config.calendar.__dict__.items():
+            self.calendar[attr] = value
+
+        # load pyomo solver data (used in optimization functions)
+        for attr, value in global_config.pyomo.__dict__.items():
+            self.pyomo_config[attr] = value
+
+        # load report configuration data
+        for attr, value in global_config.report.__dict__.items():
+            self.report_config[attr] = value
+
+        # load heat grid data (used in heating network design and optimization)
+        for attr, value in global_config.heatgrid.__dict__.items():
+            self.heat_grid_data[attr] = value
+
+        self.scenario_name = scenario_name or global_config.scenario_name.scenario_name or "example_decentral"
+
+        # --- 2. Load scenario data ---
 
         # %% load scenario file with building information
         self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                      converters={"position": parse_position}).set_index("id", drop=False))
 
-        # %% load information about of the site under consideration (used in generateEnvironment)
-        # important for weather conditions
-        for attr, value in site_config.__dict__.items():
-            self.site[attr] = value
-
-        # %% load time information and requirements (used in generateEnvironment)
-        # needed for data conversion into the right time format
-        for attr, value in time_config.__dict__.items():
-            self.time[attr] = value
-
-        # %% load general building information
-        # contains definitions and parameters that affect all buildings (used in envelope and system BES/CES)
-        for attr, value in design_building_config.__dict__.items():
-            self.design_building_data[attr] = value
-
-        # load building physics data (used in envelope and system BES/CES)
-        for attr, value in physics_config.__dict__.items():
-            self.physics[attr] = value
-
-        # Load list of possible devices (used in system BES)
-        # Iterate over all attributes of the config instance
-        for attr, value in decentral_config.__dict__.items():
-            self.decentral_device_data[attr] = value
-
-        for attr, value in ehdo_config.__dict__.items():
-            self.params_ehdo_model[attr] = value
-
-        # load economic and ecologic data (of the district generator) (used in system CES)
-        for attr, value in eco_config.__dict__.items():
-            self.ecoData[attr] = value
-
-        # Load list of possible devices (used in system BES)
-        # Iterate over all attributes of the config instance
-        for attr, value in central_config.__dict__.items():
-            self.central_device_data[attr] = value
-
-        # load calendar data (used in generateDemands and generateEnvironment)
-        for attr, value in calendar_config.__dict__.items():
-            self.calendar[attr] = value
-
-        # load pyomo solver data (used in optimization functions)
-        for attr, value in pyomo_config.__dict__.items():
-            self.pyomo_config[attr] = value
-
-        # load heat grid data (used in heating network design and optimization)
-        for attr, value in heat_grid_config.__dict__.items():
-            self.heat_grid_data[attr] = value
+        # --- 3. Load pipe data based on the selected heat grid generation ---
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection
@@ -1109,18 +1085,18 @@ class Datahandler:
                     or any(
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
+
             if missing_positions:
                 print("No district geometry found — running simple heating network design.")
                 heating_network_simple.heating_network(self)
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
             else:
                 print("Generating and optimizing heating network...")
                 self.generateNetwork(topology_option="node")
                 self.prepareClusteringInputs()
                 self.optimization_heatingnetwork()
-                self.designCentralDevices(saveGenerationProfiles=True)
-                self.finalizeClusterProfiles()
+
+            self.designCentralDevices(saveGenerationProfiles=True)
+            self.finalizeClusterProfiles()
         else:
             print("No central heat grid detected — skipping heating network design.")
             self.centralDevices = {}
@@ -1230,7 +1206,6 @@ class Datahandler:
             index=False,
             float_format='%.3f'
         )
-
 
     def saveHeatingProfile(self, heat, cooling, name, gmlId, path):
         """
@@ -1683,6 +1658,20 @@ class Datahandler:
                 # save results as attribute
                 self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
 
+        # Check which clusters were unsolvable
+        failed_optimizations = []
+        for year, clusters in self.resultsOptimization.items():
+            for cluster, result in clusters.items():
+                if result is None:
+                    failed_optimizations.append((year, cluster))
+
+        if failed_optimizations:
+            error_message = "The following optimization runs failed:\n"
+            for year, cluster in failed_optimizations:
+                error_message += f"  - Year: {year}, Cluster: {cluster}\n"
+
+            raise Exception(error_message)
+
         end_time = time.time()
 
         with open(f'{self.optimization_path}/result_opti_central_total.json', 'w') as f:
@@ -1692,8 +1681,6 @@ class Datahandler:
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData
-        # Change this to take the interpolation points from ecoData instead of hardcoding them
-        self.ecoData["interpolation_points"] = [0]
         simulated_years = self.ecoData["interpolation_points"]
         observation_time = self.ecoData["observation_time"]
 

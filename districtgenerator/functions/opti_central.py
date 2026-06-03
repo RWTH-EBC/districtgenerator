@@ -458,7 +458,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.power_waste_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
-    # total energy amounts taken from grid
+    # total energy amounts used
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
@@ -1616,6 +1616,10 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
     results_dict["total_waste_used"] = pyo.value(model.total_waste_used)
     results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
+    results_dict["from_grid_total_el_buildings"] = pyo.value(model.from_grid_total_el_buildings)
+    results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
+    results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
+    results_dict["to_grid_total_el_eh"] = pyo.value(model.to_grid_total_el_eh)
 
 
     # energy imports and exports per time step in W
@@ -1692,6 +1696,13 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_soc",
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
+    
+    # Residual Load of the Energyhub calculated through model.eh_power_to_grid and model.eh_power_from_grid
+    results_dict["eh_res_load"] = []
+    results_dict["eh_res_inj"] = []
+    for t in time_steps:
+        results_dict["eh_res_load"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
+        results_dict["eh_res_inj"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
 
     ################################################################################
     # Building results
@@ -1721,7 +1732,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Heat devices
     for n in range(nbuildings):
         for device in ECS_HEAT:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             results_dict[n][device]["Q_th"] = []
             for t in time_steps:
                 results_dict[n][device]["Q_th"].append(round(pyo.value(model.heat_dom[device, n, t]), 0))
@@ -1729,7 +1741,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Cooling devices
     for n in range(nbuildings):
         for device in ECS_COOL:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             results_dict[n][device]["Q_cool"] = []
             for t in time_steps:
                 results_dict[n][device]["Q_cool"].append(round(pyo.value(model.cool_dom[device, n, t]), 0))
@@ -1754,7 +1767,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Power devices
     for n in range(nbuildings):
         for device in ECS_POWER:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             results_dict[n][device]["P_el"] = []
             for t in time_steps:
                 results_dict[n][device]["P_el"].append(round(pyo.value(model.power_dom[device, n, t]), 0))
@@ -1762,7 +1776,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Storage devices
     for n in range(nbuildings):
         for device in ECS_STORAGE:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             for v in ("ch", "dch", "soc"):
                 results_dict[n][device][v] = []
             for t in time_steps:
