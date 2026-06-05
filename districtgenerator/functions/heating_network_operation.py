@@ -205,8 +205,14 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
                     Q_SH_W = float(Q_SH_by_node[n][t]) * 1000.0
                     Q_DHW_W = float(Q_DHW_by_node[n][t]) * 1000.0
 
+                    deltaT_DHW = Ts_del - Tr_req_DHW
+                    if deltaT_DHW <0.1 and deltaT_DHW>=0:
+                        deltaT_DHW = 0.1
+                    elif deltaT_DHW <0 and deltaT_DHW > -0.1:
+                        deltaT_DHW = -0.1
+
                     m_SH = Q_SH_W / (c_f * (Ts_del - Tr_req_SH))
-                    m_DHW = Q_DHW_W / (c_f * (Ts_del - Tr_req_DHW))
+                    m_DHW = Q_DHW_W / (c_f * deltaT_DHW)
 
                     m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
                     m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
