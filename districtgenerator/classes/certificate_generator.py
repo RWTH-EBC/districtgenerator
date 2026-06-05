@@ -25,12 +25,13 @@ Individual flowables:
 - YearlyStackedBarCharts
 - InputDataTable
 
-Version Date: 31.03.2026
+Version Date: 05.06.2026
 """
 
 import json
-
+import math
 from districtgenerator.classes import *
+from districtgenerator.functions import opti_central
 from reportlab.platypus  import SimpleDocTemplate, BaseDocTemplate, PageTemplate, Frame
 from reportlab.lib.pagesizes import A4, A3, landscape
 from reportlab.lib import colors
@@ -49,6 +50,7 @@ from reportlab.graphics.charts.legends import Legend
 from reportlab.platypus import Flowable
 from reportlab.lib import colors
 from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.lineplots import LinePlot
 
 
 DEBUG = False # If set to true boxes are drawn around the different components to visualize the layout and available space
@@ -1165,6 +1167,317 @@ class DecentralSystems(BaseReportFlowable):
                 boxes.append(box)
         
         return boxes
+
+class EnergyHubProfilesYear(BaseReportFlowable):
+    """
+    Renders all EnergyHub cluster profiles for one simulated year on a single page.
+    Generates EXACTLY ONE master legend at the bottom of the page.
+    Strictly adheres to the ThemeManager configuration for fonts, colors, and layout widths.
+    """
+
+    def __init__(self, year, year_profiles: dict):
+        super().__init__()
+        self.style = self.get_style()
+        self.year = year
+        self.year_profiles = year_profiles or {}
+        self.width = 0
+        self.height = 0
+
+    def wrap(self, availWidth, availHeight):
+        self.width = availWidth
+        self.height = availHeight
+        return self.width, self.height
+
+    def _series_from_profile(self, profile_df: pd.DataFrame, series_names: list[str]) -> dict[str, list[float]]:
+        series = {}
+        for series_name in series_names:
+            if series_name in profile_df.columns:
+                series[series_name] = profile_df[series_name].tolist()
+        return series
+
+    def _build_plot(self, width: float, height: float, title: str, series_map: dict[str, list[float]], dynamic_color_mapping: dict, show_x_axis: bool = True) -> Drawing:
+        drawing = Drawing(width, height)
+
+        # 1. Fonts and Colors
+        plot_title_size = self.style.get_font_size('body')
+        axis_font = self.style.get_font(bold=False)
+        axis_size = self.style.get_font_size('axis_values')
+        axis_label_font = self.style.get_font(bold=False)
+        axis_label_size = self.style.get_font_size('small')
+        font_color = colors.Color(*self.style.get_color('text'))
+
+        # 2. Asymmetrische Placement Calculations
+        padding = self.style.get_padding()
+        x_align_right = 3 * padding
+        # Links: Platz für Y-Achsen-Werte (5*padding) + Platz für rotierten Text (axis_label_size)
+        x_align_left = (5 * padding) + axis_label_size 
+        
+        chart_width = width - x_align_left - x_align_right 
+        center_x = x_align_left + (chart_width / 2.0)
+
+        # Filter out generation_total and consumption_total
+        filtered_series_map = {k: v for k, v in series_map.items() 
+                               if not any(x in k.lower() for x in ["generation_total", "consumption_total"])}
+
+        # If no data or too little vertical space, show a placeholder message
+        if not filtered_series_map or height < 20:
+            drawing.add(String(center_x, max(5, height / 2.0), self.translate("msg_no_data"),
+                               textAnchor='middle', fontName=self.style.get_font(bold=False),
+                               fontSize=plot_title_size, fillColor=font_color))
+            if DEBUG:
+                drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+            return drawing
+
+        color_res = colors.black
+
+        # --- Rotierter axis lable auf der linken Seite im NEUEN FREIRAUM ---
+        title_group = Group()
+        title_x = (axis_label_size * 0.85) 
+        title_y = height / 2.0
+        
+        title_group.transform = (0, 1, -1, 0, title_x, title_y)
+        title_group.add(String(0, 0, title,
+                               fontName=axis_label_font,
+                               fontSize=axis_label_size,
+                               textAnchor='middle',
+                               fillColor=font_color))
+        drawing.add(title_group)
+
+        # Prepare data for the LinePlot
+        max_len = max(len(values) for values in filtered_series_map.values())
+        x_values = list(range(max_len))
+        data = [list(zip(x_values, filtered_series_map[name])) for name in filtered_series_map.keys()]
+
+        all_values = []
+        for values in filtered_series_map.values():
+            clean_values = [v if pd.notna(v) else 0 for v in values]
+            all_values.extend(clean_values)
+
+        y_min = min(all_values) if all_values else 0
+        y_max = max(all_values) if all_values else 0
+        max_abs_y = max(abs(y_min), abs(y_max))
+        y_min = -max_abs_y
+        y_max = max_abs_y
+
+        if (y_max - y_min) < 0.1:
+            y_min = math.floor(y_min) - 1
+            y_max = math.ceil(y_max) + 1
+
+        # Draw the LinePlot
+        plot = LinePlot()
+        plot.x = x_align_left     
+        plot.y = 0 
+        plot.width = chart_width
+        plot.height = max(1, height) 
+        plot.data = data
+        plot.joinedLines = 1
+
+        plot.xValueAxis.valueMin = 0
+        plot.xValueAxis.valueMax = max(1, max_len - 1)
+        plot.xValueAxis.valueStep = 24 # daily steps #TODO: Adjust to account for dt if not hourly data
+        plot.xValueAxis.labels.fontName = axis_font
+        plot.xValueAxis.labels.fontSize = axis_size
+        plot.xValueAxis.labels.fillColor = font_color
+        plot.xValueAxis.visibleGrid = 1
+        plot.xValueAxis.gridStrokeColor = colors.Color(0.85, 0.85, 0.85) # light gray grid lines
+        plot.xValueAxis.gridStrokeDashArray = [2, 2] # fine dashed lines
+
+        plot.xValueAxis.visibleLabels = 1 if show_x_axis else 0
+        plot.xValueAxis.visibleTicks = 1 if show_x_axis else 0
+        plot.xValueAxis.visibleAxis = 0
+
+        plot.yValueAxis.valueMin = y_min
+        plot.yValueAxis.valueMax = y_max
+        plot.yValueAxis.valueStep = max(0.1, (y_max - y_min) / 4)
+        plot.yValueAxis.labelTextFormat = lambda v: f"{v:.2g}" if abs(v) < 100 else f"{v:.0f}" # only 2 significant digits to prevent label overcrowding
+        plot.yValueAxis.labels.fontName = axis_font
+        plot.yValueAxis.labels.fontSize = axis_size
+        plot.yValueAxis.labels.fillColor = font_color
+        plot.yValueAxis.visibleGrid = 0
+        plot.yValueAxis.visibleTicks = 1
+
+        for index, name in enumerate(filtered_series_map.keys()):
+            plot.lines[index].strokeWidth = 1
+            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
+            if "residual" in name.lower():
+                plot.lines[index].strokeColor = color_res
+                plot.lines[index].strokeDashArray = [4, 3] # dashed line for residuals
+            else:
+                plot.lines[index].strokeColor = dynamic_color_mapping.get(clean_name, colors.black)
+                plot.lines[index].strokeDashArray = None # solid line
+
+        drawing.add(plot)
+        
+        # DEBUG: Rote Box um den Graphen, blaue Box um den rotierten Titel-Bereich
+        if DEBUG:
+             drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+             drawing.add(Rect(0, 0, axis_label_size, height, strokeColor=colors.blue, strokeWidth=debug_line_width, fillColor=None))
+             
+        return drawing
+
+    def draw_content(self):
+        cluster_names = list(sorted(self.year_profiles.keys(), key=lambda value: str(value)))
+        font_color = colors.Color(*self.style.get_color('text'))
+        padding = self.style.get_padding()
+        
+        if not cluster_names:
+            self.canv.setFont(self.style.get_font(bold=False), self.style.get_font_size('body'))
+            self.canv.setFillColor(font_color)
+            self.canv.drawString(padding, self.height - 12, "No EnergyHub profiles available for this year.")
+            return
+
+        # =========================================================
+        # 1. PRE-PROCESSING: Aggregate all unique series names
+        # =========================================================
+        base_series_names = set()
+        for profile_df in self.year_profiles.values():
+            for col in profile_df.columns:
+                if col.startswith("Power_kW_") or col.startswith("Heat_kW_"):
+                    if not any(x in col.lower() for x in ["generation_total", "consumption_total"]):
+                        clean_col = col.replace("Power_kW_", "").replace("Heat_kW_", "")
+                        base_series_names.add(clean_col)
+
+        # =========================================================
+        # 2. CREATE MASTER COLOR MAPPING
+        # =========================================================
+        device_palette = []
+        try:
+            for rgb in self.style.colors.get("source", {}).values(): 
+                device_palette.append(colors.Color(*rgb))
+        except AttributeError:
+            pass
+
+        fallback_hex = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        for h in fallback_hex:
+            device_palette.append(colors.HexColor(h))
+
+        # Nur Einzelgeräte sortieren (ohne Residual)
+        device_base_names = [name for name in base_series_names if "residual" not in name.lower()]
+        device_base_names.sort()
+
+        # Das Mapping nutzt nun die Basis-Namen ('HP', 'BOI' etc.) als Schlüssel
+        dynamic_color_mapping = {
+            name: device_palette[i % len(device_palette)] 
+            for i, name in enumerate(device_base_names)
+        }
+
+        # =========================================================
+        # 3. CREATE AND DRAW MASTER LEGEND AT THE BOTTOM
+        # =========================================================
+        legend = Legend()
+        legend.fontName = self.style.get_font(bold=False)
+        legend.fontSize = self.style.get_font_size('small')
+        legend.dx = 8 
+        legend.dy = 8
+        legend.yGap = 0
+        legend.deltay = 12
+        legend.strokeWidth = 0
+        legend.dxTextSpace = self.style.get_spacing('medium')
+        legend.variColumn = True
+        legend.columnMaximum = 4
+        legend.alignment = 'right'
+
+        legend_pairs = []
+
+        for name in base_series_names:
+            is_residual = "residual" in name.lower()
+            color = colors.black if is_residual else dynamic_color_mapping.get(name, colors.black)
+
+            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
+            display_name = self.translate(f"device_{clean_name}") if clean_name.isupper() else self.translate(clean_name)
+            
+            if display_name == f"device_{clean_name}" or display_name == clean_name:
+                display_name = clean_name.replace("_", " ")
+
+            # Prevent duplicate legend entries
+            if not any(display_name == existing_name for _, existing_name in legend_pairs):
+                legend_pairs.append((color, display_name))
+
+        legend.colorNamePairs = legend_pairs
+
+        # Calculate bounds and place at the bottom of the allocated space
+        legend.x = 0
+        legend.y = 0
+        bounds = legend.getBounds() 
+        legend_width = bounds[2] - bounds[0]
+        legend_height = bounds[3] - bounds[1]
+        
+        legend_x_pos = (self.width - legend_width) / 2
+
+        # FIX: Legende nach oben schieben (da ReportLab Legenden nach unten wachsen)
+        legend.x = legend_x_pos
+        legend.y = -bounds[1] + padding 
+        
+        legend_drawing = Drawing(self.width, legend_height + padding)
+        legend_drawing.add(legend)
+        
+        # DEBUG: Box around the master legend
+        if DEBUG:
+             legend_drawing.add(Rect(legend_x_pos, padding, legend_width, legend_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+             
+        legend_drawing.drawOn(self.canv, 0, 0)
+
+        # =========================================================
+        # 4. DISTRIBUTE REMAINING SPACE TO CLUSTER PLOTS
+        # =========================================================
+        gap = self.style.get_spacing('medium')
+        usable_height = self.height - legend_height - gap
+        
+        available_height = usable_height - gap * (len(cluster_names) - 1)
+        cluster_slot_height = available_height / len(cluster_names)
+        cluster_title_size = self.style.get_font_size('body')
+
+        for index, cluster_name in enumerate(cluster_names):
+            profile_df = self.year_profiles[cluster_name]
+            
+            top_y = self.height - index * (cluster_slot_height + gap)
+            bottom_y = top_y - cluster_slot_height
+
+            # DEBUG: Box around the entire cluster plot
+            if DEBUG:
+                self.canv.saveState()
+                self.canv.setStrokeColor(colors.red)
+                self.canv.setLineWidth(debug_line_width)
+                self.canv.rect(0, bottom_y, self.width, cluster_slot_height, stroke=1, fill=0)
+                self.canv.restoreState()
+
+            cluster_title_y = top_y - cluster_title_size
+            self.canv.setFont(self.style.get_font(bold=True), cluster_title_size)
+            self.canv.setFillColor(font_color)
+            # Titel sauber linksbündig mit padding
+            title_text = f"{self.translate('title_cluster')} {cluster_name}"
+            self.canv.drawString(padding, cluster_title_y, title_text)
+            
+            # DEBUG: Box around the cluster title
+            if DEBUG:
+                title_width = self.canv.stringWidth(title_text, self.style.get_font(bold=True), cluster_title_size)
+                self.canv.saveState()
+                self.canv.setStrokeColor(colors.red)
+                self.canv.setLineWidth(debug_line_width)
+                self.canv.rect(padding, cluster_title_y, title_width, cluster_title_size, stroke=1, fill=0)
+                self.canv.restoreState()
+
+            inner_top = cluster_title_y - gap
+
+            axis_label_size = self.style.get_font_size('small')
+            x_axis_padding = axis_label_size * 2
+
+            inner_height = max(1, inner_top - (bottom_y + x_axis_padding))
+            plot_gap = self.style.get_padding()
+            plot_height = max(1, (inner_height - plot_gap) / 2)
+
+            power_cols = [c for c in profile_df.columns if c.startswith("Power_kW_")]
+            heat_cols = [c for c in profile_df.columns if c.startswith("Heat_kW_")]
+
+            power_series = self._series_from_profile(profile_df, power_cols)
+            heat_series = self._series_from_profile(profile_df, heat_cols)
+
+            power_plot = self._build_plot(self.width, plot_height, "Power (kW)", power_series, dynamic_color_mapping, show_x_axis=False)
+            heat_plot = self._build_plot(self.width, plot_height, "Heat (kW)", heat_series, dynamic_color_mapping, show_x_axis=True)
+
+            heat_plot.drawOn(self.canv, 0, bottom_y + x_axis_padding)
+            power_plot.drawOn(self.canv, 0, bottom_y + x_axis_padding + plot_height + plot_gap)
     
 class YearlyStackedBarCharts(BaseReportFlowable):
     """
@@ -2130,8 +2443,6 @@ class CertificateLayout(ReportComponent):
         footer = Footer(scenario_name)
         self.story.append(footer)
 
-    
-
     # Energyhub device capacity page
     def create_energyhub_data(self, data_energyhub):
         """Creates the Energyhub Data section and adds it to the story."""
@@ -2183,6 +2494,22 @@ class CertificateLayout(ReportComponent):
         # 3. Add them to the document story
         self.story.extend(boxes)
 
+    def create_energyhub_profiles(self, data_profiles):
+        """Creates the Energyhub Profiles section and adds it to the story."""
+        if not data_profiles:
+            return
+
+        title = self.translate("title_energyhub_profiles")
+
+        for index, year in enumerate(sorted(data_profiles.keys())):
+            if index > 0:
+                self.story.append(PageBreak())
+
+            year_flowable = EnergyHubProfilesYear(year=year, year_profiles=data_profiles[year])
+            box = FrameBox(title=f"{title} {year}")
+            box.set_content(year_flowable, full_width=False)
+            self.story.append(box)
+
     def create_quartiersstruktur_details(self, data_quartiersstruktur):
         """Creates the detailed matrix on a landscape page."""
         df_details = data_quartiersstruktur["df_details"]
@@ -2201,7 +2528,7 @@ class CertificateLayout(ReportComponent):
             style_name='input_data'
         )
         
-        title = self.translate("title_district_structure_details")
+        title = self.translate("title_district_structure_detailed")
         for i, tab in enumerate(tables, start=1):
             title = title if len(tables) == 1 else f"{title} ({i}/{len(tables)})"
             box = FrameBox(title=title)
@@ -2683,6 +3010,7 @@ class DataExtractor(ReportComponent):
         self.district_structure = None
         self.energyhub_df = None
         self.decentral_df = None
+        self.energyhub_profiles = {}
         self.district_layout = None
 
         
@@ -3188,6 +3516,15 @@ class DataExtractor(ReportComponent):
             print(f"Warning: Decentral device data could not be extracted. {e}")
             self.decentral_df = None
 
+    def _extract_energyhub_profiles(self):
+        self.energyhub_profiles = {}
+        for year, clusters in self.data.resultsOptimization.items():
+            self.energyhub_profiles[year] = {}
+            for cluster, result in clusters.items():
+                self.energyhub_profiles[year][cluster] = opti_central.get_profiles_eh(result, data=self.data)
+
+
+
     def _extract_district_layout(self):
         """Extracts district layout information including building positions, network topology, and installed devices."""
         layout_data = {
@@ -3249,6 +3586,7 @@ class DataExtractor(ReportComponent):
         self._extract_district_structure()
         self._extract_energyhub_data()
         self._extract_decentral_data()
+        self._extract_energyhub_profiles()
         self._extract_district_layout()
         # Additional data extraction methods can be added here
 
@@ -3394,6 +3732,9 @@ class DataExtractor(ReportComponent):
     def get_decentral_df(self):
         return self.decentral_df
     
+    def get_energyhub_profiles(self):
+        return self.energyhub_profiles
+    
     def get_district_layout(self):
         return self.district_layout
 
@@ -3474,7 +3815,12 @@ class CertificateBuilder(ReportComponent):
         self.layout.create_energyhub_data(data_energyhub=self.data_object.get_energyhub_df())
         self.layout.create_decentral_systems(data_decentral=self.data_object.get_decentral_df())
         story.extend(self.layout.get_story())
-        self.layout.reset_story()        
+        self.layout.reset_story()      
+        story.append(PageBreak())  
+
+        self.layout.create_energyhub_profiles(data_profiles=self.data_object.get_energyhub_profiles())
+        story.extend(self.layout.get_story())
+        self.layout.reset_story()
 
         story.append(NextPageTemplate('InputDataPage'))
         story.append(PageBreak())

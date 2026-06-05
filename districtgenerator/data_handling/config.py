@@ -1162,7 +1162,7 @@ class CentralDeviceConfig(BaseSettings):
     AirHP__life_time: int = 25  # Maximum life time in years.
     AirHP__inv_base: float = 1110  # Unsubsidized investment in €/kWth.
     AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
-    AirHP__min_cap: float = 1  # Minimum capacity in kWth.
+    AirHP__min_cap: float = 0  # Minimum capacity in kWth.
     AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
     AirHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     AirHP: dict = {}

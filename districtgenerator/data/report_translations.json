@@ -12,6 +12,7 @@
         "title_district_structure_detailed": "Net Floor Area by Building Type and Age Class",
         "title_central_devices": "Central Energy Systems",
         "title_decentral_devices": "Decentralized Energy Systems",
+        "title_energyhub_profiles": "EnergyHub Profiles",
         "title_district_layout": "District Layout",
         "title_cost_emissions": "Annual Development (Costs & Emissions)",
         "title_bldg_list": "List of Buildings",
@@ -223,6 +224,7 @@
         "title_district_structure_detailed": "Nettoraumfläche nach Gebäudetyp und Altersklasse",
         "title_central_devices": "Zentrale Energiesysteme",
         "title_decentral_devices": "Dezentrale Energiesysteme",
+        "title_energyhub_profiles": "EnergyHub-Profile",
         "title_district_layout": "Quartierslayout",
         "title_cost_emissions": "Jährliche Entwicklung (Kosten & Emissionen)",
         "title_bldg_list": "Liste der Gebäude",
@@ -233,6 +235,7 @@
         "title_cost_graph": "Kosten",
         "title_emissions_graph": "CO2-Emissionen",
         "axis_title_simulated_year": "simulierte Jahre",
+        "title_cluster": "Clusterzeitraum",
 
         "msg_no_central_devices": "Es wurden keine zentralen Energiesysteme ausgelegt",
         "msg_no_decentral_devices": "Es wurden keine dezentralen Energiesysteme ausgelegt",

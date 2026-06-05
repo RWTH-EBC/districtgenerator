@@ -1496,12 +1496,12 @@ class KPIs:
             print(f"KPIs saved to: {filename}")
 
         elif file_format == "csv":
-            kpi_df_yearly.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_yearly.csv"), index=False)
-            kpi_df_static.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_static.csv"), index=False)
-            kpi_df_dec_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_decentral_devices.csv"), index=False)
+            kpi_df_yearly.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_yearly.csv"), index=False, sep=';', decimal=',')
+            kpi_df_static.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_static.csv"), index=False, sep=';', decimal=',')
+            kpi_df_dec_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_decentral_devices.csv"), index=False, sep=';', decimal=',')
             if not kpi_df_cent_devices.empty:
-                kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False)
-            kpi_df_lcoh.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_lcoh.csv"), index=False)
+                kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False, sep=';', decimal=',')
+            kpi_df_lcoh.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_lcoh.csv"), index=False, sep=';', decimal=',')
 
             print(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
 
