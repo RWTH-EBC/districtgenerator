@@ -1708,8 +1708,9 @@ class Datahandler:
                 # Read PV potentials for the current building from the DataFrame
                 pv_data = self.pv_stc_potential[self.pv_stc_potential["uuid"] == building["buildingFeatures"]["alkis_id"]]
                 # Initialize sums for PV and STC
-                total_pv_generation = None
-                total_stc_generation = None
+                time_steps = int(self.time["dataLength"] / self.time["timeResolution"])
+                total_pv_generation = np.zeros(time_steps)
+                total_stc_generation = np.zeros(time_steps)
 
                 # Loop over each PV sub-area for this building
                 for idx, row in pv_data.iterrows():
@@ -1738,12 +1739,8 @@ class Datahandler:
                     )
 
                     # Sum up the profiles
-                    if total_pv_generation is None:
-                        total_pv_generation = pv_profile
-                        total_stc_generation = stc_profile
-                    else:
-                        total_pv_generation += pv_profile
-                        total_stc_generation += stc_profile
+                    total_pv_generation += pv_profile
+                    total_stc_generation += stc_profile
 
                 # Store the summed values
                 building["generationPV"] = total_pv_generation
