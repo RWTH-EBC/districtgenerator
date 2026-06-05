@@ -1209,7 +1209,6 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         # 2. Asymmetrische Placement Calculations
         padding = self.style.get_padding()
         x_align_right = 3 * padding
-        # Links: Platz für Y-Achsen-Werte (5*padding) + Platz für rotierten Text (axis_label_size)
         x_align_left = (5 * padding) + axis_label_size 
         
         chart_width = width - x_align_left - x_align_right 
@@ -1217,9 +1216,8 @@ class EnergyHubProfilesYear(BaseReportFlowable):
 
         # Filter out generation_total and consumption_total
         filtered_series_map = {k: v for k, v in series_map.items() 
-                               if not any(x in k.lower() for x in ["generation_total", "consumption_total"])}
+                               if not any(x in k.lower() for x in ["generation_total", "consumption_total", ])}
 
-        # If no data or too little vertical space, show a placeholder message
         if not filtered_series_map or height < 20:
             drawing.add(String(center_x, max(5, height / 2.0), self.translate("msg_no_data"),
                                textAnchor='middle', fontName=self.style.get_font(bold=False),
@@ -1228,34 +1226,61 @@ class EnergyHubProfilesYear(BaseReportFlowable):
                 drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
             return drawing
 
-        color_res = colors.black
+        # Prepare data for the LinePlot & Polygons
+        import math
+        from reportlab.graphics.shapes import Polygon
 
-        # --- Rotierter axis lable auf der linken Seite im NEUEN FREIRAUM ---
-        title_group = Group()
-        title_x = (axis_label_size * 0.85) 
-        title_y = height / 2.0
-        
-        title_group.transform = (0, 1, -1, 0, title_x, title_y)
-        title_group.add(String(0, 0, title,
-                               fontName=axis_label_font,
-                               fontSize=axis_label_size,
-                               textAnchor='middle',
-                               fillColor=font_color))
-        drawing.add(title_group)
-
-        # Prepare data for the LinePlot
         max_len = max(len(values) for values in filtered_series_map.values())
         x_values = list(range(max_len))
-        data = [list(zip(x_values, filtered_series_map[name])) for name in filtered_series_map.keys()]
 
-        all_values = []
-        for values in filtered_series_map.values():
-            clean_values = [v if pd.notna(v) else 0 for v in values]
-            all_values.extend(clean_values)
+        stack_names = sorted(list(filtered_series_map.keys()))
 
-        y_min = min(all_values) if all_values else 0
-        y_max = max(all_values) if all_values else 0
-        max_abs_y = max(abs(y_min), abs(y_max))
+        pos_plot_data = []
+        pos_line_configs = []
+        current_pos_cum = [0.0] * max_len
+
+        neg_plot_data = []
+        neg_line_configs = []
+        current_neg_cum = [0.0] * max_len
+
+        # Ein einziger Loop für alle Datenreihen
+        for name in stack_names:
+            vals = filtered_series_map[name]
+            clean_vals = [v if pd.notna(v) else 0.0 for v in vals]
+            
+            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
+            color = dynamic_color_mapping.get(clean_name, colors.black)
+            
+            # Positive Anteile (Einspeisung / Erzeugung)
+            pos_vals = [v if v > 0 else 0.0 for v in clean_vals]
+            if any(v > 0 for v in pos_vals):
+                current_pos_cum = [c + v for c, v in zip(current_pos_cum, pos_vals)]
+                poly_data = [(x_values[0], 0.0)] + list(zip(x_values, current_pos_cum)) + [(x_values[-1], 0.0)]
+                pos_plot_data.append(poly_data)
+                pos_line_configs.append({'color': color})
+
+            # Negative Anteile (Bezug / Verbrauch)
+            neg_vals = [v if v < 0 else 0.0 for v in clean_vals]
+            if any(v < 0 for v in neg_vals):
+                current_neg_cum = [c + v for c, v in zip(current_neg_cum, neg_vals)]
+                poly_data = [(x_values[0], 0.0)] + list(zip(x_values, current_neg_cum)) + [(x_values[-1], 0.0)]
+                neg_plot_data.append(poly_data)
+                neg_line_configs.append({'color': color})
+
+        # Listen umkehren für die korrekte Überlagerung (größte Flächen zuerst)
+        pos_plot_data.reverse()
+        pos_line_configs.reverse()
+        neg_plot_data.reverse()
+        neg_line_configs.reverse()
+        
+        stack_data = pos_plot_data + neg_plot_data
+        stack_configs = pos_line_configs + neg_line_configs
+
+        # Symmetrische Y-Limits berechnen
+        max_stacked_pos = max(current_pos_cum) if current_pos_cum else 0
+        min_stacked_neg = min(current_neg_cum) if current_neg_cum else 0
+
+        max_abs_y = max(abs(min_stacked_neg), max_stacked_pos)
         y_min = -max_abs_y
         y_max = max_abs_y
 
@@ -1263,24 +1288,51 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             y_min = math.floor(y_min) - 1
             y_max = math.ceil(y_max) + 1
 
-        # Draw the LinePlot
+        # --- LAYER 1: Farbige Stacked-Polygone im Hintergrund zeichnen ---
+        plot_height_val = max(1, height)
+        x_scale = chart_width / max(1, max_len - 1)
+        y_scale = plot_height_val / (y_max - y_min)
+
+        for data_series, config in zip(stack_data, stack_configs):
+            pts = []
+            for x_val, y_val in data_series:
+                px = x_align_left + x_val * x_scale
+                py = 0 + (y_val - y_min) * y_scale 
+                pts.extend([px, py])
+            
+            poly = Polygon(pts)
+            poly.fillColor = config['color']
+            poly.strokeColor = config['color']
+            poly.strokeWidth = 0.5
+            drawing.add(poly)
+
+        # --- LAYER 2: Die exakte graue Null-Linie ---
+        if y_min <= 0 <= y_max:
+            zero_y_pixel = 0 + (0 - y_min) * y_scale
+            zero_line = Line(x_align_left, zero_y_pixel, x_align_left + chart_width, zero_y_pixel)
+            zero_line.strokeColor = colors.Color(0, 0, 0) 
+            zero_line.strokeWidth = 0.4
+            drawing.add(zero_line)
+
+        # --- LAYER 3: LinePlot (nur für Achsen & Grid zuständig) ---
         plot = LinePlot()
         plot.x = x_align_left     
         plot.y = 0 
         plot.width = chart_width
-        plot.height = max(1, height) 
-        plot.data = data
+        plot.height = plot_height_val 
+        
+        plot.data = [[(0,0)]] # Dummy-Daten
         plot.joinedLines = 1
 
         plot.xValueAxis.valueMin = 0
         plot.xValueAxis.valueMax = max(1, max_len - 1)
-        plot.xValueAxis.valueStep = 24 # daily steps #TODO: Adjust to account for dt if not hourly data
+        plot.xValueAxis.valueStep = 24 
         plot.xValueAxis.labels.fontName = axis_font
         plot.xValueAxis.labels.fontSize = axis_size
         plot.xValueAxis.labels.fillColor = font_color
         plot.xValueAxis.visibleGrid = 1
-        plot.xValueAxis.gridStrokeColor = colors.Color(0.85, 0.85, 0.85) # light gray grid lines
-        plot.xValueAxis.gridStrokeDashArray = [2, 2] # fine dashed lines
+        plot.xValueAxis.gridStrokeColor = colors.Color(0.85, 0.85, 0.85) 
+        plot.xValueAxis.gridStrokeDashArray = [2, 2] 
 
         plot.xValueAxis.visibleLabels = 1 if show_x_axis else 0
         plot.xValueAxis.visibleTicks = 1 if show_x_axis else 0
@@ -1289,26 +1341,19 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         plot.yValueAxis.valueMin = y_min
         plot.yValueAxis.valueMax = y_max
         plot.yValueAxis.valueStep = max(0.1, (y_max - y_min) / 4)
-        plot.yValueAxis.labelTextFormat = lambda v: f"{v:.2g}" if abs(v) < 100 else f"{v:.0f}" # only 2 significant digits to prevent label overcrowding
+        plot.yValueAxis.labelTextFormat = lambda v: f"{v:.2g}" 
         plot.yValueAxis.labels.fontName = axis_font
         plot.yValueAxis.labels.fontSize = axis_size
         plot.yValueAxis.labels.fillColor = font_color
         plot.yValueAxis.visibleGrid = 0
         plot.yValueAxis.visibleTicks = 1
 
-        for index, name in enumerate(filtered_series_map.keys()):
-            plot.lines[index].strokeWidth = 1
-            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
-            if "residual" in name.lower():
-                plot.lines[index].strokeColor = color_res
-                plot.lines[index].strokeDashArray = [4, 3] # dashed line for residuals
-            else:
-                plot.lines[index].strokeColor = dynamic_color_mapping.get(clean_name, colors.black)
-                plot.lines[index].strokeDashArray = None # solid line
+        # Dummy-Linie unsichtbar machen
+        plot.lines[0].strokeColor = colors.transparent
+        plot.lines[0].fillColor = None
 
         drawing.add(plot)
         
-        # DEBUG: Rote Box um den Graphen, blaue Box um den rotierten Titel-Bereich
         if DEBUG:
              drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
              drawing.add(Rect(0, 0, axis_label_size, height, strokeColor=colors.blue, strokeWidth=debug_line_width, fillColor=None))
@@ -1340,30 +1385,47 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         # =========================================================
         # 2. CREATE MASTER COLOR MAPPING
         # =========================================================
-        device_palette = []
-        try:
-            for rgb in self.style.colors.get("source", {}).values(): 
-                device_palette.append(colors.Color(*rgb))
-        except AttributeError:
-            pass
+        device_palette = [
+            colors.HexColor('#d62728'),
+            colors.HexColor('#1f77b4'),
+            colors.HexColor('#2ca02c'),
+            colors.HexColor('#ff7f0e'),
+            colors.HexColor('#9467bd'),
+            colors.HexColor('#17becf'),
+            colors.HexColor('#e377c2'),
+            colors.HexColor('#bcbd22'),
+            colors.HexColor('#8c564b'),
+            colors.HexColor('#f1c40f'),
+            colors.HexColor('#3498db'),
+            colors.HexColor('#e74c3c'),
+            colors.HexColor('#2ecc71'),
+            colors.HexColor('#9b59b6'),
+            colors.HexColor('#d35400'),
+            colors.HexColor('#1abc9c')
+        ]
 
-        fallback_hex = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
-                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-        for h in fallback_hex:
-            device_palette.append(colors.HexColor(h))
+        device_base_names = sorted(list(base_series_names))
 
-        # Nur Einzelgeräte sortieren (ohne Residual)
-        device_base_names = [name for name in base_series_names if "residual" not in name.lower()]
-        device_base_names.sort()
+        # Funktion zur Zuweisung der Farben
+        def resolve_device_color(name: str, index: int) -> colors.Color:
+            if "residual_grid" in name.lower():
+                return colors.Color(0.7, 0.7, 0.7) # Helles Grau für das Netz
+            if device_palette:
+                return device_palette[index % len(device_palette)]
+            return colors.black
 
-        # Das Mapping nutzt nun die Basis-Namen ('HP', 'BOI' etc.) als Schlüssel
-        dynamic_color_mapping = {
-            name: device_palette[i % len(device_palette)] 
-            for i, name in enumerate(device_base_names)
-        }
+        # Color Mapping für alle Geräte aufbauen
+        dynamic_color_mapping = {}
+        normal_idx = 0
+        for name in device_base_names:
+            if "residual_grid" in name.lower():
+                dynamic_color_mapping[name] = resolve_device_color(name, 0)
+            else:
+                dynamic_color_mapping[name] = resolve_device_color(name, normal_idx)
+                normal_idx += 1
 
         # =========================================================
-        # 3. CREATE AND DRAW MASTER LEGEND AT THE BOTTOM
+        # 3. CREATE AND DRAW MASTER LEGEND
         # =========================================================
         legend = Legend()
         legend.fontName = self.style.get_font(bold=False)
@@ -1380,23 +1442,21 @@ class EnergyHubProfilesYear(BaseReportFlowable):
 
         legend_pairs = []
 
-        for name in base_series_names:
-            is_residual = "residual" in name.lower()
-            color = colors.black if is_residual else dynamic_color_mapping.get(name, colors.black)
+        for name in device_base_names:
+            color = dynamic_color_mapping.get(name, colors.black)
 
-            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
-            display_name = self.translate(f"device_{clean_name}") if clean_name.isupper() else self.translate(clean_name)
+            display_name = self.translate(f"device_{name}") if name.isupper() else self.translate(name)
             
-            if display_name == f"device_{clean_name}" or display_name == clean_name:
-                display_name = clean_name.replace("_", " ")
+            # Fallback formatting for unmapped translations (e.g., 'residual_grid' -> 'Residual grid')
+            if display_name == f"device_{name}" or display_name == name:
+                display_name = name.replace("_", " ").capitalize()
 
-            # Prevent duplicate legend entries
             if not any(display_name == existing_name for _, existing_name in legend_pairs):
                 legend_pairs.append((color, display_name))
 
         legend.colorNamePairs = legend_pairs
 
-        # Calculate bounds and place at the bottom of the allocated space
+        # Calculate bounds and place at the bottom
         legend.x = 0
         legend.y = 0
         bounds = legend.getBounds() 
@@ -1405,14 +1465,13 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         
         legend_x_pos = (self.width - legend_width) / 2
 
-        # FIX: Legende nach oben schieben (da ReportLab Legenden nach unten wachsen)
+        # Adjust legend position (ReportLab legends grow downwards)
         legend.x = legend_x_pos
         legend.y = -bounds[1] + padding 
         
         legend_drawing = Drawing(self.width, legend_height + padding)
         legend_drawing.add(legend)
         
-        # DEBUG: Box around the master legend
         if DEBUG:
              legend_drawing.add(Rect(legend_x_pos, padding, legend_width, legend_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
              
@@ -1434,7 +1493,6 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             top_y = self.height - index * (cluster_slot_height + gap)
             bottom_y = top_y - cluster_slot_height
 
-            # DEBUG: Box around the entire cluster plot
             if DEBUG:
                 self.canv.saveState()
                 self.canv.setStrokeColor(colors.red)
@@ -1445,11 +1503,10 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             cluster_title_y = top_y - cluster_title_size
             self.canv.setFont(self.style.get_font(bold=True), cluster_title_size)
             self.canv.setFillColor(font_color)
-            # Titel sauber linksbündig mit padding
+            
             title_text = f"{self.translate('title_cluster')} {cluster_name}"
             self.canv.drawString(padding, cluster_title_y, title_text)
             
-            # DEBUG: Box around the cluster title
             if DEBUG:
                 title_width = self.canv.stringWidth(title_text, self.style.get_font(bold=True), cluster_title_size)
                 self.canv.saveState()

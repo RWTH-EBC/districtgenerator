@@ -1558,6 +1558,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["P_network_demand_heating"] = []
     results_dict["P_network_demand_cooling"] = []
     results_dict["P_pump"] = []
+    results_dict["P_eh_from_grid"] = []
+    results_dict["P_eh_to_grid"] = []
     results_dict["P_seasonal_storage_used"] = []
     results_dict["P_waste_heat_used"] = []
 
@@ -1577,6 +1579,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
         results_dict["P_network_demand_heating"].append(round(pyo.value(model.heat_grid_demand[t]), 0))
         results_dict["P_network_demand_cooling"].append(round(pyo.value(model.cool_grid_demand[t]), 0))
         results_dict["P_pump"].append(round(pyo.value(model.network_pump_power[t]), 0))
+        results_dict["P_eh_from_grid"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
+        results_dict["P_eh_to_grid"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
         results_dict["P_seasonal_storage_used"].append(round(pyo.value(model.eh_seasonal_dch[t]), 0))
         results_dict["P_waste_heat_used"].append(round(pyo.value(model.eh_waste_heat[t]), 0))
         
@@ -1843,6 +1847,11 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
             eh_df[f"Power_kW_{dev}"] = to_kw([d - c for d, c in zip(results_dict["eh_dch"][dev], results_dict["eh_ch"][dev])])
             
     eh_df["Power_kW_network_pump"] = to_kw([-1 * abs(x) for x in results_dict["P_pump"]])
+    # EH grid exchange is tracked separately from the neighborhood totals.
+    eh_demand_from_grid = to_kw([abs(x) for x in results_dict["P_eh_from_grid"]]) # Import from grid acts as a generation in the EH as it provides power to the EH devices
+    eh_export_to_grid = to_kw([-1 * abs(x) for x in results_dict["P_eh_to_grid"]])
+    # Residual grid demand is the net EH exchange with the grid: import minus export.
+    eh_df["Power_kW_residual_grid"] = [d + e for d, e in zip(eh_demand_from_grid, eh_export_to_grid)]
 
     # Heat generation and consumption
     for dev in EH_ECS_HEAT:
@@ -1899,11 +1908,9 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
     # Calculate final sums
     eh_df["Power_kW_Generation_Total"] = eh_df[p_gen_cols].sum(axis=1) + eh_df[p_sto_cols].sum(axis=1).apply(lambda x: x if x > 0 else 0)  # Only count storage decharge as generation
     eh_df["Power_kW_Consumption_Total"] = eh_df[p_con_cols].sum(axis=1) + eh_df.get("Power_kW_network_pump", 0)  + eh_df[p_sto_cols].sum(axis=1).apply(lambda x: x if x < 0 else 0)  # Only count storage charge as consumption
-    eh_df["Power_kW_Residual"] = eh_df["Power_kW_Generation_Total"] + eh_df["Power_kW_Consumption_Total"] # Power available in the power grid
 
     eh_df["Heat_kW_Generation_Total"] = eh_df[h_gen_cols].sum(axis=1) + eh_df.get("Heat_kW_seasonal_storage", 0) + eh_df.get("Heat_kW_waste_heat", 0) +eh_df[h_sto_cols].sum(axis=1).apply(lambda x: x if x > 0 else 0)  # Only count storage decharge as generation
     eh_df["Heat_kW_Consumption_Total"] = eh_df[h_con_cols].sum(axis=1) + eh_df.get("Heat_kW_network_losses", 0) + eh_df.get("Heat_kW_network_demand", 0) + eh_df[h_sto_cols].sum(axis=1).apply(lambda x: x if x < 0 else 0)  # Only count storage charge as consumption
-    eh_df["Heat_kW_Residual"] = eh_df["Heat_kW_Generation_Total"] + eh_df["Heat_kW_Consumption_Total"] # Heat available in the heat grid
 
     eh_df = eh_df.round(1)
 
