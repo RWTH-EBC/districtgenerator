@@ -1,7 +1,14 @@
-from districtgenerator.classes import Network, KPIs
+from districtgenerator.classes import Network
 from pathlib import Path
-# from districtgenerator.functions.plot_results import plot_device_capacities, plot_grid_flows
 import os
+
+
+"""
+This is a script to generate multiple districts with different configurations.
+It should enable the optimization of different districts in one run.
+The parameter OPTIM_DIMENSION defines if the districts are interconnected or calculated independently.
+
+"""
 
 if __name__ == '__main__':
     # This helper code finds the 'data' directory relative to this script's location.
@@ -10,16 +17,19 @@ if __name__ == '__main__':
     project_root = script_path.parent.parent
     configs_directory_path = project_root / "districtgenerator" / "data"
 
+    # Initialize the network object
     network = Network()
 
+    # Initialize the districts with the decentralized devices and generate the user profiles if needed.
     network.initializeDistrictsWithDecentralDevs(
         configs_dir=configs_directory_path, 
         calcUserProfiles=False, 
         saveUserProfiles=True)
     
+    # Optimize the network and save the generation profiles
     result_dictCon=network.optimize_network(saveGenerationProfiles= True)
 
-    #print(network.interconnected_districts)
+    # Print the capacities of the central devices in the energy hub for each district
     for district in network.interconnected_districts.values():
         # Print capacities of central devices
         if "capacities" in district.centralDevices:
@@ -35,21 +45,5 @@ if __name__ == '__main__':
     # Folder to save model and results
     result_dir = "optimization_results"
 
-    # if not os.path.exists(result_dir):
-    #     os.makedirs(result_dir)
-    # plot_grid_flows(result_dictCon=result_dictCon, y=0, result_dir=result_dir, show=True)
 
-    # Plot device capacities for each district
-
-    # plot_device_capacities(result_dictCon=result_dictCon, result_dir=result_dir, show=True)
-
-
-    # Can be used if I update opti_central for the network optimization
-    # for district in network.interconnected_districts.values():
-    #     district.optimizationClusters()
-    #     district.calculateKPIs()  
-    #     print(f"\n{district.scenario_name}")
-    #     print("  Grid demand (kWh/a):", district.KPIs.W_dem_GCP_year)
-    #     print("  Grid injection (kWh/a):", district.KPIs.W_inj_GCP_year)
-    #     print("  Gas (kWh/a):", district.KPIs.gas_year)
 

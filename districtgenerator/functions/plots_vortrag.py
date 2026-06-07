@@ -3394,7 +3394,6 @@ def main():
 
     #################################################################################
     # For plot_power_import only main_grid_total
-    # !! Szenariowechsel
     show = False
 
     # Für jedes Quartier:
@@ -3461,7 +3460,6 @@ def main():
 
     #################################################################################
     # For plot_power_import from_main_grid_total and from_network_total
-    # !! Szenariowechsel
     show = True
 
     bar_count = 6
@@ -3537,7 +3535,6 @@ def main():
 
     #################################################################################
     # Für plot_device_capacities_all_scenarios
-    # !! Szenariowechsel
     show = False
     short_files = ["Basis", "Bat", "PV", "PV"]
     compare_shorts = ["Basis", "Batterie", "Solarausbau","Solarausbau"]
