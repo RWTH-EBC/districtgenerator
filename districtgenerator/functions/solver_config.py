@@ -2,7 +2,7 @@
 
 from pyomo.environ import SolverFactory
 import os, sys
-import json
+import time
 from districtgenerator.data_handling.config import PyomoConfig
 import pyomo.environ as pyo
 from contextlib import redirect_stdout
@@ -312,14 +312,16 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                 m = gp.read("debug_model.lp", env=env)
                 m.setParam('DualReductions', 0) # Disable presolving reductions to get more accurate IIS
                 print("Running Gurobi optimization to determine source of termination...")
+                time_start = time.time()
                 m.optimize()
+                solve_time  = time.time() - time_start
 
                 if m.status == gp.GRB.OPTIMAL or m.status == 2: 
                     print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
-                        if term_cond == pyo.TerminationCondition.timeLimit:
-                            f.write(f"The original solver reached the time limit. Using Gurobi the runtime was: {m.Runtime:.2f} seconds\n")
+                        if term_cond == pyo.TerminationCondition.maxTimeLimit:
+                            f.write(f"The original solver reached the time limit. Using Gurobi the solve time was: {solve_time:.2f} seconds\n")
 
                 elif m.status == gp.GRB.INFEASIBLE or m.status == 4:
                     m.computeIIS()

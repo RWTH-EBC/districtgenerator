@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
+import os
+import time
 import numpy as np
 import pyomo.environ as pyo
 import districtgenerator.functions.solver_config as solver_config
@@ -511,13 +513,22 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     # Objective function
     m.obj = pyo.Objective(expr=fixed_cost + annualized_energy_costs, sense=pyo.minimize)
 
-    # Solve
-    solver, solver_options = solver_config.create_solver(pyomo_config=pyomo_config)
-    results = solver.solve(m, tee=False, options=solver_options)
+    result_dir = "optimization_results"
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir) 
 
+    # Solve
+    solve_start_time = time.time()
+    results = solver_config.execute_and_diagnose(model = m, 
+                                   pyomo_config = pyomo_config,
+                                   model_name = "decentral_system_model",
+                                   result_dir = result_dir)
+    solve_end_time = time.time()
+    solve_time = solve_end_time - solve_start_time
+    
     tc = results.solver.termination_condition
     if tc != pyo.TerminationCondition.optimal:
-        raise RuntimeError(f"Fixed-design building operation did not solve to optimality. Termination: {tc}")
+        raise RuntimeError(f"Fixed-design building operation did not solve to optimality. Termination: {tc} after a solve time of {solve_time:.2f} seconds.")
 
     # Extract results
     def val(x):
