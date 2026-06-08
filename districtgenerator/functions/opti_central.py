@@ -8,16 +8,13 @@ ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 
 
 
+from xml.parsers.expat import model
+
 import pyomo.environ as pyo
-from pyomo.util.infeasible import log_infeasible_constraints
-import sys
 import os
-from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
-from datetime import datetime
-import logging
-from contextlib import redirect_stdout
+import pandas as pd
 
 # Sets of energy conversion systems in the buildings
 ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "DHW_dem", "Heating_dem", "FC")
@@ -486,6 +483,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.power_oil_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_waste_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
+    model.heat_grid_demand = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat demand of all buildings connected to the local heat grid")
+    model.cool_grid_demand = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Cooling demand of all buildings connected to the local cooling grid")
 
     # total energy amounts used
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy imported from the external grid by the neighborhood")
@@ -1263,16 +1262,24 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.trafo_binary1 = pyo.Constraint(model.t, rule=trafo_binary1_rule, doc="Power_limitation_from_grid")
     model.trafo_binary2 = pyo.Constraint(model.t, rule=trafo_binary2_rule, doc="Power_limitation_to_grid")
 
+    def heat_grid_demand_rule(model, t):
+        return model.heat_grid_demand[t] == sum(model.heat_dom["heat_grid", n, t] for n in model.n)
+
+    def cool_grid_demand_rule(model, t):
+        return model.cool_grid_demand[t] == sum(model.cool_dom["heat_grid", n, t] for n in model.n)
+
     # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
     def eh_heat_supply_rule(model, t):
-        return model.eh_heat_to_grid[t] == sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
+        return model.eh_heat_to_grid[t] == model.heat_grid_demand[t] + \
             model.network_losses_heating[t] - model.eh_seasonal_dch[t] - model.eh_waste_heat[t]
 
     # The EH must supply the cooling demand of the buildings connected to the grid
     def eh_cool_supply_rule(model, t):
-        return model.eh_cool_to_grid[t] == sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
+        return model.eh_cool_to_grid[t] == model.cool_grid_demand[t] + \
             model.network_losses_cooling[t]
     
+    model.heat_grid_demand_constraint = pyo.Constraint(model.t, rule=heat_grid_demand_rule, doc="Heat demand of all buildings connected to the local heat grid")
+    model.cool_grid_demand_constraint = pyo.Constraint(model.t, rule=cool_grid_demand_rule, doc="Cooling demand of all buildings connected to the local cooling grid")
     model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
     model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule, doc="EnergyHub_cooling_supply_to_buildings")
 
@@ -1548,6 +1555,11 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["P_district_heat_total"] = []
     results_dict["P_network_losses_heating"] = []
     results_dict["P_network_losses_cooling"] = []
+    results_dict["P_network_demand_heating"] = []
+    results_dict["P_network_demand_cooling"] = []
+    results_dict["P_pump"] = []
+    results_dict["P_eh_from_grid"] = []
+    results_dict["P_eh_to_grid"] = []
     results_dict["P_seasonal_storage_used"] = []
     results_dict["P_waste_heat_used"] = []
 
@@ -1564,8 +1576,14 @@ def solve_model_and_extract_results(model, data, year, cluster):
         results_dict["P_district_heat_total"].append(round(pyo.value(model.power_district_heating_import[t]), 0))
         results_dict["P_network_losses_heating"].append(round(pyo.value(model.network_losses_heating[t]), 0))
         results_dict["P_network_losses_cooling"].append(round(pyo.value(model.network_losses_cooling[t]), 0))
+        results_dict["P_network_demand_heating"].append(round(pyo.value(model.heat_grid_demand[t]), 0))
+        results_dict["P_network_demand_cooling"].append(round(pyo.value(model.cool_grid_demand[t]), 0))
+        results_dict["P_pump"].append(round(pyo.value(model.network_pump_power[t]), 0))
+        results_dict["P_eh_from_grid"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
+        results_dict["P_eh_to_grid"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
         results_dict["P_seasonal_storage_used"].append(round(pyo.value(model.eh_seasonal_dch[t]), 0))
         results_dict["P_waste_heat_used"].append(round(pyo.value(model.eh_waste_heat[t]), 0))
+        
 
     # Overall costs and emissions
     results_dict["Cost_total"] = pyo.value(model.operational_costs)
@@ -1762,7 +1780,6 @@ def solve_model_and_extract_results(model, data, year, cluster):
 
     return results_dict
 
-
 def _get_vehicle_mapping(buildingData, nbuildings):
     """
     Create mapping of individual EVs and ICEs to buildings with unique IDs.
@@ -1798,6 +1815,106 @@ def _get_vehicle_mapping(buildingData, nbuildings):
 
     return all_individual_evs_map, all_individual_ices_map
 
+def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
+    """
+    Function to extract the relevat Energy Hub profiles for power and heat generation and consumption from the results dictionary and return them in a DataFrame. 
+    Positive values indicate generation, negative values indicate consumption. Additionally, the function calculates the toton and consumption for power and heat as well as the net surplus (generation - consumption) for each time step.
+    """
+
+    power_producers = ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]
+    power_consumers = ["HP", "EB", "CC", "ELYZ"]
+    power_storage = ["BAT"]
+
+    heat_producers = ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+    heat_consumers = ["AC"]  # "to_grid" represents the heat fed into the heating network Which is a direct consumer of the heat generated in the EH
+    heat_storage = ["TES"]
+
+    eh_df = pd.DataFrame()
+
+    def to_kw(values):
+        return [x / 1000 for x in values]
+
+    # Power generation and consumption
+    for dev in EH_ECS_POWER:
+        if dev in power_producers:
+            eh_df[f"Power_kW_{dev}"] = to_kw([abs(x) for x in results_dict["eh_power"][dev]])
+        elif dev in power_consumers:
+            eh_df[f"Power_kW_{dev}"] = to_kw([-1 * abs(x) for x in results_dict["eh_power"][dev]])
+            
+    # Power storage (Net profile: discharging - charging)
+    for dev in power_storage:
+        if dev in results_dict.get("eh_dch", {}) and dev in results_dict.get("eh_ch", {}):
+            eh_df[f"Power_kW_{dev}"] = to_kw([d - c for d, c in zip(results_dict["eh_dch"][dev], results_dict["eh_ch"][dev])])
+            
+    eh_df["Power_kW_network_pump"] = to_kw([-1 * abs(x) for x in results_dict["P_pump"]])
+    # EH grid exchange is tracked separately from the neighborhood totals.
+    eh_demand_from_grid = to_kw([abs(x) for x in results_dict["P_eh_from_grid"]]) # Import from grid acts as a generation in the EH as it provides power to the EH devices
+    eh_export_to_grid = to_kw([-1 * abs(x) for x in results_dict["P_eh_to_grid"]])
+    # Residual grid demand is the net EH exchange with the grid: import minus export.
+    eh_df["Power_kW_residual_grid"] = [d + e for d, e in zip(eh_demand_from_grid, eh_export_to_grid)]
+
+    # Heat generation and consumption
+    for dev in EH_ECS_HEAT:
+        if dev in heat_producers:
+            eh_df[f"Heat_kW_{dev}"] = to_kw([abs(x) for x in results_dict["eh_heat"][dev]])
+        elif dev in heat_consumers:
+            eh_df[f"Heat_kW_{dev}"] = to_kw([-1 * abs(x) for x in results_dict["eh_heat"][dev]])
+            
+    # Heat storage (Net profile: discharging - charging)
+    for dev in heat_storage:
+        if dev in results_dict.get("eh_dch", {}) and dev in results_dict.get("eh_ch", {}):
+            eh_df[f"Heat_kW_{dev}"] = to_kw([d - c for d, c in zip(results_dict["eh_dch"][dev], results_dict["eh_ch"][dev])])
+            eh_df[f"Heat_SOC_kWh_{dev}"] = to_kw(results_dict["eh_soc"][dev])
+
+    eh_df["Heat_kW_network_losses"] = to_kw([-1 * abs(x) for x in results_dict["P_network_losses_heating"]])
+    eh_df["Heat_kW_network_demand"] = to_kw([-1 * abs(x) for x in results_dict["P_network_demand_heating"]])
+    eh_df["Heat_kW_seasonal_storage"] = to_kw([abs(x) for x in results_dict["P_seasonal_storage_used"]])
+    eh_df["Heat_kW_waste_heat"] = to_kw([abs(x) for x in results_dict["P_waste_heat_used"]])
+
+    # Filter out devices with 0 capacity, keeping those with cap > 0 
+    if data is not None:
+        cols_to_keep = []
+        central_capacities = data.centralDevices.get("capacities", {}) if data.centralDevices else {}
+
+        
+        # Keep all heating network related columns as they do not possess a capacity but are relevant as they are no ordinary devices
+        for col in eh_df.columns:
+            if "network" in col:
+                cols_to_keep.append(col)
+                continue
+                
+            # Use here split after the last underscore to get the device name
+            dev_name = col.split("_")[-1] if "_" in col else col
+
+            has_capacity = False
+            if dev_name in central_capacities and isinstance(central_capacities[dev_name], dict):
+                if central_capacities[dev_name].get("cap") > 0:
+                    has_capacity = True
+
+            if has_capacity or (eh_df[col] != 0).any():
+                cols_to_keep.append(col)
+                
+        eh_df = eh_df[cols_to_keep]
+
+    # Dynamic column selection for totals based on filtered dataframe
+    p_gen_cols = [c for c in eh_df.columns if c.startswith("Power_kW_") and c.replace("Power_kW_", "") in power_producers]
+    p_con_cols = [c for c in eh_df.columns if c.startswith("Power_kW_") and c.replace("Power_kW_", "") in power_consumers]
+    p_sto_cols = [c for c in eh_df.columns if c.startswith("Power_kW_") and c.replace("Power_kW_", "") in power_storage]
+    
+    h_gen_cols = [c for c in eh_df.columns if c.startswith("Heat_kW_") and c.replace("Heat_kW_", "") in heat_producers]
+    h_con_cols = [c for c in eh_df.columns if c.startswith("Heat_kW_") and c.replace("Heat_kW_", "") in heat_consumers]
+    h_sto_cols = [c for c in eh_df.columns if c.startswith("Heat_kW_") and c.replace("Heat_kW_", "") in heat_storage]
+
+    # Calculate final sums
+    eh_df["Power_kW_Generation_Total"] = eh_df[p_gen_cols].sum(axis=1) + eh_df[p_sto_cols].sum(axis=1).apply(lambda x: x if x > 0 else 0)  # Only count storage decharge as generation
+    eh_df["Power_kW_Consumption_Total"] = eh_df[p_con_cols].sum(axis=1) + eh_df.get("Power_kW_network_pump", 0)  + eh_df[p_sto_cols].sum(axis=1).apply(lambda x: x if x < 0 else 0)  # Only count storage charge as consumption
+
+    eh_df["Heat_kW_Generation_Total"] = eh_df[h_gen_cols].sum(axis=1) + eh_df.get("Heat_kW_seasonal_storage", 0) + eh_df.get("Heat_kW_waste_heat", 0) +eh_df[h_sto_cols].sum(axis=1).apply(lambda x: x if x > 0 else 0)  # Only count storage decharge as generation
+    eh_df["Heat_kW_Consumption_Total"] = eh_df[h_con_cols].sum(axis=1) + eh_df.get("Heat_kW_network_losses", 0) + eh_df.get("Heat_kW_network_demand", 0) + eh_df[h_sto_cols].sum(axis=1).apply(lambda x: x if x < 0 else 0)  # Only count storage charge as consumption
+
+    eh_df = eh_df.round(1)
+
+    return eh_df
 
 def remove_previous_models_and_solutions(model_name_prefix="opti_central_model_"):
     """

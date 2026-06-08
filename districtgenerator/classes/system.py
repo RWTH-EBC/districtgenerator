@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+import time
 from districtgenerator.functions.opti_dimensioning_decentral_devices import choose_cheapest_heating_concept_fixed_design
 import districtgenerator.functions.opti_dimensioning_central_devices as opti_dimensioning_central_devices
 import districtgenerator.functions.load_params_central_devices as load_params_central_devices
@@ -79,6 +80,7 @@ class BES:
             if mode == "opt_custom":
                 candidates = self._filter_candidates(candidates, allowed)
 
+            start_time = time.time()
             chosen, evals = choose_cheapest_heating_concept_fixed_design(
                 demand_heat_w=building["user"].heat_cluster,
                 demand_dhw_w=building["user"].dhw_cluster,
@@ -96,6 +98,8 @@ class BES:
                 building=building,
                 cluster_meta=building.get("cluster_meta", None)
             )
+            end_time = time.time()
+            print(f"Chosen heating concept: {chosen} for building {building['unique_name']} (evaluated {len(evals)} candidates in {end_time - start_time:.2f} seconds)")
 
             buildingFeatures["heater"] = chosen
 

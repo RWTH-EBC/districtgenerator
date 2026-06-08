@@ -25,12 +25,13 @@ Individual flowables:
 - YearlyStackedBarCharts
 - InputDataTable
 
-Version Date: 31.03.2026
+Version Date: 05.06.2026
 """
 
 import json
-
+import math
 from districtgenerator.classes import *
+from districtgenerator.functions import opti_central
 from reportlab.platypus  import SimpleDocTemplate, BaseDocTemplate, PageTemplate, Frame
 from reportlab.lib.pagesizes import A4, A3, landscape
 from reportlab.lib import colors
@@ -49,6 +50,7 @@ from reportlab.graphics.charts.legends import Legend
 from reportlab.platypus import Flowable
 from reportlab.lib import colors
 from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.lineplots import LinePlot
 
 
 DEBUG = False # If set to true boxes are drawn around the different components to visualize the layout and available space
@@ -1165,6 +1167,374 @@ class DecentralSystems(BaseReportFlowable):
                 boxes.append(box)
         
         return boxes
+
+class EnergyHubProfilesYear(BaseReportFlowable):
+    """
+    Renders all EnergyHub cluster profiles for one simulated year on a single page.
+    Generates EXACTLY ONE master legend at the bottom of the page.
+    Strictly adheres to the ThemeManager configuration for fonts, colors, and layout widths.
+    """
+
+    def __init__(self, year, year_profiles: dict):
+        super().__init__()
+        self.style = self.get_style()
+        self.year = year
+        self.year_profiles = year_profiles or {}
+        self.width = 0
+        self.height = 0
+
+    def wrap(self, availWidth, availHeight):
+        self.width = availWidth
+        self.height = availHeight
+        return self.width, self.height
+
+    def _series_from_profile(self, profile_df: pd.DataFrame, series_names: list[str]) -> dict[str, list[float]]:
+        series = {}
+        for series_name in series_names:
+            if series_name in profile_df.columns:
+                series[series_name] = profile_df[series_name].tolist()
+        return series
+
+    def _build_plot(self, width: float, height: float, title: str, series_map: dict[str, list[float]], dynamic_color_mapping: dict, show_x_axis: bool = True) -> Drawing:
+        drawing = Drawing(width, height)
+
+        # 1. Fonts and Colors
+        plot_title_size = self.style.get_font_size('body')
+        axis_font = self.style.get_font(bold=False)
+        axis_size = self.style.get_font_size('axis_values')
+        axis_label_font = self.style.get_font(bold=False)
+        axis_label_size = self.style.get_font_size('small')
+        font_color = colors.Color(*self.style.get_color('text'))
+
+        # 2. Asymmetrische Placement Calculations
+        padding = self.style.get_padding()
+        x_align_right = 3 * padding
+        x_align_left = (5 * padding) + axis_label_size 
+        
+        chart_width = width - x_align_left - x_align_right 
+        center_x = x_align_left + (chart_width / 2.0)
+
+        # Filter out generation_total and consumption_total
+        filtered_series_map = {k: v for k, v in series_map.items() 
+                               if not any(x in k.lower() for x in ["generation_total", "consumption_total", ])}
+
+        if not filtered_series_map or height < 20:
+            drawing.add(String(center_x, max(5, height / 2.0), self.translate("msg_no_data"),
+                               textAnchor='middle', fontName=self.style.get_font(bold=False),
+                               fontSize=plot_title_size, fillColor=font_color))
+            if DEBUG:
+                drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+            return drawing
+
+        # Prepare data for the LinePlot & Polygons
+        import math
+        from reportlab.graphics.shapes import Polygon
+
+        max_len = max(len(values) for values in filtered_series_map.values())
+        x_values = list(range(max_len))
+
+        stack_names = sorted(list(filtered_series_map.keys()))
+
+        pos_plot_data = []
+        pos_line_configs = []
+        current_pos_cum = [0.0] * max_len
+
+        neg_plot_data = []
+        neg_line_configs = []
+        current_neg_cum = [0.0] * max_len
+
+        # Ein einziger Loop für alle Datenreihen
+        for name in stack_names:
+            vals = filtered_series_map[name]
+            clean_vals = [v if pd.notna(v) else 0.0 for v in vals]
+            
+            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
+            color = dynamic_color_mapping.get(clean_name, colors.black)
+            
+            # Positive Anteile (Einspeisung / Erzeugung)
+            pos_vals = [v if v > 0 else 0.0 for v in clean_vals]
+            if any(v > 0 for v in pos_vals):
+                current_pos_cum = [c + v for c, v in zip(current_pos_cum, pos_vals)]
+                poly_data = [(x_values[0], 0.0)] + list(zip(x_values, current_pos_cum)) + [(x_values[-1], 0.0)]
+                pos_plot_data.append(poly_data)
+                pos_line_configs.append({'color': color})
+
+            # Negative Anteile (Bezug / Verbrauch)
+            neg_vals = [v if v < 0 else 0.0 for v in clean_vals]
+            if any(v < 0 for v in neg_vals):
+                current_neg_cum = [c + v for c, v in zip(current_neg_cum, neg_vals)]
+                poly_data = [(x_values[0], 0.0)] + list(zip(x_values, current_neg_cum)) + [(x_values[-1], 0.0)]
+                neg_plot_data.append(poly_data)
+                neg_line_configs.append({'color': color})
+
+        # Listen umkehren für die korrekte Überlagerung (größte Flächen zuerst)
+        pos_plot_data.reverse()
+        pos_line_configs.reverse()
+        neg_plot_data.reverse()
+        neg_line_configs.reverse()
+        
+        stack_data = pos_plot_data + neg_plot_data
+        stack_configs = pos_line_configs + neg_line_configs
+
+        # Symmetrische Y-Limits berechnen
+        max_stacked_pos = max(current_pos_cum) if current_pos_cum else 0
+        min_stacked_neg = min(current_neg_cum) if current_neg_cum else 0
+
+        max_abs_y = max(abs(min_stacked_neg), max_stacked_pos)
+        y_min = -max_abs_y
+        y_max = max_abs_y
+
+        if (y_max - y_min) < 0.1:
+            y_min = math.floor(y_min) - 1
+            y_max = math.ceil(y_max) + 1
+
+        # --- LAYER 1: Farbige Stacked-Polygone im Hintergrund zeichnen ---
+        plot_height_val = max(1, height)
+        x_scale = chart_width / max(1, max_len - 1)
+        y_scale = plot_height_val / (y_max - y_min)
+
+        for data_series, config in zip(stack_data, stack_configs):
+            pts = []
+            for x_val, y_val in data_series:
+                px = x_align_left + x_val * x_scale
+                py = 0 + (y_val - y_min) * y_scale 
+                pts.extend([px, py])
+            
+            poly = Polygon(pts)
+            poly.fillColor = config['color']
+            poly.strokeColor = config['color']
+            poly.strokeWidth = 0.5
+            drawing.add(poly)
+
+        # --- LAYER 2: Die exakte graue Null-Linie ---
+        if y_min <= 0 <= y_max:
+            zero_y_pixel = 0 + (0 - y_min) * y_scale
+            zero_line = Line(x_align_left, zero_y_pixel, x_align_left + chart_width, zero_y_pixel)
+            zero_line.strokeColor = colors.Color(0, 0, 0) 
+            zero_line.strokeWidth = 0.4
+            drawing.add(zero_line)
+
+        # --- LAYER 3: LinePlot (nur für Achsen & Grid zuständig) ---
+        plot = LinePlot()
+        plot.x = x_align_left     
+        plot.y = 0 
+        plot.width = chart_width
+        plot.height = plot_height_val 
+        
+        plot.data = [[(0,0)]] # Dummy-Daten
+        plot.joinedLines = 1
+
+        plot.xValueAxis.valueMin = 0
+        plot.xValueAxis.valueMax = max(1, max_len - 1)
+        plot.xValueAxis.valueStep = 24 
+        plot.xValueAxis.labels.fontName = axis_font
+        plot.xValueAxis.labels.fontSize = axis_size
+        plot.xValueAxis.labels.fillColor = font_color
+        plot.xValueAxis.visibleGrid = 1
+        plot.xValueAxis.gridStrokeColor = colors.Color(0.85, 0.85, 0.85) 
+        plot.xValueAxis.gridStrokeDashArray = [2, 2] 
+
+        plot.xValueAxis.visibleLabels = 1 if show_x_axis else 0
+        plot.xValueAxis.visibleTicks = 1 if show_x_axis else 0
+        plot.xValueAxis.visibleAxis = 0
+
+        plot.yValueAxis.valueMin = y_min
+        plot.yValueAxis.valueMax = y_max
+        plot.yValueAxis.valueStep = max(0.1, (y_max - y_min) / 4)
+        plot.yValueAxis.labelTextFormat = lambda v: f"{v:.2g}" 
+        plot.yValueAxis.labels.fontName = axis_font
+        plot.yValueAxis.labels.fontSize = axis_size
+        plot.yValueAxis.labels.fillColor = font_color
+        plot.yValueAxis.visibleGrid = 0
+        plot.yValueAxis.visibleTicks = 1
+
+        # Dummy-Linie unsichtbar machen
+        plot.lines[0].strokeColor = colors.transparent
+        plot.lines[0].fillColor = None
+
+        drawing.add(plot)
+        
+        if DEBUG:
+             drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+             drawing.add(Rect(0, 0, axis_label_size, height, strokeColor=colors.blue, strokeWidth=debug_line_width, fillColor=None))
+             
+        return drawing
+
+    def draw_content(self):
+        cluster_names = list(sorted(self.year_profiles.keys(), key=lambda value: str(value)))
+        font_color = colors.Color(*self.style.get_color('text'))
+        padding = self.style.get_padding()
+        
+        if not cluster_names:
+            self.canv.setFont(self.style.get_font(bold=False), self.style.get_font_size('body'))
+            self.canv.setFillColor(font_color)
+            self.canv.drawString(padding, self.height - 12, "No EnergyHub profiles available for this year.")
+            return
+
+        # =========================================================
+        # 1. PRE-PROCESSING: Aggregate all unique series names
+        # =========================================================
+        base_series_names = set()
+        for profile_df in self.year_profiles.values():
+            for col in profile_df.columns:
+                if col.startswith("Power_kW_") or col.startswith("Heat_kW_"):
+                    if not any(x in col.lower() for x in ["generation_total", "consumption_total"]):
+                        clean_col = col.replace("Power_kW_", "").replace("Heat_kW_", "")
+                        base_series_names.add(clean_col)
+
+        # =========================================================
+        # 2. CREATE MASTER COLOR MAPPING
+        # =========================================================
+        device_palette = [
+            colors.HexColor('#d62728'),
+            colors.HexColor('#1f77b4'),
+            colors.HexColor('#2ca02c'),
+            colors.HexColor('#ff7f0e'),
+            colors.HexColor('#9467bd'),
+            colors.HexColor('#17becf'),
+            colors.HexColor('#e377c2'),
+            colors.HexColor('#bcbd22'),
+            colors.HexColor('#8c564b'),
+            colors.HexColor('#f1c40f'),
+            colors.HexColor('#3498db'),
+            colors.HexColor('#e74c3c'),
+            colors.HexColor('#2ecc71'),
+            colors.HexColor('#9b59b6'),
+            colors.HexColor('#d35400'),
+            colors.HexColor('#1abc9c')
+        ]
+
+        device_base_names = sorted(list(base_series_names))
+
+        # Funktion zur Zuweisung der Farben
+        def resolve_device_color(name: str, index: int) -> colors.Color:
+            if "residual_grid" in name.lower():
+                return colors.Color(0.7, 0.7, 0.7) # Helles Grau für das Netz
+            if device_palette:
+                return device_palette[index % len(device_palette)]
+            return colors.black
+
+        # Color Mapping für alle Geräte aufbauen
+        dynamic_color_mapping = {}
+        normal_idx = 0
+        for name in device_base_names:
+            if "residual_grid" in name.lower():
+                dynamic_color_mapping[name] = resolve_device_color(name, 0)
+            else:
+                dynamic_color_mapping[name] = resolve_device_color(name, normal_idx)
+                normal_idx += 1
+
+        # =========================================================
+        # 3. CREATE AND DRAW MASTER LEGEND
+        # =========================================================
+        legend = Legend()
+        legend.fontName = self.style.get_font(bold=False)
+        legend.fontSize = self.style.get_font_size('small')
+        legend.dx = 8 
+        legend.dy = 8
+        legend.yGap = 0
+        legend.deltay = 12
+        legend.strokeWidth = 0
+        legend.dxTextSpace = self.style.get_spacing('medium')
+        legend.variColumn = True
+        legend.columnMaximum = 4
+        legend.alignment = 'right'
+
+        legend_pairs = []
+
+        for name in device_base_names:
+            color = dynamic_color_mapping.get(name, colors.black)
+
+            display_name = self.translate(f"device_{name}") if name.isupper() else self.translate(name)
+            
+            # Fallback formatting for unmapped translations (e.g., 'residual_grid' -> 'Residual grid')
+            if display_name == f"device_{name}" or display_name == name:
+                display_name = name.replace("_", " ").capitalize()
+
+            if not any(display_name == existing_name for _, existing_name in legend_pairs):
+                legend_pairs.append((color, display_name))
+
+        legend.colorNamePairs = legend_pairs
+
+        # Calculate bounds and place at the bottom
+        legend.x = 0
+        legend.y = 0
+        bounds = legend.getBounds() 
+        legend_width = bounds[2] - bounds[0]
+        legend_height = bounds[3] - bounds[1]
+        
+        legend_x_pos = (self.width - legend_width) / 2
+
+        # Adjust legend position (ReportLab legends grow downwards)
+        legend.x = legend_x_pos
+        legend.y = -bounds[1] + padding 
+        
+        legend_drawing = Drawing(self.width, legend_height + padding)
+        legend_drawing.add(legend)
+        
+        if DEBUG:
+             legend_drawing.add(Rect(legend_x_pos, padding, legend_width, legend_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+             
+        legend_drawing.drawOn(self.canv, 0, 0)
+
+        # =========================================================
+        # 4. DISTRIBUTE REMAINING SPACE TO CLUSTER PLOTS
+        # =========================================================
+        gap = self.style.get_spacing('medium')
+        usable_height = self.height - legend_height - gap
+        
+        available_height = usable_height - gap * (len(cluster_names) - 1)
+        cluster_slot_height = available_height / len(cluster_names)
+        cluster_title_size = self.style.get_font_size('body')
+
+        for index, cluster_name in enumerate(cluster_names):
+            profile_df = self.year_profiles[cluster_name]
+            
+            top_y = self.height - index * (cluster_slot_height + gap)
+            bottom_y = top_y - cluster_slot_height
+
+            if DEBUG:
+                self.canv.saveState()
+                self.canv.setStrokeColor(colors.red)
+                self.canv.setLineWidth(debug_line_width)
+                self.canv.rect(0, bottom_y, self.width, cluster_slot_height, stroke=1, fill=0)
+                self.canv.restoreState()
+
+            cluster_title_y = top_y - cluster_title_size
+            self.canv.setFont(self.style.get_font(bold=True), cluster_title_size)
+            self.canv.setFillColor(font_color)
+            
+            title_text = f"{self.translate('title_cluster')} {cluster_name}"
+            self.canv.drawString(padding, cluster_title_y, title_text)
+            
+            if DEBUG:
+                title_width = self.canv.stringWidth(title_text, self.style.get_font(bold=True), cluster_title_size)
+                self.canv.saveState()
+                self.canv.setStrokeColor(colors.red)
+                self.canv.setLineWidth(debug_line_width)
+                self.canv.rect(padding, cluster_title_y, title_width, cluster_title_size, stroke=1, fill=0)
+                self.canv.restoreState()
+
+            inner_top = cluster_title_y - gap
+
+            axis_label_size = self.style.get_font_size('small')
+            x_axis_padding = axis_label_size * 2
+
+            inner_height = max(1, inner_top - (bottom_y + x_axis_padding))
+            plot_gap = self.style.get_padding()
+            plot_height = max(1, (inner_height - plot_gap) / 2)
+
+            power_cols = [c for c in profile_df.columns if c.startswith("Power_kW_")]
+            heat_cols = [c for c in profile_df.columns if c.startswith("Heat_kW_")]
+
+            power_series = self._series_from_profile(profile_df, power_cols)
+            heat_series = self._series_from_profile(profile_df, heat_cols)
+
+            power_plot = self._build_plot(self.width, plot_height, "Power (kW)", power_series, dynamic_color_mapping, show_x_axis=False)
+            heat_plot = self._build_plot(self.width, plot_height, "Heat (kW)", heat_series, dynamic_color_mapping, show_x_axis=True)
+
+            heat_plot.drawOn(self.canv, 0, bottom_y + x_axis_padding)
+            power_plot.drawOn(self.canv, 0, bottom_y + x_axis_padding + plot_height + plot_gap)
     
 class YearlyStackedBarCharts(BaseReportFlowable):
     """
@@ -2130,8 +2500,6 @@ class CertificateLayout(ReportComponent):
         footer = Footer(scenario_name)
         self.story.append(footer)
 
-    
-
     # Energyhub device capacity page
     def create_energyhub_data(self, data_energyhub):
         """Creates the Energyhub Data section and adds it to the story."""
@@ -2183,6 +2551,22 @@ class CertificateLayout(ReportComponent):
         # 3. Add them to the document story
         self.story.extend(boxes)
 
+    def create_energyhub_profiles(self, data_profiles):
+        """Creates the Energyhub Profiles section and adds it to the story."""
+        if not data_profiles:
+            return
+
+        title = self.translate("title_energyhub_profiles")
+
+        for index, year in enumerate(sorted(data_profiles.keys())):
+            if index > 0:
+                self.story.append(PageBreak())
+
+            year_flowable = EnergyHubProfilesYear(year=year, year_profiles=data_profiles[year])
+            box = FrameBox(title=f"{title} {year}")
+            box.set_content(year_flowable, full_width=False)
+            self.story.append(box)
+
     def create_quartiersstruktur_details(self, data_quartiersstruktur):
         """Creates the detailed matrix on a landscape page."""
         df_details = data_quartiersstruktur["df_details"]
@@ -2201,7 +2585,7 @@ class CertificateLayout(ReportComponent):
             style_name='input_data'
         )
         
-        title = self.translate("title_district_structure_details")
+        title = self.translate("title_district_structure_detailed")
         for i, tab in enumerate(tables, start=1):
             title = title if len(tables) == 1 else f"{title} ({i}/{len(tables)})"
             box = FrameBox(title=title)
@@ -2683,6 +3067,7 @@ class DataExtractor(ReportComponent):
         self.district_structure = None
         self.energyhub_df = None
         self.decentral_df = None
+        self.energyhub_profiles = {}
         self.district_layout = None
 
         
@@ -3159,15 +3544,12 @@ class DataExtractor(ReportComponent):
             for dev_name, data in aggregated_data.items():
                 name, base_unit = self.get_decentral_device_name(dev_name)
 
-                if base_unit == "m²":
-                    cap_for_display = data["total_cap"]
+                if "W" in base_unit:
+                    cap_for_determination = data['total_cap'] * 1000 # For devices with power or energy units the conversion requires W or Wh as input
                 else:
-                    cap_for_display = data["total_cap"] * 1000
+                    cap_for_determination = data['total_cap']
 
-                total_cap_adjusted, total_unit_adjusted = self._determine_unit(
-                    cap=cap_for_display,
-                    base_unit=base_unit
-                )
+                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=cap_for_determination, base_unit=base_unit)
                 total_power = f"{total_cap_adjusted} {total_unit_adjusted}".strip()
 
                 cost = round(data['total_cost'], 2)
@@ -3195,6 +3577,15 @@ class DataExtractor(ReportComponent):
         except AttributeError as e:
             print(f"Warning: Decentral device data could not be extracted. {e}")
             self.decentral_df = None
+
+    def _extract_energyhub_profiles(self):
+        self.energyhub_profiles = {}
+        for year, clusters in self.data.resultsOptimization.items():
+            self.energyhub_profiles[year] = {}
+            for cluster, result in clusters.items():
+                self.energyhub_profiles[year][cluster] = opti_central.get_profiles_eh(result, data=self.data)
+
+
 
     def _extract_district_layout(self):
         """Extracts district layout information including building positions, network topology, and installed devices."""
@@ -3257,6 +3648,7 @@ class DataExtractor(ReportComponent):
         self._extract_district_structure()
         self._extract_energyhub_data()
         self._extract_decentral_data()
+        self._extract_energyhub_profiles()
         self._extract_district_layout()
         # Additional data extraction methods can be added here
 
@@ -3318,7 +3710,7 @@ class DataExtractor(ReportComponent):
 
         device_unit_map = { 
             "BAT": "Wh<sub>el</sub>",
-            "TES": "Wh<sub>th</sub>",
+            "TES": "l",
             "EV": "Wh<sub>el</sub>",
             "STC": "m²",
             "PV": "m²",
@@ -3345,11 +3737,12 @@ class DataExtractor(ReportComponent):
     @staticmethod
     def _determine_unit(cap: float, base_unit: str) -> tuple[float, str]:
         """
-        Determines the appropriate unit (kW, MW, kWh, MWh) based on the capacity value and the base unit. Input cap is expected to be in kW or kWh.
+        Determines the appropriate unit (kW, MW, GW) based on the capacity value and the base unit. 
+        Input cap is expected to be in W/Wh/m²/l.
 
         Args:
-            cap (float): The capacity value for capacity value in W/Wh/m².
-            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh"). Can deal with "m²" as well for area devices. Does allow suffixes like "W<sub>th</sub>".
+            cap (float): The capacity value in W/Wh/m²/l.
+            base_unit (str): The base unit (e.g., "W", "Wh", "m²", "l"). Does allow suffixes like "W<sub>th</sub>".
 
         Returns:
             tuple[float, str]: A tuple containing the adjusted capacity and the appropriate unit.
@@ -3362,9 +3755,19 @@ class DataExtractor(ReportComponent):
             else:
                 adjusted_cap = round(cap, 2)
                 adjusted_unit = base_unit
+                
+        elif base_unit == "l":
+            if cap >= 1000:
+                adjusted_cap = round(cap / 1000, 2)
+                adjusted_unit = "m³"  # Cubic meters for large volumes
+            else:
+                adjusted_cap = int(round(cap, 0))
+                adjusted_unit = "l"
+                
         elif cap <= 0:
             adjusted_cap = cap
-            adjusted_unit = ""  # No prefix for zero or negative values
+            adjusted_unit = base_unit  
+            
         elif cap >= 1000000000:
             adjusted_cap = round(cap / 1000000000, 2)
             adjusted_unit = "G" + base_unit  # Giga
@@ -3398,6 +3801,9 @@ class DataExtractor(ReportComponent):
 
     def get_decentral_df(self):
         return self.decentral_df
+    
+    def get_energyhub_profiles(self):
+        return self.energyhub_profiles
     
     def get_district_layout(self):
         return self.district_layout
@@ -3479,7 +3885,12 @@ class CertificateBuilder(ReportComponent):
         self.layout.create_energyhub_data(data_energyhub=self.data_object.get_energyhub_df())
         self.layout.create_decentral_systems(data_decentral=self.data_object.get_decentral_df())
         story.extend(self.layout.get_story())
-        self.layout.reset_story()        
+        self.layout.reset_story()      
+        story.append(PageBreak())  
+
+        self.layout.create_energyhub_profiles(data_profiles=self.data_object.get_energyhub_profiles())
+        story.extend(self.layout.get_story())
+        self.layout.reset_story()
 
         story.append(NextPageTemplate('InputDataPage'))
         story.append(PageBreak())

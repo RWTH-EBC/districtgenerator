@@ -35,5 +35,3 @@ if __name__ == '__main__':
     # Name the config_name here --> should apply to the name of the .env file in the folder: data/envs
     config_name = "BERLIN"
     data = run_opti(district_id=district_id, config_name=config_name)
-
-

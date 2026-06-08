@@ -1708,8 +1708,9 @@ class Datahandler:
                 # Read PV potentials for the current building from the DataFrame
                 pv_data = self.pv_stc_potential[self.pv_stc_potential["uuid"] == building["buildingFeatures"]["alkis_id"]]
                 # Initialize sums for PV and STC
-                total_pv_generation = None
-                total_stc_generation = None
+                time_steps = int(self.time["dataLength"] / self.time["timeResolution"])
+                total_pv_generation = np.zeros(time_steps)
+                total_stc_generation = np.zeros(time_steps)
 
                 # Loop over each PV sub-area for this building
                 for idx, row in pv_data.iterrows():
@@ -1738,12 +1739,8 @@ class Datahandler:
                     )
 
                     # Sum up the profiles
-                    if total_pv_generation is None:
-                        total_pv_generation = pv_profile
-                        total_stc_generation = stc_profile
-                    else:
-                        total_pv_generation += pv_profile
-                        total_stc_generation += stc_profile
+                    total_pv_generation += pv_profile
+                    total_stc_generation += stc_profile
 
                 # Store the summed values
                 building["generationPV"] = total_pv_generation
@@ -1806,13 +1803,18 @@ class Datahandler:
 
             # Optionally save PV/STC generation profiles
             if saveGenerationProfiles == True:
-                np.savetxt(os.path.join(self.resultPath, 'generation') + '/decentralPV_' + building["unique_name"] + '.csv',
-                           building["generationPV"],
-                           delimiter=',')
-                np.savetxt(os.path.join(self.resultPath, 'generation')
-                           + '/decentralSTC_' + building["unique_name"] + '.csv',
-                           building["generationSTC"],
-                           delimiter=',')
+                try:
+                    np.savetxt(os.path.join(self.resultPath, 'generation') + '/decentralPV_' + building["unique_name"] + '.csv',
+                            building["generationPV"],
+                            delimiter=',')
+                    np.savetxt(os.path.join(self.resultPath, 'generation')
+                            + '/decentralSTC_' + building["unique_name"] + '.csv',
+                            building["generationSTC"],
+                            delimiter=',')
+                except Exception as e:
+
+                    print(building["generationPV"])
+
 
     def designCentralDevices(self, saveGenerationProfiles):
         """
@@ -2311,7 +2313,16 @@ class Datahandler:
                 self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
 
         end_time = time.time()
-        print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+        print(f"\nOptimization of clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+
+        for year, clusters in self.resultsOptimization.items():
+            for cluster, result in clusters.items():
+                eh_results = opti_central.get_profiles_eh(result, data=self)
+                eh_dir = os.path.join(self.resultPath, 'EnergyHub')
+                os.makedirs(eh_dir, exist_ok=True)
+                csv_filepath = os.path.join(eh_dir, f"{self.scenario_name}_eh_profiles_year_{year}_cluster_{cluster}.csv")
+                eh_results.to_csv(csv_filepath, index=False, sep=';', decimal=',')
+
 
         # Check which clusters were unsolvable
         failed_optimizations = []
@@ -2642,12 +2653,12 @@ class Datahandler:
                 )
                 return None
 
-#            if row.get("heat_relevance") != "wärmerelevant":
-#                print_row_problem(
-#                    row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
-#                    "building is not heat-relevant"
-#                )
-#                return None
+            # if row.get("heat_relevance") != "wärmerelevant":
+            #     print_row_problem(
+            #         row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
+            #         "building is not heat-relevant"
+            #     )
+            #     return None
 
             building_type = map_building_type(row.get("iwu_class"))
             if building_type is None:
@@ -2681,15 +2692,15 @@ class Datahandler:
                 )
                 return None
 
-#            if not has_valid_heat_demand(row.get("heat_demand_simulated"), row.get("energy_consumption_sh")):
-#                print_row_problem(
-#                    row_index,
-#                    alkis_id,
-#                    "heat_demand_simulated / energy_consumption_sh",
-#                    f"{row.get('heat_demand_simulated')} / {row.get('energy_consumption_sh')}",
-#                    "invalid simulated or measured heat demand"
-#                )
-#                return None
+            # if not has_valid_heat_demand(row.get("heat_demand_simulated"), row.get("energy_consumption_sh")):
+            #     print_row_problem(
+            #         row_index,
+            #         alkis_id,
+            #         "heat_demand_simulated / energy_consumption_sh",
+            #         f"{row.get('heat_demand_simulated')} / {row.get('energy_consumption_sh')}",
+            #         "invalid simulated or measured heat demand"
+            #     )
+            #     return None
 
             return {
                 "alkis_id": alkis_id,
@@ -2786,9 +2797,9 @@ class Datahandler:
 
         # Adjust the nominal_waste_heat_capacity_kW of the heat grid data based on the waste heat potential if it is not already set
         if self.heat_grid_data["nominal_waste_heat_capacity_kW"] is None:
-            key = "Pot_Abwasser_entzugsleistungsbereich_kw"
+            key = "pot_abwasser_entzugsleistungsbereich_kw"
             if key in wkb_data.columns:
-                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(wkb_data["Pot_Abwasser_entzugsleistungsbereich_kw"])
+                self.heat_grid_data["nominal_waste_heat_capacity_kW"] = determine_wastewater_heat_potential(wkb_data[key])
             else:
                 self.heat_grid_data["nominal_waste_heat_capacity_kW"] = 0
         return scenario_df
