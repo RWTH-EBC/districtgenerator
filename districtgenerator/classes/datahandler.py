@@ -2717,7 +2717,7 @@ class Datahandler:
                 "EV": 0,  # Default
                 "f_TES": 35,
                 "f_BAT": 0,
-                "f_PV1": 0,
+                "f_PV1": 1,
                 "f_PV2": 0,
                 "f_STC": 0,
                 "gamma_PV": 0,

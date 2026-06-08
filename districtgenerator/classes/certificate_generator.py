@@ -3749,9 +3749,9 @@ class DataExtractor(ReportComponent):
         """
 
         if base_unit == "m²":
-            if cap >= 10000:
-                adjusted_cap = round(cap / 10000, 2)
-                adjusted_unit = "ha"  # Hectar for large areas
+            if cap <= 0:
+                adjusted_cap = cap
+                adjusted_unit = ""  # No prefix for zero or negative values
             else:
                 adjusted_cap = round(cap, 2)
                 adjusted_unit = base_unit
