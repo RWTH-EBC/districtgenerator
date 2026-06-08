@@ -319,7 +319,7 @@ def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, so
                     print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
                     with open(errorfile_path, 'a') as f:
                         f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
-                        if term_cond == pyo.TerminationCondition.timeLimit:
+                        if term_cond == pyo.TerminationCondition.maxTimeLimit:
                             f.write(f"The original solver reached the time limit. Using Gurobi the runtime was: {m.Runtime:.2f} seconds\n")
 
                 elif m.status == gp.GRB.INFEASIBLE or m.status == 4:
