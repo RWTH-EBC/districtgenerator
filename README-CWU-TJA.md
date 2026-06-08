@@ -36,3 +36,7 @@ To plot time series use the functions: plot_lines_timeseries.py, plot_timeseries
 # Balance_gridflows
 
 For the individual optimisation of the central devices for each district, you can take into account that grid flow are balanced on a local level. Use the script balance_gridflows.py to do so. The inputs required are the CSV-outputs of run_optim_connect: district_demand_power_timeseries.csv and district_network_results.py. Further inputs are set in the main-function of this script.
+
+# Generate demands
+
+This code uses an old version of Teaser. To generate demands for districts with Non-residential buildings use the script examples/e6_individual_district.py in the branch MA_cwu_tja_nrb. You might need to change the file-path to use it.
