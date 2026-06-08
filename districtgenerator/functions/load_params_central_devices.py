@@ -130,7 +130,7 @@ def load_params(data):
     for btype in building_types:
         print(f"{btype}: {building_shares[btype]:.2%} ({building_counts[btype]} buildings)")
 
-    # Get heat and dhw demand reduction for each building type and year from config # New TJA
+    # Get heat and dhw demand reduction for each building type and year from config # new for network
     param["interpolation_points"] = ecoData["interpolation_points"] 
     param["heat_dhw_red_sfh"] = {year: all_sim_ecoData[year]["heat_dhw_red_sfh"]
                                 for year in param["interpolation_points"]}
@@ -199,12 +199,12 @@ def load_params(data):
     dem = {"heat": {}, "cool": {}, "power": {}}
 
 
-    # Reduction of heat and dhw demand because of retrofit # New TJA
+    # Reduction of heat and dhw demand because of retrofit # new for network
     for i, y in enumerate(sorted_years):
         if y == 0:
-            dem["heat"][y] = clustered_series[0]  # New TJA
+            dem["heat"][y] = clustered_series[0]  # new for network
         else:
-            dem["heat"][y] = clustered_series[0] * (1 - heat_dhw_red[y])  # New TJA
+            dem["heat"][y] = clustered_series[0] * (1 - heat_dhw_red[y])  # new for network
 
         dem["cool"][y] = clustered_series[1]
         dem["power"][y] = clustered_series[2]
@@ -272,18 +272,18 @@ def load_params(data):
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
             "inv_base": value.get("inv_base", 0),
-            "inv_size1": value.get("inv_size1", 0), # New TJA
-            "inv_size2": value.get("inv_size2", 0), # New TJA
-            "inv_size3": value.get("inv_size3", 0), # New TJA
-            "inv_size4": value.get("inv_size4", 0), # New TJA
-            "inv_cost1": value.get("inv_cost1", 0), # New TJA
-            "inv_cost2": value.get("inv_cost2", 0), # New TJA
-            "inv_cost3": value.get("inv_cost3", 0), # New TJA
-            "inv_cost4": value.get("inv_cost4", 0), # New TJA
-            "lin_feasible": value.get("lin_feasible", False), # New TJA
-            # "inv_small": value.get("inv_small", 0), # New TJA
-            # "inv_large": value.get("inv_large", 0), # New TJA
-            # "inv_size_switch": value.get("inv_size_switch", 0), # New TJA
+            "inv_size1": value.get("inv_size1", 0), # new for network
+            "inv_size2": value.get("inv_size2", 0), # new for network
+            "inv_size3": value.get("inv_size3", 0), # new for network
+            "inv_size4": value.get("inv_size4", 0), # new for network
+            "inv_cost1": value.get("inv_cost1", 0), # new for network
+            "inv_cost2": value.get("inv_cost2", 0), # new for network
+            "inv_cost3": value.get("inv_cost3", 0), # new for network
+            "inv_cost4": value.get("inv_cost4", 0), # new for network
+            "lin_feasible": value.get("lin_feasible", False), # new for network
+            # "inv_small": value.get("inv_small", 0), # new for network
+            # "inv_large": value.get("inv_large", 0), # new for network
+            # "inv_size_switch": value.get("inv_size_switch", 0), # new for network
             "cost_om": value.get("cost_om", 0) * 100,
             "beta": value.get("beta", 0),
             "gamma": value.get("gamma", 0),
@@ -308,11 +308,11 @@ def load_params(data):
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),
             "enable_heat_diss": value.get("enable_heat_diss", False),
-            "inv_subsidy_abs": value.get("inv_subsidy_abs", 0), # New TJA
-            "inv_subsidy_cap": value.get("inv_subsidy_cap", 0), # New TJA
-            "inv_subsidy_rate": value.get("inv_subsidy_rate", 0), # New TJA
-            "inv_subsidy_rate_max": value.get("inv_subsidy_rate_max", 0), # New TJA
-            "inv_kwkg_feasible": value.get("inv_kwkg_feasible", False), # New TJA, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
+            "inv_subsidy_abs": value.get("inv_subsidy_abs", 0), # new for network
+            "inv_subsidy_cap": value.get("inv_subsidy_cap", 0), # new for network
+            "inv_subsidy_rate": value.get("inv_subsidy_rate", 0), # new for network
+            "inv_subsidy_rate_max": value.get("inv_subsidy_rate_max", 0), # new for network
+            "inv_kwkg_feasible": value.get("inv_kwkg_feasible", False), # new for network, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
         }
 
     devs = {}
@@ -326,21 +326,21 @@ def load_params(data):
         "life_time": all_models["PV"]["life_time"],
         "inv_var": all_models["PV"]["inv_var"],
         "inv_base": all_models["PV"]["inv_base"],
-        "inv_size1": all_models["PV"]["inv_size1"], # New TJA
-        "inv_size2": all_models["PV"]["inv_size2"], # New TJA
-        "inv_size3": all_models["PV"]["inv_size3"], # New TJA
-        "inv_size4": all_models["PV"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["PV"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["PV"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["PV"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["PV"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["PV"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["PV"]["inv_size1"], # new for network
+        "inv_size2": all_models["PV"]["inv_size2"], # new for network
+        "inv_size3": all_models["PV"]["inv_size3"], # new for network
+        "inv_size4": all_models["PV"]["inv_size4"], # new for network
+        "inv_cost1": all_models["PV"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["PV"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["PV"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["PV"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["PV"]["lin_feasible"], # new for network
         "cost_om": all_models["PV"]["cost_om"] / 100,
         "max_area": all_models["PV"]["max_area"],
         "min_area": all_models["PV"]["min_area"],
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
-        "inv_subsidy_rate": all_models["PV"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["PV"]["inv_subsidy_rate"], # new for network
     }
 
     # Wind turbine
@@ -348,15 +348,15 @@ def load_params(data):
         "feasible": all_models["WT"]["enabled"],
         "inv_var": all_models["WT"]["inv_var"],
         "inv_base": all_models["WT"]["inv_base"],
-        "inv_size1": all_models["WT"]["inv_size1"], # New TJA
-        "inv_size2": all_models["WT"]["inv_size2"], # New TJA
-        "inv_size3": all_models["WT"]["inv_size3"], # New TJA
-        "inv_size4": all_models["WT"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["WT"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["WT"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["WT"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["WT"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["WT"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["WT"]["inv_size1"], # new for network
+        "inv_size2": all_models["WT"]["inv_size2"], # new for network
+        "inv_size3": all_models["WT"]["inv_size3"], # new for network
+        "inv_size4": all_models["WT"]["inv_size4"], # new for network
+        "inv_cost1": all_models["WT"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["WT"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["WT"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["WT"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["WT"]["lin_feasible"], # new for network
         "life_time": all_models["WT"]["life_time"],
         "cost_om": all_models["WT"]["cost_om"] / 100,
         "min_cap": all_models["WT"]["min_cap"],
@@ -364,7 +364,7 @@ def load_params(data):
         "h_coeff": all_models["WT"]["h_coeff"],  # hellmann_coeff
         "hub_h": all_models["WT"]["hub_h"],
         "ref_h": all_models["WT"]["ref_h"],
-        "inv_subsidy_rate": all_models["WT"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["WT"]["inv_subsidy_rate"], # new for network
         
     }
     devs["WT"]["norm_power"], devs["WT"]["norm_power_clustered"] = calc_WT_power(devs, param, data)  # relative power between 0 and 1
@@ -374,21 +374,21 @@ def load_params(data):
         "feasible": all_models["WAT"]["enabled"],
         "inv_var": all_models["WAT"]["inv_var"],
         "inv_base": all_models["WAT"]["inv_base"],
-        "inv_size1": all_models["WAT"]["inv_size1"], # New TJA
-        "inv_size2": all_models["WAT"]["inv_size2"], # New TJA
-        "inv_size3": all_models["WAT"]["inv_size3"], # New TJA
-        "inv_size4": all_models["WAT"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["WAT"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["WAT"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["WAT"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["WAT"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["WAT"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["WAT"]["inv_size1"], # new for network
+        "inv_size2": all_models["WAT"]["inv_size2"], # new for network
+        "inv_size3": all_models["WAT"]["inv_size3"], # new for network
+        "inv_size4": all_models["WAT"]["inv_size4"], # new for network
+        "inv_cost1": all_models["WAT"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["WAT"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["WAT"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["WAT"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["WAT"]["lin_feasible"], # new for network
         "life_time": all_models["WAT"]["life_time"],
         "cost_om": all_models["WAT"]["cost_om"] / 100,
         "min_cap": all_models["WAT"]["min_cap"],
         "max_cap": all_models["WAT"]["max_cap"],
         "potential": all_models["WAT"]["potential"],
-        "inv_subsidy_rate": all_models["WAT"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["WAT"]["inv_subsidy_rate"], # new for network
     }
 
     # Solar thermal collector
@@ -399,25 +399,25 @@ def load_params(data):
         "gamma": all_models["STC"]["gamma"],
         "inv_var": all_models["STC"]["inv_var"],
         "inv_base": all_models["STC"]["inv_base"],
-        "inv_size1": all_models["STC"]["inv_size1"], # New TJA
-        "inv_size2": all_models["STC"]["inv_size2"], # New TJA
-        "inv_size3": all_models["STC"]["inv_size3"], # New TJA
-        "inv_size4": all_models["STC"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["STC"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["STC"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["STC"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["STC"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["STC"]["lin_feasible"], # New TJA
-        # "inv_small": all_models["STC"]["inv_small"], # currently EUR/m² from config interpolation New TJA
-        # "inv_large": all_models["STC"]["inv_large"],  # currently EUR/m² from config interpolation New TJA
-        # "inv_size_switch": all_models["STC"]["inv_size_switch"], # currently m² from config New TJA
+        "inv_size1": all_models["STC"]["inv_size1"], # new for network
+        "inv_size2": all_models["STC"]["inv_size2"], # new for network
+        "inv_size3": all_models["STC"]["inv_size3"], # new for network
+        "inv_size4": all_models["STC"]["inv_size4"], # new for network
+        "inv_cost1": all_models["STC"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["STC"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["STC"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["STC"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["STC"]["lin_feasible"], # new for network
+        # "inv_small": all_models["STC"]["inv_small"], # currently EUR/m² from config interpolation new for network
+        # "inv_large": all_models["STC"]["inv_large"],  # currently EUR/m² from config interpolation new for network
+        # "inv_size_switch": all_models["STC"]["inv_size_switch"], # currently m² from config new for network
         "life_time": all_models["STC"]["life_time"],
         "cost_om": all_models["STC"]["cost_om"] / 100,
         "max_area": all_models["STC"]["max_area"],
         "min_area": all_models["STC"]["min_area"],
         # For correlation between area and peak power:
         "G_stc": 1,  # kW/m^2,  solar radiation under standard test conditions (STC)
-        "inv_subsidy_rate": all_models["STC"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["STC"]["inv_subsidy_rate"], # new for network
     }
 
     # Convert STC piecewise parameters from area-domain (m²) to capacity-domain (kW)
@@ -446,83 +446,83 @@ def load_params(data):
         "feasible": all_models["CHP"]["enabled"],
         "inv_var": all_models["CHP"]["inv_var"],
         "inv_base": all_models["CHP"]["inv_base"],
-        "inv_size1": all_models["CHP"]["inv_size1"], # New TJA
-        "inv_size2": all_models["CHP"]["inv_size2"], # New TJA
-        "inv_size3": all_models["CHP"]["inv_size3"], # New TJA
-        "inv_size4": all_models["CHP"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["CHP"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["CHP"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["CHP"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["CHP"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["CHP"]["lin_feasible"], # New TJA
-        # "inv_small": all_models["CHP"]["inv_small"], # New TJA
-        # "inv_large": all_models["CHP"]["inv_large"], # New TJA
-        # "inv_size_switch": all_models["CHP"]["inv_size_switch"], # New TJA
+        "inv_size1": all_models["CHP"]["inv_size1"], # new for network
+        "inv_size2": all_models["CHP"]["inv_size2"], # new for network
+        "inv_size3": all_models["CHP"]["inv_size3"], # new for network
+        "inv_size4": all_models["CHP"]["inv_size4"], # new for network
+        "inv_cost1": all_models["CHP"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["CHP"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["CHP"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["CHP"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["CHP"]["lin_feasible"], # new for network
+        # "inv_small": all_models["CHP"]["inv_small"], # new for network
+        # "inv_large": all_models["CHP"]["inv_large"], # new for network
+        # "inv_size_switch": all_models["CHP"]["inv_size_switch"], # new for network
         "eta_el": all_models["CHP"]["eta_el"] / 100,
         "eta_th": all_models["CHP"]["eta_th"] / 100,
         "life_time": all_models["CHP"]["life_time"],
         "cost_om": all_models["CHP"]["cost_om"] / 100,
         "min_cap": all_models["CHP"]["min_cap"],
         "max_cap": all_models["CHP"]["max_cap"],
-        "inv_subsidy_rate": all_models["CHP"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["CHP"]["inv_subsidy_rate"], # new for network
     }
     
     # # Calculate linear investment costs for small and large CHP and capacity at which to switch between them (if applicable)
     # if devs["CHP"]["feasible"]:
-    #     devs["CHP"]["inv_small"]=(devs["CHP"]["inv_cost2"]-devs["CHP"]["inv_cost1"])/(devs["CHP"]["inv_size2"]-devs["CHP"]["inv_size1"])# New TJA
-    #     devs["CHP"]["inv_large"]=(devs["CHP"]["inv_cost3"]-devs["CHP"]["inv_cost2"])/(devs["CHP"]["inv_size3"]-devs["CHP"]["inv_size2"])# New TJA
-    #     devs["CHP"]["inv_size_switch"]=devs["CHP"]["inv_size2"]# New TJA
+    #     devs["CHP"]["inv_small"]=(devs["CHP"]["inv_cost2"]-devs["CHP"]["inv_cost1"])/(devs["CHP"]["inv_size2"]-devs["CHP"]["inv_size1"])# new for network
+    #     devs["CHP"]["inv_large"]=(devs["CHP"]["inv_cost3"]-devs["CHP"]["inv_cost2"])/(devs["CHP"]["inv_size3"]-devs["CHP"]["inv_size2"])# new for network
+    #     devs["CHP"]["inv_size_switch"]=devs["CHP"]["inv_size2"]# new for network
 
     # Gas boiler
     devs["BOI"] = {
         "feasible": all_models["BOI"]["enabled"],
         "inv_var": all_models["BOI"]["inv_var"],
         "inv_base": all_models["BOI"]["inv_base"],
-        "inv_size1": all_models["BOI"]["inv_size1"], # New TJA
-        "inv_size2": all_models["BOI"]["inv_size2"], # New TJA
-        "inv_size3": all_models["BOI"]["inv_size3"], # New TJA
-        "inv_size4": all_models["BOI"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["BOI"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["BOI"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["BOI"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["BOI"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["BOI"]["lin_feasible"], # New TJA
-        # "inv_small": all_models["BOI"]["inv_small"], # New TJA
-        # "inv_large": all_models["BOI"]["inv_large"], # New TJA
-        # "inv_size_switch": all_models["BOI"]["inv_size_switch"], # New TJA
+        "inv_size1": all_models["BOI"]["inv_size1"], # new for network
+        "inv_size2": all_models["BOI"]["inv_size2"], # new for network
+        "inv_size3": all_models["BOI"]["inv_size3"], # new for network
+        "inv_size4": all_models["BOI"]["inv_size4"], # new for network
+        "inv_cost1": all_models["BOI"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["BOI"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["BOI"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["BOI"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["BOI"]["lin_feasible"], # new for network
+        # "inv_small": all_models["BOI"]["inv_small"], # new for network
+        # "inv_large": all_models["BOI"]["inv_large"], # new for network
+        # "inv_size_switch": all_models["BOI"]["inv_size_switch"], # new for network
         "eta_th": all_models["BOI"]["eta_th"] / 100,
         "life_time": all_models["BOI"]["life_time"],
         "cost_om": all_models["BOI"]["cost_om"] / 100,
         "min_cap": all_models["BOI"]["min_cap"],
         "max_cap": all_models["BOI"]["max_cap"],
-        "inv_subsidy_rate": all_models["BOI"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["BOI"]["inv_subsidy_rate"], # new for network
     }
     # # Calculate linear investment costs for small and large boiler and capacity at which to switch between them (if applicable)
     # if devs["BOI"]["feasible"]:
-    #     devs["BOI"]["inv_small"]=(devs["BOI"]["inv_cost2"]-devs["BOI"]["inv_cost1"])/(devs["BOI"]["inv_size2"]-devs["BOI"]["inv_size1"])# New TJA
-    #     devs["BOI"]["inv_large"]=(devs["BOI"]["inv_cost3"]-devs["BOI"]["inv_cost2"])/(devs["BOI"]["inv_size3"]-devs["BOI"]["inv_size2"])# New TJA
-    #     devs["BOI"]["inv_size_switch"]=devs["BOI"]["inv_size2"]# New TJA
+    #     devs["BOI"]["inv_small"]=(devs["BOI"]["inv_cost2"]-devs["BOI"]["inv_cost1"])/(devs["BOI"]["inv_size2"]-devs["BOI"]["inv_size1"])# new for network
+    #     devs["BOI"]["inv_large"]=(devs["BOI"]["inv_cost3"]-devs["BOI"]["inv_cost2"])/(devs["BOI"]["inv_size3"]-devs["BOI"]["inv_size2"])# new for network
+    #     devs["BOI"]["inv_size_switch"]=devs["BOI"]["inv_size2"]# new for network
 
     # Gas heat pump
     devs["GHP"] = {
         "feasible": all_models["GHP"]["enabled"],
         "inv_var": all_models["GHP"]["inv_var"],
         "inv_base": all_models["GHP"]["inv_base"],
-        "inv_size1": all_models["GHP"]["inv_size1"], # New TJA
-        "inv_size2": all_models["GHP"]["inv_size2"], # New TJA
-        "inv_size3": all_models["GHP"]["inv_size3"], # New TJA
-        "inv_size4": all_models["GHP"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["GHP"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["GHP"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["GHP"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["GHP"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["GHP"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["GHP"]["inv_size1"], # new for network
+        "inv_size2": all_models["GHP"]["inv_size2"], # new for network
+        "inv_size3": all_models["GHP"]["inv_size3"], # new for network
+        "inv_size4": all_models["GHP"]["inv_size4"], # new for network
+        "inv_cost1": all_models["GHP"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["GHP"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["GHP"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["GHP"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["GHP"]["lin_feasible"], # new for network
         "COP": all_models["GHP"]["COP"],
         "life_time": all_models["GHP"]["life_time"],
         "cost_om": all_models["GHP"]["cost_om"] / 100,
         "min_cap": all_models["GHP"]["min_cap"],
         "max_cap": all_models["GHP"]["max_cap"],
-        "inv_subsidy_rate": all_models["GHP"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["GHP"]["inv_subsidy_rate"], # new for network
     }
 
     ### Heating and cooling ###
@@ -536,15 +536,15 @@ def load_params(data):
                     "feasible": all_models["GroundHP"]["enabled"],
                     "inv_var": all_models["GroundHP"]["inv_var"],
                     "inv_base": all_models["GroundHP"]["inv_base"],
-                    "inv_size1": all_models["GroundHP"]["inv_size1"], # New TJA
-                    "inv_size2": all_models["GroundHP"]["inv_size2"], # New TJA
-                    "inv_size3": all_models["GroundHP"]["inv_size3"], # New TJA
-                    "inv_size4": all_models["GroundHP"]["inv_size4"], # New TJA
-                    "inv_cost1": all_models["GroundHP"]["inv_cost1"], # New TJA
-                    "inv_cost2": all_models["GroundHP"]["inv_cost2"], # New TJA
-                    "inv_cost3": all_models["GroundHP"]["inv_cost3"], # New TJA
-                    "inv_cost4": all_models["GroundHP"]["inv_cost4"], # New TJA
-                    "lin_feasible": all_models["GroundHP"]["lin_feasible"], # New TJA
+                    "inv_size1": all_models["GroundHP"]["inv_size1"], # new for network
+                    "inv_size2": all_models["GroundHP"]["inv_size2"], # new for network
+                    "inv_size3": all_models["GroundHP"]["inv_size3"], # new for network
+                    "inv_size4": all_models["GroundHP"]["inv_size4"], # new for network
+                    "inv_cost1": all_models["GroundHP"]["inv_cost1"], # new for network
+                    "inv_cost2": all_models["GroundHP"]["inv_cost2"], # new for network
+                    "inv_cost3": all_models["GroundHP"]["inv_cost3"], # new for network
+                    "inv_cost4": all_models["GroundHP"]["inv_cost4"], # new for network
+                    "lin_feasible": all_models["GroundHP"]["lin_feasible"], # new for network
                     "life_time": all_models["GroundHP"]["life_time"],
                     "cost_om": all_models["GroundHP"]["cost_om"] / 100,
                     "min_cap": all_models["GroundHP"]["min_cap"],
@@ -560,7 +560,7 @@ def load_params(data):
                     "q_soil": 50,                                           # W/m,   heat flow from soil into bride per meter (VDI 4640, for lambda_soil = 2 W/mK and low full load hours, assumption: no thermal interaction between boreholes)
                     "c_borehole": 90,                                       # EUR/m, borehole costs (BMVBS)
                     "t_max": 400,                                           # m,     maximum borehole depth covered by VDI4640
-                    "inv_subsidy_rate": all_models["GroundHP"]["inv_subsidy_rate"], # New TJA
+                    "inv_subsidy_rate": all_models["GroundHP"]["inv_subsidy_rate"], # new for network
                     }
 
         # Temperatures
@@ -581,18 +581,18 @@ def load_params(data):
             "feasible": all_models["AirHP"]["enabled"],
             "inv_var": all_models["AirHP"]["inv_var"],
             "inv_base": all_models["AirHP"]["inv_base"],
-            "inv_size1": all_models["AirHP"]["inv_size1"], # New TJA
-            "inv_size2": all_models["AirHP"]["inv_size2"], # New TJA
-            "inv_size3": all_models["AirHP"]["inv_size3"], # New TJA
-            "inv_size4": all_models["AirHP"]["inv_size4"], # New TJA
-            "inv_cost1": all_models["AirHP"]["inv_cost1"], # New TJA
-            "inv_cost2": all_models["AirHP"]["inv_cost2"], # New TJA
-            "inv_cost3": all_models["AirHP"]["inv_cost3"], # New TJA
-            "inv_cost4": all_models["AirHP"]["inv_cost4"], # New TJA
-            "lin_feasible": all_models["AirHP"]["lin_feasible"], # New TJA
-            # "inv_small": all_models["AirHP"]["inv_small"], # New TJA
-            # "inv_large": all_models["AirHP"]["inv_large"], # New TJA
-            # "inv_size_switch": all_models["AirHP"]["inv_size_switch"], # New TJA
+            "inv_size1": all_models["AirHP"]["inv_size1"], # new for network
+            "inv_size2": all_models["AirHP"]["inv_size2"], # new for network
+            "inv_size3": all_models["AirHP"]["inv_size3"], # new for network
+            "inv_size4": all_models["AirHP"]["inv_size4"], # new for network
+            "inv_cost1": all_models["AirHP"]["inv_cost1"], # new for network
+            "inv_cost2": all_models["AirHP"]["inv_cost2"], # new for network
+            "inv_cost3": all_models["AirHP"]["inv_cost3"], # new for network
+            "inv_cost4": all_models["AirHP"]["inv_cost4"], # new for network
+            "lin_feasible": all_models["AirHP"]["lin_feasible"], # new for network
+            # "inv_small": all_models["AirHP"]["inv_small"], # new for network
+            # "inv_large": all_models["AirHP"]["inv_large"], # new for network
+            # "inv_size_switch": all_models["AirHP"]["inv_size_switch"], # new for network
             "life_time": all_models["AirHP"]["life_time"],
             "cost_om": all_models["AirHP"]["cost_om"] / 100,
             "min_cap": all_models["AirHP"]["min_cap"],
@@ -604,7 +604,7 @@ def load_params(data):
             "eta_compr": 0.8,                                                                           # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
             "heatloss_compr": 0.3,                                                                      # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
             "COP_max": 7,                                                                               # ---,  maximum heat pump COP
-            "inv_subsidy_rate": all_models["AirHP"]["inv_subsidy_rate"], # New TJA
+            "inv_subsidy_rate": all_models["AirHP"]["inv_subsidy_rate"], # new for network
         }
 
         # Temperatures
@@ -618,9 +618,9 @@ def load_params(data):
         devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         # # Calculate linear investment costs for small and large heat pumps and capacity at which to switch between them (if applicable)
-        # devs["HP"]["inv_small"]=(devs["HP"]["inv_cost2"]-devs["HP"]["inv_cost1"])/(devs["HP"]["inv_size2"]-devs["HP"]["inv_size1"])# New TJA
-        # devs["HP"]["inv_large"]=(devs["HP"]["inv_cost3"]-devs["HP"]["inv_cost2"])/(devs["HP"]["inv_size3"]-devs["HP"]["inv_size2"])# New TJA
-        # devs["HP"]["inv_size_switch"]=devs["HP"]["inv_size2"]# New TJA
+        # devs["HP"]["inv_small"]=(devs["HP"]["inv_cost2"]-devs["HP"]["inv_cost1"])/(devs["HP"]["inv_size2"]-devs["HP"]["inv_size1"])# new for network
+        # devs["HP"]["inv_large"]=(devs["HP"]["inv_cost3"]-devs["HP"]["inv_cost2"])/(devs["HP"]["inv_size3"]-devs["HP"]["inv_size2"])# new for network
+        # devs["HP"]["inv_size_switch"]=devs["HP"]["inv_size2"]# new for network
 
     # Default heat pump
     else:
@@ -632,20 +632,20 @@ def load_params(data):
             "COP_const": all_models["HP"]["COP_const"],
             "inv_var": all_models["HP"]["inv_var"],
             "inv_base": all_models["HP"]["inv_base"],
-            "inv_size1": all_models["HP"]["inv_size1"], # New TJA
-            "inv_size2": all_models["HP"]["inv_size2"], # New TJA
-            "inv_size3": all_models["HP"]["inv_size3"], # New TJA
-            "inv_size4": all_models["HP"]["inv_size4"], # New TJA
-            "inv_cost1": all_models["HP"]["inv_cost1"], # New TJA
-            "inv_cost2": all_models["HP"]["inv_cost2"], # New TJA
-            "inv_cost3": all_models["HP"]["inv_cost3"], # New TJA
-            "inv_cost4": all_models["HP"]["inv_cost4"], # New TJA
-            "lin_feasible": all_models["HP"]["lin_feasible"], # New TJA
+            "inv_size1": all_models["HP"]["inv_size1"], # new for network
+            "inv_size2": all_models["HP"]["inv_size2"], # new for network
+            "inv_size3": all_models["HP"]["inv_size3"], # new for network
+            "inv_size4": all_models["HP"]["inv_size4"], # new for network
+            "inv_cost1": all_models["HP"]["inv_cost1"], # new for network
+            "inv_cost2": all_models["HP"]["inv_cost2"], # new for network
+            "inv_cost3": all_models["HP"]["inv_cost3"], # new for network
+            "inv_cost4": all_models["HP"]["inv_cost4"], # new for network
+            "lin_feasible": all_models["HP"]["lin_feasible"], # new for network
             "life_time": all_models["HP"]["life_time"],
             "cost_om": all_models["HP"]["cost_om"] / 100,
             "min_cap": all_models["HP"]["min_cap"],
             "max_cap": all_models["HP"]["max_cap"],
-            "inv_subsidy_rate": all_models["HP"]["inv_subsidy_rate"], # New TJA
+            "inv_subsidy_rate": all_models["HP"]["inv_subsidy_rate"], # new for network
         }
 
         # COP assignment for each support year (same values for all years since weather is constant)
@@ -675,21 +675,21 @@ def load_params(data):
         "feasible": all_models["EB"]["enabled"],
         "inv_var": all_models["EB"]["inv_var"],
         "inv_base": all_models["EB"]["inv_base"],
-        "inv_size1": all_models["EB"]["inv_size1"], # New TJA
-        "inv_size2": all_models["EB"]["inv_size2"], # New TJA
-        "inv_size3": all_models["EB"]["inv_size3"], # New TJA
-        "inv_size4": all_models["EB"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["EB"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["EB"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["EB"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["EB"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["EB"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["EB"]["inv_size1"], # new for network
+        "inv_size2": all_models["EB"]["inv_size2"], # new for network
+        "inv_size3": all_models["EB"]["inv_size3"], # new for network
+        "inv_size4": all_models["EB"]["inv_size4"], # new for network
+        "inv_cost1": all_models["EB"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["EB"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["EB"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["EB"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["EB"]["lin_feasible"], # new for network
         "eta_th": all_models["EB"]["eta_th"] / 100,
         "life_time": all_models["EB"]["life_time"],
         "cost_om": all_models["EB"]["cost_om"] / 100,
         "min_cap": all_models["EB"]["min_cap"],
         "max_cap": all_models["EB"]["max_cap"],
-        "inv_subsidy_rate": all_models["EB"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["EB"]["inv_subsidy_rate"], # new for network
     }
 
     # Compression chiller
@@ -701,15 +701,15 @@ def load_params(data):
             "feasible": all_models["AirCC"]["enabled"],
             "inv_var": all_models["AirCC"]["inv_var"],
             "inv_base": all_models["AirCC"]["inv_base"],
-            "inv_size1": all_models["AirCC"]["inv_size1"], # New TJA
-            "inv_size2": all_models["AirCC"]["inv_size2"], # New TJA
-            "inv_size3": all_models["AirCC"]["inv_size3"], # New TJA
-            "inv_size4": all_models["AirCC"]["inv_size4"], # New TJA
-            "inv_cost1": all_models["AirCC"]["inv_cost1"], # New TJA
-            "inv_cost2": all_models["AirCC"]["inv_cost2"], # New TJA
-            "inv_cost3": all_models["AirCC"]["inv_cost3"], # New TJA
-            "inv_cost4": all_models["AirCC"]["inv_cost4"], # New TJA
-            "lin_feasible": all_models["AirCC"]["lin_feasible"], # New TJA
+            "inv_size1": all_models["AirCC"]["inv_size1"], # new for network
+            "inv_size2": all_models["AirCC"]["inv_size2"], # new for network
+            "inv_size3": all_models["AirCC"]["inv_size3"], # new for network
+            "inv_size4": all_models["AirCC"]["inv_size4"], # new for network
+            "inv_cost1": all_models["AirCC"]["inv_cost1"], # new for network
+            "inv_cost2": all_models["AirCC"]["inv_cost2"], # new for network
+            "inv_cost3": all_models["AirCC"]["inv_cost3"], # new for network
+            "inv_cost4": all_models["AirCC"]["inv_cost4"], # new for network
+            "lin_feasible": all_models["AirCC"]["lin_feasible"], # new for network
             "life_time": all_models["AirCC"]["life_time"],
             "cost_om": all_models["AirCC"]["cost_om"] / 100,
             "min_cap": all_models["AirCC"]["min_cap"],
@@ -721,7 +721,7 @@ def load_params(data):
             "eta_compr": 0.75,                                                                          # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
             "heatloss_compr": 0.3,                                                                      # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
             "COP_max": 6,                                                                               # ---,  maximum heat pump COP
-            "inv_subsidy_rate": all_models["AirCC"]["inv_subsidy_rate"], # New TJA
+            "inv_subsidy_rate": all_models["AirCC"]["inv_subsidy_rate"], # new for network
         }
 
         # Temperatures
@@ -740,21 +740,21 @@ def load_params(data):
             "feasible": all_models["CC"]["enabled"],
             "inv_var": all_models["CC"]["inv_var"],
             "inv_base": all_models["CC"]["inv_base"],
-            "inv_size1": all_models["CC"]["inv_size1"], # New TJA
-            "inv_size2": all_models["CC"]["inv_size2"], # New TJA
-            "inv_size3": all_models["CC"]["inv_size3"], # New TJA
-            "inv_size4": all_models["CC"]["inv_size4"], # New TJA
-            "inv_cost1": all_models["CC"]["inv_cost1"], # New TJA
-            "inv_cost2": all_models["CC"]["inv_cost2"], # New TJA
-            "inv_cost3": all_models["CC"]["inv_cost3"], # New TJA
-            "inv_cost4": all_models["CC"]["inv_cost4"], # New TJA
-            "lin_feasible": all_models["CC"]["lin_feasible"], # New TJA
+            "inv_size1": all_models["CC"]["inv_size1"], # new for network
+            "inv_size2": all_models["CC"]["inv_size2"], # new for network
+            "inv_size3": all_models["CC"]["inv_size3"], # new for network
+            "inv_size4": all_models["CC"]["inv_size4"], # new for network
+            "inv_cost1": all_models["CC"]["inv_cost1"], # new for network
+            "inv_cost2": all_models["CC"]["inv_cost2"], # new for network
+            "inv_cost3": all_models["CC"]["inv_cost3"], # new for network
+            "inv_cost4": all_models["CC"]["inv_cost4"], # new for network
+            "lin_feasible": all_models["CC"]["lin_feasible"], # new for network
             "COP": all_models["CC"]["COP"],
             "life_time": all_models["CC"]["life_time"],
             "cost_om": all_models["CC"]["cost_om"] / 100,
             "min_cap": all_models["CC"]["min_cap"],
             "max_cap": all_models["CC"]["max_cap"],
-            "inv_subsidy_rate": all_models["CC"]["inv_subsidy_rate"], # New TJA
+            "inv_subsidy_rate": all_models["CC"]["inv_subsidy_rate"], # new for network
         }
 
         # COP for each support year (same values for all years since weather is constant)
@@ -766,21 +766,21 @@ def load_params(data):
         "feasible": all_models["AC"]["enabled"],
         "inv_var": all_models["AC"]["inv_var"],
         "inv_base": all_models["AC"]["inv_base"],
-        "inv_size1": all_models["AC"]["inv_size1"], # New TJA
-        "inv_size2": all_models["AC"]["inv_size2"], # New TJA
-        "inv_size3": all_models["AC"]["inv_size3"], # New TJA
-        "inv_size4": all_models["AC"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["AC"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["AC"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["AC"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["AC"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["AC"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["AC"]["inv_size1"], # new for network
+        "inv_size2": all_models["AC"]["inv_size2"], # new for network
+        "inv_size3": all_models["AC"]["inv_size3"], # new for network
+        "inv_size4": all_models["AC"]["inv_size4"], # new for network
+        "inv_cost1": all_models["AC"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["AC"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["AC"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["AC"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["AC"]["lin_feasible"], # new for network
         "eta_th": all_models["AC"]["eta_th"],
         "life_time": all_models["AC"]["life_time"],
         "cost_om": all_models["AC"]["cost_om"] / 100,
         "min_cap": all_models["AC"]["min_cap"],
         "max_cap": all_models["AC"]["max_cap"],
-        "inv_subsidy_rate": all_models["AC"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["AC"]["inv_subsidy_rate"], # new for network
     }
 
     ### Biomass and waste ###
@@ -790,22 +790,22 @@ def load_params(data):
         "feasible": all_models["BCHP"]["enabled"],
         "inv_var": all_models["BCHP"]["inv_var"],
         "inv_base": all_models["BCHP"]["inv_base"],
-        "inv_size1": all_models["BCHP"]["inv_size1"], # New TJA
-        "inv_size2": all_models["BCHP"]["inv_size2"], # New TJA
-        "inv_size3": all_models["BCHP"]["inv_size3"], # New TJA
-        "inv_size4": all_models["BCHP"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["BCHP"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["BCHP"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["BCHP"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["BCHP"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["BCHP"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["BCHP"]["inv_size1"], # new for network
+        "inv_size2": all_models["BCHP"]["inv_size2"], # new for network
+        "inv_size3": all_models["BCHP"]["inv_size3"], # new for network
+        "inv_size4": all_models["BCHP"]["inv_size4"], # new for network
+        "inv_cost1": all_models["BCHP"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["BCHP"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["BCHP"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["BCHP"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["BCHP"]["lin_feasible"], # new for network
         "eta_el": all_models["BCHP"]["eta_el"] / 100,
         "eta_th": all_models["BCHP"]["eta_th"] / 100,
         "life_time": all_models["BCHP"]["life_time"],
         "cost_om": all_models["BCHP"]["cost_om"] / 100,
         "min_cap": all_models["BCHP"]["min_cap"],
         "max_cap": all_models["BCHP"]["max_cap"],
-        "inv_subsidy_rate": all_models["BCHP"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["BCHP"]["inv_subsidy_rate"], # new for network
     }
 
     # Biomass boiler
@@ -813,21 +813,21 @@ def load_params(data):
         "feasible": all_models["BBOI"]["enabled"],
         "inv_var": all_models["BBOI"]["inv_var"],
         "inv_base": all_models["BBOI"]["inv_base"],
-        "inv_size1": all_models["BBOI"]["inv_size1"], # New TJA
-        "inv_size2": all_models["BBOI"]["inv_size2"], # New TJA
-        "inv_size3": all_models["BBOI"]["inv_size3"], # New TJA
-        "inv_size4": all_models["BBOI"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["BBOI"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["BBOI"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["BBOI"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["BBOI"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["BBOI"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["BBOI"]["inv_size1"], # new for network
+        "inv_size2": all_models["BBOI"]["inv_size2"], # new for network
+        "inv_size3": all_models["BBOI"]["inv_size3"], # new for network
+        "inv_size4": all_models["BBOI"]["inv_size4"], # new for network
+        "inv_cost1": all_models["BBOI"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["BBOI"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["BBOI"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["BBOI"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["BBOI"]["lin_feasible"], # new for network
         "eta_th": all_models["BBOI"]["eta_th"] / 100,
         "life_time": all_models["BBOI"]["life_time"],
         "cost_om": all_models["BBOI"]["cost_om"] / 100,
         "min_cap": all_models["BBOI"]["min_cap"],
         "max_cap": all_models["BBOI"]["max_cap"],
-        "inv_subsidy_rate": all_models["BBOI"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["BBOI"]["inv_subsidy_rate"], # new for network
     }
 
     # Waste CHP
@@ -835,22 +835,22 @@ def load_params(data):
         "feasible": all_models["WCHP"]["enabled"],
         "inv_var": all_models["WCHP"]["inv_var"],
         "inv_base": all_models["WCHP"]["inv_base"],
-        "inv_size1": all_models["WCHP"]["inv_size1"], # New TJA
-        "inv_size2": all_models["WCHP"]["inv_size2"], # New TJA
-        "inv_size3": all_models["WCHP"]["inv_size3"], # New TJA
-        "inv_size4": all_models["WCHP"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["WCHP"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["WCHP"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["WCHP"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["WCHP"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["WCHP"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["WCHP"]["inv_size1"], # new for network
+        "inv_size2": all_models["WCHP"]["inv_size2"], # new for network
+        "inv_size3": all_models["WCHP"]["inv_size3"], # new for network
+        "inv_size4": all_models["WCHP"]["inv_size4"], # new for network
+        "inv_cost1": all_models["WCHP"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["WCHP"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["WCHP"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["WCHP"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["WCHP"]["lin_feasible"], # new for network
         "eta_el": all_models["WCHP"]["eta_el"] / 100,
         "eta_th": all_models["WCHP"]["eta_th"] / 100,
         "life_time": all_models["WCHP"]["life_time"],
         "cost_om": all_models["WCHP"]["cost_om"] / 100,
         "min_cap": all_models["WCHP"]["min_cap"],
         "max_cap": all_models["WCHP"]["max_cap"],
-        "inv_subsidy_rate": all_models["WCHP"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["WCHP"]["inv_subsidy_rate"], # new for network
     }
 
     # Waste boiler
@@ -858,21 +858,21 @@ def load_params(data):
         "feasible": all_models["WBOI"]["enabled"],
         "inv_var": all_models["WBOI"]["inv_var"],
         "inv_base": all_models["WBOI"]["inv_base"],
-        "inv_size1": all_models["WBOI"]["inv_size1"], # New TJA
-        "inv_size2": all_models["WBOI"]["inv_size2"], # New TJA
-        "inv_size3": all_models["WBOI"]["inv_size3"], # New TJA
-        "inv_size4": all_models["WBOI"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["WBOI"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["WBOI"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["WBOI"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["WBOI"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["WBOI"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["WBOI"]["inv_size1"], # new for network
+        "inv_size2": all_models["WBOI"]["inv_size2"], # new for network
+        "inv_size3": all_models["WBOI"]["inv_size3"], # new for network
+        "inv_size4": all_models["WBOI"]["inv_size4"], # new for network
+        "inv_cost1": all_models["WBOI"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["WBOI"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["WBOI"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["WBOI"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["WBOI"]["lin_feasible"], # new for network
         "eta_th": all_models["WBOI"]["eta_th"] / 100,
         "life_time": all_models["WBOI"]["life_time"],
         "cost_om": all_models["WBOI"]["cost_om"] / 100,
         "min_cap": all_models["WBOI"]["min_cap"],
         "max_cap": all_models["WBOI"]["max_cap"],
-        "inv_subsidy_rate": all_models["WBOI"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["WBOI"]["inv_subsidy_rate"], # new for network
     }
 
     ### Hydrogen ###
@@ -882,21 +882,21 @@ def load_params(data):
         "feasible": all_models["ELYZ"]["enabled"],
         "inv_var": all_models["ELYZ"]["inv_var"],
         "inv_base": all_models["ELYZ"]["inv_base"],
-        "inv_size1": all_models["ELYZ"]["inv_size1"], # New TJA
-        "inv_size2": all_models["ELYZ"]["inv_size2"], # New TJA
-        "inv_size3": all_models["ELYZ"]["inv_size3"], # New TJA
-        "inv_size4": all_models["ELYZ"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["ELYZ"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["ELYZ"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["ELYZ"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["ELYZ"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["ELYZ"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["ELYZ"]["inv_size1"], # new for network
+        "inv_size2": all_models["ELYZ"]["inv_size2"], # new for network
+        "inv_size3": all_models["ELYZ"]["inv_size3"], # new for network
+        "inv_size4": all_models["ELYZ"]["inv_size4"], # new for network
+        "inv_cost1": all_models["ELYZ"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["ELYZ"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["ELYZ"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["ELYZ"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["ELYZ"]["lin_feasible"], # new for network
         "eta_el": all_models["ELYZ"]["eta_el"] / 100,
         "life_time": all_models["ELYZ"]["life_time"],
         "cost_om": all_models["ELYZ"]["cost_om"] / 100,
         "min_cap": all_models["ELYZ"]["min_cap"],
         "max_cap": all_models["ELYZ"]["max_cap"],
-        "inv_subsidy_rate": all_models["ELYZ"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["ELYZ"]["inv_subsidy_rate"], # new for network
     }
 
     # Fuel cell
@@ -904,15 +904,15 @@ def load_params(data):
         "feasible": all_models["FC"]["enabled"],
         "inv_var": all_models["FC"]["inv_var"],
         "inv_base": all_models["FC"]["inv_base"],
-        "inv_size1": all_models["FC"]["inv_size1"], # New TJA
-        "inv_size2": all_models["FC"]["inv_size2"], # New TJA
-        "inv_size3": all_models["FC"]["inv_size3"], # New TJA
-        "inv_size4": all_models["FC"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["FC"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["FC"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["FC"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["FC"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["FC"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["FC"]["inv_size1"], # new for network
+        "inv_size2": all_models["FC"]["inv_size2"], # new for network
+        "inv_size3": all_models["FC"]["inv_size3"], # new for network
+        "inv_size4": all_models["FC"]["inv_size4"], # new for network
+        "inv_cost1": all_models["FC"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["FC"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["FC"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["FC"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["FC"]["lin_feasible"], # new for network
         "eta_el": all_models["FC"]["eta_el"] / 100,
         "eta_th": all_models["FC"]["eta_th"] / 100,
         "life_time": all_models["FC"]["life_time"],
@@ -920,7 +920,7 @@ def load_params(data):
         "min_cap": all_models["FC"]["min_cap"],
         "max_cap": all_models["FC"]["max_cap"],
         "enable_heat_diss": all_models["FC"]["enable_heat_diss"],
-        "inv_subsidy_rate": all_models["FC"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["FC"]["inv_subsidy_rate"], # new for network
     }
 
     # Hydrogen storage
@@ -928,21 +928,21 @@ def load_params(data):
         "feasible": all_models["H2S"]["enabled"],
         "inv_var": all_models["H2S"]["inv_var"],
         "inv_base": all_models["H2S"]["inv_base"],
-        "inv_size1": all_models["H2S"]["inv_size1"], # New TJA
-        "inv_size2": all_models["H2S"]["inv_size2"], # New TJA
-        "inv_size3": all_models["H2S"]["inv_size3"], # New TJA
-        "inv_size4": all_models["H2S"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["H2S"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["H2S"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["H2S"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["H2S"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["H2S"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["H2S"]["inv_size1"], # new for network
+        "inv_size2": all_models["H2S"]["inv_size2"], # new for network
+        "inv_size3": all_models["H2S"]["inv_size3"], # new for network
+        "inv_size4": all_models["H2S"]["inv_size4"], # new for network
+        "inv_cost1": all_models["H2S"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["H2S"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["H2S"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["H2S"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["H2S"]["lin_feasible"], # new for network
         "sto_loss": all_models["H2S"]["sto_loss"] / 100,
         "life_time": all_models["H2S"]["life_time"],
         "cost_om": all_models["H2S"]["cost_om"] / 100,
         "min_cap": all_models["H2S"]["min_cap"],
         "max_cap": all_models["H2S"]["max_cap"],
-        "inv_subsidy_rate": all_models["H2S"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["H2S"]["inv_subsidy_rate"], # new for network
     }
 
     # Sabatier reactor
@@ -950,21 +950,21 @@ def load_params(data):
         "feasible": all_models["SAB"]["enabled"],
         "inv_var": all_models["SAB"]["inv_var"],
         "inv_base": all_models["SAB"]["inv_base"],
-        "inv_size1": all_models["SAB"]["inv_size1"], # New TJA
-        "inv_size2": all_models["SAB"]["inv_size2"], # New TJA
-        "inv_size3": all_models["SAB"]["inv_size3"], # New TJA
-        "inv_size4": all_models["SAB"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["SAB"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["SAB"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["SAB"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["SAB"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["SAB"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["SAB"]["inv_size1"], # new for network
+        "inv_size2": all_models["SAB"]["inv_size2"], # new for network
+        "inv_size3": all_models["SAB"]["inv_size3"], # new for network
+        "inv_size4": all_models["SAB"]["inv_size4"], # new for network
+        "inv_cost1": all_models["SAB"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["SAB"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["SAB"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["SAB"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["SAB"]["lin_feasible"], # new for network
         "eta": all_models["SAB"]["eta"] / 100,
         "life_time": all_models["SAB"]["life_time"],
         "cost_om": all_models["SAB"]["cost_om"] / 100,
         "min_cap": all_models["SAB"]["min_cap"],
         "max_cap": all_models["SAB"]["max_cap"],
-        "inv_subsidy_rate": all_models["SAB"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["SAB"]["inv_subsidy_rate"], # new for network
     }
 
     ### Storages ###
@@ -977,26 +977,26 @@ def load_params(data):
         "inv_base": all_models["TES"]["inv_base"] / (
                     param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "inv_size1": all_models["TES"]["inv_size1"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # new for network
         "inv_size2": all_models["TES"]["inv_size2"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # new for network
         "inv_size3": all_models["TES"]["inv_size3"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # new for network
         "inv_size4": all_models["TES"]["inv_size4"] * param["rho_w"] * param["c_w"] * all_models[
-            "TES"]["delta_T"] / 3600,  # m^3 to kWh # New TJA
-        "inv_cost1": all_models["TES"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["TES"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["TES"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["TES"]["inv_cost4"], # New TJA
+            "TES"]["delta_T"] / 3600,  # m^3 to kWh # new for network
+        "inv_cost1": all_models["TES"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["TES"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["TES"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["TES"]["inv_cost4"], # new for network
         # "inv_cost1": all_models["TES"]["inv_cost1"]/ (
-        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # new for network
         # "inv_cost2": all_models["TES"]["inv_cost2"]/ (
-        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # new for network
         # "inv_cost3": all_models["TES"]["inv_cost3"]/ (
-        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # new for network
         # "inv_cost4": all_models["TES"]["inv_cost4"]/ (
-        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # New TJA
-        "lin_feasible": all_models["TES"]["lin_feasible"], # New TJA
+        #             param["rho_w"] * param["c_w"] * all_models["TES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh # new for network
+        "lin_feasible": all_models["TES"]["lin_feasible"], # new for network
 
         "sto_loss": all_models["TES"]["sto_loss"] / 100,
         "life_time": all_models["TES"]["life_time"],
@@ -1008,9 +1008,9 @@ def load_params(data):
         "delta_T": all_models["TES"]["delta_T"],  # K
         "inv_subsidy_abs": all_models["TES"]["inv_subsidy_abs"], # EUR/m^3, absolute investment subsidy for thermal energy storage 
         "inv_subsidy_cap": all_models["TES"]["inv_subsidy_cap"], # m^3, maximum size of TES to get subsidy
-        "inv_subsidy_rate": all_models["TES"]["inv_subsidy_rate"], # New TJA
-        "inv_subsidy_rate_max": all_models["TES"]["inv_subsidy_rate_max"], # New TJA, subsidy rate for TES larger than 50 m^3
-        "inv_kwkg_feasible": all_models["TES"]["inv_kwkg_feasible"], # New TJA, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
+        "inv_subsidy_rate": all_models["TES"]["inv_subsidy_rate"], # new for network
+        "inv_subsidy_rate_max": all_models["TES"]["inv_subsidy_rate_max"], # new for network, subsidy rate for TES larger than 50 m^3
+        "inv_kwkg_feasible": all_models["TES"]["inv_kwkg_feasible"], # new for network, whether to apply a kW/kg subsidy for TES (instead of EUR/m^3)
     }
 
     # Cold thermal energy storage
@@ -1020,15 +1020,15 @@ def load_params(data):
                     param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
         "inv_base": all_models["CTES"]["inv_base"] / (
                     param["rho_w"] * param["c_w"] * all_models["CTES"]["delta_T"] / 3600),  # transforming from EUR/m^3 to EUR/kWh
-        "inv_size1": all_models["CTES"]["inv_size1"], # New TJA
-        "inv_size2": all_models["CTES"]["inv_size2"], # New TJA
-        "inv_size3": all_models["CTES"]["inv_size3"], # New TJA
-        "inv_size4": all_models["CTES"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["CTES"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["CTES"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["CTES"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["CTES"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["CTES"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["CTES"]["inv_size1"], # new for network
+        "inv_size2": all_models["CTES"]["inv_size2"], # new for network
+        "inv_size3": all_models["CTES"]["inv_size3"], # new for network
+        "inv_size4": all_models["CTES"]["inv_size4"], # new for network
+        "inv_cost1": all_models["CTES"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["CTES"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["CTES"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["CTES"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["CTES"]["lin_feasible"], # new for network
         "sto_loss": all_models["CTES"]["sto_loss"] / 100,
         "life_time": all_models["CTES"]["life_time"],
         "cost_om": all_models["CTES"]["cost_om"] / 100,
@@ -1037,7 +1037,7 @@ def load_params(data):
         "max_cap": all_models["CTES"]["max_vol"] * param["rho_w"] * param["c_w"] * all_models[
             "CTES"]["delta_T"] / 3600,  # kWh
         "delta_T": all_models["CTES"]["delta_T"],  # K,
-        "inv_subsidy_rate": all_models["CTES"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["CTES"]["inv_subsidy_rate"], # new for network
     }
 
     # Battery
@@ -1045,21 +1045,21 @@ def load_params(data):
         "feasible": all_models["BAT"]["enabled"],
         "inv_var": all_models["BAT"]["inv_var"],
         "inv_base": all_models["BAT"]["inv_base"],
-        "inv_size1": all_models["BAT"]["inv_size1"], # New TJA
-        "inv_size2": all_models["BAT"]["inv_size2"], # New TJA
-        "inv_size3": all_models["BAT"]["inv_size3"], # New TJA
-        "inv_size4": all_models["BAT"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["BAT"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["BAT"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["BAT"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["BAT"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["BAT"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["BAT"]["inv_size1"], # new for network
+        "inv_size2": all_models["BAT"]["inv_size2"], # new for network
+        "inv_size3": all_models["BAT"]["inv_size3"], # new for network
+        "inv_size4": all_models["BAT"]["inv_size4"], # new for network
+        "inv_cost1": all_models["BAT"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["BAT"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["BAT"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["BAT"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["BAT"]["lin_feasible"], # new for network
         "life_time": all_models["BAT"]["life_time"],
         "cost_om": all_models["BAT"]["cost_om"] / 100,
         "min_cap": all_models["BAT"]["min_cap"],
         "max_cap": all_models["BAT"]["max_cap"],
         "sto_loss": all_models["BAT"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
-        "inv_subsidy_rate": all_models["BAT"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["BAT"]["inv_subsidy_rate"], # new for network
     }
 
     # Gas storage
@@ -1067,21 +1067,21 @@ def load_params(data):
         "feasible": all_models["GS"]["enabled"],
         "inv_var": all_models["GS"]["inv_var"],  # EUR/kWh
         "inv_base": all_models["GS"]["inv_base"],  # EUR/kWh
-        "inv_size1": all_models["GS"]["inv_size1"], # New TJA
-        "inv_size2": all_models["GS"]["inv_size2"], # New TJA
-        "inv_size3": all_models["GS"]["inv_size3"], # New TJA
-        "inv_size4": all_models["GS"]["inv_size4"], # New TJA
-        "inv_cost1": all_models["GS"]["inv_cost1"], # New TJA
-        "inv_cost2": all_models["GS"]["inv_cost2"], # New TJA
-        "inv_cost3": all_models["GS"]["inv_cost3"], # New TJA
-        "inv_cost4": all_models["GS"]["inv_cost4"], # New TJA
-        "lin_feasible": all_models["GS"]["lin_feasible"], # New TJA
+        "inv_size1": all_models["GS"]["inv_size1"], # new for network
+        "inv_size2": all_models["GS"]["inv_size2"], # new for network
+        "inv_size3": all_models["GS"]["inv_size3"], # new for network
+        "inv_size4": all_models["GS"]["inv_size4"], # new for network
+        "inv_cost1": all_models["GS"]["inv_cost1"], # new for network
+        "inv_cost2": all_models["GS"]["inv_cost2"], # new for network
+        "inv_cost3": all_models["GS"]["inv_cost3"], # new for network
+        "inv_cost4": all_models["GS"]["inv_cost4"], # new for network
+        "lin_feasible": all_models["GS"]["lin_feasible"], # new for network
         "life_time": all_models["GS"]["life_time"],
         "cost_om": all_models["GS"]["cost_om"] / 100,
         "min_cap": all_models["GS"]["min_cap"],  # kWh
         "max_cap": all_models["GS"]["max_cap"],  # kWh
         "sto_loss": all_models["GS"]["sto_loss"] / 100,  # 1/h,              standby losses over one time step
-        "inv_subsidy_rate": all_models["GS"]["inv_subsidy_rate"], # New TJA
+        "inv_subsidy_rate": all_models["GS"]["inv_subsidy_rate"], # new for network
     }
 
     ###############################################################
@@ -1107,9 +1107,9 @@ def load_params(data):
                                 for year in param["interpolation_points"]}
     param["revenue_feed_in_el_eh"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_eh"]
                                     for year in param["interpolation_points"]}
-    param["price_supply_el_network"] = {year: all_sim_ecoData[year]["price_supply_el_network"] # New TJA
+    param["price_supply_el_network"] = {year: all_sim_ecoData[year]["price_supply_el_network"] # new for network
                                 for year in param["interpolation_points"]}
-    param["revenue_feed_in_el_network"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_network"] # New TJA
+    param["revenue_feed_in_el_network"] = {year: all_sim_ecoData[year]["revenue_feed_in_el_network"] # new for network
                                     for year in param["interpolation_points"]}
     
 
@@ -1141,7 +1141,7 @@ def load_params(data):
     param["co2_hydrogen"] = {year: all_sim_ecoData[year]["co2_hydrogen"]
                             for year in param["interpolation_points"]}  # kg/kWh
     
-    # Legal Emision requirements # new TJA
+    # Legal Emision requirements # new for network
     param["renewable_heat_share"] = {year: all_sim_ecoData[year]["renewable_heat_share"]
                             for year in param["interpolation_points"]}
     param["renewable_el_grid_share"] = {year: all_sim_ecoData[year]["renewable_el_grid_share"]

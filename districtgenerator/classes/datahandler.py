@@ -729,7 +729,7 @@ class Datahandler:
             building["buildingFeatures"]["original_bldg_id"] = bldg_id
 
             # Unique name = "<id>_<building type>"
-            #name = f"{self.scenario_name}_{bldg_id}_{row['building']}" # new TJA
+            #name = f"{self.scenario_name}_{bldg_id}_{row['building']}" # new for network
             name = f"{self.scenario_name}_{bldg_id}_{row['building']}"
             if name in name_pool:
                 print(f"Duplicate name: {name}, skipping")
@@ -1857,7 +1857,7 @@ class Datahandler:
         q = 1 + interest_factor
 
 
-        # No discount of time-dependend variables # New TJA
+        # No discount of time-dependend variables # new for network
         undiscounted_keys = [
         'interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
         'price_supply_el_network', 'revenue_feed_in_el_network',

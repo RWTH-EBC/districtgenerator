@@ -766,7 +766,7 @@ if __name__ == "__main__":
     scenario_name1 = "ghd6"
     is_network = False
 
-    # Real
+    # Cluster_weights zur Berücksichtigung der Anzahl der Wochen je Cluster
     cluster_weights = {
     "ghd6": {0: 5, 1: 20, 2: 12, 3: 15},
     "mixed1": {0: 6, 1: 20, 2: 11, 3: 15},
