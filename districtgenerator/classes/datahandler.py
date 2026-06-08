@@ -851,7 +851,7 @@ class Datahandler:
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, gen_cars=True, designEnergyhub=False):
 
         """
         All in one solution for district and demand generation.
@@ -868,18 +868,11 @@ class Datahandler:
         saveUserProfiles: bool, optional
             True for saving calculated user profiles in workspace (Only taken into account if calcUserProfile is True).
             The default is True.
-        fileName_centralSystems : string, optional
-            File name of the CSV-file that will be loaded. The default is "central_devices_test".
-        saveGenProfiles: bool, optional
-            Decision if generation profiles of designed devices will be saved. Just relevant if 'designDevs=True'.
-            The default is True.
-        designDevs: bool, optional
-            Decision if devices will be designed. The default is False.
-        clustering: bool, optional
-            Decision if profiles will be clustered. The default is False.
-        optimization: bool, optional
-            Decision if the operation costs for each cluster will be optimized. The default is False.
-
+        gen_cars: bool, optional
+            True for generating car profiles, False to skip this step (Only taken into account if calcUserProfile is True).
+        designEnergyhub: bool, optional
+            Decision if energy hub will be designed. The default is False.
+        
         Returns
         -------
         None.
@@ -895,7 +888,7 @@ class Datahandler:
             building["buildingFeatures"]["heater"] == "heat_grid"
             for building in self.district)
 
-        if has_heat_grid:
+        if has_heat_grid or designEnergyhub:
             # Verify geometry data (district_parameters)
 
             # --- Check if building positions are available and valid ---
@@ -906,14 +899,23 @@ class Datahandler:
                 not isinstance(p, tuple) or len(p) != 2 or not all(isinstance(x, (int, float)) for x in p)
                 for p in self.scenario["position"]))
             
-            if missing_positions:
-                print("No district geometry found — running simple heating network design.")
-                heating_network_simple.heating_network(self)
-            else:
-                print("Generating and optimizing heating network...")
-                self.generateNetwork(topology_option="node")
-                self.prepareClusteringInputs()
-                self.optimization_heatingnetwork()
+            if has_heat_grid:
+                if missing_positions:
+                    print("No district geometry found — running simple heating network design.")
+                    heating_network_simple.heating_network(self)
+                else:
+                    print("Generating and optimizing heating network...")
+                    self.generateNetwork(topology_option="node")
+                    self.prepareClusteringInputs()
+                    self.optimization_heatingnetwork()
+
+            else: 
+                ts_length = len(self.district[0]["user"].heat)
+                self.heat_grid_data["total_losses_heating_network"] = np.zeros(ts_length)
+                self.heat_grid_data["total_losses_cooling_network"] = np.zeros(ts_length)
+                self.heat_grid_data["pump_power"] = np.zeros(ts_length)
+                self.heat_grid_data["ann_costs"] = 0
+                self.heat_grid_data["om_costs"] = 0
 
             self.designCentralDevices(saveGenerationProfiles=True)
             self.finalizeClusterProfiles()
