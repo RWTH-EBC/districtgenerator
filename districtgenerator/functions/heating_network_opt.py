@@ -1144,7 +1144,11 @@ def output_diameter(data, param):
 
         velocity_max = pipe["velocity_max"]
         # Map velocity_max to line width in the plot
-        lw = 1 + 5 * (velocity_max - min_velocity_max) / (max_velocity_max - min_velocity_max)  # range: 1-5
+        den = max_velocity_max - min_velocity_max
+        if abs(den) < 1e-12:
+            lw = 3
+        else:
+            lw = 1 + 5 * (velocity_max - min_velocity_max) / den  # range: 1-5
         # bigger velocity_max, redder; smaller velocity_max, greener
         color = cmap(norm_v(velocity_max))
 
@@ -1189,8 +1193,11 @@ def output_diameter(data, param):
 
         pressure_drop_max = pipe["pressure_drop_max"]
         # Map pressure_drop_max to line width in the plot
-        lw = 1 + 5 * (pressure_drop_max - min_pressure_drop_max) / (
-                    max_pressure_drop_max - min_pressure_drop_max)  # range: 1-5
+        den = max_pressure_drop_max - min_pressure_drop_max
+        if abs(den) < 1e-12:
+            lw = 3
+        else:
+            lw = 1 + 5 * (pressure_drop_max - min_pressure_drop_max) / den  # range: 1-5
         # bigger pressure_drop_max, redder; smaller pressure_drop_max, greener
         color = cmap(norm_pressure_drop(pressure_drop_max))
 
@@ -1243,8 +1250,11 @@ def output_diameter(data, param):
 
         energy_density = pipe["energy_density"]
         # Map pressure_drop_max to line width in the plot
-        lw = 1 + 5 * (energy_density - min_energy_density) / (
-                max_energy_density - min_energy_density)  # range: 1-5
+        den = max_energy_density - min_energy_density
+        if abs(den) < 1e-12:
+            lw = 3
+        else:
+            lw = 1 + 5 * (energy_density - min_energy_density) / den  # range: 1-5
         # bigger energy_density, redder; smaller energy_density, greener
         color = cmap(norm_energy_density(energy_density))
 

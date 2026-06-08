@@ -3159,7 +3159,15 @@ class DataExtractor(ReportComponent):
             for dev_name, data in aggregated_data.items():
                 name, base_unit = self.get_decentral_device_name(dev_name)
 
-                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=data['total_cap']*1000, base_unit=base_unit) # Input cap is in kW, convert to W for unit determination
+                if base_unit == "m²":
+                    cap_for_display = data["total_cap"]
+                else:
+                    cap_for_display = data["total_cap"] * 1000
+
+                total_cap_adjusted, total_unit_adjusted = self._determine_unit(
+                    cap=cap_for_display,
+                    base_unit=base_unit
+                )
                 total_power = f"{total_cap_adjusted} {total_unit_adjusted}".strip()
 
                 cost = round(data['total_cost'], 2)
@@ -3351,9 +3359,6 @@ class DataExtractor(ReportComponent):
             if cap <= 0:
                 adjusted_cap = cap
                 adjusted_unit = ""  # No prefix for zero or negative values
-            elif cap >= 10000:
-                adjusted_cap = round(cap / 10000, 2)
-                adjusted_unit = "ha"  # Hektar for large areas
             else:
                 adjusted_cap = round(cap, 2)
                 adjusted_unit = base_unit

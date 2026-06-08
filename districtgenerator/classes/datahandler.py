@@ -2499,7 +2499,7 @@ class Datahandler:
 
             mapping = {
                 "Gaskessel": "BOI",
-                "Fernwärme": "heat_grid",
+                "Fernwärme": "DH",
                 "Blockheizkraftwerk": "CHP",
                 "Wärmepumpe": "HP",
                 "Heat Pump": "HP",
@@ -2642,12 +2642,12 @@ class Datahandler:
                 )
                 return None
 
-            if row.get("heat_relevance") != "wärmerelevant":
-                print_row_problem(
-                    row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
-                    "building is not heat-relevant"
-                )
-                return None
+#            if row.get("heat_relevance") != "wärmerelevant":
+#                print_row_problem(
+#                    row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
+#                    "building is not heat-relevant"
+#                )
+#                return None
 
             building_type = map_building_type(row.get("iwu_class"))
             if building_type is None:
@@ -2681,15 +2681,15 @@ class Datahandler:
                 )
                 return None
 
-            if not has_valid_heat_demand(row.get("heat_demand_simulated"), row.get("energy_consumption_sh")):
-                print_row_problem(
-                    row_index,
-                    alkis_id,
-                    "heat_demand_simulated / energy_consumption_sh",
-                    f"{row.get('heat_demand_simulated')} / {row.get('energy_consumption_sh')}",
-                    "invalid simulated or measured heat demand"
-                )
-                return None
+#            if not has_valid_heat_demand(row.get("heat_demand_simulated"), row.get("energy_consumption_sh")):
+#                print_row_problem(
+#                    row_index,
+#                    alkis_id,
+#                    "heat_demand_simulated / energy_consumption_sh",
+#                    f"{row.get('heat_demand_simulated')} / {row.get('energy_consumption_sh')}",
+#                    "invalid simulated or measured heat demand"
+#                )
+#                return None
 
             return {
                 "alkis_id": alkis_id,
@@ -2706,7 +2706,7 @@ class Datahandler:
                 "EV": 0,  # Default
                 "f_TES": 35,
                 "f_BAT": 0,
-                "f_PV1": 0,
+                "f_PV1": 1,
                 "f_PV2": 0,
                 "f_STC": 0,
                 "gamma_PV": 0,
