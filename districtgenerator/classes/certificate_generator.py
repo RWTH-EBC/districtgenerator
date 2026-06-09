@@ -3245,6 +3245,7 @@ class DataExtractor(ReportComponent):
         device_unit_map = { 
             "BAT": "Wh<sub>el</sub>",
             "TES": "l",
+            "TES_DHW": "l",
             "EV": "Wh<sub>el</sub>",
             "STC": "m²",
             "PV": "m²",
@@ -3252,6 +3253,7 @@ class DataExtractor(ReportComponent):
             "HP35": "W<sub>th</sub>",
             "HP55": "W<sub>th</sub>",
             "EH": "W<sub>th</sub>",
+            "EH_DHW": "W<sub>th</sub>",
             "CHP": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
             "BBOI": "W<sub>th</sub>",

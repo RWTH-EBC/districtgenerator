@@ -162,6 +162,8 @@
         "device_EV": "Electric Vehicle",
         "device_HP35": "Heat Pump (35°C)",
         "device_HP55": "Heat Pump (55°C)",
+        "device_EH_DHW": "Instantaneous Electric Water Heater",
+        "device_TES_DHW": "DHW Storage Tank",
 
         "content_information_page": {
             "Energy Performance Indicators": {
@@ -361,6 +363,8 @@
         "device_EV": "Elektrofahrzeug",
         "device_HP35": "Wärmepumpe (35°C)",
         "device_HP55": "Wärmepumpe (55°C)",
+        "device_EH_DHW": "Dezentraler Durchlauferhitzer",
+        "device_TES_DHW": "Trinkwarmwasserspeicher",
 
         "legend_eh": "Energiezentrale",
         "legend_pipes": "Rohre des Wärmenetzes",

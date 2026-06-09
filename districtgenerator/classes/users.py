@@ -105,6 +105,7 @@ class Users:
         self.nb_occ = []
         self.occ = None
         self.dhw = None
+        self.dhw_minutely = None
         self.elec = None
         self.gains = None
         self.heat = None
@@ -654,6 +655,7 @@ class Users:
 
         self.occ = np.zeros(int(time_horizon / time_resolution))
         self.dhw = np.zeros(int(time_horizon / time_resolution))
+        self.dhw_minutely = np.zeros(int(time_horizon / 60))  # minute resolution
         self.elec = np.zeros(int(time_horizon / time_resolution))
         self.gains = np.zeros(int(time_horizon / time_resolution))
         self.EV_carprofile = np.zeros(int(time_horizon / time_resolution))
@@ -670,7 +672,10 @@ class Users:
                 temp_obj = Profiles(number_occupants=self.nb_occ[j], number_occupants_building=sum(self.nb_occ),
                                     initial_day=initial_day, nb_days=nb_days, time_resolution=time_resolution,
                                     building=self.building)
-                self.dhw = self.dhw + temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                
+                dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+                self.dhw += dhw_dict["dhw_power_timeseries_W"]
+                self.dhw_minutely += dhw_dict["dhw_power_timeseries_W_minutely"]
 
                 # Occupancy profile in a flat
                 self.occ = self.occ + temp_obj.generate_occupancy_profiles_residential()
@@ -724,7 +729,10 @@ class Users:
             gains_persons, gains_others = temp_obj.generate_gain_profile_non_residential()
             self.gains = gains_persons + gains_others
 
-            self.dhw = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+            dhw_dict = temp_obj.generate_dhw_profile(building=building, holidays=holidays)
+
+            self.dhw = dhw_dict["dhw_power_timeseries_W"]
+            self.dhw_minutely = dhw_dict["dhw_power_timeseries_W_minutely"]
 
             # In the case of non-residential buildings, EVs are only for office buildings
             if self.building in {"OB"} and gen_cars:

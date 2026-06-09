@@ -228,8 +228,16 @@ class Datahandler:
         # %% load scenario file with building information
         self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
                                      converters={"position": parse_position}).set_index("id", drop=False))
+        
+        # --- 3. Determine for each building if an dhw_heater is set ---
 
-        # --- 3. Load pipe data based on the selected heat grid generation ---
+        if "dhw_heater" not in self.scenario.columns:
+            self.scenario["dhw_heater"] = None
+        else: 
+            # Replace empty values, NaNs, and 0 with None
+            self.scenario["dhw_heater"] = self.scenario["dhw_heater"].replace({np.nan: None, "": None, 0: None, "0": None, 0.0: None})
+
+        # --- 4. Load pipe data based on the selected heat grid generation ---
 
         self.pipe_file_path = os.path.join(self.filePath, 'pipe')
         # select the pipe file based on the generation selection

@@ -1,4 +1,4 @@
-id;building;year;retrofit;construction_type;night_setback;area;heater;cooling;EV;f_TES;f_BAT;f_PV1;f_PV2;f_STC;gamma_PV;ev_charging
-0;OB;1970;0;2;1;1000;heat_grid;1;1;35;0;0.4;0.4;0;0;on_demand
-1;SFH;1930;0;2;1;100;heat_grid;1;1;35;0;0.4;0.4;0;0;on_demand
-2;SC;1970;0;2;1;1000;heat_grid;1;1;35;0;0.4;0.4;0;0;on_demand
+id;building;year;retrofit;construction_type;night_setback;area;heater;dhw_heater;cooling;EV;f_TES;f_BAT;f_PV1;f_PV2;f_STC;gamma_PV;ev_charging
+0;OB;1970;0;2;1;1000;heat_grid;0;1;1;35;0;0.4;0.4;0;0;on_demand
+1;SFH;1930;0;2;1;100;heat_grid;0;1;1;35;0;0.4;0.4;0;0;on_demand
+2;SC;1970;0;2;1;1000;heat_grid;EH_DHW;1;1;35;0;0.4;0.4;0;0;on_demand
