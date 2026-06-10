@@ -82,6 +82,7 @@ class BES:
         #  of centralized vs. decentralized heat supply systems for city districts"
 
         dhw_minutely = building["user"].dhw_minutely
+        max_power_dhw = np.max(dhw_minutely)
         window_steps = 60  # 60-minute moving average (1-min timestep)
         kernel = np.ones(window_steps) / window_steps
         heat_W_rolling = np.convolve(dhw_minutely, kernel, mode="same")
@@ -155,8 +156,8 @@ class BES:
                                     * self.decentral_device_data["TES"]["T_diff_max"] \
                                     / 3600
                     
-            if k == "TES_DHW": #TODO: This should rather be changed to include more abilities for the user to specify the size of the DHW
-                if dhw_heater == "EH_DHW": #TODO Check which heaters should habe a storage for DHW and which not
+            if k == "TES_DHW": 
+                if dhw_heater == "EH_DHW": #TODO Check which heaters should have a storage for DHW and which not
                     BES["TES_DHW"] = 0 # No TES if DHW is generated with electric heater (since we assume an instantaneous electric water heater)
                 else: 
                     tau_DHW = 1  # hour
@@ -164,8 +165,15 @@ class BES:
 
             if k == "EH_DHW":
                 if dhw_heater == "EH_DHW":
-                    number_to_be_specified = 0 #TODO: This is a placeholder this should include something like the number of flats or people times a common size for instantaneous electric water heaters
-                    BES["EH_DHW"] = max(self.design_load_dhw, number_to_be_specified)  # [W] #TODO: Add exception for instantaneous water heater (electric)
+                    min_size_instantaneous_heater = 18000 # W | 18 kW chosen as minimum size for instantaneous electric water heaters according to Tab. 6.32 Anschluss von Elektrogeräten aus Laasch et. al. Haustechnik (2013)
+                    # For residential buildings it is assumed an electric water heater is present in every flat. If the max_power_dhw is larger then this is chosen.
+                    nb_units = getattr(building["user"], "nb_units", 1)
+                    nb_flats = getattr(building["user"], "nb_flats", 1)
+                    #TODO: Check if this should be applied to nb_units or nb_flats
+                    # print(f"DEBUG: nb_flats: {nb_flats}, nb_units: {nb_units}, max_power_dhw: {max_power_dhw}, min_size_instantaneous_heater: {min_size_instantaneous_heater}")
+                    if nb_flats == None: nb_flats = 1 # For non-residential buildings
+                    
+                    BES["EH_DHW"] = max(max_power_dhw, nb_flats * min_size_instantaneous_heater)  # [W] 
                 else:
                     BES["EH_DHW"] = 0
 

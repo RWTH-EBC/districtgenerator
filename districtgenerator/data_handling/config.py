@@ -963,7 +963,7 @@ class DecentralDeviceConfig(BaseSettings):
     # EH_DHW parameters (instantaneous Electric Heating for Domestic Water) #TODO: Change for plausible values
     EH_DHW__eta_th: float = 1.0  # Thermal efficiency.
     EH_DHW__life_time: int = 25  # Maximum life time in years.
-    EH_DHW__inv_base: float = 620.0  # Unsubsidized investment in €/kW.
+    EH_DHW__inv_base: float = 40.0  # Unsubsidized investment in €/kW.
     EH_DHW__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     EH_DHW__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EH_DHW: dict = {}
