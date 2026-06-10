@@ -1377,7 +1377,7 @@ class Datahandler:
         self.resultsOptimization = {year: {} for year in simulated_years}
 
         # Remove all solution files from previous optimizations
-        opti_central.remove_previous_models_and_solutions() # For better visibility remove previous solution files
+        opti_central.remove_previous_models_and_solutions(resultPath=self.resultPath) # For better visibility remove previous solution files
 
         # simulate all years
         start_time = time.time()

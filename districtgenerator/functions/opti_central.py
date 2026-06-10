@@ -47,30 +47,45 @@ EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
 
-def run_opti_central(data, year, cluster, sim_ecoData, resultPath):
+def run_opti_central(data, year, cluster, sim_ecoData, resultPath) -> dict:
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
+
+    Parameters
+    ----------
+    data : Datahandler object
+        The data handler object containing all the necessary data for the optimization.
+    year : int
+        The index of the year for which the optimization should be run.
+    cluster : int
+        The index of the cluster for which the optimization should be run.
+    sim_ecoData : dict
+        The economic data for the simulation.
+    resultPath : str
+        The path of the folder where the optimization results should be saved.
+
+    Returns
+    -------
+    dict
+        The dictionary containing the optimization results.
+    
     """
 
     start_time = time.time()
     # build the model
-    model = pyo.ConcreteModel(name="Device_Operation_Optimization")
+    model = pyo.ConcreteModel(name=f"Device_Operation_Optimization_Year_{year}_Cluster_{cluster}")
     build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
+
     # solve the model and extract results
     results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster, resultPath=resultPath)
     model_solve_time = time.time() - start_time - model_building_time
     if results_dict is not None:
         print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
+
     # calculate total time
     total_time = time.time() - start_time
-
-    # maybe record the times into a log file
-
-    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
-    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
-    # print(f" Total time needed: {total_time:.2f} seconds.")
 
     return results_dict
 
@@ -143,14 +158,23 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
 
-    try:
-        network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
-        network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
-        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
-    except:
+    if energyHubData == {}:
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
         network_pump_power = [0] * T_e
+    else:
+        error_string = ""
+        
+        try:
+            network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000 # kW -> W
+            network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000 # kW -> W
+            network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000 # kW -> W
+        except Exception as e:
+            error_string += f"Error occurred while loading heating network data for cluster {cluster}: {e}\n"
+            
+        if error_string:
+            raise ValueError(error_string)
+
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -280,8 +304,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_ecs_waste = pyo.Set(initialize=EH_ECS_WASTE, doc="Waste generating or consuming devices in the energy hub")
 
     ################################################################################
-    # CREATE VARIABLES
+    # CREATE VARIABLES AND PARAMETERS
     ################################################################################
+
+    model.network_losses_heating = pyo.Param(model.t, initialize=lambda m, t: network_losses_heating[t])
+    model.network_losses_cooling = pyo.Param(model.t, initialize=lambda m, t: network_losses_cooling[t])
+    model.network_pump_power = pyo.Param(model.t, initialize=lambda m, t: network_pump_power[t])
 
     ################################################################################
     # OPERATIONAL BUILDING VARIABLES
@@ -519,7 +547,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ################################################################################
 
     def create_eh_heat_capacity_constraint(device_name):
-        """Factory-function für EH Heat Capacity Constraints"""
+        """Factory-function for EH Heat Capacity Constraints"""
 
         def constraint_rule(model, t):
             if energyHubData == {}:
@@ -531,7 +559,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return constraint_rule
 
     def create_eh_power_capacity_constraint(device_name):
-        """Factory-function für EH Power Capacity Constraints"""
+        """Factory-function for EH Power Capacity Constraints"""
 
         def constraint_rule(model, t):
             if energyHubData == {}:
@@ -1157,23 +1185,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 == model.eh_heat_to_grid[t] + model.eh_heat_AC[t] + model.eh_ch_TES[t]  # Heat demand
                 )
 
-    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network #! Maybe instead combined Heat balance for the neighborhood that includs network losses?
-    def eh_heat_supply_rule(model, t):
-        return model.eh_heat_to_grid[t] >= sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
-            network_losses_heating[t]
-
-    # The EH must supply the cooling demand of the buildings connected to the grid
-    def eh_cool_supply_rule(model, t):
-        return model.eh_cool_to_grid[t] >= sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
-            network_losses_cooling[t]
-
     # Electricity balance
     def eh_electricity_balance_rule(model, t):
         return (model.eh_power_PV[t] + model.eh_power_WT[t] + model.eh_power_WAT[t] + model.eh_power_CHP[t]
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + network_pump_power[t] + model.eh_power_to_grid[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t])
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1202,11 +1220,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.eh_waste_import[t] == model.eh_waste_WCHP[t] + model.eh_waste_WBOI[t]
 
     model.eh_heating_balance = pyo.Constraint(model.t, rule=eh_heating_balance_rule, doc="EnergyHub_heat_balance")
-    model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
-    model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule,
-                                          doc="EnergyHub_cooling_supply_to_buildings")
-    model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule,
-                                                  doc="EnergyHub_electricity_balance")
+    model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule, doc="EnergyHub_electricity_balance")
     model.eh_cooling_balance = pyo.Constraint(model.t, rule=eh_cooling_balance_rule, doc="EnergyHub_cooling_balance")
     model.eh_gas_balance = pyo.Constraint(model.t, rule=eh_gas_balance_rule, doc="EnergyHub_gas_balance")
     model.eh_hydrogen_balance = pyo.Constraint(model.t, rule=eh_hydrogen_balance_rule, doc="EnergyHub_hydrogen_balance")
@@ -1232,6 +1246,19 @@ def build_model(model, data, year, cluster, sim_ecoData):
                                                      doc="Power_balance_neighborhood")
     model.trafo_binary1 = pyo.Constraint(model.t, rule=trafo_binary1_rule, doc="Power_limitation_from_grid")
     model.trafo_binary2 = pyo.Constraint(model.t, rule=trafo_binary2_rule, doc="Power_limitation_to_grid")
+
+    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
+    def eh_heat_supply_rule(model, t): #TODO: Why not equal?
+        return model.eh_heat_to_grid[t] >= sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
+            model.network_losses_heating[t]
+
+    # The EH must supply the cooling demand of the buildings connected to the grid
+    def eh_cool_supply_rule(model, t): #TODO: Why not equal?
+        return model.eh_cool_to_grid[t] >= sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
+            model.network_losses_cooling[t]
+    
+    model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
+    model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule, doc="EnergyHub_cooling_supply_to_buildings")
 
     # Gas balance neighborhood (Power balance in Watt)
     def neighborhood_gas_balance_rule(model, t):
@@ -1433,170 +1460,19 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    lp_filename = os.path.join(result_dir, f"opti_central_model_year_{year}_cluster_{cluster}.lp")
-    model.write(lp_filename, io_options={'symbolic_solver_labels': True})
+    model_name = f"opti_central_model_year_{year}_cluster_{cluster}"
 
-    # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, f"solver_output_year_{year}_cluster_{cluster}.log")
-    # Path for error file
-    errorfile_path = os.path.join(result_dir, f"errorfile_opti_central_year_{year}_cluster_{cluster}.txt")
-
-    # Solve the model
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config,)
-    results = solver.solve(model, tee=False, options=solver_options)
-
-    # Check if solution is optimal, otherwise write an error file
-    term_cond = results.solver.termination_condition
-    if term_cond == pyo.TerminationCondition.infeasible:
-        print(f"Model is infeasible for further analysis see {errorfile_path}")
-        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
-        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
-        with open(errorfile_path, 'w') as f:
-            f.write('Error: Model is infeasible\n')
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"Model Statistics:\n")
-            f.write(f"  - Variables: {n_vars}\n")
-            f.write(f"  - Constraints: {n_cons}\n\n")
-            f.write(f"  - LP File: {lp_filename}\n\n")
-            try:
-                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
-                    f.write("\nSolver Log:\n")
-                    f.write("-" * 40 + "\n")
-                    f.write(log_file.read())
-                    f.write("-" * 40 + "\n")
-                # Remove temporary solver log file
-                os.remove(solver_log_path)
-            except Exception as e:
-                f.write(f"\nCould not read solver log: {e}\n")
-
-        # IIS-Analysis
-        try:
-            # Create string buffer to capture logging
-            logging_buffer = StringIO()
-
-            # Store original logging handlers
-            root_logger = logging.getLogger()
-            original_handlers = root_logger.handlers[:]
-            original_level = root_logger.level
-
-            # Clear existing handlers temporarily
-            for handler in original_handlers:
-                root_logger.removeHandler(handler)
-
-            # Add string handler to capture only IIS output
-            string_handler = logging.StreamHandler(logging_buffer)
-            string_handler.setLevel(logging.INFO)
-            root_logger.addHandler(string_handler)
-            root_logger.setLevel(logging.INFO)
-
-            # Run IIS analysis - output goes to buffer
-            log_infeasible_constraints(model, log_expression=True, log_variables=True)
-
-            # Get captured content
-            iis_content = logging_buffer.getvalue()
-
-            # Restore logging
-            root_logger.removeHandler(string_handler)
-            for handler in original_handlers:
-                root_logger.addHandler(handler)
-            root_logger.setLevel(original_level)
-
-            # Write to error file
-            with open(errorfile_path, 'a', encoding='utf-8') as f:
-                f.write("INFEASIBLE CONSTRAINTS:\n")
-                f.write("-" * 40 + "\n")
-                if iis_content.strip():
-                    f.write(iis_content)
-                else:
-                    f.write("No IIS details captured\n")
-                f.write("-" * 40 + "\n")
-
-            print(f"Infeasibility analysis saved to {errorfile_path}")
-
-        except Exception as e:
-            # Ensure logging is restored
-            try:
-                if 'original_handlers' in locals():
-                    root_logger.removeHandler(string_handler)
-                    for handler in original_handlers:
-                        if handler not in root_logger.handlers:
-                            root_logger.addHandler(handler)
-                    root_logger.setLevel(original_level)
-            except:
-                pass
-
-            print(f"IIS analysis failed: {e}")
-
-            with open(errorfile_path, 'a') as f:
-                f.write(f"IIS analysis failed: {e}\n")
-
-        # Using Gurobi to compute a better IIS if Gurobi is available
-        import gurobipy as gp
-        gurobi_available = True
-        try: _ = gp.Env.getEnv()
-        except: gurobi_available = False
-
-        if gurobi_available:
-            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
-            m = gp.read("debug_model.lp")
-            m.optimize()
-            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
-                m.computeIIS()
-                m.write("debug_model.ilp")
-                print("IIS written to debug_model.ilp")
-                raise Exception("Model is infeasible, see errorfile for details.")
-            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
-
+    results = solver_config.execute_and_diagnose(model = model, 
+                                   pyomo_config = data.pyomo_config,
+                                   model_name = model_name,
+                                   result_dir = result_dir)
+    
+    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
-
-    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
-        print("Model is unbounded")
-        with open('errorfile.txt', 'w') as f:
-            f.write('Model is unbounded\n')
-        return None
-    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
-        pass
-    else:
-        print(f"Solver status: {results.solver.termination_condition}")
-        with open('errorfile.txt', 'w') as f:
-            f.write(f'Solver status: {results.solver.termination_condition}\n')
-        return None
-
-    # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
-
-    # Save all variable values in a solution file:
-    def write_solution_file(model, filename):
-        """
-        Write solution values to a file in a format similar to Gurobi's .sol files
-        """
-        try:
-            with open(filename, 'w') as f:
-                f.write("# Solution file\n")
-                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
-                f.write("# Variable values\n")
-
-                # Write all variable values
-                for var in model.component_objects(pyo.Var, active=True):
-                    if var.is_indexed():
-                        for index in var:
-                            if var[index].value is not None:
-                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
-                    else:
-                        if var.value is not None:
-                            f.write(f"{var.name} {var.value:.6f}\n")
-
-                f.write("# End of solution\n")
-            print(f"Solution written to {filename}")
-
-        except Exception as e:
-            print(f"Warning: Could not write solution file {filename}: {e}")
-        return None
-
-    solution_file = os.path.join(result_dir, f'solution_file_year_{year}_cluster_{cluster}.txt')
-    write_solution_file(model, solution_file)
+    
+    solver_config.write_solution_file(model = model,
+                                      model_name = model_name,
+                                      result_dir = result_dir)
 
     # Extract results
     timeData = data.time
@@ -1805,8 +1681,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
         for ice_map in ice_mapping
     }
 
-    ev_ids = model.EVs.value_list
-    ice_ids = model.ICEs.value_list
+    ev_ids = list(model.EVs.ordered_data())
+    ice_ids = list(model.ICEs.ordered_data())
 
     # Electric Vehicles
     for n in range(nbuildings):
@@ -1883,17 +1759,17 @@ def _get_vehicle_mapping(buildingData, nbuildings):
     return all_individual_evs_map, all_individual_ices_map
 
 
-def remove_previous_models_and_solutions():
+def remove_previous_models_and_solutions(resultPath, model_name_prefix="opti_central_model_"):
     """
     Remove previous solution and error files to avoid confusion with new runs.
     """
-    result_dir = "optimization_results"
+    result_dir = os.path.join(resultPath, f"optimization_results")
     if not os.path.exists(result_dir):
         return
 
     # Remove model files
     for filename in os.listdir(result_dir):
-        if filename.startswith("opti_central_model_year_") and filename.endswith(".lp"):
+        if filename.startswith(model_name_prefix) and filename.endswith(".lp"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
@@ -1902,7 +1778,7 @@ def remove_previous_models_and_solutions():
 
     # Remove solution files
     for filename in os.listdir(result_dir):
-        if filename.startswith("solution_file_year_") and filename.endswith(".txt"):
+        if filename.startswith(f"solution_file_{model_name_prefix}") and filename.endswith(".txt"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
@@ -1911,7 +1787,7 @@ def remove_previous_models_and_solutions():
 
     # Remove error files
     for filename in os.listdir(result_dir):
-        if filename.startswith("errorfile_opti_central_year_") and filename.endswith(".txt"):
+        if filename.startswith(f"errorfile_{model_name_prefix}") and filename.endswith(".txt"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
