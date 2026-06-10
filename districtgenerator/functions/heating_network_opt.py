@@ -1113,6 +1113,106 @@ def output_diameter(data, param):
 
     # plt.show()
 
+    # ---------- 2b. plot Pipeline Map - Diameter Overlay for Google Maps ----------
+    fig, ax = plt.subplots(figsize=(10, 8), facecolor='none')
+    ax.set_facecolor('none')
+
+    # Retrieve all selected pipe diameter sizes
+    DN_values = [data.pipeline[pipe]["DN"] for pipe in data.pipeline.keys()]
+    min_DN, max_DN = min(DN_values), max(DN_values)
+
+    # Map pipe diameter to color
+    norm = mcolors.Normalize(vmin=min_DN, vmax=max_DN)
+    cmap = plt.cm.RdYlGn_r  # red → yellow → green
+
+    # Collect all coordinates to set the plot limits
+    all_x = []
+    all_y = []
+
+    for pipe_id, pipe in data.pipeline.items():
+        start = tuple(pipe["from_pos"])
+        end = tuple(pipe["to_pos"])
+
+        all_x.extend([start[0], end[0]])
+        all_y.extend([start[1], end[1]])
+
+        DN = pipe["DN"]
+
+        # Map pipe diameter to line width
+        den = max_DN - min_DN
+        if den == 0:
+            lw = 3
+        else:
+            lw = 1 + 5 * (DN - min_DN) / den
+
+        color = cmap(norm(DN))
+
+        # Plot pipe line
+        ax.plot(
+            [start[0], end[0]],
+            [start[1], end[1]],
+            color=color,
+            linewidth=lw,
+            solid_capstyle="round",
+            zorder=2
+        )
+
+        # Diameter label at midpoint
+        mid_x = (start[0] + end[0]) / 2
+        mid_y = (start[1] + end[1]) / 2
+
+        ha = "center"
+        dy = 0
+
+        if abs(start[1] - end[1]) < 1e-6:
+            dy = 2
+            if start[0] > end[0] and start[0] - end[0] < 20:
+                ha = "right"
+            elif start[0] < end[0] and end[0] - start[0] < 20:
+                ha = "left"
+
+        ax.text(
+            mid_x,
+            mid_y + dy,
+            f"DN{DN}",
+            fontsize=8,
+            ha=ha,
+            va="center",
+            color="black",
+            fontweight="bold",
+            zorder=3,
+            bbox=dict(
+                boxstyle="round,pad=0.20",
+                facecolor=(1, 1, 1, 0.65),
+                edgecolor="none"
+            )
+        )
+
+    # Keep the same geometry, but remove everything else
+    ax.set_aspect("equal")
+    ax.grid(False)
+    ax.set_axis_off()
+
+    # Add small padding so labels are not cut off
+    padding = 10
+    ax.set_xlim(min(all_x) - padding, max(all_x) + padding)
+    ax.set_ylim(min(all_y) - padding, max(all_y) + padding)
+
+    # Remove all margins around the transparent figure
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    # Save transparent PNG
+    base = os.path.join(dir_result, f"pipeline_diameter_overlay_{data.scenario_name}")
+    plt.savefig(
+        base + ".png",
+        dpi=300,
+        transparent=True,
+        bbox_inches="tight",
+        pad_inches=0
+    )
+
+    plt.close(fig)
+
     # ---------- 3. plot Pipeline Map - Maximum velocity (m/s) ----------
     # calculate the max. velocity and the max. pressure drop
     c_f = data.heat_grid_data["fluid"]["c_f"]  # 4180J/(kg*K), fluid specific heat capacity
