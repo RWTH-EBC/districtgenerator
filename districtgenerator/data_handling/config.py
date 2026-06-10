@@ -355,7 +355,7 @@ class PyomoConfig(BaseSettings):
     solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
-    solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
+    solver_options__mip_gap: float = 0.02            # Acceptable MIP gap from optimal solution
     solver_options__threads: int = 4               # Number of threads to use for solving
     solver_options__nonconvex: int = 2            # Allow non-convex problems
     solver_options__dual_reductions: int = 1        # Try to reduce the model size before solving 1 = yes, 0 = no -> May slightly change results

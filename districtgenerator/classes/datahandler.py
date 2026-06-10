@@ -686,7 +686,7 @@ class Datahandler:
             else: raise Exception(f"At least one part of the mixed building has to be residential. Please check building types for {combined_building['unique_name']}.")
 
             combined_building["user"].nb_units = main_building["user"].nb_units + secondary_building["user"].nb_units
-            combined_building["user"].nb_occ = main_building["user"].nb_occ + secondary_building["user"].nb_occ
+            combined_building["user"].nb_occ = np.concatenate([main_building["user"].nb_occ, secondary_building["user"].nb_occ])
 
             # sum up the design loads for heating and cooling
             combined_building["envelope"].heatload = main_building["envelope"].heatload + secondary_building["envelope"].heatload
@@ -2472,7 +2472,7 @@ class Datahandler:
                 "NWG_TYP_A": "OB",
                 "NWG_TYP_B": "UNI",
                 "NWG_TYP_C": "HOSPITAL",
-                "NWG_TYP_D": "SCHOOL",
+                "NWG_TYP_D": "SC",
                 "NWG_TYP_E": "CULTURE",
                 "NWG_TYP_F": "SPORT",
                 "NWG_TYP_G": "RE",
