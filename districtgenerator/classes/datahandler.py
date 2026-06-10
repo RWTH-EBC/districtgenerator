@@ -722,10 +722,10 @@ class Datahandler:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
+            building["user"].dhw_minutely = result.get("dhw_minutely")
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
 
-            # IMPORTANT: remove the trailing comma (your current code makes this a 1-tuple)
             building["user"].occ = result["occ"]
 
             building["user"].EV_carcharging_ondemand =  result["EV_carcharging_ondemand"]
@@ -779,6 +779,7 @@ class Datahandler:
                 self.saveProfiles(name=building["unique_name"],
                                   elec=building["user"].elec,
                                   dhw=building["user"].dhw,
+                                  dhw_minutely=building["user"].dhw_minutely,
                                   occ=building["user"].occ,
                                   gains=building["user"].gains,
                                   EV_carcharging_ondemand=building["user"].EV_carcharging_ondemand,
@@ -794,7 +795,7 @@ class Datahandler:
                                   individual_car_profiles=building["user"].individual_car_profiles)
 
         else:
-            (building["user"].elec, building["user"].dhw,
+            (building["user"].elec, building["user"].dhw, building["user"].dhw_minutely,
              building["user"].occ, building["user"].gains,
              building["user"].EV_carcharging_ondemand, building["user"].EV_carprofile, building["user"].ice_carprofile, building["user"].nb_flats, building["user"].nb_main_rooms,
              building["user"].nb_occ, building["user"].ev_capacity, building["envelope"].heatload,
@@ -844,6 +845,7 @@ class Datahandler:
             "unique_name": building["unique_name"],
             "elec": building["user"].elec,
             "dhw": building["user"].dhw,
+            "dhw_minutely": building["user"].dhw_minutely,
             "cooling": building["user"].cooling,
             "heating": building["user"].heat,
             "occ": building["user"].occ,
@@ -932,7 +934,7 @@ class Datahandler:
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
-    def saveProfiles(self, name, elec, dhw, occ, gains, EV_carcharging_ondemand,
+    def saveProfiles(self, name, elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand,
                      EV_carprofile, ev_capacity, ice_carprofile, nb_units,
                      nb_occ, heatload, bivalent, heatlimit, path,
                      individual_car_profiles=None):
@@ -947,6 +949,8 @@ class Datahandler:
             Hourly electricity demand in W.
         dhw : list
             Hourly domestic hot water demand in W.
+        dhw_minutely : list
+            Minutely domestic hot water demand in W.
         occ : list
             Hourly occupancy of persons.
         gains : list
@@ -1010,7 +1014,11 @@ class Datahandler:
                     ts_dict[f'Car_availability_car_{i}'] = car['availability_profile']
 
         df_ts = pd.DataFrame(ts_dict)
-        df_ts.to_csv(os.path.join(path, f"{name}_timeseries.csv"), index=False)
+        df_ts.to_csv(
+            os.path.join(path, f"{name}_timeseries.csv"), 
+            sep=';',
+            index=False
+        )
 
         # Singular Data points (static)
         static_dict = {
@@ -1031,6 +1039,20 @@ class Datahandler:
             index=False,
             float_format='%.3f'
         )
+
+        # Minutely timeseries data points (currently only used for domestic hot water demand)
+        ts_minutely_dict = {
+            'timestep': np.arange(len(dhw_minutely)) * (1 / 60),  # Index-Column (hour of the year)
+            'dhw_minutely': dhw_minutely
+        }
+
+        df_ts_minutely = pd.DataFrame(ts_minutely_dict)
+        df_ts_minutely.to_csv(
+            os.path.join(path, f"{name}_timeseries_minutely.csv"), 
+            sep=';',
+            index=False
+        )
+
 
     def saveHeatingProfile(self, heat, cooling, name, path):
         """
@@ -1053,7 +1075,7 @@ class Datahandler:
         """
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         if os.path.exists(ts_path):
-            df_ts = pd.read_csv(ts_path)
+            df_ts = pd.read_csv(ts_path, sep=';')
         else:
             df_ts = pd.DataFrame()
 
@@ -1081,14 +1103,24 @@ class Datahandler:
         """
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         static_path = os.path.join(path, f"{name}_static.csv")
+        ts_minutely_path = os.path.join(path, f"{name}_timeseries_minutely.csv")
+
+        error_msg= "Before loading profiles, please make sure to generate them first by setting calcUserProfiles to True in the generateDistrictComplete function. If you have already generated the profiles, please check if the files exist in the specified path."
+
+        if not os.path.exists(ts_path): raise FileNotFoundError(f"Timeseries file not found: {ts_path} \n{error_msg}")
+        if not os.path.exists(static_path): raise FileNotFoundError(f"Static file not found: {static_path} \n{error_msg}")
+        if not os.path.exists(ts_minutely_path): raise FileNotFoundError(f"Minutely timeseries file not found: {ts_minutely_path} \n{error_msg}")
 
         df_ts = pd.read_csv(ts_path, sep=";")
-        df_static = pd.read_csv(static_path, sep=";")
+        df_static = pd.read_csv(static_path, sep=";") 
+        df_ts_minutely = pd.read_csv(ts_minutely_path, sep=";")
 
         elec = df_ts['elec'].to_numpy()
         dhw = df_ts['dhw'].to_numpy()
         occ = df_ts['occ'].to_numpy()
         gains = df_ts['gains'].to_numpy()
+
+        dhw_minutely = df_ts_minutely['dhw_minutely'].to_numpy()
 
         nb_flats = int(df_static['nb_units'].iloc[0])
         nb_main_rooms = nb_flats
@@ -1135,7 +1167,7 @@ class Datahandler:
             EV_carcharging_ondemand = np.zeros(length)
             ice_carprofile = np.zeros(length)
 
-        return elec, dhw, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, ev_capacity, heatload, bivalent, heatlimit, individual_car_profiles
+        return elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand, EV_carprofile, ice_carprofile, nb_flats, nb_main_rooms, nb_occ, ev_capacity, heatload, bivalent, heatlimit, individual_car_profiles
 
     def loadHeatingProfiles(self, name, path):
         """
