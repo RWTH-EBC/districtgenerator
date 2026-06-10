@@ -2673,6 +2673,7 @@ class DataExtractor(ReportComponent):
             (self.translate("name_night_setback"), "night_setback"),
             (self.translate("name_building_area"), "area"),
             (self.translate("name_heating_tech"), "heater"),
+            (self.translate("name_dhw_heating_tech"), "dhw_heater"),
             (self.translate("name_ev_share"), "EV"),
             (self.translate("name_f_tes"), "f_TES"),
             (self.translate("name_f_bat"), "f_BAT"),
