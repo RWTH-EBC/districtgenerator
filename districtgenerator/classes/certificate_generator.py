@@ -38,7 +38,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, StyleSheet1, ParagraphStyle
 from reportlab.platypus import Flowable, Table, TableStyle, Paragraph, Spacer
 from reportlab.platypus import NextPageTemplate, PageBreak, FrameBreak
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 from collections import OrderedDict
 import pandas as pd
@@ -1175,11 +1175,11 @@ class EnergyHubProfilesYear(BaseReportFlowable):
     Strictly adheres to the ThemeManager configuration for fonts, colors, and layout widths.
     """
 
-    def __init__(self, year, year_profiles: dict):
+    def __init__(self, year_profiles: dict, cluster_info: dict):
         super().__init__()
         self.style = self.get_style()
-        self.year = year
         self.year_profiles = year_profiles or {}
+        self.cluster_info = cluster_info
         self.width = 0
         self.height = 0
 
@@ -1194,8 +1194,29 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             if series_name in profile_df.columns:
                 series[series_name] = profile_df[series_name].tolist()
         return series
+    
+    def _format_sig(self, x, sig):
+        if x == 0:
+            return "0"
+        decimals = sig - 1 - int(math.floor(math.log10(abs(x))))
+        return f"{x:.{max(0, decimals)}f}"
 
-    def _build_plot(self, width: float, height: float, title: str, series_map: dict[str, list[float]], dynamic_color_mapping: dict, show_x_axis: bool = True) -> Drawing:
+    def _nice_num(self, x):
+        exp = math.floor(math.log10(x))
+        frac = x / 10**exp
+
+        if frac <= 1:
+            nice = 1
+        elif frac <= 2:
+            nice = 2
+        elif frac <= 5:
+            nice = 5
+        else:
+            nice = 10
+
+        return nice * 10**exp
+
+    def _build_plot(self, width: float, height: float, title_key: str, series_map: dict[str, list[float]], dynamic_color_mapping: dict, show_x_axis: bool = True) -> Drawing:
         drawing = Drawing(width, height)
 
         # 1. Fonts and Colors
@@ -1209,7 +1230,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         # 2. Asymmetrische Placement Calculations
         padding = self.style.get_padding()
         x_align_right = 3 * padding
-        x_align_left = (5 * padding) + axis_label_size 
+        x_align_left = (4 * padding) + axis_label_size 
         
         chart_width = width - x_align_left - x_align_right 
         center_x = x_align_left + (chart_width / 2.0)
@@ -1226,12 +1247,12 @@ class EnergyHubProfilesYear(BaseReportFlowable):
                 drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
             return drawing
 
-        # Prepare data for the LinePlot & Polygons
-        import math
-        from reportlab.graphics.shapes import Polygon
-
         max_len = max(len(values) for values in filtered_series_map.values())
-        x_values = list(range(max_len))
+
+        cluster_length_hours = self.cluster_info.get('cluster_length_sec', 604800) / 3600.0
+        time_step_hours = cluster_length_hours / max(1, max_len)
+        x_values = [i * time_step_hours for i in range(max_len)]
+        x_max_val = max(1, max_len - 1) * time_step_hours
 
         stack_names = sorted(list(filtered_series_map.keys()))
 
@@ -1243,7 +1264,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         neg_line_configs = []
         current_neg_cum = [0.0] * max_len
 
-        # Ein einziger Loop für alle Datenreihen
+        # Loop over each series
         for name in stack_names:
             vals = filtered_series_map[name]
             clean_vals = [v if pd.notna(v) else 0.0 for v in vals]
@@ -1251,7 +1272,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
             color = dynamic_color_mapping.get(clean_name, colors.black)
             
-            # Positive Anteile (Einspeisung / Erzeugung)
+            # positive (Import from grid / generation)
             pos_vals = [v if v > 0 else 0.0 for v in clean_vals]
             if any(v > 0 for v in pos_vals):
                 current_pos_cum = [c + v for c, v in zip(current_pos_cum, pos_vals)]
@@ -1259,7 +1280,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
                 pos_plot_data.append(poly_data)
                 pos_line_configs.append({'color': color})
 
-            # Negative Anteile (Bezug / Verbrauch)
+            # negative (Export to grid / consumption)
             neg_vals = [v if v < 0 else 0.0 for v in clean_vals]
             if any(v < 0 for v in neg_vals):
                 current_neg_cum = [c + v for c, v in zip(current_neg_cum, neg_vals)]
@@ -1267,7 +1288,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
                 neg_plot_data.append(poly_data)
                 neg_line_configs.append({'color': color})
 
-        # Listen umkehren für die korrekte Überlagerung (größte Flächen zuerst)
+        # Ensure largest values are in the back
         pos_plot_data.reverse()
         pos_line_configs.reverse()
         neg_plot_data.reverse()
@@ -1276,11 +1297,12 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         stack_data = pos_plot_data + neg_plot_data
         stack_configs = pos_line_configs + neg_line_configs
 
-        # Symmetrische Y-Limits berechnen
+        # symmetric y-axis around zero
         max_stacked_pos = max(current_pos_cum) if current_pos_cum else 0
         min_stacked_neg = min(current_neg_cum) if current_neg_cum else 0
 
         max_abs_y = max(abs(min_stacked_neg), max_stacked_pos)
+        max_abs_y = self._nice_num(max_abs_y) if max_abs_y > 0 else 1
         y_min = -max_abs_y
         y_max = max_abs_y
 
@@ -1288,9 +1310,9 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             y_min = math.floor(y_min) - 1
             y_max = math.ceil(y_max) + 1
 
-        # --- LAYER 1: Farbige Stacked-Polygone im Hintergrund zeichnen ---
+        # --- LAYER 1: Draw the stacked polygons ---
         plot_height_val = max(1, height)
-        x_scale = chart_width / max(1, max_len - 1)
+        x_scale = chart_width / x_max_val if x_max_val > 0 else 1
         y_scale = plot_height_val / (y_max - y_min)
 
         for data_series, config in zip(stack_data, stack_configs):
@@ -1306,7 +1328,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             poly.strokeWidth = 0.5
             drawing.add(poly)
 
-        # --- LAYER 2: Die exakte graue Null-Linie ---
+        # --- LAYER 2: Draw the exact gray zero line ---
         if y_min <= 0 <= y_max:
             zero_y_pixel = 0 + (0 - y_min) * y_scale
             zero_line = Line(x_align_left, zero_y_pixel, x_align_left + chart_width, zero_y_pixel)
@@ -1314,19 +1336,43 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             zero_line.strokeWidth = 0.4
             drawing.add(zero_line)
 
-        # --- LAYER 3: LinePlot (nur für Achsen & Grid zuständig) ---
+        g = Group()
+        g.rotate(90)
+
+        title_string = String(height / 2.0, - (axis_label_size), self.translate(title_key),
+                              fontName=axis_label_font, 
+                              fontSize=axis_label_size, 
+                              textAnchor='middle',
+                              fillColor=font_color)
+        g.add(title_string)
+        drawing.add(g)
+
+        # --- LAYER 3: Draw the line plot ---
         plot = LinePlot()
         plot.x = x_align_left     
         plot.y = 0 
         plot.width = chart_width
         plot.height = plot_height_val 
         
-        plot.data = [[(0,0)]] # Dummy-Daten
+        plot.data = [[(0,0)]] # Dummy-Data
         plot.joinedLines = 1
 
         plot.xValueAxis.valueMin = 0
-        plot.xValueAxis.valueMax = max(1, max_len - 1)
-        plot.xValueAxis.valueStep = 24 
+        plot.xValueAxis.valueMax = x_max_val
+
+        # Determine xAxis valueStep based on the total time span
+        if x_max_val <= 24:
+            x_step = 3              # 3 hour steps for up to 1 day
+        elif x_max_val <= 48:
+            x_step = 6              # 6 hour steps for up to 2 days
+        elif x_max_val <= 24*4:
+            x_step = 12             # 12 hour steps for up to 4 days
+        elif x_max_val <= 24*14:      
+            x_step = 24             # 24 hour steps for up to 14 days
+        else:     
+            x_step = 168            # 168 hour steps for longer periods
+        
+        plot.xValueAxis.valueStep = x_step
         plot.xValueAxis.labels.fontName = axis_font
         plot.xValueAxis.labels.fontSize = axis_size
         plot.xValueAxis.labels.fillColor = font_color
@@ -1341,18 +1387,25 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         plot.yValueAxis.valueMin = y_min
         plot.yValueAxis.valueMax = y_max
         plot.yValueAxis.valueStep = max(0.1, (y_max - y_min) / 4)
-        plot.yValueAxis.labelTextFormat = lambda v: f"{v:.2g}" 
+        plot.yValueAxis.labelTextFormat = lambda v: self._format_sig(v, 2)
         plot.yValueAxis.labels.fontName = axis_font
         plot.yValueAxis.labels.fontSize = axis_size
         plot.yValueAxis.labels.fillColor = font_color
         plot.yValueAxis.visibleGrid = 0
         plot.yValueAxis.visibleTicks = 1
 
-        # Dummy-Linie unsichtbar machen
+        # Remove the dummy line
         plot.lines[0].strokeColor = colors.transparent
         plot.lines[0].fillColor = None
 
         drawing.add(plot)
+        if show_x_axis:
+            x_label = String(center_x, - 2.3 * axis_label_size, self.translate("name_hours"),
+                                fontName=axis_label_font, 
+                                fontSize=axis_label_size, 
+                                textAnchor='middle',
+                                fillColor=font_color)
+            drawing.add(x_label)
         
         if DEBUG:
              drawing.add(Rect(x_align_left, 0, chart_width, height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
@@ -1406,15 +1459,15 @@ class EnergyHubProfilesYear(BaseReportFlowable):
 
         device_base_names = sorted(list(base_series_names))
 
-        # Funktion zur Zuweisung der Farben
+        # Assign colors based on the device palette, with a special case for "residual_grid"
         def resolve_device_color(name: str, index: int) -> colors.Color:
             if "residual_grid" in name.lower():
-                return colors.Color(0.7, 0.7, 0.7) # Helles Grau für das Netz
+                return colors.Color(0.7, 0.7, 0.7) # light gray for grid residuals
             if device_palette:
                 return device_palette[index % len(device_palette)]
             return colors.black
 
-        # Color Mapping für alle Geräte aufbauen
+        # Color Mapping for all devices
         dynamic_color_mapping = {}
         normal_idx = 0
         for name in device_base_names:
@@ -1445,7 +1498,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         for name in device_base_names:
             color = dynamic_color_mapping.get(name, colors.black)
 
-            display_name = self.translate(f"device_{name}") if name.isupper() else self.translate(name)
+            display_name = self.translate(f"device_{name}")
             
             # Fallback formatting for unmapped translations (e.g., 'residual_grid' -> 'Residual grid')
             if display_name == f"device_{name}" or display_name == name:
@@ -1467,21 +1520,21 @@ class EnergyHubProfilesYear(BaseReportFlowable):
 
         # Adjust legend position (ReportLab legends grow downwards)
         legend.x = legend_x_pos
-        legend.y = -bounds[1] + padding 
+        legend.y = -bounds[1] 
         
         legend_drawing = Drawing(self.width, legend_height + padding)
         legend_drawing.add(legend)
         
         if DEBUG:
-             legend_drawing.add(Rect(legend_x_pos, padding, legend_width, legend_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
+             legend_drawing.add(Rect(legend_x_pos, 0, legend_width, legend_height, strokeColor=colors.red, strokeWidth=debug_line_width, fillColor=None))
              
         legend_drawing.drawOn(self.canv, 0, 0)
 
         # =========================================================
         # 4. DISTRIBUTE REMAINING SPACE TO CLUSTER PLOTS
         # =========================================================
-        gap = self.style.get_spacing('medium')
-        usable_height = self.height - legend_height - gap
+        gap = self.style.get_spacing('medium') # gap between clusters
+        usable_height = self.height - legend_height - padding # Padding above the legend
         
         available_height = usable_height - gap * (len(cluster_names) - 1)
         cluster_slot_height = available_height / len(cluster_names)
@@ -1504,7 +1557,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             self.canv.setFont(self.style.get_font(bold=True), cluster_title_size)
             self.canv.setFillColor(font_color)
             
-            title_text = f"{self.translate('title_cluster')} {cluster_name}"
+            title_text = f"{self.translate('title_cluster')} {cluster_name}: {self.cluster_info[cluster_name]['span']} ({self.translate('name_weight')}: {int(self.cluster_info[cluster_name]['weight'])})"
             self.canv.drawString(padding, cluster_title_y, title_text)
             
             if DEBUG:
@@ -1518,7 +1571,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             inner_top = cluster_title_y - gap
 
             axis_label_size = self.style.get_font_size('small')
-            x_axis_padding = axis_label_size * 2
+            x_axis_padding = axis_label_size * 2.3
 
             inner_height = max(1, inner_top - (bottom_y + x_axis_padding))
             plot_gap = self.style.get_padding()
@@ -1530,8 +1583,8 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             power_series = self._series_from_profile(profile_df, power_cols)
             heat_series = self._series_from_profile(profile_df, heat_cols)
 
-            power_plot = self._build_plot(self.width, plot_height, "Power (kW)", power_series, dynamic_color_mapping, show_x_axis=False)
-            heat_plot = self._build_plot(self.width, plot_height, "Heat (kW)", heat_series, dynamic_color_mapping, show_x_axis=True)
+            power_plot = self._build_plot(self.width, plot_height, "name_el", power_series, dynamic_color_mapping, show_x_axis=False)
+            heat_plot = self._build_plot(self.width, plot_height, "name_heat", heat_series, dynamic_color_mapping, show_x_axis=True)
 
             heat_plot.drawOn(self.canv, 0, bottom_y + x_axis_padding)
             power_plot.drawOn(self.canv, 0, bottom_y + x_axis_padding + plot_height + plot_gap)
@@ -2551,7 +2604,7 @@ class CertificateLayout(ReportComponent):
         # 3. Add them to the document story
         self.story.extend(boxes)
 
-    def create_energyhub_profiles(self, data_profiles):
+    def create_energyhub_profiles(self, data_profiles, kpi_data, cluster_info):
         """Creates the Energyhub Profiles section and adds it to the story."""
         if not data_profiles:
             return
@@ -2561,11 +2614,22 @@ class CertificateLayout(ReportComponent):
         for index, year in enumerate(sorted(data_profiles.keys())):
             if index > 0:
                 self.story.append(PageBreak())
-
-            year_flowable = EnergyHubProfilesYear(year=year, year_profiles=data_profiles[year])
-            box = FrameBox(title=f"{title} {year}")
+            
+            if index < len(data_profiles.keys()) - 1:
+                # The end is the year before the next profile's year, to avoid overlap in the x-axis of the bar charts
+                end_year = data_profiles.keys()[index+1] - 1
+            else:
+                # The last time window uses the observation_time as the upper limit
+                end_year = kpi_data["observation_time"] - 1
+            
+            year_title = f"{title} {year}-{end_year} (kW)"
+            year_flowable = EnergyHubProfilesYear(year_profiles=data_profiles[year], cluster_info = cluster_info)
+            box = FrameBox(title=year_title)
             box.set_content(year_flowable, full_width=False)
             self.story.append(box)
+            
+            
+                
 
     def create_quartiersstruktur_details(self, data_quartiersstruktur):
         """Creates the detailed matrix on a landscape page."""
@@ -3066,6 +3130,7 @@ class DataExtractor(ReportComponent):
         self.optimization_results = None
         self.district_structure = None
         self.energyhub_df = None
+        self.cluster_info = None
         self.decentral_df = None
         self.energyhub_profiles = {}
         self.district_layout = None
@@ -3640,6 +3705,30 @@ class DataExtractor(ReportComponent):
             layout_data["pipeline_data"] = self.data.pipeline
 
         self.district_layout = layout_data
+    
+    def _extract_cluster_info(self):
+        self.cluster_info = {}
+        cluster_length_sec = self.data.time["clusterLength"]
+        self.cluster_info["cluster_length_sec"] = cluster_length_sec
+
+        try_year_str = self.data.site["TRYYear"]
+        sim_year = int(try_year_str[-4:])
+        start_of_year = datetime(sim_year, 1, 1, 0, 0, 0)
+        total_periods = sum(self.data.clusterWeights.values())
+
+        for k in range(len(self.data.clusters)):#
+            orig_idx = self.data.clusters[k]
+            start_date = start_of_year + timedelta(seconds=int(orig_idx * cluster_length_sec))
+            end_date = start_of_year + timedelta(seconds=int((orig_idx + 1) * cluster_length_sec))
+            start_str = start_date.strftime("%d.%m.%Y %H:%M")
+            end_str = end_date.strftime("%d.%m.%Y %H:%M")
+            weight_count = self.data.clusterWeights[orig_idx]
+
+            self.cluster_info[k] = {
+                "span": f"{start_str} - {end_str}",
+                "weight": weight_count
+            }
+
 
     def _extract_data(self):
         """Extracts and processes all necessary data for the certificate."""
@@ -3650,6 +3739,7 @@ class DataExtractor(ReportComponent):
         self._extract_decentral_data()
         self._extract_energyhub_profiles()
         self._extract_district_layout()
+        self._extract_cluster_info()
         # Additional data extraction methods can be added here
 
     def get_central_device_name(self, dev: str) -> tuple[str, str]: 
@@ -3810,6 +3900,9 @@ class DataExtractor(ReportComponent):
 
     def get_scenario_name(self):
         return self.data.scenario_name
+    
+    def get_cluster_info(self):
+        return self.cluster_info
 
 ################################################################################
 # Certificate Builder
@@ -3888,7 +3981,7 @@ class CertificateBuilder(ReportComponent):
         self.layout.reset_story()      
         story.append(PageBreak())  
 
-        self.layout.create_energyhub_profiles(data_profiles=self.data_object.get_energyhub_profiles())
+        self.layout.create_energyhub_profiles(data_profiles=self.data_object.get_energyhub_profiles(), kpi_data=self.data_object.get_kennwerte(), cluster_info = self.data_object.get_cluster_info())
         story.extend(self.layout.get_story())
         self.layout.reset_story()
 
