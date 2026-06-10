@@ -32,9 +32,8 @@ def run_opti(district_id, config_name, calcUserProfiles, optimize):
 
 
 if __name__ == '__main__':
-    config_name = "BERLIN"  
-    for district_id in ["waermschoen_1", "260528_WKB_Exp_WS_Steinmetz", "data-1780045419351"]:
-        data = run_opti(district_id=district_id, config_name=config_name, calcUserProfiles = False, optimize = True)
-        del data
-
-
+    # Name the district ID here --> should apply to the name of the csv-Input file
+    district_id = "waermschoen_1"
+    # Name the config_name here --> should apply to the name of the .env file in the folder: data/envs
+    config_name = "BERLIN"
+    data = run_opti(district_id=district_id, config_name=config_name)

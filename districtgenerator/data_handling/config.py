@@ -355,7 +355,7 @@ class PyomoConfig(BaseSettings):
     solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
-    solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
+    solver_options__mip_gap: float = 0.02            # Acceptable MIP gap from optimal solution
     solver_options__threads: int = 4               # Number of threads to use for solving
     solver_options__nonconvex: int = 2            # Allow non-convex problems
     solver_options__dual_reductions: int = 1        # Try to reduce the model size before solving 1 = yes, 0 = no -> May slightly change results
@@ -945,6 +945,7 @@ class DecentralDeviceConfig(BaseSettings):
     PV__kappa_av: float = 0.025  # Correction factor for losses to to non-availability of the system (e.g. maintenance, redispatch, etc.)
     PV__kappa_LID: float = 0.015  # Correction factor for mismatch losses (production deviations between modules)
     PV__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    PV__utilization_rate: float = 1.0 # Utilization rate of the possible roof area for PV installation (0 to 1).
     PV: dict = {}
 
     # STC parameters (Solar Thermal Collector)
@@ -956,6 +957,7 @@ class DecentralDeviceConfig(BaseSettings):
     STC__inv_base: int = 600  # Unsubsidized investment in €/m^2.
     STC__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     STC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    STC__utilization_rate: float = 1.0 # Utilization rate of the possible roof area for PV installation (0 to 1). PV and STC utilization rates have to be less or equal to 1 and their sum has to be less or equal to 1 as well.
     STC: dict = {}
 
     # TES parameters (Thermal Energy Storage)

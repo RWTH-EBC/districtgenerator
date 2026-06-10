@@ -290,10 +290,24 @@ class Datahandler:
                                             self.scenario_file_path + "/" + self.scenario_name + "_dg.csv")
             self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}_dg.csv"), delimiter=";",
                                          converters={"position": parse_position}, dtype=dtype_dict).set_index("id", drop=False))
-            self.pv_stc_potential = pd.read_csv(
+            """self.pv_stc_potential = pd.read_csv(
                 self.scenario_file_path + "/" + self.scenario_name + "_pv_stc_potential.csv",
                 delimiter=';',
                 usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"]
+            )"""
+            alkis_ids = set(self.scenario["alkis_id"].dropna().astype(str).unique())
+
+            chunks = pd.read_csv(
+                os.path.join(self.scenario_file_path, "pv_geeignete_dachflaechen.csv"),
+                delimiter=';',
+                usecols=["uuid", "richtung", "neigung", "dachtyp", "modanetto"],
+                dtype={"uuid": str},
+                chunksize=100000
+            )
+
+            self.pv_stc_potential = pd.concat(
+                (chunk[chunk["uuid"].isin(alkis_ids)] for chunk in chunks),
+                ignore_index=True
             )
         else:
             # %% load normal formatted scenario file
@@ -686,7 +700,7 @@ class Datahandler:
             else: raise Exception(f"At least one part of the mixed building has to be residential. Please check building types for {combined_building['unique_name']}.")
 
             combined_building["user"].nb_units = main_building["user"].nb_units + secondary_building["user"].nb_units
-            combined_building["user"].nb_occ = main_building["user"].nb_occ + secondary_building["user"].nb_occ
+            combined_building["user"].nb_occ = np.concatenate([main_building["user"].nb_occ, secondary_building["user"].nb_occ])
 
             # sum up the design loads for heating and cooling
             combined_building["envelope"].heatload = main_building["envelope"].heatload + secondary_building["envelope"].heatload
@@ -1733,7 +1747,7 @@ class Datahandler:
                         area_roof=area,
                         beta=[tilt],
                         gamma=[azimuth],
-                        usageFactorPV1=1,
+                        usageFactorPV1=building["buildingFeatures"]["f_PV1"],
                         usageFactorPV2=0,
                         usageFactorSTC=building["buildingFeatures"]["f_STC"]
                     )
@@ -2472,7 +2486,7 @@ class Datahandler:
                 "NWG_TYP_A": "OB",
                 "NWG_TYP_B": "UNI",
                 "NWG_TYP_C": "HOSPITAL",
-                "NWG_TYP_D": "SCHOOL",
+                "NWG_TYP_D": "SC",
                 "NWG_TYP_E": "CULTURE",
                 "NWG_TYP_F": "SPORT",
                 "NWG_TYP_G": "RE",
@@ -2510,7 +2524,7 @@ class Datahandler:
 
             mapping = {
                 "Gaskessel": "BOI",
-                "Fernwärme": "heat_grid",
+                "Fernwärme": "DH",
                 "Blockheizkraftwerk": "CHP",
                 "Wärmepumpe": "HP",
                 "Heat Pump": "HP",
@@ -2594,19 +2608,6 @@ class Datahandler:
             except (ValueError, TypeError):
                 return None
 
-        def has_valid_heat_demand(simulated_heat_demand_raw, measured_heat_demand_raw):
-            """
-            Check whether both simulated and measured heat demand values are valid.
-
-            A value is considered valid if it can be converted to float and is > 0.
-            """
-            try:
-                simulated = float(simulated_heat_demand_raw)
-                measured = float(measured_heat_demand_raw)
-                return simulated > 0 and measured > 0
-            except (ValueError, TypeError):
-                return False
-
         def convert_to_local_coordinates(df, x_col="x", y_col="y"):
             """
             Convert global coordinates into a local coordinate system by shifting
@@ -2670,10 +2671,7 @@ class Datahandler:
 
             construction_year = safe_convert_year(row.get("construction_year"))
             if construction_year is None:
-                print_row_problem(
-                    row_index, alkis_id, "construction_year", row.get("construction_year"),
-                    "invalid construction year"
-                )
+                construction_year = 1980 # Default value for missing or invalid construction year
                 return None
 
             retrofit_status = map_retrofit_status(row.get("renovation_state_simulated"))
@@ -2692,16 +2690,6 @@ class Datahandler:
                 )
                 return None
 
-            # if not has_valid_heat_demand(row.get("heat_demand_simulated"), row.get("energy_consumption_sh")):
-            #     print_row_problem(
-            #         row_index,
-            #         alkis_id,
-            #         "heat_demand_simulated / energy_consumption_sh",
-            #         f"{row.get('heat_demand_simulated')} / {row.get('energy_consumption_sh')}",
-            #         "invalid simulated or measured heat demand"
-            #     )
-            #     return None
-
             return {
                 "alkis_id": alkis_id,
                 "position": (row["x_local"], row["y_local"]),
@@ -2717,9 +2705,9 @@ class Datahandler:
                 "EV": 0,  # Default
                 "f_TES": 35,
                 "f_BAT": 0,
-                "f_PV1": 0,
+                "f_PV1": self.decentral_device_data['PV']['utilization_rate'],
                 "f_PV2": 0,
-                "f_STC": 0,
+                "f_STC": self.decentral_device_data['STC']['utilization_rate'],
                 "gamma_PV": 0,
                 "ev_charging": "on_demand",
             }
