@@ -2654,12 +2654,12 @@ class Datahandler:
                 )
                 return None
 
-            # if row.get("heat_relevance") != "wärmerelevant":
-            #     print_row_problem(
-            #         row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
-            #         "building is not heat-relevant"
-            #     )
-            #     return None
+            if row.get("heat_relevance") != "wärmerelevant":
+                print_row_problem(
+                    row_index, alkis_id, "heat_relevance", row.get("heat_relevance"),
+                    "building is not heat-relevant"
+                )
+                return None
 
             building_type = map_building_type(row.get("iwu_class"))
             if building_type is None:
