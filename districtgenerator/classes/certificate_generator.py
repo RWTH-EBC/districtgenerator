@@ -2610,14 +2610,16 @@ class CertificateLayout(ReportComponent):
             return
 
         title = self.translate("title_energyhub_profiles")
+        
+        sorted_years = sorted(data_profiles.keys())
 
-        for index, year in enumerate(sorted(data_profiles.keys())):
+        for index, year in enumerate(sorted_years):
             if index > 0:
                 self.story.append(PageBreak())
             
-            if index < len(data_profiles.keys()) - 1:
+            if index < len(sorted_years) - 1:
                 # The end is the year before the next profile's year, to avoid overlap in the x-axis of the bar charts
-                end_year = data_profiles.keys()[index+1] - 1
+                end_year = sorted_years[index+1] - 1
             else:
                 # The last time window uses the observation_time as the upper limit
                 end_year = kpi_data["observation_time"] - 1
