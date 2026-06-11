@@ -960,6 +960,29 @@ class DecentralDeviceConfig(BaseSettings):
     EV__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EV: dict = {}
 
+    # EH_DHW parameters (instantaneous Electric Heating for Domestic Water) #TODO: Change for plausible values
+    EH_DHW__eta_th: float = 1.0  # Thermal efficiency.
+    EH_DHW__life_time: int = 25  # Maximum life time in years.
+    EH_DHW__inv_base: float = 40.0  # Unsubsidized investment in €/kW.
+    EH_DHW__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    EH_DHW__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    EH_DHW: dict = {}
+
+    # TES_DHW parameters (DHW Thermal Energy Storage) #TODO: Change for plausible values
+    TES_DHW__soc_min: float = 0.0  # Minimum state of charge.
+    TES_DHW__soc_max: float = 1.0  # Maximum state of charge.
+    TES_DHW__eta_standby: float = 0.998  # Standby hourly efficiency (accounts for self-discharge).
+    TES_DHW__eta_ch: float = 1.0  # Charging and discharging efficiency.
+    TES_DHW__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
+    TES_DHW__init: float = 0.5  # Initial state of charge.
+    TES_DHW__T_diff_max: int = 35  # Maximum temperature difference in degree Celsius.
+    TES_DHW__T_DHW_needed: int = 50 # Needed DHW temperature in °C.
+    TES_DHW__life_time: int = 20  # Maximum life time in years.
+    TES_DHW__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
+    TES_DHW__cost_om: float = 0.013  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    TES_DHW__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    TES_DHW: dict = {}
+
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':
         """Build all device dictionaries from individual parameters."""

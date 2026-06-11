@@ -380,15 +380,16 @@ class KPIs:
         district = data.district
         physics = data.physics
 
-        # Count occurrences in the 'heater' column
-        counts = scenario['heater'].value_counts()
+        #TODO: Remove the comment if not needed anymore
+        # # Count occurrences in the 'heater' column 
+        # counts = scenario['heater'].value_counts()
 
-        # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
-        counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
-        counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
-        counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
-        counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
-        counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
+        # # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
+        # counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
+        # counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
+        # counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
+        # counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
+        # counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
 
         capacities = {}
         for n in range(len(district)):
@@ -399,6 +400,7 @@ class KPIs:
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
+            capacities[n]["EH_DHW"] = district[n]["capacities"]["EH_DHW"] / 1000
             capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
@@ -409,6 +411,8 @@ class KPIs:
             capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
             capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
                                     decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities[n]["TES_DHW"] = (district[n]["capacities"]["TES_DHW"] / physics["rho_water"] / physics["c_p_water"] /
+                                        decentral_device_data["TES_DHW"]["T_diff_max"] * 3600)
 
         calc_annual_investment = {}
         calc_annual_investment_unsubsidized = {}
@@ -416,7 +420,7 @@ class KPIs:
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES"]
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "EH_DHW", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES", "TES_DHW"]
 
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
