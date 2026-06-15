@@ -58,9 +58,11 @@ class Profiles:
         self.nb_days = nb_days
         self.time_resolution = time_resolution
 
+
         # Initialize SIA class and read data
         self.SIA2024 = SIA2024
         self.building = building
+        self.is_residential = self.building in {"SFH", "TH", "MFH", "AB"}
         if self.building in {"OB", "SC", "GS", "RE"}:     #Non-residential buildings are divided in different zones on the basis of SIA data
             self.building_zones = self.SIA2024[self.building]
 
@@ -94,7 +96,7 @@ class Profiles:
         None.
         """
 
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.is_residential:
             activity = occ_residential.Occupancy(self.number_occupants, self.initial_day, self.nb_days)
             self.activity_profile = activity.occupancy
 
@@ -140,45 +142,6 @@ class Profiles:
             self.occ_profile[t] = np.round(np.mean(activity_profile_min[(t * tr_min):(t * tr_min + tr_min)]))
 
         return self.occ_profile
-
-    def loadProbabilitiesDhw(self):
-        """
-        Load probabilities of dhw usage.
-
-        Returns
-        -------
-        None.
-        """
-
-        #  Define src path
-        src_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        filename = 'dhw_stochastical.xlsx'
-        path_DHW = os.path.join(src_path, 'districtgenerator', 'data', filename)
-
-        # Initialization
-        profiles = {"we": {}, "wd": {}}
-        # book = xlrd.open_workbook(filename)
-        book = xl.readxl(fn=path_DHW)
-        sheetnames = book.ws_names
-
-        # Iterate over all sheets
-        for sheetname in sheetnames:
-            # sheet = xl.readxl(fn=filename, ws=sheetname)
-
-            # Read values
-            values = [book.ws(ws=sheetname).index(row=i, col=1) for i in
-                      range(1, 1441)]  # [sheet.cell_value(i,0) for i in range(1440)]
-
-            # Store values in dictionary
-            if sheetname in ("wd_mw", "we_mw"):
-                profiles[sheetname] = np.array(values)
-            elif sheetname[1] == "e":
-                profiles["we"][int(sheetname[2])] = np.array(values)
-            else:
-                profiles["wd"][int(sheetname[2])] = np.array(values)
-
-        # Load profiles
-        self.prob_profiles_dhw = profiles
 
     def generate_profiles_non_residential(self,holidays):
         """
@@ -301,63 +264,108 @@ class Profiles:
 
     def generate_dhw_profile(self, building, holidays):
         """
-        Generate a stochastic dhw profile
-        (on base of DHWclac).
+        Generate a stochastic domestic hot water (DHW) profile with the tool DHWcalc.
         https://www.uni-kassel.de/maschinenbau/institute/thermische-energietechnik/fachgebiete/solar-und-anlagentechnik/downloads
         https://github.com/RWTH-EBC/OpenDHW
 
+        Steps:
+        1. Generate a stochastic water draw-off profile (OpenDHW)
+        2. Convert water demand to heat demand
+
         Parameters
         ----------
-        s_step : integer
-            Resolution of time steps of output array in seconds.
-        Categories: 1 or 4
-            Either one or four categories with different mean volume rates, tapping times and frequencies can be defined.
-        occupancy: integer
-            Maximum number of occupants in this building.
-        mean_drawoff_vol_per_day : array-like
-            Total mean daily draw-off volume per person per day in liter.
-        temp_dT : array-like
-        The temperature difference (ΔT) between the cold water and the water at the tapping point (mixed water).
+        building : dict
+            Building-specific parameters, including mean DHW draw-off volume.
+        holidays : list or array-like
+            List of holidays used to adjust DHW usage patterns.
 
         Returns
         -------
-        dhw_heat : array-like
-            Numpy-array with heat demand of dhw consumption in W.
+        dict containing:
+        dhw_power_timeseries_W_minutely : np.ndarray
+            DHW heat demand at 1-minute resolution (W), used for system sizing.
+
+        dhw_power_timeseries_W : np.ndarray
+            DHW heat demand at the model time resolution (W), used later in
+            the optimization.
         """
 
-        temperatur_mixed_water = []
-        temperatur_cold_water = []
-        for day in range(365):
-            temperatur_mixed_water.append(45 + (3 * np.cos(math.pi * (2 / 365 * (day) - 2 * 355 / 365))))
-            # This formula introduces a seasonal fluctuation to take account of the fluctuations in the desired water temperature throughout the year.
-            # The amplitude is ±3°C, reflecting higher hot water temperature requirements during colder months (winter) and lower during warmer months (summer).
+        # 1. Temperature model (seasonal variation)
+        # Mixed water temperature (target tap temperature)
+        # Cold water temperature (ground temperature variation)
+        # Both vary sinusoidally over the year
 
-            temperatur_cold_water.append(10 + (7 * np.cos(math.pi * (2 / 365 * (day) - 2 * 225 / 365))))
-            # This formula introduces a seasonal fluctuation to take account of the fluctuations in the cold water temperature throughout the year.
-            # The water temperature is assumed to be equal to the ground temperature at a depth of 1.5 m.
-            # Source: M. Böhme, F. Böttcher. Bodentemperaturen im Klimawandel: Auswertungen der Messreihe der Säkularstation Potsdam
-            #         https://www.dwd.de/DE/leistungen/klimastatusbericht/publikationen/ksb2011_pdf/ksb2011_art2.pdf?__blob=publicationFile&v=1
+        days = np.arange(365)
 
-        temperature_difference_day = [T_out - T_in for T_out, T_in in zip(temperatur_mixed_water, temperatur_cold_water)]
+        T_mixed = 50 + 3 * np.cos(math.pi * (2 / 365 * days - 2 * 355 / 365))
+        # This formula introduces a seasonal fluctuation to take account of the fluctuations in the desired water temperature throughout the year.
+        # The amplitude is ±3°C, reflecting higher hot water temperature requirements during colder months (winter) and lower during warmer months (summer).
 
-        temperature_difference = [T for T in temperature_difference_day for _ in range(24)]
-        self.temperature_difference = chres.changeResolution(temperature_difference, 3600, self.time_resolution, "mean")
+        T_cold = 10 + 7 * np.cos(math.pi * (2 / 365 * days - 2 * 225 / 365))
+        # This formula introduces a seasonal fluctuation to take account of the fluctuations in the cold water temperature throughout the year.
+        # The water temperature is assumed to be equal to the ground temperature at a depth of 1.5 m.
+        # Source: M. Böhme, F. Böttcher. Bodentemperaturen im Klimawandel: Auswertungen der Messreihe der Säkularstation Potsdam
+        #         https://www.dwd.de/DE/leistungen/klimastatusbericht/publikationen/ksb2011_pdf/ksb2011_art2.pdf?__blob=publicationFile&v=1
 
-        dhw_profile = OpenDHW.generate_dhw_profile(
-            s_step=60,
-            categories=1,
-            occupancy=self.number_occupants if self.building in {"SFH", "TH", "MFH", "AB"} else self.number_occupants_building,
-            building_type=self.building,
-            weekend_weekday_factor=1.2 if self.building in {"SFH", "TH", "MFH", "AB"} else 1,
-            holidays = holidays,
-            mean_drawoff_vol_per_day=building["buildingFeatures"]["mean_drawoff_dhw"],
-            initial_day = self.initial_day
+        # Temperature difference driving heat demand
+        dT_day = T_mixed - T_cold
+
+        # Expand to required time resolutions
+        dT_hourly = np.repeat(dT_day, 24)
+        dT_minutely = np.repeat(dT_day, 24 * 60)
+
+        # Convert ΔT to the needed time resolution
+        dT = chres.changeResolution(
+            dT_hourly, 3600, self.time_resolution, "mean"
         )
 
-        dhw_timeseries = OpenDHW.resample_water_series(dhw_profile, self.time_resolution)
-        dhw_heat = OpenDHW.compute_heat(timeseries_df=dhw_timeseries, temp_dT=self.temperature_difference)
+        # 2. Generate stochastic DHW draw-off profile (minute resolution)
 
-        return dhw_heat["Heat_W"].values
+        s_step = 60  # seconds
+        categories = 1
+        occupancy = self.number_occupants if self.is_residential else self.number_occupants_building
+        building_type = self.building
+        weekend_weekday_factor = 1.2 if self.is_residential else 1
+        mean_drawoff_vol_per_day = building["buildingFeatures"]["mean_drawoff_dhw"]
+
+        try:
+            dhw_profile = OpenDHW.generate_dhw_profile(
+                s_step=s_step,
+                categories=categories,
+                occupancy=occupancy,
+                building_type=building_type,
+                weekend_weekday_factor=weekend_weekday_factor,
+                holidays=holidays,
+                mean_drawoff_vol_per_day=mean_drawoff_vol_per_day,
+                initial_day=self.initial_day,
+            )
+
+        except Exception as e:
+            raise Exception(f"DHW Simulation failed for the following parameters: s_step: {s_step}, categories: {categories}, occupancy: {occupancy}, building_type: {building_type}, weekend_weekday_factor: {weekend_weekday_factor}, holidays: {holidays}, mean_drawoff_vol_per_day: {mean_drawoff_vol_per_day}, initial_day: {self.initial_day}.\n Please check if the required OpenDHW version is installed. Otherwise check if all requried modules are installed: pip install -e .  ")
+
+        # 3. Convert water demand → heat demand (minute resolution)
+
+        dhw_heat_minutely = OpenDHW.compute_heat(
+            timeseries_df=dhw_profile,
+            temp_dT=dT_minutely,
+        )
+
+        # 4. Aggregation according to the needed time resolution
+
+        dhw_timeseries = OpenDHW.resample_water_series(
+            dhw_profile,
+            self.time_resolution)
+
+        dhw_heat = OpenDHW.compute_heat(
+            timeseries_df=dhw_timeseries,
+            temp_dT=dT)
+
+        # OUTPUT
+
+        return {
+            "dhw_power_timeseries_W_minutely": dhw_heat_minutely["Heat_W"].values,
+            "dhw_power_timeseries_W": dhw_heat["Heat_W"].values}
+
 
     def generate_el_profile_residential(self, holidays, irradiance, el_wrapper, annual_demand, do_normalization=True):
         """
@@ -681,7 +689,7 @@ class Profiles:
                 Fuel consumption of gasoline cars (in liters per timestep).
         """
 
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.is_residential:
             occ_profile = self.occ_profile
         elif self.building in {"OB"}:
             occ_profile = self.occ_profile_building
@@ -735,7 +743,7 @@ class Profiles:
         def generate_nb_ev(number_of_occupancy):
 
             ev_ratio = building["buildingFeatures"]["EV"]  # the ratio between EV and total cars
-            if self.building in {"SFH", "TH", "MFH", "AB"}:
+            if self.is_residential:
                 # Car distribution probabilities (excluding the case of 0 cars)
                 # https://bmdv.bund.de/SharedDocs/DE/Anlage/G/mid-2017-tabellenband.pdf?__blob=publicationFile
                 # Table A H8
@@ -809,7 +817,7 @@ class Profiles:
             return ev_charging_profile
 
         # --- Residential Buildings ---
-        if self.building in {"SFH", "TH", "MFH", "AB"}:
+        if self.is_residential:
 
             # --- EV CARS ---
             for car_idx in range(number_of_ev):

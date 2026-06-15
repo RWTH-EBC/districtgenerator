@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+"""
+This script provides functions to create a Pyomo solver instance based on a given configuration, execute the optimization, and diagnose issues if the solver does not terminate with an optimal solution.
+"""
+import os
+import pyomo.environ as pyo
+from contextlib import redirect_stdout
+from datetime import datetime
 
 from pyomo.environ import SolverFactory
 from districtgenerator.data_handling.config import PyomoConfig
@@ -214,3 +221,178 @@ def _map_options(solver_name, solver_options):
             # Raise an error if the option is not supported. If it is needed it can be added to the OPTION_MAP 
             raise ValueError(f"Unsupported option '{key}' for solver '{solver_name}'. Supported options are: {list(OPTION_MAP.keys())}.")
     return mapped_options
+
+def execute_and_diagnose(model, pyomo_config, model_name, result_dir):
+    """
+    Solves the given Pyomo model and triggers diagnosis if not solved to optimality.
+    """    
+    # Initialize solver
+    solver, solver_options = create_solver(pyomo_config=pyomo_config)
+
+    # Save the model to an .lp file
+    lp_filename = os.path.join(result_dir, f"{model_name}.lp")
+    model.write(lp_filename, io_options={"symbolic_solver_labels": True})
+
+    # temporary log-file for the solver
+    solver_log_path = os.path.join(result_dir, f"solver_output_{model_name}.log")    
+
+    # Capture solver output in a log file by redirecting stdout:
+    with open(solver_log_path, 'w', encoding='utf-8') as log_file:
+        with redirect_stdout(log_file):
+            results = solver.solve(model, tee=True, options=solver_options)
+
+    term_cond = results.solver.termination_condition
+
+    if term_cond != pyo.TerminationCondition.optimal:
+        _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, solver_log_path)
+        # Add potential further analysis here for the different termination conditions
+        if term_cond == pyo.TerminationCondition.infeasible:
+            pass
+        elif term_cond == pyo.TerminationCondition.unbounded:
+            pass
+
+        elif term_cond == pyo.TerminationCondition.infeasibleOrUnbounded:
+            pass
+
+    # Remove temporary solver log file
+    if os.path.exists(solver_log_path):
+        os.remove(solver_log_path)
+
+    return results
+
+def _diagnose_solution(model, term_cond, result_dir, model_name, lp_filename, solver_log_path):
+    """
+    Diagnose the optimization result when the solver does not terminate with an optimal solution. 
+    Utilizes Gurobi (if available) to analyze infeasibility or unboundedness and saves an error log for further analysis.
+    """
+    errorfile_path = os.path.join(result_dir, f"errorfile_{model_name}.txt")
+
+    n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
+    n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
+
+    # Basic error logging for all errors
+    with open(errorfile_path, 'w') as f:
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Solver terminated with condition: {term_cond}\n")
+        f.write(f"Model Statistics:\n")
+        f.write(f"  - Variables: {n_vars}\n")
+        f.write(f"  - Constraints: {n_cons}\n")
+        f.write(f"Model-File located at: {lp_filename}\n\n")
+
+        try:
+            if os.path.exists(solver_log_path):
+                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
+                    f.write("Solver Log:\n")
+                    f.write("\n"+"-" * 40 + "\n")
+                    f.write(log_file.read())
+                    f.write("\n"+ "-" * 40 + "\n")
+        except Exception as e:
+            f.write(f"Could not read solver log: {e}\n")
+
+    print(f"Solver terminated with condition: {term_cond}\nFor further analysis see {errorfile_path}")
+
+    # Check if Gurobi is available for further analysis
+    try:
+        import gurobipy as gp
+        with gp.Env(empty=True) as env:
+            env.setParam("OutputFlag", 0) # Suppress the license printout
+            env.start()                   # Trigger the license check
+        gurobi_available = True
+
+    except Exception as e:
+        with open(errorfile_path, 'a') as f:
+            f.write(f"\nGurobi analysis not possible as no local installation could be found. Error: {e}\n")
+        gurobi_available = False
+
+    # Attempt to solve the same model with Gurobi to get more detailed information about infeasibility or unboundedness, if Gurobi is available
+    if gurobi_available:
+        try:
+            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
+            with gp.Env(empty=True) as env:
+                env.setParam("OutputFlag", 0) # Use a silent environment to avoid Gurobi output in the console
+                env.start()
+                m = gp.read("debug_model.lp", env=env)
+                m.setParam('DualReductions', 0) # Disable presolving reductions to get more accurate IIS
+                print("Running Gurobi optimization to determine source of termination...")
+                m.optimize()
+
+                if m.status == gp.GRB.OPTIMAL or m.status == 2: 
+                    print(f"Gurobi resolved with status: {m.status}. Objective value: {m.objVal}")
+                    with open(errorfile_path, 'a') as f:
+                        f.write(f"\nGurobi resolved with status: {m.status}. Objective value: {m.objVal}\n")
+                        if term_cond == pyo.TerminationCondition.maxTimeLimit:
+                            f.write(f"The original solver reached the time limit. Using Gurobi the runtime was: {m.Runtime:.2f} seconds\n")
+
+                elif m.status == gp.GRB.INFEASIBLE or m.status == 4:
+                    m.computeIIS()
+                    iis_filename = os.path.join(result_dir, f"iis_{model_name}.ilp")
+                    m.write(iis_filename)
+                    print(f"Gurobi model is infeasible. For further information, see {errorfile_path}")
+
+                    with open(errorfile_path, 'a') as f:
+                        f.write(f"\nGurobi confirmed infeasible. IIS saved to: {iis_filename}\n")
+
+                elif m.status == gp.GRB.UNBOUNDED:
+                    print("Gurobi model is unbounded.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write("\nGurobi confirmed unbounded.\n")
+
+                elif m.status == gp.GRB.INF_OR_UNBD:
+                    print("Gurobi model is either infeasible or unbounded.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write("\nGurobi returned INF_OR_UNBD. Further diagnostics required.\n")
+
+                elif m.status in [gp.GRB.TIME_LIMIT, gp.GRB.ITERATION_LIMIT, gp.GRB.NODE_LIMIT]:
+                    print(f"Gurobi reached a limit (Code: {m.status}) before finishing.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write(f"\nGurobi stopped due to a limit. Status code: {m.status}\n")
+
+                elif m.status == gp.GRB.NUMERIC:
+                    print("Gurobi encountered numerical issues.")
+                    with open(errorfile_path, 'a') as f:
+                        f.write("\nGurobi stopped due to numeric instability.\n")
+
+                else:
+                    print(f"Gurobi resolved with status: {m.status}")
+                    with open(errorfile_path, 'a') as f:
+                        f.write(f"\nGurobi resolved with status: {m.status}\n")
+
+        except Exception as e:
+            print(f"Gurobi analysis failed. For further information, see {errorfile_path}")
+            with open(errorfile_path, 'a') as f:
+                f.write(f"\nGurobi analysis failed: {e}\n")
+        
+        if os.path.exists("debug_model.lp"):
+            os.remove("debug_model.lp")
+    
+    else: 
+        # TODO: Add IIS analysis if Gurobi is not available. e.g. using an elastic programming approach might be utilized to identify violated constraints (as described by https://web.mit.edu/lpsolve/doc/Infeasible.htm)
+        with open(errorfile_path, 'a') as f:
+            f.write("\nCurrently no infeasibility analysis implemented if gurobi is not available.\n")
+
+def write_solution_file(model, model_name, result_dir):
+    """
+    Writes the solution of the optimization model to a file.
+    """
+    file_path = os.path.join(result_dir, f"solution_file_{model_name}.txt")
+    try:
+        with open(file_path, 'w') as f:
+            f.write("# Solution file\n")
+            f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"# Objective value: {pyo.value(model.objective)}\n")
+            f.write("# Variable values\n")
+
+            # Write all variable values
+            for var in model.component_objects(pyo.Var, active=True):
+                if var.is_indexed():
+                    for index in var:
+                        if var[index].value is not None:
+                            f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
+                else:
+                    if var.value is not None:
+                        f.write(f"{var.name} {var.value:.6f}\n")
+
+            f.write("# End of solution\n")
+        print(f"Solution written to {file_path}")
+
+    except Exception as e:
+        print(f"Warning: Could not write solution file {file_path}: {e}")

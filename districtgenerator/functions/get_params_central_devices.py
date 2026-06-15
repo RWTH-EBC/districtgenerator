@@ -65,7 +65,8 @@ def get_params(data):
         if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
             heating += data.district[b]["user"].heat / 1000 # kW
             cooling += data.district[b]["user"].cooling / 1000 # kW
-            dhw += data.district[b]["user"].dhw / 1000 # kW
+            if data.district[b]["buildingFeatures"]["dhw_heater"] == None: # If DHW is not generated decentralized then consider it during sizing of the energy central
+                dhw += data.district[b]["user"].dhw / 1000 # kW
             generationSTC += data.district[b]["user"].generationSTC / 1000 # kW
 
         # Electricity generated or used by the Energy Hub can be used or provided by all buildings

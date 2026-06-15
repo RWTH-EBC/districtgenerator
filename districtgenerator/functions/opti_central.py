@@ -6,6 +6,8 @@ Created 26.02.2024
 ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 """
 
+from xml.parsers.expat import model
+
 import pyomo.environ as pyo
 from pyomo.util.infeasible import log_infeasible_constraints
 import os
@@ -16,14 +18,14 @@ from datetime import datetime
 import logging
 
 # Sets of energy conversion systems in the buildings
-ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "DHW_dem", "Heating_dem", "FC")
+ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "Heating_dem", "FC", "EH_DHW", "DHW_dem")
 ECS_COOL = ("CC", "heat_grid", "Cooling_dem") #! heat_grid correct? Should this be cooling grid for better understanding?
-ECS_POWER = ("HP", "EH", "CC", "CHP", "PV", "Elec_dem", "FC")  # power consuming/producing devices
+ECS_POWER = ("HP", "EH", "CC", "CHP", "PV", "Elec_dem", "FC", "EH_DHW")  # power consuming/producing devices
 ECS_GAS = ("CHP", "BOI")  # gas consuming devices
 ECS_BIOMASS = ("BBOI",)  # biomass consuming devices
 ECS_HYDROGEN = ("H2BOI", "FC")  # hydrogen consuming devices
 ECS_OIL = ("OBOI",)  # oil consuming devices
-ECS_STORAGE = ("BAT", "TES")  # battery (BAT), thermal energy storage (TES)
+ECS_STORAGE = ("BAT", "TES", "TES_DHW")  # battery (BAT), thermal energy storage (TES)
 
 # Create set for energy hub devices
 EH_DEVS = ["PV", "WT", "STC", "WAT",
@@ -47,30 +49,45 @@ EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
 
-def run_opti_central(data, year, cluster, sim_ecoData, resultPath):
+def run_opti_central(data, year, cluster, sim_ecoData, resultPath) -> dict:
     """
     This function runs the optimization for the clusters to determine the optimal operation of the energy devices in a district.
+
+    Parameters
+    ----------
+    data : Datahandler object
+        The data handler object containing all the necessary data for the optimization.
+    year : int
+        The index of the year for which the optimization should be run.
+    cluster : int
+        The index of the cluster for which the optimization should be run.
+    sim_ecoData : dict
+        The economic data for the simulation.
+    resultPath : str
+        The path of the folder where the optimization results should be saved.
+
+    Returns
+    -------
+    dict
+        The dictionary containing the optimization results.
+    
     """
 
     start_time = time.time()
     # build the model
-    model = pyo.ConcreteModel(name="Device_Operation_Optimization")
+    model = pyo.ConcreteModel(name=f"Device_Operation_Optimization_Year_{year}_Cluster_{cluster}")
     build_model(model=model, data=data, year=year, cluster=cluster, sim_ecoData=sim_ecoData)
     model_building_time = time.time() - start_time
     print(f"Pyomo model built successfully in {model_building_time:.2f} seconds.")
+
     # solve the model and extract results
     results_dict = solve_model_and_extract_results(model=model, data=data, year=year, cluster=cluster, resultPath=resultPath)
     model_solve_time = time.time() - start_time - model_building_time
     if results_dict is not None:
         print(f"Model solved to optimality in {model_solve_time:.2f} seconds.")
+
     # calculate total time
     total_time = time.time() - start_time
-
-    # maybe record the times into a log file
-
-    # print(f"\n Time needed for building the model: {model_building_time:.2f} seconds.")
-    # print(f" Time needed for solving the model: {model_solve_time:.2f} seconds.")
-    # print(f" Total time needed: {total_time:.2f} seconds.")
 
     return results_dict
 
@@ -143,14 +160,23 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
 
-    try:
-        network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
-        network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
-        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
-    except:
+    if energyHubData == {}:
         network_losses_heating = [0] * T_e
         network_losses_cooling = [0] * T_e
         network_pump_power = [0] * T_e
+    else:
+        error_string = ""
+        
+        try:
+            network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000 # kW -> W
+            network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000 # kW -> W
+            network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000 # kW -> W
+        except Exception as e:
+            error_string += f"Error occurred while loading heating network data for cluster {cluster}: {e}\n"
+            
+        if error_string:
+            raise ValueError(error_string)
+
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -280,8 +306,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_ecs_waste = pyo.Set(initialize=EH_ECS_WASTE, doc="Waste generating or consuming devices in the energy hub")
 
     ################################################################################
-    # CREATE VARIABLES
+    # CREATE VARIABLES AND PARAMETERS
     ################################################################################
+
+    model.network_losses_heating = pyo.Param(model.t, initialize=lambda m, t: network_losses_heating[t])
+    model.network_losses_cooling = pyo.Param(model.t, initialize=lambda m, t: network_losses_cooling[t])
+    model.network_pump_power = pyo.Param(model.t, initialize=lambda m, t: network_pump_power[t])
 
     ################################################################################
     # OPERATIONAL BUILDING VARIABLES
@@ -301,6 +331,10 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.oil_dom = pyo.Var(model.ecs_oil, model.n, model.t, within=pyo.NonNegativeReals,
                             doc="Oil to/from domestic devices")
     model.dh_heat_supply = pyo.Var(model.n, model.t, within=pyo.NonNegativeReals, doc="Heat supplied by the district heating network to the buildings") # Heat supplied by district heating network
+    
+    # For the heat pump it is improtant to distinguish the temperature levels of the supplied heat. For other technologies this is not necessary
+    model.heat_dom_SH = pyo.Var(["HP"], model.n, model.t, within=pyo.NonNegativeReals, doc = "Heat supplied to the space heating demands in the buildings")
+    model.heat_dom_DHW = pyo.Var(["HP"], model.n, model.t, within=pyo.NonNegativeReals)
 
     # Storage variables
     model.soc_dom = pyo.Var(model.ecs_storage, model.n, model.t, within=pyo.NonNegativeReals,
@@ -320,6 +354,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.binary_HLINE = pyo.Var(model.n, model.t, within=pyo.Binary)
     model.binary_BAT = pyo.Var(model.n, model.t, within=pyo.Binary)
     model.binary_TES = pyo.Var(model.n, model.t, within=pyo.Binary)
+    model.binary_TES_DHW = pyo.Var(model.n, model.t, within=pyo.Binary)
 
     # Electric vehicle variables
     model.soc_ev = pyo.Var(model.EVs, model.t, within=pyo.NonNegativeReals, doc="State of charge of electric vehicles")
@@ -458,7 +493,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.power_waste_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_district_heating_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
-    # total energy amounts taken from grid
+    # total energy amounts used
     model.from_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el = pyo.Var(within=pyo.NonNegativeReals)
     model.to_grid_total_el_buildings = pyo.Var(within=pyo.NonNegativeReals)
@@ -519,7 +554,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ################################################################################
 
     def create_eh_heat_capacity_constraint(device_name):
-        """Factory-function für EH Heat Capacity Constraints"""
+        """Factory-function for EH Heat Capacity Constraints"""
 
         def constraint_rule(model, t):
             if energyHubData == {}:
@@ -531,7 +566,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return constraint_rule
 
     def create_eh_power_capacity_constraint(device_name):
-        """Factory-function für EH Power Capacity Constraints"""
+        """Factory-function for EH Power Capacity Constraints"""
 
         def constraint_rule(model, t):
             if energyHubData == {}:
@@ -685,7 +720,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # Aplication of the constraints for each device
 
     # Heat generating devices
-    for device in ["HP", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "FC", "EH", "DH"]: # Devices which capacity is defined by thermal capacity
+    for device in ["HP", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "FC", "EH", "DH", "EH_DHW"]: # Devices which capacity is defined by thermal capacity
         constraint_rule = create_dom_heat_capacity_constraint(device)
         setattr(model, f"heat_cap_{device}", pyo.Constraint(model.n, model.t, rule=constraint_rule))
 
@@ -798,22 +833,31 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # Energy Conversion for domestic devices
     ################################################################################
 
+    def hp_split_rule(model, n, t):
+        return model.heat_dom["HP", n, t] == model.heat_dom_SH["HP", n, t] + model.heat_dom_DHW["HP", n, t]
+
     # Heat pump conversion with sink temperature from age class + retrofit (mean supply/return)
     model.T_sink, model.hp_measures_applied = compute_decentral_hp_sink_temperature(buildingData, param_dec_devs, data.design_building_data)
     def hp_conversion_rule(model, n, t):
         if buildingData[n]["capacities"]["HP"] <= 0:
             return model.heat_dom["HP", n, t] == 0
 
-        Tsink = model.T_sink[n]   # °C
-        deltaT = Tsink - T_e[t]
-        if deltaT <= 0:
-            deltaT = 0.1
+        Tsink_SH = model.T_sink[n]   # °C
+        Tsink_DHW = float(param_dec_devs["TES_DHW"]["T_DHW_needed"])
 
-        return model.heat_dom["HP", n, t] == model.power_dom["HP", n, t] * param_dec_devs["HP"]["grade"] * (
-                    273.15 + Tsink) / deltaT
+        dT_SH = max(Tsink_SH - T_e[t], 0.1)
+        dT_DHW = max(Tsink_DHW - T_e[t], 0.1)
 
-    model.hp_conversion = pyo.Constraint(model.n, model.t, rule=hp_conversion_rule,
-                                         doc="HP conversion using age+retrofit dependent sink temperature")
+        COP_SH = param_dec_devs["HP"]["grade"] * (273.15 + Tsink_SH) / dT_SH
+        COP_DHW = param_dec_devs["HP"]["grade"] * (273.15 + Tsink_DHW) / dT_DHW
+
+        return model.power_dom["HP", n, t] == (
+            model.heat_dom_SH["HP", n, t] / COP_SH +
+            model.heat_dom_DHW["HP", n, t] / COP_DHW
+        )
+
+    model.hp_split = pyo.Constraint(model.n, model.t, rule=hp_split_rule, doc="Split heat from heat pump into space heating and DHW components")
+    model.hp_conversion = pyo.Constraint(model.n, model.t, rule=hp_conversion_rule, doc="HP conversion using age+retrofit dependent sink temperature")
 
     # Electric heater
     def eh_conversion_rule(model, n, t):
@@ -857,6 +901,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def cc_building_conversion_rule(model, n, t):
         return model.cool_dom["CC", n, t] == model.power_dom["CC", n, t] * param_dec_devs["CC"]["grade"] * (
                     273.15 + 5) / max(T_e[t] - 5, 0.1)
+    
+    # Instantaneous electric water heater for DHW
+    def eh_dhw_conversion_rule(model, n, t):
+        """Convert electricity to heat for DHW"""
+        return model.heat_dom["EH_DHW", n, t] == param_dec_devs["EH_DHW"]["eta_th"] * model.power_dom["EH_DHW", n, t]
 
     # Constraints for building devices conversion
     model.eh_conversion = pyo.Constraint(model.n, model.t, rule=eh_conversion_rule,
@@ -880,6 +929,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                                                         doc="Fuel cell electrical conversion: hydrogen to electricity with electrical efficiency")
     model.cc_building_conversion = pyo.Constraint(model.n, model.t, rule=cc_building_conversion_rule,
                                                   doc="Compression chiller conversion: electricity to cooling with temperature-dependent COP")
+    model.eh_dhw_conversion = pyo.Constraint(model.n, model.t, rule=eh_dhw_conversion_rule, doc="Instantaneous electric water heater for DHW")
 
     ################################################################################
     # %% EV CONSTRAINTS
@@ -986,6 +1036,29 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     def tes_binary2_rule(model, n, t):
         return model.ch_dom["TES", n, t] <= (1 - model.binary_TES[n, t]) * BIG_M
+    
+    def tes_dhw_energy_balance_rule(model, n, t):
+        """Energy balance for DHW thermal storage"""
+        if t == 0:
+            soc_prev = soc_init["TES_DHW"][n]
+        else:
+            soc_prev = model.soc_dom["TES_DHW", n, t - 1]
+
+        return model.soc_dom["TES_DHW", n, t] == soc_prev * param_dec_devs["TES_DHW"]["eta_standby"] ** dt + (
+                model.ch_dom["TES_DHW", n, t] * param_dec_devs["TES_DHW"]["eta_ch"] - model.dch_dom["TES_DHW", n, t] /
+                param_dec_devs["TES_DHW"]["eta_ch"]) * dt
+
+    def tes_dhw_final_soc_rule(model, n):
+        """Final SOC equals initial SOC for TES_DHW"""
+        return model.soc_dom["TES_DHW", n, last_time_step] == soc_init["TES_DHW"][n]
+
+    def tes_dhw_binary1_rule(model, n, t):
+        """Prevent simultaneous discharging and charging for TES_DHW"""
+        return model.dch_dom["TES_DHW", n, t] <= model.binary_TES_DHW[n, t] * BIG_M
+
+    def tes_dhw_binary2_rule(model, n, t):
+        """Prevent simultaneous charging and discharging for TES_DHW"""
+        return model.ch_dom["TES_DHW", n, t] <= (1 - model.binary_TES_DHW[n, t]) * BIG_M
 
     def bat_energy_balance_rule(model, n, t):
         if t == 0:
@@ -1026,6 +1099,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.tes_final_soc = pyo.Constraint(model.n, rule=tes_final_soc_rule)
     model.tes_binary1 = pyo.Constraint(model.n, model.t, rule=tes_binary1_rule)
     model.tes_binary2 = pyo.Constraint(model.n, model.t, rule=tes_binary2_rule)
+    # TES_DHW
+    model.tes_dhw_energy_balance = pyo.Constraint(model.n, model.t, rule=tes_dhw_energy_balance_rule)
+    model.tes_dhw_final_soc = pyo.Constraint(model.n, rule=tes_dhw_final_soc_rule)
+    model.tes_dhw_binary1 = pyo.Constraint(model.n, model.t, rule=tes_dhw_binary1_rule)
+    model.tes_dhw_binary2 = pyo.Constraint(model.n, model.t, rule=tes_dhw_binary2_rule)
     # Battery
     model.bat_energy_balance = pyo.Constraint(model.n, model.t, rule=bat_energy_balance_rule)
     model.bat_final_soc = pyo.Constraint(model.n, rule=bat_final_soc_rule)
@@ -1123,15 +1201,69 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.res_dom_power[n, t] + model.power_dom["PV", n, t] + model.power_dom["CHP", n, t] + model.power_dom["FC", n, t]
                 + model.dch_dom["BAT", n, t] + total_ev_discharge
                 == model.power_dom["Elec_dem", n, t] + total_ev_charge + model.power_dom["HP", n, t] +
-                model.power_dom["EH", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
-
+                model.power_dom["EH", n, t] + model.power_dom["EH_DHW", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
+               
     # Heating Balance
-    def heating_balance_rule(model, n, t):
-        """Heating demand must be met by heat producing devices and/or heat grid"""
-        return (model.heat_dom["CHP", n, t] + model.heat_dom["HP", n, t] + model.heat_dom["BOI", n, t] + model.heat_dom["BBOI", n, t]
+    def heating_balances_rule(block, n, t):
+        """Heating balances defined as a block to be able to split the space heating and DHW balance if a separate DHW heater is present"""
+        model = block.model()
+        dhw_heater = buildingData[n]["buildingFeatures"]["dhw_heater"]
+        
+        # Total heat supply for space heating generated by all primary heating devices and grid connections that do not operate differently based on temperature
+        heat_supply_space_heating = (model.heat_dom["CHP", n, t] + model.heat_dom["BOI", n, t] + model.heat_dom["BBOI", n, t]
                 + model.heat_dom["OBOI", n, t] + model.heat_dom["H2BOI", n, t] + model.heat_dom["EH", n, t] + model.heat_dom["STC", n, t]
-                + model.heat_dom["FC", n, t] + model.dch_dom["TES", n, t] + model.heat_dom["heat_grid", n, t] + model.heat_dom["DH", n, t]
-                ) == model.heat_dom["Heating_dem", n, t] + model.heat_dom["DHW_dem", n, t] + model.ch_dom["TES", n, t]
+                + model.heat_dom["FC", n, t] + model.heat_dom["heat_grid", n, t] + model.heat_dom["DH", n, t])
+        
+        # Total heat supply exclusively dedicated to domestic hot water (DHW) generation
+        heat_supply_dhw = model.heat_dom["EH_DHW", n, t]
+        
+        # Net space heating load that must be covered by the heat supply (actual demand + charging TES - discharging TES)
+        space_heating_buffered_demand = model.heat_dom["Heating_dem", n, t] + model.ch_dom["TES", n, t] - model.dch_dom["TES", n, t]
+
+        # Net DHW load that must be covered by the heat supply (actual demand + charging DHW TES - discharging DHW TES)
+        dhw_heating_buffered_demand = model.heat_dom["DHW_dem", n, t] + model.ch_dom["TES_DHW", n, t] - model.dch_dom["TES_DHW", n, t]
+        
+        if dhw_heater is None:
+            # Main heating system covers both space heating and DHW demand, no separate DHW heater installed
+            block.space_heating_rule = pyo.Constraint(
+                expr = heat_supply_space_heating + model.heat_dom_SH["HP", n, t] + model.heat_dom_DHW["HP", n, t] == space_heating_buffered_demand + dhw_heating_buffered_demand
+            )
+
+            # Additional Rule to prevent reverse flow from TES_DHW to space heating domain
+            block.dhw_no_reverse_flow = pyo.Constraint(
+                expr = model.dch_dom["TES_DHW", n, t] <= model.heat_dom["DHW_dem", n, t]
+            )
+
+            # Prevent HP from using SH mode to cover DHW demand
+            block.dhw_temperature_protection = pyo.Constraint(
+                expr = heat_supply_space_heating + model.heat_dom_DHW["HP", n, t] >= dhw_heating_buffered_demand
+            )
+
+            # Prevent HP from using DHW mode to cover SH demand
+            block.sh_temperature_protection = pyo.Constraint(
+                expr = heat_supply_space_heating + model.heat_dom_SH["HP", n, t] >= space_heating_buffered_demand
+            )
+
+            # Disable the generation of dhw only devices 
+            block.no_dhw_heat_supply = pyo.Constraint(
+                expr = heat_supply_dhw == 0
+            )
+
+        else:
+            # Main heating system covers space heating demand, separate DHW heater covers DHW demand
+            block.space_heating_rule = pyo.Constraint(
+                expr = heat_supply_space_heating + model.heat_dom_SH["HP", n, t] == space_heating_buffered_demand
+            )
+
+            block.dhw_heating_rule = pyo.Constraint(
+                expr = heat_supply_dhw == dhw_heating_buffered_demand
+            )
+
+            # HP is not allowed to supply DHW
+            block.no_dhw_hp = pyo.Constraint(
+                expr = model.heat_dom_DHW["HP", n, t] == 0
+            )
+        
 
     # Cooling balance
     def cooling_balance_rule(model, n, t):
@@ -1140,8 +1272,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     model.electricity_balance = pyo.Constraint(model.n, model.t, rule=electricity_balance_rule,
                                                doc="Electricity balance for each building")
-    model.heating_balance = pyo.Constraint(model.n, model.t, rule=heating_balance_rule,
-                                           doc="Heating balance for each building")
+    model.heating_balances = pyo.Block(model.n, model.t, rule=heating_balances_rule)
     model.cooling_balance = pyo.Constraint(model.n, model.t, rule=cooling_balance_rule,
                                            doc="Cooling balance for each building")
 
@@ -1157,23 +1288,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 == model.eh_heat_to_grid[t] + model.eh_heat_AC[t] + model.eh_ch_TES[t]  # Heat demand
                 )
 
-    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network #! Maybe instead combined Heat balance for the neighborhood that includs network losses?
-    def eh_heat_supply_rule(model, t):
-        return model.eh_heat_to_grid[t] >= sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
-            network_losses_heating[t]
-
-    # The EH must supply the cooling demand of the buildings connected to the grid
-    def eh_cool_supply_rule(model, t):
-        return model.eh_cool_to_grid[t] >= sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
-            network_losses_cooling[t]
-
     # Electricity balance
     def eh_electricity_balance_rule(model, t):
         return (model.eh_power_PV[t] + model.eh_power_WT[t] + model.eh_power_WAT[t] + model.eh_power_CHP[t]
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + network_pump_power[t] + model.eh_power_to_grid[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t])
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1202,11 +1323,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.eh_waste_import[t] == model.eh_waste_WCHP[t] + model.eh_waste_WBOI[t]
 
     model.eh_heating_balance = pyo.Constraint(model.t, rule=eh_heating_balance_rule, doc="EnergyHub_heat_balance")
-    model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
-    model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule,
-                                          doc="EnergyHub_cooling_supply_to_buildings")
-    model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule,
-                                                  doc="EnergyHub_electricity_balance")
+    model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule, doc="EnergyHub_electricity_balance")
     model.eh_cooling_balance = pyo.Constraint(model.t, rule=eh_cooling_balance_rule, doc="EnergyHub_cooling_balance")
     model.eh_gas_balance = pyo.Constraint(model.t, rule=eh_gas_balance_rule, doc="EnergyHub_gas_balance")
     model.eh_hydrogen_balance = pyo.Constraint(model.t, rule=eh_hydrogen_balance_rule, doc="EnergyHub_hydrogen_balance")
@@ -1232,6 +1349,19 @@ def build_model(model, data, year, cluster, sim_ecoData):
                                                      doc="Power_balance_neighborhood")
     model.trafo_binary1 = pyo.Constraint(model.t, rule=trafo_binary1_rule, doc="Power_limitation_from_grid")
     model.trafo_binary2 = pyo.Constraint(model.t, rule=trafo_binary2_rule, doc="Power_limitation_to_grid")
+
+    # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
+    def eh_heat_supply_rule(model, t): #TODO: Why not equal?
+        return model.eh_heat_to_grid[t] >= sum(model.heat_dom["heat_grid", n, t] for n in model.n) + \
+            model.network_losses_heating[t]
+
+    # The EH must supply the cooling demand of the buildings connected to the grid
+    def eh_cool_supply_rule(model, t): #TODO: Why not equal?
+        return model.eh_cool_to_grid[t] >= sum(model.cool_dom["heat_grid", n, t] for n in model.n) + \
+            model.network_losses_cooling[t]
+    
+    model.eh_heat_supply = pyo.Constraint(model.t, rule=eh_heat_supply_rule, doc="EnergyHub_heat_supply_to_buildings")
+    model.eh_cool_supply = pyo.Constraint(model.t, rule=eh_cool_supply_rule, doc="EnergyHub_cooling_supply_to_buildings")
 
     # Gas balance neighborhood (Power balance in Watt)
     def neighborhood_gas_balance_rule(model, t):
@@ -1433,170 +1563,19 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    lp_filename = os.path.join(result_dir, f"opti_central_model_year_{year}_cluster_{cluster}.lp")
-    model.write(lp_filename, io_options={'symbolic_solver_labels': True})
+    model_name = f"opti_central_model_year_{year}_cluster_{cluster}"
 
-    # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, f"solver_output_year_{year}_cluster_{cluster}.log")
-    # Path for error file
-    errorfile_path = os.path.join(result_dir, f"errorfile_opti_central_year_{year}_cluster_{cluster}.txt")
-
-    # Solve the model
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config,)
-    results = solver.solve(model, tee=False, options=solver_options)
-
-    # Check if solution is optimal, otherwise write an error file
-    term_cond = results.solver.termination_condition
-    if term_cond == pyo.TerminationCondition.infeasible:
-        print(f"Model is infeasible for further analysis see {errorfile_path}")
-        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
-        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
-        with open(errorfile_path, 'w') as f:
-            f.write('Error: Model is infeasible\n')
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"Model Statistics:\n")
-            f.write(f"  - Variables: {n_vars}\n")
-            f.write(f"  - Constraints: {n_cons}\n\n")
-            f.write(f"  - LP File: {lp_filename}\n\n")
-            try:
-                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
-                    f.write("\nSolver Log:\n")
-                    f.write("-" * 40 + "\n")
-                    f.write(log_file.read())
-                    f.write("-" * 40 + "\n")
-                # Remove temporary solver log file
-                os.remove(solver_log_path)
-            except Exception as e:
-                f.write(f"\nCould not read solver log: {e}\n")
-
-        # IIS-Analysis
-        try:
-            # Create string buffer to capture logging
-            logging_buffer = StringIO()
-
-            # Store original logging handlers
-            root_logger = logging.getLogger()
-            original_handlers = root_logger.handlers[:]
-            original_level = root_logger.level
-
-            # Clear existing handlers temporarily
-            for handler in original_handlers:
-                root_logger.removeHandler(handler)
-
-            # Add string handler to capture only IIS output
-            string_handler = logging.StreamHandler(logging_buffer)
-            string_handler.setLevel(logging.INFO)
-            root_logger.addHandler(string_handler)
-            root_logger.setLevel(logging.INFO)
-
-            # Run IIS analysis - output goes to buffer
-            log_infeasible_constraints(model, log_expression=True, log_variables=True)
-
-            # Get captured content
-            iis_content = logging_buffer.getvalue()
-
-            # Restore logging
-            root_logger.removeHandler(string_handler)
-            for handler in original_handlers:
-                root_logger.addHandler(handler)
-            root_logger.setLevel(original_level)
-
-            # Write to error file
-            with open(errorfile_path, 'a', encoding='utf-8') as f:
-                f.write("INFEASIBLE CONSTRAINTS:\n")
-                f.write("-" * 40 + "\n")
-                if iis_content.strip():
-                    f.write(iis_content)
-                else:
-                    f.write("No IIS details captured\n")
-                f.write("-" * 40 + "\n")
-
-            print(f"Infeasibility analysis saved to {errorfile_path}")
-
-        except Exception as e:
-            # Ensure logging is restored
-            try:
-                if 'original_handlers' in locals():
-                    root_logger.removeHandler(string_handler)
-                    for handler in original_handlers:
-                        if handler not in root_logger.handlers:
-                            root_logger.addHandler(handler)
-                    root_logger.setLevel(original_level)
-            except:
-                pass
-
-            print(f"IIS analysis failed: {e}")
-
-            with open(errorfile_path, 'a') as f:
-                f.write(f"IIS analysis failed: {e}\n")
-
-        # Using Gurobi to compute a better IIS if Gurobi is available
-        import gurobipy as gp
-        gurobi_available = True
-        try: _ = gp.Env.getEnv()
-        except: gurobi_available = False
-
-        if gurobi_available:
-            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
-            m = gp.read("debug_model.lp")
-            m.optimize()
-            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
-                m.computeIIS()
-                m.write("debug_model.ilp")
-                print("IIS written to debug_model.ilp")
-                raise Exception("Model is infeasible, see errorfile for details.")
-            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
-
+    results = solver_config.execute_and_diagnose(model = model, 
+                                   pyomo_config = data.pyomo_config,
+                                   model_name = model_name,
+                                   result_dir = result_dir)
+    
+    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
-
-    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
-        print("Model is unbounded")
-        with open('errorfile.txt', 'w') as f:
-            f.write('Model is unbounded\n')
-        return None
-    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
-        pass
-    else:
-        print(f"Solver status: {results.solver.termination_condition}")
-        with open('errorfile.txt', 'w') as f:
-            f.write(f'Solver status: {results.solver.termination_condition}\n')
-        return None
-
-    # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
-
-    # Save all variable values in a solution file:
-    def write_solution_file(model, filename):
-        """
-        Write solution values to a file in a format similar to Gurobi's .sol files
-        """
-        try:
-            with open(filename, 'w') as f:
-                f.write("# Solution file\n")
-                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
-                f.write("# Variable values\n")
-
-                # Write all variable values
-                for var in model.component_objects(pyo.Var, active=True):
-                    if var.is_indexed():
-                        for index in var:
-                            if var[index].value is not None:
-                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
-                    else:
-                        if var.value is not None:
-                            f.write(f"{var.name} {var.value:.6f}\n")
-
-                f.write("# End of solution\n")
-            print(f"Solution written to {filename}")
-
-        except Exception as e:
-            print(f"Warning: Could not write solution file {filename}: {e}")
-        return None
-
-    solution_file = os.path.join(result_dir, f'solution_file_year_{year}_cluster_{cluster}.txt')
-    write_solution_file(model, solution_file)
+    
+    solver_config.write_solution_file(model = model,
+                                      model_name = model_name,
+                                      result_dir = result_dir)
 
     # Extract results
     timeData = data.time
@@ -1616,6 +1595,10 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
     results_dict["total_waste_used"] = pyo.value(model.total_waste_used)
     results_dict["total_district_heat_used"] = pyo.value(model.total_district_heat_used)
+    results_dict["from_grid_total_el_buildings"] = pyo.value(model.from_grid_total_el_buildings)
+    results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
+    results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
+    results_dict["to_grid_total_el_eh"] = pyo.value(model.to_grid_total_el_eh)
 
 
     # energy imports and exports per time step in W
@@ -1692,6 +1675,13 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_soc",
                                    device_set=EH_ECS_STORAGE, time_steps=time_steps)
+    
+    # Residual Load of the Energyhub calculated through model.eh_power_to_grid and model.eh_power_from_grid
+    results_dict["eh_res_load"] = []
+    results_dict["eh_res_inj"] = []
+    for t in time_steps:
+        results_dict["eh_res_load"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
+        results_dict["eh_res_inj"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
 
     ################################################################################
     # Building results
@@ -1721,7 +1711,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Heat devices
     for n in range(nbuildings):
         for device in ECS_HEAT:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             results_dict[n][device]["Q_th"] = []
             for t in time_steps:
                 results_dict[n][device]["Q_th"].append(round(pyo.value(model.heat_dom[device, n, t]), 0))
@@ -1729,7 +1720,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Cooling devices
     for n in range(nbuildings):
         for device in ECS_COOL:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             results_dict[n][device]["Q_cool"] = []
             for t in time_steps:
                 results_dict[n][device]["Q_cool"].append(round(pyo.value(model.cool_dom[device, n, t]), 0))
@@ -1754,7 +1746,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Power devices
     for n in range(nbuildings):
         for device in ECS_POWER:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             results_dict[n][device]["P_el"] = []
             for t in time_steps:
                 results_dict[n][device]["P_el"].append(round(pyo.value(model.power_dom[device, n, t]), 0))
@@ -1762,7 +1755,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Storage devices
     for n in range(nbuildings):
         for device in ECS_STORAGE:
-            results_dict[n][device] = {}
+            if not results_dict[n].get(device):
+                results_dict[n][device] = {}
             for v in ("ch", "dch", "soc"):
                 results_dict[n][device][v] = []
             for t in time_steps:
@@ -1790,8 +1784,8 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
         for ice_map in ice_mapping
     }
 
-    ev_ids = model.EVs.value_list
-    ice_ids = model.ICEs.value_list
+    ev_ids = list(model.EVs.ordered_data())
+    ice_ids = list(model.ICEs.ordered_data())
 
     # Electric Vehicles
     for n in range(nbuildings):
@@ -1868,17 +1862,17 @@ def _get_vehicle_mapping(buildingData, nbuildings):
     return all_individual_evs_map, all_individual_ices_map
 
 
-def remove_previous_models_and_solutions():
+def remove_previous_models_and_solutions(resultPath, model_name_prefix="opti_central_model_"):
     """
     Remove previous solution and error files to avoid confusion with new runs.
     """
-    result_dir = "optimization_results"
+    result_dir = os.path.join(resultPath, f"optimization_results")
     if not os.path.exists(result_dir):
         return
 
     # Remove model files
     for filename in os.listdir(result_dir):
-        if filename.startswith("opti_central_model_year_") and filename.endswith(".lp"):
+        if filename.startswith(model_name_prefix) and filename.endswith(".lp"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
@@ -1887,7 +1881,7 @@ def remove_previous_models_and_solutions():
 
     # Remove solution files
     for filename in os.listdir(result_dir):
-        if filename.startswith("solution_file_year_") and filename.endswith(".txt"):
+        if filename.startswith(f"solution_file_{model_name_prefix}") and filename.endswith(".txt"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
@@ -1896,7 +1890,7 @@ def remove_previous_models_and_solutions():
 
     # Remove error files
     for filename in os.listdir(result_dir):
-        if filename.startswith("errorfile_opti_central_year_") and filename.endswith(".txt"):
+        if filename.startswith(f"errorfile_{model_name_prefix}") and filename.endswith(".txt"):
             file_path = os.path.join(result_dir, filename)
             try:
                 os.remove(file_path)
