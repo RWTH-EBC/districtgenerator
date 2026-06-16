@@ -623,6 +623,8 @@ class ReportConfig(BaseSettings):
     # Language
     language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).    
 
+    kpi_save_type: str = "xlsx" # File format for saving all KPIs, selected between: "xlsx" and "csv".
+
     # --- Colors Dictionary ---
     colors: dict = {} 
     colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines

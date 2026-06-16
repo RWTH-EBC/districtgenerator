@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import numpy as np
 import os
-import json
 import math
 from itertools import zip_longest
 from districtgenerator.classes.certificate_generator import CertificateBuilder
+import pandas as pd
 
 class KPIs:
 
@@ -43,7 +42,7 @@ class KPIs:
         self.waste_year = None
         self.hydrogen_year = None
         self.oil_year = None
-        self.district_heat_year = None
+        self.districtHeat_year = None
 
         self.dcf_year = None
         self.scf_year = None
@@ -927,8 +926,214 @@ class KPIs:
         self.calculateGasolineCosts(data)
         self.calc_total_consumption_and_emissions(data)
         self.calculateDetailedCostsPerYear(data)
+        self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
+
+    def saveKPIs(self, scenario_name, result_path, buildings, file_format):
+        """
+        Save all calculated KPIs in a file. Ensure that calculateAllKPIs() has been called before. Saves as the specified file format (csv/excel)
+
+        Parameters
+        - scenario_name: The name of the scenario for which the KPIs are saved. Used in the filename.
+        - result_path: The path where the KPI file should be saved.
+        - buildings: The list of building data, used for saving building-specific KPIs.
+        - file_format: The file format to save the KPIs in. Supported formats are "csv" and "xlsx".
+        """
+
+        # Get all simulated years
+        years = sorted(self.inputData["simulated_years"])
+
+        # Create dictionary for year-dependent KPIs
+        kpi_data_yearly = {}
+        kpi_data_yearly["Peak Demand district (kW)"] = {year: self.peakDemand.get(year, None) for year in years}
+        kpi_data_yearly["Peak Injection district (kW)"] = {year: self.peakInjection.get(year, None) for year in years}
+        kpi_data_yearly["Peak to Valley (kW)"] = {year: self.peakToValley.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Injection to Grid (kWh/a)"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Demand from Grid (kWh/a)"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Gas Consumption (kWh/a)"] = {year: self.gas_year.get(year, None) for year in years}
+        kpi_data_yearly["Biomass Consumption (kWh/a)"] = {year: self.biomass_year.get(year, None) for year in years}
+        kpi_data_yearly["Waste Consumption (kWh/a)"] = {year: self.waste_year.get(year, None) for year in years}
+        kpi_data_yearly["Hydrogen Consumption (kWh/a)"] = {year: self.hydrogen_year.get(year, None) for year in years}
+        kpi_data_yearly["Oil Consumption (kWh/a)"] = {year: self.oil_year.get(year, None) for year in years}
+        kpi_data_yearly["District Heat Consumption (kWh/a)"] = {year: self.districtHeat_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Injection within District (kWh/a)"] = {year: self.W_inj_buildings_year.get(year, None) for year in years}
+        kpi_data_yearly["Electricity Demand within District (kWh/a)"] = {year: self.W_dem_buildings_year.get(year, None) for year in years}
+        kpi_data_yearly["Demand Cover Factor (-)"] = {year: self.dcf_year.get(year, None) for year in years}
+        kpi_data_yearly["Supply Cover Factor (-)"] = {year: self.scf_year.get(year, None) for year in years}
+        kpi_data_yearly["Operation Costs (€/a)"] = {year: self.operationCosts.get(year, None) for year in years}
+        kpi_data_yearly["CO2 Emissions (t/a)"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Grid Electricity (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Gas (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Biomass (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Waste (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Oil (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
+        kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
+        kpi_data_yearly["Electricity Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("electricity", None) for year in years}
+        kpi_data_yearly["Gas Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("gas", None) for year in years}
+        kpi_data_yearly["Oil Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("oil", None) for year in years}
+        kpi_data_yearly["Waste Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("waste", None) for year in years}
+        kpi_data_yearly["Biomass Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("biomass", None) for year in years}
+        kpi_data_yearly["District Heat Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("district_heat", None) for year in years}
+        kpi_data_yearly["Hydrogen Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("hydrogen", None) for year in years}
+        kpi_data_yearly["Revenue from Electricity Feed-in (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("revenue_feed_in_el", None) for year in years}
 
 
+        kpi_data_yearly["Autonomy (Time Fraction)"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
+        kpi_data_yearly["Gasoline Costs (€/a)"] = {year: self.gasoline_costs.get(year, None) for year in years}
+        # kpi_data_yearly["CO2 Emissions Gasoline"] = #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
+
+        # Create dictionary for year-independent KPIs (same value for all years)
+        kpi_data_static = {}
+        # Not changing due to same demand profiles in each year and same device capacities (electricity, heat, cars)
+        #! This might change in future versions if demand profiles or device capacities vary per year. Then they should be moved to yearly KPIs.
+        kpi_data_static["Sum design Heat Load (kW)"] = self.totalheatload/1000
+        kpi_data_static["Sum design Cooling Load (kW)"] = self.totalcoolingload/1000
+        kpi_data_static["Heating demand (kWh/a)"] = self.total_heating_demand/1000
+        kpi_data_static["Cooling demand (kWh/a)"] = self.total_cooling_demand/1000
+        kpi_data_static["Electricity demand (Plug loads) (kWh/a)"] = self.total_electricity_demand/1000
+        kpi_data_static["EV demand (kWh/a)"] = self.total_EV_demand/1000
+        kpi_data_static["DHW demand (kWh/a)"] = self.total_dhw_demand/1000
+        kpi_data_static["Electricity demand (Plug loads) Peak (kW)"] = self.total_electricity_peak/1000
+        kpi_data_static["Heat demand Peak (kW)"] = self.total_heat_peak/1000
+        kpi_data_static["DHW demand Peak (kW)"] = self.total_dhw_peak/1000
+        kpi_data_static["Cooling demand Peak (kW)"] = self.total_cooling_peak/1000
+        kpi_data_static["EV demand Peak (kW)"] = self.total_EV_peak/1000
+        kpi_data_static["Yearly ICE Fuel Consumption (liters/a)"] = self.total_ICE_fuel_liters # Maybe move to yearly KPIs? Even though currently static.
+        kpi_data_static["Average CO2 Emissions (t/a)"] = self.avg_co2_emissions
+        
+        kpi_data_static[""] = '' # Empty row
+
+        # Unless the structure of the district changes, these values are static. Changing devices or capacities would require rework of annualized costs.
+        kpi_data_static["Annualized Fixed Costs Decentral (€/a)"] = self.annual_fixed_costs_decentral
+        kpi_data_static["Annualized Fixed Costs Decentral Unsubsidized (€/a)"] = self.annual_fixed_costs_decentral_unsubsidized
+        kpi_data_static["Annualized Fixed Costs Central (€/a)"] = self.annual_fixed_costs_central
+        kpi_data_static["Annualized Fixed Costs Central Unsubsidized (€/a)"] = self.annual_fixed_costs_central_unsubsidized
+        kpi_data_static["Average Operation Costs (€/a)"] = self.avg_operationCosts
+        kpi_data_static["Residential Area (m²)"] = self.totalarea_residential
+        kpi_data_static["Mixed Area (m²)"] = self.total_area_mixed
+        kpi_data_static["Non-Residential Area (m²)"] = self.totalarea_non_residential
+        kpi_data_static["Number of Flats in district (-)"] = self.totalnumberflats
+        kpi_data_static["Number of Occupants in district (-)"] = self.totalnumberocc
+
+        # Add here Total total consumptions and CO2 emissions of each energy carrier.
+        # kpi_data_static["Electricity Consumption (kWh)"] = '' # Not currently calculated.
+        kpi_data_static["Grid Electricity Consumption (MWh)"] = self.total_W_dem_GCP / 1000
+        kpi_data_static["Buildings Electricity Consumption (MWh)"] = self.total_W_dem_buildings / 1000
+        kpi_data_static["Grid Electricity Injection (MWh)"] = self.total_W_inj_GCP / 1000
+        kpi_data_static["Buildings Electricity Injection (MWh)"] = self.total_W_inj_buildings / 1000
+        kpi_data_static["Gas Consumption (MWh)"] = self.total_gas / 1000
+        kpi_data_static["Biomass Consumption (MWh)"] = self.total_biomass / 1000
+        kpi_data_static["Waste Consumption (MWh)"] = self.total_waste / 1000
+        kpi_data_static["Hydrogen Consumption (MWh)"] = self.total_hydrogen / 1000
+        kpi_data_static["Oil Consumption (MWh)"] = self.total_oil / 1000
+        kpi_data_static["District Heat Consumption (MWh)"] = self.total_districtHeat / 1000
+        # kpi_data_static["ICE Fuel Consumption (liters)"] = ''
+
+        kpi_data_static["Total CO2 Emissions (t)"] = self.total_co2_all
+        kpi_data_static["Total CO2 Emissions Grid Electricity (t)"] = self.total_co2_dem_grid
+        kpi_data_static["Total CO2 Emissions Gas (t)"] = self.total_co2_gas
+        kpi_data_static["Total CO2 Emissions Biomass (t)"] = self.total_co2_biom
+        kpi_data_static["Total CO2 Emissions Waste (t)"] = self.total_co2_waste
+        kpi_data_static["Total CO2 Emissions Hydrogen (t)"] = self.total_co2_hydrogen
+        kpi_data_static["Total CO2 Emissions Oil (t)"] = self.total_co2_oil
+        kpi_data_static["Total CO2 Emissions District Heat (t)"] = self.total_co2_district_heat
+        
+        # kpi_data_static["Total CO2 Emissions ICE Fuel (t)"] = '' #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
+
+        # Create device data list: Building ID, Device, Capacity [kW], Annualized Cost Subsidized [€/a], Annualized Cost Unsubsidized [€/a]
+        dec_device_data_list = []
+        for building_id, devices in self.decentral_individual_devices_annualized_cost.items():
+            building = buildings[building_id]
+            for device_name, device_info in devices.items():
+                # Determine unit based on device type
+                if device_name == "TES":
+                    unit = "Liter"
+                elif device_name in ["BAT", "EV"]:
+                    unit = "kWh"
+                elif device_name in ["PV", "STC"]:
+                    unit = "m²"
+                else:
+                    unit = "kW"
+
+                dec_device_data_list.append({
+                    'Building ID': building["unique_name"],
+                    'Device': device_name,
+                    'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
+                    'Unit': unit,
+                    'Annualized Cost (€/a)': round(device_info['subsidized_annual_cost'], 2),
+                    'Annualized Cost Unsubsidized (€/a)': round(device_info['unsubsidized_annual_cost'], 2)
+                })
+
+        # Central Devices capacities and subsidized and unsubsidized annualized costs
+        cent_device_data_list = []
+        for device_name, device_info in self.central_individual_devices_annualized_cost.items():
+            # Determine unit based on device type
+            if device_name == "Heat_Grid":
+                unit = "-"
+            elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
+                unit = "kWh"
+            elif device_name in ["PV", "STC"]:
+                unit = "m²"
+            else:
+                unit = "kW"
+
+            cent_device_data_list.append({
+                'Device': device_name,
+                'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
+                'Unit': unit,
+                'Annualized Cost Subsidized (€/a)': round(device_info['subsidized_annual_cost'], 2),
+                'Annualized Cost Unsubsidized (€/a)': round(device_info['unsubsidized_annual_cost'], 2)
+            })
+
+        # Create DataFrame for year-dependent KPIs
+        kpi_df_yearly = pd.DataFrame.from_dict(kpi_data_yearly, orient='index')
+        kpi_df_yearly.columns = [f"Year {year}" for year in years]
+        kpi_df_yearly.index.name = "KPI"
+        kpi_df_yearly.reset_index(inplace=True)
+
+        # Create DataFrame for year-independent KPIs
+        kpi_df_static = pd.DataFrame(list(kpi_data_static.items()), columns=['KPI', 'Value'])
+
+        # Create DataFrame for device costs
+        kpi_df_dec_devices = pd.DataFrame(dec_device_data_list) if dec_device_data_list else pd.DataFrame()
+
+        # Create DataFrame for central device costs
+        kpi_df_cent_devices = pd.DataFrame(cent_device_data_list) if cent_device_data_list else pd.DataFrame()
+
+
+        
+        if result_path is None:
+            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            result_path = os.path.join(src_path, "results")
+            raise Warning(f"Result path not provided. Saving KPIs to default location: {result_path}")
+        
+
+        # Save to Excel with four sheets (or three if no central devices)
+        if file_format == "xlsx":
+            filename = os.path.join(result_path, f"KPIs_{scenario_name}.{file_format}")
+
+            with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                kpi_df_yearly.to_excel(writer, sheet_name='Yearly KPIs', index=False)
+                kpi_df_static.to_excel(writer, sheet_name='Static KPIs', index=False)
+                kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices Costs', index=False)
+                if not kpi_df_cent_devices.empty:
+                    kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices Costs', index=False)
+
+            print(f"KPIs saved to: {filename}")
+
+        elif file_format == "csv":
+            kpi_df_yearly.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_yearly.csv"), index=False, sep=';', decimal=',')
+            kpi_df_static.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_static.csv"), index=False, sep=';', decimal=',')
+            kpi_df_dec_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_decentral_devices.csv"), index=False, sep=';', decimal=',')
+            if not kpi_df_cent_devices.empty:
+                kpi_df_cent_devices.to_csv(os.path.join(result_path, f"KPIs_{scenario_name}_central_devices.csv"), index=False, sep=';', decimal=',')
+
+            print(f"KPIs saved to: {result_path} as CSV files: KPIs_{scenario_name}_*.csv")
+
+        elif file_format == None:
+            print("KPIs not saved to file as no file format specified in report configuration.")
+        else:
+            print(f"Unsupported file format: {file_format}")
 
 
     def create_certificate(self, data, result_path):
