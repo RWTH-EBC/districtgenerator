@@ -3713,17 +3713,15 @@ class DataExtractor(ReportComponent):
         cluster_length_sec = self.data.time["clusterLength"]
         self.cluster_info["cluster_length_sec"] = cluster_length_sec
 
-        try_year_str = self.data.site["TRYYear"]
-        sim_year = int(try_year_str[-4:])
-        start_of_year = datetime(sim_year, 1, 1, 0, 0, 0)
+        start_of_year = datetime(2025, 1, 1, 0, 0, 0)
         total_periods = sum(self.data.clusterWeights.values())
 
         for k in range(len(self.data.clusters)):#
             orig_idx = self.data.clusters[k]
             start_date = start_of_year + timedelta(seconds=int(orig_idx * cluster_length_sec))
             end_date = start_of_year + timedelta(seconds=int((orig_idx + 1) * cluster_length_sec))
-            start_str = start_date.strftime("%d.%m.%Y %H:%M")
-            end_str = end_date.strftime("%d.%m.%Y %H:%M")
+            start_str = start_date.strftime("%d.%m. %H:%M")
+            end_str = end_date.strftime("%d.%m. %H:%M")
             weight_count = self.data.clusterWeights[orig_idx]
 
             self.cluster_info[k] = {
