@@ -206,12 +206,22 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
                     Q_DHW_W = float(Q_DHW_by_node[n][t]) * 1000.0
 
                     deltaT_DHW = Ts_del - Tr_req_DHW
-                    if deltaT_DHW <0.1 and deltaT_DHW>=0:
-                        deltaT_DHW = 0.1
-                    elif deltaT_DHW <0 and deltaT_DHW > -0.1:
-                        deltaT_DHW = -0.1
+                    if deltaT_DHW <4 and deltaT_DHW>=0:
+                        deltaT_DHW = 4
+                        print("1")
+                    elif deltaT_DHW <0 and deltaT_DHW > -4:
+                        deltaT_DHW = -4
+                        print("2")
 
-                    m_SH = Q_SH_W / (c_f * (Ts_del - Tr_req_SH))
+                    deltaT_SH = Ts_del - Tr_req_SH
+                    if deltaT_SH <4 and deltaT_SH>=0:
+                        deltaT_SH = 4
+                        print("3")
+                    elif deltaT_SH <0 and deltaT_SH > -4:
+                        deltaT_SH = -4
+                        print("4")
+
+                    m_SH = Q_SH_W / (c_f * deltaT_SH)
                     m_DHW = Q_DHW_W / (c_f * deltaT_DHW)
 
                     m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
@@ -306,7 +316,8 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
                 for n in building_nodes:
                     old_flow = old_flow_HX[n]
                     new_flow = float(param["building_massflow_HX"][n][t])
-                    rel = abs(new_flow - old_flow) / old_flow
+                    #rel = abs(new_flow - old_flow) / old_flow
+                    rel = abs(new_flow - old_flow) / max(abs(old_flow), 1e-9)
                     max_rel_flow_change = max(max_rel_flow_change, rel)
 
                     if iter_idx > 0:
@@ -329,14 +340,29 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
             sup_deficit = float(result["sup_deficit"])
             max_heat_deficit = max(result["heat_deficit_by_node"].values())
 
-            if inner_converged and sup_deficit <= tol and max_heat_deficit <= 50.0:
+            max_grid_load_W = max(float(Q_by_node[n][t]) * 1000.0 for n in building_nodes)
+            heat_tol_eff = max(50.0, 0.002 * max_grid_load_W)  # 0.2 %
+
+
+
+
+
+            T_SUP_MAX=95
+            DTS_MAX_STEP=5
+
+            if sup_deficit > tol:
+                dTs = np.clip(sup_deficit, 0.0, DTS_MAX_STEP)
+                Ts = min(Ts + dTs, T_SUP_MAX)
+
+            # elif inner_converged and sup_deficit <= tol and max_heat_deficit <= 50.0:
+            #     timestep_converged = True
+            #     break
+
+            elif inner_converged and sup_deficit <= tol and max_heat_deficit <= heat_tol_eff:
                 timestep_converged = True
                 break
 
-            # Operator raises Ts if thermal requirements are not yet met
-            Ts += max(1.0, sup_deficit)
 
-        if not timestep_converged:
             raise RuntimeError(
                 f"[ERROR] Automatic Ts control did not converge at timestep {t} "
                 f"within {max_iter} outer iterations."
@@ -1197,6 +1223,151 @@ def compute_and_save_network_costs(data, param):
     T_supply_mean = np.mean(data.heat_grid_data["T_supply_EH"])
     T_return_mean = np.mean(data.heat_grid_data["T_return_EH"])
 
+
+    ###################################################
+    #Debug Diagramme
+    ###################################################
+
+
+    # Daten auslesen
+    T_supply_EH = data.heat_grid_data["T_supply_EH"]
+    T_return_EH = data.heat_grid_data["T_return_EH"]
+
+    # Zeitachse als Index
+    time = np.arange(len(T_supply_EH))
+
+    # Speicherpfad
+    save_dir = r"S:\districtgenerator\districtgenerator\results\network\district_E_buildings_30_road"
+    save_path = os.path.join(save_dir, "temperature_EH.png")
+
+    # Ordner erstellen, falls er noch nicht existiert
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Diagramm erstellen
+    plt.figure(figsize=(20, 10))
+
+    plt.plot(time, T_supply_EH, color="red", label="T_supply_EH")
+    plt.plot(time, T_return_EH, color="blue", label="T_return_EH")
+
+    plt.xlabel("Zeitindex")
+    plt.ylabel("Temperatur [°C]")
+    plt.title("Verlauf von Vorlauf- und Rücklauftemperatur EH")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    # Diagramm speichern
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    # Diagramm anzeigen
+    plt.show()
+
+    print(f"Diagramm gespeichert unter: {save_path}")
+
+
+
+
+    ###################################################
+    # Demand-Diagramm: SH Netz, DHW Netz, DHW dezentral
+    ###################################################
+
+    # Daten aus dem Netz-Temperatur-Solver vorbereiten
+    shared_debug = _prepare_network_temperature_solver(data, param)
+
+    Q_SH_by_node = shared_debug["Q_SH_by_node"]      # SH-Bedarf je Gebäude [kW]
+    Q_DHW_by_node = shared_debug["Q_DHW_by_node"]    # gesamter DHW-Bedarf je Gebäude [kW]
+    Q_by_node = shared_debug["Q_by_node"]            # tatsächlich über das Netz gedeckte Last [kW]
+
+    building_nodes = list(Q_by_node.keys())
+
+
+
+    # Zeitachse
+    T_len = len(data.heat_grid_data["T_supply_EH"])
+    time = np.arange(T_len)
+
+    # Summenprofile initialisieren
+    SH_demand_network = np.zeros(T_len)
+    DHW_demand_network = np.zeros(T_len)
+    DHW_demand_decentral = np.zeros(T_len)
+
+    for n in building_nodes:
+        Q_SH = np.asarray(Q_SH_by_node[n], dtype=float)
+        Q_DHW_total = np.asarray(Q_DHW_by_node[n], dtype=float)
+        Q_grid_total = np.asarray(Q_by_node[n], dtype=float)
+
+        # SH wird für angeschlossene Gebäude über das Netz gedeckt
+        SH_grid = Q_SH
+
+        # DHW-Anteil, der im Netz steckt:
+        # Q_grid_total = SH + DHW_grid
+        DHW_grid = np.maximum(Q_grid_total - Q_SH, 0.0)
+
+        # DHW-Anteil außerhalb des Netzes:
+        # z.B. heat_grid_SH mit dezentralem Heizstab
+        DHW_decentral = np.maximum(Q_DHW_total - DHW_grid, 0.0)
+
+        SH_demand_network += SH_grid
+        DHW_demand_network += DHW_grid
+        DHW_demand_decentral += DHW_decentral
+        central_demand_network = SH_demand_network + DHW_demand_network
+
+
+    # Speicherpfade
+    save_dir = param["dir_result"]
+    os.makedirs(save_dir, exist_ok=True)
+
+    save_path_png = os.path.join(save_dir, "demand_split_SH_DHW_network_decentral.png")
+
+    # Diagramm erstellen
+    plt.figure(figsize=(20, 10))
+
+
+
+    plt.plot(
+        time,
+        central_demand_network,
+        color="lightskyblue",
+        label="gesamter Bedarf Netz: SH + DHW"
+    )
+
+    plt.plot(
+        time,
+        SH_demand_network,
+        color="red",
+        label="SH Bedarf Netz"
+    )
+
+    plt.plot(
+        time,
+        DHW_demand_decentral,
+        color="darkblue",
+        label="DHW Bedarf dezentral"
+    )
+
+    plt.xlabel("Zeitindex")
+    plt.ylabel("Wärmebedarf [kW]")
+    plt.title("SH- und DHW-Bedarf: Netz vs. dezentrale DHW-Bereitung")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.savefig(save_path_png, dpi=300, bbox_inches="tight")
+
+    plt.show()
+
+    print(f"Demand-Diagramm gespeichert unter: {save_path_png}")
+
+
+
+
+
+
+
+    ###################################################
+    ###################################################
+
+
     # output heat supply for validation of the percentage of pump electricity and heat loss
     net_heat_demand = param["net_heat_demand"]  # kW
     total_net_heat_demand = np.sum(net_heat_demand) # kWh
@@ -1805,10 +1976,33 @@ def solve_network_temperatures(
         Tr_req_SH = float(T_ret_req_by_node_SH[bn][t])
         Tr_req_DHW = float(T_ret_req_by_node_DHW[bn][t])
 
+
+
+
+
+        deltaT_DHW = Ts_del - Tr_req_DHW
+        if deltaT_DHW <4 and deltaT_DHW>=0:
+            deltaT_DHW = 4
+            print("01")
+        elif deltaT_DHW <0 and deltaT_DHW > -4:
+            deltaT_DHW = -4
+            print("02")
+
+        deltaT_SH = Ts_del - Tr_req_SH
+        if deltaT_SH <4 and deltaT_SH>=0:
+            deltaT_SH = 4
+            print("03")
+        elif deltaT_SH <0 and deltaT_SH > -4:
+            deltaT_SH = -4
+            print("04")
+
+
+
+
         # SH
         if Q_SH_W > 0.0:
             # heat extraction
-            Q_SH_del = m_SH * c_f * (Ts_del - Tr_req_SH)
+            Q_SH_del = m_SH * c_f * (deltaT_SH)
             Tr_SH = Tr_req_SH
         else:
             # no demand (pure circulation)
@@ -1817,7 +2011,7 @@ def solve_network_temperatures(
 
         # DHW
         if Q_DHW_W > 0.0:
-            Q_DHW_del = m_DHW * c_f * (Ts_del - Tr_req_DHW)
+            Q_DHW_del = m_DHW * c_f * (deltaT_DHW)
             Tr_DHW = Tr_req_DHW
         else:
             Q_DHW_del = 0.0
@@ -1829,12 +2023,14 @@ def solve_network_temperatures(
         # mixed return at substation
         if np.array_equal(Q_by_node[bn], Q_SH_by_node[bn]):    #serves effectively as  if building["buildingFeatures"]["heater"] == "heat_grid_SH":
             Tr_HX = Tr_SH
+            heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del), 0.0)
         else:
             Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+            heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
         T_ret_node_loc[bn] = Tr_HX
 
         # unmet demand (if flow or Ts insufficient)
-        heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
+        #heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
 
     # Return propagation
     for node in reversed(order):
@@ -1871,9 +2067,11 @@ def solve_network_temperatures(
     sup_deficit = 0.0
 
     for n in building_nodes:
-        Ts_req = float(T_sup_req_by_node[n][t])
-        Ts_del = float(T_sup_node_loc[n])
-        sup_deficit = max(sup_deficit, Ts_req - Ts_del)
+        if float(Q_by_node[n][t]) > 1e-9:
+            Ts_req = float(T_sup_req_by_node[n][t])
+            Ts_del = float(T_sup_node_loc[n])
+            sup_deficit = max(sup_deficit, Ts_req - Ts_del)
+
 
     return {
         "Tr": Tr,
