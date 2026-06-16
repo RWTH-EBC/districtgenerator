@@ -1465,6 +1465,11 @@ class Datahandler:
         single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
+        # All keys that have co2 in name are undiscounted
+        undiscounted_keys = set()
+        co2_keys = set([k for k in ecoData.keys() if 'co2' in k.lower()])
+        undiscounted_keys.update(co2_keys)
+
         # Identify the years that belong to each interpolation segment
         year_segments = {k: [] for k in simulated_years}
 
@@ -1483,14 +1488,14 @@ class Datahandler:
 
         interest_factor = self.ecoData['interest_rate']
         q = 1 + interest_factor
+        if q < 1:
+            print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
 
         for year in simulated_years:
             relevant_years = year_segments[year]
             all_sim_ecoData[year] = {}  # Initialize dictionary for this year
 
             n = len(relevant_years)
-            if q < 1:
-                print(f"Warning: interest factor q < 1 (q={q}). If not wanted check ecoData interest rate.")
 
             if q!=1:
                 denom = sum(1/(q**idx) for idx in range(n))
@@ -1501,10 +1506,12 @@ class Datahandler:
                 subset_values = [ecoData[key][i] for i in relevant_years if i < len(ecoData[key])]
 
                 # Calculate present value (PV) of the subset values
-                pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
-
-                # Calculate effective annualized price
-                effective_price = pv/denom
+                if key in undiscounted_keys:
+                    pv = sum(subset_values)  # No discounting for these keys
+                    effective_price = pv / n  # For undiscounted values, the effective value is just the average over the years in the segment
+                else:
+                    pv = sum(val / (q ** idx) for idx, val in enumerate(subset_values))
+                    effective_price = pv/denom
 
                 all_sim_ecoData[year][key] = effective_price
 
