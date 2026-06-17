@@ -819,7 +819,7 @@ class Datahandler:
             building["buildingFeatures"] = building["buildingFeatures"].copy()
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self,name = None,  calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=10, gen_cars=True, allow_hybrid=False):
         """
                 Generate occupancy profile, heat demand, domestic hot water demand and heating demand.
 
@@ -849,7 +849,7 @@ class Datahandler:
         with ThreadPoolExecutor(max_workers=max_threads) as ex:
             future_map = {
                 ex.submit(self.generate_demands_worker, building, calcUserProfiles, saveUserProfiles, gen_cars,
-                  self.global_occ_lock): building[
+                  self.global_occ_lock, allow_hybrid): building[
                     "unique_name"]
                 for building in self.district
             }
@@ -903,7 +903,7 @@ class Datahandler:
 
         print("Finished generating demands with threading!")
 
-    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True, gen_lock_occ=None):
+    def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles, gen_cars = True, gen_lock_occ=None, allow_hybrid=True):
         """
         :param building:
         :param calcUserProfiles: bool
@@ -917,8 +917,17 @@ class Datahandler:
         print(f'starting {building["unique_name"]}')
         warnings.filterwarnings("ignore", category=FutureWarning)
 
+        # Bestimme den Indikator-Dateipfad (passe die Endung ggf. an dein saveProfiles-Schema an!)
+        check_file = os.path.join(self.demands_path, f"{building['unique_name']}static.csv")
+
+        # Bedingung für das Laden existierender Profile (Hybrid-Logik)
+        skip_calculation = False
+        if calcUserProfiles and allow_hybrid and os.path.exists(check_file):
+            skip_calculation = True
+            print(f"Files found for {building['unique_name']}. Switching to LOAD mode for this building.")
+
         # calculate or load user profiles
-        if calcUserProfiles:
+        if calcUserProfiles and not skip_calculation:
             building["user"].calcProfiles(site=self.site,
                                           holidays=self.calendar["holidays"],
                                           time_resolution=self.time["timeResolution"],
@@ -950,6 +959,7 @@ class Datahandler:
                                   individual_car_profiles=building["user"].individual_car_profiles)
 
         else:
+            # Läuft hier rein, wenn calcUserProfiles=False ODER skip_calculation=True (Hybrid)
             (building["user"].elec, building["user"].dhw,
              building["user"].occ, building["user"].gains,
              building["user"].EV_carcharging_ondemand, building["user"].EV_carprofile, building["user"].ice_carprofile, building["user"].nb_flats, building["user"].nb_main_rooms,
@@ -977,7 +987,7 @@ class Datahandler:
         is_cooled = building["buildingFeatures"]["cooling"] # Indicates whether the building is actively cooled
 
         # calculate or load heating profiles
-        if calcUserProfiles:
+        if calcUserProfiles and not skip_calculation:
             building["user"].calcHeatingProfile(site=self.site,
                                                 envelope=building["envelope"],
                                                 thermal_model=building["thermal_model"],
@@ -997,11 +1007,11 @@ class Datahandler:
                                         path=os.path.join(self.demands_path))
                 #building["user"].saveHeatingProfile(building["unique_name"], os.path.join(self.resultPath, 'demands'))
             else:
-                heat, cooling, id = self.loadHeatingProfiles(name=building["unique_name"],
-                                                             path=(self.demands_path))
-                building["user"].heat = heat
-                building["user"].cooling = cooling
-                building["gmlId"] = id
+                if not skip_calculation:
+                    heat, cooling, id = self.loadHeatingProfiles(name=building["unique_name"], path=(self.demands_path))
+                    building["user"].heat = heat
+                    building["user"].cooling = cooling
+                    building["gmlId"] = id
 
         print("Finished generating demands!")
 
@@ -1026,8 +1036,8 @@ class Datahandler:
             "night_setback": building["buildingFeatures"]["night_setback"],
         }
 
-    def generateDistrictComplete(self, name = None, calcUserProfiles=True, saveUserProfiles=True,
-                                 gen_cars=True, pv_standard=True, max_threads=8):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True,
+                                 gen_cars=True, pv_standard=True, max_threads=8, allow_hybrid = False):
         """
         All in one solution for district and demand generation.
         Within a clustered time series, data points are aggregated across different time periods
@@ -1064,7 +1074,7 @@ class Datahandler:
         self.generateEnvironment()
         self.initializeBuildings()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads)
+        self.generateDemands(calcUserProfiles, saveUserProfiles, gen_cars=gen_cars, max_threads=max_threads, allow_hybrid=allow_hybrid)
         self.designDecentralDevices(saveGenerationProfiles=True, pv_standard=pv_standard)
 
         # Check if district uses central energy supply (heat grid)
