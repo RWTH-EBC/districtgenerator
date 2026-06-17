@@ -650,7 +650,8 @@ class Datahandler:
                                      area=building["buildingFeatures"]["area"],
                                      year_of_construction=building["buildingFeatures"]["year"],
                                      retrofit=building["buildingFeatures"]["retrofit"],
-                                     SIA2024=self.SIA2024)
+                                     SIA2024=self.SIA2024,
+                                     path = os.path.join(self.resultPath, 'demands'))
 
             night_setback = building["buildingFeatures"]["night_setback"]
             # %% calculate design heat loads

@@ -8,6 +8,8 @@ Author-email: joel.schoelzel@eonerc.rwth-aachen.de
 License: MIT License
 Classifier: Programming Language :: Python :: 3
 License-File: LICENSE.md
+<<<<<<< HEAD
+=======
 Requires-Dist: numpy>=1.20.1
 Requires-Dist: pandas>=1.2.3
 Requires-Dist: matplotlib>=3.3.4
@@ -30,3 +32,4 @@ Dynamic: license
 Dynamic: license-file
 Dynamic: requires-dist
 Dynamic: summary
+>>>>>>> origin/develop
