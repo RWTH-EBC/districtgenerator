@@ -235,10 +235,7 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
                     param["building_massflow_DHW"][n][t] = ((1.0 - relax) * param["building_massflow_DHW"][n][t] + relax * m_DHW_target)
                     param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t], m_SH_min)
                     param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
-                    if np.array_equal(Q_by_node[n], Q_SH_by_node[n]):    #serves effectively as  if n["buildingFeatures"]["heater"] == "heat_grid_SH":
-                        param["building_massflow_HX"][n][t] = param["building_massflow_SH"][n][t]
-                    else:
-                        param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
+                    param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
 
                 # Hydraulic feasibility loop
                 last_hydraulics = None
@@ -350,23 +347,34 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
             T_SUP_MAX=95
             DTS_MAX_STEP=5
 
-            if sup_deficit > tol:
-                dTs = np.clip(sup_deficit, 0.0, DTS_MAX_STEP)
-                Ts = min(Ts + dTs, T_SUP_MAX)
-
-            # elif inner_converged and sup_deficit <= tol and max_heat_deficit <= 50.0:
-            #     timestep_converged = True
-            #     break
-
-            elif inner_converged and sup_deficit <= tol and max_heat_deficit <= heat_tol_eff:
+            # 1) Erfolgreich: thermisch zulässig und innere Iteration konvergiert
+            if inner_converged and sup_deficit <= tol and max_heat_deficit <= heat_tol_eff:
                 timestep_converged = True
                 break
 
+            # 2) Supply-Temperatur reicht am Gebäude nicht aus:
+            #    EH-Vorlauf erhöhen und nächste äußere Iteration starten
+            if sup_deficit > tol:
+                dTs = np.clip(sup_deficit, 0.0, DTS_MAX_STEP)
+                Ts = min(Ts + dTs, T_SUP_MAX)
+                continue
 
+            # 3) Kein Supply-Defizit, aber noch Wärme-Defizit:
+            #    Das kann bei heat_grid_SH / kleinen ΔT / Massenstromkopplung passieren.
+            #    Deshalb nicht sofort abbrechen, sondern Ts leicht erhöhen.
+            if max_heat_deficit > heat_tol_eff:
+                Ts = min(Ts + 1.0, T_SUP_MAX)
+                continue
+
+            # 4) Supply und Wärme sind eigentlich okay, aber inner_converged ist noch False:
+            #    nächste äußere Iteration probieren statt sofort RuntimeError
+            continue
+
+        if not timestep_converged:
             raise RuntimeError(
                 f"[ERROR] Automatic Ts control did not converge at timestep {t} "
                 f"within {max_iter} outer iterations."
-            )
+                )
 
         # Store final deficits
         sup_deficits.append(float(result["sup_deficit"]))
@@ -509,6 +517,9 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
                 m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
                 m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
 
+                if Q_DHW_W <= 1e-9:
+                    m_DHW_min = 0.0
+
                 m_SH_target = max(m_SH, m_SH_min)
                 m_DHW_target = max(m_DHW, m_DHW_min)
 
@@ -517,10 +528,9 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
                 param["building_massflow_DHW"][n][t] = ((1.0 - relax) * param["building_massflow_DHW"][n][t] + relax * m_DHW_target)
                 param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t], m_SH_min)
                 param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
-                if n["buildingFeatures"]["heater"] == "heat_grid_SH":
-                    param["building_massflow_HX"][n][t] = param["building_massflow_SH"][n][t]
-                else:
-                    param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"])
+                if Q_DHW_W <= 1e-9:
+                    m_DHW_min = 0.0
+                param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"])
 
             # Iterate hydraulics to enforce pump constraints (adjust flows until feasible)
             last_hydraulics = None
@@ -597,7 +607,7 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
             for n in building_nodes:
                 old_flow = old_flow_HX[n]
                 new_flow = float(param["building_massflow_HX"][n][t])
-                rel = abs(new_flow - old_flow) / old_flow
+                rel = abs(new_flow - old_flow) / max(abs(old_flow), 1e-9)
                 max_rel_flow_change = max(max_rel_flow_change, rel)
 
                 # temperature change
@@ -1275,7 +1285,8 @@ def compute_and_save_network_costs(data, param):
     shared_debug = _prepare_network_temperature_solver(data, param)
 
     Q_SH_by_node = shared_debug["Q_SH_by_node"]      # SH-Bedarf je Gebäude [kW]
-    Q_DHW_by_node = shared_debug["Q_DHW_by_node"]    # gesamter DHW-Bedarf je Gebäude [kW]
+    Q_DHW_decentral_by_node = shared_debug["Q_DHW_decentral_by_node"]    # gesamter DHW-Bedarf je Gebäude [kW]
+    Q_DHW_by_node = shared_debug["Q_DHW_by_node"]
     Q_by_node = shared_debug["Q_by_node"]            # tatsächlich über das Netz gedeckte Last [kW]
 
     building_nodes = list(Q_by_node.keys())
@@ -1293,23 +1304,12 @@ def compute_and_save_network_costs(data, param):
 
     for n in building_nodes:
         Q_SH = np.asarray(Q_SH_by_node[n], dtype=float)
-        Q_DHW_total = np.asarray(Q_DHW_by_node[n], dtype=float)
-        Q_grid_total = np.asarray(Q_by_node[n], dtype=float)
+        Q_DHW_grid = np.asarray(Q_DHW_by_node[n], dtype=float)
+        Q_DHW_decentral = np.asarray(Q_DHW_decentral_by_node[n], dtype=float)
 
-        # SH wird für angeschlossene Gebäude über das Netz gedeckt
-        SH_grid = Q_SH
-
-        # DHW-Anteil, der im Netz steckt:
-        # Q_grid_total = SH + DHW_grid
-        DHW_grid = np.maximum(Q_grid_total - Q_SH, 0.0)
-
-        # DHW-Anteil außerhalb des Netzes:
-        # z.B. heat_grid_SH mit dezentralem Heizstab
-        DHW_decentral = np.maximum(Q_DHW_total - DHW_grid, 0.0)
-
-        SH_demand_network += SH_grid
-        DHW_demand_network += DHW_grid
-        DHW_demand_decentral += DHW_decentral
+        SH_demand_network += Q_SH
+        DHW_demand_network += Q_DHW_grid
+        DHW_demand_decentral += Q_DHW_decentral
         central_demand_network = SH_demand_network + DHW_demand_network
 
 
@@ -1638,6 +1638,7 @@ def _prepare_network_temperature_solver(data, param):
     T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
     Q_SH_by_node = param["Q_SH_by_node"]
     Q_DHW_by_node = param["Q_DHW_by_node"]
+    Q_DHW_decentral_by_node = param["Q_DHW_decentral_by_node"]
     Q_by_node = param["Q_by_node"]
     root = "EH1"
 
@@ -1724,6 +1725,7 @@ def _prepare_network_temperature_solver(data, param):
         "T_ret_req_by_node_DHW": T_ret_req_by_node_DHW,
         "Q_SH_by_node": Q_SH_by_node,
         "Q_DHW_by_node": Q_DHW_by_node,
+        "Q_DHW_decentral_by_node": Q_DHW_decentral_by_node,
         "Q_by_node": Q_by_node,
         "root": root,
         "pipes": pipes,
@@ -1907,11 +1909,21 @@ def enforce_pump_constraint(
 
         param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t], m_SH_min)
         param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
-        if n["buildingFeatures"]["heater"] == "heat_grid_SH":
-            print("d")
-            param["building_massflow_HX"][n][t] = param["building_massflow_SH"][n][t]
-        else:
-            param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
+
+
+        param["building_massflow_SH"][n][t] *= reduction
+        param["building_massflow_DHW"][n][t] *= reduction
+
+        m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
+        m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
+
+        # Keine erzwungene DHW-Zirkulation, falls keine DHW-Netzlast
+        if float(param["building_massflow_max_DHW"][n]) <= 1e-9:
+            m_DHW_min = 0.0
+
+        param["building_massflow_SH"][n][t] = max(param["building_massflow_SH"][n][t],m_SH_min)
+        param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t],m_DHW_min)
+        param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t]+ param["building_massflow_DHW"][n][t])
 
     return True
 
@@ -2021,13 +2033,16 @@ def solve_network_temperatures(
         T_ret_building_DHW_loc[bn] = Tr_DHW
 
         # mixed return at substation
-        if np.array_equal(Q_by_node[bn], Q_SH_by_node[bn]):    #serves effectively as  if building["buildingFeatures"]["heater"] == "heat_grid_SH":
-            Tr_HX = Tr_SH
-            heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del), 0.0)
-        else:
+        m_HX = m_SH + m_DHW
+
+        if m_HX > 1e-9:
             Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
-            heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
+        else:
+            Tr_HX = Ts_del
+
         T_ret_node_loc[bn] = Tr_HX
+
+        heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del)+ (Q_DHW_W - Q_DHW_del),0.0)
 
         # unmet demand (if flow or Ts insufficient)
         #heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)

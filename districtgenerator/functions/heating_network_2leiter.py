@@ -135,14 +135,19 @@ def load_parameter_2leiter(data):
 
     # Calculate building heat demand connected to the district heating grid
     for building in data.district:
-        if building["buildingFeatures"]["heater"] != "heat_grid":
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
             continue
 
         heating = building["user"].heat / 1000  # kW
         dhw = building["user"].dhw / 1000  # kW
         generationSTC = building["generationSTC"] / 1000  # kW
 
-        net_building_demand = np.maximum(heating + dhw - generationSTC, 0)  # kW
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            net_building_demand = np.maximum(heating + dhw - generationSTC, 0.0)
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            net_building_demand = np.maximum(heating - generationSTC, 0.0)
+
         building["user"].net_building_demand = net_building_demand  # kW
 
         # Additional heat required to cover substation heat losses
@@ -161,12 +166,13 @@ def load_parameter_2leiter(data):
     T_sec_return_DHW_by_node = {}
     Q_SH_by_node = {}
     Q_DHW_by_node = {}
+    Q_DHW_decentral_by_node = {}
     Q_by_node = {}
     UA_SH_by_node = {}
     UA_DHW_by_node = {}
 
     for building in data.district:
-        if building["buildingFeatures"]["heater"] != "heat_grid":
+        if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
             continue
 
         pos_building = tuple(building["buildingFeatures"]["position"])
@@ -197,13 +203,35 @@ def load_parameter_2leiter(data):
         sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0  # kW
 
         # Supply temperature constraint
-        Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+        #Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Ts_req = Ts_req_SH
 
         # Building heat load
         #todo: STC are still not considered here
         Q_SH = sh_load * (1.0 + h_loss_subst / 100.0)
-        Q_DHW = dhw_load * (1.0 + h_loss_subst / 100.0)
-        Q_total = Q_SH + Q_DHW
+        #Q_DHW = dhw_load * (1.0 + h_loss_subst / 100.0)
+        #Q_total = Q_SH + Q_DHW
+
+        Q_DHW_total = dhw_load * (1.0 + h_loss_subst / 100.0)
+
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            Q_DHW_grid = Q_DHW_total
+            Q_DHW_decentral = np.zeros(T_len, dtype=float)
+
+        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Q_DHW_grid = np.zeros(T_len, dtype=float)
+            Q_DHW_decentral = Q_DHW_total
+
+        Q_total = Q_SH + Q_DHW_grid
+
+
+
+
 
         HX_UA_safety_factor = 1.0  # [-] heat-exchanger oversizing factor; 1.15 means 15% larger UA than theoretical design UA
 
@@ -227,7 +255,7 @@ def load_parameter_2leiter(data):
             UA_SH = 0.0
 
         # Design UA for DHW heat exchanger
-        if np.any(Q_DHW > 0.0):
+        if building["buildingFeatures"]["heater"] == "heat_grid" and np.any(Q_DHW_grid > 0.0):
             Q_DHW_design_W = building["bes_obj"].design_load_dhw * (1.0 + h_loss_subst / 100.0)
             T_cold_DHW_secondary_design = float(T_cold_water)
             T_hot_DHW_secondary_design = float(T_dhw_required)
@@ -255,7 +283,9 @@ def load_parameter_2leiter(data):
 
         # Loads at the substation
         Q_SH_by_node[node_key] = Q_SH
-        Q_DHW_by_node[node_key] = Q_DHW
+        #Q_DHW_by_node[node_key] = Q_DHW
+        Q_DHW_by_node[node_key] = Q_DHW_grid
+        Q_DHW_decentral_by_node[node_key] = Q_DHW_decentral
         Q_by_node[node_key] = Q_total
 
         UA_SH_by_node[node_key] = UA_SH
@@ -269,6 +299,7 @@ def load_parameter_2leiter(data):
     param["T_sec_return_DHW_by_node"] = T_sec_return_DHW_by_node
     param["Q_SH_by_node"] = Q_SH_by_node
     param["Q_DHW_by_node"] = Q_DHW_by_node
+    param["Q_DHW_decentral_by_node"] = Q_DHW_decentral_by_node
     param["Q_by_node"] = Q_by_node
     param["UA_SH_by_node"] = UA_SH_by_node
     param["UA_DHW_by_node"] = UA_DHW_by_node
@@ -1175,15 +1206,20 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     buildings_connected = [
         b for b in data.district
-        if b["buildingFeatures"]["heater"] == "heat_grid"
+        if b["buildingFeatures"]["heater"] in ["heat_grid", "heat_grid_SH"]
     ]
 
     C_substations = 0.0
     for building in buildings_connected:
-        substation_capacity = (
-                building["bes_obj"].design_load_heating / 1000.0
-                + building["bes_obj"].design_load_dhw / 1000.0
-        )
+        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            substation_capacity = (
+                    building["bes_obj"].design_load_heating / 1000.0
+            )
+        else:
+            substation_capacity = (
+                    building["bes_obj"].design_load_heating / 1000.0
+                    + building["bes_obj"].design_load_dhw / 1000.0
+            )
         C_substations += substation_capacity * data.heat_grid_data["C_subst"]
 
     substation_lifetime = data.heat_grid_data["lifetime_subst"]

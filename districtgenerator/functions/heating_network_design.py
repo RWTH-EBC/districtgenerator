@@ -130,6 +130,7 @@ def load_parameter(data):
     T_ret_req_by_node_DHW = {}
     Q_SH_by_node = {}
     Q_DHW_by_node = {}
+    Q_DHW_decentral_by_node = {}
     Q_by_node = {}
 
     dT_HX_sup = 8.0 # K  minimum temperature difference required between the primary supply (network) and the secondary supply (building heating system)
@@ -176,11 +177,16 @@ def load_parameter(data):
         # Building heat load
         #todo: STC are still not considered here
         Q_SH = sh_load * (1.0 + h_loss_subst / 100.0)
-        Q_DHW = dhw_load * (1.0 + h_loss_subst / 100.0)
-        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
-            Q_total = Q_SH
-        else:
-            Q_total = Q_SH + Q_DHW
+        Q_DHW_total = dhw_load * (1.0 + h_loss_subst / 100.0)
+
+        if building["buildingFeatures"]["heater"] == "heat_grid":
+            Q_DHW_grid = Q_DHW_total
+            Q_DHW_decentral = np.zeros(T_len, dtype=float)
+        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Q_DHW_grid = np.zeros(T_len, dtype=float)
+            Q_DHW_decentral = Q_DHW_total
+
+        Q_total = Q_SH + Q_DHW_grid
 
         T_sup_req_by_node[node_key] = Ts_req
         T_ret_req_by_node_SH[node_key] = Tr_req_SH
@@ -188,7 +194,8 @@ def load_parameter(data):
 
         # Loads at the substation
         Q_SH_by_node[node_key] = Q_SH
-        Q_DHW_by_node[node_key] = Q_DHW
+        Q_DHW_by_node[node_key] = Q_DHW_grid
+        Q_DHW_decentral_by_node[node_key] = Q_DHW_decentral
         Q_by_node[node_key] = Q_total
 
     # store them into param
@@ -197,6 +204,7 @@ def load_parameter(data):
     param["T_ret_req_by_node_DHW"] = T_ret_req_by_node_DHW
     param["Q_SH_by_node"] = Q_SH_by_node
     param["Q_DHW_by_node"] = Q_DHW_by_node
+    param["Q_DHW_decentral_by_node"] = Q_DHW_decentral_by_node
     param["Q_by_node"] = Q_by_node
 
     # Get network supply temperature profile if availabe
@@ -412,10 +420,7 @@ def calc_flow(data, param, save_path=None):
         m_SH = np.maximum(m_SH, alpha * m_SH_max)
         m_DHW = np.maximum(m_DHW, alpha * m_DHW_max)
 
-        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
-            m_dot = m_SH
-        else:
-            m_dot = m_SH + m_DHW
+        m_dot = m_SH + m_DHW
 
 
         # store everything
