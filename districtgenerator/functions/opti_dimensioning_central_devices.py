@@ -284,8 +284,12 @@ def build_model(model, data, devs, param, dem):
                 # Sabatier reactor correlation between hydrogen consumption and gas production
                 model.constraints.add(model.gas["SAB", y, d, t] == model.hydrogen["SAB", y, d, t] * devs["SAB"]["eta"])
 
-                # Waste heat balance can not supply more than the available waste heat and can not exceed the demand to ensure that excess waste heat cannot be stored. To keep unidirectional flow out of Energy hub. 
-                model.constraints.add(model.waste_heat[y, d, t] <= min(param["waste_heat"][d][t], dem["heat"][y][d][t]))
+                # Waste heat is only used as source heat if the selected HP mode is waste-heat-source.
+                if devs["HP"].get("source") == "waste_heat":
+                    model.constraints.add(model.waste_heat[y, d, t] == model.heat["HP", y, d, t] - model.power["HP", y, d, t])
+                    model.constraints.add(model.waste_heat[y, d, t] <= param["waste_heat"][d][t])
+                else:
+                    model.constraints.add(model.waste_heat[y, d, t] == 0)
 
     ################################################################################
     # Energy balances for each time step
@@ -296,7 +300,7 @@ def build_model(model, data, devs, param, dem):
             for t in model.time_steps:
                 # Heat balance
                 heat_supply = sum(model.heat[dev, y, d, t] for dev in
-                                  ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]) + model.waste_heat[y, d, t]
+                                  ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
                 heat_demand = dem["heat"][y][d][t] + model.heat["AC", y, d, t] + model.ch["TES", y, d, t]
                 model.constraints.add(heat_supply == heat_demand)
 

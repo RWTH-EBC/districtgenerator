@@ -143,6 +143,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     energyHubData = data.centralDevices
     heatingNetworkData = data.heat_grid_data
 
+    hp_source = (energyHubData.get("capacities", {}).get("devs", {}).get("HP", {}).get("source"))
+
     ################################################################################
     # Setting up the model
     ################################################################################
@@ -467,7 +469,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # Seasonal storage: Currently only a constant decharge potential is possible, and can be defined through the config
     model.eh_seasonal_dch = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
-    # Waste heat: Currently only a constant potential is possible, and can be defined through the config
+    # Waste heat used as source heat for the EH heat pump
     model.eh_waste_heat = pyo.Var(model.t, within=pyo.NonNegativeReals)
 
     ################################################################################
@@ -623,12 +625,18 @@ def build_model(model, data, year, cluster, sim_ecoData):
             return model.eh_seasonal_dch[t] == 0
         else:
             return model.eh_seasonal_dch[t] <= model.seasonal_storage_max_W[t]
-        
-    def waste_heat_constraint_rule(model, t):
-        if energyHubData == {}:
+
+    def waste_heat_availability_rule(model, t):
+        if energyHubData == {} or hp_source != "waste_heat":
             return model.eh_waste_heat[t] == 0
         else:
             return model.eh_waste_heat[t] <= model.waste_heat_max_W[t]
+
+    def waste_heat_hp_source_rule(model, t):
+        if energyHubData == {} or hp_source != "waste_heat":
+            return model.eh_waste_heat[t] == 0
+        else:
+            return model.eh_waste_heat[t] == model.eh_heat_HP[t] - model.eh_power_HP[t]
 
     for device in ["EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
         constraint_rule = create_eh_heat_capacity_constraint(device)
@@ -650,7 +658,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_pv_generation = pyo.Constraint(model.t, rule=eh_pv_generation_rule)
     model.eh_wt_generation = pyo.Constraint(model.t, rule=eh_wt_generation_rule)
     model.seasonal_storage_constraint = pyo.Constraint(model.t, rule=seasonal_storage_constraint_rule)
-    model.waste_heat_constraint = pyo.Constraint(model.t, rule=waste_heat_constraint_rule)
+    model.waste_heat_availability = pyo.Constraint(model.t, rule=waste_heat_availability_rule)
+    model.waste_heat_hp_source = pyo.Constraint(model.t, rule=waste_heat_hp_source_rule)
 
     ################################################################################
     # Define capacity of devices as parameters from input data (Buildings)
@@ -1271,7 +1280,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
     def eh_heat_supply_rule(model, t):
         return model.eh_heat_to_grid[t] == model.heat_grid_demand[t] + \
-            model.network_losses_heating[t] - model.eh_seasonal_dch[t] - model.eh_waste_heat[t]
+            model.network_losses_heating[t] - model.eh_seasonal_dch[t]
 
     # The EH must supply the cooling demand of the buildings connected to the grid
     def eh_cool_supply_rule(model, t):

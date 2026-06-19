@@ -51,6 +51,9 @@ def load_params(data):
     # Available waste heat potential in kW for the optimization model
     param_uncl["waste_heat"] = data.heat_grid_data["waste_heat_kW"]
 
+    # Waste heat source temperature in °C for HP COP calculation
+    waste_heat_temperature = heat_grid_data.get("waste_heat_temperature")
+
     ################################################################
     # LOAD DEMANDS
 
@@ -60,9 +63,6 @@ def load_params(data):
     heating = np.zeros(len(data.district[0]["user"].heat))
     cooling = np.zeros(len(data.district[0]["user"].cooling))
     dhw = np.zeros(len(data.district[0]["user"].dhw))
-    electricityAppliances = np.zeros(len(data.district[0]["user"].elec))
-    electricityEV = np.zeros(len(data.district[0]["user"].EV_carcharging_ondemand))
-    generationPV = np.zeros(len(data.district[0]["generationPV"]))
     generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
     net_heat_demand = np.zeros(len(data.district[0]["user"].heat))
 
@@ -80,11 +80,6 @@ def load_params(data):
             dhw += data.district[b]["user"].dhw / 1000 # kW
             generationSTC += data.district[b]["generationSTC"] / 1000 # kW
 
-        # Electricity generated or used by the Energy Hub can be used or provided by all buildings
-        electricityAppliances += data.district[b]["user"].elec / 1000 # kW
-        electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
-        generationPV += data.district[b]["generationPV"] / 1000 # kW
-    
     heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"] - heat_grid_data["seasonal_storage_kW"] # kW; net heat demand from buildings + heat grid losses - seasonal storage supply;
 
     # Clip heating_total to a minimum of 0, since negative heating demand (excess heat) as local surplus by STC or through seasonal storage should not be able to be stored into storage systems in the Energy hub, assuming a unidirectional flow
@@ -98,7 +93,10 @@ def load_params(data):
     if "pump_power" not in heat_grid_data:
         data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
     pump_power = data.heat_grid_data["pump_power"]
-    electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
+
+    # Electricity demand relevant for the Energy Hub:
+    # only hub/heat-grid related electricity demand, e.g. pump power.
+    electricity_total = pump_power
 
     dem_uncl["heat"] = heating_total
     dem_uncl["cool"] = cooling_total
@@ -157,6 +155,7 @@ def load_params(data):
     param["DHI"] = clustered_series[5]
     param["wind_speed"] = clustered_series[6]
     param["waste_heat"] = clustered_series[7]
+    param["waste_heat_temperature"] = np.ones_like(param["waste_heat"]) * waste_heat_temperature
 
     # Save number of design days and design-day matrix
     # todo: Adjust this to allow for different clusters in each year?
@@ -211,6 +210,7 @@ def load_params(data):
             "CCOP_feasible": value.get("CCOP_feasible", False),
             "ASHP_feasible": value.get("ASHP_feasible", False),
             "CSV_feasible": value.get("CSV_feasible", False),
+            "Waste_feasible": value.get("Waste_feasible", False),
             "eta": value.get("eta", 0) * 100,
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
@@ -420,6 +420,7 @@ def load_params(data):
             "CCOP_feasible": all_models["HP"]["CCOP_feasible"],
             "ASHP_feasible": all_models["HP"]["ASHP_feasible"],
             "CSV_feasible": all_models["HP"]["CSV_feasible"],
+            "Waste_feasible": all_models["HP"]["Waste_feasible"],
             "COP_const": all_models["HP"]["COP_const"],
             "inv_var": all_models["HP"]["inv_var"],
             "inv_base": all_models["HP"]["inv_base"],
@@ -440,6 +441,20 @@ def load_params(data):
             for d in range(data.time["clusterNumber"]):
                 for t in range(clusterHorizon):
                     COP_base[d][t] = eta_carnot * (heat_grid["T_hot_heating_network"][d][t] + 273.15) / (heat_grid["T_hot_heating_network"][d][t] - param["T_air"][d][t])
+            devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+
+        elif all_models["HP"]["Waste_feasible"]:
+            # Waste-heat-source HP
+            devs["HP"]["source"] = "waste_heat"
+            eta_carnot = all_models["HP"]["ASHP_carnot_eff"]
+            T_sink_K = heat_grid["T_hot_heating_network"] + 273.15
+            T_source_K = param["waste_heat_temperature"] + 273.15
+            delta_T = T_sink_K - T_source_K
+            if np.any(delta_T <= 0):
+                raise ValueError(
+                    "Waste heat temperature must be lower than the heating network supply temperature "
+                    "for Carnot COP calculation.")
+            COP_base = eta_carnot * T_sink_K / delta_T
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
         elif all_models["HP"]["CSV_feasible"]:

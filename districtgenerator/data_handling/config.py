@@ -440,6 +440,7 @@ class HeatGridConfig(BaseSettings):
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
     seasonal_storage_kWh_a: float = 0 # Seasonal storage capacity at the location in kWh/a -> Which offers a constant supply of energy throughout the year without any associated cost or emissions.
     nominal_waste_heat_capacity_kW: Optional[float] = None  # Nominal waste heat capacity in kW without any associated cost or emissions. None indicates it can later be determined by the input file. If it is not determined it will be set to 0.
+    waste_heat_temperature: float = 25.0  # Temperature of available waste heat source in °C, used as HP source temperature.
 
     T_hot_heating_network__constant__3rd: float = 80.0  # Supply temperature of 3rd generation heat grid in degrees Celsius.
     T_hot_heating_network__constant__4th: float = 55.0  # Supply temperature of 4th generation heat grid in degrees Celsius.
@@ -1148,12 +1149,13 @@ class CentralDeviceConfig(BaseSettings):
     HP__CCOP_feasible: bool = True  # Should this be considered for the central optimization (constant COP).
     HP__ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
     HP__CSV_feasible: bool = False  # Should this be considered for the central optimization (CSV data).
+    HP__Waste_feasible: bool = False  # Waste-heat-source Carnot COP.
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     HP__min_cap: float = 0  # Minimum capacity in kW.
     HP__max_cap: float = 500  # Maximum capacity in kW.
-    HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
+    HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Heat Pump between 0 and 1.
     HP__ASHP_supply_temp: float = 60  # Supply temperature of the Air Source Heat Pump in Celsius.
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
@@ -1420,6 +1422,7 @@ class CentralDeviceConfig(BaseSettings):
             hp_mode_count = sum([
                 bool(self.HP["CCOP_feasible"]),
                 bool(self.HP["ASHP_feasible"]),
+                bool(self.HP["Waste_feasible"]),
                 bool(self.HP["CSV_feasible"])
             ])
 
@@ -1427,7 +1430,7 @@ class CentralDeviceConfig(BaseSettings):
                 raise ValueError(
                     f"Configuration Error: When 'HP__feasible' is True, exactly ONE COP mode must be enabled. "
                     f"Currently {hp_mode_count} are active. Please set 'True' for exactly one of: "
-                    "'HP__CCOP_feasible', 'HP__ASHP_feasible', or 'HP__CSV_feasible'."
+                    "'HP__CCOP_feasible', 'HP__ASHP_feasible', 'HP__Waste_feasible', or 'HP__CSV_feasible'."
                 )
 
         cc_enabled_count = sum([
