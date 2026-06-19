@@ -23,7 +23,7 @@ def el_buildings(plotData, data):
 
     color_labels = [
         "From grid", "PV", "CHP", "FC", "BAT discharge", "EV discharge",
-        "Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"
+        "Demand", "EV charge", "HP", "EH", "EWH", "BAT charge", "To grid"
     ]
 
     palette = sns.color_palette("tab20", n_colors=len(color_labels))
@@ -61,6 +61,7 @@ def el_buildings(plotData, data):
             ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps) / 1000
             HP = safe_array(plotData, c, n, "HP", "P_el", time_steps) / 1000
             EH = safe_array(plotData, c, n, "EH", "P_el", time_steps) / 1000
+            EWH = safe_array(plotData, c, n, "EWH", "P_el", time_steps) / 1000
             ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps) / 1000
 
             # SOURCES
@@ -69,8 +70,8 @@ def el_buildings(plotData, data):
             source_colors = [color_map[label] for label in source_labels]
 
             # SINKS
-            sinks = [demand, ch_EV, HP, EH, ch_BAT, feed]
-            sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"]
+            sinks = [demand, ch_EV, HP, EH, EWH, ch_BAT, feed]
+            sink_labels = ["Demand", "EV charge", "HP", "EH", "EWH", "BAT charge", "To grid"]
             sink_colors = [color_map[label] for label in sink_labels]
 
             # plot everything (even the all‐zero ones) for stacking consistency
@@ -136,7 +137,7 @@ def th_buildings(plotData, data):
     time = plotData["time"]
 
     color_labels = [
-        "Heat Pump", "Boiler", "Electric Heater", "Solar Thermal",
+        "Heat Pump", "Boiler", "Electric Heater", "Electric Water Heater", "Solar Thermal",
         "CHP", "Fuel Cell", "TES discharge", "TES charge",
         "Heating Demand", "DHW Demand", "Heat Grid"
     ]
@@ -163,6 +164,7 @@ def th_buildings(plotData, data):
             HP = safe_array(plotData, c, n, "HP", "Q_th", time_steps) / 1000
             BOI = safe_array(plotData, c, n, "BOI", "Q_th", time_steps) / 1000
             EH = safe_array(plotData, c, n, "EH", "Q_th", time_steps) / 1000
+            EWH = safe_array(plotData, c, n, "EWH", "Q_th", time_steps) / 1000
             STC = safe_array(plotData, c, n, "STC", "Q_th", time_steps) / 1000
             CHP = safe_array(plotData, c, n, "CHP", "Q_th", time_steps) / 1000
             FC = safe_array(plotData, c, n, "FC", "Q_th", time_steps) / 1000
@@ -176,9 +178,9 @@ def th_buildings(plotData, data):
             heating = np.array(plotData["resultsOptimization"][c][n]["Heating_dem"]["Q_th"]) / 1000
 
             # Build sources
-            sources = [HP, BOI, EH, STC, CHP, FC, dch_TES, heat_grid]
+            sources = [HP, BOI, EH, EWH, STC, CHP, FC, dch_TES, heat_grid]
             source_labels = [
-                "Heat Pump", "Boiler", "Electric Heater", "Solar Thermal",
+                "Heat Pump", "Boiler", "Electric Heater", "Electric Water Heater", "Solar Thermal",
                 "CHP", "Fuel Cell", "TES discharge", "Heat Grid"
             ]
             source_colors = [color_map[label] for label in source_labels]
@@ -283,6 +285,7 @@ def el_all_buildings(plotData, data):
         total_ch_EV = np.zeros(time_steps)
         total_HP = np.zeros(time_steps)
         total_EH = np.zeros(time_steps)
+        total_EWH = np.zeros(time_steps)
         total_ch_BAT = np.zeros(time_steps)
         total_feed = np.zeros(time_steps)
 
@@ -302,6 +305,7 @@ def el_all_buildings(plotData, data):
             ch_EV = safe_array(plotData, c, n, "EV", "ch", time_steps) / 1000
             HP = safe_array(plotData, c, n, "HP", "P_el", time_steps) / 1000
             EH = safe_array(plotData, c, n, "EH", "P_el", time_steps) / 1000
+            EWH = safe_array(plotData, c, n, "EWH", "P_el", time_steps) / 1000
             ch_BAT = safe_array(plotData, c, n, "BAT", "ch", time_steps) / 1000
 
 
@@ -317,6 +321,7 @@ def el_all_buildings(plotData, data):
             total_ch_EV += ch_EV
             total_HP += HP
             total_EH += EH
+            total_EWH += EWH
             total_ch_BAT += ch_BAT
             total_feed += feed
 
@@ -326,8 +331,8 @@ def el_all_buildings(plotData, data):
         source_colors = [color_map[label] for label in source_labels]
 
         # ---- Build sinks ----
-        sinks = [total_demand, total_ch_EV, total_HP, total_EH, total_ch_BAT, total_feed]
-        sink_labels = ["Demand", "EV charge", "HP", "EH", "BAT charge", "To grid"]
+        sinks = [total_demand, total_ch_EV, total_HP, total_EH, total_EWH, total_ch_BAT, total_feed]
+        sink_labels = ["Demand", "EV charge", "HP", "EH", "EWH", "BAT charge", "To grid"]
         sink_colors = [color_map[label] for label in sink_labels]
 
         # plot everything (even the all‐zero ones) for stacking consistency
@@ -416,6 +421,7 @@ def th_all_buildings(plotData, data):
         total_HP = np.zeros(time_steps)
         total_BOI = np.zeros(time_steps)
         total_EH = np.zeros(time_steps)
+        total_EWH = np.zeros(time_steps)
         total_STC = np.zeros(time_steps)
         total_CHP = np.zeros(time_steps)
         total_FC = np.zeros(time_steps)
@@ -432,6 +438,7 @@ def th_all_buildings(plotData, data):
             total_HP += safe_array(plotData, c, n, "HP", "Q_th", time_steps) / 1000
             total_BOI += safe_array(plotData, c, n, "BOI", "Q_th", time_steps) / 1000
             total_EH += safe_array(plotData, c, n, "EH", "Q_th", time_steps) / 1000
+            total_EWH += safe_array(plotData, c, n, "EWH", "Q_th", time_steps) / 1000
             total_STC += safe_array(plotData, c, n, "STC", "Q_th", time_steps) / 1000
             total_CHP += safe_array(plotData, c, n, "CHP", "Q_th", time_steps) / 1000
             total_FC += safe_array(plotData, c, n, "FC", "Q_th", time_steps) / 1000
@@ -444,10 +451,10 @@ def th_all_buildings(plotData, data):
             total_dhw += np.array(plotData["resultsOptimization"][c][n]["DHW_dem"]["Q_th"]) / 1000  # always exists
 
         # ---- Build sources ----
-        sources = [total_HP, total_BOI, total_EH, total_STC,
+        sources = [total_HP, total_BOI, total_EH, total_EWH, total_STC,
                    total_CHP, total_FC, total_dch_TES, total_heat_grid]
 
-        source_labels = ["Heat Pump", "Boiler", "Electric Heater", "Solar Thermal",
+        source_labels = ["Heat Pump", "Boiler", "Electric Heater", "Electric Water Heater", "Solar Thermal",
                          "CHP", "Fuel Cell", "TES discharge", "Heat Grid"]
 
         source_colors = [color_map[label] for label in source_labels]

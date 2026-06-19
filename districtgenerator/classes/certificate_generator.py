@@ -3241,6 +3241,7 @@ class DataExtractor:
                 # Heat & Power
                 "HP": "Heat Pump",
                 "EH": "Electric Heater",
+                "EWH": "Electric Water Heater",
                 "CHP": "Combined Heat & Power",
                 "BOI": "Boiler",
                 "BBOI": "Biogas Boiler",
@@ -3270,6 +3271,7 @@ class DataExtractor:
                 # Heat & Power
                 "HP": "Wärmepumpe",
                 "EH": "Heizstab",
+                "EWH": "Elektrischer Warmwasser Heizstab",
                 "CHP": "Blockheizkraftwerk",
                 "BOI": "Heizkessel",
                 "BBOI": "Biogas-Heizkessel",

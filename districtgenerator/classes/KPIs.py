@@ -384,6 +384,7 @@ class KPIs:
         # Sum the values in the 'TES', 'TES_DHW', 'PV', 'STC', 'EV', and 'BAT' columns
         counts["TES"] = sum(1 for b in district if b["capacities"].get("TES", 0) > 0)
         counts["TES_DHW"] = sum( 1 for b in district if b["capacities"].get("TES_DHW", 0) > 0)
+        counts["EWH"] = sum(1 for b in district if b["capacities"].get("EWH", 0) > 0)
         counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
         counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
         counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
@@ -398,6 +399,7 @@ class KPIs:
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
+            capacities[n]["EWH"] = district[n]["capacities"].get("EWH", 0.0) / 1000
             capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
@@ -415,7 +417,7 @@ class KPIs:
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
 
-        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES", "TES_DHW"]
+        devices = ["BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "EWH", "CC", "CHP", "FC", "DH", "PV", "STC", "EV", "BAT", "TES", "TES_DHW"]
 
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
@@ -773,7 +775,7 @@ class KPIs:
                 fixed_cost_heat = 0.0
                 heater_type = data.district[n]["buildingFeatures"]["heater"]
 
-                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "CHP", "FC", "DH", "TES", "TES_DHW", "STC", "T_reduction_measures", "T_reduction_measures_heat_grid"}
+                heat_devices = {"BOI", "BBOI", "H2BOI", "OBOI", "HP", "EH", "EWH", "CHP", "FC", "DH", "TES", "TES_DHW", "STC", "T_reduction_measures", "T_reduction_measures_heat_grid"}
 
                 # Fixed cost allocation
                 for dev, info in self.decentral_individual_devices_annualized_cost.get(n, {}).items():
@@ -844,13 +846,14 @@ class KPIs:
                             share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
                             fuel_cost_heat += cw * share_heat * fuel_input * price_h2
 
-                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH"]:
+                    if heater_type in ["HP", "BHP", "OHP", "H2HP", "GHP", "EH", "EWH"]:
                         el_heat_from_grid_cluster = 0.0
                         for t in range(T):
                             hp_t = res.get("HP", {}).get("P_el", [0] * T)[t]
                             eh_t = res.get("EH", {}).get("P_el", [0] * T)[t]
+                            ewh_t = res.get("EWH", {}).get("P_el", [0] * T)[t]
                             grid_t = res.get("res_load", [0] * T)[t]
-                            el_heat_t = (hp_t + eh_t) * dt / 3600 / 1000
+                            el_heat_t = (hp_t + eh_t + ewh_t) * dt / 3600 / 1000
                             grid_t_kWh = grid_t * dt / 3600 / 1000
                             el_heat_from_grid_cluster += min(el_heat_t, grid_t_kWh)
                         el_cost_heat += cw * el_heat_from_grid_cluster * price_el

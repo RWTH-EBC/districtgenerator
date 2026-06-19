@@ -815,6 +815,14 @@ class DecentralDeviceConfig(BaseSettings):
     EH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EH: dict = {}
 
+    # EWH parameters (Electric Water Heater)
+    EWH__eta_th: float = 0.99  # Thermal efficiency.
+    EWH__life_time: int = 25  # Maximum life time in years.
+    EWH__inv_base: float = 150.0  # Unsubsidized investment in €/kW.
+    EWH__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    EWH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    EWH: dict = {}
+
     # BOI parameters (Gas Boiler)
     BOI__eta_th: float = 0.99  # Thermal efficiency.
     BOI__life_time: int = 20  # Maximum life time in years.

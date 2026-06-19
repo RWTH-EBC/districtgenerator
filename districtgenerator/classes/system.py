@@ -166,10 +166,16 @@ class BES:
                     BES["EH"] = self.design_load_heating + self.design_load_dhw
                 elif buildingFeatures["heater"] in hybrid_systems and hybrid_systems[buildingFeatures["heater"]]["backup"] == "EH":
                     BES["EH"] = (self.design_load_heating - self.bivalent_load_heating) + self.design_load_dhw
-                elif buildingFeatures["heater"] == "heat_grid_SH":
-                    BES["EH"] = self.design_load_dhw
+                #elif buildingFeatures["heater"] == "heat_grid_SH":
+                #    BES["EH"] = self.design_load_dhw
                 else:
                     BES["EH"] = 0
+
+            if k == "EWH":
+                if buildingFeatures["heater"] == "heat_grid_SH":
+                    BES["EWH"] = self.design_load_dhw
+                else:
+                    BES["EWH"] = 0
 
 
             # handle CHP/FC separately (co-generation)
@@ -317,6 +323,7 @@ class BES:
             caps.update({
                 "HP": 0.0,
                 "EH": 0.0,
+                "EWH": 0.0,
                 "BOI": 0.0,
                 "BBOI": 0.0,
                 "OBOI": 0.0,
