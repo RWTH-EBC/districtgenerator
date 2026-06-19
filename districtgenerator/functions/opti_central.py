@@ -6,18 +6,14 @@ Created 26.02.2024
 ORIGINAL GUROBI VERSION ADJUSTED FOR PYOMO USAGE
 """
 
-from xml.parsers.expat import model
-
 import pyomo.environ as pyo
-from pyomo.util.infeasible import log_infeasible_constraints
 import os
-from io import StringIO
 import time
 import districtgenerator.functions.solver_config as solver_config
-from datetime import datetime
-import logging
 
 # Sets of energy conversion systems in the buildings
+DOM_DEVS = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "FC", "CC", "PV", "BAT", "TES", "TES_DHW")
+
 ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "Heating_dem", "FC", "EH_DHW", "DHW_dem")
 ECS_COOL = ("CC", "heat_grid", "Cooling_dem") #! heat_grid correct? Should this be cooling grid for better understanding?
 ECS_POWER = ("HP", "EH", "CC", "CHP", "PV", "Elec_dem", "FC", "EH_DHW")  # power consuming/producing devices
@@ -47,6 +43,33 @@ EH_ECS_STORAGE = ("TES", "CTES", "BAT", "H2S", "GS")
 EH_ECS_WASTE = ("WCHP", "WBOI", "import")
 
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
+
+DEVICE_MAPPING = { # Dictionary to map the devices energy domains. Might be used to allow a more generic formulation of energy balance constraints in the future.
+    # Devices
+    "HP": {"gen": ["heat"], "cons": ["power"]},
+    "EH": {"gen": ["heat"], "cons": ["power"]},
+    "EH_DHW": {"gen": ["heat"], "cons": ["power"]},
+    "CHP": {"gen": ["heat", "power"], "cons": ["gas"]},
+    "BOI": {"gen": ["heat"], "cons": ["gas"]},
+    "BBOI": {"gen": ["heat"], "cons": ["biomass", "biom"]},
+    "OBOI": {"gen": ["heat"], "cons": ["oil"]},
+    "H2BOI": {"gen": ["heat"], "cons": ["hydrogen"]},
+    "FC": {"gen": ["heat", "power"], "cons": ["hydrogen"]},
+    "CC": {"gen": ["cool"], "cons": ["power"]},
+    "AC": {"gen": ["cool"], "cons": ["heat"]},
+    "PV": {"gen": ["power"], "cons": []},
+    "WT": {"gen": ["power"], "cons": []},
+    "WAT": {"gen": ["power"], "cons": []},
+    "STC": {"gen": ["heat"], "cons": []},
+    "GHP": {"gen": ["heat"], "cons": ["gas"]},
+    "BCHP": {"gen": ["heat", "power"], "cons": ["biom"]},
+    "WCHP": {"gen": ["heat", "power"], "cons": ["waste"]},
+    "WBOI": {"gen": ["heat"], "cons": ["waste"]},
+    "ELYZ": {"gen": ["hydrogen"], "cons": ["power"]},
+    "SAB": {"gen": ["gas"], "cons": ["hydrogen"]},
+    "DH": {"gen": ["heat"], "cons": []},
+}
+
 
 
 def run_opti_central(data, year, cluster, sim_ecoData, resultPath) -> dict:
@@ -1633,55 +1656,56 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Energy Hub results
     ################################################################################
 
-    def helper_func_extract_eh_results(model, results_dict, variable_type, device_set, time_steps):
-        """
-        Helper function to extract Energy Hub results for a specific variable type for all devices in the device set.
+    results_dict["energy_hub"] = {}
+    
+    # Iterate through the device mapping to extract the results for all devices:
+    for dev, mapping in DEVICE_MAPPING.items():
+        if dev in EH_DEVS and dev not in EH_ECS_STORAGE: # Storage devices are handled separately below, however they are not defined in the Device Mapping
+            dev_dict = {}
+            for target_type, carriers in mapping.items(): # 'gen' or 'cons'
+                for energy_carrier in carriers:
+                    col_name = f"{target_type}_{energy_carrier}" # e.g., 'gen_heat', 'cons_power'
+                    ts_col_name = f"ts_{col_name}" # e.g., 'ts_gen_heat', 'ts_cons_power'
+                    try:
+                        var = getattr(model, f"eh_{energy_carrier}_{dev}") # Name of the variable in the model to search for
+                        # Save the results for this device and energy carrier
+                        dev_dict[ts_col_name] = [round(pyo.value(var[t]), 0) for t in time_steps]
+                        dev_dict[col_name] = sum(pyo.value(var[t]) for t in time_steps) * dt / 1000 # Total energy in kWh
 
-        Args:
-            model: Pyomo model with solved variables
-            results_dict: Dictionary to store results
-            energy_type: String name for the energy type (e.g., "eh_hydrogen", "eh_power")
-            device_set: Set of devices for this energy type
-            time_steps: Range of time steps
-        """
-        results_dict[variable_type] = {}
-        for device in device_set:
-            results_dict[variable_type][device] = []
-            for t in time_steps:
-                results_dict[variable_type][device].append(
-                    round(pyo.value(model.__getattribute__(f"{variable_type}_{device}")[t]), 0)
-                )
+                    except AttributeError:
+                        pass
+                    
+            if dev_dict: # Only add the device to the results if we found any variables for it
+                results_dict["energy_hub"][dev] = dev_dict
+            else:
+                raise ValueError(f"No variables found for device {dev} in the model. Please check the variable naming and DEVICE_MAPPING.")
+            
+    # Iterate through the storage devices separately to extract their specific variables (ch, dch, soc): 
+    for dev in EH_ECS_STORAGE:
+        dev_dict = {}
+        for var_type in ["ch", "dch", "soc"]:
+            ts_col_name = f"ts_{var_type}" # e.g., 'ts_ch_BAT', 'ts_dch_BAT', 'ts_soc_BAT'
+            try:
+                var = getattr(model, f"eh_{var_type}_{dev}") # Name of the variable in the model to search for
+                # Save the results for this device and variable type
+                dev_dict[ts_col_name] = [round(pyo.value(var[t]), 0) for t in time_steps]
 
-    # Extract results for each energy type using the helper function
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_power",
-                                   device_set=EH_ECS_POWER, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_heat",
-                                   device_set=EH_ECS_HEAT, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_cool",
-                                   device_set=EH_ECS_COOL, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_gas",
-                                   device_set=EH_ECS_GAS, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_hydrogen",
-                                   device_set=EH_ECS_HYDROGEN, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_biom",
-                                   device_set=EH_ECS_BIOMASS, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_waste",
-                                   device_set=EH_ECS_WASTE, time_steps=time_steps)
+                if var_type in ["ch", "dch"]:
+                    dev_dict[var_type] = sum(pyo.value(var[t]) for t in time_steps) * dt / 1000 # Total charged/discharged energy in kWh
 
-    # Storage results
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_ch",
-                                   device_set=EH_ECS_STORAGE, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_dch",
-                                   device_set=EH_ECS_STORAGE, time_steps=time_steps)
-    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_soc",
-                                   device_set=EH_ECS_STORAGE, time_steps=time_steps)
+            except AttributeError:
+                pass
+        if dev_dict: # Only add the device to the results if we found any variables for it
+            results_dict["energy_hub"][dev] = dev_dict
+        else:
+            raise ValueError(f"No variables found for storage device {dev} in the model. Please check the variable naming and EH_ECS_STORAGE list.")
     
     # Residual Load of the Energyhub calculated through model.eh_power_to_grid and model.eh_power_from_grid
-    results_dict["eh_res_load"] = []
-    results_dict["eh_res_inj"] = []
+    results_dict["energy_hub"]["res_load"] = []
+    results_dict["energy_hub"]["res_inj"] = []
     for t in time_steps:
-        results_dict["eh_res_load"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
-        results_dict["eh_res_inj"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
+        results_dict["energy_hub"]["res_load"].append(round(pyo.value(model.eh_power_from_grid[t]), 0))
+        results_dict["energy_hub"]["res_inj"].append(round(pyo.value(model.eh_power_to_grid[t]), 0))
 
     ################################################################################
     # Building results
@@ -1690,79 +1714,71 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     # Add results for each building
     for n in range(nbuildings):
         results_dict[n] = {}
-        results_dict[n]["res_load"] = []
-        results_dict[n]["res_inj"] = []
-        results_dict[n]["res_gas"] = []
-        results_dict[n]["res_biomass"] = []
-        results_dict[n]["res_oil"] = []
-        results_dict[n]["res_hydrogen"] = []
-        for t in time_steps:
-            results_dict[n]["res_load"].append(round(pyo.value(model.res_dom_power[n, t]), 0))
-            results_dict[n]["res_inj"].append(round(pyo.value(model.res_dom_feed[n, t]), 0))
-            gas_total = pyo.value(model.gas_dom["BOI", n, t]) + pyo.value(
-                model.gas_dom["CHP", n, t])  # ! This should not be here -> Doubling of Code possible. One combined gas variable would be better
-            results_dict[n]["res_gas"].append(round(gas_total, 0))
-            results_dict[n]["res_biomass"].append(round(pyo.value(model.biomass_dom["BBOI", n, t]), 0))
-            results_dict[n]["res_oil"].append(round(pyo.value(model.oil_dom["OBOI", n, t]), 0))
-            hydrogen_total = pyo.value(model.hydrogen_dom["H2BOI", n, t]) + pyo.value(
-                model.hydrogen_dom["FC", n, t])  # ! This should not be here -> Doubling of Code possible. One combined hydrogen variable would be better
-            results_dict[n]["res_hydrogen"].append(round(hydrogen_total, 0))
+        results_dict[n]["res_load"] = [round(pyo.value(model.res_dom_power[n, t]), 0) for t in time_steps]
+        results_dict[n]["res_inj"] = [round(pyo.value(model.res_dom_feed[n, t]), 0) for t in time_steps]
 
-    # Heat devices
-    for n in range(nbuildings):
-        for device in ECS_HEAT:
-            if not results_dict[n].get(device):
-                results_dict[n][device] = {}
-            results_dict[n][device]["Q_th"] = []
+        # TODO: The calculation should not be done here but use the model variables for the energy carrier specific imports/exports directly
+        results_dict[n]["res_gas"] = [round(pyo.value(model.gas_dom["BOI", n, t]) + pyo.value(model.gas_dom["CHP", n, t]), 0) for t in time_steps]
+        results_dict[n]["res_biomass"] = [round(pyo.value(model.biomass_dom["BBOI", n, t]), 0) for t in time_steps]
+        results_dict[n]["res_oil"] = [round(pyo.value(model.oil_dom["OBOI", n, t]), 0) for t in time_steps]
+        results_dict[n]["res_hydrogen"] = [round(pyo.value(model.hydrogen_dom["H2BOI", n, t]) + pyo.value(model.hydrogen_dom["FC", n, t]), 0) for t in time_steps]
+
+        for dev, mapping in DEVICE_MAPPING.items():
+            if dev in DOM_DEVS and dev not in ECS_STORAGE: 
+                dev_dict = {}
+                for target_type, carriers in mapping.items(): 
+                    for energy_carrier in carriers:
+                        col_name = f"{target_type}_{energy_carrier}" 
+                        ts_col_name = f"ts_{col_name}" 
+                        domain_var_name = f"{energy_carrier}_dom"
+                        var = getattr(model, domain_var_name, None)
+
+                        if var is not None:
+                            try:
+                                dev_dict[ts_col_name] = [round(pyo.value(var[dev, n, t]), 0) for t in time_steps]
+                                dev_dict[col_name] = sum(pyo.value(var[dev, n, t]) for t in time_steps) * dt / 1000 
+                            except (KeyError, ValueError):
+                                pass
+                
+                if dev_dict: 
+                    results_dict[n][dev] = dev_dict
+                else:
+                    raise ValueError(f"No variables found for device {dev} in the model for building {n}. Please check the variable naming and DEVICE_MAPPING.")
+                    
+
+        for dev in ECS_STORAGE:
+            dev_dict = {}
+            for var_type in ["ch", "dch", "soc"]:
+                ts_col_name = f"ts_{var_type}"
+                col_name = var_type
+                domain_var_name = f"{var_type}_dom"
+                var = getattr(model, domain_var_name, None)
+                
+                if var is not None:
+                    try:
+                        dev_dict[ts_col_name] = [round(pyo.value(var[dev, n, t]), 0) for t in time_steps]
+                        
+                        # Calculate total energy for charging/discharging
+                        if var_type in ["ch", "dch"]:
+                            dev_dict[col_name] = sum(pyo.value(var[dev, n, t]) for t in time_steps) * dt / 1000
+                    except (KeyError, ValueError):
+                        pass
+                        
+            if dev_dict:
+                results_dict[n][dev] = dev_dict
+
+        # HP Specifics (COP & Temperatures)
+        if "HP" in results_dict[n]: 
+            Tsink_val = float(model.T_sink[n])
+            results_dict[n]["HP"]["hp_measures_applied"] = bool(model.hp_measures_applied[n])
+            results_dict[n]["HP"]["ts_T_sink"] = [Tsink_val for _ in time_steps]
+            results_dict[n]["HP"]["ts_COP"] = []
+            
             for t in time_steps:
-                results_dict[n][device]["Q_th"].append(round(pyo.value(model.heat_dom[device, n, t]), 0))
+                Pel = pyo.value(model.power_dom["HP", n, t])
+                Qth = pyo.value(model.heat_dom["HP", n, t])
+                results_dict[n]["HP"]["ts_COP"].append(round(Qth / Pel, 3) if Pel and Pel > 1e-6 else 0.0)
 
-    # Cooling devices
-    for n in range(nbuildings):
-        for device in ECS_COOL:
-            if not results_dict[n].get(device):
-                results_dict[n][device] = {}
-            results_dict[n][device]["Q_cool"] = []
-            for t in time_steps:
-                results_dict[n][device]["Q_cool"].append(round(pyo.value(model.cool_dom[device, n, t]), 0))
-
-    # HP
-    for n in range(nbuildings):
-        results_dict[n].setdefault("HP", {})
-
-        Tsink_val = float(model.T_sink[n])
-        results_dict[n]["HP"]["hp_measures_applied"] = bool(model.hp_measures_applied[n])
-
-        results_dict[n]["HP"]["COP"] = []
-        results_dict[n]["HP"]["T_sink"] = []
-
-        for t in time_steps:
-            Pel = pyo.value(model.power_dom["HP", n, t])
-            Qth = pyo.value(model.heat_dom["HP", n, t])
-
-            results_dict[n]["HP"]["T_sink"].append(Tsink_val)
-            results_dict[n]["HP"]["COP"].append(round(Qth / Pel, 3) if Pel and Pel > 1e-6 else 0.0)
-
-    # Power devices
-    for n in range(nbuildings):
-        for device in ECS_POWER:
-            if not results_dict[n].get(device):
-                results_dict[n][device] = {}
-            results_dict[n][device]["P_el"] = []
-            for t in time_steps:
-                results_dict[n][device]["P_el"].append(round(pyo.value(model.power_dom[device, n, t]), 0))
-
-    # Storage devices
-    for n in range(nbuildings):
-        for device in ECS_STORAGE:
-            if not results_dict[n].get(device):
-                results_dict[n][device] = {}
-            for v in ("ch", "dch", "soc"):
-                results_dict[n][device][v] = []
-            for t in time_steps:
-                results_dict[n][device]["ch"].append(pyo.value(model.ch_dom[device, n, t]))
-                results_dict[n][device]["dch"].append(pyo.value(model.dch_dom[device, n, t]))
-                results_dict[n][device]["soc"].append(pyo.value(model.soc_dom[device, n, t]))
 
     # Vehicles
     buildingData = data.district
@@ -1803,17 +1819,15 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
             charging_type = ev_profile.get('charging_type')
 
             results_dict[n]["EV"][car_id_str] = {}
-            results_dict[n]["EV"][car_id_str]["ch"] = []
-            results_dict[n]["EV"][car_id_str]["dch"] = []
+            
+            results_dict[n]["EV"][car_id_str]["ts_ch"] = [round(pyo.value(model.ch_ev[ev_id, t]), 0) for t in time_steps]
+            results_dict[n]["EV"][car_id_str]["ch"] = sum(pyo.value(model.ch_ev[ev_id, t]) for t in time_steps) * dt / 1000 # Total energy in kWh
+            
+            results_dict[n]["EV"][car_id_str]["ts_dch"] = [round(pyo.value(model.dch_ev[ev_id, t]), 0) for t in time_steps]
+            results_dict[n]["EV"][car_id_str]["dch"] = sum(pyo.value(model.dch_ev[ev_id, t]) for t in time_steps) * dt / 1000 # Total energy in kWh
+
             if charging_type != 'on_demand':
-                results_dict[n]["EV"][car_id_str]["soc"] = []
-
-            for t in time_steps: # Profiles
-                results_dict[n]["EV"][car_id_str]["ch"].append(round(pyo.value(model.ch_ev[ev_id, t]), 0))
-                results_dict[n]["EV"][car_id_str]["dch"].append(round(pyo.value(model.dch_ev[ev_id, t]), 0))
-
-                if charging_type != 'on_demand':
-                    results_dict[n]["EV"][car_id_str]["soc"].append(round(pyo.value(model.soc_ev[ev_id, t]), 0))
+                results_dict[n]["EV"][car_id_str]["ts_soc"] = [round(pyo.value(model.soc_ev[ev_id, t]), 0) for t in time_steps]
 
     # ICE Vehicles
     # Not currently implemented

@@ -49,6 +49,11 @@ class KPIs:
         self.annual_fixed_costs_decentral = None
         self.annual_fixed_costs_central = None
 
+        self.decentral_device_energy_year = None
+        self.central_device_energy_year = None
+        self.decentral_device_energy_avg = None
+        self.central_device_energy_avg = None
+
         self.decentral_individual_devices_annualized_cost = None
         self.central_individual_devices_annualized_cost = None
         self.total_ICE_fuel_liters = None
@@ -69,7 +74,8 @@ class KPIs:
         inputData = {}
 
         # Information about simulated years
-        inputData["simulated_years"] = data.ecoData["interpolation_points"]
+        inputData["simulated_years"] = sorted(data.ecoData["interpolation_points"])
+        inputData["observation_time"] = data.ecoData["observation_time"]
         inputData["sim_ecoData"] = data.all_sim_ecoData
 
         # information about clusters
@@ -86,22 +92,20 @@ class KPIs:
         inputData["resultsOptimization"] = data.resultsOptimization
         inputData["district"] = data.district
 
+        # Weights of each year:
+        year_weights = {}
+        for idx, year in enumerate(inputData["simulated_years"]):
+            if idx < len(inputData["simulated_years"]) - 1:
+                year_weights[year] = inputData["simulated_years"][idx + 1] - year  # time until next support year
+            else:
+                year_weights[year] = inputData["observation_time"] - year  # time from last support year to end of observation period
+
+        inputData["year_weights"] = year_weights
+
         self.inputData = inputData
 
         # prepare data to compute KPIs
         self.prepareData(data)
-        self.calculateResidualLoad(data)
-        self.calculatePeakLoad()
-        self.calculatePeakToValley()
-        self.calculateEnergyExchangeGCP(data)
-        self.calculateEnergyExchangeWithinDistrict(data)
-        self.calculateAutonomy()
-        self.calculateCoverFactors(data)
-        self.calc_annual_cost_total(data)
-        self.calc_total_areas_and_demands(data)
-        self.calculateOperationCosts(data)
-        self.calculateCO2emissions(data)
-        self.calculateGasolineCosts(data)
 
     def prepareData(self, data):
         """
@@ -326,8 +330,8 @@ class KPIs:
                         b += self.inputData["resultsOptimization"][year][c][idx]["res_inj"][t]
 
                     # Energy Hub
-                    a += self.inputData["resultsOptimization"][year][c]["eh_res_load"][t]
-                    b += self.inputData["resultsOptimization"][year][c]["eh_res_inj"][t]
+                    a += self.inputData["resultsOptimization"][year][c]["energy_hub"]["res_load"][t]
+                    b += self.inputData["resultsOptimization"][year][c]["energy_hub"]["res_inj"][t]
 
                     # At the same time step t, either res_load or res_inj should be 0.
                     # However, a and b could both be greater than 0 at the same time step t,
@@ -415,7 +419,7 @@ class KPIs:
 
         calc_annual_investment = {}
         calc_annual_investment_unsubsidized = {}
-        self.decentral_individual_devices_annualized_cost = {} #Dictionary to store annualized cost per device and building
+        self.decentral_individual_devices_annualized_cost = {} # Dictionary to store annualized cost per device and building
         self.annual_fixed_costs_decentral = 0
         self.annual_fixed_costs_decentral_unsubsidized = 0
 
@@ -527,7 +531,9 @@ class KPIs:
             self.annual_fixed_costs_central_unsubsidized = 0
 
     def calculateDetailedCostsPerYear(self, data):
-        """Calculate the detailed costs for each simulated year."""
+        """
+        Calculate the detailed costs for each simulated year.
+        """
         self.detailed_costs_year = {}
 
         for year in self.inputData["simulated_years"]:
@@ -547,6 +553,109 @@ class KPIs:
                 "hydrogen": self.hydrogen_year[year] * ecoData["price_hydrogen"],
                 "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + self.el_inj_eh[year] * ecoData["revenue_feed_in_el_eh"])
             }
+
+    def calc_energy_by_device(self, data):
+        """
+        Calculate total yearly energy generated/consumed by each device
+        """
+        self.decentral_device_energy_year = {}
+        self.central_device_energy_year = {}
+
+        observation_time = self.inputData["observation_time"]
+        year_weights = self.inputData["year_weights"]
+
+        # Calculate yearly totals
+        for year in self.inputData["simulated_years"]:
+            self.decentral_device_energy_year[year] = {} # Now structured as: year -> building_id/energy_hub -> device -> metric -> energy, Maybe later change to building_id/energy_hub -> device -> metric -> year -> energy
+            self.central_device_energy_year[year] = {}
+
+            for c in range(len(self.inputData["clusters"])):
+                cluster_id = self.inputData["clusters"][c]
+                weight = self.inputData["clusterWeights"][cluster_id]
+                opt_res = self.inputData["resultsOptimization"][year][c]
+
+                # Energy Hub devices
+                eh_res = opt_res["energy_hub"]
+                for dev, val in eh_res.items():
+                    if dev not in self.central_device_energy_year[year]:
+                        self.central_device_energy_year[year][dev] = {} 
+                    if isinstance(val, dict):
+                        for metric, energy in val.items():
+                            if str(metric).startswith("gen_") or str(metric).startswith("cons_") or metric in ["ch", "dch"]: 
+                                if metric not in self.central_device_energy_year[year][dev]:
+                                    self.central_device_energy_year[year][dev][metric] = 0
+                                self.central_device_energy_year[year][dev][metric] += energy * weight
+
+                # Decentral building devices (except EVs):
+                for bldg_id in data.scenario["id"]:
+                    idx = data.building_dict[int(bldg_id)] #Todo: Change to allow str!
+                    if bldg_id not in self.decentral_device_energy_year[year]:
+                        self.decentral_device_energy_year[year][bldg_id] = {}
+                    bldg_res = opt_res[idx]
+
+                    for dev, val in bldg_res.items():
+                        if isinstance(val, dict) and dev not in ["EV"]:
+                            if dev not in self.decentral_device_energy_year[year][bldg_id]:
+                                self.decentral_device_energy_year[year][bldg_id][dev] = {}
+                            for metric, energy in val.items():
+                                if str(metric).startswith("gen_") or str(metric).startswith("cons_") or metric in ["ch", "dch"]: 
+                                    if metric not in self.decentral_device_energy_year[year][bldg_id][dev]:
+                                        self.decentral_device_energy_year[year][bldg_id][dev][metric] = 0
+                                    self.decentral_device_energy_year[year][bldg_id][dev][metric] += energy * weight
+
+        # Calculate the avg energy per year for each device
+        self.decentral_device_energy_avg = {}
+        self.central_device_energy_avg = {}
+
+        all_eh_devices = set()
+        # First, collect all device names across the years
+        for year in self.inputData["simulated_years"]:
+            # Energy Hub devices
+            all_eh_devices.update(self.central_device_energy_year[year].keys())
+           
+        for dev in all_eh_devices:
+            self.central_device_energy_avg[dev] = {}
+
+            all_metrics = set() # all metrics e.g. gen_power etc. associated with the device
+            for year in self.inputData["simulated_years"]:
+                if dev in self.central_device_energy_year[year]:
+                    all_metrics.update(self.central_device_energy_year[year][dev].keys())
+            
+            # For each of the metics calculate the weighted sum
+            for metric in all_metrics:
+                total = 0
+                for year in self.inputData["simulated_years"]:
+                    if dev in self.central_device_energy_year[year] and metric in self.central_device_energy_year[year][dev]:
+                        total += self.central_device_energy_year[year][dev][metric] * year_weights[year]
+
+                self.central_device_energy_avg[dev][metric] = total/observation_time
+
+        # Decentral devices
+        for bldg_id in data.scenario["id"]:
+            self.decentral_device_energy_avg[bldg_id] = {}
+            all_devices = set()
+            
+            # Get all devices associated with the building across the years
+            for year in self.inputData["simulated_years"]:
+                if bldg_id in self.decentral_device_energy_year[year]:
+                    all_devices.update(self.decentral_device_energy_year[year][bldg_id].keys())
+
+            # For each device, get all associated metrics across the years and calculate the weighted average
+            for dev in all_devices:
+                self.decentral_device_energy_avg[bldg_id][dev] = {}
+                all_metrics = set()
+                for year in self.inputData["simulated_years"]:
+                    if dev in self.decentral_device_energy_year[year][bldg_id]:
+                        all_metrics.update(self.decentral_device_energy_year[year][bldg_id][dev].keys())
+
+                # For each of the metics calculate the weighted sum
+                for metric in all_metrics:
+                    total = 0
+                    for year in self.inputData["simulated_years"]:
+                        if dev in self.decentral_device_energy_year[year][bldg_id] and metric in self.decentral_device_energy_year[year][bldg_id][dev]:
+                            total += self.decentral_device_energy_year[year][bldg_id][dev][metric] * year_weights[year]
+
+                    self.decentral_device_energy_avg[bldg_id][dev][metric] = total / observation_time
 
     def calc_annual_cost_device(self, dev, ecoData, cap, mode="subsidized"):
         """
@@ -861,13 +970,7 @@ class KPIs:
         # Calculate year weights (duration each simulated year represents)
         sorted_years = sorted(self.inputData["simulated_years"])
         observation_time = data.ecoData["observation_time"]
-        year_weights = {}
-
-        for idx, year in enumerate(sorted_years):
-            if idx < len(sorted_years) - 1:
-                year_weights[year] = sorted_years[idx + 1] - year  # time until next support year
-            else:
-                year_weights[year] = observation_time - year  # time from last support year to end of observation period
+        year_weights = self.inputData["year_weights"]
 
         # Calculate total consumption over all years (weighted by interval length)
         self.total_W_dem_GCP = sum(self.W_dem_GCP_year[year] * year_weights[year] for year in sorted_years) # demand from grid
@@ -919,6 +1022,7 @@ class KPIs:
         self.calculateEnergyExchangeWithinDistrict(data)
         self.calculateCoverFactors(data)
         self.calculateOperationCosts(data)
+        self.calc_energy_by_device(data)
         self.calculateCO2emissions(data)
         self.calculateAutonomy()
         self.calc_annual_cost_total(data)
@@ -1045,8 +1149,11 @@ class KPIs:
         for building_id, devices in self.decentral_individual_devices_annualized_cost.items():
             building = buildings[building_id]
             for device_name, device_info in devices.items():
+                if device_name == "T_reduction_measures":
+                    continue # TODO: Skip this for now and decide later how to handle it.
+                
                 # Determine unit based on device type
-                if device_name == "TES":
+                if device_name in ["TES", "TES_DHW"]:
                     unit = "Liter"
                 elif device_name in ["BAT", "EV"]:
                     unit = "kWh"
@@ -1055,14 +1162,25 @@ class KPIs:
                 else:
                     unit = "kW"
 
-                dec_device_data_list.append({
+                row_data = {
                     'Building ID': building["unique_name"],
                     'Device': device_name,
                     'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
                     'Unit': unit,
                     'Annualized Cost (€/a)': round(device_info['subsidized_annual_cost'], 2),
                     'Annualized Cost Unsubsidized (€/a)': round(device_info['unsubsidized_annual_cost'], 2)
-                })
+                }
+                
+                avg_metrics = self.decentral_device_energy_avg.get(building_id, {}).get(device_name, {})
+                for metric_name, val in avg_metrics.items():
+                    row_data[f"Avg. {metric_name} (kWh/a)"] = round(val, 2)
+
+                for year in years:
+                    yearly_metrics = self.decentral_device_energy_year.get(year, {}).get(building_id, {}).get(device_name, {})
+                    for metric_name, val in yearly_metrics.items():
+                        row_data[f"Year {year} {metric_name} (kWh/a)"] = round(val, 2)
+
+                dec_device_data_list.append(row_data)
 
         # Central Devices capacities and subsidized and unsubsidized annualized costs
         cent_device_data_list = []
@@ -1077,13 +1195,23 @@ class KPIs:
             else:
                 unit = "kW"
 
-            cent_device_data_list.append({
+            row_data = {
                 'Device': device_name,
                 'Capacity': round(device_info['cap'], 3) if device_info['cap'] != '' else '-',
                 'Unit': unit,
                 'Annualized Cost Subsidized (€/a)': round(device_info['subsidized_annual_cost'], 2),
                 'Annualized Cost Unsubsidized (€/a)': round(device_info['unsubsidized_annual_cost'], 2)
-            })
+            }
+
+            avg_metrics = self.central_device_energy_avg.get(device_name, {})
+            for metric_name, val in avg_metrics.items():
+                row_data[f"Avg. {metric_name} (kWh/a)"] = round(val, 2)
+
+            for year in years:
+                yearly_metrics = self.central_device_energy_year.get(year, {}).get(device_name, {})
+                for metric_name, val in yearly_metrics.items():
+                    row_data[f"Year {year} {metric_name} (kWh/a)"] = round(val, 2)
+            cent_device_data_list.append(row_data)
 
         # Create DataFrame for year-dependent KPIs
         kpi_df_yearly = pd.DataFrame.from_dict(kpi_data_yearly, orient='index')
@@ -1094,12 +1222,36 @@ class KPIs:
         # Create DataFrame for year-independent KPIs
         kpi_df_static = pd.DataFrame(list(kpi_data_static.items()), columns=['KPI', 'Value'])
 
-        # Create DataFrame for device costs
+
+
+        def sort_device_columns(df, static_cols, years):
+            """
+            Sort DataFrame columns: static columns first, then averages, then yearly values.
+            """
+            if df.empty:
+                return df
+
+            dynamic_cols = [col for col in df.columns if col not in static_cols]
+            avg_cols = [col for col in dynamic_cols if col.startswith("Avg.")]
+            avg_cols.sort(key=lambda x: (1 if " ch " in x or " dch " in x else 0, x)) # ch and dch columns after other columns for the same year
+
+            year_cols = []
+            for year in years:
+                cols_for_year = [col for col in dynamic_cols if col.startswith(f"Year {year} ")]
+                cols_for_year.sort(key=lambda x: (1 if " ch " in x or " dch " in x else 0, x)) # ch and dch columns after other columns for the same year
+                
+                year_cols.extend(cols_for_year)
+            return df[static_cols + avg_cols + year_cols]
+
+        # Create DataFrame for decentral devices. Ensure proper ordering of columns.
         kpi_df_dec_devices = pd.DataFrame(dec_device_data_list) if dec_device_data_list else pd.DataFrame()
+        static_cols_dec = ['Building ID', 'Device', 'Capacity', 'Unit', 'Annualized Cost (€/a)', 'Annualized Cost Unsubsidized (€/a)']
+        kpi_df_dec_devices = sort_device_columns(df=kpi_df_dec_devices, static_cols = static_cols_dec, years=years)
 
-        # Create DataFrame for central device costs
+        # Create DataFrame for central devices. Ensure proper ordering of columns.
         kpi_df_cent_devices = pd.DataFrame(cent_device_data_list) if cent_device_data_list else pd.DataFrame()
-
+        static_cols_cent = ['Device', 'Capacity', 'Unit', 'Annualized Cost Subsidized (€/a)', 'Annualized Cost Unsubsidized (€/a)']
+        kpi_df_cent_devices = sort_device_columns(df=kpi_df_cent_devices, static_cols = static_cols_cent, years=years)
 
         
         if result_path is None:
@@ -1115,9 +1267,9 @@ class KPIs:
             with pd.ExcelWriter(filename, engine='openpyxl') as writer:
                 kpi_df_yearly.to_excel(writer, sheet_name='Yearly KPIs', index=False)
                 kpi_df_static.to_excel(writer, sheet_name='Static KPIs', index=False)
-                kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices Costs', index=False)
+                kpi_df_dec_devices.to_excel(writer, sheet_name='Decentral Devices', index=False)
                 if not kpi_df_cent_devices.empty:
-                    kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices Costs', index=False)
+                    kpi_df_cent_devices.to_excel(writer, sheet_name='Central Devices', index=False)
 
             print(f"KPIs saved to: {filename}")
 
