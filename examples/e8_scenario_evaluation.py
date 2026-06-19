@@ -15,7 +15,7 @@ def example8_scenario_evaluation():
     data = Datahandler(scenario_name = "example")
 
     # We directly generate a complete district.
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, use_multiprocessing=False)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

@@ -421,7 +421,7 @@ class Datahandler:
 
         # %% create TEASER project
         # create one project for the whole district
-        prj = Project(load_data=True)
+        prj = Project(load_data=False)
         prj.name = self.scenario_name
 
         for building in self.district:
@@ -565,7 +565,8 @@ class Datahandler:
             index = bldgs["buildings_short"].index(building["buildingFeatures"]["building"])
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
-    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8):
+    def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True,
+                        max_threads=8, use_multiprocessing=True):
         args_list = [(self, building, calcUserProfiles, saveUserProfiles) for building in self.district]
 
         self.buildings_total = len(self.district)
@@ -574,15 +575,28 @@ class Datahandler:
         results = []
         self.save_progress()
 
-        with multiprocessing.Pool(processes=max_threads) as pool:
-            for i, result in enumerate(pool.imap_unordered(generate_demands_worker_wrapper, args_list)):
-                self.buildings_completed += 1
-                results.append(result)
+        def handle_result(result):
+            self.buildings_completed += 1
+            results.append(result)
 
-                self.save_progress()
+            self.save_progress()
 
-                print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
-                      f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
+            print(f"building {self.buildings_completed}/{self.buildings_total} calculated " +
+                  f"({(self.buildings_completed / self.buildings_total) * 100:.1f}%): {result.get('unique_name', '')}")
+
+        if use_multiprocessing and max_threads > 1:
+            with multiprocessing.Pool(processes=max_threads) as pool:
+                for result in pool.imap_unordered(generate_demands_worker_wrapper, args_list):
+                    handle_result(result)
+
+            print("Finished generating demands with multiprocessing!")
+
+        else:
+            for args in args_list:
+                result = generate_demands_worker_wrapper(args)
+                handle_result(result)
+
+            print("Finished generating demands without multiprocessing!")
 
         for result in results:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
@@ -604,9 +618,6 @@ class Datahandler:
             building["buildingFeatures"] = building_features
 
         self.save_progress()
-
-
-        print("Finished generating demands with multiprocessing!")
 
     def generate_demands_worker(self, building, calcUserProfiles, saveUserProfiles):
         """
@@ -705,7 +716,8 @@ class Datahandler:
             building["user"].cooling = cooling
         # print(f'done {building["unique_name"]}')
 
-    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True):
+    def generateDistrictComplete(self, calcUserProfiles=True, saveUserProfiles=True, use_multiprocessing=True,
+                                 max_threads=8):
         """
         All in one solution for district and demand generation.
 
@@ -739,7 +751,12 @@ class Datahandler:
         self.initializeBuildings()
         self.generateEnvironment()
         self.generateBuildings()
-        self.generateDemands(calcUserProfiles, saveUserProfiles)
+        self.generateDemands(
+            calcUserProfiles=calcUserProfiles,
+            saveUserProfiles=saveUserProfiles,
+            max_threads=max_threads,
+            use_multiprocessing=use_multiprocessing
+        )
 
         if any(building["buildingFeatures"]["heater"] == "heat_grid" for building in self.district):
             centralEnergySupply = True
