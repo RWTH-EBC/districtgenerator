@@ -126,16 +126,45 @@ def load_parameter(data):
 
     # Build temperature requirements and loads at the substatiom
     T_sup_req_by_node = {}
-    T_ret_req_by_node_SH = {}
-    T_ret_req_by_node_DHW = {}
+    #T_ret_req_by_node_SH = {}
+    #T_ret_req_by_node_DHW = {}
     Q_SH_by_node = {}
     Q_DHW_by_node = {}
     Q_DHW_decentral_by_node = {}
     Q_by_node = {}
 
-    dT_HX_sup = 8.0 # K  minimum temperature difference required between the primary supply (network) and the secondary supply (building heating system)
-    dT_HX_ret = 4.0 # K  minimum temperature difference required between the primary return (network) and the secondary return (building heating system)
-    T_dhw_required = float(data.decentral_device_data["TES_DHW"]["T_DHW_needed"])   # °C needed domestic hot water temperature
+    # Secondary-side temperatures
+    T_sec_supply_SH_by_node = {}
+    T_sec_return_SH_by_node = {}
+    T_sec_supply_DHW_by_node = {}
+    T_sec_return_DHW_by_node = {}
+    # Heat exchanger UA values
+    UA_SH_by_node = {}
+    UA_DHW_by_node = {}
+
+
+
+
+    #dT_HX_sup = 8.0 # K  minimum temperature difference required between the primary supply (network) and the secondary supply (building heating system)
+    #dT_HX_ret = 4.0 # K  minimum temperature difference required between the primary return (network) and the secondary return (building heating system)
+    #T_dhw_required = float(data.decentral_device_data["TES_DHW"]["T_DHW_needed"])   # °C needed domestic hot water temperature
+
+
+    # HX design assumptions from 2-pipe model
+    dT_HX_sup_SH = 4.0
+    dT_HX_ret_SH_design = 3.0
+
+    dT_HX_sup_DHW = 4.0
+    dT_HX_ret_DHW_min = 10.0
+
+    T_dhw_required = float(data.decentral_device_data["TES_DHW"]["T_DHW_needed"])
+    T_cold_water = 10.0
+
+    HX_UA_safety_factor = 1.0
+
+
+
+
 
     for building in data.district:
         if building["buildingFeatures"]["heater"] not in ["heat_grid", "heat_grid_SH"]:
@@ -151,61 +180,177 @@ def load_parameter(data):
         buildings_heating_curve = building["envelope"].heating_curve["unclustered"]
 
         # Required supply and return temperatures
+        # if data.heat_grid_data["enable_low_temp_measures"] == True:
+        #     Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve_reduced"], dtype=float) + dT_HX_sup
+        #     Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve_reduced"], dtype=float) + dT_HX_ret
+        # else:
+        #     Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve"], dtype=float) + dT_HX_sup
+        #     Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve"], dtype=float) + dT_HX_ret
+        #
+        # Ts_req_DHW = T_dhw_required + dT_HX_sup
+        # Tr_req_DHW = 30.0  # Assume the return temperature at the primary side of DHW is 30 °C
+        #
+        # # The network supply temperature must satisfy both space heating (SH)
+        # # and domestic hot water (DHW) requirements. Therefore, the required
+        # # supply temperature at the building is defined as the maximum of the
+        # # SH and DHW supply temperature levels.
+        # dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0  # kW
+        # sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0  # kW
+        #
+        # # Supply temperature constraint
+        # if building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        #     Ts_req = Ts_req_SH
+        # else:
+        #     Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+        #
+        # # Building heat load
+        # #todo: STC are still not considered here
+        # Q_SH = sh_load * (1.0 + h_loss_subst / 100.0)
+        # Q_DHW_total = dhw_load * (1.0 + h_loss_subst / 100.0)
+        #
+        # if building["buildingFeatures"]["heater"] == "heat_grid":
+        #     Q_DHW_grid = Q_DHW_total
+        #     Q_DHW_decentral = np.zeros(T_len, dtype=float)
+        # elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+        #     Q_DHW_grid = np.zeros(T_len, dtype=float)
+        #     Q_DHW_decentral = Q_DHW_total
+        #
+        # Q_total = Q_SH + Q_DHW_grid
+        #
+        # T_sup_req_by_node[node_key] = Ts_req
+        # T_ret_req_by_node_SH[node_key] = Tr_req_SH
+        # T_ret_req_by_node_DHW[node_key] = np.full(T_len, Tr_req_DHW, dtype=float)
+        #
+        # # Loads at the substation
+        # Q_SH_by_node[node_key] = Q_SH
+        # Q_DHW_by_node[node_key] = Q_DHW_grid
+        # Q_DHW_decentral_by_node[node_key] = Q_DHW_decentral
+        # Q_by_node[node_key] = Q_total
+
+
         if data.heat_grid_data["enable_low_temp_measures"] == True:
-            Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve_reduced"], dtype=float) + dT_HX_sup
-            Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve_reduced"], dtype=float) + dT_HX_ret
+            Ts_sec_SH = np.asarray(buildings_heating_curve["Ts_curve_reduced"], dtype=float)
+            Tr_sec_SH = np.asarray(buildings_heating_curve["Tr_curve_reduced"], dtype=float)
         else:
-            Ts_req_SH = np.asarray(buildings_heating_curve["Ts_curve"], dtype=float) + dT_HX_sup
-            Tr_req_SH = np.asarray(buildings_heating_curve["Tr_curve"], dtype=float) + dT_HX_ret
+            Ts_sec_SH = np.asarray(buildings_heating_curve["Ts_curve"], dtype=float)
+            Tr_sec_SH = np.asarray(buildings_heating_curve["Tr_curve"], dtype=float)
 
-        Ts_req_DHW = T_dhw_required + dT_HX_sup
-        Tr_req_DHW = 30.0  # Assume the return temperature at the primary side of DHW is 30 °C
+        Ts_req_SH = Ts_sec_SH + dT_HX_sup_SH
+        Ts_req_DHW = T_dhw_required + dT_HX_sup_DHW
 
-        # The network supply temperature must satisfy both space heating (SH)
-        # and domestic hot water (DHW) requirements. Therefore, the required
-        # supply temperature at the building is defined as the maximum of the
-        # SH and DHW supply temperature levels.
-        dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0  # kW
-        sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0  # kW
+        dhw_load = np.asarray(building["user"].dhw, dtype=float) / 1000.0
+        sh_load = np.asarray(building["user"].heat, dtype=float) / 1000.0
 
-        # Supply temperature constraint
-        if building["buildingFeatures"]["heater"] == "heat_grid_SH":
-            Ts_req = Ts_req_SH
-        else:
-            Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+        heater = building["buildingFeatures"]["heater"]
 
-        # Building heat load
-        #todo: STC are still not considered here
         Q_SH = sh_load * (1.0 + h_loss_subst / 100.0)
         Q_DHW_total = dhw_load * (1.0 + h_loss_subst / 100.0)
 
-        if building["buildingFeatures"]["heater"] == "heat_grid":
+        if heater == "heat_grid":
             Q_DHW_grid = Q_DHW_total
             Q_DHW_decentral = np.zeros(T_len, dtype=float)
-        elif building["buildingFeatures"]["heater"] == "heat_grid_SH":
+            Ts_req = np.maximum(Ts_req_SH, Ts_req_DHW)
+
+        elif heater == "heat_grid_SH":
             Q_DHW_grid = np.zeros(T_len, dtype=float)
             Q_DHW_decentral = Q_DHW_total
+            Ts_req = Ts_req_SH
+
+        else:
+            continue
 
         Q_total = Q_SH + Q_DHW_grid
 
-        T_sup_req_by_node[node_key] = Ts_req
-        T_ret_req_by_node_SH[node_key] = Tr_req_SH
-        T_ret_req_by_node_DHW[node_key] = np.full(T_len, Tr_req_DHW, dtype=float)
+        # ------------------------------------------------------------
+        # Design UA for SH heat exchanger
+        # ------------------------------------------------------------
 
-        # Loads at the substation
+        if np.any(Q_SH > 0.0):
+            Q_SH_design_W = (
+                    building["bes_obj"].design_load_heating
+                    * (1.0 + h_loss_subst / 100.0)
+            )
+
+            T_s_SH_secondary_design = float(np.max(Ts_sec_SH))
+            T_r_SH_secondary_design = float(np.max(Tr_sec_SH))
+
+            T_s_SH_primary_design = T_s_SH_secondary_design + dT_HX_sup_SH
+            T_r_SH_primary_design = T_r_SH_secondary_design + dT_HX_ret_SH_design
+
+            UA_SH = HX_UA_safety_factor * hx_calc_UA_design(
+                Q_design_W=Q_SH_design_W,
+                T_primary_in_design=T_s_SH_primary_design,
+                T_primary_out_design=T_r_SH_primary_design,
+                T_secondary_in_design=T_r_SH_secondary_design,
+                T_secondary_out_design=T_s_SH_secondary_design
+            )
+        else:
+            UA_SH = 0.0
+
+        # ------------------------------------------------------------
+        # Design UA for DHW heat exchanger
+        # Only if DHW is supplied by the heat grid
+        # ------------------------------------------------------------
+
+        if heater == "heat_grid" and np.any(Q_DHW_grid > 0.0):
+            Q_DHW_design_W = (
+                    building["bes_obj"].design_load_dhw
+                    * (1.0 + h_loss_subst / 100.0)
+            )
+
+            T_cold_DHW_secondary_design = float(T_cold_water)
+            T_hot_DHW_secondary_design = float(T_dhw_required)
+
+            T_s_DHW_primary_design = T_hot_DHW_secondary_design + dT_HX_sup_DHW
+            T_r_DHW_primary_design = T_cold_DHW_secondary_design + dT_HX_ret_DHW_min
+
+            UA_DHW = HX_UA_safety_factor * hx_calc_UA_design(
+                Q_design_W=Q_DHW_design_W,
+                T_primary_in_design=T_s_DHW_primary_design,
+                T_primary_out_design=T_r_DHW_primary_design,
+                T_secondary_in_design=T_cold_DHW_secondary_design,
+                T_secondary_out_design=T_hot_DHW_secondary_design
+            )
+        else:
+            UA_DHW = 0.0
+
+        T_sup_req_by_node[node_key] = Ts_req
+
+        T_sec_supply_SH_by_node[node_key] = Ts_sec_SH
+        T_sec_return_SH_by_node[node_key] = Tr_sec_SH
+        T_sec_supply_DHW_by_node[node_key] = np.full(T_len, T_dhw_required, dtype=float)
+        T_sec_return_DHW_by_node[node_key] = np.full(T_len, T_cold_water, dtype=float)
+
+        #T_ret_req_by_node_SH[node_key] = Tr_sec_SH
+        #T_ret_req_by_node_DHW[node_key] = np.full(T_len, T_cold_water, dtype=float)
+
         Q_SH_by_node[node_key] = Q_SH
         Q_DHW_by_node[node_key] = Q_DHW_grid
         Q_DHW_decentral_by_node[node_key] = Q_DHW_decentral
         Q_by_node[node_key] = Q_total
 
+        UA_SH_by_node[node_key] = UA_SH
+        UA_DHW_by_node[node_key] = UA_DHW
+
+
+
+
     # store them into param
     param["T_sup_req_by_node"] = T_sup_req_by_node
-    param["T_ret_req_by_node_SH"] = T_ret_req_by_node_SH
-    param["T_ret_req_by_node_DHW"] = T_ret_req_by_node_DHW
+    #param["T_ret_req_by_node_SH"] = T_ret_req_by_node_SH
+    #param["T_ret_req_by_node_DHW"] = T_ret_req_by_node_DHW
     param["Q_SH_by_node"] = Q_SH_by_node
     param["Q_DHW_by_node"] = Q_DHW_by_node
     param["Q_DHW_decentral_by_node"] = Q_DHW_decentral_by_node
     param["Q_by_node"] = Q_by_node
+
+
+    param["T_sec_supply_SH_by_node"] = T_sec_supply_SH_by_node
+    param["T_sec_return_SH_by_node"] = T_sec_return_SH_by_node
+    param["T_sec_supply_DHW_by_node"] = T_sec_supply_DHW_by_node
+    param["T_sec_return_DHW_by_node"] = T_sec_return_DHW_by_node
+    param["UA_SH_by_node"] = UA_SH_by_node
+    param["UA_DHW_by_node"] = UA_DHW_by_node
 
     # Get network supply temperature profile if availabe
     T_sup_cfg = get_configured_network_temperatures(data)
@@ -336,8 +481,8 @@ def calc_flow(data, param, save_path=None):
     rho_f = data.heat_grid_data["fluid"]["rho_f"]  # 1000kg/m^3,   fluid density
 
     T_sup_req_by_node = param["T_sup_req_by_node"]
-    T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
-    T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
+    #T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
+    #T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
     Q_SH_by_node = param["Q_SH_by_node"]
     Q_DHW_by_node = param["Q_DHW_by_node"]
 
@@ -398,38 +543,130 @@ def calc_flow(data, param, save_path=None):
         # valves, so the mass flow depends on the available network supply
         # temperature and the required return temperatures of the building.
         Ts = T_sup_network
-        Tr_SH = T_ret_req_by_node_SH[node_key]
-        Tr_DHW = T_ret_req_by_node_DHW[node_key]
+        # Tr_SH = T_ret_req_by_node_SH[node_key]
+        # Tr_DHW = T_ret_req_by_node_DHW[node_key]
+        #
+        # # ignore very small loads (< 10 W)
+        # Q_SH = np.where(Q_SH_by_node[node_key] < 0.01, 0.0, Q_SH_by_node[node_key])  # kW
+        # Q_DHW = np.where(Q_DHW_by_node[node_key] < 0.01, 0.0, Q_DHW_by_node[node_key])  # kW
+        #
+        # deltaT_SH = Ts - Tr_SH
+        # deltaT_DHW = Ts - Tr_DHW
+        #
+        # # kg/s; Mass flows derived from energy balance
+        # m_SH = Q_SH * 1000.0 / (c_f * deltaT_SH)
+        # m_DHW = Q_DHW * 1000.0 / (c_f * deltaT_DHW)
+        #
+        # # max over time
+        # m_SH_max = float(np.max(m_SH))
+        # m_DHW_max = float(np.max(m_DHW))
+        #
+        # # Enforce minimum flow as a fraction of peak flow to ensure continuous circulation
+        # m_SH = np.maximum(m_SH, alpha * m_SH_max)
+        # m_DHW = np.maximum(m_DHW, alpha * m_DHW_max)
+        #
+        # m_dot = m_SH + m_DHW
+        #
+        #
+        # # store everything
+        # param["building_massflow_max_SH"][node_key] = m_SH_max
+        # param["building_massflow_max_DHW"][node_key] = m_DHW_max
+        #
+        # param["building_massflow_SH"][node_key] = m_SH
+        # param["building_massflow_DHW"][node_key] = m_DHW
+        # param["building_massflow_HX"][node_key] = m_dot
 
-        # ignore very small loads (< 10 W)
-        Q_SH = np.where(Q_SH_by_node[node_key] < 0.01, 0.0, Q_SH_by_node[node_key])  # kW
-        Q_DHW = np.where(Q_DHW_by_node[node_key] < 0.01, 0.0, Q_DHW_by_node[node_key])  # kW
+        Q_SH = np.where(Q_SH_by_node[node_key] < 0.01, 0.0, Q_SH_by_node[node_key])
+        Q_DHW = np.where(Q_DHW_by_node[node_key] < 0.01, 0.0, Q_DHW_by_node[node_key])
 
-        deltaT_SH = Ts - Tr_SH
-        deltaT_DHW = Ts - Tr_DHW
+        Tsi_SH = np.asarray(param["T_sec_return_SH_by_node"][node_key], dtype=float)
+        Tso_SH = np.asarray(param["T_sec_supply_SH_by_node"][node_key], dtype=float)
 
-        # kg/s; Mass flows derived from energy balance
-        m_SH = Q_SH * 1000.0 / (c_f * deltaT_SH)
-        m_DHW = Q_DHW * 1000.0 / (c_f * deltaT_DHW)
+        Tsi_DHW = np.asarray(param["T_sec_return_DHW_by_node"][node_key], dtype=float)
+        Tso_DHW = np.asarray(param["T_sec_supply_DHW_by_node"][node_key], dtype=float)
 
-        # max over time
-        m_SH_max = float(np.max(m_SH))
-        m_DHW_max = float(np.max(m_DHW))
+        UA_SH = float(param["UA_SH_by_node"][node_key])
+        UA_DHW = float(param["UA_DHW_by_node"][node_key])
 
-        # Enforce minimum flow as a fraction of peak flow to ensure continuous circulation
-        m_SH = np.maximum(m_SH, alpha * m_SH_max)
-        m_DHW = np.maximum(m_DHW, alpha * m_DHW_max)
+        m_SH_raw = np.zeros_like(Ts, dtype=float)
+        m_DHW_raw = np.zeros_like(Ts, dtype=float)
+
+        Tr_SH_raw = np.full_like(Ts, np.nan, dtype=float)
+        Tr_DHW_raw = np.full_like(Ts, np.nan, dtype=float)
+
+        for t in range(len(Ts)):
+            Tr_SH, m_SH = hx_primary_return_and_flow(
+                Q_W=float(Q_SH[t]) * 1000.0,
+                T_primary_in=float(Ts[t]),
+                T_secondary_in=float(Tsi_SH[t]),
+                T_secondary_out=float(Tso_SH[t]),
+                UA=UA_SH,
+                c_p=c_f
+            )
+
+            Tr_SH_raw[t] = Tr_SH
+            m_SH_raw[t] = m_SH
+
+            Tr_DHW, m_DHW = hx_primary_return_and_flow(
+                Q_W=float(Q_DHW[t]) * 1000.0,
+                T_primary_in=float(Ts[t]),
+                T_secondary_in=float(Tsi_DHW[t]),
+                T_secondary_out=float(Tso_DHW[t]),
+                UA=UA_DHW,
+                c_p=c_f
+            )
+
+            Tr_DHW_raw[t] = Tr_DHW
+            m_DHW_raw[t] = m_DHW
+
+        m_SH_max = float(np.max(m_SH_raw)) if np.any(m_SH_raw > 0.0) else 0.0
+        m_DHW_max = float(np.max(m_DHW_raw)) if np.any(m_DHW_raw > 0.0) else 0.0
+
+        m_SH = np.maximum(m_SH_raw, alpha * m_SH_max)
+        m_DHW = np.maximum(m_DHW_raw, alpha * m_DHW_max)
+
+        if m_DHW_max <= 1e-9:
+            m_DHW[:] = 0.0
+
+        Tr_SH_actual = np.full_like(Ts, np.nan, dtype=float)
+        Tr_DHW_actual = np.full_like(Ts, np.nan, dtype=float)
+
+        active_SH = Q_SH > 0.0
+        active_DHW = Q_DHW > 0.0
+
+        Tr_SH_actual[~active_SH] = Ts[~active_SH]
+        Tr_DHW_actual[~active_DHW] = Ts[~active_DHW]
+
+        mask_SH = active_SH & (m_SH > 1e-9)
+        mask_DHW = active_DHW & (m_DHW > 1e-9)
+
+        Tr_SH_actual[mask_SH] = (Ts[mask_SH]- Q_SH[mask_SH] * 1000.0 / (m_SH[mask_SH] * c_f))
+
+        Tr_DHW_actual[mask_DHW] = (Ts[mask_DHW]- Q_DHW[mask_DHW] * 1000.0 / (m_DHW[mask_DHW] * c_f))
 
         m_dot = m_SH + m_DHW
 
-
-        # store everything
         param["building_massflow_max_SH"][node_key] = m_SH_max
         param["building_massflow_max_DHW"][node_key] = m_DHW_max
 
         param["building_massflow_SH"][node_key] = m_SH
         param["building_massflow_DHW"][node_key] = m_DHW
         param["building_massflow_HX"][node_key] = m_dot
+
+        if "T_return_SH_actual" not in param:
+            param["T_return_SH_actual"] = {}
+
+        if "T_return_DHW_actual" not in param:
+            param["T_return_DHW_actual"] = {}
+
+        param["T_return_SH_actual"][node_key] = Tr_SH_actual
+        param["T_return_DHW_actual"][node_key] = Tr_DHW_actual
+
+
+
+
+
+
 
     # Aggregate mass flows along the network
     network = data.pipeline_topology
@@ -770,6 +1007,125 @@ def compute_pump_power(data, param):
 # HELPER FUNCTIONS
 ##############################################################################################################################
 ##############################################################################################################################
+
+
+
+# ============================================================
+# Heat exchanger helper functions for house substations
+# ============================================================
+
+def hx_lmtd(dT1, dT2):
+    """
+    Logarithmic mean temperature difference.
+
+    dT1 = T_primary_in  - T_secondary_out
+    dT2 = T_primary_out - T_secondary_in
+    """
+
+    dT1 = float(dT1)
+    dT2 = float(dT2)
+
+    eps = 1e-9
+
+    if not np.isfinite(dT1) or not np.isfinite(dT2):
+        return np.nan
+
+    if dT1 <= eps or dT2 <= eps:
+        return np.nan
+
+    if abs(dT1 - dT2) < 1e-7:
+        return 0.5 * (dT1 + dT2)
+
+    return (dT1 - dT2) / np.log(dT1 / dT2)
+
+def hx_calc_UA_design(
+        Q_design_W,
+        T_primary_in_design,
+        T_primary_out_design,
+        T_secondary_in_design,
+        T_secondary_out_design):
+
+    """
+    Calculate the heat-exchanger design UA value from one design point.
+    This function assumes an ideal counterflow heat exchanger.
+    """
+
+    dT1 = T_primary_in_design - T_secondary_out_design
+    dT2 = T_primary_out_design - T_secondary_in_design
+
+    DTlm = hx_lmtd(dT1, dT2)
+
+    return Q_design_W / DTlm
+
+def hx_primary_return_and_flow(
+        Q_W,
+        T_primary_in,
+        T_secondary_in,
+        T_secondary_out,
+        UA,
+        c_p,
+        eps=1e-6,
+        tol_T=1e-2,
+        max_iter=30):
+    """
+    Solve primary return temperature and primary mass flow
+    for a counterflow heat exchanger.
+
+    Primary side:
+        T_primary_in  = network supply
+        T_primary_out = network return, solved here
+
+    Secondary side:
+        T_secondary_in  = building return or cold water
+        T_secondary_out = building supply or DHW temperature
+    """
+
+    Q_W = float(Q_W)
+
+    # No heat demand: no primary mass flow.
+    # Return temperature is not physically defined, so use supply as neutral value.
+    if Q_W <= 0.0:
+        return T_primary_in, 0.0
+
+    # The temperature difference at the hot end of the counterflow heat exchanger.
+    dT1 = T_primary_in - T_secondary_out
+
+    # Search range for primary return temperature
+    lo = T_secondary_in + eps
+    hi = T_primary_in - eps
+
+    def q_model(T_primary_out):
+        dT2 = T_primary_out - T_secondary_in
+        DTlm = hx_lmtd(dT1, dT2)
+        return UA * DTlm
+
+    # Bisection solver with early stopping
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + hi)
+        Q_mid = q_model(mid)
+
+        if Q_mid < Q_W:
+            lo = mid
+        else:
+            hi = mid
+
+        if hi - lo < tol_T:
+            break
+
+    T_primary_out = 0.5 * (lo + hi)
+
+    dT_primary = max(T_primary_in - T_primary_out, eps)
+
+    m_dot_primary = Q_W / (c_p * dT_primary)
+
+    return T_primary_out, m_dot_primary
+
+# ============================================================
+# END of Heat exchanger helper functions for house substations
+# ============================================================
+
+
+
 
 def calc_annual_factor(data, life_time):
     """

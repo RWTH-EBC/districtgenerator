@@ -137,11 +137,17 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
     T_soil = shared["T_soil"]
     T_len = shared["T_len"]
     T_sup_req_by_node = shared["T_sup_req_by_node"]
-    T_ret_req_by_node_SH = shared["T_ret_req_by_node_SH"]
-    T_ret_req_by_node_DHW = shared["T_ret_req_by_node_DHW"]
+    #T_ret_req_by_node_SH = shared["T_ret_req_by_node_SH"]
+    #T_ret_req_by_node_DHW = shared["T_ret_req_by_node_DHW"]
     Q_SH_by_node = shared["Q_SH_by_node"]
     Q_DHW_by_node = shared["Q_DHW_by_node"]
     Q_by_node = shared["Q_by_node"]
+    T_sec_supply_SH_by_node = shared["T_sec_supply_SH_by_node"]
+    T_sec_return_SH_by_node = shared["T_sec_return_SH_by_node"]
+    T_sec_supply_DHW_by_node = shared["T_sec_supply_DHW_by_node"]
+    T_sec_return_DHW_by_node = shared["T_sec_return_DHW_by_node"]
+    UA_SH_by_node = shared["UA_SH_by_node"]
+    UA_DHW_by_node = shared["UA_DHW_by_node"]
     root = shared["root"]
     pipes = shared["pipes"]
     order = shared["order"]
@@ -199,36 +205,82 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
                 for n in building_nodes:
                     Ts_del = Ts if result is None else result["T_sup_node"][n]
 
-                    Tr_req_SH = float(T_ret_req_by_node_SH[n][t])
-                    Tr_req_DHW = float(T_ret_req_by_node_DHW[n][t])
+                    # Tr_req_SH = float(T_ret_req_by_node_SH[n][t])
+                    # Tr_req_DHW = float(T_ret_req_by_node_DHW[n][t])
+                    #
+                    # Q_SH_W = float(Q_SH_by_node[n][t]) * 1000.0
+                    # Q_DHW_W = float(Q_DHW_by_node[n][t]) * 1000.0
+                    #
+                    # deltaT_DHW = Ts_del - Tr_req_DHW
+                    # if deltaT_DHW <4 and deltaT_DHW>=0:
+                    #     deltaT_DHW = 4
+                    #     print("1")
+                    # elif deltaT_DHW <0 and deltaT_DHW > -4:
+                    #     deltaT_DHW = -4
+                    #     print("2")
+                    #
+                    # deltaT_SH = Ts_del - Tr_req_SH
+                    # if deltaT_SH <4 and deltaT_SH>=0:
+                    #     deltaT_SH = 4
+                    #     print("3")
+                    # elif deltaT_SH <0 and deltaT_SH > -4:
+                    #     deltaT_SH = -4
+                    #     print("4")
+                    #
+                    # m_SH = Q_SH_W / (c_f * deltaT_SH)
+                    # m_DHW = Q_DHW_W / (c_f * deltaT_DHW)
 
                     Q_SH_W = float(Q_SH_by_node[n][t]) * 1000.0
                     Q_DHW_W = float(Q_DHW_by_node[n][t]) * 1000.0
 
-                    deltaT_DHW = Ts_del - Tr_req_DHW
-                    if deltaT_DHW <4 and deltaT_DHW>=0:
-                        deltaT_DHW = 4
-                        print("1")
-                    elif deltaT_DHW <0 and deltaT_DHW > -4:
-                        deltaT_DHW = -4
-                        print("2")
+                    Tsi_SH = float(T_sec_return_SH_by_node[n][t])
+                    Tso_SH = float(T_sec_supply_SH_by_node[n][t])
 
-                    deltaT_SH = Ts_del - Tr_req_SH
-                    if deltaT_SH <4 and deltaT_SH>=0:
-                        deltaT_SH = 4
-                        print("3")
-                    elif deltaT_SH <0 and deltaT_SH > -4:
-                        deltaT_SH = -4
-                        print("4")
+                    Tsi_DHW = float(T_sec_return_DHW_by_node[n][t])
+                    Tso_DHW = float(T_sec_supply_DHW_by_node[n][t])
 
-                    m_SH = Q_SH_W / (c_f * deltaT_SH)
-                    m_DHW = Q_DHW_W / (c_f * deltaT_DHW)
+                    UA_SH = float(UA_SH_by_node[n])
+                    UA_DHW = float(UA_DHW_by_node[n])
+
+                    _, m_SH_raw = hx_primary_return_and_flow(
+                        Q_W=Q_SH_W,
+                        T_primary_in=Ts_del,
+                        T_secondary_in=Tsi_SH,
+                        T_secondary_out=Tso_SH,
+                        UA=UA_SH,
+                        c_p=c_f
+                    )
+
+                    _, m_DHW_raw = hx_primary_return_and_flow(
+                        Q_W=Q_DHW_W,
+                        T_primary_in=Ts_del,
+                        T_secondary_in=Tsi_DHW,
+                        T_secondary_out=Tso_DHW,
+                        UA=UA_DHW,
+                        c_p=c_f
+                    )
+
+                    if not np.isfinite(m_SH_raw):
+                        m_SH_raw = 1e9
+
+                    if not np.isfinite(m_DHW_raw):
+                        m_DHW_raw = 1e9
 
                     m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
                     m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
 
-                    m_SH_target = max(m_SH, m_SH_min)
-                    m_DHW_target = max(m_DHW, m_DHW_min)
+                    # No artificial DHW circulation if there is no grid-DHW
+                    if float(param["building_massflow_max_DHW"][n]) <= 1e-9:
+                        m_DHW_min = 0.0
+
+                    m_SH_target = max(m_SH_raw, m_SH_min)
+                    m_DHW_target = max(m_DHW_raw, m_DHW_min)
+
+                    # m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
+                    # m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
+                    #
+                    # m_SH_target = max(m_SH, m_SH_min)
+                    # m_DHW_target = max(m_DHW, m_DHW_min)
 
                     # Under-relaxation
                     param["building_massflow_SH"][n][t] = ((1.0 - relax) * param["building_massflow_SH"][n][t] + relax * m_SH_target)
@@ -298,8 +350,8 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
                     pipe_UA_s=pipe_UA_s,
                     param=param,
                     T_sup_req_by_node=T_sup_req_by_node,
-                    T_ret_req_by_node_SH=T_ret_req_by_node_SH,
-                    T_ret_req_by_node_DHW=T_ret_req_by_node_DHW,
+                    #T_ret_req_by_node_SH=T_ret_req_by_node_SH,
+                    #T_ret_req_by_node_DHW=T_ret_req_by_node_DHW,
                     Q_SH_by_node=Q_SH_by_node,
                     Q_DHW_by_node=Q_DHW_by_node,
                     Q_by_node=Q_by_node,
@@ -456,8 +508,8 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
     T_soil = shared["T_soil"]
     T_len = shared["T_len"]
     T_sup_req_by_node = shared["T_sup_req_by_node"]
-    T_ret_req_by_node_SH = shared["T_ret_req_by_node_SH"]
-    T_ret_req_by_node_DHW = shared["T_ret_req_by_node_DHW"]
+    #T_ret_req_by_node_SH = shared["T_ret_req_by_node_SH"]
+    #T_ret_req_by_node_DHW = shared["T_ret_req_by_node_DHW"]
     Q_SH_by_node = shared["Q_SH_by_node"]
     Q_DHW_by_node = shared["Q_DHW_by_node"]
     Q_by_node = shared["Q_by_node"]
@@ -505,23 +557,69 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
             for n in building_nodes:
                 Ts_del = Ts if result is None else result["T_sup_node"][n]
 
-                Tr_req_SH = float(T_ret_req_by_node_SH[n][t])
-                Tr_req_DHW = float(T_ret_req_by_node_DHW[n][t])
+                #Tr_req_SH = float(T_ret_req_by_node_SH[n][t])
+                #Tr_req_DHW = float(T_ret_req_by_node_DHW[n][t])
+
+                # Q_SH_W = float(Q_SH_by_node[n][t]) * 1000.0
+                # Q_DHW_W = float(Q_DHW_by_node[n][t]) * 1000.0
+
+                # m_SH = Q_SH_W / (c_f * (Ts_del - Tr_req_SH))
+                # m_DHW = Q_DHW_W / (c_f * (Ts_del - Tr_req_DHW))
+                #
+                # m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
+                # m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
+                #
+                # if Q_DHW_W <= 1e-9:
+                #     m_DHW_min = 0.0
+                #
+                # m_SH_target = max(m_SH, m_SH_min)
+                # m_DHW_target = max(m_DHW, m_DHW_min)
 
                 Q_SH_W = float(Q_SH_by_node[n][t]) * 1000.0
                 Q_DHW_W = float(Q_DHW_by_node[n][t]) * 1000.0
 
-                m_SH = Q_SH_W / (c_f * (Ts_del - Tr_req_SH))
-                m_DHW = Q_DHW_W / (c_f * (Ts_del - Tr_req_DHW))
+                Tsi_SH = float(T_sec_return_SH_by_node[n][t])
+                Tso_SH = float(T_sec_supply_SH_by_node[n][t])
+
+                Tsi_DHW = float(T_sec_return_DHW_by_node[n][t])
+                Tso_DHW = float(T_sec_supply_DHW_by_node[n][t])
+
+                UA_SH = float(UA_SH_by_node[n])
+                UA_DHW = float(UA_DHW_by_node[n])
+
+                _, m_SH_raw = hx_primary_return_and_flow(
+                    Q_W=Q_SH_W,
+                    T_primary_in=Ts_del,
+                    T_secondary_in=Tsi_SH,
+                    T_secondary_out=Tso_SH,
+                    UA=UA_SH,
+                    c_p=c_f
+                )
+
+                _, m_DHW_raw = hx_primary_return_and_flow(
+                    Q_W=Q_DHW_W,
+                    T_primary_in=Ts_del,
+                    T_secondary_in=Tsi_DHW,
+                    T_secondary_out=Tso_DHW,
+                    UA=UA_DHW,
+                    c_p=c_f
+                )
+
+                if not np.isfinite(m_SH_raw):
+                    m_SH_raw = 1e9
+
+                if not np.isfinite(m_DHW_raw):
+                    m_DHW_raw = 1e9
 
                 m_SH_min = alpha * float(param["building_massflow_max_SH"][n])
                 m_DHW_min = alpha * float(param["building_massflow_max_DHW"][n])
 
-                if Q_DHW_W <= 1e-9:
+                # No artificial DHW circulation if there is no grid-DHW
+                if float(param["building_massflow_max_DHW"][n]) <= 1e-9:
                     m_DHW_min = 0.0
 
-                m_SH_target = max(m_SH, m_SH_min)
-                m_DHW_target = max(m_DHW, m_DHW_min)
+                m_SH_target = max(m_SH_raw, m_SH_min)
+                m_DHW_target = max(m_DHW_raw, m_DHW_min)
 
                 # Under-relaxation to avoid oscillation of flow/temperature coupling
                 param["building_massflow_SH"][n][t] = ((1.0 - relax) * param["building_massflow_SH"][n][t] + relax * m_SH_target)
@@ -530,7 +628,7 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
                 param["building_massflow_DHW"][n][t] = max(param["building_massflow_DHW"][n][t], m_DHW_min)
                 if Q_DHW_W <= 1e-9:
                     m_DHW_min = 0.0
-                param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"])
+                param["building_massflow_HX"][n][t] = (param["building_massflow_SH"][n][t] + param["building_massflow_DHW"][n][t])
 
             # Iterate hydraulics to enforce pump constraints (adjust flows until feasible)
             last_hydraulics = None
@@ -593,8 +691,8 @@ def compute_network_temperatures_given(data, param, max_iter=50, relax=0.3):
                 pipe_UA_s=pipe_UA_s,
                 param=param,
                 T_sup_req_by_node=T_sup_req_by_node,
-                T_ret_req_by_node_SH=T_ret_req_by_node_SH,
-                T_ret_req_by_node_DHW=T_ret_req_by_node_DHW,
+                #T_ret_req_by_node_SH=T_ret_req_by_node_SH,
+                #T_ret_req_by_node_DHW=T_ret_req_by_node_DHW,
                 Q_SH_by_node=Q_SH_by_node,
                 Q_DHW_by_node=Q_DHW_by_node,
                 root=root
@@ -1521,6 +1619,176 @@ def compute_and_save_network_costs(data, param):
 ##############################################################################################################################
 ##############################################################################################################################
 
+
+# ============================================================
+# Heat exchanger helper functions for house substations
+# ============================================================
+
+def hx_lmtd(dT1, dT2):
+    """
+    Logarithmic mean temperature difference.
+
+    dT1 = T_primary_in  - T_secondary_out
+    dT2 = T_primary_out - T_secondary_in
+    """
+
+    dT1 = float(dT1)
+    dT2 = float(dT2)
+
+    eps = 1e-9
+
+    if not np.isfinite(dT1) or not np.isfinite(dT2):
+        return np.nan
+
+    if dT1 <= eps or dT2 <= eps:
+        return np.nan
+
+    if abs(dT1 - dT2) < 1e-7:
+        return 0.5 * (dT1 + dT2)
+
+    return (dT1 - dT2) / np.log(dT1 / dT2)
+
+def hx_calc_UA_design(
+        Q_design_W,
+        T_primary_in_design,
+        T_primary_out_design,
+        T_secondary_in_design,
+        T_secondary_out_design):
+
+    """
+    Calculate the heat-exchanger design UA value from one design point.
+    This function assumes an ideal counterflow heat exchanger.
+    """
+
+    dT1 = T_primary_in_design - T_secondary_out_design
+    dT2 = T_primary_out_design - T_secondary_in_design
+
+    DTlm = hx_lmtd(dT1, dT2)
+
+    return Q_design_W / DTlm
+
+def hx_primary_return_and_flow(Q_W, T_primary_in, T_secondary_in, T_secondary_out, UA, c_p, eps=1e-6, tol_T=1e-2, max_iter=30):
+    """
+    Solve primary return temperature and primary mass flow
+    for a counterflow heat exchanger.
+
+    Primary side:
+        T_primary_in  = network supply
+        T_primary_out = network return, solved here
+
+    Secondary side:
+        T_secondary_in  = building return or cold water
+        T_secondary_out = building supply or DHW temperature
+    """
+
+    Q_W = float(Q_W)
+
+    # No heat demand: no primary mass flow.
+    # Return temperature is not physically defined, so use supply as neutral value.
+    if Q_W <= 0.0:
+        return T_primary_in, 0.0
+
+    # The temperature difference at the hot end of the counterflow heat exchanger.
+    dT1 = T_primary_in - T_secondary_out
+
+    # Search range for primary return temperature
+    lo = T_secondary_in + eps
+    hi = T_primary_in - eps
+
+    def q_model(T_primary_out):
+        dT2 = T_primary_out - T_secondary_in
+        DTlm = hx_lmtd(dT1, dT2)
+        return UA * DTlm
+
+    # Bisection solver with early stopping
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + hi)
+        Q_mid = q_model(mid)
+
+        if Q_mid < Q_W:
+            lo = mid
+        else:
+            hi = mid
+
+        if hi - lo < tol_T:
+            break
+
+    T_primary_out = 0.5 * (lo + hi)
+
+    dT_primary = max(T_primary_in - T_primary_out, eps)
+
+    m_dot_primary = Q_W / (c_p * dT_primary)
+
+    return T_primary_out, m_dot_primary
+
+
+### neue Hilfsfunktion: da hier Massenstrom zuerst gegeben, muss geprüft werden wie viel Wärme dieser bereitstellt und ob dies ausreicht
+
+def hx_delivered_with_fixed_flow(Q_W, T_primary_in, T_secondary_in, T_secondary_out, UA, c_p, m_dot):
+
+    Q_W = float(Q_W)
+    T_primary_in = float(T_primary_in)
+    T_secondary_in = float(T_secondary_in)
+    T_secondary_out = float(T_secondary_out)
+    UA = float(UA)
+    m_dot = float(m_dot)
+
+    if Q_W <= 0.0:
+        return T_primary_in, 0.0, 0.0
+
+    if m_dot <= 1e-12:
+        return T_primary_in, 0.0, Q_W
+
+    if UA <= 0.0:
+        return T_primary_in, 0.0, Q_W
+
+    if T_primary_in <= T_secondary_out + 1e-6:
+        return T_primary_in, 0.0, Q_W
+
+    Tr_full, m_req = hx_primary_return_and_flow(
+        Q_W=Q_W,
+        T_primary_in=T_primary_in,
+        T_secondary_in=T_secondary_in,
+        T_secondary_out=T_secondary_out,
+        UA=UA,
+        c_p=c_p
+    )
+
+    if not np.isfinite(m_req) or m_req <= 1e-12:
+        return T_primary_in, 0.0, Q_W
+
+    if m_dot >= m_req:
+        Q_del = Q_W
+        Tr = T_primary_in - Q_del / (m_dot * c_p)
+    else:
+        Q_del = Q_W * (m_dot / m_req)
+        Tr = Tr_full
+
+    Tr = max(T_secondary_in + 1e-6, min(T_primary_in, Tr))
+    heat_deficit = max(Q_W - Q_del, 0.0)
+
+    return Tr, Q_del, heat_deficit
+
+
+# ============================================================
+# END of Heat exchanger helper functions for house substations
+# ============================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def calc_annual_factor(data, life_time):
     """
     Calculate the annualization factor for an investment
@@ -1634,13 +1902,21 @@ def _prepare_network_temperature_solver(data, param):
     T_len = len(T_soil)
 
     T_sup_req_by_node = param["T_sup_req_by_node"]
-    T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
-    T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
+    #T_ret_req_by_node_SH = param["T_ret_req_by_node_SH"]
+    #T_ret_req_by_node_DHW = param["T_ret_req_by_node_DHW"]
     Q_SH_by_node = param["Q_SH_by_node"]
     Q_DHW_by_node = param["Q_DHW_by_node"]
     Q_DHW_decentral_by_node = param["Q_DHW_decentral_by_node"]
     Q_by_node = param["Q_by_node"]
     root = "EH1"
+
+    T_sec_supply_SH_by_node = param["T_sec_supply_SH_by_node"]
+    T_sec_return_SH_by_node = param["T_sec_return_SH_by_node"]
+    T_sec_supply_DHW_by_node = param["T_sec_supply_DHW_by_node"]
+    T_sec_return_DHW_by_node = param["T_sec_return_DHW_by_node"]
+
+    UA_SH_by_node = param["UA_SH_by_node"]
+    UA_DHW_by_node = param["UA_DHW_by_node"]
 
     pipes = data.pipeline
 
@@ -1721,8 +1997,8 @@ def _prepare_network_temperature_solver(data, param):
         "T_soil": T_soil,
         "T_len": T_len,
         "T_sup_req_by_node": T_sup_req_by_node,
-        "T_ret_req_by_node_SH": T_ret_req_by_node_SH,
-        "T_ret_req_by_node_DHW": T_ret_req_by_node_DHW,
+        #"T_ret_req_by_node_SH": T_ret_req_by_node_SH,
+        #"T_ret_req_by_node_DHW": T_ret_req_by_node_DHW,
         "Q_SH_by_node": Q_SH_by_node,
         "Q_DHW_by_node": Q_DHW_by_node,
         "Q_DHW_decentral_by_node": Q_DHW_decentral_by_node,
@@ -1747,6 +2023,12 @@ def _prepare_network_temperature_solver(data, param):
         "T_ret_pipe_out": T_ret_pipe_out,
         "T_ret_building_SH": T_ret_building_SH,
         "T_ret_building_DHW": T_ret_building_DHW,
+        "T_sec_supply_SH_by_node": T_sec_supply_SH_by_node,
+        "T_sec_return_SH_by_node": T_sec_return_SH_by_node,
+        "T_sec_supply_DHW_by_node": T_sec_supply_DHW_by_node,
+        "T_sec_return_DHW_by_node": T_sec_return_DHW_by_node,
+        "UA_SH_by_node": UA_SH_by_node,
+        "UA_DHW_by_node": UA_DHW_by_node,
     }
 
 def evaluate_hydraulics(t, pipe_massflows, pipes,
@@ -1934,8 +2216,8 @@ def solve_network_temperatures(
         pipe_UA_s,
         param,
         T_sup_req_by_node,
-        T_ret_req_by_node_SH,
-        T_ret_req_by_node_DHW,
+        #T_ret_req_by_node_SH,
+        #T_ret_req_by_node_DHW,
         Q_SH_by_node,
         Q_DHW_by_node,
         Q_by_node,
@@ -1977,62 +2259,118 @@ def solve_network_temperatures(
     heat_deficit_by_node = {}
 
     for bn in building_nodes:
+        # m_SH = float(param["building_massflow_SH"][bn][t])
+        # m_DHW = float(param["building_massflow_DHW"][bn][t])
+        # m_HX = float(param["building_massflow_HX"][bn][t])
+        #
+        # Q_SH_W = float(Q_SH_by_node[bn][t]) * 1000.0
+        # Q_DHW_W = float(Q_DHW_by_node[bn][t]) * 1000.0
+        # Ts_del = float(T_sup_node_loc[bn])
+        #
+        # Tr_req_SH = float(T_ret_req_by_node_SH[bn][t])
+        # Tr_req_DHW = float(T_ret_req_by_node_DHW[bn][t])
+        #
+        #
+        #
+        #
+        #
+        # deltaT_DHW = Ts_del - Tr_req_DHW
+        # if deltaT_DHW <4 and deltaT_DHW>=0:
+        #     deltaT_DHW = 4
+        #     print("01")
+        # elif deltaT_DHW <0 and deltaT_DHW > -4:
+        #     deltaT_DHW = -4
+        #     print("02")
+        #
+        # deltaT_SH = Ts_del - Tr_req_SH
+        # if deltaT_SH <4 and deltaT_SH>=0:
+        #     deltaT_SH = 4
+        #     print("03")
+        # elif deltaT_SH <0 and deltaT_SH > -4:
+        #     deltaT_SH = -4
+        #     print("04")
+        #
+        #
+        #
+        #
+        # # SH
+        # if Q_SH_W > 0.0:
+        #     # heat extraction
+        #     Q_SH_del = m_SH * c_f * (deltaT_SH)
+        #     Tr_SH = Tr_req_SH
+        # else:
+        #     # no demand (pure circulation)
+        #     Q_SH_del = 0.0
+        #     Tr_SH = Ts_del
+        #
+        # # DHW
+        # if Q_DHW_W > 0.0:
+        #     Q_DHW_del = m_DHW * c_f * (deltaT_DHW)
+        #     Tr_DHW = Tr_req_DHW
+        # else:
+        #     Q_DHW_del = 0.0
+        #     Tr_DHW = Ts_del
+        #
+        # T_ret_building_SH_loc[bn] = Tr_SH
+        # T_ret_building_DHW_loc[bn] = Tr_DHW
+        #
+        # # mixed return at substation
+        # m_HX = m_SH + m_DHW
+        #
+        # if m_HX > 1e-9:
+        #     Tr_HX = (m_SH * Tr_SH + m_DHW * Tr_DHW) / m_HX
+        # else:
+        #     Tr_HX = Ts_del
+        #
+        # T_ret_node_loc[bn] = Tr_HX
+        #
+        # heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del)+ (Q_DHW_W - Q_DHW_del),0.0)
+
+        # unmet demand (if flow or Ts insufficient)
+        #heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
+
         m_SH = float(param["building_massflow_SH"][bn][t])
         m_DHW = float(param["building_massflow_DHW"][bn][t])
-        m_HX = float(param["building_massflow_HX"][bn][t])
 
         Q_SH_W = float(Q_SH_by_node[bn][t]) * 1000.0
         Q_DHW_W = float(Q_DHW_by_node[bn][t]) * 1000.0
+
         Ts_del = float(T_sup_node_loc[bn])
 
-        Tr_req_SH = float(T_ret_req_by_node_SH[bn][t])
-        Tr_req_DHW = float(T_ret_req_by_node_DHW[bn][t])
+        Tsi_SH = float(param["T_sec_return_SH_by_node"][bn][t])
+        Tso_SH = float(param["T_sec_supply_SH_by_node"][bn][t])
 
+        Tsi_DHW = float(param["T_sec_return_DHW_by_node"][bn][t])
+        Tso_DHW = float(param["T_sec_supply_DHW_by_node"][bn][t])
 
+        UA_SH = float(param["UA_SH_by_node"][bn])
+        UA_DHW = float(param["UA_DHW_by_node"][bn])
 
+        # SH heat exchanger
+        Tr_SH, Q_SH_del, deficit_SH = hx_delivered_with_fixed_flow(
+            Q_W=Q_SH_W,
+            T_primary_in=Ts_del,
+            T_secondary_in=Tsi_SH,
+            T_secondary_out=Tso_SH,
+            UA=UA_SH,
+            c_p=c_f,
+            m_dot=m_SH
+        )
 
-
-        deltaT_DHW = Ts_del - Tr_req_DHW
-        if deltaT_DHW <4 and deltaT_DHW>=0:
-            deltaT_DHW = 4
-            print("01")
-        elif deltaT_DHW <0 and deltaT_DHW > -4:
-            deltaT_DHW = -4
-            print("02")
-
-        deltaT_SH = Ts_del - Tr_req_SH
-        if deltaT_SH <4 and deltaT_SH>=0:
-            deltaT_SH = 4
-            print("03")
-        elif deltaT_SH <0 and deltaT_SH > -4:
-            deltaT_SH = -4
-            print("04")
-
-
-
-
-        # SH
-        if Q_SH_W > 0.0:
-            # heat extraction
-            Q_SH_del = m_SH * c_f * (deltaT_SH)
-            Tr_SH = Tr_req_SH
-        else:
-            # no demand (pure circulation)
-            Q_SH_del = 0.0
-            Tr_SH = Ts_del
-
-        # DHW
-        if Q_DHW_W > 0.0:
-            Q_DHW_del = m_DHW * c_f * (deltaT_DHW)
-            Tr_DHW = Tr_req_DHW
-        else:
-            Q_DHW_del = 0.0
-            Tr_DHW = Ts_del
+        # DHW heat exchanger
+        Tr_DHW, Q_DHW_del, deficit_DHW = hx_delivered_with_fixed_flow(
+            Q_W=Q_DHW_W,
+            T_primary_in=Ts_del,
+            T_secondary_in=Tsi_DHW,
+            T_secondary_out=Tso_DHW,
+            UA=UA_DHW,
+            c_p=c_f,
+            m_dot=m_DHW
+        )
 
         T_ret_building_SH_loc[bn] = Tr_SH
-        T_ret_building_DHW_loc[bn] = Tr_DHW
+        T_ret_building_DHW_loc[bn] = Tr_DHW if Q_DHW_W > 1e-9 else Ts_del
 
-        # mixed return at substation
         m_HX = m_SH + m_DHW
 
         if m_HX > 1e-9:
@@ -2042,10 +2380,7 @@ def solve_network_temperatures(
 
         T_ret_node_loc[bn] = Tr_HX
 
-        heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del)+ (Q_DHW_W - Q_DHW_del),0.0)
-
-        # unmet demand (if flow or Ts insufficient)
-        #heat_deficit_by_node[bn] = max((Q_SH_W - Q_SH_del) + (Q_DHW_W - Q_DHW_del), 0.0)
+        heat_deficit_by_node[bn] = max(deficit_SH + deficit_DHW, 0.0)
 
     # Return propagation
     for node in reversed(order):
