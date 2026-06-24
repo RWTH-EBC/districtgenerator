@@ -3371,8 +3371,7 @@ class CertificateBuilder(ReportComponent):
             os.makedirs(self.result_path, exist_ok=True)
             self.outputpath = os.path.join(result_path, f"Quartiersenergieausweis_{self.scenario_name}.pdf")
         else:
-            src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            self.outputpath = os.path.join(src_path, "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+            self.outputpath = os.path.join(os.getcwd(), "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
 
         margins = self.style.get_page_margins()
         self.page_margins = {

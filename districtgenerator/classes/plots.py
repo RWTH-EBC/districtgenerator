@@ -22,11 +22,10 @@ class DemandPlots:
         None.
         """
 
-        self.srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if resultPath is not None:
             self.resultPath = resultPath
         else:
-            self.resultPath = os.path.join(self.srcPath, 'results')
+            self.resultPath = os.path.join(os.getcwd(), 'results')
 
     def preparePlots(self, data):
         """

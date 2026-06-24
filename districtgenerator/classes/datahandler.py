@@ -124,7 +124,7 @@ class Datahandler:
         if resultPath is not None:
             self.resultPath = resultPath
         else:
-            self.resultPath = os.path.join(self.srcPath, 'results')
+            self.resultPath = os.path.join(os.getcwd(), 'results')
 
         self.load_all_data(env_path=env_path, scenario_name=scenario_name)
 
