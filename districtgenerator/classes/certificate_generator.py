@@ -2964,29 +2964,22 @@ class DataExtractor(ReportComponent):
                 if not isinstance(config, dict):
                     continue
                 if not config.get("feasible", False):
-                    continue
-
-                if dev == "AirHP" or dev == "GroundHP":
-                    opt_key = "HP"
-                elif dev == "AirCC":
-                    opt_key = "CC"
-                else:
-                    opt_key = dev
+                    continue                
                 
                 cap = 0
                 annual_cost_sub = "-"
                 annual_cost_unsub = "-"
                 cost_unit = ""
 
-                if opt_key in capacities:
-                    spec = capacities[opt_key]
+                if dev in capacities:
+                    spec = capacities[dev]
                     cap = round(spec["cap"], 2)
                 
-                    if opt_key in self.kpis.central_individual_devices_annualized_cost:
-                        device_cost_info = self.kpis.central_individual_devices_annualized_cost[opt_key]
+                    if dev in self.kpis.central_individual_devices_annualized_cost:
+                        device_cost_info = self.kpis.central_individual_devices_annualized_cost[dev]
                         annual_cost_sub = round(device_cost_info["subsidized_annual_cost"], 2)
                         annual_cost_unsub = round(device_cost_info["unsubsidized_annual_cost"], 2)
-                        all_cost_devices.discard(opt_key) # Remove this device from the set of devices as it has been processed
+                        all_cost_devices.discard(dev) # Remove this device from the set of devices as it has been processed
                         cost_unit = " €/a"
 
 
@@ -3216,7 +3209,6 @@ class DataExtractor(ReportComponent):
             "FC": "W<sub>el</sub>",
             "STC": "W<sub>th</sub>",
             "HP": "W<sub>th</sub>",
-            "AirHP": "W<sub>th</sub>",
             "GroundHP": "W<sub>th</sub>",
             "EB": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
