@@ -102,7 +102,7 @@ def get_params(data):
     while adjustedHorizon <= len(data.site["T_e"]):
         adjustedHorizon += clusterHorizon
     adjustedHorizon -= clusterHorizon
-    adjustedHorizon = int(adjustedHorizon)
+    adjustedHorizon = int(adjustedHorizon) # Cut off the last incomplete cluster
 
     # Collect the time series to be clustered
     time_series = [dem_uncl["heat"][0:adjustedHorizon], dem_uncl["cool"][0:adjustedHorizon], dem_uncl["power"][0:adjustedHorizon],
@@ -148,15 +148,14 @@ def get_params(data):
     param["cluster_weights"] = nc
     param["cluster_matrix"] = z
 
-    # Get sigma-function: for each day of the year, find the corresponding design day
-    # Get list of days which are used as design days
+    # Get sigma-function: For each clustered period assign the corresponding design time period used for dimensioning of the energy hub
     param["typedays"] = np.zeros(data.time["clusterNumber"], dtype = np.int32)
     n = 0
     for d in range(z.shape[0]):
         if any(z[d]):
             param["typedays"][n] = d
             n += 1
-    # Assign each day of the year to its design day
+    # Assign each period of the year to its design period
     sigma = np.zeros(z.shape[0], dtype = np.int32)
     for day in range(len(sigma)):
         d = np.where(z[:,day] == 1 )[0][0]
@@ -857,7 +856,7 @@ def calc_WT_power(devs, param, data):
         WT_power[i] = get_turbine_power(wind_speed_corr[i], power_curve)
 
     for d in range(data.time["clusterNumber"]):
-        for t in range(24*7):
+        for t in range(len(wind_speed_corr_clustered[d])):
             WT_power_clustered[d][t] = get_turbine_power(wind_speed_corr_clustered[d][t], power_curve)
 
     WT_power_norm = WT_power / 500  # power_curve with 500 kW as maximum output

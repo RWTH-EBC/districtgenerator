@@ -76,8 +76,11 @@ def build_model(model, data, devs, param, dem):
 
     model.clusters = pyo.RangeSet(0, data.time["clusterNumber"] - 1)
     model.time_steps = pyo.RangeSet(0, cluster_horizon - 1)
-    model.year = pyo.RangeSet(0, 51)  # 52 weeks
 
+    num_periods = len(param["sigma"]) # Use the cluster assignment to determine the number of periods in the year
+
+    model.year = pyo.RangeSet(0, num_periods - 1)
+    
     # Get sigma function that assigns each time period (day or week) to a design period
     model.sigma = pyo.Param(model.year, initialize=param["sigma"])
 
@@ -406,7 +409,7 @@ def build_model(model, data, devs, param, dem):
                             dev, y, model.sigma[day_y], 0] * dt)
 
             # Cyclic year condition: For the last time step of the last day, the state of charge is based on the first time step of the first day
-            soc_last = model.soc[dev, y, 51, cluster_horizon - 1]
+            soc_last = model.soc[dev, y, num_periods - 1, cluster_horizon - 1]
             model.constraints.add(model.soc[dev, y, 0, 0] == soc_last * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[
                 dev, y, model.sigma[0], 0] * dt)
 
