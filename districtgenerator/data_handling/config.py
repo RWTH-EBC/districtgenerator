@@ -1133,7 +1133,7 @@ class CentralDeviceConfig(BaseSettings):
     HP__feasible: bool = False  # Is an Heat Pump feasible?
     HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
     HP__ASHP_carnot_feasible: bool = False  # Should this be modeled as an Air Source Heat Pump with Carnot efficiency?
-    HP__ASHP_model_feasible: bool = False  # TODO: Add a description for this parameter.
+    HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     HP__CSV_feasible: bool = False  # Should this be modeled with a CSV file for the COP?
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
     HP__life_time: int = 20  # Maximum life time in years.
@@ -1170,7 +1170,7 @@ class CentralDeviceConfig(BaseSettings):
     # CC parameters (Chiller)
     CC__feasible: bool = False  # CC using a constant COP.
     CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
-    CC__ASCC_model_feasible: bool = False  # TODO: Add a description for this parameter.
+    CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
