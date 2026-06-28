@@ -1419,7 +1419,7 @@ class KPIs:
             elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
                 unit = "kWh"
             elif device_name in ["PV", "STC"]:
-                unit = "m²"
+                unit = "kW"
             else:
                 unit = "kW"
 
