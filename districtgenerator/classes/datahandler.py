@@ -2183,7 +2183,16 @@ class Datahandler:
                 self.resultsOptimization[year][cluster] = results_temp # Save the results of the optimization for each cluster
 
         end_time = time.time()
-        print(f"\nOptimization of all clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+        print(f"\nOptimization of clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
+
+        for year, clusters in self.resultsOptimization.items():
+            for cluster, result in clusters.items():
+                eh_results = opti_central.get_profiles_eh(result, data=self)
+                eh_dir = os.path.join(self.resultPath, 'EnergyHub')
+                os.makedirs(eh_dir, exist_ok=True)
+                csv_filepath = os.path.join(eh_dir, f"{self.scenario_name}_eh_profiles_year_{year}_cluster_{cluster}.csv")
+                eh_results.to_csv(csv_filepath, index=False, sep=';', decimal='.')
+
 
         # Check which clusters were unsolvable
         failed_optimizations = []

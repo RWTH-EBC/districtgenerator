@@ -14,7 +14,7 @@ def example8_scenario_evaluation():
     warnings.filterwarnings("ignore", category=FutureWarning)
 
     # Initialize District
-    data = Datahandler(scenario_name = "district_A_seed_1_buildings_30", env_path=".env.CONFIG.EXAMPLE")
+    data = Datahandler(scenario_name = "example", env_path=".env.CONFIG.EXAMPLE")
 
     # We directly generate a complete district.
     # This includes the use of the EHDO tool to obtain an optimized energy central for neighborhoods.
@@ -31,7 +31,7 @@ def example8_scenario_evaluation():
 
     topology_option = data.heat_grid_data["topology_option"]
 
-    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option, gen_cars=False)
+    data.generateDistrictComplete(calcUserProfiles=False, saveUserProfiles=False, topology_option = topology_option, gen_cars=True)
 
     # Calculation of the devices' optimal operation
     data.optimizationClusters()

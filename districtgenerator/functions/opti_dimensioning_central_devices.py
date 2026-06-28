@@ -90,13 +90,13 @@ def build_model(model, data, devs, param, dem):
     model.observation_time = pyo.Param(initialize=param["observation_time"])
 
     # Create sets for all device types
-    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
+    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "GroundHP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
                      "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
                      "CTES", "BAT", "GS"]
 
     gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
-    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
-    heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+    power_devs_list = ["PV", "WT", "WAT", "HP", "GroundHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
+    heat_devs_list = ["STC", "HP", "GroundHP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
     cool_devs_list = ["CC", "AC"]
     hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
     biom_devs_list = ["BCHP", "BBOI", "import"]
@@ -211,7 +211,7 @@ def build_model(model, data, devs, param, dem):
         for d in model.clusters:
             for t in model.time_steps:
                 # Add constraints for the device operation based on the device capacity
-                for dev in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
+                for dev in ["STC", "EB", "HP", "GroundHP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
                     model.constraints.add(model.heat[dev, y, d, t] <= model.cap[dev])
                 for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:  # Power devices
                     model.constraints.add(model.power[dev, y, d, t] <= model.cap[dev])
@@ -255,6 +255,7 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.heat["STC", y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
                 # Electric heat pump correlation between heat and electric power
                 model.constraints.add(model.heat["HP", y, d, t] == model.power["HP", y, d, t] * devs["HP"]["COP"][y][d][t])
+                model.constraints.add(model.heat["GroundHP", y, d, t] == model.power["GroundHP", y, d, t] * devs["GroundHP"]["COP"][y][d][t])
                 # Electric boiler correlation between heat and electric power
                 model.constraints.add(model.heat["EB", y, d, t] == model.power["EB", y, d, t] * devs["EB"]["eta_th"])
                 # Compression chiller correlation between cooling and electric power (time-dependent COP)
@@ -298,7 +299,7 @@ def build_model(model, data, devs, param, dem):
             for t in model.time_steps:
                 # Heat balance
                 heat_supply = sum(model.heat[dev, y, d, t] for dev in
-                                  ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
+                                  ["STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
                 heat_demand = dem["heat"][y][d][t] + model.heat["AC", y, d, t] + model.ch["TES", y, d, t]
                 model.constraints.add(heat_supply == heat_demand)
 
@@ -306,7 +307,7 @@ def build_model(model, data, devs, param, dem):
                 power_supply = sum(
                     model.power[dev, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
                 power_demand = dem["power"][y][d][t] + sum(
-                    model.power[dev, y, d, t] for dev in ["HP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
+                    model.power[dev, y, d, t] for dev in ["HP", "GroundHP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
                 model.constraints.add(power_supply == power_demand)
 
                 # Cooling supply and demand balance
@@ -336,7 +337,7 @@ def build_model(model, data, devs, param, dem):
 
     if param["peak_dem_met_conv"]:
         # Heating (conventional - only controllable devices)
-        model.constraints.add(model.cap["HP"] + model.cap["EB"]
+        model.constraints.add(model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                               + model.cap["BOI"]
                               + model.cap["GHP"]
@@ -361,7 +362,7 @@ def build_model(model, data, devs, param, dem):
 
     else:  # With STC, PV, WIND, HYDROPOWER (WAT)
         # Heating (with renewable sources)
-        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["EB"]
+        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                               + model.cap["BOI"]
                               + model.cap["GHP"]
@@ -586,15 +587,15 @@ def build_model(model, data, devs, param, dem):
         else:
             weights[year] = n - year # time from last support year to end of observation period
 
-    # Calculate the NPV for energy and miscellaneous costs
+    # Calculate the NPV for energy and miscellaneous costs (According to VDI 2067 Blatt 1)
     # Use geometric series formula: sum(1/q^(year+k) for k in 0..n-1) = (1/q^year) * (1 - (1/q)^n) / (1 - 1/q)
     npv_energy = 0
     npv_misc = 0
     for idx, year in enumerate(sorted_years):
         interval_length = weights[year]
         # Calculate discount factor for this interval using geometric series formula
-        if i != 0:  # If interest rate is not zero
-            base_discount = 1 / (q ** year)
+        if i != 0:
+            base_discount = 1 / (q ** (year+1)) # Use year+1 as norm refers to the first year with index 1, but here the index starts with 0. This means that the year i refers to the year i+1 in the norm and an index shift of 1 is needed
             interval_factor = (1 - (1/q) ** interval_length) / (1 - 1/q)
             discount_factor = base_discount * interval_factor
         else:  # If interest rate is zero, discount factor is simply the interval length
@@ -612,7 +613,7 @@ def build_model(model, data, devs, param, dem):
     model.constraints.add(model.annualized_energy_costs == npv_energy * annuity_factor)
     model.constraints.add(model.annualized_misc_costs == npv_misc * annuity_factor)
 
-    # Total annual costs (According to VDI 2067 Blatt 1:)
+    # Total annual costs (According to VDI 2067 Blatt 1)
     # obj_tac = capital_cost + om_cost + supply_costs + taxes and other costs - revenues
     model.constraints.add(model.obj_tac == model.total_annual_costs_devices  # Cost associated with devices (inv and om)
                           + model.total_connection_costs  # Cost for connection to el and gas grid
@@ -861,7 +862,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["power_profile_by_year"][y] = {}
         result_dict["power_kW_by_year"][y] = {}
-        for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+        for device in ["PV", "WT", "WAT", "HP", "GroundHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -875,7 +876,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["heat_profile_by_year"][y] = {}
         result_dict["heat_kW_by_year"][y] = {}
-        for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
+        for device in ["STC", "HP", "GroundHP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -902,48 +903,93 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for device in ["PV", "STC"]:
         result_dict["area"][device] = int(safe_value(model.area, device))
 
-    # Calculate annual generation for each device type
-    eps = 0.01
+    # Calculate annual generation for each device type structure result_dict[device]["gen_kWh"]["energy_type"] and result_dict[device]["gen"]["energy_type"]
 
     # Heat generation
-    for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+    for k in ["STC", "HP", "GroundHP", "EB", "BOI", "GHP", "BBOI", "WBOI", "CHP", "BCHP", "WCHP", "FC"]:
         gen_kwh = dt * sum(safe_value(model.heat, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["heat"] = gen_kwh
+        result_dict[k]["gen"]["heat"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Cooling generation
     for k in ["CC", "AC"]:
         gen_kwh = dt * sum(safe_value(model.cool, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["cooling"] = gen_kwh
+        result_dict[k]["gen"]["cooling"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Power generation
     for k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:
         gen_kwh = dt * sum(safe_value(model.power, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["power"] = gen_kwh
+        result_dict[k]["gen"]["power"] = int(gen_kwh / 1000)  # MWh over full horizon
 
     # Special: Hydrogen generation for ELYZ
     h2_gen = dt * sum(safe_value(model.power, ("ELYZ", y, d, t)) * devs["ELYZ"]["eta_el"] * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-    result_dict["ELYZ"]["gen_H2"] = int(h2_gen / 1000)  # MWh over full horizon
+    if "ELYZ" not in result_dict:
+        result_dict["ELYZ"] = {}
+    if "gen_kWh" not in result_dict["ELYZ"]:
+        result_dict["ELYZ"]["gen_kWh"] = {}
+    if "gen" not in result_dict["ELYZ"]:
+        result_dict["ELYZ"]["gen"] = {}
+    result_dict["ELYZ"]["gen_kWh"]["hydrogen"] = h2_gen
+    result_dict["ELYZ"]["gen"]["hydrogen"] = int(h2_gen / 1000)  # MWh over full horizon
 
     # Gas generation for SAB
     for k in ["SAB"]:
         gen_kwh = dt * sum(safe_value(model.gas, (k, y, d, t)) * param["cluster_weights"][d] * weights[y]
                     for y in model.support_years for d in model.clusters for t in model.time_steps)
-        result_dict[k]["gen_kWh"] = gen_kwh
-        result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh over full horizon
+        if k not in result_dict:
+            result_dict[k] = {}
+        if "gen_kWh" not in result_dict[k]:
+            result_dict[k]["gen_kWh"] = {}
+        if "gen" not in result_dict[k]:
+            result_dict[k]["gen"] = {}
+        result_dict[k]["gen_kWh"]["gas"] = gen_kwh
+        result_dict[k]["gen"]["gas"] = int(gen_kwh / 1000)  # MWh over full horizon
 
+    eps = 0.01
     # Calculate full load hours
-    for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
-              "ELYZ", "FC", "SAB"]:
+    for k in ["PV", "WT", "WAT", "STC", "HP", "GroundHP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI",
+              "WCHP", "WBOI", "ELYZ", "FC", "SAB"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:
-            result_dict[k]["hrs"] = int((result_dict[k]["gen_kWh"] / param["observation_time"]) / cap_k)
+            # Decide which energy to use as the base for full load hours
+            if k in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC"]:
+                base_gen_kwh = result_dict[k]["gen_kWh"]["power"]
+            elif k in ["STC", "HP", "GroundHP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+                base_gen_kwh = result_dict[k]["gen_kWh"]["heat"]
+            elif k in ["CC", "AC"]:
+                base_gen_kwh = result_dict[k]["gen_kWh"]["cooling"]
+            elif k == "ELYZ":
+                base_gen_kwh = result_dict[k]["gen_kWh"]["hydrogen"]
+            elif k == "SAB":
+                base_gen_kwh = result_dict[k]["gen_kWh"]["gas"]
+            else:
+                base_gen_kwh = 0
+
+            result_dict[k]["hrs"] = int((base_gen_kwh / param["observation_time"]) / cap_k)
         else:
             result_dict[k]["hrs"] = 0
 

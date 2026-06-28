@@ -611,7 +611,7 @@ class ReportConfig(BaseSettings):
     pagesize: str = "A4" # Alternatives: A3, A4
 
     # Language
-    language: str = "de" # Language for the report, selected between: "de" (German) and "en" (English). Currently only german fully implemented. English will raise Errors due to some missing translations
+    language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).
 
     # KPI Save options
     kpi_save_type: str = "xlsx" # Format for saving KPIs, selected between: "csv", "xlsx", and "None" to save the KPIs in a CSV file, Excel file, or not save them at all.
@@ -954,6 +954,7 @@ class DecentralDeviceConfig(BaseSettings):
     BAT: dict = {}
 
     # EV parameters (Electric Vehicle)
+    EV__charger_max_power_w: float = 22000 # Max charger power in Watt
     EV__soc_min: float = 0.05  # Minimum state of charge.
     EV__soc_max: float = 0.95  # Maximum state of charge.
     EV__eta_standby: float = 1.0  # Standby hourly efficiency (accounts for self-discharge).
@@ -1111,30 +1112,21 @@ class CentralDeviceConfig(BaseSettings):
     GHP: dict = {}
 
     # HP parameters (Heat Pump)
-    HP__feasible: bool = False  # Should this be considered for the central optimization.
-    HP__CCOP_feasible: bool = True  # Should this be considered for the central optimization (constant COP).
-    HP__ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
-    HP__CSV_feasible: bool = False  # Should this be considered for the central optimization (CSV data).
+    HP__feasible: bool = False  # Is a Heat Pump feasible?
+    HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    HP__ASHP_carnot_feasible: bool = False  # Should it be modeled as an Air Source Heat Pump with Carnot efficiency?
+    HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
+    HP__CSV_feasible: bool = False  # Should it be modeled with a CSV file for the COP?
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     HP__min_cap: float = 0  # Minimum capacity in kW.
-    HP__max_cap: float = 500  # Maximum capacity in kW.
+    HP__max_cap: float = 20000  # Maximum capacity in kW.
     HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
     HP__ASHP_supply_temp: float = 60  # Supply temperature of the Air Source Heat Pump in Celsius.
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
-
-    # AirHP parameters (Air Source Heat Pump)
-    AirHP__feasible: bool = True  # Should this be considered for the central optimization.
-    AirHP__life_time: int = 25  # Maximum life time in years.
-    AirHP__inv_base: float = 1110  # Unsubsidized investment in €/kWth.
-    AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
-    AirHP__min_cap: float = 0  # Minimum capacity in kWth.
-    AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
-    AirHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirHP: dict = {}
 
     # GroundHP parameters (Ground Source Heat Pump)
     GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1159,6 +1151,8 @@ class CentralDeviceConfig(BaseSettings):
 
     # CC parameters (Chiller)
     CC__feasible: bool = False  # Should this be considered for the central optimization.
+    CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
@@ -1167,16 +1161,6 @@ class CentralDeviceConfig(BaseSettings):
     CC__max_cap: float = 500  # Maximum capacity in kW.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
-
-    # AirCC parameters (Air Cooled Chiller)
-    AirCC__feasible: bool = False  # Should this be considered for the central optimization.
-    AirCC__life_time: int = 20  # Maximum life time in years.
-    AirCC__inv_base: float = 700  # Unsubsidized investment in €/kW.
-    AirCC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
-    AirCC__min_cap: float = 0  # Minimum capacity in kW.
-    AirCC__max_cap: float = 500  # Maximum capacity in kW.
-    AirCC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirCC: dict = {}
 
     # AC parameters (Absorption Chiller)
     AC__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1368,45 +1352,41 @@ class CentralDeviceConfig(BaseSettings):
         return self
 
     @model_validator(mode='after')
-    def validate_single_hp_and_cc_model(self) -> 'CentralDeviceConfig':
-        """Ensure only one central HP model and one CC model is enabled at most, and validate COP modes."""
+    def validate_hp_cc_configuration(self) -> 'CentralDeviceConfig':
+        """Validate HP model selection after dictionaries are built."""
+        hp_dict = getattr(self, 'HP', {})
+        cc_dict = getattr(self, 'CC', {})
 
-        hp_enabled_count = sum([
-            bool(self.GroundHP["feasible"]),
-            bool(self.AirHP["feasible"]),
-            bool(self.HP["feasible"])
-        ])
+        if not hp_dict:
+            raise ValueError("HP configuration is missing. Ensure that the HP dictionary is built correctly.")
+        if not cc_dict:
+            raise ValueError("CC configuration is missing. Ensure that the CC dictionary is built correctly.")
 
-        if hp_enabled_count > 1:
-            raise ValueError(
-                f"Configuration Error: Multiple central heat pump models are enabled ({hp_enabled_count} active). "
-                "You can only set 'feasible=True' for ONE of the following: 'GroundHP', 'AirHP', or the default 'HP'."
-            )
+        hp_flags = [
+            hp_dict.get('CCOP_feasible', False),
+            hp_dict.get('ASHP_carnot_feasible', False),
+            hp_dict.get('ASHP_model_feasible', False),
+            hp_dict.get('CSV_feasible', False)
+        ]
+        cc_flags = [
+            cc_dict.get('CCOP_feasible', False),
+            cc_dict.get('ASCC_model_feasible', False)
+        ]
 
-        if self.HP["feasible"]:
-            hp_mode_count = sum([
-                bool(self.HP["CCOP_feasible"]),
-                bool(self.HP["ASHP_feasible"]),
-                bool(self.HP["CSV_feasible"])
-            ])
+        active_count_hp = sum(hp_flags)
+        active_count_cc = sum(cc_flags)
 
-            if hp_mode_count != 1:
-                raise ValueError(
-                    f"Configuration Error: When 'HP__feasible' is True, exactly ONE COP mode must be enabled. "
-                    f"Currently {hp_mode_count} are active. Please set 'True' for exactly one of: "
-                    "'HP__CCOP_feasible', 'HP__ASHP_feasible', or 'HP__CSV_feasible'."
-                )
+        if hp_dict['feasible'] and active_count_hp > 1:
+            raise ValueError("Only one HP model configuration can be True.")
 
-        cc_enabled_count = sum([
-            bool(self.AirCC["feasible"]),
-            bool(self.CC["feasible"])
-        ])
+        if hp_dict['feasible'] and active_count_hp == 0:
+            raise ValueError("If HP is feasible, at least one HP model configuration must be True.")
 
-        if cc_enabled_count > 1:
-            raise ValueError(
-                f"Configuration Error: Multiple central chiller models are enabled ({cc_enabled_count} active). "
-                "You can only set 'feasible=True' for ONE of the following: 'AirCC', or the default 'CC'."
-            )
+        if cc_dict['feasible'] and active_count_cc > 1:
+            raise ValueError("Only one CC model configuration can be True.")
+
+        if cc_dict['feasible'] and active_count_cc == 0:
+            raise ValueError("If CC is feasible, at least one CC model configuration must be True.")
 
         return self
     

@@ -215,32 +215,6 @@ class KPIs:
         Calculate energy exchange of the district with its environment in [kWh] for each year.
         """
 
-        W_inj_GCP = {}
-        W_dem_GCP = {}
-        gas = {}
-        biomass = {}
-        waste = {}
-        hydrogen = {}
-        oil = {}
-        districtHeat = {}
-
-        for year in self.inputData["simulated_years"]:
-            # Electricity [kWh] feed into the superordinated grid
-            W_inj_GCP[year] = np.zeros(len(data.clusters))
-            # Electricity [kWh] covered by the superordinated grid
-            W_dem_GCP[year] = np.zeros(len(data.clusters))
-
-            # Fuel consumption [kWh]
-            gas[year] = np.zeros(len(data.clusters))
-            biomass[year] = np.zeros(len(data.clusters))
-            waste[year] = np.zeros(len(data.clusters))
-            hydrogen[year] = np.zeros(len(data.clusters))
-            oil[year] = np.zeros(len(data.clusters))
-
-            # District heat consumption [kWh]
-            districtHeat[year] = np.zeros(len(data.clusters))
-
-        # electricity feed into and covered by superordinated grid for one year [kWh]
         self.W_inj_GCP_year = {}
         self.W_dem_GCP_year = {}
         self.gas_year = {}
@@ -275,23 +249,15 @@ class KPIs:
             for c in range(len(self.inputData["clusters"])):
                 weight = self.inputData["clusterWeights"][self.inputData["clusters"][c]]
                 opt_res = self.inputData["resultsOptimization"][year][c]
-                W_dem_GCP[year][c] = sum(opt_res["P_dem_gcp"]) * data.time["timeResolution"] / 3600 / 1000 # from Ws to kWh
-                W_inj_GCP[year][c] = sum(opt_res["P_inj_gcp"]) * data.time["timeResolution"] / 3600 / 1000
-                gas[year][c] = sum(opt_res["P_gas_total"]) * data.time["timeResolution"] / 3600 / 1000
-                biomass[year][c] = sum(opt_res["P_biomass_total"]) * data.time["timeResolution"] / 3600 / 1000
-                waste[year][c] = sum(opt_res["P_waste_total"]) * data.time["timeResolution"] / 3600 / 1000
-                hydrogen[year][c] = sum(opt_res["P_hydrogen_total"]) * data.time["timeResolution"] / 3600 / 1000
-                oil[year][c] = sum(opt_res["P_oil_total"]) * data.time["timeResolution"] / 3600 / 1000
-                districtHeat[year][c] = sum(opt_res["P_district_heat_total"]) * data.time["timeResolution"] / 3600 / 1000
 
-                self.W_dem_GCP_year[year] += W_dem_GCP[year][c] * weight
-                self.W_inj_GCP_year[year] += W_inj_GCP[year][c] * weight
-                self.gas_year[year] += gas[year][c] * weight
-                self.biomass_year[year] += biomass[year][c] * weight
-                self.waste_year[year] += waste[year][c] * weight
-                self.hydrogen_year[year] += hydrogen[year][c] * weight
-                self.oil_year[year] += oil[year][c] * weight
-                self.districtHeat_year[year] += districtHeat[year][c] * weight
+                self.W_dem_GCP_year[year] += opt_res["from_grid_total_el"] * weight
+                self.W_inj_GCP_year[year] += opt_res["to_grid_total_el"] * weight
+                self.gas_year[year] += opt_res["from_grid_total_gas"] * weight
+                self.biomass_year[year] += opt_res["total_biomass_used"] * weight
+                self.waste_year[year] += opt_res["total_waste_used"] * weight
+                self.hydrogen_year[year] += opt_res["from_grid_total_hydrogen"] * weight
+                self.oil_year[year] += opt_res["total_oil_used"] * weight
+                self.districtHeat_year[year] += opt_res["total_district_heat_used"] * weight
 
                 self.el_dem_buildings[year] += opt_res["from_grid_total_el_buildings"] * weight
                 self.el_inj_buildings[year] += opt_res["to_grid_total_el_buildings"] * weight
@@ -419,7 +385,7 @@ class KPIs:
 
         # Iteration over all buildings and then over all devices
         for n in range(len(district)):
-            self.decentral_individual_devices_annualized_cost[n] = {}
+            self.decentral_individual_devices_annualized_cost[n] = {} # Each building gets a sub-dictionary to store the annualized cost of its devices even if no devices are installed
             calc_annual_investment[n] = 0
             calc_annual_investment_unsubsidized[n] = 0
 
@@ -1299,6 +1265,15 @@ class KPIs:
         kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
         kpi_data_yearly["CO2 Emissions Oil (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_oil", None) for year in years}
         kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
+        kpi_data_yearly["Electricity Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("electricity", None) for year in years}
+        kpi_data_yearly["Gas Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("gas", None) for year in years}
+        kpi_data_yearly["Oil Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("oil", None) for year in years}
+        kpi_data_yearly["Waste Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("waste", None) for year in years}
+        kpi_data_yearly["Biomass Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("biomass", None) for year in years}
+        kpi_data_yearly["District Heat Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("district_heat", None) for year in years}
+        kpi_data_yearly["Hydrogen Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("hydrogen", None) for year in years}
+        kpi_data_yearly["Revenue from Electricity Feed-in (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("revenue_feed_in_el", None) for year in years}
+
         kpi_data_yearly["Autonomy (Time Fraction)"] = {year: self.energy_autonomy_year.get(year, None) for year in years}
         kpi_data_yearly["Gasoline Costs (€/a)"] = {year: self.gasoline_costs.get(year, None) for year in years}
         # kpi_data_yearly["CO2 Emissions Gasoline "] = #* Should this be considered, as emissions from EV are considered through electricity consumption? This makes it look EVs are worse for emissions.
@@ -1388,7 +1363,7 @@ class KPIs:
                 unit = "-"
             elif device_name in ["TES", "CTES", "BAT", "GS", "H2S"]:
                 unit = "kWh"
-            elif device_name in ["PV", "STC"]:
+            elif device_name in ["PV", "STC", "WT"]:
                 unit = "kW"
             else:
                 unit = "kW"

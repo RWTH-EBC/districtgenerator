@@ -778,8 +778,10 @@ class Profiles:
             target_soc = battery_capacity * 0.95 # Wh
             current_soc = target_soc # Wh
             eta_standby = building_devices_data["EV"]["eta_standby"]
-            max_charging_power = battery_capacity * building_devices_data["EV"]["coeff_ch"]
-            max_energy_per_step = max_charging_power * building_devices_data["EV"]["eta_ch"] * dt
+            max_charging_power = min(
+                battery_capacity * building_devices_data["EV"]["coeff_ch"],
+                building_devices_data["EV"].get("charger_max_power_w") * building_devices_data["EV"]["eta_ch"])
+            max_energy_per_step = max_charging_power * dt
 
             for t in range(total_steps):
                 # Update current SoC considering standby losses
