@@ -15,6 +15,9 @@ setuptools.setup(name='districtgenerator',
                  license='MIT License',
                  packages=setuptools.find_packages(),
                  include_package_data=True,
+                 package_data={
+                     'districtgenerator': ['data/**/*', 'data/*'],
+                 },
                  install_requires=requirements,
                  classifiers=("Programming Language :: Python :: 3", ),
                  )

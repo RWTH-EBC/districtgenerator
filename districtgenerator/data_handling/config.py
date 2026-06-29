@@ -1467,32 +1467,20 @@ class GlobalConfig(BaseModel):
     calendar: 'CalendarConfig'
     scenario_name: ScenarioName
     report: 'ReportConfig'
-class Settings(BaseSettings):
-    """
-    Settings class to manage global configuration parameters.
-    This class is used to load configuration parameters from an environment file.
-    """
-    env_file: str = '.env.CONFIG.EXAMPLE'
-
-    class Config:
-        env_file = '.env.CONFIG.EXAMPLE'  # Default .env file if no env_file is provided
-        env_file_encoding = 'utf-8'
-        extra = 'ignore' # Ignores all other variables in the .env.CONFIG file
-
-
 def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
     """
     Load the global configuration from the specified environment file.
-    If no environment file is provided, it defaults to standard parameters defined in the config classes.
-    For error handling, it prints the used environment file path.
+    If no environment file is provided, class defaults are used without loading a file.
     Note: All parameters defined in '.env.CONFIG.' will override the default values in config.py
 
     Parameters
     ----------
     env_file : Optional[str]
-        The path to the environment file. If None, it uses the default from Settings.
-        Place config in the data folder of the districtgenerator package to use ".env.NAME" or use
-        absolute paths "c:/path/to/.env.CONFIG.EXAMPLE" or "/path/to/.env.CONFIG.EXAMPLE".
+        Path to the environment file. Absolute paths are used as-is. Relative paths are
+        resolved against the current working directory first; if not found there, the
+        package's bundled data directory is tried as a fallback (so bundled example
+        configs like '.env.CONFIG.EXAMPLE' work without copying them).
+        If None, all configuration classes use their built-in default values.
 
     Returns
     -------
@@ -1501,23 +1489,42 @@ def load_global_config(env_file: Optional[str] = None) -> GlobalConfig:
 
     """
     if env_file is None:
-        settings = Settings()  # Load settings from the .env file
-        env_file = settings.env_file
-
-    script_path = Path(__file__).resolve()
-    project_root = script_path.parent.parent
-
-    env_file_path = str(project_root / "data" / env_file)
-
-    if not os.path.exists(env_file_path):
-        raise FileNotFoundError(
-            f"Configuration file not found. \n"
-            f"  - Looked for: {env_file_path}\n"
-            f"  - Based on script location: {script_path}"
+        return GlobalConfig(
+            location=LocationConfig(),
+            time=TimeConfig(),
+            design_building=DesignBuildingConfig(),
+            eco=EcoConfig(),
+            physics=PhysicsConfig(),
+            pyomo=PyomoConfig(),
+            heatgrid=HeatGridConfig(),
+            ehdo=EHDOConfig(),
+            decentral=DecentralDeviceConfig(),
+            central=CentralDeviceConfig(),
+            calendar=CalendarConfig(),
+            scenario_name=ScenarioName(),
+            report=ReportConfig()
         )
 
+    p = Path(env_file)
+    if p.is_absolute():
+        env_file_path = p
+    else:
+        cwd_candidate = Path(os.getcwd()) / p
+        package_candidate = Path(__file__).resolve().parent.parent / "data" / p
+        if cwd_candidate.exists():
+            env_file_path = cwd_candidate
+        elif package_candidate.exists():
+            env_file_path = package_candidate
+        else:
+            raise FileNotFoundError(
+                f"Configuration file not found.\n"
+                f"  - Tried (CWD):     {cwd_candidate}\n"
+                f"  - Tried (package): {package_candidate}"
+            )
+
+    env_file_path = str(env_file_path)
     os.environ["ENV_FILE"] = env_file_path
-    print(f'Using config: {os.environ["ENV_FILE"]}')
+    print(f'Using config: {env_file_path}')
 
     return GlobalConfig(
         location=LocationConfig(_env_file=env_file_path),
