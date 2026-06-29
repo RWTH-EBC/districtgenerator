@@ -102,6 +102,9 @@ def load_params(data):
     for k in ["heat", "cool", "power"]:
         param["peak_"+k] = np.max(dem_uncl[k])
     param["peak_hydrogen"] = 0
+    param["renewable_heat_share_enabled"] = central_device_data.get("renewable_heat_share_enabled")
+    param["renewable_heat_share_targets"] = central_device_data.get("renewable_heat_share_targets")
+    param["renewable_heat_share_years"] = central_device_data.get("renewable_heat_share_years")
     param_uncl["T_supply_EH"] = data.heat_grid_data["T_supply_EH"]
     param_uncl["T_return_EH"] = data.heat_grid_data["T_return_EH"]
 
@@ -187,6 +190,8 @@ def load_params(data):
 
     all_models = {}
     for key, value in central_device_data.items():
+        if not isinstance(value, dict):
+            continue
         all_models[key] = {
             "enabled": value.get("feasible", False),
             "CCOP_feasible": value.get("CCOP_feasible", False),

@@ -560,7 +560,6 @@ class EHDOConfig(BaseSettings):
     peak_dem_met_conv: bool = True  # Meet peak demands without utilizing fluctuating sources (STC, PV, WT), bool.
     co2_el_feed_in: float = 0       #! CO₂ emission credit for electricity feed-in kg/kWh (Move to EcoConfig)
     co2_gas_feed_in: float = 0      #! CO₂ emission credit for gas feed-in kg/kWh (Move to EcoConfig)
-    n_clusters: int = 12            # Number of design days.
 
     # Helper attributes for unit formatting (Remove?)
     unit_placeholder: str = " - "   # used for cases where unit is a placeholder
@@ -1024,6 +1023,10 @@ class CentralDeviceConfig(BaseSettings):
     and operational characteristics.
     """
 
+    renewable_heat_share_enabled: bool = False  # Enforce a minimum renewable share for central heat supplied by the Energy Hub.
+    renewable_heat_share_targets: str | list[float] = Field(default_factory=list)  # Minimum renewable central heat share schedule from 0 to 1.
+    renewable_heat_share_years: str | list[int] = Field(default_factory=list)  # Simulated years for the renewable central heat share schedule.
+
     # PV parameters (Photovoltaic System)
     PV__feasible: bool = False  # Should this be considered for the central optimization.
     PV__eta: float = 0.199  # Electrical efficiency between 0 and 1.
@@ -1313,6 +1316,14 @@ class CentralDeviceConfig(BaseSettings):
     GS__soc_init: float = 0.5  # Initial state of charge between 0 and 1.
     GS__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     GS: dict = {}
+
+    @field_validator('renewable_heat_share_targets', mode='before')
+    def parse_renewable_heat_share_targets(cls, v):
+        return parse_float_list(v)
+
+    @field_validator('renewable_heat_share_years', mode='before')
+    def parse_renewable_heat_share_years(cls, v):
+        return [int(x) for x in parse_float_list(v)]
 
     @model_validator(mode='after')
     def build_device_dicts(self) -> 'DecentralDeviceConfig':

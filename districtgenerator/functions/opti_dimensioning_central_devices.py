@@ -21,6 +21,36 @@ import json
 import districtgenerator.functions.solver_config as solver_config
 from contextlib import redirect_stdout
 
+EH_HEAT_PRODUCERS = ("STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+EH_RENEWABLE_HEAT = ("STC", "HP", "GroundHP", "EB", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+
+
+def _get_renewable_heat_share_schedule(config):
+    target_years = config.get("renewable_heat_share_years")
+    target_shares = config.get("renewable_heat_share_targets")
+
+    if target_years or target_shares:
+        if len(target_years) != len(target_shares):
+            raise ValueError("renewable_heat_share_years and renewable_heat_share_targets must have the same length.")
+        schedule = [(int(target_year), float(target_share))
+                    for target_year, target_share in zip(target_years, target_shares)]
+    else:
+        return []
+
+    return sorted(schedule, key=lambda item: item[0])
+
+
+def _get_active_renewable_heat_share(config, year):
+    if not config.get("renewable_heat_share_enabled"):
+        return 0.0
+
+    active_target = 0.0
+
+    for target_year, target_share in _get_renewable_heat_share_schedule(config):
+        if year >= target_year:
+            active_target = max(active_target, target_share)
+
+    return active_target
 
 def run_optim(data, devs, param, dem, result_dict):
     """
@@ -330,6 +360,47 @@ def build_model(model, data, devs, param, dem):
 
                 # Waste supply and demand balance
                 model.constraints.add(model.waste["import", y, d, t] == model.waste["WCHP", y, d, t] + model.waste["WBOI", y, d, t])
+
+    ################################################################################
+    # Renewable heat share target
+    ################################################################################
+
+    for y in model.support_years:
+        target_share = _get_active_renewable_heat_share(
+            param,
+            year=int(y))
+
+        if target_share > 0:
+            renewable_heat = sum(
+                model.heat[dev, y, d, t] * param["cluster_weights"][d]
+                for dev in EH_RENEWABLE_HEAT
+                for d in model.clusters
+                for t in model.time_steps
+            )
+            total_heat = sum(
+                model.heat[dev, y, d, t] * param["cluster_weights"][d]
+                for dev in EH_HEAT_PRODUCERS
+                for d in model.clusters
+                for t in model.time_steps
+            )
+            model.constraints.add(renewable_heat >= target_share * total_heat)
+
+    renewable_peak_capacity_required = any(
+        _get_active_renewable_heat_share(param, year=int(y)) >= 1.0
+        for y in support_years)
+
+    if renewable_peak_capacity_required:
+        renewable_heat_capacity = (
+            + model.cap["HP"]
+            + model.cap["GroundHP"]
+            + model.cap["EB"]
+            + model.cap["BCHP"] / devs["BCHP"]["eta_el"] * devs["BCHP"]["eta_th"]
+            + model.cap["BBOI"]
+            + model.cap["WCHP"] / devs["WCHP"]["eta_el"] * devs["WCHP"]["eta_th"]
+            + model.cap["WBOI"]
+            + model.cap["FC"] / devs["FC"]["eta_el"] * devs["FC"]["eta_th"]
+        )
+        model.constraints.add(renewable_heat_capacity >= param["peak_heat"])
 
     ################################################################################
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads

@@ -41,9 +41,38 @@ EH_ECS_HYDROGEN = ("ELYZ", "FC", "SAB", "from_neighborhood", "to_neighborhood")
 EH_ECS_OIL = ()
 EH_ECS_STORAGE = ("TES", "CTES", "BAT", "H2S", "GS")
 EH_ECS_WASTE = ("WCHP", "WBOI", "import")
+EH_HEAT_PRODUCERS = ("STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
+EH_RENEWABLE_HEAT = ("STC", "HP", "GroundHP", "EB", "BCHP", "BBOI", "WCHP", "WBOI", "FC")
 
 BIG_M = 1e8  # big M for linearization of product of binary and continuous variable
 
+
+def _get_renewable_heat_share_schedule(config):
+    target_years = config.get("renewable_heat_share_years")
+    target_shares = config.get("renewable_heat_share_targets")
+
+    if target_years or target_shares:
+        if len(target_years) != len(target_shares):
+            raise ValueError("renewable_heat_share_years and renewable_heat_share_targets must have the same length.")
+        schedule = [(int(target_year), float(target_share))
+                    for target_year, target_share in zip(target_years, target_shares)]
+    else:
+        return []
+
+    return sorted(schedule, key=lambda item: item[0])
+
+
+def _get_active_renewable_heat_share(config, year):
+    if not config.get("renewable_heat_share_enabled"):
+        return 0.0
+
+    active_target = 0.0
+
+    for target_year, target_share in _get_renewable_heat_share_schedule(config):
+        if year >= target_year:
+            active_target = max(active_target, target_share)
+
+    return active_target
 
 def run_opti_central(data, year, cluster, sim_ecoData):
     """
@@ -1341,6 +1370,19 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def from_grid_total_el_eh_rule(model):
         return model.from_grid_total_el_eh == dt * sum(model.eh_power_from_grid[t] for t in model.t) / 1000
 
+    def renewable_heat_share_rule(model):
+        target_share = _get_active_renewable_heat_share(
+            central_device_data,
+            year=year)
+
+        if target_share == 0:
+            return pyo.Constraint.Skip
+
+        renewable_heat = sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_RENEWABLE_HEAT for t in model.t)
+        total_heat = sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_HEAT_PRODUCERS for t in model.t)
+
+        return renewable_heat >= target_share * total_heat
+
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
     model.from_grid_total_el_constraint = pyo.Constraint(rule=from_grid_total_el_rule, doc="from_grid_total_el")
     model.to_grid_total_el_constraint = pyo.Constraint(rule=to_grid_total_el_rule, doc="to_grid_total_el")
@@ -1353,6 +1395,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.to_grid_total_el_eh_constraint = pyo.Constraint(rule=to_grid_total_el_eh_rule, doc="to_grid_total_el_eh")
     model.from_grid_total_el_eh_constraint = pyo.Constraint(rule=from_grid_total_el_eh_rule, doc="from_grid_total_el_eh")
     model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
+    model.renewable_heat_share_constraint = pyo.Constraint(rule=renewable_heat_share_rule, doc="Minimum_renewable_heat_share_central_energy_system")
 
     ################################################################################
     # Daily Peak Calculation
