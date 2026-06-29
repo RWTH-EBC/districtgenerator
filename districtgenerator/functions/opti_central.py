@@ -25,16 +25,16 @@ ECS_STORAGE = ("BAT", "TES", "TES_DHW")  # battery (BAT), thermal energy storage
 
 # Create set for energy hub devices
 EH_DEVS = ["PV", "WT", "STC", "WAT",
-           "HP", "EB", "CC", "AC",
+           "HP", "GroundHP", "EB", "CC", "AC",
            "CHP", "BOI", "GHP",
            "BCHP", "BBOI", "WCHP", "WBOI",
            "ELYZ", "FC", "H2S", "SAB",
            "TES", "CTES", "BAT", "GS",
            ]
 
-EH_ECS_HEAT = ("STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC", "to_grid")
+EH_ECS_HEAT = ("STC", "HP", "GroundHP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC", "to_grid")
 EH_ECS_COOL = ("CC", "AC", "to_grid")
-EH_ECS_POWER = ("PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid")
+EH_ECS_POWER = ("PV", "WT", "WAT", "HP", "GroundHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid")
 EH_ECS_GAS = ("CHP", "BOI", "GHP", "SAB")
 EH_ECS_BIOMASS = ("BCHP", "BBOI")
 EH_ECS_HYDROGEN = ("ELYZ", "FC", "SAB", "from_neighborhood", "to_neighborhood")
@@ -47,6 +47,7 @@ BIG_M = 1e8  # big M for linearization of product of binary and continuous varia
 DEVICE_MAPPING = { # Dictionary to map the devices energy domains. Might be used to allow a more generic formulation of energy balance constraints in the future.
     # Devices
     "HP": {"gen": ["heat"], "cons": ["power"]},
+    "GroundHP": {"gen": ["heat"], "cons": ["power"]},
     "EH": {"gen": ["heat"], "cons": ["power"]},
     "EH_DHW": {"gen": ["heat"], "cons": ["power"]},
     "CHP": {"gen": ["heat", "power"], "cons": ["gas"]},
@@ -412,6 +413,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_power_WT = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a wind turbine (EH)")
     model.eh_power_WAT = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="")
     model.eh_power_HP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity consumed by an heat pump (EH)")
+    model.eh_power_GroundHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity consumed by a ground sourced heat pump (EH)")
     model.eh_power_EB = pyo.Var(model.t, within=pyo.NonNegativeReals,
                                 doc="Electricity consumed by a electric boiler (EH)")
     model.eh_power_CC = pyo.Var(model.t, within=pyo.NonNegativeReals,
@@ -434,6 +436,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_heat_STC = pyo.Var(model.t, within=pyo.NonNegativeReals,
                                 doc="Heat produced by a solar thermal collector (EH)")
     model.eh_heat_HP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by an heat pump (EH)")
+    model.eh_heat_GroundHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by a ground sourced heat pump (EH)")
     model.eh_heat_EB = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat produced by an electric boiler (EH)")
     model.eh_heat_AC = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Heat used by an adsorption chiller (EH)")
     model.eh_heat_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals,
@@ -644,7 +647,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         else:
             return model.eh_power_WT[t] == energyHubData["generation"]["Wind_cluster"][cluster][t] * 1000
 
-    for device in ["EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:
+    for device in ["EB", "HP", "GroundHP", "BOI", "GHP", "BBOI", "WBOI"]:
         constraint_rule = create_eh_heat_capacity_constraint(device)
         setattr(model, f"eh_heat_cap_{device}", pyo.Constraint(model.t, rule=constraint_rule))
 
@@ -777,6 +780,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
         else:
             COP_HP_eh = energyHubData["capacities"]["devs"]["HP"]["COP"][year][cluster][t]
             return model.eh_heat_HP[t] == model.eh_power_HP[t] * COP_HP_eh
+        
+    def eh_groundhp_conversion_rule(model, t):
+        if energyHubData == {}:
+            return model.eh_heat_GroundHP[t] == 0
+        else:
+            COP_GroundHP_eh = energyHubData["capacities"]["devs"]["GroundHP"]["COP"][year][cluster][t]
+            return model.eh_heat_GroundHP[t] == model.eh_power_GroundHP[t] * COP_GroundHP_eh
 
     def eh_eb_conversion_rule(model, t):
         return model.eh_heat_EB[t] == model.eh_power_EB[t] * central_device_data["EB"]["eta_th"]
@@ -834,6 +844,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return model.eh_gas_SAB[t] == model.eh_hydrogen_SAB[t] * central_device_data["SAB"]["eta"]
 
     model.eh_hp_conversion = pyo.Constraint(model.t, rule=eh_hp_conversion_rule)
+    model.eh_groundhp_conversion = pyo.Constraint(model.t, rule=eh_groundhp_conversion_rule)
     model.eh_eb_conversion = pyo.Constraint(model.t, rule=eh_eb_conversion_rule)
     model.eh_cc_conversion = pyo.Constraint(model.t, rule=eh_cc_conversion_rule)
     model.eh_ac_conversion = pyo.Constraint(model.t, rule=eh_ac_conversion_rule)
@@ -1304,7 +1315,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     ################################################################################
     # Heat balance
     def eh_heating_balance_rule(model, t):
-        return (model.eh_heat_STC[t] + model.eh_heat_HP[t] + model.eh_heat_EB[t] + model.eh_heat_CHP[t]
+        return (model.eh_heat_STC[t] + model.eh_heat_HP[t] + model.eh_heat_GroundHP[t] + model.eh_heat_EB[t] + model.eh_heat_CHP[t]
                 + model.eh_heat_BOI[t] + model.eh_heat_GHP[t] + model.eh_heat_BCHP[t] + model.eh_heat_BBOI[t]
                 + model.eh_heat_WCHP[t] + model.eh_heat_WBOI[t] + model.eh_heat_FC[t] + model.eh_dch_TES[
                     t]  # Heat supply
@@ -1316,7 +1327,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.eh_power_PV[t] + model.eh_power_WT[t] + model.eh_power_WAT[t] + model.eh_power_CHP[t]
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
-                == model.eh_power_HP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
+                == model.eh_power_HP[t] + model.eh_power_GroundHP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
                 + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t])
 
     # Cooling balance

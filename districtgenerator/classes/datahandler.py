@@ -933,7 +933,7 @@ class Datahandler:
             self.designCentralDevices(saveGenerationProfiles=True)
             self.finalizeClusterProfiles()
         else:
-            print("No central heat grid detected — skipping heating network design.")
+            print("No central heat grid detected and no energy hub designed — skipping heating network design.")
             self.centralDevices = {}
             self.prepareClusteringInputs()
 
