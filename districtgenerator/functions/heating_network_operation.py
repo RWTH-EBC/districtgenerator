@@ -399,27 +399,18 @@ def compute_network_temperatures_auto(data, param, max_iter=150, tol=0.5, relax=
             T_SUP_MAX=95
             DTS_MAX_STEP=5
 
-            # 1) Erfolgreich: thermisch zulässig und innere Iteration konvergiert
             if inner_converged and sup_deficit <= tol and max_heat_deficit <= heat_tol_eff:
                 timestep_converged = True
                 break
 
-            # 2) Supply-Temperatur reicht am Gebäude nicht aus:
-            #    EH-Vorlauf erhöhen und nächste äußere Iteration starten
             if sup_deficit > tol:
                 dTs = np.clip(sup_deficit, 0.0, DTS_MAX_STEP)
                 Ts = min(Ts + dTs, T_SUP_MAX)
                 continue
 
-            # 3) Kein Supply-Defizit, aber noch Wärme-Defizit:
-            #    Das kann bei heat_grid_SH / kleinen ΔT / Massenstromkopplung passieren.
-            #    Deshalb nicht sofort abbrechen, sondern Ts leicht erhöhen.
             if max_heat_deficit > heat_tol_eff:
                 Ts = min(Ts + 1.0, T_SUP_MAX)
                 continue
-
-            # 4) Supply und Wärme sind eigentlich okay, aber inner_converged ist noch False:
-            #    nächste äußere Iteration probieren statt sofort RuntimeError
             continue
 
         if not timestep_converged:
