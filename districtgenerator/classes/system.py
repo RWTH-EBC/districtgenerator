@@ -13,7 +13,8 @@ class BES:
       by running an OPERATION optimization per candidate.
     """
 
-    def __init__(self, physics, decentral_device_data, design_building_data, file_path, eco_data, pyomo_config):
+    def __init__(self, physics, decentral_device_data, design_building_data, file_path, eco_data, pyomo_config,
+                 central_device_data=None, ehdo_model_data=None):
         """
         Constructor of building energy system (BES) class.
 
@@ -31,6 +32,8 @@ class BES:
         self.file_path = file_path
         self.eco_data = eco_data
         self.pyomo_config = pyomo_config
+        self.central_device_data = central_device_data
+        self.ehdo_model_data = ehdo_model_data
 
     def designECS(self, building, site, dt_s):
         """
@@ -117,7 +120,9 @@ class BES:
                 pyomo_config=self.pyomo_config,
                 design_building_data=self.design_building_data,
                 building=building,
-                cluster_meta=building.get("cluster_meta", None)
+                cluster_meta=building.get("cluster_meta", None),
+                central_device_data=self.central_device_data,
+                ehdo_model_data=self.ehdo_model_data
             )
 
             buildingFeatures["heater"] = chosen

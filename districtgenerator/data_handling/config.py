@@ -213,15 +213,17 @@ class EcoConfig(BaseSettings):
     revenue_feed_in_gas: str | list = [0.02]  # Revenue for natural gas feed-in €/kWh
     price_gasoline_liter: str | list = [1.70, 1.72, 1.74, 1.76, 1.78, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.82, 1.84, 1.86, 1.88, 1.90, 1.90, 1.90, 1.90, 1.90]  # Gasoline price in €/liter
     price_hydrogen: str | list = [0.2990, 0.2938, 0.2886, 0.2834, 0.2782, 0.2730, 0.2678, 0.2626, 0.2574, 0.2522, 0.2470, 0.2418, 0.2366, 0.2314, 0.2262, 0.2210, 0.2176, 0.2142, 0.2108, 0.2074]         # Hydrogen price in €/kWh
+    price_biomethane: str | list = [0.1840, 0.1796, 0.1752, 0.1708, 0.1664, 0.1620, 0.1656, 0.1692, 0.1728, 0.1764, 0.1800, 0.1838, 0.1876, 0.1914, 0.1952, 0.1990, 0.2038, 0.2086, 0.2134, 0.2182, 0.2230]  # Biomethane price in EUR/kWh
     price_waste: str | list = [0.1]            # Waste price in €/kWh
     price_biomass: str | list = [0.0580, 0.0574, 0.0568, 0.0562, 0.0556, 0.0550, 0.0564, 0.0578, 0.0592, 0.0606, 0.0620, 0.0632, 0.0644, 0.0656, 0.0668, 0.0680, 0.0680, 0.0680, 0.0680, 0.0680]         # Biomass price in €/kWh
     price_oil: str | list = [0.09, 0.094, 0.098, 0.102, 0.106, 0.11, 0.112, 0.114, 0.116, 0.118, 0.12, 0.122, 0.124, 0.126, 0.128, 0.13, 0.132, 0.134, 0.136, 0.138] # Oil price in €/kWh
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
-    co2_el_grid: str | list = [0.328]          # CO2 emissions for electricity import (grid mix) in kg/kWh
+    co2_el_grid: str | list = [0.328, 0.281, 0.233, 0.186, 0.139, 0.096, 0.083, 0.069, 0.056, 0.048, 0.043, 0.037, 0.032, 0.027, 0.027, 0.027, 0.026, 0.026, 0.026, 0.025]          # CO2 emissions for electricity import (grid mix) in kg/kWh
     co2_gas: str | list = [0.240]              # CO2 emissions for burning natural gas in kg/kWh
     co2_biom: str | list = [0.020]              # CO2 emissions for burning biomass in kg/kWh
+    co2_biomethane: str | list = [0.0]          # CO2 emissions for burning biomethane in kg/kWh
     co2_hydrogen: str | list = [0.0402]           # CO2 emissions for burning hydrogen in kg/kWh
     co2_oil: str | list = [0.310]              # CO2 emissions for burning oil in kg/kWh
     co2_waste: str | list = [0.020]              # CO2 emissions for burning waste in kg/kWh
@@ -232,9 +234,9 @@ class EcoConfig(BaseSettings):
 
     @field_validator('interpolation_points','price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh',
                      'revenue_feed_in_el_eh', 'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas',
-                     'price_gasoline_liter', 'price_hydrogen', 'price_waste', 
+                     'price_gasoline_liter', 'price_hydrogen', 'price_biomethane', 'price_waste',
                      'price_biomass', 'price_oil', 'price_district_heat',
-                     'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
+                     'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_biomethane', 'co2_hydrogen',
                      'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
@@ -260,9 +262,9 @@ class EcoConfig(BaseSettings):
         # List of all time dependent parameters
         params_to_expand = [
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
-            'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
+            'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen', 'price_biomethane',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_biomethane', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
         ]
         
         for param_name in params_to_expand:
@@ -537,6 +539,11 @@ class EHDOConfig(BaseSettings):
     enable_cap_limit_gas: bool = False      # Restrict gas demand from grid, bool.
     cap_limit_gas: float = 1000000          # Maximum annual energy drawn from the gas grid in MWh/year
 
+    # Biomethane configuration
+    enable_supply_biomethane: bool = False       # Enable biomethane supply, bool.
+    enable_supply_limit_biomethane: bool = False # Enable limit annual biomethane import, bool.
+    supply_limit_biomethane: float = 1000000     # Maximum available biomethane in MWh/year
+
     # Biomass configuration
     enable_supply_biomass: bool = False         # Restrict available biomass, bool.
     enable_supply_limit_biomass: bool = False   # Enable limit annual biomass import, bool.
@@ -633,6 +640,7 @@ class ReportConfig(BaseSettings):
     # Colors for energy sources and cost categories in graphs
     colors__source__electricity: str | Tuple[float, float, float] = "#00551F" # Grid electricity
     colors__source__gas: str | Tuple[float, float, float] = "#F39C12" # Natural gas
+    colors__source__biomethane: str | Tuple[float, float, float] = "#2ECC71" # Biomethane
     colors__source__oil: str | Tuple[float, float, float] = "#344EFB" # Heating oil
     colors__source__waste: str | Tuple[float, float, float] = "#8B5A2B" # Waste
     colors__source__biomass: str | Tuple[float, float, float] = "#27AE60" # Biomass
@@ -1023,6 +1031,11 @@ class CentralDeviceConfig(BaseSettings):
     and operational characteristics.
     """
 
+    # WPG:
+    # - Neue Wärmenetze ab 01.03.2025: mind. 65% EE, unvermeidbare Abwärme
+    # - Bestehende Wärmenetze ab 2030: mind. 30% EE / unvermeidbare Abwärme
+    # - Bestehende Wärmenetze ab 2040: mind. 80% EE / unvermeidbare Abwärme
+    # - Alle Wärmenetze ab 2045: 100% EE / unvermeidbare Abwärme
     renewable_heat_share_enabled: bool = False  # Enforce a minimum renewable share for central heat supplied by the Energy Hub.
     renewable_heat_share_targets: str | list[float] = Field(default_factory=list)  # Minimum renewable central heat share schedule from 0 to 1.
     renewable_heat_share_years: str | list[int] = Field(default_factory=list)  # Simulated years for the renewable central heat share schedule.

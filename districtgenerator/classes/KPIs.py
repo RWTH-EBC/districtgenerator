@@ -37,6 +37,7 @@ class KPIs:
         self.W_inj_GCP_year = None
         self.W_dem_GCP_year = None
         self.gas_year = None
+        self.biomethane_year = None
         self.biomass_year = None
         self.waste_year = None
         self.hydrogen_year = None
@@ -218,6 +219,7 @@ class KPIs:
         self.W_inj_GCP_year = {}
         self.W_dem_GCP_year = {}
         self.gas_year = {}
+        self.biomethane_year = {}
         self.biomass_year = {}
         self.waste_year = {}
         self.hydrogen_year = {}
@@ -234,6 +236,7 @@ class KPIs:
             self.W_inj_GCP_year[year] = 0
             self.W_dem_GCP_year[year] = 0
             self.gas_year[year] = 0
+            self.biomethane_year[year] = 0
             self.biomass_year[year] = 0
             self.waste_year[year] = 0
             self.hydrogen_year[year] = 0
@@ -253,6 +256,7 @@ class KPIs:
                 self.W_dem_GCP_year[year] += opt_res["from_grid_total_el"] * weight
                 self.W_inj_GCP_year[year] += opt_res["to_grid_total_el"] * weight
                 self.gas_year[year] += opt_res["from_grid_total_gas"] * weight
+                self.biomethane_year[year] += opt_res.get("total_biomethane_used", 0) * weight
                 self.biomass_year[year] += opt_res["total_biomass_used"] * weight
                 self.waste_year[year] += opt_res["total_waste_used"] * weight
                 self.hydrogen_year[year] += opt_res["from_grid_total_hydrogen"] * weight
@@ -518,6 +522,7 @@ class KPIs:
                 "decentral_fixed": self.annual_fixed_costs_decentral,
                 "electricity": self.el_dem_buildings[year] * ecoData["price_supply_el"] + self.el_dem_eh[year] * ecoData["price_supply_el_eh"],
                 "gas": self.gas_year[year] * ecoData["price_supply_gas"],
+                "biomethane": self.biomethane_year[year] * ecoData.get("price_biomethane"),
                 "oil": self.oil_year[year] * ecoData["price_oil"],
                 "waste": self.waste_year[year] * ecoData["price_waste"],
                 "biomass": self.biomass_year[year] * ecoData["price_biomass"],
@@ -668,6 +673,7 @@ class KPIs:
             # CO2 emissions [kg/a]
             co2_dem_grid = self.W_dem_GCP_year[year] * ecoData["co2_el_grid"] / 1000    # in t/a
             co2_gas = self.gas_year[year] * ecoData["co2_gas"] / 1000                   # in t/a
+            co2_biomethane = self.biomethane_year[year] * ecoData.get("co2_biomethane") / 1000   # in t/a
             co2_biom = self.biomass_year[year] * ecoData["co2_biom"] / 1000         # in t/a
             co2_waste = self.waste_year[year] * ecoData["co2_waste"] / 1000             # in t/a
             co2_hydrogen = self.hydrogen_year[year] * ecoData["co2_hydrogen"] / 1000       # in t/a
@@ -675,13 +681,14 @@ class KPIs:
             co2_district_heat = self.districtHeat_year[year] * ecoData["co2_district_heat"] / 1000   # in t/a
 
             # total CO2 emissions [kg/a]
-            total_co2 = co2_dem_grid + co2_gas + co2_biom + co2_waste + co2_hydrogen + co2_oil + co2_district_heat
+            total_co2 = co2_dem_grid + co2_gas + co2_biomethane + co2_biom + co2_waste + co2_hydrogen + co2_oil + co2_district_heat
 
             # CO2 emissions for each simulated year
             self.co2emissions[year] = { #! Save individual contributions for possible later use. Important: Do not sum all values. Comined already included.
                 "total_co2": total_co2,
                 "co2_dem_grid": co2_dem_grid,
                 "co2_gas": co2_gas,
+                "co2_biomethane": co2_biomethane,
                 "co2_biom": co2_biom,
                 "co2_waste": co2_waste,
                 "co2_hydrogen": co2_hydrogen,
@@ -722,6 +729,7 @@ class KPIs:
 
             price_gas = eco["price_supply_gas"]
             price_el = eco["price_supply_el"]
+            price_biomethane = eco.get("price_biomethane", 0.0)
             price_biom = eco.get("price_biomass", 0.0)
             price_h2 = eco.get("price_hydrogen", 0.0)
             price_oil = eco.get("price_oil", 0.0)
@@ -764,7 +772,9 @@ class KPIs:
                         Q = np.array(res["BOI"].get("Q_th", [0] * T))
                         eta = data.decentral_device_data["BOI"]["eta_th"]
                         fuel = Q.sum() / eta * dt / 3600 / 1000
-                        fuel_cost_heat += cw * fuel * price_gas
+                        biomethane_fuel = np.array(res.get("biomethane_dom", {}).get("BOI", [0] * T)).sum() * dt / 3600 / 1000
+                        fossil_fuel = max(0.0, fuel - biomethane_fuel)
+                        fuel_cost_heat += cw * (fossil_fuel * price_gas + biomethane_fuel * price_biomethane)
 
                     if heater_type in ["BBOI", "BHP"] and "BBOI" in res:
                         Q = np.array(res["BBOI"].get("Q_th", [0] * T))
@@ -794,8 +804,10 @@ class KPIs:
                         E_kWh = E_chp.sum() * dt / 3600 / 1000
                         if Q_kWh > 0:
                             fuel_input = Q_kWh / eta_th
+                            biomethane_fuel = np.array(res.get("biomethane_dom", {}).get("CHP", [0] * T)).sum() * dt / 3600 / 1000
+                            fossil_fuel = max(0.0, fuel_input - biomethane_fuel)
                             share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
-                            fuel_cost_heat += cw * share_heat * fuel_input * price_gas
+                            fuel_cost_heat += cw * share_heat * (fossil_fuel * price_gas + biomethane_fuel * price_biomethane)
 
                     if heater_type == "FC" and "FC" in res:
                         E_fc = np.array(res["FC"].get("P_el", [0] * T))
@@ -872,6 +884,7 @@ class KPIs:
             # Energy hub specific prices
             price_gas = eco.get("price_supply_gas_eh", eco["price_supply_gas"])
             price_el = eco.get("price_supply_el_eh", eco["price_supply_el"])
+            price_biomethane = eco.get("price_biomethane", 0.0)
             price_biom = eco.get("price_biomass", 0.0)
             price_h2 = eco.get("price_hydrogen", 0.0)
             price_oil = eco.get("price_oil", 0.0)
@@ -913,6 +926,7 @@ class KPIs:
                 eh_power = cluster["eh_power"]
                 eh_heat = cluster["eh_heat"]
                 eh_gas = cluster["eh_gas"]
+                eh_biomethane = cluster.get("eh_biomethane", {})
                 eh_h2 = cluster["eh_hydrogen"]
                 eh_biom = cluster["eh_biom"]
                 eh_waste = cluster["eh_waste"]
@@ -923,7 +937,17 @@ class KPIs:
                 Q = np.array(eh_heat["BOI"])
                 eta = data.central_device_data["BOI"]["eta_th"]
                 fuel = Q.sum() / eta * dt / 3600 / 1000
-                fuel_cost_heat += cw * fuel * price_gas
+                biomethane_fuel = np.array(eh_biomethane.get("BOI", [0] * T)).sum() * dt / 3600 / 1000
+                fossil_fuel = max(0.0, fuel - biomethane_fuel)
+                fuel_cost_heat += cw * (fossil_fuel * price_gas + biomethane_fuel * price_biomethane)
+
+                # Gas heat pump
+                Q = np.array(eh_heat.get("GHP", [0] * T))
+                cop = data.central_device_data["GHP"]["COP"]
+                fuel = Q.sum() / cop * dt / 3600 / 1000
+                biomethane_fuel = np.array(eh_biomethane.get("GHP", [0] * T)).sum() * dt / 3600 / 1000
+                fossil_fuel = max(0.0, fuel - biomethane_fuel)
+                fuel_cost_heat += cw * (fossil_fuel * price_gas + biomethane_fuel * price_biomethane)
 
                 # Biomass boiler
                 Q = np.array(eh_heat["BBOI"])
@@ -939,16 +963,19 @@ class KPIs:
 
                 # CHP (gas)
                 fuel = np.array(eh_gas.get("CHP", [0] * T))
+                biomethane_fuel = np.array(eh_biomethane.get("CHP", [0] * T))
                 Q = np.array(eh_heat.get("CHP", [0] * T))
                 E = np.array(eh_power.get("CHP", [0] * T))
 
                 fuel_kWh = fuel.sum() * dt / 3600 / 1000
+                biomethane_fuel_kWh = biomethane_fuel.sum() * dt / 3600 / 1000
+                fossil_fuel_kWh = max(0.0, fuel_kWh - biomethane_fuel_kWh)
                 Q_kWh = Q.sum() * dt / 3600 / 1000
                 E_kWh = E.sum() * dt / 3600 / 1000
 
                 if Q_kWh > 0 and E_kWh > 0:
                     share_heat = (Q_kWh * price_dh) / (Q_kWh * price_dh + E_kWh * price_el + 1e-9)
-                    fuel_cost_heat += cw * share_heat * fuel_kWh * price_gas
+                    fuel_cost_heat += cw * share_heat * (fossil_fuel_kWh * price_gas + biomethane_fuel_kWh * price_biomethane)
 
                 # Waste CHP (WCHP)
                 fuel = np.array(eh_waste.get("WCHP", [0] * T))
@@ -1171,6 +1198,7 @@ class KPIs:
         self.total_W_dem_buildings = sum(self.W_dem_buildings_year[year] * year_weights[year] for year in sorted_years) # total residual electricity demand within district by buildings
         self.total_W_inj_buildings = sum(self.W_inj_buildings_year[year] * year_weights[year] for year in sorted_years) # total residual electricity injection within district by buildings
         self.total_gas = sum(self.gas_year[year] * year_weights[year] for year in sorted_years) # gas consumption of the district
+        self.total_biomethane = sum(self.biomethane_year[year] * year_weights[year] for year in sorted_years) # biomethane consumption
         self.total_biomass = sum(self.biomass_year[year] * year_weights[year] for year in sorted_years) # biomass consumption
         self.total_waste = sum(self.waste_year[year] * year_weights[year] for year in sorted_years) # waste consumption
         self.total_hydrogen = sum(self.hydrogen_year[year] * year_weights[year] for year in sorted_years) # hydrogen consumption
@@ -1181,6 +1209,7 @@ class KPIs:
         self.total_co2_all = sum(self.co2emissions[year]["total_co2"] * year_weights[year] for year in sorted_years) # total CO2 emissions
         self.total_co2_dem_grid = sum(self.co2emissions[year]["co2_dem_grid"] * year_weights[year] for year in sorted_years) # CO2 emissions from electricity from grid
         self.total_co2_gas = sum(self.co2emissions[year]["co2_gas"] * year_weights[year] for year in sorted_years) # CO2 emissions from gas consumption
+        self.total_co2_biomethane = sum(self.co2emissions[year]["co2_biomethane"] * year_weights[year] for year in sorted_years) # CO2 emissions from biomethane consumption
         self.total_co2_biom = sum(self.co2emissions[year]["co2_biom"] * year_weights[year] for year in sorted_years) # CO2 emissions from biomass consumption
         self.total_co2_waste = sum(self.co2emissions[year]["co2_waste"] * year_weights[year] for year in sorted_years) # CO2 emissions from waste consumption
         self.total_co2_hydrogen = sum(self.co2emissions[year]["co2_hydrogen"] * year_weights[year] for year in sorted_years) # CO2 emissions from hydrogen consumption
@@ -1247,6 +1276,7 @@ class KPIs:
         kpi_data_yearly["Electricity Injection to Grid (kWh/a)"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
         kpi_data_yearly["Electricity Demand from Grid (kWh/a)"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
         kpi_data_yearly["Gas Consumption (kWh/a)"] = {year: self.gas_year.get(year, None) for year in years}
+        kpi_data_yearly["Biomethane Consumption (kWh/a)"] = {year: self.biomethane_year.get(year, None) for year in years}
         kpi_data_yearly["Biomass Consumption (kWh/a)"] = {year: self.biomass_year.get(year, None) for year in years}
         kpi_data_yearly["Waste Consumption (kWh/a)"] = {year: self.waste_year.get(year, None) for year in years}
         kpi_data_yearly["Hydrogen Consumption (kWh/a)"] = {year: self.hydrogen_year.get(year, None) for year in years}
@@ -1260,6 +1290,7 @@ class KPIs:
         kpi_data_yearly["CO2 Emissions (t/a)"] = {year: self.co2emissions.get(year, {}).get("total_co2", None) for year in years}
         kpi_data_yearly["CO2 Emissions Grid Electricity (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_dem_grid", None) for year in years}
         kpi_data_yearly["CO2 Emissions Gas (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_gas", None) for year in years}
+        kpi_data_yearly["CO2 Emissions Biomethane (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_biomethane", None) for year in years}
         kpi_data_yearly["CO2 Emissions Biomass (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_biom", None) for year in years}
         kpi_data_yearly["CO2 Emissions Waste (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_waste", None) for year in years}
         kpi_data_yearly["CO2 Emissions Hydrogen (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_hydrogen", None) for year in years}
@@ -1267,6 +1298,7 @@ class KPIs:
         kpi_data_yearly["CO2 Emissions District Heat (t/a)"] = {year: self.co2emissions.get(year, {}).get("co2_district_heat", None) for year in years}
         kpi_data_yearly["Electricity Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("electricity", None) for year in years}
         kpi_data_yearly["Gas Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("gas", None) for year in years}
+        kpi_data_yearly["Biomethane Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("biomethane", None) for year in years}
         kpi_data_yearly["Oil Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("oil", None) for year in years}
         kpi_data_yearly["Waste Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("waste", None) for year in years}
         kpi_data_yearly["Biomass Costs (€/a)"] = {year: self.detailed_costs_year.get(year, {}).get("biomass", None) for year in years}
@@ -1314,6 +1346,7 @@ class KPIs:
         kpi_data_static["Grid Electricity Injection (MWh)"] = self.total_W_inj_GCP / 1000
         kpi_data_static["Buildings Electricity Injection (MWh)"] = self.total_W_inj_buildings / 1000
         kpi_data_static["Gas Consumption (MWh)"] = self.total_gas / 1000
+        kpi_data_static["Biomethane Consumption (MWh)"] = self.total_biomethane / 1000
         kpi_data_static["Biomass Consumption (MWh)"] = self.total_biomass / 1000
         kpi_data_static["Waste Consumption (MWh)"] = self.total_waste / 1000
         kpi_data_static["Hydrogen Consumption (MWh)"] = self.total_hydrogen / 1000
@@ -1324,6 +1357,7 @@ class KPIs:
         kpi_data_static["Total CO2 Emissions (t)"] = self.total_co2_all
         kpi_data_static["Total CO2 Emissions Grid Electricity (t)"] = self.total_co2_dem_grid
         kpi_data_static["Total CO2 Emissions Gas (t)"] = self.total_co2_gas
+        kpi_data_static["Total CO2 Emissions Biomethane (t)"] = self.total_co2_biomethane
         kpi_data_static["Total CO2 Emissions Biomass (t)"] = self.total_co2_biom
         kpi_data_static["Total CO2 Emissions Waste (t)"] = self.total_co2_waste
         kpi_data_static["Total CO2 Emissions Hydrogen (t)"] = self.total_co2_hydrogen

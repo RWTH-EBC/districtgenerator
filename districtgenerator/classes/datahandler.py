@@ -1680,7 +1680,9 @@ class Datahandler:
                 design_building_data=self.design_building_data,
                 file_path=self.filePath,
                 eco_data=self.ecoData,
-                pyomo_config=self.pyomo_config
+                pyomo_config=self.pyomo_config,
+                central_device_data=self.central_device_data,
+                ehdo_model_data=self.params_ehdo_model
             )
 
             # get capacities of all possible devices

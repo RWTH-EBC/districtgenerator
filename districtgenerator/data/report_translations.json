@@ -43,6 +43,7 @@
         "name_dhw": "DHW",
         "name_ev": "EV",
         "name_gas": "Gas",
+        "name_biomethane": "Biomethane",
         "name_oil": "Oil",
         "name_waste": "Waste",
         "name_biomass": "Biomass",
@@ -149,7 +150,7 @@
         "device_FC": "Fuel Cell",
         "device_H2S": "Hydrogen Storage",
         "device_SAB": "Sabatier Reactor",
-        "device_TES": "Heat Storage",
+        "device_TES": "TES",
         "device_CTES": "Cold Storage",
         "device_BAT": "Battery Storage",
         "device_GS": "Gas Storage",
@@ -164,7 +165,7 @@
         "device_HP35": "Heat Pump (35°C)",
         "device_HP55": "Heat Pump (55°C)",
         "device_EH_DHW": "Instantaneous Electric Water Heater",
-        "device_TES_DHW": "DHW Storage Tank",
+        "device_TES_DHW": "DHW TES",
 
         "content_information_page": {
             "Energy Performance Indicators": {
@@ -262,6 +263,7 @@
         "name_cool": "Kälte",
         "name_ev": "EV",
         "name_gas": "Gas",
+        "name_biomethane": "Biomethan",
         "name_oil": "Öl",
         "name_waste": "Abfall",
         "name_biomass": "Biomasse",
@@ -352,7 +354,7 @@
         "device_FC": "Brennstoffzelle",
         "device_H2S": "Wasserstoffspeicher",
         "device_SAB": "Sabatier-Reaktor",
-        "device_TES": "Wärmespeicher",
+        "device_TES": "Raumwärme TES",
         "device_CTES": "Kältespeicher",
         "device_BAT": "Batteriespeicher",
         "device_GS": "Gasspeicher",
@@ -367,7 +369,7 @@
         "device_HP35": "Wärmepumpe (35°C)",
         "device_HP55": "Wärmepumpe (55°C)",
         "device_EH_DHW": "Dezentraler Durchlauferhitzer",
-        "device_TES_DHW": "Trinkwarmwasserspeicher",
+        "device_TES_DHW": "TWW TES",
 
         "legend_eh": "Energiezentrale",
         "legend_pipes": "Rohre des Wärmenetzes",

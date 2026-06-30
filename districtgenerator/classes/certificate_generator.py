@@ -1269,9 +1269,13 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         chart_width = width - x_align_left - x_align_right
         center_x = x_align_left + (chart_width / 2.0)
 
-        # Filter out generation_total and consumption_total
-        filtered_series_map = {k: v for k, v in series_map.items()
-                               if not any(x in k.lower() for x in ["generation_total", "consumption_total", ])}
+        # Prefer device-level series, but keep totals as a fallback if no detailed series survived filtering.
+        valid_series_map = {k: v for k, v in series_map.items() if v}
+        detailed_series_map = {
+            k: v for k, v in valid_series_map.items()
+            if not any(x in k.lower() for x in ["generation_total", "consumption_total"])
+        }
+        filtered_series_map = detailed_series_map if detailed_series_map else valid_series_map
 
         if not filtered_series_map or height < 20:
             drawing.add(String(center_x, max(5, height / 2.0), self.translate("msg_no_data"),
@@ -1748,6 +1752,7 @@ class YearlyStackedBarCharts(BaseReportFlowable):
                     self.translate("name_decentral_costs"): "decentral_fixed",
                     self.translate("name_el"): "electricity",
                     self.translate("name_gas"): "gas",
+                    self.translate("name_biomethane"): "biomethane",
                     self.translate("name_oil"): "oil",
                     self.translate("name_waste"): "waste",
                     self.translate("name_biomass"): "biomass",
@@ -2671,7 +2676,7 @@ class CertificateLayout(ReportComponent):
         if not data_profiles:
             return
 
-        title = self.translate("title_energyhub_profiles")
+        title = self.translate("Energy Hub Profiles")
 
         sorted_years = sorted(data_profiles.keys())
 
@@ -3361,6 +3366,7 @@ class DataExtractor(ReportComponent):
                 self.translate("name_decentral_costs"): round(costs["decentral_fixed"], 0),
                 self.translate("name_el"): round(costs["electricity"], 0),
                 self.translate("name_gas"): round(costs["gas"], 0),
+                self.translate("name_biomethane"): round(costs.get("biomethane", 0), 0),
                 self.translate("name_oil"): round(costs["oil"], 0),
                 self.translate("name_waste"): round(costs["waste"], 0),
                 self.translate("name_biomass"): round(costs["biomass"], 0),
@@ -3375,6 +3381,7 @@ class DataExtractor(ReportComponent):
                 "Year": y,
                 self.translate("name_el"): round(em["co2_dem_grid"], 2),
                 self.translate("name_gas"): round(em["co2_gas"], 2),
+                self.translate("name_biomethane"): round(em.get("co2_biomethane", 0), 2),
                 self.translate("name_oil"): round(em["co2_oil"], 2),
                 self.translate("name_waste"): round(em["co2_waste"], 2),
                 self.translate("name_biomass"): round(em["co2_biom"], 2),
@@ -3832,6 +3839,7 @@ class DataExtractor(ReportComponent):
         device_unit_map = {
             "BAT": "Wh<sub>el</sub>",
             "TES": "l",
+            "TES_DHW": "l",
             "EV": "Wh<sub>el</sub>",
             "STC": "m²",
             "PV": "m²",

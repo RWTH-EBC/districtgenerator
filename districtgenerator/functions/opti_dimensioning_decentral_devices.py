@@ -74,12 +74,38 @@ def annualized_device_cost_over_horizon(dev, eco_data, cap, mode):
 
     return float(c_inv + c_om)
 
+def _get_renewable_heat_share_schedule(config):
+    target_years = config.get("renewable_heat_share_years")
+    target_shares = config.get("renewable_heat_share_targets")
+
+    if target_years is None or target_shares is None:
+        return []
+
+    return sorted(
+        (int(year), float(share))
+        for year, share in zip(target_years, target_shares))
+
+def _get_active_renewable_heat_share(config, year):
+    if not config.get("renewable_heat_share_enabled"):
+        return 0.0
+
+    active_share = 0.0
+    for target_year, target_share in _get_renewable_heat_share_schedule(config):
+        if int(year) >= target_year:
+            active_share = target_share
+
+    return active_share
+
 # Core operation model
 def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, site, pv_gen_w,
-    stc_gen_w, capacities, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building, cluster_meta):
+    stc_gen_w, capacities, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building, cluster_meta,
+    central_device_data=None, ehdo_model_data=None):
     """
     Solve fixed-design operation for a single concept (= one capacities dict).
     """
+    central_device_data = central_device_data
+    ehdo_model_data = ehdo_model_data
+    biomethane_enabled = bool(ehdo_model_data.get("enable_supply_biomethane"))
 
     # Capacity extraction
     def cap_w(dev):
@@ -270,6 +296,10 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     m.p_CHP = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.p_FC = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
 
+    # Biomethane (kW fuel).
+    m.biomethane_BOI = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.biomethane_CHP = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+
     m.p_grid_in = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.p_grid_out = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.bin_GRID = pyo.Var(m.Y, m.T, within=pyo.Binary)
@@ -392,6 +422,32 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     # CHP/FC heat-electric coupling
     m.chp_heat_link = pyo.Constraint(
         m.Y, m.T, rule=lambda mm, y, t: mm.q_CHP_SH[y, t] + mm.q_CHP_DHW[y, t] == mm.p_CHP[y, t] * (eta_chp_th / eta_chp_el))
+
+    def boi_fuel_kw(mm, y, t):
+        return (mm.q_BOI_SH[y, t] + mm.q_BOI_DHW[y, t]) / eta_boi
+
+    def chp_fuel_kw(mm, y, t):
+        return mm.p_CHP[y, t] / eta_chp_el
+
+    m.biomethane_BOI_limit = pyo.Constraint(
+        m.Y, m.T, rule=lambda mm, y, t: mm.biomethane_BOI[y, t] <= boi_fuel_kw(mm, y, t))
+    m.biomethane_CHP_limit = pyo.Constraint(
+        m.Y, m.T, rule=lambda mm, y, t: mm.biomethane_CHP[y, t] <= chp_fuel_kw(mm, y, t))
+
+    if not biomethane_enabled:
+        m.disable_biomethane_BOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.biomethane_BOI[y, t] == 0.0)
+        m.disable_biomethane_CHP = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.biomethane_CHP[y, t] == 0.0)
+
+    def biomethane_BOI_target_rule(mm, y, t):
+        target_share = _get_active_renewable_heat_share(central_device_data, y)
+        return mm.biomethane_BOI[y, t] >= target_share * boi_fuel_kw(mm, y, t)
+
+    def biomethane_CHP_target_rule(mm, y, t):
+        target_share = _get_active_renewable_heat_share(central_device_data, y)
+        return mm.biomethane_CHP[y, t] >= target_share * chp_fuel_kw(mm, y, t)
+
+    m.biomethane_BOI_target = pyo.Constraint(m.Y, m.T, rule=biomethane_BOI_target_rule)
+    m.biomethane_CHP_target = pyo.Constraint(m.Y, m.T, rule=biomethane_CHP_target_rule)
 
     if fc_heat_dissipation_allowed:
         m.fc_heat_link = pyo.Constraint(
@@ -522,6 +578,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         p_el_y = eco_year("price_supply_el", y)
         r_el_y = eco_year("revenue_feed_in_el", y)
         p_gas_y = eco_year("price_supply_gas", y)
+        p_biomethane_y = eco_year("price_biomethane", y)
         p_biom_y = eco_year("price_biomass", y)
         p_oil_y = eco_year("price_oil", y)
         p_h2_y = eco_year("price_hydrogen", y)
@@ -534,9 +591,11 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
             expr += w * (mm.p_grid_in[y, t] * dt_h) * p_el_y
             expr -= w * (mm.p_grid_out[y, t] * dt_h) * r_el_y
 
-            # gas: BOI fuel + CHP fuel (by electric output)
-            gas_kw = ((mm.q_BOI_SH[y, t] + mm.q_BOI_DHW[y, t]) / eta_boi) + (mm.p_CHP[y, t] / eta_chp_el)
-            expr += w * (gas_kw * dt_h) * p_gas_y
+            # gas: BOI fuel + CHP fuel (by electric output), split into fossil gas and biomethane
+            gas_kw = boi_fuel_kw(mm, y, t) + chp_fuel_kw(mm, y, t)
+            biomethane_kw = mm.biomethane_BOI[y, t] + mm.biomethane_CHP[y, t]
+            expr += w * ((gas_kw - biomethane_kw) * dt_h) * p_gas_y
+            expr += w * (biomethane_kw * dt_h) * p_biomethane_y
 
             # biomass
             expr += w * ((mm.q_BBOI_SH[y, t] + mm.q_BBOI_DHW[y, t]) / eta_bboi * dt_h) * p_biom_y
@@ -584,6 +643,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     pv_used_kwh_by_year = {}
     stc_used_kwh_by_year = {}
     ev_charge_kwh_by_year = {}
+    gas_kwh_by_year = {}
+    biomethane_kwh_by_year = {}
 
     for y in support_years:
         el_import_kwh_by_year[y] = sum(val(m.p_grid_in[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
@@ -591,6 +652,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         pv_used_kwh_by_year[y] = sum(val(m.pv_used[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
         stc_used_kwh_by_year[y] = sum((val(m.stc_used_SH[y, t]) + val(m.stc_used_DHW[y, t])) * dt_h * float(weight_t[t]) for t in range(n))
         ev_charge_kwh_by_year[y] = sum(val(m.p_EV_ch[y, t]) * dt_h * float(weight_t[t]) for t in range(n))
+        biomethane_kwh_by_year[y] = sum((val(m.biomethane_BOI[y, t]) + val(m.biomethane_CHP[y, t])) * dt_h * float(weight_t[t]) for t in range(n))
+        gas_kwh_by_year[y] = sum((val(boi_fuel_kw(m, y, t)) + val(chp_fuel_kw(m, y, t)) - val(m.biomethane_BOI[y, t]) - val(m.biomethane_CHP[y, t])) * dt_h * float(weight_t[t]) for t in range(n))
 
     # Totals over whole horizon (kWh over observation time)
     el_import_kwh_horizon = sum(el_import_kwh_by_year[y] * years_weight[y] for y in support_years)
@@ -598,6 +661,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     pv_used_kwh_horizon = sum(pv_used_kwh_by_year[y] * years_weight[y] for y in support_years)
     stc_used_kwh_horizon = sum(stc_used_kwh_by_year[y] * years_weight[y] for y in support_years)
     ev_charge_kwh_horizon = sum(ev_charge_kwh_by_year[y] * years_weight[y] for y in support_years)
+    gas_kwh_horizon = sum(gas_kwh_by_year[y] * years_weight[y] for y in support_years)
+    biomethane_kwh_horizon = sum(biomethane_kwh_by_year[y] * years_weight[y] for y in support_years)
 
     res = {
         "status": str(tc),
@@ -612,6 +677,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         "pv_used_kWh_by_year": {int(y): float(v) for y, v in pv_used_kwh_by_year.items()},
         "stc_used_kWh_by_year": {int(y): float(v) for y, v in stc_used_kwh_by_year.items()},
         "ev_charge_kWh_by_year": {int(y): float(v) for y, v in ev_charge_kwh_by_year.items()},
+        "gas_kWh_by_year": {int(y): float(v) for y, v in gas_kwh_by_year.items()},
+        "biomethane_kWh_by_year": {int(y): float(v) for y, v in biomethane_kwh_by_year.items()},
 
         # totals across observation horizon (kWh over all years)
         "el_import_kWh_horizon": float(el_import_kwh_horizon),
@@ -619,6 +686,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
         "pv_used_kWh_horizon": float(pv_used_kwh_horizon),
         "stc_used_kWh_horizon": float(stc_used_kwh_horizon),
         "ev_charge_kWh_horizon": float(ev_charge_kwh_horizon),
+        "gas_kWh_horizon": float(gas_kwh_horizon),
+        "biomethane_kWh_horizon": float(biomethane_kwh_horizon),
         "T_measures_applied": bool(T_measures_applied),
         "T_measures_cost_eur_per_a": float(T_measures_cost),
         "heatload_kW": float(heatload_kw),
@@ -628,7 +697,8 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
 
 # Choose cheapest concept (heater="opt")
 def choose_cheapest_heating_concept_fixed_design(demand_heat_w, demand_dhw_w, demand_el_w, ev_on_demand_w, site,
-    pv_gen_w, stc_gen_w, candidates, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building, cluster_meta):
+    pv_gen_w, stc_gen_w, candidates, dt_s, decentral_device_data, eco_data, pyomo_config, design_building_data, building,
+    cluster_meta, central_device_data=None, ehdo_model_data=None):
     """
     Evaluate each candidate concept with operation optimization and return (best_concept, all_results).
     """
@@ -652,7 +722,9 @@ def choose_cheapest_heating_concept_fixed_design(demand_heat_w, demand_dhw_w, de
             pyomo_config=pyomo_config,
             design_building_data=design_building_data,
             building=building,
-            cluster_meta=cluster_meta
+            cluster_meta=cluster_meta,
+            central_device_data=central_device_data,
+            ehdo_model_data=ehdo_model_data
         )
 
         all_results[concept] = r

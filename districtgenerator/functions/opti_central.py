@@ -298,6 +298,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
                              doc="Cooling to/from domestic devices")
     model.gas_dom = pyo.Var(model.ecs_gas, model.n, model.t, within=pyo.NonNegativeReals,
                             doc="Gas to/from domestic devices")
+    model.biomethane_dom = pyo.Var(model.ecs_gas, model.n, model.t, within=pyo.NonNegativeReals,
+                                   doc="Biomethane share of gaseous fuel to/from domestic devices")
     model.biomass_dom = pyo.Var(model.ecs_biomass, model.n, model.t, within=pyo.NonNegativeReals,
                                 doc="Biomass to/from domestic devices")
     model.hydrogen_dom = pyo.Var(model.ecs_hydrogen, model.n, model.t, within=pyo.NonNegativeReals,
@@ -350,6 +352,10 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_gas_SAB = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas produced by a sabatier reactor (EH)")
     model.eh_gas_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas flow from grid to EH")
     model.eh_gas_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Gas flow to grid from EH")
+    model.eh_biomethane_CHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Biomethane consumption by a combined heat and power unit (EH)")
+    model.eh_biomethane_BOI = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Biomethane consumption by a gas boiler (EH)")
+    model.eh_biomethane_GHP = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Biomethane consumption by a gas heat pump (EH)")
+    model.eh_biomethane_import = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Biomethane import by the Energy Hub")
 
     # Electric power to/from devices
     model.eh_power_PV = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity produced by a photovoltaik unit (EH)")
@@ -436,10 +442,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # DISTRICT VARIABLES
     ################################################################################
 
-    # Electrical power to/from grid at GNP, gas from grid #TODO: Rename variables
+    # Electrical power to/from grid at GNP, gas from grid
     model.power_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity imported from the external grid into the neighborhood (at the grid connection point)")
     model.power_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Electricity exported from the neighborhood to the external grid (at the grid connection point)")
     model.power_gas_from_grid = pyo.Var(model.t, within=pyo.NonNegativeReals)
+    model.power_biomethane_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_hydrogen_grid_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_biomass_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
     model.power_oil_import = pyo.Var(model.t, within=pyo.NonNegativeReals)
@@ -456,6 +463,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.to_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy exported from the Energy Hub to the internal neighborhood grid")
     model.from_grid_total_el_eh = pyo.Var(within=pyo.NonNegativeReals, doc="Total electrical energy imported from the internal neighborhood grid by the Energy Hub")
     model.from_grid_total_gas = pyo.Var(within=pyo.NonNegativeReals)
+    model.total_biomethane_used = pyo.Var(within=pyo.NonNegativeReals)
     model.from_grid_total_hydrogen = pyo.Var(within=pyo.NonNegativeReals)
     model.total_biomass_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_waste_used = pyo.Var(within=pyo.NonNegativeReals)
@@ -743,6 +751,15 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def eh_ghp_conversion_rule(model, t):
         return model.eh_heat_GHP[t] == model.eh_gas_GHP[t] * central_device_data["GHP"]["COP"]
 
+    def eh_chp_biomethane_limit_rule(model, t):
+        return model.eh_biomethane_CHP[t] <= model.eh_gas_CHP[t]
+
+    def eh_boi_biomethane_limit_rule(model, t):
+        return model.eh_biomethane_BOI[t] <= model.eh_gas_BOI[t]
+
+    def eh_ghp_biomethane_limit_rule(model, t):
+        return model.eh_biomethane_GHP[t] <= model.eh_gas_GHP[t]
+
     def eh_bchp_power_conversion_rule(model, t):
         return model.eh_power_BCHP[t] == model.eh_biom_BCHP[t] * central_device_data["BCHP"]["eta_el"]
 
@@ -782,6 +799,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_chp_heat_conversion = pyo.Constraint(model.t, rule=eh_chp_heat_conversion_rule)
     model.eh_boi_conversion = pyo.Constraint(model.t, rule=eh_boi_conversion_rule)
     model.eh_ghp_conversion = pyo.Constraint(model.t, rule=eh_ghp_conversion_rule)
+    model.eh_chp_biomethane_limit = pyo.Constraint(model.t, rule=eh_chp_biomethane_limit_rule)
+    model.eh_boi_biomethane_limit = pyo.Constraint(model.t, rule=eh_boi_biomethane_limit_rule)
+    model.eh_ghp_biomethane_limit = pyo.Constraint(model.t, rule=eh_ghp_biomethane_limit_rule)
     model.eh_bchp_power_conversion = pyo.Constraint(model.t, rule=eh_bchp_power_conversion_rule)
     model.eh_bchp_heat_conversion = pyo.Constraint(model.t, rule=eh_bchp_heat_conversion_rule)
     model.eh_bboi_conversion = pyo.Constraint(model.t, rule=eh_bboi_conversion_rule)
@@ -846,9 +866,15 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def chp_power_conversion_rule(model, n, t):
         return model.power_dom["CHP", n, t] == param_dec_devs["CHP"]["eta_el"] * model.gas_dom["CHP", n, t]
 
+    def chp_biomethane_limit_rule(model, n, t):
+        return model.biomethane_dom["CHP", n, t] <= model.gas_dom["CHP", n, t]
+
     # BOILER
     def boiler_conversion_rule(model, n, t):
         return (model.heat_dom_SH["BOI", n, t] + model.heat_dom_DHW["BOI", n, t] == param_dec_devs["BOI"]["eta_th"] * model.gas_dom["BOI", n, t])
+
+    def boiler_biomethane_limit_rule(model, n, t):
+        return model.biomethane_dom["BOI", n, t] <= model.gas_dom["BOI", n, t]
 
     # Biomass boiler
     def bboi_conversion_rule(model, n, t):
@@ -885,8 +911,12 @@ def build_model(model, data, year, cluster, sim_ecoData):
                                                doc="CHP thermal conversion: gas to heat with thermal efficiency")
     model.chp_power_conversion = pyo.Constraint(model.n, model.t, rule=chp_power_conversion_rule,
                                                 doc="CHP electrical conversion: gas to electricity with electrical efficiency")
+    model.chp_biomethane_limit = pyo.Constraint(model.n, model.t, rule=chp_biomethane_limit_rule,
+                                                doc="CHP biomethane share cannot exceed total gaseous fuel")
     model.boiler_conversion = pyo.Constraint(model.n, model.t, rule=boiler_conversion_rule,
                                              doc="Gas boiler conversion: natural gas to heat with thermal efficiency")
+    model.boiler_biomethane_limit = pyo.Constraint(model.n, model.t, rule=boiler_biomethane_limit_rule,
+                                                   doc="Boiler biomethane share cannot exceed total gaseous fuel")
     model.bboi_conversion = pyo.Constraint(model.n, model.t, rule=bboi_conversion_rule,
                                            doc="Biomass boiler conversion: biomass to heat with thermal efficiency")
     model.oboi_conversion = pyo.Constraint(model.n, model.t, rule=oboi_conversion_rule,
@@ -1229,8 +1259,17 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # gas balance
     def eh_gas_balance_rule(model, t):
         return (model.eh_gas_from_grid[t] + model.eh_gas_SAB[t] + model.eh_dch_GS[t]  # Gas supply
-                == model.eh_gas_CHP[t] + model.eh_gas_BOI[t] + model.eh_gas_GHP[t] + model.eh_ch_GS[t] +
+                == model.eh_gas_CHP[t] - model.eh_biomethane_CHP[t]
+                + model.eh_gas_BOI[t] - model.eh_biomethane_BOI[t]
+                + model.eh_gas_GHP[t] - model.eh_biomethane_GHP[t]
+                + model.eh_ch_GS[t] +
                 model.eh_gas_to_grid[t])  # Gas demand
+
+    def eh_biomethane_balance_rule(model, t):
+        return (
+            model.eh_biomethane_import[t]
+            == model.eh_biomethane_CHP[t] + model.eh_biomethane_BOI[t] + model.eh_biomethane_GHP[t]
+        )
 
     # hydrogen balance
     def eh_hydrogen_balance_rule(model, t):
@@ -1250,6 +1289,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_electricity_balance = pyo.Constraint(model.t, rule=eh_electricity_balance_rule, doc="EnergyHub_electricity_balance")
     model.eh_cooling_balance = pyo.Constraint(model.t, rule=eh_cooling_balance_rule, doc="EnergyHub_cooling_balance")
     model.eh_gas_balance = pyo.Constraint(model.t, rule=eh_gas_balance_rule, doc="EnergyHub_gas_balance")
+    model.eh_biomethane_balance = pyo.Constraint(model.t, rule=eh_biomethane_balance_rule, doc="EnergyHub_biomethane_balance")
     model.eh_hydrogen_balance = pyo.Constraint(model.t, rule=eh_hydrogen_balance_rule, doc="EnergyHub_hydrogen_balance")
     model.eh_biomass_balance = pyo.Constraint(model.t, rule=eh_biomass_balance_rule, doc="EnergyHub_biomass_balance")
     model.eh_waste_balance = pyo.Constraint(model.t, rule=eh_waste_balance_rule, doc="EnergyHub_waste_balance")
@@ -1297,7 +1337,14 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def neighborhood_gas_balance_rule(model, t):
         return (model.power_gas_from_grid[t] + model.eh_gas_to_grid[t]
                 == model.eh_gas_from_grid[t] + sum(
-                    model.gas_dom["CHP", n, t] + model.gas_dom["BOI", n, t] for n in model.n))
+                    model.gas_dom["CHP", n, t] - model.biomethane_dom["CHP", n, t]
+                    + model.gas_dom["BOI", n, t] - model.biomethane_dom["BOI", n, t]
+                    for n in model.n))
+
+    def neighborhood_biomethane_balance_rule(model, t):
+        return ( model.power_biomethane_import[t]
+            == model.eh_biomethane_import[t]
+            + sum(model.biomethane_dom["CHP", n, t] + model.biomethane_dom["BOI", n, t] for n in model.n))
 
     def neighborhood_biomass_balance_rule(model, t):
         return (model.power_biomass_import[t]  # Biomass supply
@@ -1321,6 +1368,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     model.neighborhood_gas_balance = pyo.Constraint(model.t, rule=neighborhood_gas_balance_rule,
                                                     doc="Gas_balance_neighborhood")
+    model.neighborhood_biomethane_balance = pyo.Constraint(model.t, rule=neighborhood_biomethane_balance_rule,
+                                                           doc="Biomethane_balance_neighborhood")
     model.neighborhood_biomass_balance = pyo.Constraint(model.t, rule=neighborhood_biomass_balance_rule,
                                                         doc="Biomass_balance_neighborhood")
     model.neighborhood_hydrogen_balance = pyo.Constraint(model.t, rule=neighborhood_hydrogen_balance_rule,
@@ -1330,12 +1379,46 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.neighborhood_waste_balance = pyo.Constraint(model.t, rule=neighborhood_waste_balance_rule,
                                                       doc="Waste_balance_neighborhood")
     model.neighborhood_district_heat = pyo.Constraint(model.t, rule=neighborhood_district_heat_rule, doc="District_heat_balance_neighborhood")
+
+    if data.params_ehdo_model.get("enable_supply_biomethane") != True:
+        model.biomethane_supply_disabled = pyo.Constraint(
+            model.t,
+            rule=lambda model, t: model.power_biomethane_import[t] == 0,
+            doc="Disable_biomethane_import"
+        )
+
+    if not central_device_data.get("renewable_heat_share_enabled"):
+        model.decentral_biomethane_disabled = pyo.Constraint(
+            model.ecs_gas,
+            model.n,
+            model.t,
+            rule=lambda model, dev, n, t: model.biomethane_dom[dev, n, t] == 0,
+            doc="Disable_decentral_biomethane_without_renewable_heat_share"
+        )
+
+    def decentral_biomethane_share_rule(model, dev, n, t):
+        target_share = _get_active_renewable_heat_share(central_device_data, year)
+        if target_share == 0:
+            return pyo.Constraint.Skip
+        return model.biomethane_dom[dev, n, t] >= target_share * model.gas_dom[dev, n, t]
+
+    model.decentral_biomethane_share = pyo.Constraint(
+        model.ecs_gas,
+        model.n,
+        model.t,
+        rule=decentral_biomethane_share_rule,
+        doc="Minimum biomethane share for decentralized gas technologies"
+    )
+
     ################################################################################
     # %% Summation of energy sources
     ################################################################################
 
     def from_grid_total_gas_rule(model):
         return model.from_grid_total_gas == dt * sum(model.power_gas_from_grid[t] for t in model.t) / 1000
+
+    def total_biomethane_used_rule(model):
+        return model.total_biomethane_used == dt * sum(model.power_biomethane_import[t] for t in model.t) / 1000
 
     def from_grid_total_el_rule(model):
         return model.from_grid_total_el == dt * sum(model.power_from_grid[t] for t in model.t) / 1000
@@ -1378,12 +1461,21 @@ def build_model(model, data, year, cluster, sim_ecoData):
         if target_share == 0:
             return pyo.Constraint.Skip
 
-        renewable_heat = sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_RENEWABLE_HEAT for t in model.t)
+        renewable_heat = (
+            sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_RENEWABLE_HEAT for t in model.t)
+            + sum(
+                model.eh_biomethane_CHP[t] * central_device_data["CHP"]["eta_th"]
+                + model.eh_biomethane_BOI[t] * central_device_data["BOI"]["eta_th"]
+                + model.eh_biomethane_GHP[t] * central_device_data["GHP"]["COP"]
+                for t in model.t
+            )
+        )
         total_heat = sum(getattr(model, f"eh_heat_{dev}")[t] for dev in EH_HEAT_PRODUCERS for t in model.t)
 
         return renewable_heat >= target_share * total_heat
 
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
+    model.total_biomethane_used_constraint = pyo.Constraint(rule=total_biomethane_used_rule, doc="total_biomethane_used")
     model.from_grid_total_el_constraint = pyo.Constraint(rule=from_grid_total_el_rule, doc="from_grid_total_el")
     model.to_grid_total_el_constraint = pyo.Constraint(rule=to_grid_total_el_rule, doc="to_grid_total_el")
     model.from_grid_total_hydrogen_constraint = pyo.Constraint(rule=from_grid_total_hydrogen_rule, doc="from_grid_total_hydrogen")
@@ -1466,6 +1558,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
                 - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
+                + model.total_biomethane_used * ecoData.get("price_biomethane")
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
                 + model.total_biomass_used * ecoData["price_biomass"]
                 + model.total_waste_used * ecoData["price_waste"]
@@ -1477,6 +1570,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def co2_total_rule(model):
         return (model.co2_total == model.from_grid_total_el * ecoData["co2_el_grid"]
                 + model.from_grid_total_gas * ecoData["co2_gas"]
+                + model.total_biomethane_used * ecoData.get("co2_biomethane", 0)
                 + model.from_grid_total_hydrogen * ecoData["co2_hydrogen"]
                 + model.total_biomass_used * ecoData["co2_biom"]
                 + model.total_waste_used * ecoData["co2_waste"]
@@ -1534,6 +1628,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["from_grid_total_el"] = pyo.value(model.from_grid_total_el)
     results_dict["to_grid_total_el"] = pyo.value(model.to_grid_total_el)
     results_dict["from_grid_total_gas"] = pyo.value(model.from_grid_total_gas)
+    results_dict["total_biomethane_used"] = pyo.value(model.total_biomethane_used)
     results_dict["from_grid_total_hydrogen"] = pyo.value(model.from_grid_total_hydrogen)
     results_dict["total_biomass_used"] = pyo.value(model.total_biomass_used)
     results_dict["total_oil_used"] = pyo.value(model.total_oil_used)
@@ -1550,6 +1645,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
     results_dict["P_dem_gcp"] = []
     results_dict["P_inj_gcp"] = []
     results_dict["P_gas_total"] = []
+    results_dict["P_biomethane_total"] = []
     results_dict["P_hydrogen_total"] = []
     results_dict["P_biomass_total"] = []
     results_dict["P_oil_total"] = []
@@ -1569,6 +1665,7 @@ def solve_model_and_extract_results(model, data, year, cluster):
         results_dict["P_dem_gcp"].append(round(pyo.value(model.power_from_grid[t]), 0))
         results_dict["P_inj_gcp"].append(round(pyo.value(model.power_to_grid[t]), 0))
         results_dict["P_gas_total"].append(round(pyo.value(model.power_gas_from_grid[t]), 0))
+        results_dict["P_biomethane_total"].append(round(pyo.value(model.power_biomethane_import[t]), 0))
         results_dict["P_hydrogen_total"].append(round(pyo.value(model.power_hydrogen_grid_import[t]), 0))
         results_dict["P_biomass_total"].append(round(pyo.value(model.power_biomass_import[t]), 0))
         results_dict["P_oil_total"].append(round(pyo.value(model.power_oil_import[t]), 0))
@@ -1618,6 +1715,8 @@ def solve_model_and_extract_results(model, data, year, cluster):
                                    device_set=EH_ECS_COOL, time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_gas",
                                    device_set=EH_ECS_GAS, time_steps=time_steps)
+    helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_biomethane",
+                                   device_set=("CHP", "BOI", "GHP", "import"), time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_hydrogen",
                                    device_set=EH_ECS_HYDROGEN, time_steps=time_steps)
     helper_func_extract_eh_results(model=model, results_dict=results_dict, variable_type="eh_biom",
@@ -1643,14 +1742,20 @@ def solve_model_and_extract_results(model, data, year, cluster):
         results_dict[n]["res_load"] = []
         results_dict[n]["res_inj"] = []
         results_dict[n]["res_gas"] = []
+        results_dict[n]["res_biomethane"] = []
         results_dict[n]["res_biomass"] = []
         results_dict[n]["res_oil"] = []
         results_dict[n]["res_hydrogen"] = []
+        results_dict[n]["biomethane_dom"] = {dev: [] for dev in ECS_GAS}
         for t in time_steps:
             results_dict[n]["res_load"].append(round(pyo.value(model.res_dom_power[n, t]), 0))
             results_dict[n]["res_inj"].append(round(pyo.value(model.res_dom_feed[n, t]), 0))
-            gas_total = sum(pyo.value(model.gas_dom[d, n, t]) for d in ECS_GAS)
+            biomethane_total = sum(pyo.value(model.biomethane_dom[d, n, t]) for d in ECS_GAS)
+            gas_total = sum(pyo.value(model.gas_dom[d, n, t]) for d in ECS_GAS) - biomethane_total
             results_dict[n]["res_gas"].append(round(gas_total, 0))
+            results_dict[n]["res_biomethane"].append(round(biomethane_total, 0))
+            for dev in ECS_GAS:
+                results_dict[n]["biomethane_dom"][dev].append(round(pyo.value(model.biomethane_dom[dev, n, t]), 0))
             biomass_total = sum(pyo.value(model.biomass_dom[d, n, t]) for d in ECS_BIOMASS)
             results_dict[n]["res_biomass"].append(round(biomass_total, 0))
             oil_total = sum(pyo.value(model.oil_dom[d, n, t]) for d in ECS_OIL)
@@ -1834,6 +1939,16 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
     def to_kw(values):
         return [x / 1000 for x in values]
 
+    def add_column(name, values):
+        if values is None:
+            return
+        values = list(values)
+        if len(values) == 0:
+            return
+        if len(eh_df.index) not in (0, len(values)):
+            return
+        eh_df[name] = values
+
     # Power generation and consumption
     for dev in EH_ECS_POWER:
         if dev in power_producers:
@@ -1846,12 +1961,12 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
         if dev in results_dict.get("eh_dch", {}) and dev in results_dict.get("eh_ch", {}):
             eh_df[f"Power_kW_{dev}"] = to_kw([d - c for d, c in zip(results_dict["eh_dch"][dev], results_dict["eh_ch"][dev])])
 
-    eh_df["Power_kW_network_pump"] = to_kw([-1 * abs(x) for x in results_dict["P_pump"]])
+    add_column("Power_kW_network_pump", to_kw([-1 * abs(x) for x in results_dict["P_pump"]]))
     # EH grid exchange is tracked separately from the neighborhood totals.
     eh_demand_from_grid = to_kw([abs(x) for x in results_dict["P_eh_from_grid"]]) # Import from grid acts as a generation in the EH as it provides power to the EH devices
     eh_export_to_grid = to_kw([-1 * abs(x) for x in results_dict["P_eh_to_grid"]])
     # Residual grid demand is the net EH exchange with the grid: import minus export.
-    eh_df["Power_kW_residual_grid"] = [d + e for d, e in zip(eh_demand_from_grid, eh_export_to_grid)]
+    add_column("Power_kW_residual_grid", [d + e for d, e in zip(eh_demand_from_grid, eh_export_to_grid)])
 
     # Heat generation and consumption
     for dev in EH_ECS_HEAT:
@@ -1866,8 +1981,8 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
             eh_df[f"Heat_kW_{dev}"] = to_kw([d - c for d, c in zip(results_dict["eh_dch"][dev], results_dict["eh_ch"][dev])])
             eh_df[f"Heat_SOC_kWh_{dev}"] = to_kw(results_dict["eh_soc"][dev])
 
-    eh_df["Heat_kW_network_losses"] = to_kw([-1 * abs(x) for x in results_dict["P_network_losses_heating"]])
-    eh_df["Heat_kW_network_demand"] = to_kw([-1 * abs(x) for x in results_dict["P_network_demand_heating"]])
+    add_column("Heat_kW_network_losses", to_kw([-1 * abs(x) for x in results_dict["P_network_losses_heating"]]))
+    add_column("Heat_kW_network_demand", to_kw([-1 * abs(x) for x in results_dict["P_network_demand_heating"]]))
 
     # Filter out devices with 0 capacity, keeping those with cap > 0
     if data is not None:
@@ -1877,7 +1992,7 @@ def get_profiles_eh(results_dict: dict, data = None) -> pd.DataFrame:
 
         # Keep all heating network related columns as they do not possess a capacity but are relevant as they are no ordinary devices
         for col in eh_df.columns:
-            if "network" in col:
+            if "network" in col or col == "Power_kW_residual_grid":
                 cols_to_keep.append(col)
                 continue
 

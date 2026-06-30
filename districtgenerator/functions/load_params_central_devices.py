@@ -711,6 +711,8 @@ def load_params(data):
                             for year in param["interpolation_points"]}
     param["price_hydrogen"] = {year: all_sim_ecoData[year]["price_hydrogen"]
                             for year in param["interpolation_points"]}
+    param["price_biomethane"] = {year: all_sim_ecoData[year].get("price_biomethane")
+                            for year in param["interpolation_points"]}
 
     ### Ecological impact ###
     param["co2_el_grid"] = {year: all_sim_ecoData[year]["co2_el_grid"]
@@ -718,6 +720,8 @@ def load_params(data):
     param["co2_gas"] = {year: all_sim_ecoData[year]["co2_gas"]
                         for year in param["interpolation_points"]}  # kg/kWh
     param["co2_biom"] = {year: all_sim_ecoData[year]["co2_biom"]
+                        for year in param["interpolation_points"]}  # kg/kWh
+    param["co2_biomethane"] = {year: all_sim_ecoData[year].get("co2_biomethane")
                         for year in param["interpolation_points"]}  # kg/kWh
     param["co2_waste"] = {year: all_sim_ecoData[year]["co2_waste"]
                         for year in param["interpolation_points"]}  # kg/kWh
