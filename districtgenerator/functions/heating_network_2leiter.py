@@ -1318,6 +1318,47 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     print("Cost stacked plot of heat grid saved to:", base)
 
+
+    ###################################################
+    #Debug Diagramme
+    ###################################################
+
+
+    # Daten auslesen
+    T_supply_EH = data.heat_grid_data["T_supply_EH"]
+    T_return_EH = data.heat_grid_data["T_return_EH"]
+
+    # Zeitachse als Index
+    time = np.arange(len(T_supply_EH))
+
+    # Speicherpfad
+    save_dir = r"S:\districtgenerator\districtgenerator\results\network\district_E_buildings_30_road"
+    save_path = os.path.join(save_dir, "temperature_EH.png")
+
+    # Ordner erstellen, falls er noch nicht existiert
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Diagramm erstellen
+    plt.figure(figsize=(20, 10))
+
+    plt.plot(time, T_supply_EH, color="red", label="T_supply_EH")
+    plt.plot(time, T_return_EH, color="blue", label="T_return_EH")
+
+    plt.xlabel("Zeitindex")
+    plt.ylabel("Temperatur [°C]")
+    plt.title("Verlauf von Vorlauf- und Rücklauftemperatur EH")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    # Diagramm speichern
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+    # Diagramm anzeigen
+    #plt.show()
+
+    print(f"Diagramm gespeichert unter: {save_path}")
+
     T_soil_mean = float(np.mean(data.heat_grid_data["T_soil"]))
     T_supply_mean = float(np.mean(data.heat_grid_data["T_supply_EH"]))
     T_return_mean = float(np.mean(data.heat_grid_data["T_return_EH"]))

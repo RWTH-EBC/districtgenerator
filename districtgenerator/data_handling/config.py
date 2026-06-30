@@ -435,7 +435,7 @@ class HeatGridConfig(BaseSettings):
     k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
     k_PUF: float = 0.03                 # Polyurethane foam heat conductivity. Source: VDI Wärmeatlas
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
-    h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
+    h_loss_subst: float = 0      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
     c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)
     dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024

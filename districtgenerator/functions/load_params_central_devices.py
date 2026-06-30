@@ -922,6 +922,47 @@ def get_PVandSTC_power(devs, param, data):
     return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
 
 
+
+def safe_log_mean_temperature(t_in, dt, eps=1e-9):
+    """
+    Robust logarithmic mean temperature for cases with dt ≈ 0.
+    """
+
+    t_in_arr = np.asarray(t_in, dtype=float)
+    dt_arr = np.asarray(dt, dtype=float)
+
+    t_in_b, dt_b = np.broadcast_arrays(t_in_arr, dt_arr)
+
+    t_out_b = t_in_b + dt_b
+
+    t_in_safe = np.maximum(t_in_b, eps)
+    t_out_safe = np.maximum(t_out_b, eps)
+
+    ratio = t_out_safe / t_in_safe
+    log_ratio = np.log(ratio)
+
+    bad = (
+            ~np.isfinite(log_ratio)
+            | (np.abs(log_ratio) < eps)
+            | (np.abs(dt_b) < eps)
+    )
+
+    # Normalfall
+    out_normal = dt_b / np.where(np.abs(log_ratio) < eps, np.nan, log_ratio)
+
+    # Grenzfall dt -> 0:
+    # log-mean geht gegen das lokale Temperaturniveau.
+    out_limit = 0.5 * (t_in_safe + t_out_safe)
+
+    out = np.where(bad, out_limit, out_normal)
+
+    if out.shape == ():
+        return float(out)
+
+    return out
+
+
+
 # %% COP model for ammonia-heat pumps
 # Heat pump COP, part 2: Generalized COP estimation of heat pump processes
 # DOI: 10.18462/iir.gl.2018.1386
@@ -942,8 +983,8 @@ def calc_COP(data, clusterHorizon, devs, device, temperatures):
     f_Q = devs[device]["heatloss_compr"]  # heat loss rate during compression
 
     # Entropic mean temperautures (or Logarithmic mean temperatures)
-    t_h_s = dt_h / np.log((t_h_in + dt_h) / t_h_in)
-    t_c_s = dt_c / np.log(t_c_in / (t_c_in - dt_c))
+    t_h_s = safe_log_mean_temperature(t_h_in, dt_h)
+    t_c_s = safe_log_mean_temperature(t_c_in, dt_c)
 
     # Prevent numeric issues
     for d in range(data.time["clusterNumber"]):
