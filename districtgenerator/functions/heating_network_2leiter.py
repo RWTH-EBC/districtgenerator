@@ -13,9 +13,13 @@ import pandas as pd
 """
 Simple 2-pipe district-heating network model.
 
-The Energy Hub supply temperature is calculated as:
+The Energy Hub supply temperature is calculated as either:
 
+   1. SUPPLY_TEMPERATURE=auto:
     T_sup_EH(t) = max_n(T_sup_req,n(t))
+
+   2. or, for numeric SUPPLY_TEMPERATURE, from the configured constant/heating-curve
+    mode.
 
 The return temperature is calculated directly from the
 mass-flow-weighted SH/DHW return temperatures of all connected buildings.
@@ -38,7 +42,7 @@ The model workflow is:
 
 def network_2leiter_simple(data, compute_costs=True, save_debug=True):
     """
-    Simple auto-only 2-pipe network model.
+    Simple 2-pipe network model.
 
     Assumptions
     -----------
@@ -93,10 +97,96 @@ def network_2leiter_simple(data, compute_costs=True, save_debug=True):
 
 # PARAMETER PREPARATION
 
+def heating_curve_supply_temperature_2leiter(T_e, T_ne, T_supply_min, T_supply_max):
+    """
+    Linear heating curve based on outdoor temperature.
+
+    The maximum supply temperature is used at the nominal outside temperature.
+    The minimum supply temperature is used at the heating limit of 18 °C.
+    """
+    T_e = np.asarray(T_e, dtype=float)
+
+    T_supply = np.interp(
+        T_e,
+        [float(T_ne), 18.0],
+        [T_supply_max, T_supply_min]
+    )
+
+    return np.clip(T_supply, T_supply_min, T_supply_max)
+
+
+def configured_supply_temperature_2leiter(data, T_sup_required):
+    """
+    Build the EH supply-temperature profile for the 2-pipe model.
+
+    Modes
+    -----
+    - supply_temperature = "auto":
+        Use the highest required building supply temperature at each timestep.
+    - supply_temperature = float and temperature_mode = "constant":
+        Use the fixed supply temperature during the heating period and
+        supply_temperature - delta_T outside the heating period.
+    - supply_temperature = float and temperature_mode = "heating_curve":
+        Use an outdoor-temperature-dependent heating curve between
+        supply_temperature - delta_T and supply_temperature.
+    """
+    heat_grid_data = data.heat_grid_data
+    supply_temperature = heat_grid_data.get("supply_temperature", "auto")
+
+    if isinstance(supply_temperature, str) and supply_temperature.lower() == "auto":
+        return np.asarray(T_sup_required, dtype=float)
+
+    try:
+        T_sup_max = float(supply_temperature)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "data.heat_grid_data['supply_temperature'] must be 'auto' "
+            "or a fixed maximum temperature in °C."
+        ) from exc
+
+    temperature_mode = str(heat_grid_data.get("temperature_mode", "constant")).lower()
+    delta_T = float(heat_grid_data.get("delta_T", 0.0))
+    T_sup_min = T_sup_max - delta_T
+    T_len = len(T_sup_required)
+
+    day_start = int(data.calendar["heating_period_start"])
+    day_end = int(data.calendar["heating_period_end"])
+
+    start = (day_start - 1) * 24
+    end = (day_end - 1) * 24
+
+    if temperature_mode == "constant":
+        T_supply = np.full(T_len, T_sup_max, dtype=float)
+        T_supply[end:start] = T_sup_min
+    elif temperature_mode == "heating_curve":
+        T_supply = heating_curve_supply_temperature_2leiter(
+            T_e=np.asarray(data.site["T_e"], dtype=float),
+            T_ne=data.site["T_ne"],
+            T_supply_min=T_sup_min,
+            T_supply_max=T_sup_max
+        )
+        T_supply[end:start] = T_sup_min
+    else:
+        raise ValueError(
+            "data.heat_grid_data['temperature_mode'] must be 'constant' "
+            "or 'heating_curve' when supply_temperature is numeric."
+        )
+
+    violation = T_supply < (np.asarray(T_sup_required, dtype=float) - 1e-6)
+    if np.any(violation):
+        idx = int(np.argmax(violation))
+        raise ValueError(
+            f"Configured supply temperature is too low at timestep {idx}: "
+            f"{T_supply[idx]:.1f} °C configured, "
+            f"{T_sup_required[idx]:.1f} °C required."
+        )
+
+    return T_supply
+
 def load_parameter_2leiter(data):
     """
     Prepare loads, required supply temperatures, economic parameters,
-    and the auto supply-temperature profile.
+    and the configured supply-temperature profile.
 
     The return temperature is not prescribed in this model.
     It is calculated later from SH/DHW return flows, return-pipe heat exchange,
@@ -296,19 +386,13 @@ def load_parameter_2leiter(data):
     param["heat_loss_substation"] = heat_loss_substation
     param["net_heat_demand"] = net_heat_demand
 
-    # Auto-only supply temperature mode.
-    # The EH supply temperature is set to the highest building supply-temperature
-    # requirement at each timestep. No fixed supply mode, heating curve mode,
-    # return_temperature input, or delta_T input is used in this simplified model.
-    if heat_grid_data.get("supply_temperature") != "auto":
-        raise ValueError(
-            "This simplified 2-pipe model only supports "
-            "data.heat_grid_data['supply_temperature'] = 'auto'."
-        )
-
-    # Use the highest required building supply temperature at each timestep
+    # Supply temperature mode.
+    # "auto": The EH supply temperature is set to the highest building supply-temperature at each timestep.
+    # float: use temperature_mode ("constant" or "heating_curve").
     Ts_matrix = np.vstack(list(T_sup_req_by_node.values()))
-    T_sup_design_base = np.max(Ts_matrix, axis=0)
+    T_sup_required = np.max(Ts_matrix, axis=0)
+
+    T_sup_design_base = configured_supply_temperature_2leiter(data, T_sup_required)
 
     param["T_sup_design_base"] = T_sup_design_base
 

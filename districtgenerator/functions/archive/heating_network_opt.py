@@ -28,7 +28,7 @@ def network_optimization(data):
     data: class datahandler
     """
     print(f"Heating network generation is: {data.heat_grid_data["generation"]}")
-    if data.heat_grid_data["generation"] != "5th":      #Wert wird in der Datei .env.CONFIG.EXAMPLE gesetzt
+    if data.heat_grid_data["generation"] != "5th":
 
         # ---------- 1. prepare parameters for the optimization ----------
         # calculate supply and return temperature

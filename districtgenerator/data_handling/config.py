@@ -62,9 +62,9 @@ class LocationConfig(BaseSettings):
     district_area: float = 1.0   # Area of the district in ha (hectare)
     zip: str = '10115'          # Zip code of the location.
     enable_trafoMax_W: bool = False  # Consider active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP.
-    trafoMax_W: float = 500000.0 # Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP. (Watt)
+    trafoMax_W: float = 50000000.0 # Active power cap for the district transformer. If set, it is used for BOTH import and export at the GNP. (Watt)
     enable_buildingMax_W: bool = False # Consider per-building maximum import/export at the building PCC.
-    buildingMax_W: float = 50000.0  # Per-building maximum import/export at the building PCC. (Watt)
+    buildingMax_W: float = 5000000.0  # Per-building maximum import/export at the building PCC. (Watt)
 
 
     ALLOWED_TRY_YEARS: ClassVar[Set[str]] = {"TRY2015", "TRY2045"}
@@ -354,7 +354,7 @@ class PyomoConfig(BaseSettings):
     """
     PyomoConfig class to manage the configuration of the Pyomo optimization solver.
     """
-    solver_name: str = "highs"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
+    solver_name: str = "gurobi"     # Name of the solver to be used. Options: 'gurobi', 'highs', 'cbc' etc. highs does not require any additional download or license. Already available if all packages in requirements.txt are installed.
     solver_executable: Optional[str] = None   # Path to solver executable, if needed
     solver_options__time_limit: int = 600          # Time limit in seconds for each optimization run
     solver_options__mip_gap: float = 0.01            # Acceptable MIP gap from optimal solution
@@ -417,11 +417,10 @@ class HeatGridConfig(BaseSettings):
     physical dimensions, material properties, and costs.
     """
 
-    supply_temperature: str | float = "auto"  # Network supply temperature in °C: "auto" = determined from buildings heating curves; float = fixed value (constant mode) or upper bound (heating curve mode)
-    delta_T: float = 15.0  # Temperature spread in K between max and min supply temperatures, used only in heating_curve mode
-    topology_option: str = "node"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
-    temperature_mode: str = "constant" # selected between: "constant" and "heating_curve"(controlled within limits depending on the outdoor temperature)
-    heuristic: bool = False # selected between: True (heuristic method) and False (optimization method)
+    supply_temperature: str | float = "auto"  # "auto": Temperature determined from buildings heating curves; "float": number is interpreted as the maximum network supply temperature for the selected temperature_mode.
+    delta_T: float = 15.0  # Temperature reduction from numeric supply_temperature to the minimum supply temperature. Example: supply_temperature=70 and delta_T=10 gives a minimum of 60.
+    topology_option: str = "road"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
+    temperature_mode: str = "constant" # Used only when supply_temperature is a float: "constant" keeps the maximum temperature during the heating period and the minimum temperature outside this period; "heating_curve" varies with outdoor temperature.
     min_flow_fraction: float = 0.15  # Minimum fraction of peak mass flow to enforce circulation (dimensionless)
     enable_low_temp_measures: bool = False  # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
     low_temp_measures_inv_fix: float = 226.0  # €/kW_th, additional investment if these measures are applied.
@@ -531,7 +530,7 @@ class EHDOConfig(BaseSettings):
     supply_limit_el: float = 100000         # Restrict electricity demand from grid in MWh/year
 
     # Gas configuration
-    enable_supply_gas: bool = False         # Enable gas supply, bool.
+    enable_supply_gas: bool = True          # Enable gas supply, bool.
     enable_price_cap_gas: bool = False      # Enable gas capacity price, bool.
     price_cap_gas: float = 0.04             # Gas capacity price in €/kWh
     enable_feed_in_gas: bool = False        # Enable natural gas feed-in, bool.
@@ -539,22 +538,22 @@ class EHDOConfig(BaseSettings):
     cap_limit_gas: float = 1000000          # Maximum annual energy drawn from the gas grid in MWh/year
 
     # Biomethane configuration
-    enable_supply_biomethane: bool = False       # Enable biomethane supply, bool.
+    enable_supply_biomethane: bool = True        # Enable biomethane supply, bool.
     enable_supply_limit_biomethane: bool = False # Enable limit annual biomethane import, bool.
     supply_limit_biomethane: float = 1000000     # Maximum available biomethane in MWh/year
 
     # Biomass configuration
-    enable_supply_biomass: bool = False         # Restrict available biomass, bool.
+    enable_supply_biomass: bool = True          # Restrict available biomass, bool.
     enable_supply_limit_biomass: bool = False   # Enable limit annual biomass import, bool.
     supply_limit_biomass: float = 1000000       # Maximum available biomass in MWh/year
 
     # Hydrogen configuration
-    enable_supply_hydrogen: bool = False        # Restrict available hydrogen, bool.
+    enable_supply_hydrogen: bool = True         # Restrict available hydrogen, bool.
     enable_supply_limit_hydrogen: bool = False  # Enable limit annual hydrogen import, bool.
     supply_limit_hydrogen: float = 1000000      # Maximum available Hydrogen in MWh/year
 
     # Waste configuration
-    enable_supply_waste: bool = False           # Restrict available waste, bool.
+    enable_supply_waste: bool = True            # Restrict available waste, bool.
     enable_supply_limit_waste: bool = False     # Enable limit annual waste import, bool.
     supply_limit_waste: float = 1000000         # Maximum available waste in MWh/year
 
@@ -1136,7 +1135,7 @@ class CentralDeviceConfig(BaseSettings):
 
     # HP parameters (Heat Pump)
     HP__feasible: bool = False  # Is a Heat Pump feasible?
-    HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    HP__CCOP_feasible: bool = False  # Should it be modeled with a constant COP?
     HP__ASHP_carnot_feasible: bool = False  # Should it be modeled as an Air Source Heat Pump with Carnot efficiency?
     HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     HP__CSV_feasible: bool = False  # Should it be modeled with a CSV file for the COP?
@@ -1173,14 +1172,14 @@ class CentralDeviceConfig(BaseSettings):
 
     # CC parameters (Chiller)
     CC__feasible: bool = False  # Should this be considered for the central optimization.
-    CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
-    CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
+    CC__CCOP_feasible: bool = False  # Should it be modeled with a constant COP?
+    CC__ASCC_model_feasible: bool = True  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
     CC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     CC__min_cap: float = 0  # Minimum capacity in kW.
-    CC__max_cap: float = 500  # Maximum capacity in kW.
+    CC__max_cap: float = 9999999  # Maximum capacity in kW.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
 
@@ -1191,7 +1190,7 @@ class CentralDeviceConfig(BaseSettings):
     AC__life_time: int = 20  # Maximum life time in years.
     AC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     AC__min_cap: float = 0  # Minimum capacity in kW.
-    AC__max_cap: float = 500  # Maximum capacity in kW.
+    AC__max_cap: float = 9999999  # Maximum capacity in kW.
     AC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     AC: dict = {}
 
@@ -1203,7 +1202,7 @@ class CentralDeviceConfig(BaseSettings):
     BCHP__life_time: int = 20  # Maximum life time in years.
     BCHP__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
     BCHP__min_cap: float = 0  # Minimum capacity in kW.
-    BCHP__max_cap: float = 1000  # Maximum capacity in kW.
+    BCHP__max_cap: float = 9999999  # Maximum capacity in kW.
     BCHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BCHP: dict = {}
 
@@ -1214,7 +1213,7 @@ class CentralDeviceConfig(BaseSettings):
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     BBOI__min_cap: float = 0  # Minimum capacity in kW.
-    BBOI__max_cap: float = 500  # Maximum capacity in kW.
+    BBOI__max_cap: float = 9999999  # Maximum capacity in kW.
     BBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BBOI: dict = {}
 
@@ -1232,7 +1231,7 @@ class CentralDeviceConfig(BaseSettings):
 
     # WBOI parameters (Waste Boiler)
     WBOI__feasible: bool = False  # Should this be considered for the central optimization.
-    WBOI__inv_base: float = 700  # Unsubsidized investment in €/kW.
+    WBOI__inv_base: float = 3087  # Unsubsidized investment in €/kW.
     WBOI__eta_th: float = 0.8  # Thermal efficiency between 0 and 1.
     WBOI__life_time: int = 20  # Maximum life time in years.
     WBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
