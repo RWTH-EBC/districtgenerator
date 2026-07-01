@@ -30,14 +30,12 @@ import districtgenerator.functions.SIA as SIA
 import districtgenerator.functions.clustering_medoid as cm
 from districtgenerator.functions import opti_central
 import districtgenerator.functions.heating_network_simple as heating_network_simple
-from districtgenerator.functions.heating_network_design import network_design
-from districtgenerator.functions.heating_network_operation import network_operation
 from districtgenerator.functions.heating_network_2leiter import network_2leiter_simple
 from districtgenerator.functions.design_network_with_node import run_pipeline_node
 from districtgenerator.functions.design_network_with_road import run_pipeline_road
 from districtgenerator.functions.heating_network_simple import calculate_soil_temperature
 from districtgenerator.data_handling.config import GlobalConfig, load_global_config, LocationConfig, TimeConfig, DesignBuildingConfig, EcoConfig, PhysicsConfig, EHDOConfig, PyomoConfig, HeatGridConfig, CalendarConfig, CentralDeviceConfig, DecentralDeviceConfig, ReportConfig
-from .plots_balances import plot_all
+
 
 class Datahandler:
     """

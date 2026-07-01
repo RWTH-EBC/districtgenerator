@@ -19,10 +19,9 @@ import math
 import districtgenerator.functions.clustering_medoid as clustering
 import time
 import os
-import sys
 import copy
 from districtgenerator.classes.solar import Sun
-from districtgenerator.functions.heating_network_opt import heating_curve
+
 
 def load_params(data):
 
@@ -181,11 +180,9 @@ def load_params(data):
 
     heat_grid = {
         k: heat_grid_data[k]
-        for k in ["T_hot_cooling_network", "T_cold_cooling_network", "delta_T_heatTransfer"]  }
+        for k in ["T_hot_cooling_network", "T_cold_cooling_network"]  }
     heat_grid["T_hot_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_hot_cooling_network"]
     heat_grid["T_cold_cooling_network"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["T_cold_cooling_network"]
-    heat_grid["delta_T_heatTransfer"] = np.ones((data.time["clusterNumber"], clusterHorizon)) * heat_grid["delta_T_heatTransfer"]
-
     heat_grid["T_hot_heating_network"] = clustered_series[7]     # °C
     heat_grid["T_cold_heating_network"] = clustered_series[8]    # °C
 
@@ -223,7 +220,6 @@ def load_params(data):
             "eta_th": value.get("eta_th", 0) * 100,
             "COP": value.get("COP", 0),
             "ASHP_carnot_eff": value.get("ASHP_carnot_eff", 0),
-            "ASHP_supply_temp": value.get("ASHP_supply_temp", 0),
             "COP_const": value.get("COP_const", 0),
             "sto_loss": value.get("sto_loss", 0) * 100,
             "delta_T": value.get("delta_T", 0),

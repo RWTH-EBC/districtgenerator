@@ -319,9 +319,6 @@ def load_parameter_2leiter(data):
     pump_lifetime = heat_grid_data["pump"]["pump_lifetime"]
     heat_grid_data["pump"]["pump_ann_factor"] = calc_annual_factor(data, pump_lifetime)
 
-    HP_lifetime = data.central_device_data["HP"]["life_time"]
-    param["HP_ann_factor"] = calc_annual_factor(data, HP_lifetime)
-
     return data, param
 
 def update_pipe_data_selection(data, param, Ts_max):

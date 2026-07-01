@@ -429,7 +429,6 @@ class HeatGridConfig(BaseSettings):
     T_hot_cooling_network: float = 12.0  # Flow temperature of the cooling network in degrees Celsius.
     T_cold_cooling_network: float = 6.0  # Return temperature of the cooling network in degrees Celsius.
     D_cooling_network: float = 1.0      # Distance between the centerlines of supply and return pipelines in meters.
-    delta_T_heatTransfer: float = 5.0    # Temperature difference in heat exchangers in Kelvin.
     life_time: int = 40                 # Lifetime of the heating network and its components in years.
     asphaltlayer: int = 1               # Consideration of asphalt layer (1 = yes, 0 = no).
     d_asph: float = 0.18             # Asphalt layer thickness in meters.
@@ -947,7 +946,7 @@ class DecentralDeviceConfig(BaseSettings):
     TES_DHW__eta_ch: float = 1.0  # Charging and discharging efficiency.
     TES_DHW__coeff_ch: float = 10000.0  # Charging and discharging coefficient in Watt per Watthour.
     TES_DHW__init: float = 1.0  # Initial state of charge.
-    TES_DHW__T_diff_max: int = 40 # Maximum temperature difference in Kelvin.
+    TES_DHW__T_diff_max: int = 45 # Maximum temperature difference in Kelvin.
     TES_DHW__T_DHW_needed: int = 50 # Needed DHW temperature in °C.
     TES_DHW__life_time: int = 20  # Lifetime in years.
     TES_DHW__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
@@ -1147,7 +1146,6 @@ class CentralDeviceConfig(BaseSettings):
     HP__min_cap: float = 0  # Minimum capacity in kW.
     HP__max_cap: float = 20000  # Maximum capacity in kW.
     HP__ASHP_carnot_eff: float = 0.4  # Carnot efficiency of the Air Source Heat Pump between 0 and 1.
-    HP__ASHP_supply_temp: float = 60  # Supply temperature of the Air Source Heat Pump in Celsius.
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
