@@ -122,7 +122,8 @@ def configured_supply_temperature_2leiter(data, T_sup_required):
     Modes
     -----
     - supply_temperature = "auto":
-        Use the highest required building supply temperature at each timestep.
+        Use the highest required building supply temperature at each timestep,
+        plus the configured supply temperature safety margin.
     - supply_temperature = float and temperature_mode = "constant":
         Use the fixed supply temperature during the heating period and
         supply_temperature - delta_T outside the heating period.
@@ -132,9 +133,10 @@ def configured_supply_temperature_2leiter(data, T_sup_required):
     """
     heat_grid_data = data.heat_grid_data
     supply_temperature = heat_grid_data.get("supply_temperature", "auto")
+    safety_margin = float(heat_grid_data.get("supply_temperature_safety_margin"))
 
     if isinstance(supply_temperature, str) and supply_temperature.lower() == "auto":
-        return np.asarray(T_sup_required, dtype=float)
+        return np.asarray(T_sup_required, dtype=float) + safety_margin
 
     try:
         T_sup_max = float(supply_temperature)

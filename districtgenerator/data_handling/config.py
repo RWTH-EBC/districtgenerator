@@ -418,6 +418,7 @@ class HeatGridConfig(BaseSettings):
     """
 
     supply_temperature: str | float = "auto"  # "auto": Temperature determined from buildings heating curves; "float": number is interpreted as the maximum network supply temperature for the selected temperature_mode.
+    supply_temperature_safety_margin: float = 0.0  # To consider losses in the 2-pipe model an additional temperature margin in K is added to the calculated EH supply temperature only when supply_temperature="auto"; numeric supply_temperature values are used directly as EH supply temperatures.
     delta_T: float = 15.0  # Temperature reduction from numeric supply_temperature to the minimum supply temperature. Example: supply_temperature=70 and delta_T=10 gives a minimum of 60.
     topology_option: str = "road"  # Whether consider road constraints in pipeline topology optimization, selected between:"node" and "road"
     temperature_mode: str = "constant" # Used only when supply_temperature is a float: "constant" keeps the maximum temperature during the heating period and the minimum temperature outside this period; "heating_curve" varies with outdoor temperature.
