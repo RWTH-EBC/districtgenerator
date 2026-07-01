@@ -55,10 +55,7 @@ def load_params(data):
     dem_uncl = {}
 
     # Initialize demands time series
-    heating = np.zeros(len(data.district[0]["user"].heat))
     cooling = np.zeros(len(data.district[0]["user"].cooling))
-    dhw = np.zeros(len(data.district[0]["user"].dhw))
-    generationSTC = np.zeros(len(data.district[0]["generationSTC"]))
     net_heat_demand = np.zeros(len(data.district[0]["user"].heat))
 
     # todo: here we ignore the buildings electricity demands
@@ -68,17 +65,21 @@ def load_params(data):
 
     for b in range(len(data.district)):
         # Only relevant if buildings are connected to the heat grid
-        if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
+        heater = data.district[b]["buildingFeatures"]["heater"]
+        if heater == "heat_grid" or heater == "heat_grid_SH":
             local_heat = data.district[b]["user"].heat / 1000
             local_dhw = data.district[b]["user"].dhw / 1000
             local_stc = data.district[b]["generationSTC"] / 1000
-            local_net_demand = np.maximum(0, local_heat + local_dhw - local_stc) # Unidirectional flow assumption: Local excess heat through STC cannot be fed into the heat grid
+
+            if heater == "heat_grid":
+                local_net_demand = np.maximum(0, local_heat + local_dhw - local_stc)
+            else:
+                local_net_demand = np.maximum(0, local_heat - local_stc)
+
+            # Unidirectional flow assumption: local excess heat through STC cannot be fed into the heat grid.
             net_heat_demand += local_net_demand
 
-            heating += data.district[b]["user"].heat / 1000 # kW
             cooling += data.district[b]["user"].cooling / 1000 # kW
-            dhw += data.district[b]["user"].dhw / 1000 # kW
-            generationSTC += data.district[b]["generationSTC"] / 1000 # kW
 
         # todo: here we ignore the buildings electricity demands
 #        electricityAppliances += data.district[b]["user"].elec / 1000 # kW
@@ -939,6 +940,23 @@ def get_PVandSTC_power(devs, param, data):
 
     return (potentialPV, potentialSTC, potentialPV_clustered, potentialSTC_clustered)
 
+def log_mean_temperature(t1, t2, eps=1e-9):
+    t1, t2 = np.broadcast_arrays(
+        np.asarray(t1, dtype=float),
+        np.asarray(t2, dtype=float)
+    )
+
+    dt = t2 - t1
+    log_ratio = np.log(t2 / t1)
+
+    limit = np.abs(dt) < eps
+    out = np.array(0.5 * (t1 + t2), dtype=float, copy=True)
+    np.divide(dt, log_ratio, out=out, where=~limit)
+
+    if out.shape == ():
+        return float(out)
+
+    return out
 
 # %% COP model for ammonia-heat pumps
 # Heat pump COP, part 2: Generalized COP estimation of heat pump processes
@@ -960,8 +978,8 @@ def calc_COP(data, clusterHorizon, devs, device, temperatures):
     f_Q = devs[device]["heatloss_compr"]  # heat loss rate during compression
 
     # Entropic mean temperautures (or Logarithmic mean temperatures)
-    t_h_s = dt_h / np.log((t_h_in + dt_h) / t_h_in)
-    t_c_s = dt_c / np.log(t_c_in / (t_c_in - dt_c))
+    t_h_s = log_mean_temperature(t_h_in, t_h_in + dt_h)
+    t_c_s = log_mean_temperature(t_c_in - dt_c, t_c_in)
 
     # Prevent numeric issues
     for d in range(data.time["clusterNumber"]):

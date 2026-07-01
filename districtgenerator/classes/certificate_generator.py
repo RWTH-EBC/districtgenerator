@@ -1294,7 +1294,21 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         x_values = [i * time_step_hours for i in range(max_len)]
         x_max_val = max(1, max_len - 1) * time_step_hours
 
-        stack_names = sorted(list(filtered_series_map.keys()))
+        series_items = []
+        for name, vals in filtered_series_map.items():
+            clean_vals = [v if pd.notna(v) else 0.0 for v in vals]
+            series_items.append((name, clean_vals))
+
+        pos_series_items = sorted(
+            series_items,
+            key=lambda item: sum(v for v in item[1] if v > 0),
+            reverse=True
+        )
+        neg_series_items = sorted(
+            series_items,
+            key=lambda item: abs(sum(v for v in item[1] if v < 0)),
+            reverse=True
+        )
 
         pos_plot_data = []
         pos_line_configs = []
@@ -1304,11 +1318,8 @@ class EnergyHubProfilesYear(BaseReportFlowable):
         neg_line_configs = []
         current_neg_cum = [0.0] * max_len
 
-        # Loop over each series
-        for name in stack_names:
-            vals = filtered_series_map[name]
-            clean_vals = [v if pd.notna(v) else 0.0 for v in vals]
-
+        # Positive stacks: largest producer first, so it becomes the visible base layer.
+        for name, clean_vals in pos_series_items:
             clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
             color = dynamic_color_mapping.get(clean_name, colors.black)
 
@@ -1319,6 +1330,11 @@ class EnergyHubProfilesYear(BaseReportFlowable):
                 poly_data = [(x_values[0], 0.0)] + list(zip(x_values, current_pos_cum)) + [(x_values[-1], 0.0)]
                 pos_plot_data.append(poly_data)
                 pos_line_configs.append({'color': color})
+
+        # Negative stacks: largest consumer first, mirroring the producer ordering.
+        for name, clean_vals in neg_series_items:
+            clean_name = name.replace("Power_kW_", "").replace("Heat_kW_", "")
+            color = dynamic_color_mapping.get(clean_name, colors.black)
 
             # negative (Export to grid / consumption)
             neg_vals = [v if v < 0 else 0.0 for v in clean_vals]
@@ -1440,7 +1456,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
 
         drawing.add(plot)
         if show_x_axis:
-            x_label = String(center_x, - 2.3 * axis_label_size, self.translate("name_hours"),
+            x_label = String(center_x, - 2.3 * axis_label_size, self.translate("Hours"),
                              fontName=axis_label_font,
                              fontSize=axis_label_size,
                              textAnchor='middle',
@@ -1601,7 +1617,7 @@ class EnergyHubProfilesYear(BaseReportFlowable):
             self.canv.setFont(self.style.get_font(bold=True), cluster_title_size)
             self.canv.setFillColor(font_color)
 
-            title_text = f"{self.translate('title_cluster')} {cluster_name}: {self.cluster_info[cluster_name]['span']} ({self.translate('name_weight')}: {int(self.cluster_info[cluster_name]['weight'])})"
+            title_text = f"{self.translate('Cluster')} {cluster_name}: {self.cluster_info[cluster_name]['span']} ({self.translate('Weight')}: {int(self.cluster_info[cluster_name]['weight'])})"
             self.canv.drawString(padding, cluster_title_y, title_text)
 
             if DEBUG:
@@ -2677,6 +2693,7 @@ class CertificateLayout(ReportComponent):
             return
 
         title = self.translate("Energy Hub Profiles")
+        max_clusters_per_box = 4
 
         sorted_years = sorted(data_profiles.keys())
 
@@ -2692,10 +2709,28 @@ class CertificateLayout(ReportComponent):
                 end_year = kpi_data["observation_time"] - 1
 
             year_title = f"{title} {year}-{end_year} (kW)"
-            year_flowable = EnergyHubProfilesYear(year_profiles=data_profiles[year], cluster_info=cluster_info)
-            box = FrameBox(title=year_title)
-            box.set_content(year_flowable, full_width=False)
-            self.story.append(box)
+            cluster_names = list(sorted(data_profiles[year].keys(), key=lambda value: str(value)))
+            cluster_chunks = [
+                cluster_names[i:i + max_clusters_per_box]
+                for i in range(0, len(cluster_names), max_clusters_per_box)
+            ]
+
+            for chunk_index, cluster_chunk in enumerate(cluster_chunks):
+                if chunk_index > 0:
+                    self.story.append(PageBreak())
+
+                chunk_profiles = {
+                    cluster_name: data_profiles[year][cluster_name]
+                    for cluster_name in cluster_chunk
+                }
+                chunk_title = year_title
+                if len(cluster_chunks) > 1:
+                    chunk_title = f"{year_title} ({chunk_index + 1}/{len(cluster_chunks)})"
+
+                year_flowable = EnergyHubProfilesYear(year_profiles=chunk_profiles, cluster_info=cluster_info)
+                box = FrameBox(title=chunk_title)
+                box.set_content(year_flowable, full_width=False)
+                self.story.append(box)
 
     def create_quartiersstruktur_details(self, data_quartiersstruktur):
         """Creates the detailed matrix on a landscape page."""
@@ -3847,6 +3882,7 @@ class DataExtractor(ReportComponent):
             "HP35": "W<sub>th</sub>",
             "HP55": "W<sub>th</sub>",
             "EH": "W<sub>th</sub>",
+            "EWH": "W<sub>th</sub>",
             "CHP": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
             "BBOI": "W<sub>th</sub>",

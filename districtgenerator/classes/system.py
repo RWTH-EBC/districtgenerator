@@ -135,7 +135,7 @@ class BES:
         BES = {}
 
         # check if heating by grid
-        BES["heat_grid"] = 1 if buildingFeatures["heater"] == "heat_grid" else 0
+        BES["heat_grid"] = 1 if (buildingFeatures["heater"] == "heat_grid" or buildingFeatures["heater"] == "heat_grid_SH") else 0
 
         # Define hybrid heating systems for heat pumps
         hybrid_systems = {
@@ -166,6 +166,12 @@ class BES:
                 else:
                     BES[k] = 0
 
+            if k == "EWH":
+                if buildingFeatures["heater"] == "heat_grid_SH":
+                    BES["EWH"] = self.design_load_dhw
+                else:
+                    BES["EWH"] = 0
+
             # handle CHP/FC separately (co-generation)
             if k == "CHP":
                 if buildingFeatures["heater"] == "CHP":
@@ -182,7 +188,7 @@ class BES:
             # thermal energy storage (TES)
             if k == "TES":
                 # No TES if the system is centralized
-                if buildingFeatures["heater"] in ("heat_grid", "DH"):
+                if buildingFeatures["heater"] in ("heat_grid", "heat_grid_SH", "DH"):
                     BES["TES"] = 0
                 else:
                     # f_TES in l per kW design load
@@ -198,7 +204,7 @@ class BES:
             # DHW storage (separate from SH TES)
             if k == "TES_DHW":
                 # No TES_DHW if the system is centralized
-                if buildingFeatures["heater"] in ("heat_grid", "DH"):
+                if buildingFeatures["heater"] in ("heat_grid", "heat_grid_SH", "DH"):
                     BES["TES_DHW"] = 0
                 # 1-hour storage of design DHW load
                 else:
@@ -272,7 +278,7 @@ class BES:
         design_dhw  = float(self.design_load_dhw)
 
         fixed_common = {}
-        if bf["heater"] in ("heat_grid", "DH"):
+        if bf["heater"] in ("heat_grid", "heat_grid_SH", "DH"):
             fixed_common["TES"] = 0.0
             fixed_common["TES_DHW"] = 0.0
         else:
@@ -307,6 +313,7 @@ class BES:
             caps.update({
                 "HP": 0.0,
                 "EH": 0.0,
+                "EWH": 0.0,
                 "BOI": 0.0,
                 "BBOI": 0.0,
                 "OBOI": 0.0,
@@ -401,7 +408,7 @@ class BES:
                 return "manual", None, s
 
             # forbid DH / heat_grid inside optimization lists
-            forbidden = {"DH", "HEAT_GRID", "HEATGRID", "HEAT-GRID"}
+            forbidden = {"DH", "HEAT_GRID", "HEAT_GRID_SH", "HEATGRID", "HEAT-GRID"}
             if allowed & forbidden:
                 raise ValueError(
                     f"Invalid heater list {sorted(allowed)}: DH/heat_grid cannot be part of optimization lists. "

@@ -437,7 +437,7 @@ class HeatGridConfig(BaseSettings):
     k_soil: float = 1.52                # Soil heat conductivity in W/(m*K). Source: Median value from table 4.1 Wessolek, G. (2022). Parametrisierung thermischer Bodeneigenschaften: Endbericht
     k_PUF: float = 0.026                 # Polyurethane rigid foam (for KMR pipes) or semi-flexible foam (for PMR pipes) heat conductivity. Source: VDI Wärmeatlas
     k_PE: float = 0.4                 # Polyethylene heat conductivity. Source: VDI Wärmeatlas
-    h_loss_subst: float = 5      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
+    h_loss_subst: float = 0      # Heat losses at the substation as a percentage (%). Source: Technikkatalog Wärmeplanung 2024
     c_loss_subst: float = 3     #Todo: Wert prüfen (neu gesetzt)
     dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Leitfaden zur Planung von Fernwärme-Übergabestationen (2020), Verenum AG, (S. 31)
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
@@ -821,6 +821,14 @@ class DecentralDeviceConfig(BaseSettings):
     EH__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     EH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EH: dict = {}
+
+    # EWH parameters (Electric DHW Heater)
+    EWH__eta_th: float = 0.99  # Thermal efficiency.
+    EWH__life_time: int = 25  # Maximum life time in years.
+    EWH__inv_base: float = 150.0  # Unsubsidized investment in €/kW.
+    EWH__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
+    EWH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
+    EWH: dict = {}
 
     # BOI parameters (Gas Boiler)
     BOI__eta_th: float = 0.99  # Thermal efficiency.

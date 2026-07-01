@@ -128,6 +128,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
 
     # Efficiencies
     eta_eh = dev_param("EH", "eta_th")
+    eta_ewh = dev_param("EWH", "eta_th")
     eta_boi = dev_param("BOI", "eta_th")
     eta_bboi = dev_param("BBOI", "eta_th")
     eta_oboi = dev_param("OBOI", "eta_th")
@@ -150,6 +151,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     cap_HP_kw_th = cap_w("HP") / 1000.0
     hp_installed = any(cap_w(k) > 0 for k in ["HP", "GHP", "BHP", "H2HP", "OHP"])
     cap_EH_kw_th = cap_w("EH") / 1000.0
+    cap_EWH_kw_th = cap_w("EWH") / 1000.0
     cap_BOI_kw_th = cap_w("BOI") / 1000.0
     cap_BBOI_kw_th = cap_w("BBOI") / 1000.0
     cap_OBOI_kw_th = cap_w("OBOI") / 1000.0
@@ -253,6 +255,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     # Therefore, no separate EH investment is charged when an HP is installed.
     if not hp_installed:
         fixed_cost += annualized_device_cost_over_horizon(dev_dict("EH"), eco_data, cap_EH_kw_th, mode="subsidized")
+    fixed_cost += annualized_device_cost_over_horizon(dev_dict("EWH"),eco_data,cap_EWH_kw_th,mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BOI"), eco_data, cap_BOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("BBOI"), eco_data, cap_BBOI_kw_th, mode="subsidized")
     fixed_cost += annualized_device_cost_over_horizon(dev_dict("OBOI"), eco_data, cap_OBOI_kw_th, mode="subsidized")
@@ -277,6 +280,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     m.q_HP_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.q_HP_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.q_EH_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
+    m.q_EWH_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.q_EH_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.q_BOI_SH = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
     m.q_BOI_DHW = pyo.Var(m.Y, m.T, within=pyo.NonNegativeReals)
@@ -345,6 +349,7 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
 
     m.lim_HP = pyo.Constraint(m.Y, m.T, rule=hp_capacity_rule)
     m.lim_EH = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_EH_SH[y, t] + mm.q_EH_DHW[y, t] <= cap_EH_kw_th)
+    m.lim_EWH = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_EWH_DHW[y, t] <= cap_EWH_kw_th)
     m.lim_BOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_BOI_SH[y, t] + mm.q_BOI_DHW[y, t] <= cap_BOI_kw_th)
     m.lim_BBOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_BBOI_SH[y, t] + mm.q_BBOI_DHW[y, t] <= cap_BBOI_kw_th)
     m.lim_OBOI = pyo.Constraint(m.Y, m.T, rule=lambda mm, y, t: mm.q_OBOI_SH[y, t] + mm.q_OBOI_DHW[y, t] <= cap_OBOI_kw_th)
@@ -521,14 +526,14 @@ def run_building_operation_fixed_design_one_concept(demand_heat_w, demand_dhw_w,
     m.heat_balance_DHW = pyo.Constraint(
         m.Y, m.T,
         rule=lambda mm, y, t:
-        mm.q_HP_DHW[y, t] + mm.q_EH_DHW[y, t] + mm.q_BOI_DHW[y, t] + mm.q_BBOI_DHW[y, t] + mm.q_OBOI_DHW[y, t] + mm.q_H2BOI_DHW[y, t] + mm.q_CHP_DHW[y, t] + mm.q_FC_DHW[y, t] + mm.stc_used_DHW[y, t] + mm.tes_dhw_dis[y, t]
+        mm.q_HP_DHW[y, t] + mm.q_EH_DHW[y, t] + mm.q_EWH_DHW[y, t] + mm.q_BOI_DHW[y, t] + mm.q_BBOI_DHW[y, t] + mm.q_OBOI_DHW[y, t] + mm.q_H2BOI_DHW[y, t] + mm.q_CHP_DHW[y, t] + mm.q_FC_DHW[y, t] + mm.stc_used_DHW[y, t] + mm.tes_dhw_dis[y, t]
         == float(heat_DHW_kw[t]) + mm.tes_dhw_ch[y, t])
 
     # Electricity
     def el_balance_rule(mm, y, t):
         return (
             mm.pv_used[y, t] + mm.p_CHP[y, t] + mm.p_FC[y, t] + mm.bat_dis[y, t] + mm.p_grid_in[y, t]
-            == float(el_kw[t]) + mm.p_EV_ch[y, t] + mm.p_HP[y, t] + (mm.q_EH_SH[y, t] + mm.q_EH_DHW[y, t]) / eta_eh + mm.bat_ch[y, t] + mm.p_grid_out[y, t])
+            == float(el_kw[t]) + mm.p_EV_ch[y, t] + mm.p_HP[y, t] + (mm.q_EH_SH[y, t] + mm.q_EH_DHW[y, t]) / eta_eh + mm.q_EWH_DHW[y, t] / eta_ewh + mm.bat_ch[y, t] + mm.p_grid_out[y, t])
 
     m.el_balance = pyo.Constraint(m.Y, m.T, rule=el_balance_rule)
 

@@ -14,9 +14,9 @@ from contextlib import redirect_stdout
 import pandas as pd
 
 # Sets of energy conversion systems in the buildings
-ECS_HEAT = ("HP", "EH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "FC")
+ECS_HEAT = ("HP", "EH", "EWH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "FC")
 ECS_COOL = ("CC", "heat_grid", "Cooling_dem") #! heat_grid correct? Should this be cooling grid for better understanding?
-ECS_POWER = ("HP", "EH", "CC", "CHP", "PV", "Elec_dem", "FC")  # power consuming/producing devices
+ECS_POWER = ("HP", "EH", "EWH", "CC", "CHP", "PV", "Elec_dem", "FC")  # power consuming/producing devices
 ECS_GAS = ("CHP", "BOI")  # gas consuming devices
 ECS_BIOMASS = ("BBOI",)  # biomass consuming devices
 ECS_HYDROGEN = ("H2BOI", "FC")  # hydrogen consuming devices
@@ -244,6 +244,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
 
     ice_data = {ice['id']: ice for ice in all_individual_ices}
+
+    ################################################################################
+    # HELPER FUNCTION
+    ################################################################################
+
+    def heater_type(n):
+        return str(buildingData[n]["buildingFeatures"].get("heater", "")).strip()
 
     ################################################################################
     # CREATE SETS
@@ -606,6 +613,26 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
         return constraint_rule
 
+    def ewh_capacity_rule(model, n, t):
+        """
+        Electric water heater is only allowed to provide decentralized DHW
+        for heat_grid_SH buildings.
+        """
+
+        cap_ewh = float(buildingData[n]["capacities"].get("EWH", 0.0))
+
+        if heater_type(n) != "heat_grid_SH":
+            return model.heat_dom_DHW["EWH", n, t] == 0.0
+
+        return model.heat_dom_DHW["EWH", n, t] <= cap_ewh
+
+
+    def ewh_no_space_heating_rule(model, n, t):
+        """
+        EWH must never provide space heating.
+        """
+        return model.heat_dom_SH["EWH", n, t] == 0.0
+
     def hp_heat_capacity_constraint(model, n, t):
         cap_hp = buildingData[n]["capacities"]["HP"]
         if cap_hp <= 0:
@@ -676,17 +703,24 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # heat from local heat grid
     def heat_grid_capacity_rule(model, n, t):
-        if buildingData[n]["capacities"]["heat_grid"] == 1: # no limit on the amount of heat taken from local heat grid
+        heater = heater_type(n)
+
+        if heater == "heat_grid":
             return pyo.Constraint.Skip
+        elif heater == "heat_grid_SH":
+            return model.heat_dom_DHW["heat_grid", n, t] == 0
         else:
             return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
 
-    # Aplication of the constraints for each device
+    # Application of the constraints for each device
 
     # Heat generating devices
     for device in ["CHP", "BOI", "BBOI", "OBOI", "H2BOI", "FC", "EH", "DH"]: # Devices which capacity is defined by thermal capacity
         constraint_rule = create_dom_heat_capacity_constraint(device)
         setattr(model, f"heat_cap_{device}", pyo.Constraint(model.n, model.t, rule=constraint_rule))
+
+    model.heat_cap_EWH = pyo.Constraint(model.n, model.t, rule=ewh_capacity_rule)
+    model.ewh_no_space_heating = pyo.Constraint(model.n, model.t, rule=ewh_no_space_heating_rule)
 
     # Cooling generating devices
     for device in ["CC", ]:
@@ -859,6 +893,10 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def eh_conversion_rule(model, n, t):
         return (model.heat_dom_SH["EH", n, t] + model.heat_dom_DHW["EH", n, t] == param_dec_devs["EH"]["eta_th"] * model.power_dom["EH", n, t])
 
+    # Electric DHW heater
+    def ewh_conversion_rule(model, n, t):
+        return model.heat_dom_DHW["EWH", n, t] == param_dec_devs["EWH"]["eta_th"] * model.power_dom["EWH", n, t]
+
     # CHP
     def chp_heat_conversion_rule(model, n, t):
         return (model.heat_dom_SH["CHP", n, t] + model.heat_dom_DHW["CHP", n, t] == param_dec_devs["CHP"]["eta_th"] * model.gas_dom["CHP", n, t])
@@ -907,6 +945,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # Constraints for building devices conversion
     model.eh_conversion = pyo.Constraint(model.n, model.t, rule=eh_conversion_rule,
                                          doc="Electric heater: converts electricity to heat for space heating and DHW")
+    model.ewh_conversion = pyo.Constraint(model.n, model.t, rule=ewh_conversion_rule,
+                                          doc="Electric DHW heater: converts electricity to DHW heat")
     model.chp_heat_conversion = pyo.Constraint(model.n, model.t, rule=chp_heat_conversion_rule,
                                                doc="CHP thermal conversion: gas to heat with thermal efficiency")
     model.chp_power_conversion = pyo.Constraint(model.n, model.t, rule=chp_power_conversion_rule,
@@ -1199,7 +1239,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         return (model.res_dom_power[n, t] + model.power_dom["PV", n, t] + model.power_dom["CHP", n, t] + model.power_dom["FC", n, t]
                 + model.dch_dom["BAT", n, t] + total_ev_discharge
                 == model.power_dom["Elec_dem", n, t] + total_ev_charge + model.power_dom["HP", n, t] +
-                model.power_dom["EH", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
+                model.power_dom["EH", n, t] + model.power_dom["EWH", n, t] + model.ch_dom["BAT", n, t] + model.res_dom_feed[n, t])
 
     # Heat Balance for space heating
     def heating_balance_sh_rule(model, n, t):
@@ -1213,7 +1253,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def heating_balance_dhw_rule(model, n, t):
         """Domestic hot water demand must be met by heat producing devices and/or heat grid"""
         return (model.heat_dom_DHW["CHP", n, t] + model.heat_dom_DHW["HP", n, t] + model.heat_dom_DHW["BOI", n, t] + model.heat_dom_DHW["BBOI", n, t]
-                + model.heat_dom_DHW["OBOI", n, t] + model.heat_dom_DHW["H2BOI", n, t] + model.heat_dom_DHW["EH", n, t] + model.heat_dom_DHW["STC", n, t]
+                + model.heat_dom_DHW["OBOI", n, t] + model.heat_dom_DHW["H2BOI", n, t] + model.heat_dom_DHW["EH", n, t] + model.heat_dom_DHW["EWH", n, t] + model.heat_dom_DHW["STC", n, t]
                 + model.heat_dom_DHW["FC", n, t] + model.dch_dom["TES_DHW", n, t] + model.heat_dom_DHW["heat_grid", n, t] + model.heat_dom_DHW["DH", n, t]
                 ) == float(Q_DHW[n][t]) + model.ch_dom["TES_DHW", n, t]
 

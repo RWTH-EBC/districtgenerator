@@ -1305,7 +1305,7 @@ class Datahandler:
 
         # Check if district uses central energy supply (heat grid)
         has_heat_grid = any(
-            building["buildingFeatures"]["heater"] == "heat_grid"
+            building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH"
             for building in self.district)
 
         if has_heat_grid:
@@ -2308,7 +2308,7 @@ class Datahandler:
         # only get the position of buildings connected to the heat grid
         buildings_info = []
         for building in self.district:
-            if building["buildingFeatures"]["heater"] == "heat_grid":
+            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH":
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"building": building["unique_name"],
                                  "position": pos}
@@ -2359,7 +2359,7 @@ class Datahandler:
         buildings_info = []
         i = 0
         for building in self.district:
-            if building["buildingFeatures"]["heater"] == "heat_grid":
+            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH":
                 pos = building["buildingFeatures"]["position"]
                 building_dict = {"id": i,
                                  "building": building["unique_name"],
@@ -2414,7 +2414,7 @@ class Datahandler:
             district_type = "unknown"
         connected_building_count = sum(
             1 for building in self.district
-            if building["buildingFeatures"]["heater"] == "heat_grid"
+            if building["buildingFeatures"]["heater"] == "heat_grid" or building["buildingFeatures"]["heater"] == "heat_grid_SH"
         )
         topology_file = f"topology_{topology_option}_{district_type}_buildings_{connected_building_count}.json"
 
