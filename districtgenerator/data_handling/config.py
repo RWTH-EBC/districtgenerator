@@ -199,6 +199,8 @@ class EcoConfig(BaseSettings):
     # *Warning: num_interpolation_points overrides interpolation_points if both are specified.
     num_interpolation_points: Optional[int] = None # Number of interpolation points if not None these are used, otherwise the exact position is used
     interpolation_points: str | list[int] = [0,5,10,15] # Explicit years starting each interpolation interval. Must begin with 0. Used if num_interpolation_points is None.
+    investment_sensitivity_enabled: bool = False  # If True, batch/example runs evaluate min/mean/max cost cases for investments, O&M, substations, and pipe construction.
+    investment_sensitivity_case: str = "mean"  # Cost case for a single run: "min", "mean", or "max".
     
 
     # electricity prices and feed-in revenue in €/kWh
@@ -220,7 +222,7 @@ class EcoConfig(BaseSettings):
     price_district_heat: str | list = [0.16385, 0.16216, 0.15793, 0.15500, 0.15352, 0.15019, 0.15003, 0.15484, 0.15675, 0.15880, 0.16072, 0.16827, 0.17442, 0.17918, 0.18256, 0.18456, 0.18665, 0.18867, 0.19055, 0.19233]  # Gross district heat price in €/kWh
 
     # CO2 emission factors in kg/kWh
-    co2_el_grid: str | list = [0.328, 0.281, 0.233, 0.186, 0.139, 0.096, 0.083, 0.069, 0.056, 0.048, 0.043, 0.037, 0.032, 0.027, 0.027, 0.027, 0.026, 0.026, 0.026, 0.025]          # CO2 emissions for electricity import (grid mix) in kg/kWh
+    co2_el_grid: str | list = [0.328, 0.281, 0.233, 0.186, 0.139, 0.096, 0.083, 0.069, 0.056, 0.048, 0.043, 0.037, 0.032, 0.027, 0.027, 0.027, 0.026, 0.026, 0.016, 0]          # CO2 emissions for electricity import (grid mix) in kg/kWh
     co2_gas: str | list = [0.240]              # CO2 emissions for burning natural gas in kg/kWh
     co2_biom: str | list = [0.020]              # CO2 emissions for burning biomass in kg/kWh
     co2_biomethane: str | list = [0.0]          # CO2 emissions for burning biomethane in kg/kWh
@@ -250,6 +252,15 @@ class EcoConfig(BaseSettings):
         if v == "None" or v == "null" or v == "" or v is None:
             return None
         return int(v)
+
+    @field_validator('investment_sensitivity_case', mode='before')
+    @classmethod
+    def validate_investment_sensitivity_case(cls, v):
+        """Validate selected investment sensitivity case."""
+        case = str(v).strip().lower()
+        if case not in {"min", "mean", "max"}:
+            raise ValueError("investment_sensitivity_case must be 'min', 'mean', or 'max'.")
+        return case
     
     @model_validator(mode='after')
     def expand_lists_to_observation_time(self) -> 'EcoConfig':
@@ -441,6 +452,7 @@ class HeatGridConfig(BaseSettings):
     dp_substation: float = 75000.0        # Pressure drop at the substation in Pascal (Pa). Source: Leitfaden zur Planung von Fernwärme-Übergabestationen (2020), Verenum AG, (S. 31)
     dp_energy_hub: float = 100000.0        # Pressure drop at the energy hub in Pascal (Pa). Source: Technikkatalog Wärmeplanung 2024
     C_subst: float = 510        # Investment costs for the substation in €/kW_th. Source: Technikkatalog Wärmeplanung 2024
+    C_subst_uncertainty: float = 25.0  # Substation cost uncertainty in percent for min/max sensitivity cases (0 to 100).
     cost_om_subst: float = 50                  #Operation & Maintenance (O&M) costs in €/MWh_th. Source: Technikkatalog Wärmeplanung 2024
     lifetime_subst: int = 25                 # Lifetime of the substation in years. Source: Technikkatalog Wärmeplanung 2024
     C_OM: float = 1.44               # Annual fixed Operation & Maintenance (O&M) costs in % of the investment costs.
@@ -799,6 +811,7 @@ class DecentralDeviceConfig(BaseSettings):
     CC__grade: float = 0.4  # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
     CC__life_time: int = 20  # Maximum life time in years.
     CC__inv_base: float = 700.0  # Unsubsidized investment in €/kW.
+    CC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     CC__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
@@ -807,6 +820,7 @@ class DecentralDeviceConfig(BaseSettings):
     HP__grade: float = 0.4  # Quality grade. Ratio of the achieved coefficient of performance to the Carnot coefficient of performance.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__inv_base: float = 1660.0  # Unsubsidized investment in €/kWth.
+    HP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     HP__cost_om: float = 0.02  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP__enable_low_temp_measures: bool = False # "geringinvestive Maßnahmen": extra cost, can reduce supply/return temps to 50/40 °C (only if lower than the original system temperatures).
@@ -817,6 +831,7 @@ class DecentralDeviceConfig(BaseSettings):
     EH__eta_th: float = 1.0  # Thermal efficiency.
     EH__life_time: int = 25  # Maximum life time in years.
     EH__inv_base: float = 530.0  # Unsubsidized investment in €/kW.
+    EH__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     EH__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     EH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EH: dict = {}
@@ -825,6 +840,7 @@ class DecentralDeviceConfig(BaseSettings):
     EWH__eta_th: float = 0.99  # Thermal efficiency.
     EWH__life_time: int = 25  # Maximum life time in years.
     EWH__inv_base: float = 150.0  # Unsubsidized investment in €/kW.
+    EWH__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     EWH__cost_om: float = 0.0096  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     EWH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EWH: dict = {}
@@ -833,6 +849,7 @@ class DecentralDeviceConfig(BaseSettings):
     BOI__eta_th: float = 0.99  # Thermal efficiency.
     BOI__life_time: int = 20  # Maximum life time in years.
     BOI__inv_base: float = 324.0  # Unsubsidized investment in €/kW.
+    BOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BOI__cost_om: float = 0.031  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BOI: dict = {}
@@ -841,6 +858,7 @@ class DecentralDeviceConfig(BaseSettings):
     BBOI__eta_th: float = 0.90  # Thermal efficiency.
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__inv_base: float = 1858.0  # Unsubsidized investment in €/kW
+    BBOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BBOI__cost_om: float = 0.0095  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     BBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BBOI: dict = {}
@@ -849,6 +867,7 @@ class DecentralDeviceConfig(BaseSettings):
     OBOI__eta_th: float = 0.92  # Thermal efficiency.
     OBOI__life_time: int = 20  # Maximum life time in years.
     OBOI__inv_base: float = 576.0  # Unsubsidized investment in €/kW.
+    OBOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     OBOI__cost_om: float = 0.036  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     OBOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     OBOI: dict = {}
@@ -857,6 +876,7 @@ class DecentralDeviceConfig(BaseSettings):
     H2BOI__eta_th: float = 0.994  # Thermal efficiency.
     H2BOI__life_time: int = 20  # Maximum life time in years.
     H2BOI__inv_base: float = 450.0  # Unsubsidized investment in €/kW.
+    H2BOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     H2BOI__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     H2BOI__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     H2BOI: dict = {}
@@ -866,6 +886,7 @@ class DecentralDeviceConfig(BaseSettings):
     CHP__eta_el: float = 0.30  # Electrical efficiency.
     CHP__life_time: int = 15  # Maximum life time in years.
     CHP__inv_base: float = 2623.0  # Unsubsidized investment in €/kW_th
+    CHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     CHP__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     CHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CHP: dict = {}
@@ -874,6 +895,7 @@ class DecentralDeviceConfig(BaseSettings):
     DH__eta_th: float = 1.0  # Thermal efficiency.
     DH__life_time: int = 30  # Maximum life time in years.
     DH__inv_base: float = 60.93  # (Baukostenzuschuss) Unsubsidized investment in €/kW.
+    DH__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     DH__cap_fee: float = 0.0  # Capacity fee in €/kW/year.
     DH__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     DH: dict = {}
@@ -883,6 +905,7 @@ class DecentralDeviceConfig(BaseSettings):
     FC__eta_el: float = 0.39  # Electrical efficiency.
     FC__life_time: int = 20  # Maximum life time in years.
     FC__inv_base: float = 2900.0  # Unsubsidized investment in €/kW_th
+    FC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     FC__cost_om: float = 0.03  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     FC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     FC: dict = {}
@@ -901,6 +924,7 @@ class DecentralDeviceConfig(BaseSettings):
     PV__P_nominal: float = 220.0  # Reference power per squaremeter, used for Battery sizing, in Watt per squaremeter.
     PV__life_time: int = 25  # Maximum life time in years.
     PV__inv_base: int = 250  # Unsubsidized investment in €/m^2.
+    PV__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     PV__cost_om: float = 0.015  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     PV__kappa_inverter: float = 0.02  # Correction factor for inverter losses
     PV__kappa_wiring: float = 0.015  # Correction factor for wiring losses
@@ -921,6 +945,7 @@ class DecentralDeviceConfig(BaseSettings):
     STC__second_order: float = 0.0000142  # Second order loss coefficient (quadratic thermal losses) in Watt per squaremeter per Kelvin square.
     STC__life_time: int = 20  # Maximum life time in years.
     STC__inv_base: int = 600  # Unsubsidized investment in €/m^2.
+    STC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     STC__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     STC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     STC: dict = {}
@@ -935,6 +960,7 @@ class DecentralDeviceConfig(BaseSettings):
     TES__T_diff_max: int = 15  # Maximum temperature difference in Kelvin.
     TES__life_time: int = 20  # Lifetime in years.
     TES__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
+    TES__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     TES__cost_om: float = 0.013  # Operation and maintenance costs as a fraction of investment costs in 1/year.
     TES__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     TES: dict = {}
@@ -950,6 +976,7 @@ class DecentralDeviceConfig(BaseSettings):
     TES_DHW__T_DHW_needed: int = 50 # Needed DHW temperature in °C.
     TES_DHW__life_time: int = 20  # Lifetime in years.
     TES_DHW__inv_base: float = 11.0  # Unsubsidized investment in €/liter.
+    TES_DHW__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     TES_DHW__cost_om: float = 0.013  # O&M fraction
     TES_DHW__inv_subsidy_rate: float = 0.0  # Subsidy rate
     TES_DHW: dict = {}
@@ -963,6 +990,7 @@ class DecentralDeviceConfig(BaseSettings):
     BAT__init: float = 0.5  # Initial state of charge.
     BAT__life_time: int = 15  # Maximum life time in years.
     BAT__inv_base: float = 850.0  # Unsubsidized investment in €/kWh.
+    BAT__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BAT__cost_om: float = 0.05  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     BAT__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     BAT: dict = {}
@@ -977,6 +1005,7 @@ class DecentralDeviceConfig(BaseSettings):
     EV__init: float = 0.9  # Initial state of charge.
     EV__life_time: int = 20  # Maximum life time in years.
     EV__inv_base: float = 0.0  # Unsubsidized investment in €/kWh.
+    EV__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     EV__cost_om: float = 0.0  # Operation and maintenance costs as a fraction of total investment costs (percentage).
     EV__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     EV: dict = {}
@@ -1054,6 +1083,7 @@ class CentralDeviceConfig(BaseSettings):
     PV__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     PV__life_time: int = 25  # Maximum life time in years.
     PV__inv_base: float = 1000  # Unsubsidized investment in €/kW.
+    PV__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     PV__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     PV__max_area: float = 10000  # Maximum installation area in square meters.
     PV__min_area: float = 0  # Minimum installation area in square meters.
@@ -1064,6 +1094,7 @@ class CentralDeviceConfig(BaseSettings):
     # WT parameters (Wind Turbine)
     WT__feasible: bool = False  # Should this be considered for the central optimization.
     WT__inv_base: float = 1500  # Unsubsidized investment in €/kW.
+    WT__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     WT__life_time: int = 20  # Maximum life time in years.
     WT__cost_om: float = 0.015  # Cost of operation and maintenance as a percentage of investment.
     WT__min_cap: float = 0  # Minimum capacity in kW.
@@ -1078,6 +1109,7 @@ class CentralDeviceConfig(BaseSettings):
     # WAT parameters (Water Turbine)
     WAT__feasible: bool = False  # Should this be considered for the central optimization.
     WAT__inv_base: float = 2000  # Unsubsidized investment in €/kW.
+    WAT__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     WAT__life_time: int = 30  # Maximum life time in years.
     WAT__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
     WAT__min_cap: float = 0  # Minimum capacity in kW.
@@ -1092,6 +1124,7 @@ class CentralDeviceConfig(BaseSettings):
     STC__beta: float = 35.0  # Tilt angle of the solar collectors in degrees.
     STC__gamma: float = 0  # Azimuth angle (orientation) of the collectors in degrees (0=South, -90=East, 90=West).
     STC__inv_base: float = 800  # Unsubsidized investment in €/kW.
+    STC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     STC__life_time: int = 20  # Maximum life time in years.
     STC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     STC__max_area: float = 5000  # Maximum installation area in square meters.
@@ -1103,6 +1136,7 @@ class CentralDeviceConfig(BaseSettings):
     # CHP parameters (Combined Heat and Power)
     CHP__feasible: bool = True  # Should this be considered for the central optimization.
     CHP__inv_base: float = 1200  # Unsubsidized investment in €/kW.
+    CHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     CHP__eta_el: float = 0.4  # Electrical efficiency between 0 and 1.
     CHP__eta_th: float = 0.5  # Thermal efficiency between 0 and 1.
     CHP__life_time: int = 20  # Maximum life time in years.
@@ -1115,6 +1149,7 @@ class CentralDeviceConfig(BaseSettings):
     # BOI parameters (Boiler)
     BOI__feasible: bool = True  # Should this be considered for the central optimization.
     BOI__inv_base: float = 138  # Unsubsidized investment in €/kW.
+    BOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BOI__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     BOI__life_time: int = 25  # Maximum life time in years.
     BOI__cost_om: float = 0.014  # Cost of operation and maintenance as a percentage of investment.
@@ -1126,6 +1161,7 @@ class CentralDeviceConfig(BaseSettings):
     # GHP parameters (Gas Heat Pump)
     GHP__feasible: bool = False  # Should this be considered for the central optimization.
     GHP__inv_base: float = 1000  # Unsubsidized investment in €/kW.
+    GHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     GHP__COP: float = 3.5  # Coefficient of Performance (COP).
     GHP__life_time: int = 20  # Maximum life time in years.
     GHP__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1141,6 +1177,7 @@ class CentralDeviceConfig(BaseSettings):
     HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     HP__CSV_feasible: bool = False  # Should it be modeled with a CSV file for the COP?
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
+    HP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
     HP__min_cap: float = 0  # Minimum capacity in kW.
@@ -1154,6 +1191,7 @@ class CentralDeviceConfig(BaseSettings):
     GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
     GroundHP__life_time: int = 20  # Maximum life time in years.
     GroundHP__inv_base: float = 1000  # Unsubsidized investment in €/kWth.
+    GroundHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     GroundHP__cost_om: float = 0.025  # Cost of operation and maintenance as a percentage of investment.
     GroundHP__min_cap: float = 0  # Minimum capacity in kWth.
     GroundHP__max_cap: float = 500  # Maximum capacity in kWth.
@@ -1163,6 +1201,7 @@ class CentralDeviceConfig(BaseSettings):
     # EB parameters (Electric Boiler)
     EB__feasible: bool = True  # Should this be considered for the central optimization.
     EB__inv_base: float = 32.73  # Unsubsidized investment in €/kW.
+    EB__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     EB__eta_th: float = 0.99  # Thermal efficiency between 0 and 1.
     EB__life_time: int = 25  # Maximum life time in years.
     EB__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
@@ -1176,6 +1215,7 @@ class CentralDeviceConfig(BaseSettings):
     CC__CCOP_feasible: bool = False  # Should it be modeled with a constant COP?
     CC__ASCC_model_feasible: bool = True  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
+    CC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
     CC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1187,6 +1227,7 @@ class CentralDeviceConfig(BaseSettings):
     # AC parameters (Absorption Chiller)
     AC__feasible: bool = False  # Should this be considered for the central optimization.
     AC__inv_base: float = 1000  # Unsubsidized investment in €/kW.
+    AC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     AC__eta_th: float = 0.75  # Thermal efficiency between 0 and 1.
     AC__life_time: int = 20  # Maximum life time in years.
     AC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1198,6 +1239,7 @@ class CentralDeviceConfig(BaseSettings):
     # BCHP parameters (Biomass Combined Heat and Power)
     BCHP__feasible: bool = False  # Should this be considered for the central optimization.
     BCHP__inv_base: float = 1140  # Unsubsidized investment in €/kW.
+    BCHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BCHP__eta_el: float = 0.35  # Electrical efficiency between 0 and 1.
     BCHP__eta_th: float = 0.55  # Thermal efficiency between 0 and 1.
     BCHP__life_time: int = 20  # Maximum life time in years.
@@ -1210,6 +1252,7 @@ class CentralDeviceConfig(BaseSettings):
     # BBOI parameters (Biomass Boiler)
     BBOI__feasible: bool = False  # Should this be considered for the central optimization.
     BBOI__inv_base: float = 570  # Unsubsidized investment in €/kW.
+    BBOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BBOI__eta_th: float = 0.85  # Thermal efficiency between 0 and 1.
     BBOI__life_time: int = 20  # Maximum life time in years.
     BBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1221,6 +1264,7 @@ class CentralDeviceConfig(BaseSettings):
     # WCHP parameters (Waste Combined Heat and Power)
     WCHP__feasible: bool = False  # Should this be considered for the central optimization.
     WCHP__inv_base: float = 2000  # Unsubsidized investment in €/kW.
+    WCHP__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     WCHP__eta_el: float = 0.3  # Electrical efficiency between 0 and 1.
     WCHP__eta_th: float = 0.6  # Thermal efficiency between 0 and 1.
     WCHP__life_time: int = 20  # Maximum life time in years.
@@ -1233,6 +1277,7 @@ class CentralDeviceConfig(BaseSettings):
     # WBOI parameters (Waste Boiler)
     WBOI__feasible: bool = False  # Should this be considered for the central optimization.
     WBOI__inv_base: float = 3087  # Unsubsidized investment in €/kW.
+    WBOI__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     WBOI__eta_th: float = 0.8  # Thermal efficiency between 0 and 1.
     WBOI__life_time: int = 20  # Maximum life time in years.
     WBOI__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1244,6 +1289,7 @@ class CentralDeviceConfig(BaseSettings):
     # ELYZ parameters (Electrolyzer)
     ELYZ__feasible: bool = False  # Should this be considered for the central optimization.
     ELYZ__inv_base: float = 1500  # Unsubsidized investment in €/kW.
+    ELYZ__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     ELYZ__eta_el: float = 0.7  # Electrical efficiency between 0 and 1.
     ELYZ__life_time: int = 20  # Maximum life time in years.
     ELYZ__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
@@ -1255,6 +1301,7 @@ class CentralDeviceConfig(BaseSettings):
     # FC parameters (Fuel Cell)
     FC__feasible: bool = False  # Should this be considered for the central optimization.
     FC__inv_base: float = 1800  # Unsubsidized investment in €/kW.
+    FC__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     FC__eta_el: float = 0.5  # Electrical efficiency between 0 and 1.
     FC__eta_th: float = 0.4  # Thermal efficiency between 0 and 1.
     FC__life_time: int = 20  # Maximum life time in years.
@@ -1268,6 +1315,7 @@ class CentralDeviceConfig(BaseSettings):
     # H2S parameters (Hydrogen Storage)
     H2S__feasible: bool = False  # Should this be considered for the central optimization.
     H2S__inv_base: float = 1200  # Unsubsidized investment in €/kWh.
+    H2S__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     H2S__sto_loss: float = 0.0  # Storage loss as a fraction.
     H2S__life_time: int = 20  # Maximum life time in years.
     H2S__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
@@ -1279,6 +1327,7 @@ class CentralDeviceConfig(BaseSettings):
     # SAB parameters (Sabatier Reactor)
     SAB__feasible: bool = False  # Should this be considered for the central optimization.
     SAB__inv_base: float = 2000  # Unsubsidized investment in €/kW.
+    SAB__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     SAB__eta: float = 0.6  # Round-trip efficiency between 0 and 1.
     SAB__life_time: int = 20  # Maximum life time in years.
     SAB__cost_om: float = 0.03  # Cost of operation and maintenance as a percentage of investment.
@@ -1290,6 +1339,7 @@ class CentralDeviceConfig(BaseSettings):
     # TES parameters (Thermal Energy Storage)
     TES__feasible: bool = True  # Should this be considered for the central optimization.
     TES__inv_base: float = 640  # Unsubsidized investment in €/m^3.
+    TES__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     TES__sto_loss: float = 0.01  # Storage loss per hour as a fraction.
     TES__life_time: int = 20  # Maximum life time in years.
     TES__cost_om: float = 0.013  # Cost of operation and maintenance as a percentage of investment.
@@ -1303,6 +1353,7 @@ class CentralDeviceConfig(BaseSettings):
     # CTES parameters (Cold Thermal Energy Storage)
     CTES__feasible: bool = False  # Should this be considered for the central optimization.
     CTES__inv_base: float = 1300  # Unsubsidized investment in €/m^3.
+    CTES__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     CTES__sto_loss: float = 0.01  # Storage loss per hour as a fraction.
     CTES__life_time: int = 20  # Maximum life time in years.
     CTES__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
@@ -1315,6 +1366,7 @@ class CentralDeviceConfig(BaseSettings):
     # BAT parameters (Battery Storage)
     BAT__feasible: bool = False  # Should this be considered for the central optimization.
     BAT__inv_base: float = 200  # Unsubsidized investment in €/kWh.
+    BAT__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     BAT__life_time: int = 15  # Maximum life time in years.
     BAT__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
     BAT__min_cap: float = 0  # Minimum capacity in kWh.
@@ -1327,6 +1379,7 @@ class CentralDeviceConfig(BaseSettings):
     # GS parameters (Gas Storage)
     GS__feasible: bool = False  # Should this be considered for the central optimization.
     GS__inv_base: float = 150  # Unsubsidized investment in €/kWh.
+    GS__inv_uncertainty: float = 0.0  # Cost uncertainty in percent for min/max sensitivity cases (0 to 100); applied to inv_base and cost_om.
     GS__life_time: int = 20  # Maximum life time in years.
     GS__cost_om: float = 0.01  # Cost of operation and maintenance as a percentage of investment.
     GS__min_cap: float = 0  # Minimum capacity in kWh.

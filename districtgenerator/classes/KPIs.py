@@ -1260,7 +1260,8 @@ class KPIs:
         self.calculateDetailedCostsPerYear(data)
         self.calculateLCOH_buildings(data)
         self.calculateLCOH_EH(data)
-        self.saveKPIs(scenario_name=data.scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
+        output_scenario_name = getattr(data, "output_scenario_name", data.scenario_name)
+        self.saveKPIs(scenario_name=output_scenario_name, result_path=data.resultPath, buildings=data.district, file_format=data.report_config["kpi_save_type"])
 
     def saveKPIs(self, scenario_name, result_path, buildings, file_format):
         """

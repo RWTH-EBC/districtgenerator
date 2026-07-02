@@ -3973,7 +3973,7 @@ class DataExtractor(ReportComponent):
         return self.district_layout
 
     def get_scenario_name(self):
-        return self.data.scenario_name
+        return getattr(self.data, "output_scenario_name", self.data.scenario_name)
 
     def get_cluster_info(self):
         return self.cluster_info

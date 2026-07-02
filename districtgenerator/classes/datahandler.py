@@ -64,6 +64,8 @@ class Datahandler:
 
     def __init__(self,
                  scenario_name = None,
+                 output_scenario_name = None,
+                 investment_sensitivity_case = None,
                  resultPath = None,
                  scenario_file_path = None,
                  srcPath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -76,6 +78,10 @@ class Datahandler:
         ----------
         scenario_name : str, optional
             Name of the scenario file. If none given, takes scenario_name from globalConfig else "example".
+        output_scenario_name : str, optional
+            Optional external label. Building and scenario input names still use scenario_name.
+        investment_sensitivity_case : str, optional
+            Investment-cost case for this run ("min", "mean", or "max"). Overrides the config value.
         resultPath : str, optional
             Path to save results. If None, it defaults to 'srcPath/results'.
         scenario_file_path : str, optional
@@ -99,6 +105,8 @@ class Datahandler:
 
         self.initial_day = None
         self.district = []
+        self.input_scenario_name = scenario_name
+        self.output_scenario_name = output_scenario_name or scenario_name
         self.scenario_name = scenario_name
         self.scenario = None
         self.total_building_area = None
@@ -125,6 +133,7 @@ class Datahandler:
         self.srcPath = srcPath
         self.filePath = filePath
         self.cluster_meta = None
+        self.investment_sensitivity_case_override = investment_sensitivity_case
 
         if scenario_file_path is not None:
             self.scenario_file_path = scenario_file_path
@@ -222,10 +231,11 @@ class Datahandler:
                     'f_STC': float, 'gamma_PV': float, 'ev_charging': str,}
 
         # %% load scenario file with building information
-        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{self.scenario_name}.csv"), delimiter=";",
+        scenario_input_name = self.input_scenario_name or self.scenario_name
+        self.scenario = (pd.read_csv(os.path.join(self.scenario_file_path, f"{scenario_input_name}.csv"), delimiter=";",
                                      converters = {"position": parse_position}, dtype = dtype_dict).set_index("id", drop=False))
 
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        json_path = os.path.join(self.scenario_file_path, f"{scenario_input_name}.json")
 
         if os.path.exists(json_path):
             with open(json_path, encoding="utf-8") as json_file:
@@ -294,10 +304,97 @@ class Datahandler:
             "PMR": pd.read_csv(pmr_path, sep=";"),
             "PE": pd.read_csv(pe_path, sep=";")}
 
+        if self.investment_sensitivity_case_override is not None:
+            self.ecoData["investment_sensitivity_case"] = str(self.investment_sensitivity_case_override).strip().lower()
+        self.apply_investment_sensitivity()
+
         # Determine the all_sim_ecoData which contains prices, co2 factors for each simulated year used for optimizations:
         self.all_sim_ecoData = self.calculate_ecoData_per_cluster()
 
         self.SIA2024 = SIA.read_SIA_data()
+
+    def _scale_device_costs(self, device_data, case):
+        """Apply the selected cost case to device investment and O&M data."""
+        multiplier_by_case = {
+            "min": lambda uncertainty: max(0.0, 1.0 - uncertainty),
+            "mean": lambda uncertainty: 1.0,
+            "max": lambda uncertainty: 1.0 + uncertainty,
+        }
+
+        for device in device_data.values():
+            if not isinstance(device, dict) or "inv_base" not in device:
+                continue
+
+            uncertainty_percent = float(device.get("inv_uncertainty", 0.0))
+            if not 0.0 <= uncertainty_percent <= 100.0:
+                raise ValueError("Cost uncertainty must be a percent value between 0 and 100.")
+            uncertainty = uncertainty_percent / 100.0
+            multiplier = multiplier_by_case[case](uncertainty)
+            inv_base_mean = float(device.setdefault("inv_base_mean", device["inv_base"]))
+            device["inv_base_min"] = inv_base_mean * multiplier_by_case["min"](uncertainty)
+            device["inv_base_max"] = inv_base_mean * multiplier_by_case["max"](uncertainty)
+            device["inv_base"] = inv_base_mean * multiplier
+
+            if "cost_om" in device:
+                cost_om_mean = float(device.setdefault("cost_om_mean", device["cost_om"]))
+                device["cost_om_min"] = cost_om_mean * multiplier_by_case["min"](uncertainty)
+                device["cost_om_max"] = cost_om_mean * multiplier_by_case["max"](uncertainty)
+                device["cost_om"] = cost_om_mean * multiplier
+
+            if "inv_subsidy_rate" in device:
+                device["inv_var"] = device["inv_base"] * (1 - device["inv_subsidy_rate"])
+
+    def _select_pipe_construction_costs(self, case):
+        """Expose the selected pipe construction-cost case under the legacy column name."""
+        euro = "\u20ac"
+        selected_column = {
+            "min": f"Construction Cost Min ({euro}/m)",
+            "mean": f"Construction Cost Mean ({euro}/m)",
+            "max": f"Construction Cost Max ({euro}/m)",
+        }[case]
+        legacy_column = f"Construction Cost ({euro}/m)"
+
+        for pipe_type, pipe_data in self.pipe_data_all.items():
+            if selected_column in pipe_data.columns:
+                pipe_data[legacy_column] = pipe_data[selected_column]
+            elif legacy_column not in pipe_data.columns:
+                raise KeyError(
+                    f"Pipe specification '{pipe_type}' has neither '{selected_column}' "
+                    f"nor '{legacy_column}'."
+                )
+
+    def apply_investment_sensitivity(self):
+        """Apply component and pipe investment-cost assumptions for the selected case."""
+        enabled = bool(self.ecoData.get("investment_sensitivity_enabled", False))
+        case = str(self.ecoData.get("investment_sensitivity_case", "mean")).strip().lower()
+        if case not in {"min", "mean", "max"}:
+            raise ValueError("investment_sensitivity_case must be 'min', 'mean', or 'max'.")
+        if not enabled:
+            case = "mean"
+
+        self.ecoData["investment_sensitivity_case"] = case
+        self.ecoData["investment_sensitivity_cases"] = ["min", "mean", "max"] if enabled else ["mean"]
+
+        self._scale_device_costs(self.central_device_data, case)
+        self._scale_device_costs(self.decentral_device_data, case)
+
+        substation_uncertainty_percent = float(self.heat_grid_data.get("C_subst_uncertainty", 0.0))
+        if not 0.0 <= substation_uncertainty_percent <= 100.0:
+            raise ValueError("Substation cost uncertainty must be a percent value between 0 and 100.")
+
+        substation_uncertainty = substation_uncertainty_percent / 100.0
+        substation_multipliers = {
+            "min": max(0.0, 1.0 - substation_uncertainty),
+            "mean": 1.0,
+            "max": 1.0 + substation_uncertainty,
+        }
+        for key in ["C_subst", "cost_om_subst"]:
+            base_value = float(self.heat_grid_data.setdefault(f"{key}_mean", self.heat_grid_data[key]))
+            self.heat_grid_data[f"{key}_min"] = base_value * substation_multipliers["min"]
+            self.heat_grid_data[f"{key}_max"] = base_value * substation_multipliers["max"]
+            self.heat_grid_data[key] = base_value * substation_multipliers[case]
+
+        self._select_pipe_construction_costs(case)
 
     def select_plz_data(self):
         """
@@ -1728,13 +1825,14 @@ class Datahandler:
 
         # optionally save generation profiles
         if saveGenerationProfiles == True:
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralPV.csv'),
+            output_name = self.output_scenario_name
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralPV_{output_name}.csv'),
                        self.centralDevices["generation"]["PV"],
                        delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralSTC.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralSTC_{output_name}.csv'),
                        self.centralDevices["generation"]["STC"],
                        delimiter=',')
-            np.savetxt(os.path.join(self.resultPath, 'generation', 'centralWind.csv'),
+            np.savetxt(os.path.join(self.resultPath, 'generation', f'centralWind_{output_name}.csv'),
                        self.centralDevices["generation"]["Wind"],
                        delimiter=',')
 
@@ -2075,7 +2173,7 @@ class Datahandler:
         None.
         """
 
-        with open(self.resultPath + "/" + self.scenario_name + ".p", 'wb') as fp:
+        with open(self.resultPath + "/" + self.output_scenario_name + ".p", 'wb') as fp:
             pickle.dump(self.district, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
     def loadDistrict(self, scenario_name='example'):
@@ -2190,7 +2288,7 @@ class Datahandler:
                 eh_results = opti_central.get_profiles_eh(result, data=self)
                 eh_dir = os.path.join(self.resultPath, 'EnergyHub')
                 os.makedirs(eh_dir, exist_ok=True)
-                csv_filepath = os.path.join(eh_dir, f"{self.scenario_name}_eh_profiles_year_{year}_cluster_{cluster}.csv")
+                csv_filepath = os.path.join(eh_dir, f"{self.output_scenario_name}_eh_profiles_year_{year}_cluster_{cluster}.csv")
                 eh_results.to_csv(csv_filepath, index=False, sep=';', decimal='.')
 
 
@@ -2215,7 +2313,16 @@ class Datahandler:
         observation_time = self.ecoData["observation_time"]
 
         # select the relevant subset of ecoData for optimization
-        single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
+        single_value_keys = [
+            'num_interpolation_points',
+            'interpolation_points',
+            'observation_time',
+            'interest_rate',
+            'optimization_focus',
+            'investment_sensitivity_enabled',
+            'investment_sensitivity_case',
+            'investment_sensitivity_cases',
+        ]
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
         # All keys that have co2 in name are undiscounted
@@ -2301,7 +2408,8 @@ class Datahandler:
         None.
         """
         # get the input data for the optimizer
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        scenario_input_name = self.input_scenario_name or self.scenario_name
+        json_path = os.path.join(self.scenario_file_path, f"{scenario_input_name}.json")
 
         # only get the position of buildings connected to the heat grid
         buildings_info = []
@@ -2365,7 +2473,8 @@ class Datahandler:
                 buildings_info.append(building_dict)
                 i += 1
 
-        with open(os.path.join(self.scenario_file_path, f"{self.scenario_name}.json"), encoding="utf-8") as json_file:
+        scenario_input_name = self.input_scenario_name or self.scenario_name
+        with open(os.path.join(self.scenario_file_path, f"{scenario_input_name}.json"), encoding="utf-8") as json_file:
             jsonData = json.load(json_file)
         lines_info = jsonData["values"]["lines_info"]
         transformer_info = jsonData["values"]["energy_hub"]
@@ -2404,7 +2513,8 @@ class Datahandler:
             self.designNetworkwithRoad()
 
         # get topology filename
-        json_path = os.path.join(self.scenario_file_path, f"{self.scenario_name}.json")
+        scenario_input_name = self.input_scenario_name or self.scenario_name
+        json_path = os.path.join(self.scenario_file_path, f"{scenario_input_name}.json")
         if os.path.exists(json_path):
             district_type = self.site["district_parameters"]["district_type"]
         else:

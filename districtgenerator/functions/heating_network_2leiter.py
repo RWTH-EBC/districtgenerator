@@ -970,6 +970,7 @@ def plot_network_results_2leiter(data, param):
     """
 
     dir_result = param["dir_result"]
+    output_name = getattr(data, "output_scenario_name", data.scenario_name)
     os.makedirs(dir_result, exist_ok=True)
 
     rho_f = data.heat_grid_data["fluid"]["rho_f"]
@@ -1049,7 +1050,7 @@ def plot_network_results_2leiter(data, param):
         fig,
         ax,
         "Labeled by Pipe ID",
-        f"pipeline_id_{data.scenario_name}"
+        f"pipeline_id_{output_name}"
     )
 
     # -------------------------------------------------------------------------
@@ -1083,7 +1084,7 @@ def plot_network_results_2leiter(data, param):
         fig,
         ax,
         "Diameter",
-        f"pipeline_diameter_{data.scenario_name}"
+        f"pipeline_diameter_{output_name}"
     )
 
     # -------------------------------------------------------------------------
@@ -1141,7 +1142,7 @@ def plot_network_results_2leiter(data, param):
         fig,
         ax,
         "Maximum velocity (m/s)",
-        f"pipeline_velocity_max_{data.scenario_name}"
+        f"pipeline_velocity_max_{output_name}"
     )
 
     # -------------------------------------------------------------------------
@@ -1175,7 +1176,7 @@ def plot_network_results_2leiter(data, param):
         fig,
         ax,
         "Maximum pressure drop (Pa/m)",
-        f"pipeline_pressure_drop_max_{data.scenario_name}"
+        f"pipeline_pressure_drop_max_{output_name}"
     )
 
     # -------------------------------------------------------------------------
@@ -1221,7 +1222,7 @@ def plot_network_results_2leiter(data, param):
         fig,
         ax,
         "Energy density (MWh/m)",
-        f"pipeline_energy_density_{data.scenario_name}"
+        f"pipeline_energy_density_{output_name}"
     )
 
     # -------------------------------------------------------------------------
@@ -1267,7 +1268,7 @@ def plot_network_results_2leiter(data, param):
         fig,
         ax,
         "Heat loss density (MWh/m)",
-        f"pipeline_heat_loss_density_{data.scenario_name}"
+        f"pipeline_heat_loss_density_{output_name}"
     )
 
     print("Network plots saved to:", dir_result)
@@ -1276,6 +1277,7 @@ def plot_network_results_2leiter(data, param):
 
 def compute_and_save_network_costs_2leiter(data, param):
     """Compute annualized network costs and save heat_grid_parameters_outputs.json."""
+    output_name = getattr(data, "output_scenario_name", data.scenario_name)
 
     buildings_connected = [
         b for b in data.district
@@ -1370,7 +1372,7 @@ def compute_and_save_network_costs_2leiter(data, param):
     ax.set_ylabel("Annual costs (€/a)")
     ax.set_title("Annual Cost Stacked Chart")
     ax.set_xticks(x)
-    ax.set_xticklabels([f"{data.scenario_name}"])
+    ax.set_xticklabels([f"{output_name}"])
     ax.legend(
         wrapped_labels,
         bbox_to_anchor=(1.05, 1),
@@ -1382,7 +1384,7 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     base = os.path.join(
         param["dir_result"],
-        f"network_cost_stack_{data.scenario_name}"
+        f"network_cost_stack_{output_name}"
     )
 
     plt.savefig(base + ".png", bbox_inches="tight")
@@ -1405,7 +1407,7 @@ def compute_and_save_network_costs_2leiter(data, param):
 
     # Save
     save_dir = param["dir_result"]
-    save_path = os.path.join(save_dir, f"temperature_EH_{data.scenario_name}.png")
+    save_path = os.path.join(save_dir, f"temperature_EH_{output_name}.png")
 
     os.makedirs(save_dir, exist_ok=True)
 
@@ -1912,7 +1914,8 @@ def prepare_result_folder(data, param):
     os.makedirs(dir_dia, exist_ok=True)
 
     topology = data.heat_grid_data["topology_option"]
-    result_folder = f"{data.scenario_name}_{topology}_simple_2leiter"
+    output_name = getattr(data, "output_scenario_name", data.scenario_name)
+    result_folder = f"{output_name}_{topology}_simple_2leiter"
     dir_result = os.path.join(dir_dia, result_folder)
     os.makedirs(dir_result, exist_ok=True)
 
