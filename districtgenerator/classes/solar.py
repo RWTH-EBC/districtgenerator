@@ -494,6 +494,8 @@ class Sun:
         generation_STC : array_like
             Power profiles of STCs. With given weather data as input the unit is [W].
         """
+        if type(area_roof) != list:
+            area_roof = [area_roof]
 
         num_segments = len(area_roof)
         assert len(betas) == num_segments and len(gammas) == num_segments, \
