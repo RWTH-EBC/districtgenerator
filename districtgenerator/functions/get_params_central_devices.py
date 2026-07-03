@@ -52,29 +52,33 @@ def get_params(data):
     dem_uncl = {}
 
     # Initialize demands time series
-    heating = np.zeros(len(data.district[0]["user"].heat))
+    # electricityAppliances = np.zeros(len(data.district[0]["user"].elec))
+    # electricityEV = np.zeros(len(data.district[0]["user"].EV_carcharging_ondemand))
+    # generationPV = np.zeros(len(data.district[0]["user"].generationPV))
     cooling = np.zeros(len(data.district[0]["user"].cooling))
-    dhw = np.zeros(len(data.district[0]["user"].dhw))
-    electricityAppliances = np.zeros(len(data.district[0]["user"].elec))
-    electricityEV = np.zeros(len(data.district[0]["user"].EV_carcharging_ondemand))
-    generationPV = np.zeros(len(data.district[0]["user"].generationPV))
-    generationSTC = np.zeros(len(data.district[0]["user"].generationSTC))
+    net_heat_demand = np.zeros(len(data.district[0]["user"].heat))
 
     for b in range(len(data.district)):
         # Only relevant if buildings are connected to the heat grid
         if data.district[b]["buildingFeatures"]["heater"] == "heat_grid":
-            heating += data.district[b]["user"].heat / 1000 # kW
+            local_heat = data.district[b]["user"].heat / 1000 # kW
+            local_dhw = np.zeros_like(data.district[b]["user"].dhw)
+            if data.district[b]["buildingFeatures"]["dhw_heater"] == None: # Only if not a seperate dhw heater is present the dhw demand is relevant for the heat grid
+                local_dhw = data.district[b]["user"].dhw / 1000 # kW
+                
+            local_stc = data.district[b]["user"].generationSTC / 1000 # kW
+            local_net_demand = np.maximum(0, local_heat + local_dhw - local_stc) # Unidirectional flow assumption: Local excess heat through STC cannot be fed into the heat grid
+
+            net_heat_demand += local_net_demand
             cooling += data.district[b]["user"].cooling / 1000 # kW
-            if data.district[b]["buildingFeatures"]["dhw_heater"] == None: # If DHW is not generated decentralized then consider it during sizing of the energy central
-                dhw += data.district[b]["user"].dhw / 1000 # kW
-            generationSTC += data.district[b]["user"].generationSTC / 1000 # kW
 
-        # Electricity generated or used by the Energy Hub can be used or provided by all buildings
-        electricityAppliances += data.district[b]["user"].elec / 1000 # kW
-        electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
-        generationPV += data.district[b]["user"].generationPV / 1000 # kW
+        # Electricity generated or used by the Energy Hub can be used or provided by all buildings 
+        #! As currently not a proper energy sharing model is implemented and demands are not correct as they are influenced by decentral devices behavior, these are not considered for sizing
+        # electricityAppliances += data.district[b]["user"].elec / 1000 # kW
+        # electricityEV += data.district[b]["user"].EV_carcharging_ondemand / 1000 # kW
+        # generationPV += data.district[b]["user"].generationPV / 1000 # kW
 
-    heating_total = heating + dhw + heat_grid_data["total_losses_heating_network"] - generationSTC
+    heating_total = net_heat_demand + heat_grid_data["total_losses_heating_network"]
 
     if "total_losses_cooling_network" not in heat_grid_data:
         data.heat_grid_data["total_losses_cooling_network"] = np.zeros_like(cooling)
@@ -84,7 +88,7 @@ def get_params(data):
     if "pump_power" not in heat_grid_data:
         data.heat_grid_data["pump_power"] = np.zeros_like(cooling)
     pump_power = data.heat_grid_data["pump_power"]
-    electricity_total = electricityAppliances + electricityEV - generationPV + pump_power
+    electricity_total = pump_power # + electricityAppliances + electricityEV - generationPV # Only consider pump_power for now
 
     dem_uncl["heat"] = heating_total
     dem_uncl["cool"] = cooling_total
