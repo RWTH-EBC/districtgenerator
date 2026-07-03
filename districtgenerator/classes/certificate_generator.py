@@ -1264,7 +1264,8 @@ class YearlyStackedBarCharts(BaseReportFlowable):
                     self.translate("name_biomass"): "biomass",
                     self.translate("name_district_heat"): "district_heat",
                     self.translate("name_hydrogen"): "hydrogen",
-                    self.translate("name_feed_in_revenue"): "revenue_feed_in_el"
+                    self.translate("name_feed_in_revenue"): "revenue_feed_in_el",
+                    self.translate("name_shared_el_fee"): "shared_el"
                 }
                 
                 # Check if the exact string exists in mapping
@@ -2818,7 +2819,8 @@ class DataExtractor(ReportComponent):
                 self.translate("name_biomass"): round(costs["biomass"], 0),
                 self.translate("name_district_heat"): round(costs["district_heat"], 0),
                 self.translate("name_hydrogen"): round(costs["hydrogen"], 0),
-                self.translate("name_feed_in_revenue"): round(costs["revenue_feed_in_el"], 0)
+                self.translate("name_feed_in_revenue"): round(costs["revenue_feed_in_el"], 0),
+                self.translate("name_shared_el_fee"): round(costs["shared_el_costs_buildings"], 0)
             })
 
             # Fetch CO2 breakdown

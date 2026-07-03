@@ -533,6 +533,25 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.total_oil_used = pyo.Var(within=pyo.NonNegativeReals)
     model.total_district_heat_used = pyo.Var(within=pyo.NonNegativeReals)
 
+    # Track directional energy flows to allow proper Handling of Energy Sharing prices.
+    model.P_grid_to_bldg = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power from external grid to buildings")
+    model.P_bldg_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power from buildings to external grid")
+    model.P_grid_to_eh = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power from external grid to EH")
+    model.P_eh_to_grid = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power from EH to external grid")
+
+    # Energy Sharing
+    model.P_bldg_to_bldg = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power directly shared between buildings (Energy Sharing)")
+    model.P_bldg_to_eh = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power from buildings to EH (Energy Sharing)")
+    model.P_eh_to_bldg = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Power from EH to buildings (Energy Sharing)")
+
+    # Shared Electricity variables for energy sharing within the neighborhood
+    model.power_shared = pyo.Var(model.t, within=pyo.NonNegativeReals, doc="Internally shared power")
+    model.total_shared_el = pyo.Var(within=pyo.NonNegativeReals, doc="Total internally shared energy")
+
+    # Electricity costs/earnings of the neighborhood
+    model.electricity_costs_neighborhood = pyo.Var(within=pyo.Reals, doc="Total electricity costs/earnings of the neighborhood")
+
+
     # daily peak
     model.daily_peak = pyo.Var(model.days, within=pyo.Reals)
     model.peaksum = pyo.Var(within=pyo.Reals)
@@ -1121,7 +1140,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def hline_binary2_rule(model, n, t):
         return model.res_dom_feed[n, t] <= (1 - model.binary_HLINE[n, t]) * (siteData["buildingMax_W"] if siteData["enable_buildingMax_W"] else BIG_M)
 
-    # Residual loads of the district
+    # Residual loads of the districts buildings
     def residual_power_rule(model, t):
         return model.residual_power[t] == sum(model.res_dom_power[n, t] for n in model.n)
 
@@ -1365,24 +1384,8 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.eh_waste_balance = pyo.Constraint(model.t, rule=eh_waste_balance_rule, doc="EnergyHub_waste_balance")
 
     ################################################################################
-    # NEIGHBORHOOD ENERGY BALANCES
+    # NEIGHBORHOOD ENERGY BALANCES (Without Electricity)
     ################################################################################
-
-    # Electricity balance neighborhood (Power balance in Watt)
-    def neighborhood_elec_balance_rule(model, t):
-        return (model.residual_feed[t] + model.power_from_grid[t] + model.eh_power_to_grid[t]
-                == model.residual_power[t] + model.power_to_grid[t] + model.eh_power_from_grid[t])
-
-    def trafo_binary1_rule(model, t):
-        return model.power_from_grid[t] <= model.yTrafo[t] * (siteData["trafoMax_W"] if siteData["enable_trafoMax_W"] else BIG_M)
-
-    def trafo_binary2_rule(model, t):
-        return model.power_to_grid[t] <= (1 - model.yTrafo[t]) * (siteData["trafoMax_W"] if siteData["enable_trafoMax_W"] else BIG_M)
-
-    model.neighborhood_elec_balance = pyo.Constraint(model.t, rule=neighborhood_elec_balance_rule,
-                                                     doc="Power_balance_neighborhood")
-    model.trafo_binary1 = pyo.Constraint(model.t, rule=trafo_binary1_rule, doc="Power_limitation_from_grid")
-    model.trafo_binary2 = pyo.Constraint(model.t, rule=trafo_binary2_rule, doc="Power_limitation_to_grid")
 
     # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
     def eh_heat_supply_rule(model, t): #TODO: Why not equal?
@@ -1434,6 +1437,96 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.neighborhood_waste_balance = pyo.Constraint(model.t, rule=neighborhood_waste_balance_rule,
                                                       doc="Waste_balance_neighborhood")
     model.neighborhood_district_heat = pyo.Constraint(model.t, rule=neighborhood_district_heat_rule, doc="District_heat_balance_neighborhood")
+
+    ################################################################################
+    # %% Electricity balance of the neighborhood
+    ################################################################################
+
+    def bldg_demand_split_rule(model, t):
+        """Building demand is met by external grid, Energy Hub, and other buildings."""
+        return model.residual_power[t] == model.P_grid_to_bldg[t] + model.P_eh_to_bldg[t] + model.P_bldg_to_bldg[t]
+
+    def bldg_feed_split_rule(model, t):
+        """Building feed-in goes to external grid, Energy Hub, and other buildings."""
+        return model.residual_feed[t] == model.P_bldg_to_grid[t] + model.P_bldg_to_eh[t] + model.P_bldg_to_bldg[t]
+
+    def eh_demand_split_rule(model, t):
+        """Energy Hub demand is met by external grid and buildings."""
+        return model.eh_power_from_grid[t] == model.P_grid_to_eh[t] + model.P_bldg_to_eh[t]
+
+    def eh_feed_split_rule(model, t):
+        """Energy Hub feed-in goes to external grid and buildings."""
+        return model.eh_power_to_grid[t] == model.P_eh_to_grid[t] + model.P_eh_to_bldg[t]
+
+    def power_shared_rule(model, t):
+        """Total locally shared power includes EH-Building, Building-EH, and Building-Building flows."""
+        return model.power_shared[t] == model.P_eh_to_bldg[t] + model.P_bldg_to_eh[t] + model.P_bldg_to_bldg[t]
+    
+
+    model.bldg_demand_split = pyo.Constraint(model.t, rule=bldg_demand_split_rule)
+    model.bldg_feed_split = pyo.Constraint(model.t, rule=bldg_feed_split_rule)
+    model.eh_demand_split = pyo.Constraint(model.t, rule=eh_demand_split_rule)
+    model.eh_feed_split = pyo.Constraint(model.t, rule=eh_feed_split_rule)
+    model.power_shared_constraint = pyo.Constraint(model.t, rule=power_shared_rule)
+
+
+    ################################################################################
+    # %% Electricity power exchange constraints
+    ################################################################################
+    
+    # It needs to be ensured that the power exchange with the grid is within the limits of the transformer.
+    def trafo_and_gcp_block_rule(block, t):
+        """Block for transformer limits and global grid connection point balance."""
+        m = block.model()
+        trafo_limit = siteData["trafoMax_W"] if siteData["enable_trafoMax_W"] else BIG_M
+
+        block.trafo_import_limit = pyo.Constraint(
+            expr = m.power_from_grid[t] <= m.yTrafo[t] * trafo_limit
+        )
+
+        block.trafo_export_limit = pyo.Constraint(
+            expr = m.power_to_grid[t] <= (1 - m.yTrafo[t]) * trafo_limit
+        )
+
+        total_import = m.P_grid_to_bldg[t] + m.P_grid_to_eh[t]
+        total_export = m.P_bldg_to_grid[t] + m.P_eh_to_grid[t]
+        
+        block.gcp_net_balance = pyo.Constraint(
+            expr = m.power_from_grid[t] - m.power_to_grid[t] == total_import - total_export
+        )
+    
+    def disable_energy_sharing_rule(block, t):
+        """Forces all sharing flows to zero if energy sharing is disabled."""
+        m = block.model()
+        block.no_bldg_to_bldg = pyo.Constraint(expr=m.P_bldg_to_bldg[t] == 0)
+        block.no_bldg_to_eh = pyo.Constraint(expr=m.P_bldg_to_eh[t] == 0)
+        block.no_eh_to_bldg = pyo.Constraint(expr=m.P_eh_to_bldg[t] == 0)
+
+    def eh_passthrough_block_rule(block, t):
+        """Prevent the energy hub from passing through electricity from the grid to the buildings.""" 
+        # TODO: CHECK THIS RULE. IT IS ASSUMED BATTERY CAN ONLY BE CHARGED FROM EH GENERATION NOT FROM GRID. 
+        # TODO: CURRENTLY ENERGY SHARING OF ALL GENERATION IS ALLOWED. NOT ONLY FROM RENEWABLES.
+        m = block.model()
+
+        # Internal load of the energy hub that is allowed to be met by grid electricity. Does not allow charging of EH Battery from the grid, as this could be used to bypass the restriction of no export to buildings.
+        eh_internal_load = (m.eh_power_HP[t] + m.eh_power_GroundHP[t] + m.eh_power_EB[t] + 
+                            m.eh_power_CC[t] + m.eh_power_ELYZ[t] + 
+                            m.network_pump_power[t])
+        
+        block.prevent_grid_loophole = pyo.Constraint(
+            expr=m.eh_power_from_grid[t] <= eh_internal_load # cannot import more electricity from the grid than what is needed for the direct consumption. 
+        )
+
+    model.trafo_and_gcp_block = pyo.Block(model.t, rule=trafo_and_gcp_block_rule, doc="Transformer limits and GCP net balance block")
+
+    if not ecoData["allow_eh_el_passthrough"]: # When no pass through is allowed the rule is applied
+        model.eh_passthrough_rule = pyo.Block(model.t, rule=eh_passthrough_block_rule)
+    
+    if not ecoData["allow_energy_sharing"]: # If no energy sharing is allowed the rule is applied
+        model.disable_energy_sharing_block = pyo.Block(model.t, rule=disable_energy_sharing_rule)
+
+
+
     ################################################################################
     # %% Summation of energy sources
     ################################################################################
@@ -1462,17 +1555,25 @@ def build_model(model, data, year, cluster, sim_ecoData):
     def total_district_heat_used_rule(model):
         return model.total_district_heat_used == dt * sum(model.power_district_heating_import[t] for t in model.t) / 1000
 
-    def to_grid_total_el_buildings_rule(model):
-        return model.to_grid_total_el_buildings == dt * sum(model.res_dom_feed[n, t] for n in model.n for t in model.t) / 1000
-
     def from_grid_total_el_buildings_rule(model):
-        return model.from_grid_total_el_buildings == dt * sum(model.res_dom_power[n, t] for n in model.n for t in model.t) / 1000
-
-    def to_grid_total_el_eh_rule(model):
-        return model.to_grid_total_el_eh == dt * sum(model.eh_power_to_grid[t] for t in model.t) / 1000
-
+        """Total electricity imported from the grid to the buildings in kWh."""
+        return model.from_grid_total_el_buildings == dt * sum(model.P_grid_to_bldg[t] for t in model.t) / 1000
+    
+    def to_grid_total_el_buildings_rule(model):
+        """Total electricity exported to the grid from the buildings in kWh."""
+        return model.to_grid_total_el_buildings == dt * sum(model.P_bldg_to_grid[t] for t in model.t) / 1000
+    
     def from_grid_total_el_eh_rule(model):
-        return model.from_grid_total_el_eh == dt * sum(model.eh_power_from_grid[t] for t in model.t) / 1000
+        """Total electricity imported from the grid to the Energy Hub in kWh."""
+        return model.from_grid_total_el_eh == dt * sum(model.P_grid_to_eh[t] for t in model.t) / 1000
+    
+    def to_grid_total_el_eh_rule(model):
+        """Total electricity exported to the grid from the Energy Hub in kWh."""
+        return model.to_grid_total_el_eh == dt * sum(model.P_eh_to_grid[t] for t in model.t) / 1000
+    
+    def total_shared_el_rule(model):
+        """Total internally shared electricity in kWh for which a local price and fee may be applied."""
+        return model.total_shared_el == dt * sum(model.power_shared[t] for t in model.t) / 1000
 
     model.from_grid_total_gas_constraint = pyo.Constraint(rule=from_grid_total_gas_rule, doc="from_grid_total_gas")
     model.from_grid_total_el_constraint = pyo.Constraint(rule=from_grid_total_el_rule, doc="from_grid_total_el")
@@ -1481,11 +1582,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.total_biomass_used_constraint = pyo.Constraint(rule=total_biomass_used_rule, doc="total_biomass_used")
     model.total_waste_used_constraint = pyo.Constraint(rule=total_waste_used_rule, doc="total_waste_used")
     model.total_oil_used_constraint = pyo.Constraint(rule=total_oil_used_rule, doc="total_oil_used")
+    model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
+
     model.to_grid_total_el_buildings_constraint = pyo.Constraint(rule=to_grid_total_el_buildings_rule, doc="to_grid_total_el_buildings")
     model.from_grid_total_el_buildings_constraint = pyo.Constraint(rule=from_grid_total_el_buildings_rule, doc="from_grid_total_el_buildings")
     model.to_grid_total_el_eh_constraint = pyo.Constraint(rule=to_grid_total_el_eh_rule, doc="to_grid_total_el_eh")
     model.from_grid_total_el_eh_constraint = pyo.Constraint(rule=from_grid_total_el_eh_rule, doc="from_grid_total_el_eh")
-    model.total_district_heat_used_constraint = pyo.Constraint(rule=total_district_heat_used_rule, doc="total_district_heat_used")
+    model.total_shared_el_constraint = pyo.Constraint(rule=total_shared_el_rule, doc="total_shared_el")
 
     ################################################################################
     # Daily Peak Calculation
@@ -1549,12 +1652,24 @@ def build_model(model, data, year, cluster, sim_ecoData):
     # DEFINE OBJECTIVE FUNCTION
     ################################################################################
 
+    def electricity_costs_rule(model):
+        """
+        For better visualizing the electical balancing and cost calculation this is seperated into an individual function.
+        """
+    
+        return (model.electricity_costs_neighborhood 
+                == model.from_grid_total_el_buildings * ecoData["price_supply_el"] # Price for electricity imported to buildings from the grid
+                - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"] # Revenue for electricity exported from buildings to the grid
+                + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"] # Price for electricity imported to the EH from the grid
+                - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"] # Revenue for electricity exported from the EH to the grid
+                + model.total_shared_el * ecoData["price_energy_sharing_fee"] # Cost of locally shared electricity within the neighborhood. The actual price is not relevant for the optimization as it is only a cost transfer between buildings and EH.
+                )
+
     # Operational costs
     def operational_costs_rule(model):
-        return (model.operational_costs == model.from_grid_total_el_buildings * ecoData["price_supply_el"]
-                - model.to_grid_total_el_buildings * ecoData["revenue_feed_in_el"]
-                + model.from_grid_total_el_eh * ecoData["price_supply_el_eh"]
-                - model.to_grid_total_el_eh * ecoData["revenue_feed_in_el_eh"]
+        return (model.operational_costs == model.electricity_costs_neighborhood
+                
+                # Costs for energy_carriers except electricity
                 + model.from_grid_total_gas * ecoData["price_supply_gas"]
                 + model.from_grid_total_hydrogen * ecoData["price_hydrogen"]
                 + model.total_biomass_used * ecoData["price_biomass"]
@@ -1581,6 +1696,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
         elif ecoData["optimization_focus"] == 1:
             return model.obj == model.co2_total
 
+    model.electricity_costs_constraint = pyo.Constraint(rule=electricity_costs_rule, doc="Electricity_costs_calculation")
     model.operational_costs_constraint = pyo.Constraint(rule=operational_costs_rule, doc="Total_amount_operational_costs")
     model.co2_total_constraint = pyo.Constraint(rule=co2_total_rule, doc="Total_amount_CO2_emissions")
     model.obj_constraint = pyo.Constraint(rule=obj_rule, doc="Objective_function")
@@ -1633,6 +1749,7 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     results_dict["to_grid_total_el_buildings"] = pyo.value(model.to_grid_total_el_buildings)
     results_dict["from_grid_total_el_eh"] = pyo.value(model.from_grid_total_el_eh)
     results_dict["to_grid_total_el_eh"] = pyo.value(model.to_grid_total_el_eh)
+    results_dict["total_shared_el"] = pyo.value(model.total_shared_el)
 
 
     # energy imports and exports per time step in W
@@ -1640,6 +1757,7 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
     results_dict["P_inj_total"] = []
     results_dict["P_dem_gcp"] = []
     results_dict["P_inj_gcp"] = []
+    results_dict["P_shared_total"] = []
     results_dict["P_gas_total"] = []
     results_dict["P_hydrogen_total"] = []
     results_dict["P_biomass_total"] = []
@@ -1652,6 +1770,7 @@ def solve_model_and_extract_results(model, data, year, cluster, resultPath):
         results_dict["P_inj_total"].append(round(pyo.value(model.residual_feed[t]), 0))
         results_dict["P_dem_gcp"].append(round(pyo.value(model.power_from_grid[t]), 0))
         results_dict["P_inj_gcp"].append(round(pyo.value(model.power_to_grid[t]), 0))
+        results_dict["P_shared_total"].append(round(pyo.value(model.power_shared[t]), 0))
         results_dict["P_gas_total"].append(round(pyo.value(model.power_gas_from_grid[t]), 0))
         results_dict["P_hydrogen_total"].append(round(pyo.value(model.power_hydrogen_grid_import[t]), 0))
         results_dict["P_biomass_total"].append(round(pyo.value(model.power_biomass_import[t]), 0))

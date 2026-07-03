@@ -43,6 +43,8 @@ class KPIs:
         self.hydrogen_year = None
         self.oil_year = None
         self.districtHeat_year = None
+        self.shared_el_year = None
+        self.total_shared_el = None
 
         self.dcf_year = None
         self.scf_year = None
@@ -230,6 +232,7 @@ class KPIs:
         self.hydrogen_year = {}
         self.oil_year = {}
         self.districtHeat_year = {}
+        self.shared_el_year = {}
 
         self.el_dem_buildings = {}
         self.el_inj_buildings = {}
@@ -246,6 +249,7 @@ class KPIs:
             self.hydrogen_year[year] = 0
             self.oil_year[year] = 0
             self.districtHeat_year[year] = 0
+            self.shared_el_year[year] = 0
 
             self.el_dem_buildings[year] = 0
             self.el_inj_buildings[year] = 0
@@ -265,6 +269,7 @@ class KPIs:
                 self.hydrogen_year[year] += opt_res["from_grid_total_hydrogen"] * weight
                 self.oil_year[year] += opt_res["total_oil_used"] * weight
                 self.districtHeat_year[year] += opt_res["total_district_heat_used"] * weight
+                self.shared_el_year[year] += opt_res["total_shared_el"] * weight
 
                 self.el_dem_buildings[year] += opt_res["from_grid_total_el_buildings"] * weight
                 self.el_inj_buildings[year] += opt_res["to_grid_total_el_buildings"] * weight
@@ -382,17 +387,6 @@ class KPIs:
         decentral_device_data = data.decentral_device_data
         district = data.district
         physics = data.physics
-
-        #TODO: Remove the comment if not needed anymore
-        # # Count occurrences in the 'heater' column 
-        # counts = scenario['heater'].value_counts()
-
-        # # Sum the values in the 'TES', 'PV', 'STC', 'EV', and 'BAT' columns
-        # counts["TES"] = scenario.apply(lambda row: 1 if (row['f_TES'] > 0 and row['heater'] != 'heat_grid') else 0,axis=1).sum()
-        # counts["PV"] = scenario.apply(lambda row: 1 if (row['f_PV1'] > 0 or row['f_PV2'] > 0) else 0, axis=1).sum()
-        # counts["STC"] = scenario['f_STC'].apply(lambda x: 1 if x > 0 else 0).sum()
-        # counts["EV"] = sum((lambda ev: len(ev) if any(x > 0 for x in ev) else 0)(d["user"].ev_capacity)for d in district)
-        # counts["BAT"] = scenario['f_BAT'].apply(lambda x: 1 if x > 0 else 0).sum()
 
         capacities = {}
         for n in range(len(district)):
@@ -551,7 +545,8 @@ class KPIs:
                 "biomass": self.biomass_year[year] * ecoData["price_biomass"],
                 "district_heat": self.districtHeat_year[year] * ecoData["price_district_heat"],
                 "hydrogen": self.hydrogen_year[year] * ecoData["price_hydrogen"],
-                "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + self.el_inj_eh[year] * ecoData["revenue_feed_in_el_eh"])
+                "revenue_feed_in_el": -(self.el_inj_buildings[year] * ecoData["revenue_feed_in_el"] + self.el_inj_eh[year] * ecoData["revenue_feed_in_el_eh"]),
+                "shared_el_costs_buildings": self.shared_el_year[year] *  ecoData["price_energy_sharing_fee"] # Cost of energy sharing within the neighborhood
             }
 
     def calc_energy_by_device(self, data):
@@ -983,6 +978,7 @@ class KPIs:
         self.total_hydrogen = sum(self.hydrogen_year[year] * year_weights[year] for year in sorted_years) # hydrogen consumption
         self.total_oil = sum(self.oil_year[year] * year_weights[year] for year in sorted_years) # oil consumption
         self.total_districtHeat = sum(self.districtHeat_year[year] * year_weights[year] for year in sorted_years) # district heat consumption
+        self.total_shared_el = sum(self.shared_el_year[year] * year_weights[year] for year in sorted_years) # total shared electricity within the neighborhood
 
         # Calculate total CO2 emissions over all years (weighted by interval length)
         self.total_co2_all = sum(self.co2emissions[year]["total_co2"] * year_weights[year] for year in sorted_years) # total CO2 emissions
@@ -1053,6 +1049,7 @@ class KPIs:
         kpi_data_yearly["Peak to Valley (kW)"] = {year: self.peakToValley.get(year, None) for year in years}
         kpi_data_yearly["Electricity Injection to Grid (kWh/a)"] = {year: self.W_inj_GCP_year.get(year, None) for year in years}
         kpi_data_yearly["Electricity Demand from Grid (kWh/a)"] = {year: self.W_dem_GCP_year.get(year, None) for year in years}
+        kpi_data_yearly["Shared Electricity within District (kWh/a)"] = {year: self.shared_el_year.get(year, None) for year in years}
         kpi_data_yearly["Gas Consumption (kWh/a)"] = {year: self.gas_year.get(year, None) for year in years}
         kpi_data_yearly["Biomass Consumption (kWh/a)"] = {year: self.biomass_year.get(year, None) for year in years}
         kpi_data_yearly["Waste Consumption (kWh/a)"] = {year: self.waste_year.get(year, None) for year in years}

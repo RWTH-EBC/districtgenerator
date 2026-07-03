@@ -204,6 +204,11 @@ class EcoConfig(BaseSettings):
     price_supply_el_eh: str | list = [0.1590]  # Electricity price for the energy hub in €/kWh
     revenue_feed_in_el_eh: str | list = [0.0794] # Feed-in electricity price for the energy hub in €/kWh
 
+    # Energy Sharing conditions and fee
+    allow_energy_sharing: bool = False              # Allow sharing of electricity between buildings and Energyhub (if False, electricity sharing is not allowed, and all shared electricity is assumed to be sold to the grid at feed-in tariffs)
+    allow_eh_el_passthrough: bool = False           # Allow EH to simultaneously import from and export to the grid (Arbitrage)
+    price_energy_sharing_fee: str | list = [0.19516]   # Taxes, grid fees, and levies for sharing electricity in €/kWh (System fee) including Vat on these 
+    
     # gas and other fuel prices in €/kWh
     price_supply_gas: str | list = [0.1236]   # Gas price in €/kWh
     price_supply_gas_eh: str | list = [0.0820] # Gas price for the energy hub in €/kWh
@@ -232,7 +237,8 @@ class EcoConfig(BaseSettings):
                      'price_gasoline_liter', 'price_hydrogen', 'price_waste',
                      'price_biomass', 'price_oil', 'price_district_heat',
                      'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen',
-                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', mode='before')
+                     'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax', 
+                     'price_energy_sharing_fee', mode='before')
     @classmethod
     def parse_to_float_list(cls, v):
         """Convert input to list of floats"""
@@ -259,7 +265,8 @@ class EcoConfig(BaseSettings):
             'price_supply_el', 'revenue_feed_in_el', 'price_supply_el_eh', 'revenue_feed_in_el_eh',
             'price_supply_gas', 'price_supply_gas_eh', 'revenue_feed_in_gas', 'price_gasoline_liter', 'price_hydrogen',
             'price_waste', 'price_biomass', 'price_oil', 'price_district_heat',
-            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax'
+            'co2_el_grid', 'co2_gas', 'co2_biom', 'co2_hydrogen', 'co2_oil', 'co2_waste', 'co2_district_heat', 'co2_tax',
+            'price_energy_sharing_fee'
         ]
 
         for param_name in params_to_expand:
@@ -654,6 +661,7 @@ class ReportConfig(BaseSettings):
     colors__source__eh_fixed: str | Tuple[float, float, float] = "#2C3E50" # Central energy hub fixed costs
     colors__source__decentral_fixed: str | Tuple[float, float, float] = "#7F8C8D" # Decentralized fixed costs
     colors__source__revenue_feed_in_el: str | Tuple[float, float, float] = "#F10F84" # Revenue from electricity feed-in
+    colors__source__shared_el: str | Tuple[float, float, float] = "#F1C40F" # Fees for shared electricity
 
     # Colors for district layout:
     colors__layout__building_connected: str | Tuple[float, float, float] = "#2ECC71" # Color for buildings connected to the heatgrid

@@ -725,7 +725,7 @@ class Datahandler:
             building = next(b for b in self.district if b["unique_name"] == result["unique_name"])
             building["user"].elec = result["elec"]
             building["user"].dhw = result["dhw"]
-            building["user"].dhw_minutely = result.get("dhw_minutely")
+            building["user"].dhw_minutely = result["dhw_minutely"]
             building["user"].cooling = result["cooling"]
             building["user"].heat = result["heating"]
 
@@ -1462,7 +1462,7 @@ class Datahandler:
         observation_time = self.ecoData["observation_time"]
 
         # select the relevant subset of ecoData for optimization
-        single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus']
+        single_value_keys = ['num_interpolation_points','interpolation_points', 'observation_time','interest_rate', 'optimization_focus', 'allow_energy_sharing', 'allow_eh_el_passthrough']
         ecoData = {k: v for k, v in self.ecoData.copy().items() if k not in single_value_keys}
 
         # All keys that have co2 in name are undiscounted
