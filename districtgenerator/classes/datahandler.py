@@ -2283,16 +2283,7 @@ class Datahandler:
         end_time = time.time()
         print(f"\nOptimization of clusters for all simulated years completed in {end_time - start_time:.2f} seconds.")
 
-        for year, clusters in self.resultsOptimization.items():
-            for cluster, result in clusters.items():
-                eh_results = opti_central.get_profiles_eh(result, data=self)
-                eh_dir = os.path.join(self.resultPath, 'EnergyHub')
-                os.makedirs(eh_dir, exist_ok=True)
-                csv_filepath = os.path.join(eh_dir, f"{self.output_scenario_name}_eh_profiles_year_{year}_cluster_{cluster}.csv")
-                eh_results.to_csv(csv_filepath, index=False, sep=';', decimal='.')
-
-
-        # Check which clusters were unsolvable
+        # Check which clusters were unsolvable before post-processing.
         failed_optimizations = []
         for year, clusters in self.resultsOptimization.items():
             for cluster, result in clusters.items():
@@ -2306,6 +2297,20 @@ class Datahandler:
 
             error_message += "\nPlease check the corresponding 'errorfile_opti_central_*.txt' and '.ilp' files in the 'optimization_results' directory for further information."
             raise Exception(error_message)
+
+        has_heat_grid = any(
+            building["buildingFeatures"]["heater"] in ("heat_grid", "heat_grid_SH")
+            for building in self.district
+        )
+
+        if has_heat_grid:
+            for year, clusters in self.resultsOptimization.items():
+                for cluster, result in clusters.items():
+                    eh_results = opti_central.get_profiles_eh(result, data=self)
+                    eh_dir = os.path.join(self.resultPath, 'EnergyHub')
+                    os.makedirs(eh_dir, exist_ok=True)
+                    csv_filepath = os.path.join(eh_dir, f"{self.output_scenario_name}_eh_profiles_year_{year}_cluster_{cluster}.csv")
+                    eh_results.to_csv(csv_filepath, index=False, sep=';', decimal='.')
 
     def calculate_ecoData_per_cluster(self):
         ecoData = self.ecoData

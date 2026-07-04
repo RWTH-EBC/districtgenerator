@@ -59,7 +59,7 @@ def run_scenario_evaluation(
         calcUserProfiles=False,
         saveUserProfiles=False,
         topology_option=topology_option,
-        gen_cars=True
+        gen_cars=False
     )
 
     data.optimizationClusters()
