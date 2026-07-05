@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 from contextlib import redirect_stdout
 import pandas as pd
+import numpy as np
 
 # Sets of energy conversion systems in the buildings
 ECS_HEAT = ("HP", "EH", "EWH", "CHP", "BOI", "BBOI", "OBOI", "H2BOI", "STC", "DH", "heat_grid", "FC")
@@ -125,6 +126,9 @@ def build_model(model, data, year, cluster, sim_ecoData):
     energyHubData = data.centralDevices
     heatingNetworkData = data.heat_grid_data
 
+    network_model = str(heatingNetworkData.get("network_model", "2leiter")).lower()
+    is_5g_fixed = network_model == "5g_fixed"
+
     ################################################################################
     # Setting up the model
     ################################################################################
@@ -137,14 +141,49 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     T_e = siteData["T_e_cluster"][cluster]  # ambient temperature [°C]
 
-    try:
-        network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
-        network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
-        network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
-    except:
-        network_losses_heating = [0] * len(T_e)
-        network_losses_cooling = [0] * len(T_e)
-        network_pump_power = [0] * len(T_e)
+    # try:
+    #     network_losses_heating = heatingNetworkData["total_losses_heating_network_cluster"][cluster] * 1000  # W
+    #     network_losses_cooling = heatingNetworkData["total_losses_cooling_network_cluster"][cluster] * 1000  # W
+    #     network_pump_power = heatingNetworkData["pump_power_cluster"][cluster] * 1000  # W
+    # except:
+    #     network_losses_heating = [0] * len(T_e)
+    #     network_losses_cooling = [0] * len(T_e)
+    #     network_pump_power = [0] * len(T_e)
+
+
+    def _cluster_profile(key, factor=1000.0):
+        if key not in heatingNetworkData:
+            return np.zeros(len(T_e), dtype=float)
+
+        return np.asarray(heatingNetworkData[key][cluster], dtype=float) * factor
+
+
+    network_losses_heating = _cluster_profile("total_losses_heating_network_cluster")
+    network_losses_cooling = _cluster_profile("total_losses_cooling_network_cluster")
+
+    if "P_pump_cluster" in heatingNetworkData:
+        # P_pump kommt im 5G-Modell bereits in W
+        network_pump_power = _cluster_profile("P_pump_cluster", factor=1.0)
+    else:
+        # alte Konvention: pump_power_cluster in kW
+        network_pump_power = _cluster_profile("pump_power_cluster", factor=1000.0)
+
+
+    if is_5g_fixed:
+        residual_5g = _cluster_profile("eh_residual_thermal_5g_cluster")
+
+        if not np.any(residual_5g):
+            residual_5g = (_cluster_profile("net_thermal_balance_5g_cluster") + _cluster_profile("network_total_exchange_5g_cluster"))
+
+        heat_5g_from_eh = np.maximum(residual_5g, 0.0)
+        cool_5g_from_eh = np.maximum(-residual_5g, 0.0)
+        decentral_hp_power_5g = _cluster_profile("net_decentral_HP_el_5g_cluster")
+    else:
+        heat_5g_from_eh = np.zeros(len(T_e), dtype=float)
+        cool_5g_from_eh = np.zeros(len(T_e), dtype=float)
+        decentral_hp_power_5g = np.zeros(len(T_e), dtype=float)
+
+
 
     Q_DHW = {}  # DHW (domestic hot water) demand [W]
     Q_heating = {}  # space heating [W]
@@ -291,6 +330,11 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.network_losses_heating = pyo.Param(model.t, initialize=lambda m, t: network_losses_heating[t])
     model.network_losses_cooling = pyo.Param(model.t, initialize=lambda m, t: network_losses_cooling[t])
     model.network_pump_power = pyo.Param(model.t, initialize=lambda m, t: network_pump_power[t])
+
+    model.heat_5g_from_eh = pyo.Param(model.t,initialize=lambda m, t: heat_5g_from_eh[t])
+    model.cool_5g_from_eh = pyo.Param(model.t,initialize=lambda m, t: cool_5g_from_eh[t])
+    model.decentral_hp_power_5g = pyo.Param(model.t,initialize=lambda m, t: decentral_hp_power_5g[t])
+
 
     ################################################################################
     # OPERATIONAL BUILDING VARIABLES
@@ -712,6 +756,13 @@ def build_model(model, data, year, cluster, sim_ecoData):
         else:
             return (model.heat_dom_SH["heat_grid", n, t] + model.heat_dom_DHW["heat_grid", n, t] == 0) # if no local heat grid connection, no heat can be used
 
+    def cool_grid_capacity_rule(model, n, t):
+        if is_5g_fixed and heater_type(n) == "heat_grid":
+            return pyo.Constraint.Skip
+
+        return model.cool_dom["heat_grid", n, t] == 0.0
+
+
     # Application of the constraints for each device
 
     # Heat generating devices
@@ -741,6 +792,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
     model.stc_cap = pyo.Constraint(model.n, model.t, rule=stc_capacity_rule, doc="Solar thermal collector heat generation limit")
     model.pv_capacity = pyo.Constraint(model.n, model.t, rule=pv_capacity_rule, doc="PV electrical generation limit")
     model.heat_grid_capacity = pyo.Constraint(model.n, model.t, rule=heat_grid_capacity_rule, doc="Local heat grid capacity constraint")
+    model.cool_grid_capacity = pyo.Constraint(model.n, model.t, rule=cool_grid_capacity_rule, doc="Local 5G cooling grid capacity constraint")
 
     ################################################################################
     # Energy Conversion for Energyhub devices
@@ -1289,7 +1341,7 @@ def build_model(model, data, year, cluster, sim_ecoData):
                 + model.eh_power_BCHP[t] + model.eh_power_WCHP[t] + model.eh_power_FC[t] + model.eh_dch_BAT[t] +
                 model.eh_power_from_grid[t]
                 == model.eh_power_HP[t] + model.eh_power_GroundHP[t] + model.eh_power_EB[t] + model.eh_power_CC[t]
-                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t])
+                + model.eh_power_ELYZ[t] + model.eh_ch_BAT[t] + model.network_pump_power[t] + model.eh_power_to_grid[t] + model.decentral_hp_power_5g[t])
 
     # Cooling balance
     def eh_cooling_balance_rule(model, t):
@@ -1362,10 +1414,15 @@ def build_model(model, data, year, cluster, sim_ecoData):
 
     # The EH must supply the heat demand of the buildings connected to the grid and the loss of the network
     def eh_heat_supply_rule(model, t):
+        #return model.eh_heat_to_grid[t] == (model.heat_grid_demand[t] + model.network_losses_heating[t])
+        if is_5g_fixed:
+            return model.eh_heat_to_grid[t] == model.heat_5g_from_eh[t]
         return model.eh_heat_to_grid[t] == (model.heat_grid_demand[t] + model.network_losses_heating[t])
 
     # The EH must supply the cooling demand of the buildings connected to the grid
     def eh_cool_supply_rule(model, t):
+        if is_5g_fixed:
+            return model.eh_cool_to_grid[t] == model.cool_5g_from_eh[t]
         return model.eh_cool_to_grid[t] == (model.cool_grid_demand[t] + model.network_losses_cooling[t])
 
     model.heat_grid_demand_constraint = pyo.Constraint(model.t, rule=heat_grid_demand_rule, doc="Heat demand of all buildings connected to the local heat grid")

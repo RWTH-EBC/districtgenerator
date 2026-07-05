@@ -1172,7 +1172,7 @@ class CentralDeviceConfig(BaseSettings):
     EB: dict = {}
 
     # CC parameters (Chiller)
-    CC__feasible: bool = False  # Should this be considered for the central optimization.
+    CC__feasible: bool = True  # Should this be considered for the central optimization.
     CC__CCOP_feasible: bool = False  # Should it be modeled with a constant COP?
     CC__ASCC_model_feasible: bool = True  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.

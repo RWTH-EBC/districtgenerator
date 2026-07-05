@@ -145,7 +145,6 @@ def add_test_cooling_profiles_5g(
     seed : int
         Random seed for small building-specific variation.
     """
-
     T_len = len(data.heat_grid_data["T_soil"])
 
     c_f = float(data.heat_grid_data["fluid"]["c_f"])
@@ -340,6 +339,7 @@ def load_parameter_5g_fixed(data):
     param = {}
 
     heat_grid_data = data.heat_grid_data
+    heat_grid_data["network_model"] = "5g_fixed"
     T_len = len(data.heat_grid_data["T_soil"])
 
     # ------------------------------------------------------------------
