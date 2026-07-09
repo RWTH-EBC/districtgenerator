@@ -102,7 +102,7 @@ def get_params(data):
     while adjustedHorizon <= len(data.site["T_e"]):
         adjustedHorizon += clusterHorizon
     adjustedHorizon -= clusterHorizon
-    adjustedHorizon = int(adjustedHorizon)
+    adjustedHorizon = int(adjustedHorizon) # Cut off the last incomplete cluster
 
     # Collect the time series to be clustered
     time_series = [dem_uncl["heat"][0:adjustedHorizon], dem_uncl["cool"][0:adjustedHorizon], dem_uncl["power"][0:adjustedHorizon],
@@ -148,15 +148,14 @@ def get_params(data):
     param["cluster_weights"] = nc
     param["cluster_matrix"] = z
 
-    # Get sigma-function: for each day of the year, find the corresponding design day
-    # Get list of days which are used as design days
+    # Get sigma-function: For each clustered period assign the corresponding design time period used for dimensioning of the energy hub
     param["typedays"] = np.zeros(data.time["clusterNumber"], dtype = np.int32)
     n = 0
     for d in range(z.shape[0]):
         if any(z[d]):
             param["typedays"][n] = d
             n += 1
-    # Assign each day of the year to its design day
+    # Assign each period of the year to its design period
     sigma = np.zeros(z.shape[0], dtype = np.int32)
     for day in range(len(sigma)):
         d = np.where(z[:,day] == 1 )[0][0]
@@ -187,8 +186,10 @@ def get_params(data):
         all_models[key] = {
             "enabled": value.get("feasible", False),
             "CCOP_feasible": value.get("CCOP_feasible", False),
-            "ASHP_feasible": value.get("ASHP_feasible", False),
+            "ASHP_carnot_feasible": value.get("ASHP_carnot_feasible", False),
+            "ASHP_model_feasible": value.get("ASHP_model_feasible", False),
             "CSV_feasible": value.get("CSV_feasible", False),
+            "ASCC_model_feasible": value.get("ASCC_model_feasible", False),
             "eta": value.get("eta", 0) * 100,
             "life_time": value.get("life_time", 0),
             "inv_var": value.get("inv_var", 0),
@@ -324,54 +325,52 @@ def get_params(data):
 
     ### Heating and cooling ###
 
-    # Heat pump (depending on investment and COP, it can be an air source, a ground source or a default heat pump)
 
     # Ground source heat pump
-    if all_models["GroundHP"]["enabled"]:
+    devs["GroundHP"] = {
+        "feasible": all_models["GroundHP"]["enabled"],
+        "inv_var": all_models["GroundHP"]["inv_var"],
+        "inv_base": all_models["GroundHP"]["inv_base"],
+        "life_time": all_models["GroundHP"]["life_time"],
+        "cost_om": all_models["GroundHP"]["cost_om"] / 100,
+        "min_cap": all_models["GroundHP"]["min_cap"],
+        "max_cap": all_models["GroundHP"]["max_cap"],
+        "dT_min_soil": 2,                                       # K,    minimal temperature difference between soil and brine
+        "dT_evap": 5,                                           # K,    temperature difference of water in evaporator (how much the brine cools down in the evaporator)
+        "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"],    # K,    temperature difference of water in condenser (how much network's water heats up in the condenser)
+        "dT_pinch_cond": 2,                                     # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
+        "dT_pinch_evap": 2,                                     # K,    temperature difference between both fluids in the evaporator at pinch point
+        "eta_compr": 0.8,                                       # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
+        "heatloss_compr": 0.3,                                  # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
+        "COP_max": 7,                                           # ---,  maximum heat pump COP
+        "q_soil": 50,                                           # W/m,   heat flow from soil into bride per meter (VDI 4640, for lambda_soil = 2 W/mK and low full load hours, assumption: no thermal interaction between boreholes)
+        "c_borehole": 90,                                       # EUR/m, borehole costs (BMVBS)
+        "t_max": 400                                            # m,     maximum borehole depth covered by VDI4640
+        }
+    
+    # Temperatures
+    T_soil_deep = np.ones((data.time["clusterNumber"], clusterHorizon)) * 10         # deep ground temperature is assumed to be 10 °C
+    t_c_in = T_soil_deep - devs["GroundHP"]["dT_min_soil"] + 273.15                  # heat source inlet (deep soil temperature - minimal temperature difference)
+    dt_c = devs["GroundHP"]["dT_evap"]                                               # heat source temperature difference
+    t_h_in = heat_grid["T_cold_heating_network"] + 273.15                            # heat sink (Network fluid) inlet temperature
+    dt_h = devs["GroundHP"]["dT_cond"]                                               # heat sink (Network fluid) temperature spread
 
-        devs["HP"] = {
-                    "feasible": all_models["GroundHP"]["enabled"],
-                    "inv_var": all_models["GroundHP"]["inv_var"],
-                    "inv_base": all_models["GroundHP"]["inv_base"],
-                    "life_time": all_models["GroundHP"]["life_time"],
-                    "cost_om": all_models["GroundHP"]["cost_om"] / 100,
-                    "min_cap": all_models["GroundHP"]["min_cap"],
-                    "max_cap": all_models["GroundHP"]["max_cap"],
-                    "dT_min_soil": 2,                                       # K,    minimal temperature difference between soil and brine
-                    "dT_evap": 5,                                           # K,    temperature difference of water in evaporator (how much the brine cools down in the evaporator)
-                    "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"],    # K,    temperature difference of water in condenser (how much network's water heats up in the condenser)
-                    "dT_pinch_cond": 2,                                     # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
-                    "dT_pinch_evap": 2,                                     # K,    temperature difference between both fluids in the evaporator at pinch point
-                    "eta_compr": 0.8,                                       # ---,  isentropic efficiency of compression; Source: Wirtz et al. https://doi.org/10.1016/j.apenergy.2019.114158
-                    "heatloss_compr": 0.3,                                  # ---,  heat loss rate of compression; # Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes.
-                    "COP_max": 7,                                           # ---,  maximum heat pump COP
-                    "q_soil": 50,                                           # W/m,   heat flow from soil into bride per meter (VDI 4640, for lambda_soil = 2 W/mK and low full load hours, assumption: no thermal interaction between boreholes)
-                    "c_borehole": 90,                                       # EUR/m, borehole costs (BMVBS)
-                    "t_max": 400                                            # m,     maximum borehole depth covered by VDI4640
-                    }
-
-        # Temperatures
-        T_soil_deep = np.ones((data.time["clusterNumber"], clusterHorizon)) * 10         # deep ground temperature is assumed to be 10 °C
-        t_c_in = T_soil_deep - devs["HP"]["dT_min_soil"] + 273.15                  # heat source inlet (deep soil temperature - minimal temperature difference)
-        dt_c = devs["HP"]["dT_evap"]                                               # heat source temperature difference
-        t_h_in = heat_grid["T_cold_heating_network"] + 273.15                            # heat sink (Network fluid) inlet temperature
-        dt_h = devs["HP"]["dT_cond"]                                               # heat sink (Network fluid) temperature spread
-
-        # Calculate heat pump COPs for each support year (same values for all years since weather is constant)
-        COP_base = calc_COP(data, clusterHorizon, devs, "HP", [t_c_in, dt_c, t_h_in, dt_h])
-        devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+    # Calculate heat pump COPs for each support year (same values for all years since weather is constant)
+    COP_base = calc_COP(data, clusterHorizon, devs, "GroundHP", [t_c_in, dt_c, t_h_in, dt_h])
+    devs["GroundHP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
+    
+    # Heat pump (depending on investment and COP, it can be an air source or a default heat pump)
 
     # Air source heat pump
-    elif all_models["AirHP"]["enabled"]:
-
+    if all_models["HP"]["ASHP_model_feasible"]:
         devs["HP"] = {
-            "feasible": all_models["AirHP"]["enabled"],
-            "inv_var": all_models["AirHP"]["inv_var"],
-            "inv_base": all_models["AirHP"]["inv_base"],
-            "life_time": all_models["AirHP"]["life_time"],
-            "cost_om": all_models["AirHP"]["cost_om"] / 100,
-            "min_cap": all_models["AirHP"]["min_cap"],
-            "max_cap": all_models["AirHP"]["max_cap"],
+            "feasible": all_models["HP"]["enabled"],
+            "inv_var": all_models["HP"]["inv_var"],
+            "inv_base": all_models["HP"]["inv_base"],
+            "life_time": all_models["HP"]["life_time"],
+            "cost_om": all_models["HP"]["cost_om"] / 100,
+            "min_cap": all_models["HP"]["min_cap"],
+            "max_cap": all_models["HP"]["max_cap"],
             "dT_evap": 10,                                                                              # K,    temperature difference in evaporator (how much the air cools down in the evaporator); Source: JENSEN J. et al. Heat pump COP, part 2: generalized COP estimation of heat pump processes
             "dT_cond": heat_grid["T_hot_heating_network"] - heat_grid["T_cold_heating_network"],        # K,    temperature difference in condenser (how much network's fluid heats up in the condenser)
             "dT_pinch_cond": 2,                                                                         # K,    temperature difference between both fluids in the condenser at pinch point; Source: Klingebiel et al. https://doi.org/10.1016/j.enbuild.2023.113397
@@ -396,7 +395,7 @@ def get_params(data):
         devs["HP"] = {
             "feasible": all_models["HP"]["enabled"],
             "CCOP_feasible": all_models["HP"]["CCOP_feasible"],
-            "ASHP_feasible": all_models["HP"]["ASHP_feasible"],
+            "ASHP_carnot_feasible": all_models["HP"]["ASHP_carnot_feasible"],
             "CSV_feasible": all_models["HP"]["CSV_feasible"],
             "COP_const": all_models["HP"]["COP_const"],
             "inv_var": all_models["HP"]["inv_var"],
@@ -412,7 +411,7 @@ def get_params(data):
             COP_base = np.ones((data.time["clusterNumber"], clusterHorizon)) * all_models["HP"]["COP_const"]
             devs["HP"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
-        elif all_models["HP"]["ASHP_feasible"]:
+        elif all_models["HP"]["ASHP_carnot_feasible"]:
             COP_base = np.ones((data.time["clusterNumber"], clusterHorizon))
             eta_carnot = all_models["HP"]["ASHP_carnot_eff"]
             for d in range(data.time["clusterNumber"]):
@@ -444,16 +443,16 @@ def get_params(data):
     # Compression chiller
 
     # Air source compression chiller
-    if all_models["AirCC"]["enabled"]:
+    if all_models["CC"]["ASCC_model_feasible"]:
 
         devs["CC"] = {
-            "feasible": all_models["AirCC"]["enabled"],
-            "inv_var": all_models["AirCC"]["inv_var"],
-            "inv_base": all_models["AirCC"]["inv_base"],
-            "life_time": all_models["AirCC"]["life_time"],
-            "cost_om": all_models["AirCC"]["cost_om"] / 100,
-            "min_cap": all_models["AirCC"]["min_cap"],
-            "max_cap": all_models["AirCC"]["max_cap"],
+            "feasible": all_models["CC"]["enabled"],
+            "inv_var": all_models["CC"]["inv_var"],
+            "inv_base": all_models["CC"]["inv_base"],
+            "life_time": all_models["CC"]["life_time"],
+            "cost_om": all_models["CC"]["cost_om"] / 100,
+            "min_cap": all_models["CC"]["min_cap"],
+            "max_cap": all_models["CC"]["max_cap"],
             "dT_evap": heat_grid["T_hot_cooling_network"] - heat_grid["T_cold_cooling_network"],        # K,    temperature difference in evaporator (how much the cooling fluid in the network cools down in the evaporator)
             "dT_cond": 15,                                                                              # K,    temperature difference in condenser (how much the air heats up in the condenser)
             "dT_pinch_cond": 5,                                                                         # K,    temperature difference between both fluids in the condenser at pinch point
@@ -473,7 +472,7 @@ def get_params(data):
         COP_base = calc_COP(data, clusterHorizon, devs, "CC", [t_c_in, dt_c, t_h_in, dt_h])
         devs["CC"]["COP"] = {year: COP_base for year in ecoData["interpolation_points"]}
 
-    # Default compression chiller
+    # Default compression chiller (constant COP)
     else:
         devs["CC"] = {
             "feasible": all_models["CC"]["enabled"],
@@ -857,7 +856,7 @@ def calc_WT_power(devs, param, data):
         WT_power[i] = get_turbine_power(wind_speed_corr[i], power_curve)
 
     for d in range(data.time["clusterNumber"]):
-        for t in range(24*7):
+        for t in range(len(wind_speed_corr_clustered[d])):
             WT_power_clustered[d][t] = get_turbine_power(wind_speed_corr_clustered[d][t], power_curve)
 
     WT_power_norm = WT_power / 500  # power_curve with 500 kW as maximum output

@@ -623,6 +623,8 @@ class ReportConfig(BaseSettings):
     # Language
     language: str = "en" # Language for the report, selected between: "de" (German) and "en" (English).    
 
+    kpi_save_type: str = "xlsx" # File format for saving all KPIs, selected between: "xlsx" and "csv".
+
     # --- Colors Dictionary ---
     colors: dict = {} 
     colors__primary_color: str | Tuple[float, float, float] = "#368427" # Main color of the Report, Used for Frames and Lines
@@ -1128,10 +1130,11 @@ class CentralDeviceConfig(BaseSettings):
     GHP: dict = {}
 
     # HP parameters (Heat Pump)
-    HP__feasible: bool = False  # Should this be considered for the central optimization.
-    HP__CCOP_feasible: bool = True  # Should this be considered for the central optimization (constant COP).
-    HP__ASHP_feasible: bool = False  # Should this be considered for the central optimization (air source).
-    HP__CSV_feasible: bool = False  # Should this be considered for the central optimization (CSV data).
+    HP__feasible: bool = False  # Is an Heat Pump feasible?
+    HP__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    HP__ASHP_carnot_feasible: bool = False  # Should this be modeled as an Air Source Heat Pump with Carnot efficiency?
+    HP__ASHP_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
+    HP__CSV_feasible: bool = False  # Should this be modeled with a CSV file for the COP?
     HP__inv_base: float = 1110  # Unsubsidized investment in €/kW.
     HP__life_time: int = 20  # Maximum life time in years.
     HP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
@@ -1142,16 +1145,6 @@ class CentralDeviceConfig(BaseSettings):
     HP__COP_const: float = 4  # Constant Coefficient of Performance (COP).
     HP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     HP: dict = {}
-
-    # AirHP parameters (Air Source Heat Pump)
-    AirHP__feasible: bool = True  # Should this be considered for the central optimization.
-    AirHP__life_time: int = 25  # Maximum life time in years.
-    AirHP__inv_base: float = 1110  # Unsubsidized investment in €/kWth.
-    AirHP__cost_om: float = 0.033  # Cost of operation and maintenance as a percentage of investment.
-    AirHP__min_cap: float = 0  # Minimum capacity in kWth.
-    AirHP__max_cap: float = 20000  # Maximum capacity in kWth.
-    AirHP__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirHP: dict = {}
 
     # GroundHP parameters (Ground Source Heat Pump)
     GroundHP__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1175,7 +1168,9 @@ class CentralDeviceConfig(BaseSettings):
     EB: dict = {}
 
     # CC parameters (Chiller)
-    CC__feasible: bool = False  # Should this be considered for the central optimization.
+    CC__feasible: bool = False  # CC using a constant COP.
+    CC__CCOP_feasible: bool = True  # Should it be modeled with a constant COP?
+    CC__ASCC_model_feasible: bool = False  # COP model for ammonia large scale heat pumps based on DOI: 10.18462/iir.gl.2018.1386
     CC__inv_base: float = 700  # Unsubsidized investment in €/kW.
     CC__COP: float = 3.5  # Coefficient of Performance (COP).
     CC__life_time: int = 20  # Maximum life time in years.
@@ -1184,16 +1179,6 @@ class CentralDeviceConfig(BaseSettings):
     CC__max_cap: float = 500  # Maximum capacity in kW.
     CC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
     CC: dict = {}
-
-    # AirCC parameters (Air Cooled Chiller)
-    AirCC__feasible: bool = False  # Should this be considered for the central optimization.
-    AirCC__life_time: int = 20  # Maximum life time in years.
-    AirCC__inv_base: float = 700  # Unsubsidized investment in €/kW.
-    AirCC__cost_om: float = 0.02  # Cost of operation and maintenance as a percentage of investment.
-    AirCC__min_cap: float = 0  # Minimum capacity in kW.
-    AirCC__max_cap: float = 500  # Maximum capacity in kW.
-    AirCC__inv_subsidy_rate: float = 0.0  # Investment subsidy rate as a fraction of investment cost (0 to 1).
-    AirCC: dict = {}
 
     # AC parameters (Absorption Chiller)
     AC__feasible: bool = False  # Should this be considered for the central optimization.
@@ -1382,6 +1367,45 @@ class CentralDeviceConfig(BaseSettings):
                         if attr_name.startswith(prefix):
                             delattr(self, attr_name)
 
+        return self
+    
+    @model_validator(mode='after')
+    def validate_hp_cc_configuration(self) -> 'CentralDeviceConfig':
+        """Validate HP model selection after dictionaries are built."""
+        hp_dict = getattr(self, 'HP', {})
+        cc_dict = getattr(self, 'CC', {})
+        
+        if not hp_dict:
+            raise ValueError("HP configuration is missing. Ensure that the HP dictionary is built correctly.")
+        if not cc_dict:
+            raise ValueError("CC configuration is missing. Ensure that the CC dictionary is built correctly.")
+        
+        hp_flags = [
+            hp_dict.get('CCOP_feasible', False),
+            hp_dict.get('ASHP_carnot_feasible', False),
+            hp_dict.get('ASHP_model_feasible', False),
+            hp_dict.get('CSV_feasible', False)
+        ]
+        cc_flags = [
+            cc_dict.get('CCOP_feasible', False),
+            cc_dict.get('ASCC_model_feasible', False)
+        ]
+        
+        active_count_hp = sum(hp_flags)
+        active_count_cc = sum(cc_flags)
+
+        if hp_dict['feasible'] and active_count_hp > 1:
+            raise ValueError("Only one HP model configuration can be True.")
+            
+        if hp_dict['feasible'] and active_count_hp == 0:
+            raise ValueError("If HP is feasible, at least one HP model configuration must be True.")
+        
+        if cc_dict['feasible'] and active_count_cc > 1:
+            raise ValueError("Only one CC model configuration can be True.")
+        
+        if cc_dict['feasible'] and active_count_cc == 0:
+            raise ValueError("If CC is feasible, at least one CC model configuration must be True.")
+            
         return self
 
     model_config = SettingsConfigDict(
