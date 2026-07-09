@@ -1288,7 +1288,7 @@ class KPIs:
             print(f"Unsupported file format: {file_format}")
 
 
-    def create_certificate(self, data, result_path):
+    def create_certificate(self, data, result_path, file_name=None):
         """
         Generate a certificate as PDF file with a list of KPIs and a list with building information.
 
@@ -1298,5 +1298,5 @@ class KPIs:
         - kpis: A list of strings, where each string is a KPI to be written in the document.
         """
 
-        certGenerator = CertificateBuilder(data = data, kpis=self, result_path=result_path)
+        certGenerator = CertificateBuilder(data = data, kpis=self, result_path=result_path, file_name=file_name)
         certGenerator.generate_certificate()

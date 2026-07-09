@@ -3346,7 +3346,7 @@ class CertificateBuilder(ReportComponent):
     This class orchestrates the certificate creation by setting up data, theme, initializing the PDF template, and building the story.
     """
 
-    def __init__(self, data, kpis, result_path) -> None:
+    def __init__(self, data, kpis, result_path, file_name=None) -> None:
         # Initialize and apply theme globally and load the translations dict
         self.report_config = data.report_config
         self.language = data.report_config["language"]
@@ -3361,10 +3361,18 @@ class CertificateBuilder(ReportComponent):
 
         if self.result_path is not None:
             os.makedirs(self.result_path, exist_ok=True)
-            self.outputpath = os.path.join(result_path, f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+            if file_name:
+                self.outputpath = os.path.join(result_path, f"{file_name}.pdf")
+            else:
+                self.outputpath = os.path.join(result_path, f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+
+
         else:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            self.outputpath = os.path.join(src_path, "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+            if file_name:
+                self.outputpath = os.path.join(src_path, "results", f"{file_name}.pdf")
+            else:
+                self.outputpath = os.path.join(src_path, "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
 
         margins = self.style.get_page_margins()
         self.page_margins = {
