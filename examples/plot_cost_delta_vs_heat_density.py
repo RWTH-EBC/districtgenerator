@@ -23,6 +23,16 @@ REGRESSION_TARGETS = {
     "mean": "mean_vs_mean_delta_percent",
     "upper": "max_delta_percent",
 }
+MODEL_SPECS = [
+    ("linear_density_only", "linear", False, False, False),
+    ("log_density_only", "log", False, False, False),
+    ("log_density_plus_lhd_tertile", "log", False, True, False),
+    ("log_density_times_lhd_tertile", "log", False, True, True),
+    ("log_density_plus_district", "log", True, False, False),
+]
+VALIDATION_REPEATS = 100
+VALIDATION_TEST_FRACTION = 0.20
+VALIDATION_RANDOM_SEED = 42
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS_DIR = PROJECT_ROOT / "districtgenerator" / "results" / "results_paper_2"
 DISTRICT_COLORS = {
@@ -43,6 +53,13 @@ DISPLAY_DISTRICT_LABELS = {
 TERTILE_COLORS = {"low": "#0072B2", "medium": "#E69F00", "high": "#009E73"}
 FIGURE_SIZE = (10.5, 7.0)
 BAND_ALPHA = 0.16
+MODEL_DISPLAY_NAMES = {
+    "linear_density_only": "Linear",
+    "log_density_only": "Logarithmic",
+    "log_density_plus_lhd_tertile": "Log. + density class",
+    "log_density_times_lhd_tertile": "Log. x density class",
+    "log_density_plus_district": "Log. + district type",
+}
 
 
 def apply_publication_style():
@@ -336,9 +353,8 @@ def plot_ranges(df, output_prefix):
 
     set_scientific_axes(ax)
     ax.set_title("Cost difference versus annual linear heat density")
-    ax.legend(title="District type", ncols=2, frameon=False, loc="best")
+    ax.legend(ncols=2, frameon=False, loc="best")
 
-    fig.savefig(f"{output_prefix}.png", dpi=300)
     fig.savefig(f"{output_prefix}.pdf")
     plt.close(fig)
 
@@ -367,9 +383,8 @@ def plot_points(df, output_prefix):
 
     set_scientific_axes(ax)
     ax.set_title("Cost-case pairings versus annual linear heat density")
-    ax.legend(title="District type", ncols=2, frameon=False, loc="best")
+    ax.legend(ncols=2, frameon=False, loc="best")
 
-    fig.savefig(f"{output_prefix}.png", dpi=300)
     fig.savefig(f"{output_prefix}.pdf")
     plt.close(fig)
 
@@ -484,17 +499,178 @@ def fit_ols(
     return summary, coefficients, results.params.to_dict(), results.summary().as_text()
 
 
+def regression_design_matrix(
+    df,
+    transform=None,
+    include_district=False,
+    include_lhd_tertile=False,
+    include_lhd_tertile_interaction=False,
+    columns=None,
+):
+    model_df = df.copy()
+    x_parts = [pd.Series(1.0, index=model_df.index, name="intercept")]
+    density_column = None
+    if transform is not None:
+        density_column = "density_1000_kwh_per_m" if transform == "linear" else "ln_density_kwh_per_m"
+        model_df[density_column] = density_term(model_df, transform)
+        x_parts.append(model_df[density_column])
+    if include_lhd_tertile or include_lhd_tertile_interaction:
+        tertile_dummies = pd.get_dummies(model_df["lhd_tertile"], prefix="lhd", drop_first=True, dtype=float)
+        x_parts.append(tertile_dummies)
+        if include_lhd_tertile_interaction:
+            if transform is None:
+                raise ValueError("LHD tertile interaction requires a density transform.")
+            interaction_terms = tertile_dummies.mul(model_df[density_column], axis=0)
+            interaction_terms = interaction_terms.rename(
+                columns={column: f"{density_column}_x_{column}" for column in interaction_terms.columns}
+            )
+            x_parts.append(interaction_terms)
+    if include_district:
+        x_parts.append(pd.get_dummies(model_df["district"], prefix="district", drop_first=True, dtype=float))
+    x = pd.concat(x_parts, axis=1).astype(float)
+    if columns is not None:
+        x = x.reindex(columns=columns, fill_value=0.0)
+    return x
+
+
+def repeated_train_test_validation(
+    df,
+    repeats=VALIDATION_REPEATS,
+    test_fraction=VALIDATION_TEST_FRACTION,
+    random_seed=VALIDATION_RANDOM_SEED,
+):
+    rng = np.random.default_rng(random_seed)
+    rows = []
+    n_obs = len(df)
+    n_test = max(1, int(round(n_obs * test_fraction)))
+
+    for repeat in range(repeats):
+        shuffled = rng.permutation(df.index.to_numpy())
+        test_index = shuffled[:n_test]
+        train_index = shuffled[n_test:]
+        train = df.loc[train_index].copy()
+        test = df.loc[test_index].copy()
+
+        for response_name, response_column in REGRESSION_TARGETS.items():
+            y_train = train[response_column].astype(float)
+            y_test = test[response_column].astype(float)
+            for model_name, transform, include_district, include_lhd_tertile, include_lhd_tertile_interaction in MODEL_SPECS:
+                x_train = regression_design_matrix(
+                    train,
+                    transform=transform,
+                    include_district=include_district,
+                    include_lhd_tertile=include_lhd_tertile,
+                    include_lhd_tertile_interaction=include_lhd_tertile_interaction,
+                )
+                x_test = regression_design_matrix(
+                    test,
+                    transform=transform,
+                    include_district=include_district,
+                    include_lhd_tertile=include_lhd_tertile,
+                    include_lhd_tertile_interaction=include_lhd_tertile_interaction,
+                    columns=x_train.columns,
+                )
+                result = sm.OLS(y_train, x_train).fit()
+                y_pred = result.predict(x_test)
+                residuals = y_test - y_pred
+                sse = float(np.sum(residuals**2))
+                sst = float(np.sum((y_test - y_test.mean()) ** 2))
+                rows.append(
+                    {
+                        "repeat": repeat,
+                        "model": model_name,
+                        "response": response_name,
+                        "response_column": response_column,
+                        "n_train": len(train),
+                        "n_test": len(test),
+                        "train_r2": float(result.rsquared),
+                        "test_r2": np.nan if sst == 0 else 1.0 - sse / sst,
+                        "test_mae_percent_points": float(np.mean(np.abs(residuals))),
+                        "test_rmse_percent_points": float(np.sqrt(np.mean(residuals**2))),
+                    }
+                )
+    raw = pd.DataFrame(rows)
+    summary = (
+        raw.groupby(["model", "response"], as_index=False)
+        .agg(
+            repeats=("repeat", "nunique"),
+            train_r2_mean=("train_r2", "mean"),
+            train_r2_std=("train_r2", "std"),
+            test_r2_mean=("test_r2", "mean"),
+            test_r2_std=("test_r2", "std"),
+            test_mae_mean_percent_points=("test_mae_percent_points", "mean"),
+            test_mae_std_percent_points=("test_mae_percent_points", "std"),
+            test_rmse_mean_percent_points=("test_rmse_percent_points", "mean"),
+            test_rmse_std_percent_points=("test_rmse_percent_points", "std"),
+        )
+    )
+    return raw, summary
+
+
+def leave_one_seed_out_validation(df):
+    rows = []
+    for test_index in df.index:
+        train = df.drop(index=test_index).copy()
+        test = df.loc[[test_index]].copy()
+        test_case = f"{test['district'].iloc[0]}_seed_{int(test['seed'].iloc[0])}"
+
+        for response_name, response_column in REGRESSION_TARGETS.items():
+            y_train = train[response_column].astype(float)
+            y_test = test[response_column].astype(float)
+            for model_name, transform, include_district, include_lhd_tertile, include_lhd_tertile_interaction in MODEL_SPECS:
+                x_train = regression_design_matrix(
+                    train,
+                    transform=transform,
+                    include_district=include_district,
+                    include_lhd_tertile=include_lhd_tertile,
+                    include_lhd_tertile_interaction=include_lhd_tertile_interaction,
+                )
+                x_test = regression_design_matrix(
+                    test,
+                    transform=transform,
+                    include_district=include_district,
+                    include_lhd_tertile=include_lhd_tertile,
+                    include_lhd_tertile_interaction=include_lhd_tertile_interaction,
+                    columns=x_train.columns,
+                )
+                result = sm.OLS(y_train, x_train).fit()
+                y_pred = result.predict(x_test)
+                error = float(y_test.iloc[0] - y_pred.iloc[0])
+                rows.append(
+                    {
+                        "test_case": test_case,
+                        "model": model_name,
+                        "response": response_name,
+                        "response_column": response_column,
+                        "n_train": len(train),
+                        "n_test": 1,
+                        "train_r2": float(result.rsquared),
+                        "actual": float(y_test.iloc[0]),
+                        "predicted": float(y_pred.iloc[0]),
+                        "error": error,
+                        "absolute_error": abs(error),
+                        "squared_error": error**2,
+                    }
+                )
+    raw = pd.DataFrame(rows)
+    summary = (
+        raw.groupby(["model", "response"], as_index=False)
+        .agg(
+            folds=("test_case", "nunique"),
+            train_r2_mean=("train_r2", "mean"),
+            train_r2_std=("train_r2", "std"),
+            mae_percent_points=("absolute_error", "mean"),
+            rmse_percent_points=("squared_error", lambda values: float(np.sqrt(np.mean(values)))),
+            error_std_percent_points=("error", "std"),
+        )
+    )
+    return raw, summary
+
+
 def regression_comparison(df):
     fitted_models = []
-    model_specs = [
-        ("linear_density_only", "linear", False, False, False),
-        ("log_density_only", "log", False, False, False),
-        ("log_density_plus_lhd_tertile", "log", False, True, False),
-        ("log_density_times_lhd_tertile", "log", False, True, True),
-        ("log_density_plus_district", "log", True, False, False),
-    ]
     for response_name, response_column in REGRESSION_TARGETS.items():
-        for model_name, transform, include_district, include_lhd_tertile, include_lhd_tertile_interaction in model_specs:
+        for model_name, transform, include_district, include_lhd_tertile, include_lhd_tertile_interaction in MODEL_SPECS:
             summary, coefficients, beta, model_summary_text = fit_ols(
                 df,
                 model_name=model_name,
@@ -622,7 +798,7 @@ def plot_response_band(
         color=color,
         linewidth=linewidth,
         linestyle=linestyle,
-        label=f"{label} mean fit" if label else None,
+        label=label,
     )
 
 
@@ -668,7 +844,7 @@ def plot_observations_by_tertile(ax, df, color_by_tertile, alpha=0.55):
             color=color_by_tertile[tertile],
             markeredgecolor="white",
             markeredgewidth=0.55,
-            label=f"{tertile.capitalize()} LHD",
+            label=None,
         )
 
 
@@ -859,8 +1035,6 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
     pdf_path = f"{report_prefix}.pdf"
     for old_file in Path(output_prefix).parent.glob(f"{Path(report_prefix).name}_*.svg"):
         old_file.unlink()
-    for old_file in Path(output_prefix).parent.glob(f"{Path(report_prefix).name}_*.png"):
-        old_file.unlink()
 
     districts = sorted(df["district"].unique())
     color_by_district = district_color_map(districts)
@@ -888,14 +1062,14 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
         x_global,
         linear_predictions,
         "#111111",
-        r"$q_\mathrm{L}$",
+        "Linear fit",
         linestyle="-",
         linewidth=2.4,
     )
     ax.set_title(r"Model 1: linear heat density")
     add_model_label(ax, model_r2_label(summary, "linear_density_only"))
     setup_regression_axis(ax)
-    ax.legend(title="District type", ncols=2, frameon=False, loc="lower right")
+    ax.legend(ncols=2, frameon=False, loc="lower right")
     figures.append(("01_lhd", fig))
 
     fig, ax = plt.subplots(figsize=FIGURE_SIZE, constrained_layout=True)
@@ -919,7 +1093,7 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
     ax.set_title(r"Model 2: logarithmic heat density")
     add_model_label(ax, model_r2_label(summary, "log_density_only"))
     setup_regression_axis(ax)
-    ax.legend(title="District type", ncols=2, frameon=False, loc="lower right")
+    ax.legend(ncols=2, frameon=False, loc="lower right")
     figures.append(("02_ln_lhd", fig))
 
     fig, ax = plt.subplots(figsize=FIGURE_SIZE, constrained_layout=True)
@@ -943,13 +1117,13 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
             x_tertile,
             tertile_predictions,
             color=color_by_tertile[tertile],
-            label=f"{tertile.capitalize()} tertile",
+            label="Logarithmic fit" if tertile == "low" else None,
             linewidth=2.0,
         )
     ax.set_title(r"Model 3: logarithmic heat density with density class")
     add_model_label(ax, model_r2_label(summary, "log_density_plus_lhd_tertile"))
     setup_regression_axis(ax)
-    ax.legend(title="LHD tertile", ncols=2, frameon=False, loc="lower right")
+    ax.legend(ncols=2, frameon=False, loc="lower right")
     figures.append(("03_ln_lhd_plus_lhd_tertile", fig))
 
     fig, ax = plt.subplots(figsize=FIGURE_SIZE, constrained_layout=True)
@@ -973,13 +1147,13 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
             x_tertile,
             tertile_interaction_predictions,
             color=color_by_tertile[tertile],
-            label=f"{tertile.capitalize()} tertile",
+            label="Logarithmic fit" if tertile == "low" else None,
             linewidth=2.0,
         )
     ax.set_title(r"Model 4: logarithmic heat density with class-specific slopes")
     add_model_label(ax, model_r2_label(summary, "log_density_times_lhd_tertile"))
     setup_regression_axis(ax)
-    ax.legend(title="LHD tertile", ncols=2, frameon=False, loc="lower right")
+    ax.legend(ncols=2, frameon=False, loc="lower right")
     figures.append(("04_ln_lhd_times_lhd_tertile", fig))
 
     fig, ax = plt.subplots(figsize=FIGURE_SIZE, constrained_layout=True)
@@ -1010,12 +1184,12 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
     ax.set_title(r"Model 5: logarithmic heat density with district type")
     add_model_label(ax, model_r2_label(summary, "log_density_plus_district"))
     setup_regression_axis(ax)
-    ax.legend(title="District type", ncols=2, frameon=False, loc="lower right")
+    ax.legend(ncols=2, frameon=False, loc="lower right")
     figures.append(("05_ln_lhd_plus_district_type", fig))
 
     fig, ax = plt.subplots(figsize=FIGURE_SIZE, constrained_layout=True)
     plot_observations_by_district(ax, df, color_by_district, alpha=0.35)
-    plot_response_band(ax, x_global, linear_predictions, "#111111", r"$q_\mathrm{L}$", linewidth=1.8, alpha=0.08)
+    plot_response_band(ax, x_global, linear_predictions, "#111111", "Linear fit", linewidth=1.8, alpha=0.08)
     plot_response_band(
         ax,
         x_global,
@@ -1047,7 +1221,7 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
             color=color_by_tertile[tertile],
             linewidth=1.7,
             linestyle="-.",
-            label=f"Logarithmic fit + {tertile} class",
+            label=None,
             alpha=0.08,
         )
         y_interaction = predict_log_times_tertile(
@@ -1061,7 +1235,7 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
             color=color_by_tertile[tertile],
             linewidth=1.6,
             linestyle=":",
-            label=f"Logarithmic fit x {tertile} class",
+            label=None,
         )
     for district in districts:
         sub = df[df["district"] == district]
@@ -1093,7 +1267,6 @@ def save_regression_model_report(df, output_prefix, beta_by_model, summary):
     with PdfPages(pdf_path) as pdf:
         for name, fig in figures:
             pdf.savefig(fig)
-            fig.savefig(f"{report_prefix}_{name}.png", dpi=600)
             save_presentation_svg(fig, f"{report_prefix}_{name}.svg")
             plt.close(fig)
 
@@ -1171,7 +1344,7 @@ def plot_regression_comparison(df, output_prefix, beta_by_model, summary, transf
         x_global,
         global_predictions,
         "#111111",
-        "Logarithmic trend" if transform == "log" else r"$q_\mathrm{L}$ trend",
+        "Logarithmic fit" if transform == "log" else "Linear fit",
         linestyle="--",
         linewidth=2.4,
         alpha=0.10,
@@ -1205,11 +1378,55 @@ def plot_regression_comparison(df, output_prefix, beta_by_model, summary, transf
 
     ax.set_title("Effect of annual linear heat density and district type")
     set_scientific_axes(ax)
-    ax.legend(title="District type", ncols=2, frameon=False, loc="lower right", handlelength=2.3)
+    ax.legend(ncols=2, frameon=False, loc="lower right", handlelength=2.3)
 
     regression_prefix = f"{output_prefix}_regression"
-    fig.savefig(f"{regression_prefix}.png", dpi=600)
     fig.savefig(f"{regression_prefix}.pdf")
+    plt.close(fig)
+
+
+def plot_train_test_validation(validation_summary, validation_raw, output_prefix):
+    mean_summary = validation_summary[validation_summary["response"] == "mean"].copy()
+    mean_summary["model_label"] = mean_summary["model"].map(MODEL_DISPLAY_NAMES)
+    mean_summary = mean_summary.set_index("model").loc[list(MODEL_DISPLAY_NAMES)].reset_index()
+    mean_raw = validation_raw[validation_raw["response"] == "mean"].copy()
+
+    x = np.arange(len(mean_summary))
+    colors = ["#4C78A8", "#F58518", "#54A24B", "#B279A2", "#E45756"]
+
+    fig, ax = plt.subplots(figsize=(8.6, 5.2), constrained_layout=True)
+    ax.bar(
+        x,
+        mean_summary["rmse_percent_points"],
+        color=colors,
+        alpha=0.88,
+    )
+    rng = np.random.default_rng(7)
+    for i, model in enumerate(mean_summary["model"]):
+        errors = mean_raw.loc[mean_raw["model"] == model, "absolute_error"].astype(float).to_numpy()
+        jitter = rng.uniform(-0.16, 0.16, size=len(errors))
+        ax.scatter(
+            np.full(len(errors), x[i]) + jitter,
+            errors,
+            s=24,
+            color="#1F1F1F",
+            alpha=0.62,
+            edgecolors="white",
+            linewidths=0.35,
+            zorder=3,
+        )
+    ax.set_ylabel("RMSE (percentage points)")
+    ax.set_title("Leave-one-district-seed-out validation")
+    ax.set_xticks(x)
+    ax.set_xticklabels(mean_summary["model_label"], rotation=28, ha="right")
+    ax.grid(True, axis="y", color="#D0D0D0", linewidth=0.8, alpha=0.75)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.tick_params(axis="both", which="major", length=5, width=1.0)
+
+    validation_prefix = f"{output_prefix}_leave_one_seed_out_validation"
+    fig.savefig(f"{validation_prefix}.pdf")
+    save_presentation_svg(fig, f"{validation_prefix}.svg")
     plt.close(fig)
 
 
@@ -1240,10 +1457,16 @@ def main():
     ranges, pairings = make_ranges(args.results_dir)
     ranges = add_lhd_tertiles(ranges)
     regression_summary, regression_coefficients, beta_by_model, statsmodels_summaries = regression_comparison(ranges)
+    validation_raw, validation_summary = repeated_train_test_validation(ranges)
+    loo_raw, loo_summary = leave_one_seed_out_validation(ranges)
     ranges.to_csv(f"{args.output_prefix}_ranges.csv", index=False)
     pairings.to_csv(f"{args.output_prefix}_pairings.csv", index=False)
     regression_summary.to_csv(f"{args.output_prefix}_regression_summary.csv", index=False)
     regression_coefficients.to_csv(f"{args.output_prefix}_regression_coefficients.csv", index=False)
+    validation_raw.to_csv(f"{args.output_prefix}_train_test_validation_raw.csv", index=False)
+    validation_summary.to_csv(f"{args.output_prefix}_train_test_validation_summary.csv", index=False)
+    loo_raw.to_csv(f"{args.output_prefix}_leave_one_seed_out_validation_raw.csv", index=False)
+    loo_summary.to_csv(f"{args.output_prefix}_leave_one_seed_out_validation_summary.csv", index=False)
     with open(f"{args.output_prefix}_statsmodels_summaries.txt", "w", encoding="utf-8") as file:
         for model_name, model_summary in statsmodels_summaries.items():
             file.write(f"{'=' * 100}\n")
@@ -1256,20 +1479,24 @@ def main():
     else:
         plot_ranges(ranges, args.output_prefix)
     plot_regression_comparison(ranges, args.output_prefix, beta_by_model, regression_summary)
+    plot_train_test_validation(loo_summary, loo_raw, args.output_prefix)
     save_regression_model_report(ranges, args.output_prefix, beta_by_model, regression_summary)
     print(f"Wrote {len(ranges)} seed ranges")
     print(f"Wrote {len(pairings)} cost pairings")
-    print(f"Wrote {args.output_prefix}.png")
     print(f"Wrote {args.output_prefix}.pdf")
     print(f"Wrote {args.output_prefix}_ranges.csv")
     print(f"Wrote {args.output_prefix}_pairings.csv")
-    print(f"Wrote {args.output_prefix}_regression.png")
     print(f"Wrote {args.output_prefix}_regression.pdf")
     print(f"Wrote {args.output_prefix}_regression_summary.csv")
     print(f"Wrote {args.output_prefix}_regression_coefficients.csv")
+    print(f"Wrote {args.output_prefix}_train_test_validation_raw.csv")
+    print(f"Wrote {args.output_prefix}_train_test_validation_summary.csv")
+    print(f"Wrote {args.output_prefix}_leave_one_seed_out_validation_raw.csv")
+    print(f"Wrote {args.output_prefix}_leave_one_seed_out_validation_summary.csv")
+    print(f"Wrote {args.output_prefix}_leave_one_seed_out_validation.pdf")
+    print(f"Wrote {args.output_prefix}_leave_one_seed_out_validation.svg")
     print(f"Wrote {args.output_prefix}_statsmodels_summaries.txt")
     print(f"Wrote {args.output_prefix}_regression_models.pdf")
-    print(f"Wrote {args.output_prefix}_regression_models_*.png")
     print(f"Wrote {args.output_prefix}_regression_models_*.svg")
 
 
