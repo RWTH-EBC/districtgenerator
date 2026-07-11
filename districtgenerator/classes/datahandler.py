@@ -918,7 +918,7 @@ class Datahandler:
         warnings.filterwarnings("ignore", category=FutureWarning)
 
         # Bestimme den Indikator-Dateipfad (passe die Endung ggf. an dein saveProfiles-Schema an!)
-        check_file = os.path.join(self.demands_path, f"{building['unique_name']}static.csv")
+        check_file = os.path.join(self.demands_path, f"{building['unique_name']}_static.csv")
 
         # Bedingung für das Laden existierender Profile (Hybrid-Logik)
         skip_calculation = False
@@ -1189,7 +1189,7 @@ class Datahandler:
                     ts_dict[f'Car_availability_car_{i}'] = car['availability_profile']
 
         df_ts = pd.DataFrame(ts_dict)
-        df_ts.to_csv(os.path.join(path, f"{name}_timeseries.csv"), index=False)
+        df_ts.to_csv(os.path.join(path, f"{name}_timeseries.csv"), index=False, sep=';')
 
         # Singular Data points (static)
         static_dict = {
@@ -1237,7 +1237,7 @@ class Datahandler:
         """
         ts_path = os.path.join(path, f"{name}_timeseries.csv")
         if os.path.exists(ts_path):
-            df_ts = pd.read_csv(ts_path)
+            df_ts = pd.read_csv(ts_path, sep=';')
         else:
             df_ts = pd.DataFrame()
 
