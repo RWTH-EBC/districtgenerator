@@ -67,10 +67,9 @@ def calc_costs(data):
     number_of_buildings = len(buildings_connected)
 
     # Calculate Total Building Floor Area
-    # total_building_area = 0 # unit: m²
-    # for building in buildings_connected:
-    #     total_building_area += building["buildingFeatures"].area
-    total_building_area = sum(b["buildingFeatures"]["area"] for b in buildings_connected)
+    total_building_area = 0 # unit: m²
+    for building in buildings_connected:
+        total_building_area += building["buildingFeatures"].area
 
 
     calculated_FAR = total_building_area / (AL * 10000)  # Floor Area Ratio (FAR) (deutsch: Geschossflächenzahl)

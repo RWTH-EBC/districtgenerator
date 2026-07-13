@@ -76,8 +76,11 @@ def build_model(model, data, devs, param, dem):
 
     model.clusters = pyo.RangeSet(0, data.time["clusterNumber"] - 1)
     model.time_steps = pyo.RangeSet(0, cluster_horizon - 1)
-    model.year = pyo.RangeSet(0, 51)  # 52 weeks
 
+    num_periods = len(param["sigma"]) # Use the cluster assignment to determine the number of periods in the year
+
+    model.year = pyo.RangeSet(0, num_periods - 1)
+    
     # Get sigma function that assigns each time period (day or week) to a design period
     model.sigma = pyo.Param(model.year, initialize=param["sigma"])
 
@@ -89,13 +92,13 @@ def build_model(model, data, devs, param, dem):
     model.observation_time = pyo.Param(initialize=param["observation_time"])
 
     # Create sets for all device types
-    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
+    all_devs_list = ["PV", "WT", "STC", "WAT", "HP", "GroundHP", "EB", "CC", "AC", "CHP", "BOI", "GHP",
                      "BCHP", "BBOI", "WCHP", "WBOI", "ELYZ", "FC", "H2S", "SAB", "TES",
                      "CTES", "BAT", "GS"]
 
     gas_devs_list = ["CHP", "BOI", "GHP", "SAB", "from_grid", "to_grid"]
-    power_devs_list = ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
-    heat_devs_list = ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
+    power_devs_list = ["PV", "WT", "WAT", "HP", "GroundHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]
+    heat_devs_list = ["STC", "HP", "GroundHP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]
     cool_devs_list = ["CC", "AC"]
     hydrogen_devs_list = ["ELYZ", "FC", "SAB", "import"]
     biom_devs_list = ["BCHP", "BBOI", "import"]
@@ -210,7 +213,7 @@ def build_model(model, data, devs, param, dem):
         for d in model.clusters:
             for t in model.time_steps:
                 # Add constraints for the device operation based on the device capacity
-                for dev in ["STC", "EB", "HP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
+                for dev in ["STC", "EB", "HP", "GroundHP", "BOI", "GHP", "BBOI", "WBOI"]:  # Heat devices
                     model.constraints.add(model.heat[dev, y, d, t] <= model.cap[dev])
                 for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "ELYZ", "FC"]:  # Power devices
                     model.constraints.add(model.power[dev, y, d, t] <= model.cap[dev])
@@ -254,6 +257,7 @@ def build_model(model, data, devs, param, dem):
                 model.constraints.add(model.heat["STC", y, d, t] <= devs["STC"]["norm_power_clustered"][d][t] / 1000 * model.area["STC"])
                 # Electric heat pump correlation between heat and electric power
                 model.constraints.add(model.heat["HP", y, d, t] == model.power["HP", y, d, t] * devs["HP"]["COP"][y][d][t])
+                model.constraints.add(model.heat["GroundHP", y, d, t] == model.power["GroundHP", y, d, t] * devs["GroundHP"]["COP"][y][d][t])
                 # Electric boiler correlation between heat and electric power
                 model.constraints.add(model.heat["EB", y, d, t] == model.power["EB", y, d, t] * devs["EB"]["eta_th"])
                 # Compression chiller correlation between cooling and electric power (time-dependent COP)
@@ -297,7 +301,7 @@ def build_model(model, data, devs, param, dem):
             for t in model.time_steps:
                 # Heat balance
                 heat_supply = sum(model.heat[dev, y, d, t] for dev in
-                                  ["STC", "HP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
+                                  ["STC", "HP", "GroundHP", "EB", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"])
                 heat_demand = dem["heat"][y][d][t] + model.heat["AC", y, d, t] + model.ch["TES", y, d, t]
                 model.constraints.add(heat_supply == heat_demand)
 
@@ -305,7 +309,7 @@ def build_model(model, data, devs, param, dem):
                 power_supply = sum(
                     model.power[dev, y, d, t] for dev in ["PV", "WT", "WAT", "CHP", "BCHP", "WCHP", "FC", "from_grid"])
                 power_demand = dem["power"][y][d][t] + sum(
-                    model.power[dev, y, d, t] for dev in ["HP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
+                    model.power[dev, y, d, t] for dev in ["HP", "GroundHP", "EB", "CC", "ELYZ", "to_grid"]) + model.ch["BAT", y, d, t]
                 model.constraints.add(power_supply == power_demand)
 
                 # Cooling supply and demand balance
@@ -333,9 +337,9 @@ def build_model(model, data, devs, param, dem):
     # Meet peak demands of unclustered demands to ensure the design can handle peak loads
     ################################################################################
 
-    if param["peak_dem_met_conv"] == False:
+    if param["peak_dem_met_conv"]:
         # Heating (conventional - only controllable devices)
-        model.constraints.add(model.cap["HP"] + model.cap["EB"]
+        model.constraints.add(model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                               + model.cap["BOI"]
                               + model.cap["GHP"]
@@ -360,7 +364,7 @@ def build_model(model, data, devs, param, dem):
 
     else:  # With STC, PV, WIND, HYDROPOWER (WAT)
         # Heating (with renewable sources)
-        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["EB"]
+        model.constraints.add(model.cap["STC"] + model.cap["HP"] + model.cap["GroundHP"] + model.cap["EB"]
                               + model.cap["CHP"] / devs["CHP"]["eta_el"] * devs["CHP"]["eta_th"]
                               + model.cap["BOI"]
                               + model.cap["GHP"]
@@ -405,7 +409,7 @@ def build_model(model, data, devs, param, dem):
                             dev, y, model.sigma[day_y], 0] * dt)
 
             # Cyclic year condition: For the last time step of the last day, the state of charge is based on the first time step of the first day
-            soc_last = model.soc[dev, y, 51, cluster_horizon - 1]
+            soc_last = model.soc[dev, y, num_periods - 1, cluster_horizon - 1]
             model.constraints.add(model.soc[dev, y, 0, 0] == soc_last * (1 - devs[dev]["sto_loss"]) ** dt + model.ch[
                 dev, y, model.sigma[0], 0] * dt)
 
@@ -653,179 +657,19 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
-    lp_filename = os.path.join(result_dir, "ehdo_model.lp")
-    model.write(lp_filename, io_options={"symbolic_solver_labels": True})
+    model_name = f"ehdo_model"
 
-    # temporary log-file for the solver
-    solver_log_path = os.path.join(result_dir, "solver_output_ehdo.log")
-    # Path for error file
-    errorfile_path = os.path.join(result_dir, 'errorfile_ehdo.txt')
-
-    ################################################################################
-    # Solve the Model
-    ################################################################################
-
-    solver, solver_options = solver_config.create_solver(pyomo_config=data.pyomo_config) # Adjucst Model
-    solve_start_time = time.time()
-    results = solver.solve(model, tee=False, options=solver_options)
-    # print(f"Optimization done. ({(time.time() - solve_start_time):.2f} seconds.)")
-
-    ################################################################################
-    # Check and Save Results
-    ################################################################################
-
-    # Check if solution is optimal, otherwise write an error file to help find errors
-    if results.solver.termination_condition == pyo.TerminationCondition.infeasible:
-        print(f"Model is infeasible for further analysis see {errorfile_path}")
-        n_vars = sum(1 for _ in model.component_data_objects(pyo.Var, active=True))
-        n_cons = sum(1 for _ in model.component_data_objects(pyo.Constraint, active=True))
-        with open(errorfile_path, 'w') as f:
-            f.write('Error: Model is infeasible\n')
-            f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            f.write(f"Model Statistics:\n")
-            f.write(f"  - Variables: {n_vars}\n")
-            f.write(f"  - Constraints: {n_cons}\n\n")
-            f.write(f"  - LP File: {lp_filename}\n\n")
-            try:
-                with open(solver_log_path, 'r', encoding='utf-8') as log_file:
-                    f.write("\nSolver Log:\n")
-                    f.write("-" * 40 + "\n")
-                    f.write(log_file.read())
-                    f.write("-" * 40 + "\n")
-                # Remove temporary solver log file
-                os.remove(solver_log_path)
-            except Exception as e:
-                f.write(f"\nCould not read solver log: {e}\n")
-
-        # IIS-Analysis #TODO: Needs a rework to capture the error source correctly
-        try:
-            import logging
-            # Create string buffer to capture logging
-            logging_buffer = StringIO()
-
-            # Store original logging handlers
-            root_logger = logging.getLogger()
-            original_handlers = root_logger.handlers[:]
-            original_level = root_logger.level
-
-            # Clear existing handlers temporarily
-            for handler in original_handlers:
-                root_logger.removeHandler(handler)
-
-            # Add string handler to capture only IIS output
-            string_handler = logging.StreamHandler(logging_buffer)
-            string_handler.setLevel(logging.INFO)
-            root_logger.addHandler(string_handler)
-            root_logger.setLevel(logging.INFO)
-
-            # Run IIS analysis - output goes to buffer
-            log_infeasible_constraints(model, log_expression=True, log_variables=True)
-
-            # Get captured content
-            iis_content = logging_buffer.getvalue()
-
-            # Restore logging
-            root_logger.removeHandler(string_handler)
-            for handler in original_handlers:
-                root_logger.addHandler(handler)
-            root_logger.setLevel(original_level)
-
-            # Write to error file
-            with open(errorfile_path, 'a', encoding='utf-8') as f:
-                f.write("INFEASIBLE CONSTRAINTS:\n")
-                f.write("-" * 40 + "\n")
-                if iis_content.strip():
-                    f.write(iis_content)
-                else:
-                    f.write("No IIS details captured\n")
-                f.write("-" * 40 + "\n")
-
-            print(f"Infeasibility analysis saved to {errorfile_path}")
-
-        except Exception as e:
-            # Ensure logging is restored
-            try:
-                if 'original_handlers' in locals():
-                    root_logger.removeHandler(string_handler)
-                    for handler in original_handlers:
-                        if handler not in root_logger.handlers:
-                            root_logger.addHandler(handler)
-                    root_logger.setLevel(original_level)
-            except:
-                pass
-
-            print(f"IIS analysis failed: {e}")
-
-            with open(errorfile_path, 'a') as f:
-                f.write(f"IIS analysis failed: {e}\n")
-
-        # Using Gurobi to compute a better IIS if Gurobi is available
-        import gurobipy as gp
-        gurobi_available = True
-        try: _ = gp.Env.getEnv()
-        except: gurobi_available = False
-
-        if gurobi_available:
-            model.write("debug_model.lp", io_options={'symbolic_solver_labels': True})
-            m = gp.read("debug_model.lp")
-            m.optimize()
-            if m.status == gp.GRB.INFEASIBLE or m.status == 4:
-                m.computeIIS()
-                m.write("debug_model.ilp")
-                print("IIS written to debug_model.ilp")
-                raise Exception("Model is infeasible, see errorfile for details.")
-            raise Exception(f"Model is infeasible, but gurobi could solve it. {m.status}")
-
+    results = solver_config.execute_and_diagnose(model = model, 
+                                   pyomo_config = data.pyomo_config,
+                                   model_name = model_name,
+                                   result_dir = result_dir)
+    
+    if results.solver.termination_condition != pyo.TerminationCondition.optimal:
         return None
-
-    elif results.solver.termination_condition == pyo.TerminationCondition.unbounded:
-        print("Model is unbounded")
-        with open(errorfile_path, 'w') as f:
-            f.write('Model is unbounded\n')
-        return None
-    elif results.solver.termination_condition == pyo.TerminationCondition.optimal:
-        print("Model solved to optimality")
-    else:
-        print(f"Solver status: {results.solver.termination_condition}")
-        with open(errorfile_path, 'w') as f:
-            f.write(f'Solver status: {results.solver.termination_condition}\n')
-        return None
-
-    # Remove temporary solver log file
-    if os.path.exists(solver_log_path):
-        os.remove(solver_log_path)
-
-    # Save all variable values in a solution file:
-    def write_solution_file(model, filename):
-        """
-        Write solution values to a file in a format similar to Gurobi's .sol files
-        """
-        try:
-            with open(filename, 'w') as f:
-                f.write("# Solution file\n")
-                f.write(f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"# Objective value: {pyo.value(model.objective)}\n")
-                f.write("# Variable values\n")
-
-                # Write all variable values
-                for var in model.component_objects(pyo.Var, active=True):
-                    if var.is_indexed():
-                        for index in var:
-                            if var[index].value is not None:
-                                f.write(f"{var.name}[{index}] {var[index].value:.6f}\n")
-                    else:
-                        if var.value is not None:
-                            f.write(f"{var.name} {var.value:.6f}\n")
-
-                f.write("# End of solution\n")
-            print(f"Solution written to {filename}")
-
-        except Exception as e:
-            print(f"Warning: Could not write solution file {filename}: {e}")
-        return None
-
-    solution_path = os.path.join(result_dir, 'solution_ehdo_file.txt')
-    write_solution_file(model, solution_path)
+    
+    solver_config.write_solution_file(model = model,
+                                      model_name = model_name,
+                                      result_dir = result_dir)
 
     ################################################################################
     # Post-processing and Result Extraction #! This needs to be adapted to multi-year optimization
@@ -1014,7 +858,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["power_profile_by_year"][y] = {}
         result_dict["power_kW_by_year"][y] = {}
-        for device in ["PV", "WT", "WAT", "HP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
+        for device in ["PV", "WT", "WAT", "HP", "GroundHP", "EB", "CC", "CHP", "BCHP", "WCHP", "ELYZ", "FC", "from_grid", "to_grid"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -1028,7 +872,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     for y in model.support_years:
         result_dict["heat_profile_by_year"][y] = {}
         result_dict["heat_kW_by_year"][y] = {}
-        for device in ["STC", "HP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
+        for device in ["STC", "HP", "GroundHP", "EB", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI", "FC"]:
             profile = []
             for d in model.clusters:
                 for t in model.time_steps:
@@ -1059,7 +903,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
     eps = 0.01
 
     # Heat generation
-    for k in ["STC", "HP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
+    for k in ["STC", "HP", "GroundHP", "EB", "BOI", "GHP", "BBOI", "WBOI"]:
         gen_kwh = dt * sum(safe_value(model.heat, (k, d, t)) * param["cluster_weights"][d]
                            for d in model.clusters for t in model.time_steps)
         result_dict[k]["gen_kWh"] = gen_kwh
@@ -1092,7 +936,7 @@ def solve_model_and_extract_results(data, model, devs, param, result_dict):
         result_dict[k]["gen"] = int(gen_kwh / 1000)  # MWh
 
     # Calculate full load hours
-    for k in ["PV", "WT", "WAT", "STC", "HP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
+    for k in ["PV", "WT", "WAT", "STC", "HP", "GroundHP", "EB", "CC", "AC", "CHP", "BOI", "GHP", "BCHP", "BBOI", "WCHP", "WBOI",
               "ELYZ", "FC", "SAB"]:
         cap_k = safe_value(model.cap, k)
         if cap_k > eps:

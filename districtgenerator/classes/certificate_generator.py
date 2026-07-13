@@ -2673,6 +2673,7 @@ class DataExtractor(ReportComponent):
             (self.translate("name_night_setback"), "night_setback"),
             (self.translate("name_building_area"), "area"),
             (self.translate("name_heating_tech"), "heater"),
+            (self.translate("name_dhw_heating_tech"), "dhw_heater"),
             (self.translate("name_ev_share"), "EV"),
             (self.translate("name_f_tes"), "f_TES"),
             (self.translate("name_f_bat"), "f_BAT"),
@@ -2963,29 +2964,22 @@ class DataExtractor(ReportComponent):
                 if not isinstance(config, dict):
                     continue
                 if not config.get("feasible", False):
-                    continue
-
-                if dev == "AirHP" or dev == "GroundHP":
-                    opt_key = "HP"
-                elif dev == "AirCC":
-                    opt_key = "CC"
-                else:
-                    opt_key = dev
+                    continue                
                 
                 cap = 0
                 annual_cost_sub = "-"
                 annual_cost_unsub = "-"
                 cost_unit = ""
 
-                if opt_key in capacities:
-                    spec = capacities[opt_key]
+                if dev in capacities:
+                    spec = capacities[dev]
                     cap = round(spec["cap"], 2)
                 
-                    if opt_key in self.kpis.central_individual_devices_annualized_cost:
-                        device_cost_info = self.kpis.central_individual_devices_annualized_cost[opt_key]
+                    if dev in self.kpis.central_individual_devices_annualized_cost:
+                        device_cost_info = self.kpis.central_individual_devices_annualized_cost[dev]
                         annual_cost_sub = round(device_cost_info["subsidized_annual_cost"], 2)
                         annual_cost_unsub = round(device_cost_info["unsubsidized_annual_cost"], 2)
-                        all_cost_devices.discard(opt_key) # Remove this device from the set of devices as it has been processed
+                        all_cost_devices.discard(dev) # Remove this device from the set of devices as it has been processed
                         cost_unit = " €/a"
 
 
@@ -2996,6 +2990,7 @@ class DataExtractor(ReportComponent):
 
                 if cap <= 0:
                     display_cap = not_selected_text
+                    display_unit = ""
 
                 # Append dict to the device list
                 append_energyhub_row(
@@ -3086,9 +3081,14 @@ class DataExtractor(ReportComponent):
             # 2. Format the aggregated data into a list of dictionaries for the DataFrame
             for dev_name, data in aggregated_data.items():
                 name, base_unit = self.get_decentral_device_name(dev_name)
+                
+                if "W" in base_unit:
+                    cap_for_determination = data['total_cap'] * 1000 # For devices with power or energy units the conversion requires W or Wh as input
+                else:
+                    cap_for_determination = data['total_cap']
 
-                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=data['total_cap']*1000, base_unit=base_unit) # Input cap is in kW, convert to W for unit determination
-                total_power = f"{total_cap_adjusted} {total_unit_adjusted}".strip()
+                total_cap_adjusted, total_unit_adjusted = self._determine_unit(cap=cap_for_determination, base_unit=base_unit)
+                total_power = f"{total_cap_adjusted} {total_unit_adjusted}".strip()  
 
                 cost = round(data['total_cost'], 2)
                 if cost == 0:
@@ -3199,17 +3199,16 @@ class DataExtractor(ReportComponent):
             "CTES": "Wh<sub>th</sub>",
             "BAT": "Wh<sub>el</sub>",
             "GS": "Wh",
-            "PV": "W<sub>el</sub>",
-            "WT": "W<sub>el</sub>",
+            "PV": "Wp<sub>el</sub>",
+            "WT": "Wp<sub>el</sub>",
             "WAT": "W<sub>el</sub>",
             "CHP": "W<sub>el</sub>",
             "BCHP": "W<sub>el</sub>",
             "WCHP": "W<sub>el</sub>",
             "ELYZ": "W<sub>el</sub>",
             "FC": "W<sub>el</sub>",
-            "STC": "W<sub>th</sub>",
+            "STC": "Wp<sub>th</sub>",
             "HP": "W<sub>th</sub>",
-            "AirHP": "W<sub>th</sub>",
             "GroundHP": "W<sub>th</sub>",
             "EB": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
@@ -3238,7 +3237,8 @@ class DataExtractor(ReportComponent):
 
         device_unit_map = { 
             "BAT": "Wh<sub>el</sub>",
-            "TES": "Wh<sub>th</sub>",
+            "TES": "l",
+            "TES_DHW": "l",
             "EV": "Wh<sub>el</sub>",
             "STC": "m²",
             "PV": "m²",
@@ -3246,6 +3246,7 @@ class DataExtractor(ReportComponent):
             "HP35": "W<sub>th</sub>",
             "HP55": "W<sub>th</sub>",
             "EH": "W<sub>th</sub>",
+            "EH_DHW": "W<sub>th</sub>",
             "CHP": "W<sub>th</sub>",
             "BOI": "W<sub>th</sub>",
             "BBOI": "W<sub>th</sub>",
@@ -3265,29 +3266,37 @@ class DataExtractor(ReportComponent):
     @staticmethod
     def _determine_unit(cap: float, base_unit: str) -> tuple[float, str]:
         """
-        Determines the appropriate unit (kW, MW, kWh, MWh) based on the capacity value and the base unit. Input cap is expected to be in kW or kWh.
+        Determines the appropriate unit (kW, MW, GW) based on the capacity value and the base unit. 
+        Input cap is expected to be in W/Wh/m²/l.
 
         Args:
-            cap (float): The capacity value for capacity value in W/Wh/m².
-            base_unit (str): The base unit ("W" or "Wh", "kW", "kWh"). Can deal with "m²" as well for area devices. Does allow suffixes like "W<sub>th</sub>".
+            cap (float): The capacity value in W/Wh/m²/l.
+            base_unit (str): The base unit (e.g., "W", "Wh", "m²", "l"). Does allow suffixes like "W<sub>th</sub>".
 
         Returns:
             tuple[float, str]: A tuple containing the adjusted capacity and the appropriate unit.
         """
 
         if base_unit == "m²":
-            if cap <= 0:
-                adjusted_cap = cap
-                adjusted_unit = ""  # No prefix for zero or negative values
-            elif cap >= 10000:
+            if cap >= 10000:
                 adjusted_cap = round(cap / 10000, 2)
                 adjusted_unit = "ha"  # Hectar for large areas
             else:
                 adjusted_cap = round(cap, 2)
                 adjusted_unit = base_unit
+                
+        elif base_unit == "l":
+            if cap >= 1000:
+                adjusted_cap = round(cap / 1000, 2)
+                adjusted_unit = "m³"  # Cubic meters for large volumes
+            else:
+                adjusted_cap = int(round(cap, 0))
+                adjusted_unit = "l"
+                
         elif cap <= 0:
             adjusted_cap = cap
-            adjusted_unit = ""  # No prefix for zero or negative values
+            adjusted_unit = base_unit  
+            
         elif cap >= 1000000000:
             adjusted_cap = round(cap / 1000000000, 2)
             adjusted_unit = "G" + base_unit  # Giga
@@ -3337,7 +3346,7 @@ class CertificateBuilder(ReportComponent):
     This class orchestrates the certificate creation by setting up data, theme, initializing the PDF template, and building the story.
     """
 
-    def __init__(self, data, kpis, result_path) -> None:
+    def __init__(self, data, kpis, result_path, file_name=None) -> None:
         # Initialize and apply theme globally and load the translations dict
         self.report_config = data.report_config
         self.language = data.report_config["language"]
@@ -3352,10 +3361,18 @@ class CertificateBuilder(ReportComponent):
 
         if self.result_path is not None:
             os.makedirs(self.result_path, exist_ok=True)
-            self.outputpath = os.path.join(result_path, f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+            if file_name:
+                self.outputpath = os.path.join(result_path, f"{file_name}.pdf")
+            else:
+                self.outputpath = os.path.join(result_path, f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+
+
         else:
             src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            self.outputpath = os.path.join(src_path, "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
+            if file_name:
+                self.outputpath = os.path.join(src_path, "results", f"{file_name}.pdf")
+            else:
+                self.outputpath = os.path.join(src_path, "results", f"Quartiersenergieausweis_{self.scenario_name}.pdf")
 
         margins = self.style.get_page_margins()
         self.page_margins = {

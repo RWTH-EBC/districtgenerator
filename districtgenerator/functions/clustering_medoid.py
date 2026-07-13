@@ -253,6 +253,8 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     # print(f"Number of inputs: {n_inputs}, Total time steps: {total_timesteps}")
 
     num_periods = total_timesteps // len_cluster # -> Integer division
+    effective_timesteps = num_periods * len_cluster
+    inputs_trimmed = inputs[:, :effective_timesteps] # Trim inputs to ensure they fit into complete periods of length len_cluster
 
     # Set weights if not already given
     if weights  is None:
@@ -285,12 +287,12 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     ################################################################
 
     # Normalize the inputs
-    normalized_inputs = _normalize_input(inputs=inputs)
+    normalized_inputs = _normalize_input(inputs=inputs_trimmed)
 
     # Reshape the original profiles into periods (e.g. days/weeks)
     inputsTransformed = [
-    inputs[i, :].reshape((len_cluster, num_periods), order="F")
-    for i in range(inputs.shape[0])
+    inputs_trimmed[i, :].reshape((len_cluster, num_periods), order="F")
+    for i in range(inputs_trimmed.shape[0])
     ]
 
     # Reshape the normalized profiles into periods
@@ -334,7 +336,7 @@ def cluster(inputs, number_clusters, len_cluster, norm=2, time_limit=300, mip_ga
     # Step 4: Scaling of the clusters to preserve energy demands
     ################################################################
 
-    scaled_typ_clusters = _rescale_profiles(normTypicalClusters, inputs, inputsNormalizedTransformed, clusters, z, nc, scalings)
+    scaled_typ_clusters = _rescale_profiles(normTypicalClusters, inputs_trimmed, inputsNormalizedTransformed, clusters, z, nc, scalings)
 
     # transform scaled_typ_clusters to list of arrays for each input
     # (n_clusters x n_inputs x len_cluster) -> list of n_inputs arrays with (n_clusters x len_cluster)

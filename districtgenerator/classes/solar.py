@@ -511,12 +511,11 @@ class Sun:
                 f"Please ensure their sum does not exceed 1."
             )
 
-        time_steps = time["timeSteps"]
         temperatureProfile = site["T_e"]
 
         # Initialize total generation profiles
-        generation_PV_total = np.zeros(time_steps)
-        generation_STC_total = np.zeros(time_steps)
+        generation_PV_total = np.zeros(time["timeSteps"])
+        generation_STC_total = np.zeros(time["timeSteps"])
 
         for i in range(num_segments):
             area = area_roof[i]
@@ -527,7 +526,7 @@ class Sun:
             SunRad = self.getSolarGains(
                 initialTime=0,
                 timeDiscretization=time["timeResolution"],
-                timeSteps=time_steps,
+                timeSteps=time["timeSteps"],
                 timeZone=site["timeZone"],
                 location=site["location"],
                 altitude=site["altitude"],
@@ -547,8 +546,8 @@ class Sun:
                                  ])
 
             # 2. PV efficiency (nonlinear, depends on irradiance and temp)
-            eta_PV = np.zeros(time_steps)
-            for t in range(time_steps):
+            eta_PV = np.zeros(time["timeSteps"])
+            for t in range(time["timeSteps"]):
                 # source of formula:
                 # 'Temperature Dependent Photovoltaic (PV) Efficiency and Its Effect on PV Production in the World
                 #  – A Review' , page 313, formula 5
@@ -596,96 +595,103 @@ class Sun:
         return generation_PV_total, generation_STC_total
 
     # CALCULATION FROM DEVELOP WITH TWO SIDES OF PV AREA
-    # get solar irradiance on PV plant surface
-    #         # Side 1 of the roof (=main side, which is defined by gamma_PV in the input file ("scenario"))
-    #         SunRad1 = self.getSolarGains(initialTime=0,
-    #                                      timeDiscretization=time["timeResolution"],
-    #                                      timeSteps=time["timeSteps"],
-    #                                      timeZone=site["timeZone"],
-    #                                      location=site["location"],
-    #                                      altitude=site["altitude"],
-    #                                      beta=beta,
-    #                                      gamma=gamma,
-    #                                      beamRadiation=site["SunDirect"],
-    #                                      diffuseRadiation=site["SunDiffuse"],
-    #                                      albedo=site["albedo"])
-    #         # Side 2 of the roof (opposite = 180° to side 1)
-    #         SunRad2 = self.getSolarGains(initialTime=0,
-    #                                      timeDiscretization=time["timeResolution"],
-    #                                      timeSteps=time["timeSteps"],
-    #                                      timeZone=site["timeZone"],
-    #                                      location=site["location"],
-    #                                      altitude=site["altitude"],
-    #                                      beta=beta,
-    #                                      gamma=(((np.array(gamma) + 360) % 360) - 180).tolist(),  # calculating gamma for
-    #                                      # roof side 2 so that side 2 is opposite to side 1, with respect to the definition
-    #                                      # of gamma (0° = south, 90° = east, 180° = north, -90° = west)
-    #                                      beamRadiation=site["SunDirect"],
-    #                                      diffuseRadiation=site["SunDiffuse"],
-    #                                      albedo=site["albedo"])
-    #
-    #         # profile of the ambient temperature
-    #         temperatureProfile = site["T_e"]
-    #
-    #         # compute overall correction factor for PV efficiency
-    #         kappa_corr = np.sum([devices["PV"]["kappa_inverter"], devices["PV"]["kappa_wiring"],
-    #                              devices["PV"]["kappa_connections"], devices["PV"]["kappa_soiling"],
-    #                              devices["PV"]["kappa_shading"], devices["PV"]["kappa_mismatch"],
-    #                              devices["PV"]["kappa_NPR"], devices["PV"]["kappa_av"],
-    #                              devices["PV"]["kappa_LID"]
-    #                              ])
-    #
-    #         # calculate time variant PV efficiency
-    #         eta_PV1 = np.zeros(time["timeSteps"])
-    #         eta_PV2 = np.zeros(time["timeSteps"])
-    #         for t in range(time["timeSteps"]):
-    #             # source of formula:
-    #             # 'Temperature Dependent Photovoltaic (PV) Efficiency and Its Effect on PV Production in the World
-    #             #  – A Review' , page 313, formula 5
-    #             # by Dubey, Swapnil; Sarvaiya, Jatin Narotam; Seshadri, Bharath - 2013
-    #             # Side 1 of the roof (main side defined by gamma_PV in the input file)
-    #             eta_PV1[t] = devices["PV"]["eta_el_ref"] * \
-    #                          (
-    #                                  1 - devices["PV"]["gamma"] * \
-    #                                  (
-    #                                          temperatureProfile[t] - devices["PV"]["t_cell_ref"]
-    #                                          + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
-    #                                          * (SunRad1[0][t] / devices["PV"]["G_noct"])
-    #                                  )
-    #                          )
-    #             # Side 2 of the roof (opposite = 180° to side 1)
-    #             eta_PV2[t] = devices["PV"]["eta_el_ref"] * \
-    #                          (
-    #                                  1 - devices["PV"]["gamma"] * \
-    #                                  (
-    #                                          temperatureProfile[t] - devices["PV"]["t_cell_ref"]
-    #                                          + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
-    #                                          * (SunRad2[0][t] / devices["PV"]["G_noct"])
-    #                                  )
-    #                          )
-    #
-    #         # calculate PV power
-    #         generation_PV = np.zeros(time["timeSteps"])
-    #         for t in range(time["timeSteps"]):
-    #             generation_PV[t] = (area_roof) * (1 - kappa_corr) * (
-    #                     eta_PV1[t] * SunRad1[0][t] * usageFactorPV1 + eta_PV2[t] * SunRad2[0][t] * usageFactorPV2)
-    #
-    #         # efficiency of solar thermal collectors (STC)
-    #         temp_diff = np.zeros_like(temperatureProfile)
-    #         for t in range(time["timeSteps"]):
-    #             temp_diff[t] = devices["STC"]["T_flow"] - temperatureProfile[t]
-    #
-    #         eta_STC = np.zeros_like(SunRad1[0])
-    #         eta_STC[SunRad1[0] > 0] = (devices["STC"]["zero_loss"]
-    #                                    - devices["STC"]["first_order"] * temp_diff[SunRad1[0] > 0] / SunRad1[0][
-    #                                        SunRad1[0] > 0]
-    #                                    - devices["STC"]["second_order"] * temp_diff[SunRad1[0] > 0] ** 2
-    #                                    / SunRad1[0][SunRad1[0] > 0])
-    #         eta_STC[eta_STC <= 0.01] = 0
-    #
-    #         # calculate STC power
-    #         generation_STC = np.zeros(time["timeSteps"])
-    #         for t in range(time["timeSteps"]):
-    #             generation_STC[t] = SunRad1[0][t] * eta_STC[t] * usageFactorSTC * area_roof
-    #
-    #         return generation_PV, generation_STC
+#     # Input validation
+#     if usageFactorPV1 + usageFactorPV2 > 1:
+#         raise ValueError(
+#             f"The sum of usageFactorPV1 ({usageFactorPV1}) and usageFactorPV2 ({usageFactorPV2}) "
+#             f"is {usageFactorPV1 + usageFactorPV2:.2f}, which exceeds 1. "
+#             f"Please ensure their sum does not exceed 1."
+#         )
+
+#     # get solar irradiance on PV plant surface
+#     # Side 1 of the roof (=main side, which is defined by gamma_PV in the input file ("scenario"))
+#     SunRad1 = self.getSolarGains(initialTime=0,
+#                                  timeDiscretization=time["timeResolution"],
+#                                  timeSteps=time["timeSteps"],
+#                                  timeZone=site["timeZone"],
+#                                  location=site["location"],
+#                                  altitude=site["altitude"],
+#                                  beta=beta,
+#                                  gamma=gamma,
+#                                  beamRadiation=site["SunDirect"],
+#                                  diffuseRadiation=site["SunDiffuse"],
+#                                  albedo=site["albedo"])
+#     # Side 2 of the roof (opposite = 180° to side 1)
+#     SunRad2 = self.getSolarGains(initialTime=0,
+#                                  timeDiscretization=time["timeResolution"],
+#                                  timeSteps=time["timeSteps"],
+#                                  timeZone=site["timeZone"],
+#                                  location=site["location"],
+#                                  altitude=site["altitude"],
+#                                  beta=beta,
+#                                  gamma=(((np.array(gamma) + 360) % 360) - 180).tolist(),  # calculating gamma for
+#                                  # roof side 2 so that side 2 is opposite to side 1, with respect to the definition
+#                                  # of gamma (0° = south, 90° = east, 180° = north, -90° = west)
+#                                  beamRadiation=site["SunDirect"],
+#                                  diffuseRadiation=site["SunDiffuse"],
+#                                  albedo=site["albedo"])
+#     # profile of the ambient temperature
+#     temperatureProfile = site["T_e"]
+
+#     # compute overall correction factor for PV efficiency
+#     kappa_corr = np.sum([devices["PV"]["kappa_inverter"], devices["PV"]["kappa_wiring"],
+#                          devices["PV"]["kappa_connections"], devices["PV"]["kappa_soiling"],
+#                          devices["PV"]["kappa_shading"], devices["PV"]["kappa_mismatch"],
+#                          devices["PV"]["kappa_NPR"], devices["PV"]["kappa_av"],
+#                          devices["PV"]["kappa_LID"]
+#                          ])
+
+#     # calculate time variant PV efficiency
+#     eta_PV1 = np.zeros(time["timeSteps"])
+#     eta_PV2 = np.zeros(time["timeSteps"])
+#     for t in range(time["timeSteps"]):
+#         # source of formula:
+#         # 'Temperature Dependent Photovoltaic (PV) Efficiency and Its Effect on PV Production in the World
+#         #  – A Review' , page 313, formula 5
+#         # by Dubey, Swapnil; Sarvaiya, Jatin Narotam; Seshadri, Bharath - 2013
+#         # Side 1 of the roof (main side defined by gamma_PV in the input file)
+#         eta_PV1[t] = devices["PV"]["eta_el_ref"] * \
+#                      (
+#                              1 - devices["PV"]["gamma"] * \
+#                              (
+#                                      temperatureProfile[t] - devices["PV"]["t_cell_ref"]
+#                                      + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
+#                                      * (SunRad1[0][t] / devices["PV"]["G_noct"])
+#                              )
+#                      )
+#         # Side 2 of the roof (opposite = 180° to side 1)
+#         eta_PV2[t] = devices["PV"]["eta_el_ref"] * \
+#                      (
+#                              1 - devices["PV"]["gamma"] * \
+#                              (
+#                                      temperatureProfile[t] - devices["PV"]["t_cell_ref"]
+#                                      + (devices["PV"]["t_cell_noct"] - temperatureProfile[t])
+#                                      * (SunRad2[0][t] / devices["PV"]["G_noct"])
+#                              )
+#                      )
+
+#     # calculate PV power
+#     generation_PV = np.zeros(time["timeSteps"])
+#     for t in range(time["timeSteps"]):
+#         generation_PV[t] = (area_roof) * (1 - kappa_corr) * (
+#                 eta_PV1[t] * SunRad1[0][t] * usageFactorPV1 + eta_PV2[t] * SunRad2[0][t] * usageFactorPV2)
+
+#     # efficiency of solar thermal collectors (STC)
+#     temp_diff = np.zeros_like(temperatureProfile)
+#     for t in range(time["timeSteps"]):
+#         temp_diff[t] = devices["STC"]["T_flow"] - temperatureProfile[t]
+
+#     eta_STC = np.zeros_like(SunRad1[0])
+#     eta_STC[SunRad1[0] > 0] = (devices["STC"]["zero_loss"]
+#                                - devices["STC"]["first_order"] * temp_diff[SunRad1[0] > 0] / SunRad1[0][
+#                                    SunRad1[0] > 0]
+#                                - devices["STC"]["second_order"] * temp_diff[SunRad1[0] > 0] ** 2
+#                                / SunRad1[0][SunRad1[0] > 0])
+#     eta_STC[eta_STC <= 0.01] = 0
+
+#     # calculate STC power
+#     generation_STC = np.zeros(time["timeSteps"])
+#     for t in range(time["timeSteps"]):
+#         generation_STC[t] = SunRad1[0][t] * eta_STC[t] * usageFactorSTC * area_roof
+
+#     return generation_PV, generation_STC
