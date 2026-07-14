@@ -795,12 +795,18 @@ class Datahandler:
                 Envelope = Envelope_5R1C
                 building["thermal_model"] = "5R1C"
 
+                extra = [building["buildingFeatures"]["year"], building["buildingFeatures"]["retrofit"], building["buildingFeatures"]["gmlId"] if "gmlId" in building["buildingFeatures"] else building["buildingFeatures"]["id"], building["buildingFeatures"]["building"]]
+
                 building["envelope"] = Envelope(prj=nrb_prj,
                                                 building_params=building["buildingFeatures"],
                                                 construction_data=construction_type,
                                                 physics=self.physics,
                                                 design_building_data=self.design_building_data,
-                                                file_path=self.filePath)
+                                                file_path=self.filePath,
+                                                u_values=building["buildingFeatures"]["thermalTransmittance"],
+                                                extra=extra,
+                                                calcThick=self.calcThick
+                                                )
 
             # %% create user object
             # containing number occupants, electricity demand,...
@@ -1830,59 +1836,14 @@ def parse_position(val):
     # For other data types, return the value as is.
     return val
 
-
 def _save_profiles_worker(name, elec, dhw, dhw_minutely, occ, gains, EV_carcharging_ondemand,
-                           EV_carprofile, ev_capacity, ice_carprofile, nb_units,
-                           nb_occ, heatload, bivalent, heatlimit, path, time_cfg,
-                           individual_car_profiles=None):
+                          EV_carprofile, ev_capacity, ice_carprofile, nb_units,
+                          nb_occ, heatload, bivalent, heatlimit, thick_req, path,
+                          time_cfg, individual_car_profiles=None):
     """
     Save profiles to csv. Standalone counterpart of Datahandler.saveProfiles,
     usable inside a worker process (no access to self).
-
-    Parameters
-    ----------
-    name : string
-        Unique building name.
-    elec : list
-        Hourly electricity demand in W.
-    dhw : list
-        Hourly domestic hot water demand in W.
-    dhw_minutely : list
-        Minutely domestic hot water demand in W.
-    occ : list
-        Hourly occupancy of persons.
-    gains : list
-        Hourly internal gains in W.
-    EV_carcharging_ondemand : list
-        Hourly on-demand EV charging profile in W.
-    EV_carprofile : list
-        Hourly electricity demand of EV in W.
-    ev_capacity : list
-        Battery capacities of EVs.
-    ice_carprofile : list
-        Hourly fuel consumption profile of ICE vehicles.
-    nb_units : int
-        Number of units (flats) in the building.
-    nb_occ : list
-        Number of occupants in the building.
-    heatload : float
-        Design heat load in W.
-    bivalent : float
-        Bivalent heat load in W.
-    heatlimit : float
-        Heat limit heat load in W.
-    path : string
-        Results path.
-    time_cfg : dict
-        Picklable subset of Datahandler.time (timeResolution, dataLength).
-    individual_car_profiles : list, optional
-        Per-vehicle profile data.
-
-    Returns
-    -------
-    None.
     """
-
     os.makedirs(path, exist_ok=True)
 
     time_resolution = time_cfg["timeResolution"]
@@ -1940,6 +1901,9 @@ def _save_profiles_worker(name, elec, dhw, dhw_minutely, occ, gains, EV_carcharg
         'car_info': [json.dumps(car_info_list)]
     }
 
+    if thick_req is not None:
+        static_dict['thick_req'] = [json.dumps(list(thick_req) if isinstance(thick_req, (list, np.ndarray)) else [thick_req])]
+
     df_static = pd.DataFrame(static_dict)
     df_static.to_csv(
         os.path.join(path, f"{name}_static.csv"),
@@ -1962,25 +1926,10 @@ def _save_profiles_worker(name, elec, dhw, dhw_minutely, occ, gains, EV_carcharg
     )
 
 
-def _save_heating_profile_worker(heat, cooling, name, path):
+def _save_heating_profile_worker(heat, cooling, name, gmlId, path):
     """
     Save heating demand to csv. Standalone counterpart of
     Datahandler.saveHeatingProfile, usable inside a worker process.
-
-    Parameters
-    ----------
-    heat : list
-        Hourly heating demand in W.
-    cooling : list
-        Hourly cooling demand in W.
-    name : string
-        Unique building name.
-    path : string
-        Results path.
-
-    Returns
-    -------
-    None.
     """
     ts_path = os.path.join(path, f"{name}_timeseries.csv")
     if os.path.exists(ts_path):
@@ -1995,27 +1944,20 @@ def _save_heating_profile_worker(heat, cooling, name, path):
                  sep=';',
                  float_format='%.3f')
 
+    static_path = os.path.join(path, f"{name}_static.csv")
+    if os.path.exists(static_path):
+        df_static = pd.read_csv(static_path, sep=';')
+    else:
+        df_static = pd.DataFrame()
+
+    df_static['gmlId'] = gmlId
+    df_static.to_csv(static_path, index=False, float_format='%.3f', sep=';')
+
 
 def _load_profiles_worker(name, path, time_cfg, gen_cars=True):
     """
     Load profiles from csv. Standalone counterpart of
     Datahandler.loadProfiles, usable inside a worker process.
-
-    Parameters
-    ----------
-    name : string
-        Unique building name.
-    path : string
-        Results path.
-    time_cfg : dict
-        Picklable subset of Datahandler.time (timeResolution, dataLength).
-    gen_cars : bool, optional
-        True to load car profiles, False to return zero profiles.
-
-    Returns
-    -------
-    tuple
-        Same layout as Datahandler.loadProfiles.
     """
     ts_path = os.path.join(path, f"{name}_timeseries.csv")
     static_path = os.path.join(path, f"{name}_static.csv")
@@ -2090,23 +2032,18 @@ def _load_heating_profiles_worker(name, path):
     """
     Load heating/cooling profiles from csv. Standalone counterpart of
     Datahandler.loadHeatingProfiles, usable inside a worker process.
-
-    Parameters
-    ----------
-    name : string
-        Unique building name.
-    path : string
-        Results path.
-
-    Returns
-    -------
-    tuple of np.ndarray
-        (heat, cooling)
     """
     ts_path = os.path.join(path, f"{name}_timeseries.csv")
-    df_ts = pd.read_csv(ts_path, sep=";")
-    return df_ts['heating'].to_numpy(), df_ts['cooling'].to_numpy()
+    static_path = os.path.join(path, f"{name}_static.csv")
 
+    df_ts = pd.read_csv(ts_path, sep=";")
+    df_static = pd.read_csv(static_path, sep=";")
+
+    heating = df_ts['heating'].to_numpy()
+    cooling = df_ts['cooling'].to_numpy()
+    gmlId = df_static['gmlId']
+
+    return heating, cooling, gmlId
 
 # Das globale Lock für den jeweiligen Worker-Prozess (wird via initializer im ProcessPoolExecutor gesetzt)
 worker_lock = None

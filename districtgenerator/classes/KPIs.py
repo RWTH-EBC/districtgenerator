@@ -474,16 +474,21 @@ class KPIs:
             capacities[n]["OBOI"] = district[n]["capacities"]["OBOI"] / 1000
             capacities[n]["HP"] = district[n]["capacities"]["HP"] / 1000
             capacities[n]["EH"] = district[n]["capacities"]["EH"] / 1000
+            capacities[n]["EH_DHW"] = district[n]["capacities"]["EH_DHW"] / 1000
             capacities[n]["CC"] = district[n]["capacities"]["CC"] / 1000
             capacities[n]["CHP"] = district[n]["capacities"]["CHP"] / 1000
             capacities[n]["FC"] = district[n]["capacities"]["FC"] / 1000
-            capacities[n]["DH"] = district[n]["capacities"]["DH"]/ decentral_device_data["DH"]["eta_th"] / 1000 # Price is payed for the power of the connection not for the actual thermal power delivered
+            capacities[n]["DH"] = district[n]["capacities"]["DH"] / decentral_device_data["DH"][
+                "eta_th"] / 1000  # Price is payed for the power of the connection not for the actual thermal power delivered
             capacities[n]["PV"] = district[n]["capacities"]["PV"]["area"]
             capacities[n]["STC"] = district[n]["capacities"]["STC"]["area"]
-            capacities[n]["EV"] =  district[n]["capacities"]["EV"] / 1000
+            capacities[n]["EV"] = district[n]["capacities"]["EV"] / 1000
             capacities[n]["BAT"] = district[n]["capacities"]["BAT"] / 1000
             capacities[n]["TES"] = (district[n]["capacities"]["TES"] / physics["rho_water"] / physics["c_p_water"] /
-                                    decentral_device_data["TES"]["T_diff_max"] * 3600)
+                                 decentral_device_data["TES"]["T_diff_max"] * 3600)
+            capacities[n]["TES_DHW"] = (
+                    district[n]["capacities"]["TES_DHW"] / physics["rho_water"] / physics["c_p_water"] /
+                    decentral_device_data["TES_DHW"]["T_diff_max"] * 3600)
 
         calc_annual_investment = {}
         calc_annual_investment_unsubsidized = {}
