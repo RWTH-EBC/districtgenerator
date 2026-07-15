@@ -6,11 +6,11 @@ import os
 import sys
 import copy
 import datetime
-import multiprocessing
 import random
 import time
 import math
 import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import openpyxl
 import pandas as pd
@@ -277,6 +277,7 @@ class Datahandler:
         # Iterate over all attributes of the config instance
         for attr, value in central_config.__dict__.items():
             self.central_device_data[attr] = value
+        self.central_device_data["grid_renewable_electricity_share"] = self.ecoData["grid_renewable_electricity_share"]
 
         # load calendar data (used in generateDemands and generateEnvironment)
         for attr, value in calendar_config.__dict__.items():
@@ -1198,10 +1199,10 @@ class Datahandler:
             building["buildingFeatures"]["mean_drawoff_dhw"] = bldgs["mean_drawoff_vol_per_day"][index]
 
     def generateDemands(self, calcUserProfiles=True, saveUserProfiles=True, max_threads=8, gen_cars=True):
-        use_multiprocessing = True #todo: False while debugging
+        use_parallel = True #todo: False while debugging
 
         # Thread count is limited by the maximum available CPU cores. Using more threads than cores usually provides no additional benefit but requires more temporary storage.
-        max_threads = min(max_threads, multiprocessing.cpu_count())
+        max_threads = min(max_threads, os.cpu_count() or 1)
 
         args_list = [(self, building, calcUserProfiles, saveUserProfiles, gen_cars) for building in self.district]
 
@@ -1212,9 +1213,11 @@ class Datahandler:
 
         self.save_progress()
 
-        if use_multiprocessing:
-            with multiprocessing.Pool(processes=max_threads) as pool:
-                for result in pool.imap_unordered(generate_demands_worker_wrapper, args_list):
+        if use_parallel:
+            with ThreadPoolExecutor(max_workers=max_threads) as executor:
+                futures = [executor.submit(generate_demands_worker_wrapper, args) for args in args_list]
+                for future in as_completed(futures):
+                    result = future.result()
                     self.buildings_completed += 1
                     results.append(result)
                     self.save_progress()
@@ -1257,7 +1260,7 @@ class Datahandler:
 
         self.save_progress()
 
-        print("Finished generating demands with multiprocessing!")
+        print("Finished generating demands with threading!")
 
         # Combine demand profiles for mixed-use buildings
         self.combine_mixed_building_demands(saveUserProfiles)
@@ -2552,8 +2555,8 @@ class Datahandler:
 
 def generate_demands_worker_wrapper(args):
     """
-    Wrapper-Funktion außerhalb der Klasse, da multiprocessing pickling benötigt.
-    Args enthält (building, calcUserProfiles, saveUserProfiles, andere Parameter)
+    Wrapper outside the class for parallel demand generation.
+    Args contains (self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars).
     """
     self_ref, building, calcUserProfiles, saveUserProfiles, gen_cars = args
     self_ref.generate_demands_worker(building, calcUserProfiles, saveUserProfiles, gen_cars=gen_cars)
