@@ -765,6 +765,10 @@ class Users:
         # heating and cooling loads for the current time step in Watt
         self.heat = Q_H
         self.cooling = Q_C
+        self.T_op = T_op
+        self.T_m = T_m
+        self.T_air = T_i
+        self.T_s = T_s
         self.annual_heat_demand = np.sum(Q_H)
         self.annual_cooling_demand = np.sum(Q_C)
 
